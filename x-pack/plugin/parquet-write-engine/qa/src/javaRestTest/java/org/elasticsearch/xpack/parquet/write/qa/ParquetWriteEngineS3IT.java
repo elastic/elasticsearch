@@ -296,7 +296,7 @@ public class ParquetWriteEngineS3IT extends ESRestTestCase {
         // table through its Iceberg metadata is not possible yet, see the findings of the plan.
         final Map<String, Object> result = queryTable(
             indexUuid(),
-            "/data/*/*.parquet",
+            "/data/*/*/*.parquet",
             "| STATS c = COUNT(*), s = SUM(count), lo = MIN(count), hi = MAX(count) | LIMIT 10"
         );
 
@@ -403,7 +403,7 @@ public class ParquetWriteEngineS3IT extends ESRestTestCase {
         final Map<String, Object> result = queryTable(
             index,
             uuid,
-            "/data/*/*.parquet",
+            "/data/*/*/*.parquet",
             "| STATS c = COUNT(*), lo = MIN(count), hi = MAX(count), s = SUM(count), n = COUNT(d) | LIMIT 10"
         );
         @SuppressWarnings("unchecked")

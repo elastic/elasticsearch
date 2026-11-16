@@ -39,8 +39,8 @@ import java.util.function.Supplier;
  *   <li>choose runs of <em>adjacent</em> small files in the order of their sequence numbers. Adjacent only, so the order of the rows of
  *       the shard does not change, and a reader that numbers the rows by file order sees the same numbers before and after;</li>
  *   <li>merge the files of a run into one local file, reading the inputs from the repository with ranged reads;</li>
- *   <li>upload it under the key of the range that it covers. No snapshot lists that key, so no reader looks at it, and a retry after a
- *       crash may write it again;</li>
+ *   <li>upload it under a new key (the range that it covers and a new attempt). No snapshot lists that key, so no reader looks at it,
+ *       and a retry after a crash uses another key and leaves the first as an orphan;</li>
  *   <li>commit one Iceberg rewrite that replaces the inputs by the output. This is the moment readers switch;</li>
  *   <li>delete the local file;</li>
  *   <li>expire the snapshots that are older than the delay, which deletes the replaced files, and delete the files that no snapshot lists
@@ -194,20 +194,21 @@ public final class ParquetCompactor {
             );
         }
 
-        // 2. upload, below a key that no snapshot lists
+        // 2. upload, below a key that is new and that no snapshot lists
+        final String attempt = ShardTable.newAttempt();
         try (IndexInput in = directory.openInput(name, IOContext.DEFAULT)) {
-            table.upload(from, to, new BufferedInputStream(new InputStreamIndexInput(in, merged.length())), merged.length());
+            table.upload(from, to, attempt, new BufferedInputStream(new InputStreamIndexInput(in, merged.length())), merged.length());
         }
         hooks.reached("uploaded");
 
         // 3. the switch
-        final DataFile output = table.dataFile(from, to, merged.length(), new IndexInputFile(directory, name));
+        final DataFile output = table.dataFile(from, to, attempt, merged.length(), new IndexInputFile(directory, name));
         try {
             table.rewrite(replaced, output, fromSnapshotId);
         } catch (ValidationException e) {
             // A file of the run is not in the table any more, so somebody else changed it. Nothing was published: forget the output.
             logger.warn("a file of the compaction of [{}, {}] is gone from the table, so the compaction is dropped", from, to, e);
-            table.deleteDataFile(from, to);
+            table.deleteDataFile(from, to, attempt);
             delete(name);
             return -1;
         }

@@ -88,14 +88,14 @@ public class CatalogCommitTests extends ESTestCase {
         final CatalogRegistration registration = withCatalog
             ? new CatalogRegistration(catalog, NAMESPACE, "logs", "logs", "index-uuid", "cluster-uuid")
             : null;
-        return ShardTable.open(store, LOCATION, shard, registration);
+        return TestTables.open(store, LOCATION, shard, registration);
     }
 
     private void append(ShardTable table, long from, long to) throws IOException {
         final LocalParquetFiles.LocalFile local = TestLocalFiles.write(directory, from, to, false);
         final MessageType union = ParquetMerger.unionSchema(directory, List.of(local));
         final MessageType withIds = ShardTable.withFieldIds(union, table.ensureColumns(union));
-        final String name = "pqmerged_" + ShardTable.dataFileName(from, to);
+        final String name = LocalParquetFiles.mergedName(from, to);
         final ParquetMerger.Merged merged = ParquetMerger.merge(
             directory,
             List.of(local),
@@ -104,10 +104,17 @@ public class CatalogCommitTests extends ESTestCase {
             CompressionCodecName.SNAPPY,
             1 << 20
         );
+        final String attempt = ShardTable.newAttempt();
         try (IndexInput in = directory.openInput(merged.name(), IOContext.DEFAULT)) {
-            table.upload(from, to, new java.io.BufferedInputStream(new InputStreamIndexInput(in, merged.length())), merged.length());
+            table.upload(
+                from,
+                to,
+                attempt,
+                new java.io.BufferedInputStream(new InputStreamIndexInput(in, merged.length())),
+                merged.length()
+            );
         }
-        final DataFile file = table.dataFile(from, to, merged.length(), new IndexInputFile(directory, merged.name()));
+        final DataFile file = table.dataFile(from, to, attempt, merged.length(), new IndexInputFile(directory, merged.name()));
         table.append(file, to);
     }
 

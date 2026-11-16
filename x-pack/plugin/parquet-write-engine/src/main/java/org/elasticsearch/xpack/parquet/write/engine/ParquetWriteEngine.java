@@ -493,7 +493,7 @@ public class ParquetWriteEngine extends Engine {
             synchronized (tableLock) {
                 opened = table;
                 if (opened == null) {
-                    opened = tables.open(shardId, engineConfig.getIndexSettings().getSettings());
+                    opened = tables.open(shardId, engineConfig.getIndexSettings().getSettings(), historyUUID);
                     table = opened;
                 }
             }

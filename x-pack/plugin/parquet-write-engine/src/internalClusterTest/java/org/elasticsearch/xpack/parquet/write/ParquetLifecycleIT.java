@@ -181,7 +181,11 @@ public class ParquetLifecycleIT extends ESIntegTestCase {
         return ShardTable.open(
             store,
             new TableLocation(root + "/" + tablePath, BlobPath.EMPTY.add(INDEX).add(resolveIndex(INDEX).getUUID())),
-            shard
+            shard,
+            INDEX,
+            resolveIndex(INDEX).getUUID(),
+            shard(shard).getHistoryUUID(),
+            null
         );
     }
 
@@ -194,12 +198,7 @@ public class ParquetLifecycleIT extends ESIntegTestCase {
             for (ShardTable.UploadedFile file : table(shard).uploadedFiles()) {
                 assertThat("the files of shard " + shard + " are contiguous", file.fromSeqNo(), equalTo(expectedFrom));
                 expectedFrom = file.toSeqNo() + 1;
-                final Path path = repoRoot.resolve(REPOSITORY)
-                    .resolve(INDEX)
-                    .resolve(resolveIndex(INDEX).getUUID())
-                    .resolve("data")
-                    .resolve("shard-" + shard)
-                    .resolve(ShardTable.dataFileName(file.fromSeqNo(), file.toSeqNo()));
+                final Path path = org.elasticsearch.core.PathUtils.get(java.net.URI.create(file.location()));
                 final TestParquetBytes.Contents contents = TestParquetBytes.read(java.nio.file.Files.readAllBytes(path));
                 assertThat(contents.rows().size(), equalTo((int) file.rows()));
                 for (var row : contents.rows()) {

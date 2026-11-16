@@ -21,7 +21,8 @@ import java.io.IOException;
 public interface ShardTables {
 
     /**
+     * @param historyUuid the history of the shard in its store: a shard with a new store has a new one, and its files are kept apart
      * @throws IOException if the repository cannot be used, for example because it does not exist or is not started
      */
-    ShardTable open(ShardId shardId, Settings indexSettings) throws IOException;
+    ShardTable open(ShardId shardId, Settings indexSettings, String historyUuid) throws IOException;
 }

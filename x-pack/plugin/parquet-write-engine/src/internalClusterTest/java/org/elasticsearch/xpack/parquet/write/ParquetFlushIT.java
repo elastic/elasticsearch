@@ -172,6 +172,19 @@ public class ParquetFlushIT extends ESIntegTestCase {
         return internalCluster().getDataNodeInstance(IndicesService.class).indexServiceSafe(resolveIndex(INDEX)).getShard(shard);
     }
 
+    private long localFilesOf(String index) throws IOException {
+        final IndexShard indexShard = internalCluster().getDataNodeInstance(IndicesService.class)
+            .indexServiceSafe(resolveIndex(index))
+            .getShard(0);
+        long files = 0;
+        for (String name : indexShard.store().directory().listAll()) {
+            if (name.startsWith("pqlocal_") || name.startsWith("pqmerged_")) {
+                files++;
+            }
+        }
+        return files;
+    }
+
     private long localFiles(int shard) throws IOException {
         final Directory directory = shard(shard).store().directory();
         long files = 0;
@@ -191,7 +204,11 @@ public class ParquetFlushIT extends ESIntegTestCase {
         return ShardTable.open(
             store,
             new TableLocation(root + "/" + tablePath, BlobPath.EMPTY.add(INDEX).add(resolveIndex(INDEX).getUUID())),
-            shard
+            shard,
+            INDEX,
+            resolveIndex(INDEX).getUUID(),
+            shard(shard).getHistoryUUID(),
+            null
         );
     }
 
@@ -204,12 +221,7 @@ public class ParquetFlushIT extends ESIntegTestCase {
             for (ShardTable.UploadedFile file : table(shard).uploadedFiles()) {
                 assertThat("the files of shard " + shard + " are contiguous", file.fromSeqNo(), equalTo(expectedFrom));
                 expectedFrom = file.toSeqNo() + 1;
-                final Path path = repoRoot.resolve(REPOSITORY)
-                    .resolve(INDEX)
-                    .resolve(resolveIndex(INDEX).getUUID())
-                    .resolve("data")
-                    .resolve("shard-" + shard)
-                    .resolve(ShardTable.dataFileName(file.fromSeqNo(), file.toSeqNo()));
+                final Path path = org.elasticsearch.core.PathUtils.get(java.net.URI.create(file.location()));
                 final TestParquetBytes.Contents contents = TestParquetBytes.read(java.nio.file.Files.readAllBytes(path));
                 assertThat(contents.rows().size(), equalTo((int) file.rows()));
                 for (var row : contents.rows()) {
@@ -426,5 +438,46 @@ public class ParquetFlushIT extends ESIntegTestCase {
         // the table is committed and there is no entry of this index in any namespace
         assertThat(newestMetadataVersion(), greaterThan(1));
         assertFalse(java.nio.file.Files.exists(repoRoot.resolve(REPOSITORY).resolve("_catalog").resolve("off")));
+    }
+
+    // ---- one table, one index ----
+
+    public void testAnIndexThatUsesTheBasePathOfAnotherIndexIsRefusedAndKeepsItsRowsLocally() throws Exception {
+        registerRepository();
+        createIndex(1, Settings.builder().put("index.parquet.base_path", "shared/table").put("index.parquet.compaction.enabled", false));
+        assertFalse(bulk(0, 500).hasFailures());
+        assertThat(indicesAdmin().prepareFlush(INDEX).get().getFailedShards(), equalTo(0));
+
+        // a second index with the same base path would write into the table of the first, with its own sequence numbers
+        final String other = "parquet-flush-other";
+        assertAcked(
+            indicesAdmin().prepareCreate(other)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.storage_format", "parquet")
+                        .put("index.mode", "columnar")
+                        .put("index.number_of_shards", 1)
+                        .put("index.parquet.repository", REPOSITORY)
+                        .put("index.parquet.base_path", "shared/table")
+                )
+                .setMapping("count", "type=long")
+        );
+        ensureGreen(other);
+        assertFalse(client().prepareBulk().add(new IndexRequest(other).source("count", 1)).get().hasFailures());
+
+        final BroadcastResponse failed = indicesAdmin().prepareFlush(other).get();
+        assertThat(failed.getFailedShards(), equalTo(1));
+        assertThat(
+            org.elasticsearch.ExceptionsHelper.stackTrace(failed.getShardFailures()[0].getCause()),
+            containsString("belongs to the index [" + INDEX + "/" + resolveIndex(INDEX).getUUID() + "]")
+        );
+        // the rows of the other index are safe in its local files, and the table of the first index is untouched
+        assertThat(indicesAdmin().prepareStats(other).get().getTotal().getDocs().getCount(), equalTo(1L));
+        assertThat(localFilesOf(other), greaterThan(0L));
+        // the table at the shared path holds the one data file of the first index, below the history of its shard
+        final Path data = repoRoot.resolve(REPOSITORY).resolve("shared").resolve("table").resolve("data").resolve("shard-0");
+        try (var files = java.nio.file.Files.walk(data)) {
+            assertThat(files.filter(f -> f.toString().endsWith(".parquet")).count(), equalTo(1L));
+        }
     }
 }

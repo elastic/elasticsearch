@@ -37,7 +37,7 @@ public class ParquetLinkageFailureIT extends ESIntegTestCase {
     /** The plugin whose table cannot be opened, because a class of the table libraries is missing. */
     public static class MissingClassPlugin extends ParquetWriteEnginePlugin {
         @Override
-        protected ShardTable openTable(ShardId shardId, Settings indexSettings) throws IOException {
+        protected ShardTable openTable(ShardId shardId, Settings indexSettings, String historyUuid) throws IOException {
             throw new NoClassDefFoundError("org/apache/iceberg/TableMetadata");
         }
     }

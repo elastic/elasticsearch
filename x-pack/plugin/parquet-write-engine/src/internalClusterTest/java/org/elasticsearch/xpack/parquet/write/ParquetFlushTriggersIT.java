@@ -145,7 +145,15 @@ public class ParquetFlushTriggersIT extends ESIntegTestCase {
         final String root = repoRoot.resolve(REPOSITORY).toAbsolutePath().normalize().toUri().toString().replaceAll("/+$", "");
         final String uuid = resolveIndex(INDEX).getUUID();
         final FsBlobStore store = new FsBlobStore(4096, repoRoot.resolve(REPOSITORY), true);
-        return ShardTable.open(store, new TableLocation(root + "/" + INDEX + "/" + uuid, BlobPath.EMPTY.add(INDEX).add(uuid)), 0);
+        return ShardTable.open(
+            store,
+            new TableLocation(root + "/" + INDEX + "/" + uuid, BlobPath.EMPTY.add(INDEX).add(uuid)),
+            0,
+            INDEX,
+            uuid,
+            shard().getHistoryUUID(),
+            null
+        );
     }
 
     /** The high-water mark that the table lists, or -1 while the table does not exist because nothing was uploaded yet. */

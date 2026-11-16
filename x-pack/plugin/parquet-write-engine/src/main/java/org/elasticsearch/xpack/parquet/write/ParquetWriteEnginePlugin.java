@@ -86,7 +86,7 @@ public class ParquetWriteEnginePlugin extends Plugin implements EnginePlugin {
      * The table of the index of the shard, in the repository that the index names. Protected so that a test can replace it: it is the
      * place where a flush first needs the libraries of the table.
      */
-    protected ShardTable openTable(ShardId shardId, Settings indexSettings) throws IOException {
+    protected ShardTable openTable(ShardId shardId, Settings indexSettings, String historyUuid) throws IOException {
         final RepositoriesService repositories = repositoriesService;
         if (repositories == null) {
             throw new IOException("the node has not finished starting");
@@ -109,6 +109,9 @@ public class ParquetWriteEnginePlugin extends Plugin implements EnginePlugin {
             blobStore,
             location,
             shardId.id(),
+            shardId.getIndexName(),
+            shardId.getIndex().getUUID(),
+            historyUuid,
             catalogRegistration(blobStoreRepository, blobStore, shardId, indexSettings)
         );
     }

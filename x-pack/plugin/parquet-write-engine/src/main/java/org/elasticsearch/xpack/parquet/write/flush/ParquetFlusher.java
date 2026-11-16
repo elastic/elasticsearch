@@ -39,16 +39,17 @@ import java.util.function.Supplier;
  *
  * <ol>
  *   <li>merge the files of the run into one local file with the ids and the codec of the table;</li>
- *   <li>write {@code pending_upload} in the commit data of the shard (the name of the merged file and its range);</li>
- *   <li>upload the merged file under its final key, below which no reader looks yet;</li>
+ *   <li>write {@code pending_upload} in the commit data of the shard (the name of the merged file, its range and the upload attempt);</li>
+ *   <li>upload the merged file under its final key, below which no reader looks yet. The key has the history of the shard and the
+ *       attempt, so that it is new: it never replaces a file of an earlier history or of an earlier try;</li>
  *   <li>append it to the table, which is the moment its rows become visible and count as uploaded;</li>
  *   <li>write the high-water mark and the row count in the commit data and remove {@code pending_upload};</li>
  *   <li>delete the local files of the run and the merged file.</li>
  * </ol>
  *
  * <p>The table, not the commit data, is the source of truth for what is uploaded, so recovery asks the table whether the pending file
- * is listed. The local input files are deleted only in the last step, so a pending file that is lost before its upload costs only a
- * merge again.
+ * is listed, by its exact key. A pending file that is not listed is uploaded again under a new attempt. The local input files are
+ * deleted only in the last step, so a pending file that is lost before its upload costs only a merge again.
  *
  * <p>A flush must not run concurrently with another flush of the same shard; the engine's flush lock takes care of that.
  */
@@ -69,17 +70,21 @@ public final class ParquetFlusher {
     /** What a flush did. */
     public record Result(int files, long rows, long bytes) {}
 
-    private record Pending(String name, long from, long to, long rows) {
+    private record Pending(String name, long from, long to, long rows, String attempt) {
         String encode() {
-            return name + "|" + from + "|" + to + "|" + rows;
+            return name + "|" + from + "|" + to + "|" + rows + "|" + attempt;
         }
 
         static Pending decode(String value) {
             final String[] parts = value.split("\\|");
-            if (parts.length != 4) {
+            if (parts.length != 5) {
                 throw new IllegalStateException("cannot read [" + ShardCommitData.PENDING_UPLOAD + "] [" + value + "]");
             }
-            return new Pending(parts[0], Long.parseLong(parts[1]), Long.parseLong(parts[2]), Long.parseLong(parts[3]));
+            return new Pending(parts[0], Long.parseLong(parts[1]), Long.parseLong(parts[2]), Long.parseLong(parts[3]), parts[4]);
+        }
+
+        Pending withAttempt(String newAttempt) {
+            return new Pending(name, from, to, rows, newAttempt);
         }
     }
 
@@ -173,7 +178,7 @@ public final class ParquetFlusher {
         hooks.reached("merged");
 
         // 2. the pending marker
-        final Pending pending = new Pending(mergedName, from, to, merged.rows());
+        final Pending pending = new Pending(mergedName, from, to, merged.rows(), ShardTable.newAttempt());
         final Map<String, String> userData = commits.userData();
         userData.put(ShardCommitData.PENDING_UPLOAD, pending.encode());
         commits.commit(userData);
@@ -189,11 +194,23 @@ public final class ParquetFlusher {
         final long length = directory.fileLength(pending.name());
         try (IndexInput in = directory.openInput(pending.name(), IOContext.DEFAULT)) {
             // S3 needs a stream that supports mark
-            table.upload(pending.from(), pending.to(), new BufferedInputStream(new InputStreamIndexInput(in, length)), length);
+            table.upload(
+                pending.from(),
+                pending.to(),
+                pending.attempt(),
+                new BufferedInputStream(new InputStreamIndexInput(in, length)),
+                length
+            );
         }
         hooks.reached("uploaded");
 
-        final DataFile file = table.dataFile(pending.from(), pending.to(), length, new IndexInputFile(directory, pending.name()));
+        final DataFile file = table.dataFile(
+            pending.from(),
+            pending.to(),
+            pending.attempt(),
+            length,
+            new IndexInputFile(directory, pending.name())
+        );
         table.append(file, pending.to());
         hooks.reached("appended");
 
@@ -235,11 +252,17 @@ public final class ParquetFlusher {
         }
         final Pending pending = Pending.decode(value);
         logger.info("finishing the flush of [{}] that did not complete", pending.name());
-        final boolean listed = table.uploadedFiles().stream().anyMatch(f -> f.fromSeqNo() == pending.from() && f.toSeqNo() == pending.to());
-        if (listed) {
+        // The exact key: a file of another history or of another attempt with the same range is not ours.
+        if (table.isListed(table.dataLocation(pending.from(), pending.to(), pending.attempt()))) {
             finish(pending);
         } else if (mergedFileExists(pending.name())) {
-            uploadAndPublish(pending);
+            // The earlier try may have left a blob under its key (possibly a partial one). A key is written once, so this try gets a new
+            // one, which the marker records before the upload; the blob of the earlier try is an orphan that the compactor deletes.
+            final Pending retry = pending.withAttempt(ShardTable.newAttempt());
+            final Map<String, String> retried = new HashMap<>(userData);
+            retried.put(ShardCommitData.PENDING_UPLOAD, retry.encode());
+            commits.commit(retried);
+            uploadAndPublish(retry);
         } else {
             // The merged file is gone and the table does not list it. The local files that it was made from are deleted only after the
             // table lists the rows, so they are still here: forget the marker, and the next flush merges them again.

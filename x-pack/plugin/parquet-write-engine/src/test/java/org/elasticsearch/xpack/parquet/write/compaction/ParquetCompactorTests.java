@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.parquet.write.table.RepositoryCatalog;
 import org.elasticsearch.xpack.parquet.write.table.RepositoryFileIO;
 import org.elasticsearch.xpack.parquet.write.table.ShardTable;
 import org.elasticsearch.xpack.parquet.write.table.TableLocation;
+import org.elasticsearch.xpack.parquet.write.table.TestTables;
 import org.junit.After;
 import org.junit.Before;
 
@@ -86,7 +87,7 @@ public class ParquetCompactorTests extends ESTestCase {
         }
 
         ShardTable table() {
-            return ShardTable.open(store, LOCATION, id, registration());
+            return TestTables.open(store, LOCATION, id, registration());
         }
 
         /** What a restart does: the temporary files go, and the table is opened again. */
@@ -130,8 +131,16 @@ public class ParquetCompactorTests extends ESTestCase {
             return container().listBlobs(RepositoryFileIO.PURPOSE).keySet();
         }
 
+        /** The one blob of the current history for the range, whatever its upload attempt. */
+        String blobOf(long from, long to) throws IOException {
+            final String prefix = String.format(java.util.Locale.ROOT, "%019d-%019d-", from, to);
+            final List<String> found = blobs().stream().filter(name -> name.startsWith(prefix)).toList();
+            assertThat("blobs of the range [" + from + ", " + to + "]", found, hasSize(1));
+            return found.get(0);
+        }
+
         BlobContainer container() {
-            return store.blobContainer(BlobPath.EMPTY.add("logs").add("data").add("shard-" + id));
+            return store.blobContainer(BlobPath.EMPTY.add("logs").add("data").add("shard-" + id).add(TestTables.HISTORY));
         }
 
         List<String> compactedFiles() throws IOException {
@@ -148,7 +157,7 @@ public class ParquetCompactorTests extends ESTestCase {
         void assertActiveFilesHoldRowsInOrder(long rows) throws IOException {
             final List<Long> inOrder = new ArrayList<>();
             for (ShardTable.UploadedFile file : table().uploadedFiles()) {
-                try (var in = container().readBlob(RepositoryFileIO.PURPOSE, ShardTable.dataFileName(file.fromSeqNo(), file.toSeqNo()))) {
+                try (var in = TestTables.read(store, LOCATION, file.location())) {
                     final TestParquetBytes.Contents contents = TestParquetBytes.read(in.readAllBytes());
                     assertThat(contents.rows().size(), equalTo((int) file.rows()));
                     for (var row : contents.rows()) {
@@ -213,7 +222,7 @@ public class ParquetCompactorTests extends ESTestCase {
     private static ShardTable.ShardFile file(long from, long to, long bytes) {
         return new ShardTable.ShardFile(
             new ShardTable.UploadedFile(
-                "file:///warehouse/logs/data/shard-0/" + ShardTable.dataFileName(from, to),
+                "file:///warehouse/logs/data/shard-0/" + TestTables.HISTORY + "/" + ShardTable.dataFileName(from, to, "attempt"),
                 from,
                 to,
                 to - from + 1,
@@ -383,7 +392,7 @@ public class ParquetCompactorTests extends ESTestCase {
         final Shard shard = new Shard(0);
         shard.flushMany(4, 50);
         expectThrows(IOException.class, () -> shard.compactor(settings(1L << 30, HOUR), crashAt("uploaded")).compact());
-        final String orphan = ShardTable.dataFileName(0, 199);
+        final String orphan = shard.blobOf(0, 199);
         assertThat("the output was uploaded and no snapshot lists it", shard.blobs(), org.hamcrest.Matchers.hasItem(orphan));
 
         // another file arrives, so the next run covers a different range and the orphan is not overwritten
@@ -401,12 +410,12 @@ public class ParquetCompactorTests extends ESTestCase {
         shard.flushMany(2, 50);
         // the upload of a flush that has not appended its file yet: it is in the repository, and no snapshot lists it
         final ShardTable table = shard.table();
-        table.upload(100, 149, new java.io.ByteArrayInputStream(new byte[] { 1, 2, 3 }), 3);
+        table.upload(100, 149, "attempt-x", new java.io.ByteArrayInputStream(new byte[] { 1, 2, 3 }), 3);
 
         final ParquetCompactor.Result result = shard.compactor(settings(1L << 30, HOUR), ParquetCompactor.Hooks.NONE).compact();
 
         assertThat(result.orphansDeleted(), equalTo(0));
-        assertThat(shard.blobs(), org.hamcrest.Matchers.hasItem(ShardTable.dataFileName(100, 149)));
+        assertThat(shard.blobs(), org.hamcrest.Matchers.hasItem(ShardTable.dataFileName(100, 149, "attempt-x")));
     }
 
     // ---- readers and deletion ----
@@ -416,7 +425,7 @@ public class ParquetCompactorTests extends ESTestCase {
         shard.flushMany(4, 50);
         final List<String> originals = new ArrayList<>();
         for (ShardTable.UploadedFile file : shard.table().uploadedFiles()) {
-            originals.add(ShardTable.dataFileName(file.fromSeqNo(), file.toSeqNo()));
+            originals.add(file.location().substring(file.location().lastIndexOf('/') + 1));
         }
 
         shard.compactor(settings(1L << 30, HOUR), ParquetCompactor.Hooks.NONE).compact();

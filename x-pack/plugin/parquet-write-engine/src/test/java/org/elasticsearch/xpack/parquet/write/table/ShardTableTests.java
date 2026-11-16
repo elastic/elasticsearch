@@ -40,8 +40,11 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
 @ThreadLeakFilters(
     filters = {
@@ -61,6 +64,7 @@ public class ShardTableTests extends ESTestCase {
     }
 
     private static final String ROOT = "file:///warehouse/logs";
+    private static final TableLocation LOCATION = new TableLocation(ROOT, BlobPath.EMPTY.add("logs"));
 
     private FsBlobStore store;
     private Directory directory;
@@ -78,7 +82,7 @@ public class ShardTableTests extends ESTestCase {
     }
 
     private ShardTable open(int shard) {
-        return ShardTable.open(store, new TableLocation(ROOT, BlobPath.EMPTY.add("logs")), shard);
+        return TestTables.open(store, LOCATION, shard);
     }
 
     /** A merged file for the range, in the local directory, as the flusher produces it. */
@@ -86,7 +90,7 @@ public class ShardTableTests extends ESTestCase {
         final LocalParquetFiles.LocalFile local = TestLocalFiles.write(directory, from, to, extraColumn);
         final MessageType union = ParquetMerger.unionSchema(directory, List.of(local));
         final MessageType withIds = ShardTable.withFieldIds(union, table.ensureColumns(union));
-        final String name = "pqmerged_" + ShardTable.dataFileName(from, to);
+        final String name = LocalParquetFiles.mergedName(from, to);
         final ParquetMerger.Merged merged = ParquetMerger.merge(
             directory,
             List.of(local),
@@ -99,10 +103,12 @@ public class ShardTableTests extends ESTestCase {
     }
 
     private void uploadAndAppend(ShardTable table, LocalParquetFiles.LocalFile merged) throws IOException {
+        final String attempt = ShardTable.newAttempt();
         try (IndexInput in = directory.openInput(merged.name(), IOContext.DEFAULT)) {
             table.upload(
                 merged.fromSeqNo(),
                 merged.toSeqNo(),
+                attempt,
                 new java.io.BufferedInputStream(new InputStreamIndexInput(in, merged.length())),
                 merged.length()
             );
@@ -110,6 +116,7 @@ public class ShardTableTests extends ESTestCase {
         final DataFile file = table.dataFile(
             merged.fromSeqNo(),
             merged.toSeqNo(),
+            attempt,
             merged.length(),
             new IndexInputFile(directory, merged.name())
         );
@@ -256,7 +263,10 @@ public class ShardTableTests extends ESTestCase {
         assertThat(files.get(0).rows(), equalTo(100L));
         assertThat(files.get(1).toSeqNo(), equalTo(249L));
         assertThat(files.get(1).rows(), equalTo(150L));
-        assertThat(files.get(1).location(), equalTo(table.dataLocation(100, 249)));
+        assertThat(
+            files.get(1).location(),
+            startsWith(table.historyLocation() + String.format(java.util.Locale.ROOT, "%019d-%019d-", 100, 249))
+        );
     }
 
     public void testShardsSeeOnlyTheirOwnFiles() throws Exception {
@@ -275,17 +285,90 @@ public class ShardTableTests extends ESTestCase {
         assertThat(open(1).uploadedThroughSeqNo(), equalTo(199L));
     }
 
-    public void testUploadingTheSameFileAgainReplacesItWithTheSameBytes() throws Exception {
+    public void testAKeyIsWrittenOnce() throws Exception {
         final ShardTable table = open(0);
         final LocalParquetFiles.LocalFile merged = mergedFile(table, 0, 9, false);
+        final byte[] bytes = new byte[] { 1, 2, 3 };
+        table.upload(0, 9, "same", new java.io.ByteArrayInputStream(bytes), bytes.length);
 
-        uploadAndAppend(table, merged);
-        // a retry after a crash uploads the bytes of the same local file again, and the table is not touched
+        // a second write to the key fails and leaves the first bytes
+        expectThrows(java.io.IOException.class, () -> table.upload(0, 9, "same", new java.io.ByteArrayInputStream(bytes), bytes.length));
         try (IndexInput in = directory.openInput(merged.name(), IOContext.DEFAULT)) {
-            table.upload(0, 9, new java.io.BufferedInputStream(new InputStreamIndexInput(in, merged.length())), merged.length());
+            expectThrows(
+                java.io.IOException.class,
+                () -> table.upload(
+                    0,
+                    9,
+                    "same",
+                    new java.io.BufferedInputStream(new InputStreamIndexInput(in, merged.length())),
+                    merged.length()
+                )
+            );
+        }
+        try (var in = TestTables.read(store, LOCATION, table.dataLocation(0, 9, "same"))) {
+            assertThat(in.readAllBytes(), equalTo(bytes));
+        }
+    }
+
+    public void testAShardWithANewHistoryDoesNotReplaceOrSeeTheFilesOfTheOldOne() throws Exception {
+        final ShardTable old = TestTables.open(store, LOCATION, 0, "history-old");
+        uploadAndAppend(old, mergedFile(old, 0, 99, false));
+        final ShardTable.UploadedFile oldFile = old.uploadedFiles().get(0);
+        final byte[] oldBytes;
+        try (var in = TestTables.read(store, LOCATION, oldFile.location())) {
+            oldBytes = in.readAllBytes();
         }
 
-        assertThat(table.uploadedFiles(), hasSize(1));
-        assertThat(table.uploadedThroughSeqNo(), equalTo(9L));
+        // the store of the shard is new, so its sequence numbers start again at 0 and it writes the same range
+        for (String name : directory.listAll()) {
+            directory.deleteFile(name); // the new store has none of the local files of the old one
+        }
+        final ShardTable fresh = TestTables.open(store, LOCATION, 0, "history-new");
+        assertThat("the new history has no file and no high-water mark", fresh.uploadedFiles(), hasSize(0));
+        assertThat(fresh.uploadedThroughSeqNo(), equalTo(-1L));
+        uploadAndAppend(fresh, mergedFile(fresh, 0, 99, false));
+
+        final ShardTable.UploadedFile freshFile = fresh.uploadedFiles().get(0);
+        assertThat(fresh.uploadedFiles(), hasSize(1));
+        assertThat(old.uploadedFiles(), hasSize(1));
+        assertThat(freshFile.location(), not(equalTo(oldFile.location())));
+        assertThat(freshFile.location(), containsString("/history-new/"));
+        try (var in = TestTables.read(store, LOCATION, oldFile.location())) {
+            assertThat("the file of the old history is untouched", in.readAllBytes(), equalTo(oldBytes));
+        }
+        // the table lists both, and a listing of the exact key tells them apart
+        assertTrue(fresh.isListed(oldFile.location()));
+        assertTrue(fresh.isListed(freshFile.location()));
+        assertFalse(fresh.isListed(fresh.dataLocation(0, 99, "no-such-attempt")));
+    }
+
+    public void testATableOfAnotherIndexIsRefused() throws Exception {
+        open(0); // creates the table for the index of the tests
+
+        final IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> ShardTable.open(store, LOCATION, 0, "other", "other-uuid", TestTables.HISTORY, null)
+        );
+
+        assertThat(e.getMessage(), containsString("belongs to the index [" + TestTables.INDEX + "/" + TestTables.INDEX_UUID + "]"));
+        assertThat(e.getMessage(), containsString("[other/other-uuid]"));
+    }
+
+    public void testATableThatNamesNoOwnerIsRefused() throws Exception {
+        final RepositoryFileIO io = new RepositoryFileIO(store, LOCATION.blobPath(), LOCATION.rootUri());
+        new RepositoryTableOperations(io).commit(
+            null,
+            org.apache.iceberg.TableMetadata.newTableMetadata(
+                new org.apache.iceberg.Schema(),
+                org.apache.iceberg.PartitionSpec.unpartitioned(),
+                org.apache.iceberg.SortOrder.unsorted(),
+                LOCATION.rootUri(),
+                Map.of()
+            )
+        );
+
+        final IllegalStateException e = expectThrows(IllegalStateException.class, () -> open(0));
+
+        assertThat(e.getMessage(), containsString("does not name the index that owns it"));
     }
 }

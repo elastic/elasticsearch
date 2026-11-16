@@ -13,7 +13,6 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
-import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.fs.FsBlobStore;
 import org.elasticsearch.test.ESTestCase;
@@ -23,9 +22,9 @@ import org.elasticsearch.test.NettyGlobalThreadsFilter;
 import org.elasticsearch.xpack.parquet.write.file.LocalParquetFiles;
 import org.elasticsearch.xpack.parquet.write.file.TestLocalFiles;
 import org.elasticsearch.xpack.parquet.write.file.TestParquetBytes;
-import org.elasticsearch.xpack.parquet.write.table.RepositoryFileIO;
 import org.elasticsearch.xpack.parquet.write.table.ShardTable;
 import org.elasticsearch.xpack.parquet.write.table.TableLocation;
+import org.elasticsearch.xpack.parquet.write.table.TestTables;
 import org.junit.After;
 import org.junit.Before;
 
@@ -39,6 +38,7 @@ import java.util.TreeSet;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 @ThreadLeakFilters(
@@ -97,7 +97,7 @@ public class ParquetFlusherTests extends ESTestCase {
     /** What a restart does: the temporary files of unfinished writes go, and the table is opened again. */
     private ParquetFlusher newFlusher(ParquetFlusher.Hooks hooks) throws IOException {
         LocalParquetFiles.deleteTemporaryFiles(directory);
-        return new ParquetFlusher(directory, commits, ShardTable.open(store, LOCATION, 0), () -> settings, hooks);
+        return new ParquetFlusher(directory, commits, TestTables.open(store, LOCATION, 0), () -> settings, hooks);
     }
 
     private static ParquetFlusher.Hooks crashAt(String crashStep) {
@@ -120,15 +120,13 @@ public class ParquetFlusherTests extends ESTestCase {
 
     /** Every row 0 to rows-1 is in the files of the table exactly once, in files whose ranges do not overlap. */
     private void assertTableHasRowsExactlyOnce(long rows) throws IOException {
-        final ShardTable table = ShardTable.open(store, LOCATION, 0);
+        final ShardTable table = TestTables.open(store, LOCATION, 0);
         final TreeSet<Long> seen = new TreeSet<>();
         long expectedFrom = 0;
         for (ShardTable.UploadedFile file : table.uploadedFiles()) {
             assertThat("ranges of the files are contiguous", file.fromSeqNo(), equalTo(expectedFrom));
             expectedFrom = file.toSeqNo() + 1;
-            final BlobContainer container = store.blobContainer(BlobPath.EMPTY.add("logs").add("data").add("shard-0"));
-            final String name = ShardTable.dataFileName(file.fromSeqNo(), file.toSeqNo());
-            try (var in = container.readBlob(RepositoryFileIO.PURPOSE, name)) {
+            try (var in = TestTables.read(store, LOCATION, file.location())) {
                 final TestParquetBytes.Contents contents = TestParquetBytes.read(in.readAllBytes());
                 assertThat(contents.rows().size(), equalTo((int) file.rows()));
                 for (var row : contents.rows()) {
@@ -163,7 +161,7 @@ public class ParquetFlusherTests extends ESTestCase {
         assertThat(result.files(), equalTo(1));
         assertThat(result.rows(), equalTo(300L));
         assertFlushed(300);
-        assertThat(ShardTable.open(store, LOCATION, 0).uploadedFiles(), hasSize(1));
+        assertThat(TestTables.open(store, LOCATION, 0).uploadedFiles(), hasSize(1));
     }
 
     public void testAFlushWithNothingToDoDoesNothing() throws Exception {
@@ -173,7 +171,7 @@ public class ParquetFlusherTests extends ESTestCase {
 
         assertThat(result.files(), equalTo(0));
         assertThat(commits.userData().get(ShardCommitData.UPLOADED_THROUGH_SEQ_NO), nullValue());
-        assertThat(ShardTable.open(store, LOCATION, 0).uploadedFiles(), hasSize(0));
+        assertThat(TestTables.open(store, LOCATION, 0).uploadedFiles(), hasSize(0));
     }
 
     public void testTheMaximumFileSizeSplitsTheFlushIntoSeveralFiles() throws Exception {
@@ -187,7 +185,7 @@ public class ParquetFlusherTests extends ESTestCase {
 
         assertThat(result.files(), equalTo(2));
         assertFlushed(1500);
-        final List<ShardTable.UploadedFile> files = ShardTable.open(store, LOCATION, 0).uploadedFiles();
+        final List<ShardTable.UploadedFile> files = TestTables.open(store, LOCATION, 0).uploadedFiles();
         assertThat(files, hasSize(2));
         assertThat(files.get(0).toSeqNo(), equalTo(999L));
     }
@@ -242,7 +240,7 @@ public class ParquetFlusherTests extends ESTestCase {
         newFlusher(ParquetFlusher.Hooks.NONE).flush();
 
         assertFlushed(250);
-        assertThat(ShardTable.open(store, LOCATION, 0).uploadedFiles(), hasSize(2));
+        assertThat(TestTables.open(store, LOCATION, 0).uploadedFiles(), hasSize(2));
     }
 
     public void testAColumnAddedByAMappingUpdateGetsTheNextIdInLaterFiles() throws Exception {
@@ -252,7 +250,7 @@ public class ParquetFlusherTests extends ESTestCase {
         newFlusher(ParquetFlusher.Hooks.NONE).flush();
 
         assertFlushed(200);
-        final ShardTable table = ShardTable.open(store, LOCATION, 0);
+        final ShardTable table = TestTables.open(store, LOCATION, 0);
         assertThat(table.schema().columns(), hasSize(4));
         assertThat(table.schema().columns().get(3).name(), equalTo("extra"));
         assertThat(table.schema().columns().get(3).fieldId(), equalTo(4));
@@ -334,5 +332,113 @@ public class ParquetFlusherTests extends ESTestCase {
         newFlusher(ParquetFlusher.Hooks.NONE).flush();
 
         assertFlushed(1000);
+    }
+
+    // ---- a shard that comes back with a new store: a new history, sequence numbers from 0, the same table ----
+
+    /** The store of a shard with another history: its own directory and commit data, the same table. */
+    private final class OtherHistory {
+        final Directory directory = new ByteBuffersDirectory();
+        final InMemoryCommitData commits = new InMemoryCommitData();
+
+        ParquetFlusher flusher(ParquetFlusher.Hooks hooks) throws IOException {
+            LocalParquetFiles.deleteTemporaryFiles(directory);
+            return new ParquetFlusher(directory, commits, table(), () -> settings, hooks);
+        }
+
+        ShardTable table() {
+            return TestTables.open(store, LOCATION, 0, "history-b");
+        }
+    }
+
+    private byte[] bytesOf(String location) throws IOException {
+        try (var in = TestTables.read(store, LOCATION, location)) {
+            return in.readAllBytes();
+        }
+    }
+
+    public void testANewHistoryDoesNotReplaceTheFilesOfTheOldOne() throws Exception {
+        TestLocalFiles.write(directory, 0, 99, false);
+        newFlusher(ParquetFlusher.Hooks.NONE).flush();
+        final String oldLocation = TestTables.open(store, LOCATION, 0).uploadedFiles().get(0).location();
+        final byte[] oldBytes = bytesOf(oldLocation);
+
+        final OtherHistory other = new OtherHistory();
+        TestLocalFiles.write(other.directory, 0, 99, false);
+        other.flusher(ParquetFlusher.Hooks.NONE).flush();
+
+        final List<ShardTable.UploadedFile> newFiles = other.table().uploadedFiles();
+        assertThat(newFiles, hasSize(1));
+        assertThat(newFiles.get(0).location(), not(equalTo(oldLocation)));
+        assertThat("the file of the old history is untouched", bytesOf(oldLocation), equalTo(oldBytes));
+        assertThat("the old history still lists its file", TestTables.open(store, LOCATION, 0).uploadedFiles(), hasSize(1));
+        assertThat(ShardCommitData.uploadedRows(other.commits.userData()), equalTo(100L));
+    }
+
+    public void testACrashOfANewHistoryDoesNotTakeAFileOfTheOldHistoryForItsOwnUpload() throws Exception {
+        TestLocalFiles.write(directory, 0, 99, false);
+        newFlusher(ParquetFlusher.Hooks.NONE).flush();
+        final String oldLocation = TestTables.open(store, LOCATION, 0).uploadedFiles().get(0).location();
+        final byte[] oldBytes = bytesOf(oldLocation);
+
+        // the new history crashes at each step before its own table commit, with the same range as the old file
+        final String step = randomFrom("merged", "pending", "uploaded");
+        final OtherHistory other = new OtherHistory();
+        TestLocalFiles.write(other.directory, 0, 99, false);
+        expectThrows(IOException.class, () -> other.flusher(crashAt(step)).flush());
+        other.flusher(ParquetFlusher.Hooks.NONE).flush();
+
+        final List<ShardTable.UploadedFile> files = other.table().uploadedFiles();
+        assertThat("after a crash at [" + step + "] the rows are listed once", files, hasSize(1));
+        assertThat(files.get(0).rows(), equalTo(100L));
+        assertThat(bytesOf(oldLocation), equalTo(oldBytes));
+        final TestParquetBytes.Contents contents = TestParquetBytes.read(bytesOf(files.get(0).location()));
+        assertThat(contents.rows().size(), equalTo(100));
+        assertThat("the local files of the new history are gone", other.directory.listAll().length, equalTo(0));
+        assertThat(ShardCommitData.uploadedRows(other.commits.userData()), equalTo(100L));
+    }
+
+    public void testARetryAfterAnUploadThatWasNotListedUsesANewKeyAndTheCleanupDeletesTheFirst() throws Exception {
+        TestLocalFiles.write(directory, 0, 99, false);
+        expectThrows(IOException.class, () -> newFlusher(crashAt("uploaded")).flush());
+        final String marker = commits.userData().get(ShardCommitData.PENDING_UPLOAD);
+        final String firstAttempt = marker.substring(marker.lastIndexOf('|') + 1);
+        final ShardTable table = TestTables.open(store, LOCATION, 0);
+        final String firstKey = table.dataLocation(0, 99, firstAttempt);
+        assertThat("the first try uploaded its blob", bytesOf(firstKey).length > 0, equalTo(true));
+        assertThat("and the table does not list it", table.isListed(firstKey), equalTo(false));
+
+        newFlusher(ParquetFlusher.Hooks.NONE).flush();
+
+        final List<ShardTable.UploadedFile> files = table.uploadedFiles();
+        assertThat(files, hasSize(1));
+        assertThat("the retry wrote another key", files.get(0).location(), not(equalTo(firstKey)));
+        assertFlushed(100);
+        assertThat("the blob of the first try is an orphan, and only that", table.deleteOrphanFiles(), equalTo(1));
+        assertThat(table.uploadedFiles(), hasSize(1));
+        assertFlushed(100);
+    }
+
+    public void testTheCleanupOfOneHistoryNeverDeletesAnUnlistedFileOfAnother() throws Exception {
+        // history A uploaded up to 999
+        TestLocalFiles.write(directory, 0, 999, false);
+        newFlusher(ParquetFlusher.Hooks.NONE).flush();
+
+        // history B has uploaded a file that it did not list yet, below the high-water mark of A
+        final OtherHistory other = new OtherHistory();
+        TestLocalFiles.write(other.directory, 0, 49, false);
+        expectThrows(IOException.class, () -> other.flusher(crashAt("uploaded")).flush());
+        final String pending = other.commits.userData().get(ShardCommitData.PENDING_UPLOAD);
+        final String attempt = pending.substring(pending.lastIndexOf('|') + 1);
+        final String unlisted = other.table().dataLocation(0, 49, attempt);
+
+        // the compactor of A cleans up: B's blob is below the mark of A, and must stay. B's own mark is -1, so B would not delete it
+        // either.
+        assertThat(TestTables.open(store, LOCATION, 0).deleteOrphanFiles(), equalTo(0));
+        assertThat(bytesOf(unlisted).length > 0, equalTo(true));
+        assertThat(other.table().deleteOrphanFiles(), equalTo(0));
+
+        other.flusher(ParquetFlusher.Hooks.NONE).flush();
+        assertThat(other.table().uploadedFiles(), hasSize(1));
     }
 }

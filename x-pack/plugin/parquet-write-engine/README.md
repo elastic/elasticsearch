@@ -43,7 +43,7 @@ POST /logs-parquet/_flush         // uploads the local files and lists them in t
 ```
 
 After the flush, `<repository>/logs-parquet/<index uuid>/` holds the table: `metadata/v<N>.metadata.json`,
-`metadata/version-hint.text`, the Avro manifests, and `data/shard-<n>/<from seq no>-<to seq no>.parquet`.
+`metadata/version-hint.text`, the Avro manifests, and `data/shard-<n>/<history uuid>/<from seq no>-<to seq no>-<attempt>.parquet`.
 
 ## Rules of the format
 
@@ -208,7 +208,7 @@ not fail the commit or the flush. The format is ours and not an Iceberg standard
   It does not read the list columns either: the preview lists them as unmapped ("it is inside a struct, list or map, which is not supported yet"),
   and the flat columns of the same table are mapped.
 - The ES|QL Iceberg data source cannot read a table by its prefix yet: it sends a HEAD request for the table path first, which is always a
-  404 for a prefix, and the Iceberg QA suite of the repository is disabled. `EXTERNAL "s3://bucket/<table>/data/*/*.parquet"` reads the
+  404 for a prefix, and the Iceberg QA suite of the repository is disabled. `EXTERNAL "s3://bucket/<table>/data/*/*/*.parquet"` reads the
   data files with the Parquet reader, but not through the manifest.
 - The Parquet files use `TIMESTAMP(MILLIS)` for `date`. Iceberg calls such a column `timestamptz`, which the spec defines in microseconds,
   and the bounds in the manifest are in microseconds. A strict reader may want `MICROS`; this is not tested.
@@ -261,12 +261,32 @@ distribution, so installing them again fails at boot with a duplicate key. What 
 4. A disk that is nearly full keeps the shard unassigned (the high watermark), and the bulks then fail with `unavailable_shards_exception`.
    Use a node setting or `cluster.routing.allocation.disk.threshold_enabled: false` for a benchmark.
 
+## Shard histories and the names of data files
+
+A key of a data file is written once. It has the history UUID of the shard and an attempt, which is new for every upload try, and the
+upload is a put-if-absent (`failIfAlreadyExists`):
+
+- A shard that starts with a new store (an empty primary after the loss of a node, or a restore) has a new history UUID and starts again
+  at sequence number 0, while the table still lists the files of the earlier history. The two histories have different keys, so a new
+  upload never replaces a listed file.
+- A `ShardTable` looks at, compacts and deletes only the files of its own history: the high-water mark, the recovery of a pending flush,
+  the compaction and the cleanup of orphans all ignore files of other histories. Recovery asks whether the exact key of the pending file
+  is listed, so a file of another history with the same range is never taken for its own upload.
+- A pending flush that was not listed is uploaded again under a new attempt, and the blob of the first try becomes an orphan that the
+  cleanup of the compactor deletes. This also means that a blob that a crash left partial is never read as a data file.
+- The files of an earlier history stay in the table and readers see them. Nothing compacts or deletes them yet, and `parquet.uploaded_rows`
+  of a new history counts only its own rows.
+- A table belongs to one index. It records `elasticsearch.index_uuid` when it is created, and a shard of another index (two indices with
+  the same `index.parquet.base_path`) refuses to open it: its flush fails with a message that names both indices, and its rows stay in the
+  local files, with backpressure, until someone fixes the path. Index creation cannot check this, because the table may not exist yet.
+
 ## Known limits and open questions
 
 - Not secured or reviewed for security. A user who can create an index with this format chooses `index.parquet.repository` and
   `index.parquet.base_path`, and the engine writes below that path in the repository with the credentials of the repository. It does not check
   who may use a repository, and it does not check the segments of `base_path`, so a path can point into the table of another index or into
-  other data of the repository.
+  other data of the repository. A table that another index owns is refused (see "Shard histories and the names of data files"), but a path
+  that points into other data of the repository is not.
 - Whether the repository enforces conditional writes is not checked. On a store that ignores `If-None-Match` the commits of two shards can
   replace each other without an error (see "The table commit"). The `fs` repository and AWS S3 enforce it.
 - Tested on one data node. Writers that commit at the same moment are tested in one JVM (6 concurrent writers in `IcebergFeasibilityTests`, 2 to

@@ -28,6 +28,7 @@ import org.apache.parquet.io.InputFile;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.core.Nullable;
@@ -53,16 +54,28 @@ import java.util.regex.Pattern;
  * One shard's view of the Iceberg table of its index. All the shards of an index append to the same table, and Iceberg's optimistic
  * commit (see {@link RepositoryTableOperations}) makes that safe with no coordination.
  *
- * <p>The data files of a shard are {@code data/shard-<n>/<from>-<to>.parquet}, named by the range of sequence numbers of their rows. The
- * name is what makes the table the source of truth for what a shard has uploaded: the high-water mark of a shard is the largest end of
- * a range among its files in the current snapshot.
+ * <p>The data files of a shard are {@code data/shard-<n>/<history uuid>/<from>-<to>-<attempt>.parquet}. The range is the sequence numbers
+ * of their rows, and it is what makes the table the source of truth for what a shard has uploaded: the high-water mark of a shard is the
+ * largest end of a range among its files <em>of the current history</em> in the current snapshot.
+ *
+ * <p>A shard that starts with a new store (an empty primary after the loss of a node, or a restore) has a new history UUID and starts
+ * again at sequence number 0, while the table still lists the files of the earlier history. The history in the path keeps the keys
+ * apart, and a {@code ShardTable} only looks at, compacts and deletes the files of its own history. The attempt is new for every upload
+ * try, so that a key is written once ({@code failIfAlreadyExists}): a retry after a crash never overwrites a blob that a crash left
+ * partial, and the blob of the first try becomes an orphan that the cleanup deletes.
+ *
+ * <p>A table belongs to one index: it records the uuid of the index when it is created, and a shard of another index refuses to open it.
  *
  * <p>The columns of the table have stable ids, which the data files carry as Parquet field ids. A column that a mapping update adds
  * gets the next id, and a column never changes its type.
  */
 public final class ShardTable {
 
-    private static final Pattern DATA_FILE = Pattern.compile(".*/data/shard-(\\d+)/(\\d{19})-(\\d{19})\\.parquet");
+    private static final Pattern DATA_FILE = Pattern.compile(".*/data/shard-(\\d+)/([^/]+)/(\\d{19})-(\\d{19})-([^/]+)\\.parquet");
+
+    /** Table properties that name the index that owns the table. */
+    static final String OWNER_INDEX_UUID = "elasticsearch.index_uuid";
+    static final String OWNER_INDEX = "elasticsearch.index";
 
     /** Iceberg retries a commit that lost the race, 4 times by default. Shards that flush at the same moment need more. */
     private static final Map<String, String> TABLE_PROPERTIES = Map.of(
@@ -77,26 +90,39 @@ public final class ShardTable {
     private final Table table;
     private final RepositoryFileIO io;
     private final int shard;
+    private final String historyUuid;
 
-    private ShardTable(Table table, RepositoryFileIO io, int shard) {
+    private ShardTable(Table table, RepositoryFileIO io, int shard, String historyUuid) {
         this.table = table;
         this.io = io;
         this.shard = shard;
-    }
-
-    /** Opens the table at {@code location}, and creates it (with no column yet) when it does not exist. */
-    public static ShardTable open(BlobStore blobStore, TableLocation location, int shard) {
-        return open(blobStore, location, shard, null);
+        this.historyUuid = historyUuid;
     }
 
     /**
-     * Opens the table like {@link #open(BlobStore, TableLocation, int)}, and every commit of the table (also the one that creates it)
-     * then creates or updates the entry of the table in the catalog, when {@code registration} is not null.
+     * Opens the table at {@code location}, and creates it (with no column yet) when it does not exist. Every commit of the table (also
+     * the one that creates it) then creates or updates the entry of the table in the catalog, when {@code registration} is not null.
+     *
+     * @param indexName   the index that owns the table, for the message of a refusal and the property of a new table
+     * @param indexUuid   the uuid of that index. A table that another index created, or that does not name an owner, is refused.
+     * @param historyUuid the history of the shard: the files that this object lists, compacts and deletes are the ones of this history
+     * @throws IllegalStateException if the table belongs to another index
      */
-    public static ShardTable open(BlobStore blobStore, TableLocation location, int shard, @Nullable CatalogRegistration registration) {
+    public static ShardTable open(
+        BlobStore blobStore,
+        TableLocation location,
+        int shard,
+        String indexName,
+        String indexUuid,
+        String historyUuid,
+        @Nullable CatalogRegistration registration
+    ) {
         final RepositoryFileIO io = new RepositoryFileIO(blobStore, location.blobPath(), location.rootUri());
         final RepositoryTableOperations operations = new RepositoryTableOperations(io, registration);
         if (operations.current() == null) {
+            final Map<String, String> properties = new HashMap<>(TABLE_PROPERTIES);
+            properties.put(OWNER_INDEX_UUID, indexUuid);
+            properties.put(OWNER_INDEX, indexName);
             try {
                 operations.commit(
                     null,
@@ -105,14 +131,31 @@ public final class ShardTable {
                         PartitionSpec.unpartitioned(),
                         SortOrder.unsorted(),
                         location.rootUri(),
-                        TABLE_PROPERTIES
+                        properties
                     )
                 );
             } catch (CommitFailedException e) {
                 // another shard created the table first
             }
         }
-        return new ShardTable(new BaseTable(operations, location.rootUri()), io, shard);
+        final Map<String, String> properties = operations.refresh().properties();
+        final String owner = properties.get(OWNER_INDEX_UUID);
+        if (indexUuid.equals(owner) == false) {
+            throw new IllegalStateException(
+                "the table at ["
+                    + location.rootUri()
+                    + "] "
+                    + (owner == null
+                        ? "does not name the index that owns it"
+                        : "belongs to the index [" + properties.get(OWNER_INDEX) + "/" + owner + "]")
+                    + ", and not to the index ["
+                    + indexName
+                    + "/"
+                    + indexUuid
+                    + "]; set another [index.parquet.base_path]"
+            );
+        }
+        return new ShardTable(new BaseTable(operations, location.rootUri()), io, shard, historyUuid);
     }
 
     public int shard() {
@@ -248,26 +291,41 @@ public final class ShardTable {
 
     // ---- data files ----
 
-    /** The location of the data file of this shard for the range of sequence numbers. */
-    public String dataLocation(long fromSeqNo, long toSeqNo) {
-        return io.rootLocation() + "/data/shard-" + shard + "/" + dataFileName(fromSeqNo, toSeqNo);
+    /** The directory of the data files of this shard in its current history, with the slash at the end. */
+    public String historyLocation() {
+        return io.rootLocation() + "/data/shard-" + shard + "/" + historyUuid + "/";
     }
 
-    public static String dataFileName(long fromSeqNo, long toSeqNo) {
-        return String.format(Locale.ROOT, "%019d-%019d.parquet", fromSeqNo, toSeqNo);
+    /** The location of the data file of this shard and history for the range of sequence numbers and the upload attempt. */
+    public String dataLocation(long fromSeqNo, long toSeqNo, String attempt) {
+        return historyLocation() + dataFileName(fromSeqNo, toSeqNo, attempt);
     }
 
-    /** Uploads the bytes of a data file. Writing the same name again replaces it: a retry after a crash writes the same bytes. */
-    public void upload(long fromSeqNo, long toSeqNo, InputStream bytes, long length) throws IOException {
-        final String location = dataLocation(fromSeqNo, toSeqNo);
+    public static String dataFileName(long fromSeqNo, long toSeqNo, String attempt) {
+        return String.format(Locale.ROOT, "%019d-%019d-%s.parquet", fromSeqNo, toSeqNo, attempt);
+    }
+
+    /** A new name for an upload try: a key is never written twice. */
+    public static String newAttempt() {
+        return UUIDs.randomBase64UUID();
+    }
+
+    /**
+     * Uploads the bytes of a data file. The key is new for every try, so a write to a key that exists is a bug and fails.
+     *
+     * @throws java.nio.file.FileAlreadyExistsException (or another {@code IOException} on a store that reports it differently) if the key
+     *                                                  exists
+     */
+    public void upload(long fromSeqNo, long toSeqNo, String attempt, InputStream bytes, long length) throws IOException {
+        final String location = dataLocation(fromSeqNo, toSeqNo, attempt);
         final BlobContainer container = io.containerOf(location);
-        container.writeBlob(RepositoryFileIO.PURPOSE, io.blobNameOf(location), bytes, length, false);
+        container.writeBlob(RepositoryFileIO.PURPOSE, io.blobNameOf(location), bytes, length, true);
     }
 
     /** Builds the entry of the data file for the manifest, from the footer of the file. */
-    public DataFile dataFile(long fromSeqNo, long toSeqNo, long length, InputFile parquetFile) throws IOException {
+    public DataFile dataFile(long fromSeqNo, long toSeqNo, String attempt, long length, InputFile parquetFile) throws IOException {
         return DataFiles.builder(PartitionSpec.unpartitioned())
-            .withPath(dataLocation(fromSeqNo, toSeqNo))
+            .withPath(dataLocation(fromSeqNo, toSeqNo, attempt))
             .withFormat(FileFormat.PARQUET)
             .withFileSizeInBytes(length)
             .withMetrics(ParquetFileMetrics.read(parquetFile))
@@ -283,7 +341,7 @@ public final class ShardTable {
             .commit();
     }
 
-    /** The files of this shard in the current snapshot. */
+    /** The files of this shard and history in the current snapshot. */
     public List<UploadedFile> uploadedFiles() {
         final List<UploadedFile> files = new ArrayList<>();
         for (ShardFile file : shardFiles()) {
@@ -292,7 +350,10 @@ public final class ShardTable {
         return files;
     }
 
-    /** The files of this shard in the current snapshot, with their manifest entries, in the order of their sequence numbers. */
+    /**
+     * The files of this shard and history in the current snapshot, with their manifest entries, in the order of their sequence numbers.
+     * The files of an earlier history of the shard stay in the table, and this object does not see them.
+     */
     public List<ShardFile> shardFiles() {
         return listing().files();
     }
@@ -317,13 +378,13 @@ public final class ShardTable {
             for (FileScanTask task : tasks) {
                 final DataFile dataFile = task.file();
                 final Matcher matcher = DATA_FILE.matcher(dataFile.location());
-                if (matcher.matches() && Integer.parseInt(matcher.group(1)) == shard) {
+                if (matcher.matches() && Integer.parseInt(matcher.group(1)) == shard && matcher.group(2).equals(historyUuid)) {
                     files.add(
                         new ShardFile(
                             new UploadedFile(
                                 dataFile.location(),
-                                Long.parseLong(matcher.group(2)),
                                 Long.parseLong(matcher.group(3)),
+                                Long.parseLong(matcher.group(4)),
                                 dataFile.recordCount(),
                                 dataFile.fileSizeInBytes()
                             ),
@@ -374,8 +435,30 @@ public final class ShardTable {
     }
 
     /** Deletes the data file of the range from the repository, for a file that was uploaded and never listed in the table. */
-    public void deleteDataFile(long fromSeqNo, long toSeqNo) {
-        io.deleteFile(dataLocation(fromSeqNo, toSeqNo));
+    public void deleteDataFile(long fromSeqNo, long toSeqNo, String attempt) {
+        io.deleteFile(dataLocation(fromSeqNo, toSeqNo, attempt));
+    }
+
+    /**
+     * Whether the current snapshot lists the file at {@code location}, for a file of any shard or history. Recovery of a flush asks it by
+     * the exact location, so that the file of another history with the same range is never taken for its own upload.
+     */
+    public boolean isListed(String location) {
+        table.refresh();
+        final Snapshot snapshot = table.currentSnapshot();
+        if (snapshot == null) {
+            return false;
+        }
+        try (CloseableIterable<FileScanTask> tasks = table.newScan().useSnapshot(snapshot.snapshotId()).planFiles()) {
+            for (FileScanTask task : tasks) {
+                if (task.file().location().equals(location)) {
+                    return true;
+                }
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        return false;
     }
 
     /**
@@ -393,10 +476,11 @@ public final class ShardTable {
     }
 
     /**
-     * Deletes the data files of this shard that no snapshot lists and whose rows are already uploaded: the leftover of a compaction that
-     * crashed between its upload and its commit. A file above the high-water mark is not touched, because it can be the upload of a flush
-     * that has not appended it yet. Must run on the compactor of the shard, so that no compaction of the shard is between its upload and
-     * its commit.
+     * Deletes the data files of this shard and history that no snapshot lists and whose rows are already uploaded: the leftover of a
+     * compaction that crashed between its upload and its commit, and the blob of an upload try that a retry replaced. A file above the
+     * high-water mark is not touched, because it can be the upload of a flush that has not appended it yet. The files of other histories
+     * are never touched: their writer can still be alive. Must run on the compactor of the shard, so that no compaction of the shard is
+     * between its upload and its commit.
      *
      * @return how many files it deleted
      */
@@ -414,12 +498,12 @@ public final class ShardTable {
                 }
             }
         }
-        final String prefix = io.rootLocation() + "/data/shard-" + shard + "/";
-        final BlobContainer container = io.containerOf(dataLocation(0, 0));
+        final String prefix = historyLocation();
+        final BlobContainer container = io.containerOf(prefix + "x");
         int deleted = 0;
         for (String name : container.listBlobs(RepositoryFileIO.PURPOSE).keySet()) {
             final Matcher matcher = DATA_FILE.matcher(prefix + name);
-            if (matcher.matches() && listed.contains(prefix + name) == false && Long.parseLong(matcher.group(3)) <= through) {
+            if (matcher.matches() && listed.contains(prefix + name) == false && Long.parseLong(matcher.group(4)) <= through) {
                 io.deleteFile(prefix + name);
                 deleted++;
             }
@@ -427,7 +511,7 @@ public final class ShardTable {
         return deleted;
     }
 
-    /** The largest sequence number of this shard in the current snapshot, or -1 when it has no file. */
+    /** The largest sequence number of this shard and history in the current snapshot, or -1 when it has no file. */
     public long uploadedThroughSeqNo() {
         long through = -1;
         for (UploadedFile file : uploadedFiles()) {

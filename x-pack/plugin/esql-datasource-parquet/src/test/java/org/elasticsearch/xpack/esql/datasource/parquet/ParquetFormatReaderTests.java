@@ -105,6 +105,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.junit.After;
 import org.junit.Before;
@@ -6003,6 +6004,70 @@ public class ParquetFormatReaderTests extends ESTestCase {
         ParquetFormatReader.validateFooterIntegrity(schema, List.of(block));
     }
 
+    public void testValidateFooterIntegrityRejectsUnsupportedCodec() {
+        MessageType schema = Types.buildMessage().optional(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
+        CompressionCodecName codec = randomBoolean() ? CompressionCodecName.BROTLI : CompressionCodecName.LZO;
+        org.apache.parquet.column.statistics.LongStatistics stats = new org.apache.parquet.column.statistics.LongStatistics();
+        stats.setMinMax(1L, 100L);
+        stats.setNumNulls(0);
+        PrimitiveType type = Types.optional(PrimitiveType.PrimitiveTypeName.INT64).named("id");
+        org.apache.parquet.hadoop.metadata.ColumnChunkMetaData ccm = org.apache.parquet.hadoop.metadata.ColumnChunkMetaData.get(
+            org.apache.parquet.hadoop.metadata.ColumnPath.get("id"),
+            type,
+            codec,
+            null,
+            java.util.EnumSet.of(org.apache.parquet.column.Encoding.PLAIN),
+            stats,
+            0L,
+            0L,
+            100L,
+            0L,
+            0L
+        );
+        org.apache.parquet.hadoop.metadata.BlockMetaData block = new org.apache.parquet.hadoop.metadata.BlockMetaData();
+        block.setRowCount(100);
+        block.addColumn(ccm);
+
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> ParquetFormatReader.validateFooterIntegrity(schema, List.of(block))
+        );
+        assertThat(ex.getMessage(), containsString("column [id]"));
+        assertThat(ex.getMessage(), containsString(codec.name()));
+        assertThat(ex.getMessage(), containsString("LZ4_RAW"));
+        assertThat(ex.getMessage(), containsString("Could not read the Parquet file"));
+        RuntimeException classified = ExternalFailures.classify(ex);
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(classified));
+        assertThat(classified.getMessage(), containsString(codec.name()));
+    }
+
+    public void testValidateFooterIntegrityAcceptsEverySupportedCodec() {
+        MessageType schema = Types.buildMessage().optional(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
+        for (CompressionCodecName codec : PlainCompressionCodecFactory.supportedDecompressionCodecs()) {
+            org.apache.parquet.column.statistics.LongStatistics stats = new org.apache.parquet.column.statistics.LongStatistics();
+            stats.setMinMax(1L, 100L);
+            stats.setNumNulls(0);
+            PrimitiveType type = Types.optional(PrimitiveType.PrimitiveTypeName.INT64).named("id");
+            org.apache.parquet.hadoop.metadata.ColumnChunkMetaData ccm = org.apache.parquet.hadoop.metadata.ColumnChunkMetaData.get(
+                org.apache.parquet.hadoop.metadata.ColumnPath.get("id"),
+                type,
+                codec,
+                null,
+                java.util.EnumSet.of(org.apache.parquet.column.Encoding.PLAIN),
+                stats,
+                0L,
+                0L,
+                100L,
+                0L,
+                0L
+            );
+            org.apache.parquet.hadoop.metadata.BlockMetaData block = new org.apache.parquet.hadoop.metadata.BlockMetaData();
+            block.setRowCount(100);
+            block.addColumn(ccm);
+            ParquetFormatReader.validateFooterIntegrity(schema, List.of(block));
+        }
+    }
+
     public void testValidParquetZeroRowsMetadata() throws Exception {
         MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
         byte[] parquetData = createParquetFile(schema, factory -> List.of());
@@ -9689,6 +9754,92 @@ public class ParquetFormatReaderTests extends ESTestCase {
             assertEquals(new BytesRef("literal"), ((BytesRefBlock) page.getBlock(0)).getBytesRef(0, new BytesRef()));
             page.releaseBlocks();
         }
+    }
+
+    public void testLiteralDottedNameFilterKeepsMatchingRows() throws Exception {
+        // Flat leaf named source.ip. WHERE source.ip == "188.166.20.77" (quotes not required;
+        // `source.ip` parses to the same name) must keep the two matching rows. Splitting the
+        // name into source → ip makes RowGroupFilter drop every group and return zero rows.
+        MessageType schema = new MessageType(
+            "test_schema",
+            Types.optional(PrimitiveType.PrimitiveTypeName.BINARY).as(LogicalTypeAnnotation.stringType()).named("source.ip"),
+            Types.optional(PrimitiveType.PrimitiveTypeName.INT32).named("destination.port")
+        );
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group a = factory.newGroup();
+            a.append("source.ip", "188.166.20.77");
+            a.append("destination.port", 443);
+            Group b = factory.newGroup();
+            b.append("source.ip", "1.2.3.4");
+            b.append("destination.port", 443);
+            Group c = factory.newGroup();
+            c.append("source.ip", "188.166.20.77");
+            c.append("destination.port", 22);
+            return List.of(a, b, c);
+        });
+
+        ParquetFormatReader baseline = new ParquetFormatReader(blockFactory);
+        assertEquals(3, countRows(baseline, parquetData, List.of("source.ip")));
+
+        Equals ipEq = new Equals(
+            Source.EMPTY,
+            new ReferenceAttribute(Source.EMPTY, "source.ip", DataType.KEYWORD),
+            new org.elasticsearch.xpack.esql.core.expression.Literal(Source.EMPTY, new BytesRef("188.166.20.77"), DataType.KEYWORD),
+            null
+        );
+        int ipMatches = countRows(
+            new ParquetFormatReader(blockFactory).withPushedFilter(new ParquetPushedExpressions(List.of(ipEq))),
+            parquetData,
+            List.of("source.ip")
+        );
+        assertEquals("flat dotted equality must not drop matching row groups", 2, ipMatches);
+
+        Equals portEq = new Equals(
+            Source.EMPTY,
+            new ReferenceAttribute(Source.EMPTY, "destination.port", DataType.INTEGER),
+            new org.elasticsearch.xpack.esql.core.expression.Literal(Source.EMPTY, 443, DataType.INTEGER),
+            null
+        );
+        int portMatches = countRows(
+            new ParquetFormatReader(blockFactory).withPushedFilter(new ParquetPushedExpressions(List.of(portEq))),
+            parquetData,
+            List.of("destination.port")
+        );
+        assertEquals("flat dotted integer equality must not drop matching row groups", 2, portMatches);
+    }
+
+    public void testNestedDottedNameFilterStillMatches() throws Exception {
+        // Nested source { ip } is also queried as source.ip, still without extra quotes.
+        // Pushdown must keep the multi-segment path source → ip.
+        MessageType schema = new MessageType(
+            "test_schema",
+            Types.optionalGroup()
+                .optional(PrimitiveType.PrimitiveTypeName.BINARY)
+                .as(LogicalTypeAnnotation.stringType())
+                .named("ip")
+                .named("source")
+        );
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group a = factory.newGroup();
+            a.addGroup("source").append("ip", "188.166.20.77");
+            Group b = factory.newGroup();
+            b.addGroup("source").append("ip", "1.2.3.4");
+            Group c = factory.newGroup();
+            c.addGroup("source").append("ip", "188.166.20.77");
+            return List.of(a, b, c);
+        });
+        Equals ipEq = new Equals(
+            Source.EMPTY,
+            new ReferenceAttribute(Source.EMPTY, "source.ip", DataType.KEYWORD),
+            new org.elasticsearch.xpack.esql.core.expression.Literal(Source.EMPTY, new BytesRef("188.166.20.77"), DataType.KEYWORD),
+            null
+        );
+        int matches = countRows(
+            new ParquetFormatReader(blockFactory).withPushedFilter(new ParquetPushedExpressions(List.of(ipEq))),
+            parquetData,
+            List.of("source.ip")
+        );
+        assertEquals(2, matches);
     }
 
     public void testNestedStructDepthCap() throws Exception {

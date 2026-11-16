@@ -172,7 +172,8 @@ public class LuceneSourceOperator extends LuceneOperator {
                 needsScore,
                 directoryBytesRead,
                 singleValueQueryWarnings,
-                minCompetitive
+                minCompetitive,
+                false
             );
         }
 
@@ -551,9 +552,10 @@ public class LuceneSourceOperator extends LuceneOperator {
         boolean needsScore,
         LongSupplier directoryBytesRead,
         QueryWarnings singleValueQueryWarnings,
-        @Nullable MinCompetitiveQuery.Factory minCompetitive
+        @Nullable MinCompetitiveQuery.Factory minCompetitive,
+        boolean reuseScorers
     ) {
-        super(refCounteds, driverContext, maxPageSize, sliceQueue, directoryBytesRead, singleValueQueryWarnings);
+        super(refCounteds, driverContext, maxPageSize, sliceQueue, directoryBytesRead, singleValueQueryWarnings, reuseScorers);
         this.minPageSize = Math.max(1, maxPageSize / 2);
         this.remainingDocs = limit;
         this.limiter = limiter;

@@ -284,8 +284,8 @@ public class AzureStorageProviderTests extends ESTestCase {
     public void testBuildClientAssertionCredentialThrowsWhenWorkloadIdentityDisabled() {
         WorkloadIdentityRegistry.setIssuerClient(new RecordingIssuerClient(false, false));
         try {
-            IllegalStateException e = expectThrows(
-                IllegalStateException.class,
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
                 () -> AzureStorageProvider.buildClientAssertionCredential(federatedConfig(), EsExecutors.DIRECT_EXECUTOR_SERVICE)
             );
             assertThat(e.getMessage(), containsString("workload-identity feature to be enabled"));

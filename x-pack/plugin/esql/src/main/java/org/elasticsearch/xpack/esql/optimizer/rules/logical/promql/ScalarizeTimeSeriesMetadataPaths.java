@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
-import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataFilter;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataPath;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataSet;
@@ -160,9 +159,6 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
         return base;
     }
 
-    /** The join key comparing two label containers, as text. */
-    private static final String CONTAINER_KEY = "$prom_rest";
-
     private static Literal absent(Source source) {
         return new Literal(source, null, DataType.KEYWORD);
     }
@@ -231,10 +227,6 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
         private final Map<NameId, Set<String>> need = new HashMap<>();
         /** Step 1: the labels every use of each container as a whole leaves out. No entry: nothing uses it as a whole. */
         private final Map<NameId, Set<String>> tolerated = new HashMap<>();
-        /** The expression each alias of the plan names. */
-        private final Map<NameId, Expression> definitions = new HashMap<>();
-        /** The branch attributes each union output takes its value from. */
-        private final Map<NameId, List<Attribute>> unions = new HashMap<>();
 
         /** Step 2: each container itself, as an expression over the input of the node at hand. No entry: nothing is left of it. */
         private final Map<NameId, Expression> timeseries = new HashMap<>();
@@ -286,64 +278,29 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
 
         void demand(LogicalPlan plan) {
             plan.forEachDown(node -> {
-                for (Expression expression : node.expressions()) {
-                    if (expression instanceof Alias alias) {
-                        definitions.put(alias.id(), alias.child());
-                    }
-                }
-                if (node instanceof UnionAll union) {
-                    for (int i = 0; i < union.output().size(); i++) {
-                        var branches = new ArrayList<Attribute>();
-                        for (LogicalPlan child : union.children()) {
-                            branches.add(child.output().get(i));
-                        }
-                        unions.put(union.output().get(i).id(), branches);
-                    }
-                }
-            });
-            plan.forEachDown(node -> {
                 if (node instanceof UnionAll union) {
                     for (int i = 0; i < union.output().size(); i++) {
                         Attribute out = union.output().get(i);
-                        if (isLabelContainer(out) == false) {
-                            continue;
-                        }
-                        // every branch returns the labels any branch promotes
-                        Set<String> labels = need.computeIfAbsent(out.id(), k -> new TreeSet<>());
-                        labels.addAll(written(out));
                         for (LogicalPlan child : union.children()) {
                             Attribute branch = child.output().get(i);
                             if (isLabelContainer(branch)) {
-                                List.copyOf(labels).forEach(label -> read(branch, label));
+                                List.copyOf(need(out.id())).forEach(label -> read(branch, label));
                                 use(branch, tolerated.get(out.id()));
                             }
                         }
                     }
                     return;
                 }
-                if (node instanceof HashJoin join) {
-                    for (int i = 0; i < join.leftFields().size(); i++) {
-                        Attribute left = join.leftFields().get(i);
-                        Attribute right = join.rightFields().get(i);
-                        if (isLabelContainer(left) && isLabelContainer(right)) {
-                            // both sides compare by name the labels either promotes
-                            var labels = new TreeSet<>(written(left));
-                            labels.addAll(written(right));
-                            for (String label : labels) {
-                                read(left, label);
-                                read(right, label);
-                            }
-                        }
-                        // a key is compared: nothing of it may be missing
-                        use(left, Set.of());
-                        use(right, Set.of());
-                    }
-                    return;
-                }
+                // a key is compared: nothing of it may be missing
                 List<Expression> keys = switch (node) {
                     case Aggregate aggregate -> aggregate.groupings();
                     case TopNBy topNBy -> topNBy.groupings();
                     case PackDims pack -> List.<Expression>copyOf(pack.dims());
+                    case HashJoin join -> {
+                        var both = new ArrayList<Expression>(join.leftFields());
+                        both.addAll(join.rightFields());
+                        yield both;
+                    }
                     default -> List.of();
                 };
                 for (Expression key : keys) {
@@ -455,40 +412,6 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
             }
         }
 
-        /**
-         * The labels {@code container} promotes whatever is read off it: the ones a TS_KEEP keeps or a TS_SET writes on the way from
-         * the node that loads it. Two containers compared as a whole compare these by name.
-         */
-        private Set<String> written(Expression container) {
-            var written = new TreeSet<String>();
-            switch (container) {
-                case TimeSeriesMetadataFilter filter when filter.exclude() -> {
-                    written.addAll(written(filter.children().getFirst()));
-                    written.removeAll(names(filter.labels()));
-                }
-                case TimeSeriesMetadataFilter filter -> written.addAll(names(filter.labels()));
-                case TimeSeriesMetadataSet set -> {
-                    written.addAll(written(set.children().getFirst()));
-                    written.addAll(names(List.of(set.label())));
-                }
-                case Attribute attribute -> {
-                    Expression definition = definitions.get(attribute.id());
-                    if (definition != null) {
-                        written.addAll(written(definition));
-                    }
-                    for (Attribute branch : unions.getOrDefault(attribute.id(), List.of())) {
-                        // the union output has the id of its first branch
-                        if (branch.id().equals(attribute.id()) == false) {
-                            written.addAll(written(branch));
-                        }
-                    }
-                }
-                default -> {
-                }
-            }
-            return written;
-        }
-
         // -- step 2: the rewrite. From the leaves up, each node on its own --
 
         /**
@@ -534,37 +457,34 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
                     continue;
                 }
                 Source at = out.source();
-                // The union's container is without a label only where every branch's is. A branch without a container
-                // returns one holding its promoted labels, as the other branches' containers hold theirs.
-                var outGone = new TreeSet<String>();
-                boolean container = false;
+                // Where any branch has a container, every branch returns its labels whole, and the union's container is without
+                // a label only where every branch's is. Otherwise the branches line up by the labels any of them promotes.
+                Set<String> outGone = null;
+                var names = new TreeSet<String>();
                 for (NameId branch : branches) {
                     if (timeseries.containsKey(branch)) {
-                        if (container) {
-                            outGone.retainAll(without.get(branch));
+                        if (outGone == null) {
+                            outGone = new TreeSet<>(without.get(branch));
                         } else {
-                            outGone.addAll(without.get(branch));
+                            outGone.retainAll(without.get(branch));
                         }
-                        container = true;
                     }
+                    names.addAll(promoted.getOrDefault(branch, new TreeMap<>()).keySet());
                 }
-                for (NameId branch : branches) {
-                    if (timeseries.containsKey(branch) == false) {
-                        outGone.removeAll(promoted.getOrDefault(branch, new TreeMap<>()).keySet());
-                    }
-                }
+                boolean container = outGone != null;
+                outGone = container ? outGone : new TreeSet<>();
+                outGone.removeAll(names);
                 // Union outputs are named apart: the container's own name for the container, prefixed for its labels.
                 if (container) {
-                    List<Expression> whole = branches.stream()
-                        .map(branch -> timeseries.containsKey(branch) ? timeseries.get(branch) : whole(branch, at))
-                        .toList();
+                    List<Expression> whole = branches.stream().map(branch -> whole(branch, at)).toList();
                     containers.put(
                         out.id(),
                         parts.part(out.name(), typed ? DataType.TIME_SERIES_METADATA_DATA_TYPE : DataType.KEYWORD, whole)
                     );
+                    names.retainAll(need(out.id()));
                 }
                 SortedMap<String, Expression> outPromoted = new TreeMap<>();
-                for (String name : need(out.id())) {
+                for (String name : names) {
                     List<Expression> values = branches.stream()
                         .map(
                             branch -> label(
@@ -856,7 +776,8 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
         }
 
         /**
-         * The join on the parts of its label container keys: the containers as text, the promoted labels packed.
+         * The join on the parts of its label container keys, packed into one key: each container whole where either side has
+         * one, its labels by name otherwise.
          */
         private LogicalPlan rewriteHashJoin(HashJoin join) {
             var leftEvals = new ArrayList<Alias>();
@@ -875,30 +796,18 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
                 }
                 NameId l = record(left);
                 NameId r = record(right);
-                // both sides compare by name the labels either holds outside its container
-                var names = new TreeSet<String>();
-                promoted.get(l).keySet().stream().filter(name -> inContainer(l, name) == false).forEach(names::add);
-                promoted.get(r).keySet().stream().filter(name -> inContainer(r, name) == false).forEach(names::add);
-                for (String name : names) {
-                    Expression leftLabel = label(timeseries.get(l), without.get(l), promoted.get(l), name, left.source());
-                    Expression rightLabel = label(timeseries.get(r), without.get(r), promoted.get(r), name, right.source());
-                    leftLabels.add(attribute(leftLabel, name, leftEvals));
-                    rightLabels.add(attribute(rightLabel, name, rightEvals));
-                }
                 if (timeseries.containsKey(l) || timeseries.containsKey(r)) {
-                    // A label one side holds in its container too and the other outside it compares packed only: that side's
-                    // container leaves it out.
-                    var leftOut = new TreeSet<String>();
-                    var rightOut = new TreeSet<String>();
-                    for (String name : typed ? names : Set.<String>of()) {
-                        if (inContainer(l, name) && inContainer(r, name) == false) {
-                            leftOut.add(name);
-                        } else if (inContainer(r, name) && inContainer(l, name) == false) {
-                            rightOut.add(name);
-                        }
-                    }
-                    leftFields.add(attribute(containerKey(l, leftOut, left.source()), CONTAINER_KEY, leftEvals));
-                    rightFields.add(attribute(containerKey(r, rightOut, right.source()), CONTAINER_KEY, rightEvals));
+                    // a container compares whole: its labels are what the other side holds in or outside its own
+                    leftLabels.add(attribute(compared(l, left.source()), MetadataAttribute.TIMESERIES, leftEvals));
+                    rightLabels.add(attribute(compared(r, right.source()), MetadataAttribute.TIMESERIES, rightEvals));
+                    continue;
+                }
+                // no container: the labels compare by name, absent where a side has none
+                var names = new TreeSet<>(promoted.get(l).keySet());
+                names.addAll(promoted.get(r).keySet());
+                for (String name : names) {
+                    leftLabels.add(attribute(label(null, Set.of(), promoted.get(l), name, left.source()), name, leftEvals));
+                    rightLabels.add(attribute(label(null, Set.of(), promoted.get(r), name, right.source()), name, rightEvals));
                 }
             }
             LogicalPlan leftChild = evaluate(join.left(), leftEvals);
@@ -1178,6 +1087,18 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
             return whole;
         }
 
+        /**
+         * The container {@code id} as a join compares it: whole. A keyword container cannot be written to, and holds every label
+         * it has: a side without one never matches a side with one.
+         */
+        private Expression compared(NameId id, Source at) {
+            if (typed) {
+                return whole(id, at);
+            }
+            Expression container = container(id);
+            return container == null ? absent(at) : container;
+        }
+
         /** Whether the container {@code id} holds {@code name}, promoted or not. */
         private boolean inContainer(NameId id, String name) {
             return timeseries.containsKey(id) && without.get(id).contains(name) == false;
@@ -1236,15 +1157,6 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
                 }
                 default -> e;
             });
-        }
-
-        /** The container {@code id} without {@code out}, as the text a join compares; the empty container when nothing is left. */
-        private Expression containerKey(NameId id, Set<String> out, Source at) {
-            Expression container = unset(container(id), without.get(id), out, at);
-            if (container == null) {
-                container = typed ? TranslationContextV2.emptyLabels(at) : absent(at);
-            }
-            return new Coalesce(at, typed ? new ToString(at, container, configuration) : container, List.of(Literal.keyword(at, "")));
         }
 
     }

@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataFilter;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataSet;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
@@ -807,11 +808,11 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
      * reads what both leave out at the source and derives each; the keyword column cannot, so it stays rejected there.
      */
     /**
-     * An opaque operand next to a concrete or promoted-label sibling under {@code ignoring(...)} / default matching: the
-     * named key labels compare in their own slots, so the opaque side's signature slot leaves them out and the side without
-     * label container packs the empty signature. Typed label containers only: the keyword slot stays null there and never matches.
+     * An opaque operand next to a concrete or promoted-label sibling under {@code ignoring(...)} / default matching: the join
+     * compares label containers whole, so the side that holds the named key outside its container writes it back. Typed label
+     * containers only: the keyword key stays null there and never matches.
      */
-    public void testOpaqueSignatureSlotLeavesNamedKeysOut() {
+    public void testJoinComparesLabelContainersWhole() {
         assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
         assumeTrue("requires typed _timeseries for the empty signature", typedLabelContainer());
         for (var shape : Map.of(
@@ -826,8 +827,23 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
             var plan = planPromql("PROMQL index=k8s step=5m result=(" + expr + ")", false);
             assertTrue("must resolve for [" + expr + "]: " + plan, plan.resolved());
             assertThat("expected join for [" + expr + "]", plan.collect(HashJoin.class).isEmpty(), equalTo(false));
-            assertTrue("the opaque side's slot leaves the named key out for [" + expr + "]", leavesOut(plan, shape.getValue()));
+            assertTrue("a side writes the named key back for [" + expr + "]", writesBack(plan, shape.getValue()));
         }
+    }
+
+    /** Whether {@code plan} writes {@code label} into a label container. */
+    private static boolean writesBack(LogicalPlan plan, String label) {
+        return plan.anyMatch(
+            node -> node.expressions()
+                .stream()
+                .anyMatch(
+                    e -> e.anyMatch(
+                        x -> x instanceof TimeSeriesMetadataSet set
+                            && set.label() instanceof Literal l
+                            && label.equals(BytesRefs.toString(l.value()))
+                    )
+                )
+        );
     }
 
     /** Whether some label container view of {@code plan} leaves {@code label} out: read so at a source, or derived with ts_transform. */

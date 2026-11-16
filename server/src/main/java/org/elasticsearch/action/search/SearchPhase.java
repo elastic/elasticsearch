@@ -74,12 +74,7 @@ abstract class SearchPhase {
             if (missingShards.isEmpty() == false) {
                 // Status red - shard is missing all copies and would produce partial results for an index search
                 final String msg = makeMissingShardsError(missingShards);
-                throw new SearchPhaseExecutionException(
-                    phaseName,
-                    msg,
-                    restoringCause(shardsIts, clusterState),
-                    ShardSearchFailure.EMPTY_ARRAY
-                );
+                throw new SearchPhaseExecutionException(phaseName, msg, restoringCause(shardsIts, clusterState), List.of());
             }
         }
     }

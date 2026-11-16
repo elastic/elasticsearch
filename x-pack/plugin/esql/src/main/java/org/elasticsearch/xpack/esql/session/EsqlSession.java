@@ -135,6 +135,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
@@ -148,6 +149,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
+import org.elasticsearch.xpack.esql.plan.physical.IntoExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
@@ -304,6 +306,9 @@ public class EsqlSession {
      * transport threads.
      */
     private volatile ExplainContext explainContext;
+    // Destination index name when the query ends with INTO; null for all other queries.
+    @Nullable
+    private volatile String intoDestination;
     private final ProjectMetadata projectMetadata;
 
     /**
@@ -509,6 +514,11 @@ public class EsqlSession {
             // The traversal-based command telemetry only sees the unwrapped query, so count the
             // EXPLAIN command itself here.
             planTelemetry.command(explain);
+        }
+        if (parsedPlan instanceof Into into) {
+            intoDestination = into.destination();
+            planTelemetry.command(into);
+            parsedPlan = into.child();
         }
         parsingProfile.stop();
 
@@ -1166,6 +1176,11 @@ public class EsqlSession {
         planRunner.run(PlanRunner.Role.OUTPUT, resultPlan, configuration, foldContext, planTimeProfile, null, listener);
     }
 
+    private PhysicalPlan withInto(PhysicalPlan physicalPlan) {
+        String destination = intoDestination;
+        return destination == null ? physicalPlan : new IntoExec(physicalPlan.source(), physicalPlan, destination);
+    }
+
     private void executeSubPlans(
         LogicalPlan optimizedPlan,
         Configuration configuration,
@@ -1213,7 +1228,7 @@ public class EsqlSession {
             // into ExternalSourceCacheService before delivering Result.
             runner.run(
                 PlanRunner.Role.OUTPUT,
-                physicalPlan,
+                withInto(physicalPlan),
                 configuration,
                 foldContext,
                 planTimeProfile,
@@ -1592,7 +1607,7 @@ public class EsqlSession {
                         }
                         runner.run(
                             PlanRunner.Role.OUTPUT,
-                            newPhysicalPlan,
+                            withInto(newPhysicalPlan),
                             configuration,
                             foldContext,
                             planTimeProfile,
@@ -1949,7 +1964,6 @@ public class EsqlSession {
         PreAnalysisResult result = resolveFieldNames(parsed, preAnalysis, unmappedResolution, viewSettings, requestFilter, configuration)
             .withMinimumTransportVersion(localClusterMinimumVersion)
             .withIndexViewOrigins(indexViewOrigins);
-        String description = requestFilter == null ? "the only attempt without filter" : "first attempt with filter";
         // Extract timestamp bounds eagerly from the request filter so they can be threaded through to the analyzer
         // and to listing, even when index resolution is retried without the filter (e.g. because the filter covers
         // an empty time range). Extraction uses configuration::absoluteStartedTimeInMillis (fixed at request start).
@@ -1964,6 +1978,12 @@ public class EsqlSession {
             configuration::absoluteStartedTimeInMillis,
             BoundSemantics.RANGE_QUERY
         );
+        // The time range that the query itself restricts each index pattern to prunes index resolution like the request filter
+        // does, and next to it: both must match, and the query is often narrower than the time picker.
+        Map<IndexPattern, QueryBuilder> queryTimeFilters = queryTimeFilters(parsed, unmappedResolution, viewSettings, configuration);
+        String description = requestFilter == null && queryTimeFilters.isEmpty()
+            ? "the only attempt without filter"
+            : "first attempt with filter";
         // Decided here, from the original request filter, for the same reason as timestampBounds above: index resolution may be
         // retried without the filter, but the post-analysis steps that consume view boundaries
         // ({@link ViewRequestFilterRewriter#rewrite} and {@link PlannerUtils#integrateEsFilterIntoFragment}) always run against
@@ -1983,6 +2003,7 @@ public class EsqlSession {
             executionInfo,
             description,
             requestFilter,
+            queryTimeFilters,
             timestampBounds,
             listingBounds,
             preserveViewBoundaries,
@@ -1990,6 +2011,28 @@ public class EsqlSession {
             result,
             logicalPlanListener
         );
+    }
+
+    /**
+     * The {@code @timestamp} filters that the query implies per index pattern, see {@link QueryTimeRangeExtractor}.
+     * Empty when unmapped fields are loaded from {@code _source}: an index with an unmapped {@code @timestamp} never
+     * matches the filter, but its rows can still match the query.
+     */
+    private static Map<IndexPattern, QueryBuilder> queryTimeFilters(
+        LogicalPlan parsed,
+        UnmappedResolution unmappedResolution,
+        Map<String, ViewQuerySettings> viewSettings,
+        Configuration configuration
+    ) {
+        if (unmappedResolution.loadsUnmappedFields()) {
+            return Map.of();
+        }
+        for (ViewQuerySettings settings : viewSettings.values()) {
+            if (settings.unmappedFields().loadsUnmappedFields()) {
+                return Map.of();
+            }
+        }
+        return QueryTimeRangeExtractor.extract(parsed, configuration);
     }
 
     /**
@@ -2040,6 +2083,7 @@ public class EsqlSession {
         EsqlExecutionInfo executionInfo,
         String description,
         QueryBuilder requestFilter,
+        Map<IndexPattern, QueryBuilder> queryTimeFilters,
         TimestampBounds timestampBounds,
         TimestampBounds listingBounds,
         boolean preserveViewBoundaries,
@@ -2065,6 +2109,7 @@ public class EsqlSession {
                     : null,
                 result,
                 requestFilter,
+                queryTimeFilters,
                 viewInternalIndexPatterns(parsed),
                 l
             )
@@ -2184,6 +2229,7 @@ public class EsqlSession {
                     executionInfo,
                     description,
                     requestFilter,
+                    queryTimeFilters,
                     timestampBounds,
                     listingBounds,
                     preserveViewBoundaries,
@@ -2838,6 +2884,7 @@ public class EsqlSession {
         @Nullable IndexResolver.NamedFields namedFields,
         PreAnalysisResult result,
         QueryBuilder requestFilter,
+        Map<IndexPattern, QueryBuilder> queryTimeFilters,
         Set<IndexPattern> viewInternalPatterns,
         ActionListener<PreAnalysisResult> listener
     ) {
@@ -2873,7 +2920,7 @@ public class EsqlSession {
                     namedFields,
                     r,
                     // A pattern reachable only inside a view branch must not be pruned by the request filter.
-                    viewInternalPatterns.contains(e.getKey()) ? null : requestFilter,
+                    indexFilter(viewInternalPatterns.contains(e.getKey()) ? null : requestFilter, queryTimeFilters.get(e.getKey())),
                     l
                 ),
                 listener
@@ -2899,7 +2946,7 @@ public class EsqlSession {
                     namedFields,
                     r,
                     // A pattern reachable only inside a view branch must not be pruned by the request filter.
-                    viewInternalPatterns.contains(e.getKey()) ? null : requestFilter,
+                    indexFilter(viewInternalPatterns.contains(e.getKey()) ? null : requestFilter, queryTimeFilters.get(e.getKey())),
                     routingInfoCapture,
                     l
                 ),
@@ -3200,6 +3247,17 @@ public class EsqlSession {
         return indexMode.isTsdb() && preAnalysis.requiresAllDimensionFields();
     }
 
+    /**
+     * The filter to resolve an index pattern with: the request filter, narrowed by the time range that the query restricts
+     * the pattern to, when it has either.
+     */
+    private static QueryBuilder indexFilter(@Nullable QueryBuilder requestFilter, @Nullable QueryBuilder queryTimeFilter) {
+        if (queryTimeFilter == null) {
+            return requestFilter;
+        }
+        return requestFilter == null ? queryTimeFilter : new BoolQueryBuilder().filter(requestFilter).filter(queryTimeFilter);
+    }
+
     private static QueryBuilder createQueryFilter(IndexMode indexMode, QueryBuilder requestFilter) {
         return switch (indexMode) {
             case IndexMode.TIME_SERIES -> {
@@ -3270,6 +3328,7 @@ public class EsqlSession {
         EsqlExecutionInfo executionInfo,
         String description,
         QueryBuilder requestFilter,
+        Map<IndexPattern, QueryBuilder> queryTimeFilters,
         TimestampBounds timestampBounds,
         TimestampBounds listingBounds,
         boolean preserveViewBoundaries,
@@ -3278,8 +3337,31 @@ public class EsqlSession {
         ActionListener<Versioned<LogicalPlan>> listener
     ) {
         LOGGER.debug("Analyzing the plan ({})", description);
+        boolean usedFilter = requestFilter != null || queryTimeFilters.isEmpty() == false;
+        if (leftPatternWithoutIndices(queryTimeFilters, result)) {
+            // The analysis of a pattern without indices does not fail on its own when unmapped fields are nullified, as they are
+            // for PromQL. It would succeed with the columns of no index at all.
+            LOGGER.debug("The time range of the query matches no index of a pattern ({})", description);
+            // Only the time range goes. The request filter stays, so that the query resolves the indices that it did before
+            // queries had a time range to go by.
+            retryWithFilter(
+                requestFilter,
+                parsed,
+                unmappedResolution,
+                viewSettings,
+                configuration,
+                executionInfo,
+                timestampBounds,
+                listingBounds,
+                preserveViewBoundaries,
+                preAnalysis,
+                result,
+                listener
+            );
+            return;
+        }
         try {
-            if (result.indexResolution.values().stream().anyMatch(IndexResolution::isValid) || requestFilter != null) {
+            if (result.indexResolution.values().stream().anyMatch(IndexResolution::isValid) || usedFilter) {
                 // We won't run this check with no filter and no valid indices since this may lead to false positive - missing index report
                 // when the resolution result is not valid for a different reason.
                 EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(
@@ -3287,7 +3369,7 @@ public class EsqlSession {
                     result.indexResolution.values(),
                     result.linkedResolution.values(),
                     result.indexViewOrigins(),
-                    requestFilter != null
+                    usedFilter
                 );
             }
             TimeSpanMarker analysisProfile = executionInfo.queryProfile().analysis();
@@ -3311,20 +3393,20 @@ public class EsqlSession {
             listener.onResponse(new Versioned<>(plan, result.minimumTransportVersion()));
         } catch (VerificationException ve) {
             LOGGER.debug("Analyzing the plan ({}) failed with {}", description, ve.getDetailedMessage());
-            if (requestFilter == null) {
+            if (usedFilter == false) {
                 // if the initial request didn't have a filter, then just pass the exception back to the user
                 listener.onFailure(ve);
             } else {
-                // retrying the index resolution without index filtering.
-                executionInfo.clusterInfo.clear();
-                resolveIndicesAndAnalyze(
+                // Retrying the index resolution with less index filtering. The time range of the query goes first: the request
+                // filter alone may keep out an index that brings a conflict to the mapping. That attempt has no time range, so
+                // its own failure retries without index filtering.
+                retryWithFilter(
+                    queryTimeFilters.isEmpty() ? null : requestFilter,
                     parsed,
                     unmappedResolution,
                     viewSettings,
                     configuration,
                     executionInfo,
-                    "second attempt, without filter",
-                    null,
                     timestampBounds,
                     listingBounds,
                     preserveViewBoundaries,
@@ -3336,6 +3418,57 @@ public class EsqlSession {
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    /**
+     * Whether the time range of the query left one of its index patterns without any index. The indices are then resolved
+     * again without the range, so that the query sees the mapping it would have seen without it.
+     */
+    private static boolean leftPatternWithoutIndices(Map<IndexPattern, QueryBuilder> queryTimeFilters, PreAnalysisResult result) {
+        for (IndexPattern pattern : queryTimeFilters.keySet()) {
+            IndexResolution resolution = result.indexResolution.get(pattern);
+            if (resolution != null && resolution.isValid() && resolution.resolvedIndices().isEmpty()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Resolves the indices again with the given request filter only, {@code null} for no index filtering at all, and analyzes
+     * the plan with what they resolve to. The time range of the query is not used again.
+     */
+    private void retryWithFilter(
+        @Nullable QueryBuilder requestFilter,
+        LogicalPlan parsed,
+        UnmappedResolution unmappedResolution,
+        Map<String, ViewQuerySettings> viewSettings,
+        Configuration configuration,
+        EsqlExecutionInfo executionInfo,
+        TimestampBounds timestampBounds,
+        TimestampBounds listingBounds,
+        boolean preserveViewBoundaries,
+        PreAnalyzer.PreAnalysis preAnalysis,
+        PreAnalysisResult result,
+        ActionListener<Versioned<LogicalPlan>> listener
+    ) {
+        executionInfo.clusterInfo.clear();
+        resolveIndicesAndAnalyze(
+            parsed,
+            unmappedResolution,
+            viewSettings,
+            configuration,
+            executionInfo,
+            requestFilter == null ? "second attempt, without filter" : "second attempt, without the time range of the query",
+            requestFilter,
+            Map.of(),
+            timestampBounds,
+            listingBounds,
+            preserveViewBoundaries,
+            preAnalysis,
+            result,
+            listener
+        );
     }
 
     private PhysicalPlan logicalPlanToPhysicalPlan(
@@ -3400,6 +3533,8 @@ public class EsqlSession {
             );
         }
         plan.setAnalyzed();
+        // TODO: when intoDestination != null, validate its mapping in projectMetadata (including column/field type
+        // mismatches against plan.output()) after authorizing write privileges during pre-analysis.
         List<IndexResolution> semanticSources = new ArrayList<>(indexResolutions);
         semanticSources.addAll(r.lookupIndices().values());
         Map<NameId, FieldSemantics> semantics = ColumnSemantics.collect(plan, semanticSources);

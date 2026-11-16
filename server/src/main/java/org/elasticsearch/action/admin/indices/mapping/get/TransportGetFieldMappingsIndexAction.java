@@ -28,7 +28,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldPathFilter;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.MappingBuilder;
@@ -41,7 +40,6 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -114,11 +112,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
         // in a get-mappings request, so we use a new ThreadContext to swallow them and avoid posting
         // them back to the client.
         try (ThreadContext.StoredContext ignored = threadPool.getThreadContext().stashContext()) {
-            mappingBuilder = mapperService.parseMappings(
-                documentMapper.mappingSource(),
-                MergeReason.MAPPING_RECOVERY,
-                FieldPathFilter.forPatterns(Arrays.asList(request.fields()))
-            );
+            mappingBuilder = mapperService.parseMappings(documentMapper.mappingSource(), MergeReason.MAPPING_RECOVERY);
         }
         Map<String, FieldMappingMetadata> fieldMapping = findFieldMappings(fieldPredicate, mappingBuilder, request);
         return new GetFieldMappingsResponse(singletonMap(shardId.getIndexName(), fieldMapping));

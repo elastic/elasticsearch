@@ -313,13 +313,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             mapperRegistry.getVectorsFormatProviders(),
             mapperRegistry.getNamespaceValidator(),
             projectMetadataSupplier,
-            ParseFieldLimits.parseFieldLimits(reason, indexSettings),
-            this::parseStoredMappings,
-            null
+            ParseFieldLimits.parseFieldLimits(reason, indexSettings)
         );
         this.documentParser = new DocumentParser(
             parserConfiguration,
-            this.mappingParserContextSupplier.apply(MergeReason.MAPPING_RECOVERY)
+            this.mappingParserContextSupplier.apply(MergeReason.MAPPING_RECOVERY),
+            this::parseStoredMappings
         );
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(
             indexSettings.getIndexVersionCreated()
@@ -688,20 +687,14 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * Parses a mapping source into a builder under the given reason
      */
     public MappingBuilder parseMappings(CompressedXContent mappingSource, MergeReason reason) {
-        return parseMappings(mappingSource, reason, null);
+        return mappingParser.parseToBuilder(SINGLE_MAPPING_NAME, reason, MappingParser.convertToMap(mappingSource));
     }
 
     /**
-     * Parses a mapping source into a builder under the given reason, only making builders for the fields {@code fieldFilter}
-     * keeps, or for all of them if it is null. Fields that are not kept are skipped before their parameters are parsed, so
-     * limits are not applied to them.
+     * Parses the decoded root object of a mapping that is already stored, without the type name around it, which is consumed
      */
-    public MappingBuilder parseMappings(CompressedXContent mappingSource, MergeReason reason, @Nullable FieldPathFilter fieldFilter) {
-        return mappingParser.parseToBuilder(SINGLE_MAPPING_NAME, reason, MappingParser.convertToMap(mappingSource), fieldFilter);
-    }
-
-    private MappingBuilder parseStoredMappings(Map<String, Object> decodedMappings, @Nullable FieldPathFilter fieldFilter) {
-        return mappingParser.parseToBuilder(SINGLE_MAPPING_NAME, MergeReason.MAPPING_RECOVERY, decodedMappings, fieldFilter);
+    MappingBuilder parseStoredMappings(Map<String, Object> decodedMappings) {
+        return mappingParser.parseToBuilder(SINGLE_MAPPING_NAME, MergeReason.MAPPING_RECOVERY, decodedMappings);
     }
 
     private DocumentMapper doMerge(String type, MergeReason reason, Map<String, Object> mappingSourceAsMap) {

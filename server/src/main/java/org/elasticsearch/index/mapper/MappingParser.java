@@ -124,22 +124,9 @@ public final class MappingParser {
      * @return a {@link MappingBuilder} containing the parsed root builder, metadata, and meta
      * @throws MapperParsingException in case of parsing error
      */
+    @SuppressWarnings("unchecked")
     MappingBuilder parseToBuilder(@Nullable String type, MergeReason reason, Map<String, Object> mappingSource)
         throws MapperParsingException {
-        return parseToBuilder(type, reason, mappingSource, null);
-    }
-
-    /**
-     * As {@link #parseToBuilder(String, MergeReason, Map)}, applying a {@link FieldPathFilter} to limit
-     * parsing to only those fields that pass the filter.
-     */
-    @SuppressWarnings("unchecked")
-    MappingBuilder parseToBuilder(
-        @Nullable String type,
-        MergeReason reason,
-        Map<String, Object> mappingSource,
-        @Nullable FieldPathFilter fieldFilter
-    ) throws MapperParsingException {
         if (mappingSource.isEmpty()) {
             if (type == null) {
                 throw new MapperParsingException("malformed mapping, no type name found");
@@ -159,9 +146,6 @@ public final class MappingParser {
         }
 
         MappingParserContext mappingParserContext = mappingParserContextSupplier.apply(reason);
-        if (fieldFilter != null) {
-            mappingParserContext = mappingParserContext.withFieldFilter(fieldFilter);
-        }
 
         RootObjectMapper.Builder rootObjectMapper = RootObjectMapper.parse(type, mappingSource, mappingParserContext);
 

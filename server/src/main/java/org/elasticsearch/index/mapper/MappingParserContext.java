@@ -15,7 +15,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -26,8 +25,6 @@ import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.script.ScriptCompiler;
 
 import java.util.List;
-import java.util.Map;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -56,19 +53,8 @@ public class MappingParserContext {
     private final RootObjectMapperNamespaceValidator namespaceValidator;
     private final Supplier<ProjectMetadata> projectMetadataSupplier;
     private final ParseFieldLimits parseFieldLimits;
-    @Nullable
-    private final StoredMappingParser storedMappingParser;
-    // Restricts the properties of a mapping that are parsed, if only some of its fields are wanted
-    @Nullable
-    private final FieldPathFilter fieldPathFilter;
 
-    /**
-     * Parses the source of a stored mapping into builders that was decoded to a map, optionally applying a filter
-     */
-    @FunctionalInterface
-    public interface StoredMappingParser extends BiFunction<Map<String, Object>, FieldPathFilter, MappingBuilder> {}
-
-    // Package-private: used by MapperService (to pass ParseFieldLimits and the stored mapping parser directly) and by inner subcontexts.
+    // Package-private: used by MapperService (to pass ParseFieldLimits directly) and by inner subcontexts.
     MappingParserContext(
         Function<String, SimilarityProvider> similarityLookupService,
         Function<String, Mapper.TypeParser> typeParsers,
@@ -84,9 +70,7 @@ public class MappingParserContext {
         List<VectorsFormatProvider> vectorsFormatProviders,
         RootObjectMapperNamespaceValidator namespaceValidator,
         Supplier<ProjectMetadata> projectMetadataSupplier,
-        ParseFieldLimits parseFieldLimits,
-        @Nullable StoredMappingParser storedMappingParser,
-        @Nullable FieldPathFilter fieldPathFilter
+        ParseFieldLimits parseFieldLimits
     ) {
         this.similarityLookupService = similarityLookupService;
         this.typeParsers = typeParsers;
@@ -103,8 +87,6 @@ public class MappingParserContext {
         this.namespaceValidator = namespaceValidator;
         this.projectMetadataSupplier = projectMetadataSupplier;
         this.parseFieldLimits = parseFieldLimits;
-        this.storedMappingParser = storedMappingParser;
-        this.fieldPathFilter = fieldPathFilter;
     }
 
     public MappingParserContext(
@@ -144,9 +126,7 @@ public class MappingParserContext {
                 indexSettings.getMappingNestedFieldsLimit(),
                 NewFieldsBudget.unlimited(),
                 0
-            ),
-            null,
-            null
+            )
         );
     }
 
@@ -223,51 +203,6 @@ public class MappingParserContext {
      */
     public boolean clusterHasFeature(NodeFeature feature) {
         return clusterSupportsFeature.test(feature);
-    }
-
-    @Nullable
-    FieldPathFilter fieldPathFilter() {
-        return fieldPathFilter;
-    }
-
-    /**
-     * A copy of this context that only parses the fields passed by {@code fieldFilter}.
-     */
-    MappingParserContext withFieldFilter(FieldPathFilter fieldFilter) {
-        return new MappingParserContext(
-            similarityLookupService,
-            typeParsers,
-            runtimeFieldParsers,
-            indexVersionCreated,
-            clusterTransportVersion,
-            clusterSupportsFeature,
-            searchExecutionContextSupplier,
-            scriptCompiler,
-            indexAnalyzers,
-            indexSettings,
-            bitSetProducer,
-            vectorsFormatProviders,
-            namespaceValidator,
-            projectMetadataSupplier,
-            parseFieldLimits,
-            storedMappingParser,
-            fieldFilter
-        );
-    }
-
-    /**
-     * Parses the source of a mapping that is already stored into builders.  If a
-     * {@link FieldPathFilter} is defined in this context, only fields that match
-     * the filter are parsed. The root is the stored mapping decoded to a map, without
-     * its type name, which can be shared between calls: parsing
-     * consumes the map, so it is the copy that is parsed.
-     */
-    MappingBuilder parseStoredMapping(Map<String, Object> decodedRoot) {
-        if (storedMappingParser == null) {
-            throw new IllegalStateException("this context has no parser for stored mappings");
-        }
-        FieldPathFilter copyFilter = fieldPathFilter != null ? fieldPathFilter : FieldPathFilter.matchAll();
-        return storedMappingParser.apply(copyFilter.filteredCopy(decodedRoot), fieldPathFilter);
     }
 
     public Supplier<SearchExecutionContext> searchExecutionContext() {
@@ -372,9 +307,7 @@ public class MappingParserContext {
                 in.vectorsFormatProviders,
                 in.namespaceValidator,
                 null,
-                in.parseFieldLimits,
-                in.storedMappingParser,
-                null
+                in.parseFieldLimits
             );
         }
 
@@ -420,9 +353,7 @@ public class MappingParserContext {
                 in.namespaceValidator,
                 null,
                 // Dynamic templates should not count towards the total field budget
-                limits.withoutTotalFieldsBudget(),
-                in.storedMappingParser,
-                null
+                limits.withoutTotalFieldsBudget()
             );
             this.dateFormatter = dateFormatter;
         }

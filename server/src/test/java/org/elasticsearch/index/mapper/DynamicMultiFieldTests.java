@@ -29,7 +29,7 @@ public class DynamicMultiFieldTests extends MapperServiceTestCase {
 
     /** The builders the context collected for {@code parent}, which is what the dynamic update is made of. */
     private static List<Mapper.Builder> addMultiField(MapperService mapperService, String parent, String multiField) {
-        DocumentParserContext context = new TestDocumentParserContext(mapperService.parserContext(), mapperService.mappingLookup());
+        DocumentParserContext context = new TestDocumentParserContext(mapperService);
         FieldMapper.Builder sub = keyword(mapperService, multiField);
         context.updateMapping(parent, builder -> ((FieldMapper.Builder) builder).addMultiField(sub));
         return context.getDynamicMappers(parent);
@@ -106,7 +106,7 @@ public class DynamicMultiFieldTests extends MapperServiceTestCase {
             b.startObject("one").field("type", "text").endObject();
             b.startObject("two").field("type", "text").endObject();
         }));
-        DocumentParserContext context = new TestDocumentParserContext(mapperService.parserContext(), mapperService.mappingLookup());
+        DocumentParserContext context = new TestDocumentParserContext(mapperService);
 
         context.updateMapping("one", builder -> ((FieldMapper.Builder) builder).addMultiField(keyword(mapperService, "raw")));
         context.updateMapping("two", builder -> ((FieldMapper.Builder) builder).addMultiField(keyword(mapperService, "raw")));
@@ -117,6 +117,87 @@ public class DynamicMultiFieldTests extends MapperServiceTestCase {
         String restated = Strings.toString(context.getDynamicMappers("one").get(0));
         assertThat(restated, containsString("\"raw\":{\"type\":\"keyword\"}"));
         assertThat(restated, containsString("\"other\":{\"type\":\"keyword\"}"));
+    }
+
+    public void testParentInAnObjectWithSiblings() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("obj").startObject("properties");
+            b.startObject("x").field("type", "text").endObject();
+            b.startObject("y").field("type", "text").endObject();
+            b.endObject().endObject();
+            b.startObject("other").field("type", "text").endObject();
+        }));
+
+        List<Mapper.Builder> added = addMultiField(mapperService, "obj.x", "raw");
+
+        assertThat(added, hasSize(1));
+        assertThat(added.get(0).leafName(), equalTo("x"));
+    }
+
+    public void testParentInANestedObject() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("nest").field("type", "nested").startObject("properties");
+            b.startObject("inner").startObject("properties");
+            b.startObject("x").field("type", "text").endObject();
+            b.endObject().endObject();
+            b.endObject().endObject();
+        }));
+
+        List<Mapper.Builder> added = addMultiField(mapperService, "nest.inner.x", "raw");
+
+        assertThat(added, hasSize(1));
+        assertThat(added.get(0).leafName(), equalTo("x"));
+    }
+
+    public void testParentWithDotsInItsLeafNameInAnObject() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("obj").field("subobjects", false).startObject("properties");
+            b.startObject("a.b").field("type", "text").endObject();
+            b.startObject("c").field("type", "text").endObject();
+            b.endObject().endObject();
+        }));
+
+        List<Mapper.Builder> added = addMultiField(mapperService, "obj.a.b", "raw");
+
+        assertThat(added, hasSize(1));
+        assertThat(added.get(0).leafName(), equalTo("a.b"));
+    }
+
+    public void testParentWithUnusualName() throws IOException {
+        MapperService mapperService = createMapperService(mappingNoSubobjects(b -> {
+            b.startObject("trailing ").field("type", "text").endObject();
+            b.startObject("obj. spaced").field("type", "text").endObject();
+        }));
+
+        assertThat(addMultiField(mapperService, "trailing ", "raw"), hasSize(1));
+        assertThat(addMultiField(mapperService, "obj. spaced", "raw"), hasSize(1));
+    }
+
+    public void testUpdateOfAMultiField() throws IOException {
+        MapperService mapperService = createMapperService(
+            fieldMapping(
+                b -> b.field("type", "text").startObject("fields").startObject("raw").field("type", "keyword").endObject().endObject()
+            )
+        );
+        DocumentParserContext context = new TestDocumentParserContext(mapperService);
+
+        context.updateMapping("field.raw", builder -> {});
+
+        assertThat(context.getDynamicMappers("field"), hasSize(1));
+    }
+
+    public void testParentInAPassthroughObject() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("labels").field("type", "passthrough").field("priority", "0").startObject("properties");
+            b.startObject("a").field("type", "text").endObject();
+            b.startObject("b").field("type", "text").endObject();
+            b.endObject().endObject();
+        }));
+
+        List<Mapper.Builder> added = addMultiField(mapperService, "labels.a", "raw");
+
+        assertThat(added, hasSize(1));
+        assertThat(added.get(0).leafName(), equalTo("a"));
     }
 
     public void testUnmappedParent() throws IOException {

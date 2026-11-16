@@ -12,7 +12,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -301,7 +300,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         );
         // The node-reduce driver is planned before every shard of the node is acquired, so only the pages can tell
         boolean knowsEveryShard = ComputeService.REDUCE_DESCRIPTION.equals(context.description()) == false;
-        List<NestedFlattenOperator.Leaf> leaves = nestedLeaves(fieldExtractExec, extracted, knowsEveryShard, context.minTransportVersion());
+        List<NestedFlattenOperator.Leaf> leaves = nestedLeaves(fieldExtractExec, extracted, knowsEveryShard);
         if (leaves.isEmpty() == false) {
             operation = operation.with(new NestedFlattenOperator.Factory(shardContexts, docChannel, leaves), extracted);
         }
@@ -309,17 +308,13 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     }
 
     /**
-     * The fields to read from the child documents of the shards that map them under a nested object. IndexResolver reports
-     * those fields as not aggregatable.
+     * The fields to read from the child documents of the shards that map them under a nested object. Only those IndexResolver
+     * resolved as {@link EsField#isUnderNested}, which it does only where every node reads them: an older node loads null for
+     * the others, so a shard here must too.
      */
     // Visible for testing
-    List<NestedFlattenOperator.Leaf> nestedLeaves(
-        FieldExtractExec fieldExtractExec,
-        Layout extracted,
-        boolean knowsEveryShard,
-        TransportVersion minTransportVersion
-    ) {
-        if (NestedLeaves.enabled(minTransportVersion) == false) {
+    List<NestedFlattenOperator.Leaf> nestedLeaves(FieldExtractExec fieldExtractExec, Layout extracted, boolean knowsEveryShard) {
+        if (NestedLeaves.ENABLED == false) {
             return List.of();
         }
         List<NestedFlattenOperator.Leaf> leaves = new ArrayList<>();
@@ -328,13 +323,13 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             if (attr instanceof FieldAttribute == false || attr.dataType() == DataType.UNSUPPORTED) {
                 continue;
             }
-            String name = getFieldName(attr);
             EsField field = ((FieldAttribute) attr).field();
-            // A union type or a fused function is converted as it is loaded, which the child values are not
-            boolean converted = field instanceof UnionTypeEsField || field instanceof FunctionEsField;
-            if (name.indexOf('.') < 0 || field.isAggregatable() && converted == false) {
+            if (field.isUnderNested() == false) {
                 continue;
             }
+            String name = getFieldName(attr);
+            // A union type or a fused function is converted as it is loaded, which the child values are not
+            boolean converted = field instanceof UnionTypeEsField || field instanceof FunctionEsField;
             if (knowsEveryShard) {
                 boolean nested = false;
                 for (ShardContext shard : shardContexts.iterable()) {

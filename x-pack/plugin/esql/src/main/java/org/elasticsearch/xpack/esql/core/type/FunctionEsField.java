@@ -32,6 +32,7 @@ public class FunctionEsField extends EsField {
             esField.isAggregatable(),
             esField.isAlias(),
             esField.getTimeSeriesFieldType(),
+            esField.isUnderNested(),
             functionConfig
         );
     }
@@ -43,9 +44,10 @@ public class FunctionEsField extends EsField {
         boolean aggregatable,
         boolean isAlias,
         TimeSeriesFieldType timeSeriesFieldType,
+        boolean isUnderNested,
         BlockLoaderFunctionConfig functionConfig
     ) {
-        super(name, esDataType, properties, aggregatable, isAlias, timeSeriesFieldType);
+        super(name, esDataType, properties, aggregatable, isAlias, timeSeriesFieldType, false, false, isUnderNested);
         this.functionConfig = functionConfig;
     }
 

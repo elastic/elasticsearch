@@ -35,7 +35,14 @@ public final class PotentiallyUnmappedSingleTypeEsField extends TypeConflictedFi
     public PotentiallyUnmappedSingleTypeEsField(EsField mappedField, Set<String> mappedIndices) {
         // Without widening, mappingAsAttributes (which swaps any non-widened small-numeric field for a plain widened one) would replace
         // this PUNK wrapper, losing the unmapped leg and fallback.
-        super(mappedField.getName(), mappedField.getDataType().widenSmallNumeric(), new TreeMap<>(), false, TimeSeriesFieldType.UNKNOWN);
+        super(
+            mappedField.getName(),
+            mappedField.getDataType().widenSmallNumeric(),
+            new TreeMap<>(),
+            false,
+            TimeSeriesFieldType.UNKNOWN,
+            mappedField.isUnderNested()
+        );
         this.mappedField = mappedField;
         this.mappedIndices = Set.copyOf(mappedIndices);
     }

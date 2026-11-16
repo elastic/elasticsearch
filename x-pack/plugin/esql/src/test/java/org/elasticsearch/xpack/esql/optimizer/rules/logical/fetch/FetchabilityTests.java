@@ -43,9 +43,11 @@ public class FetchabilityTests extends ESTestCase {
 
     /** Union types stay eager until tests cover their per index conversion on the fetch side. */
     public void testUnionTypesAreNotFetchable() {
-        assertNotFetchable(field(new MultiTypeEsField("f", DataType.DATE_NANOS, true, Map.of(), EsField.TimeSeriesFieldType.NONE, null)));
         assertNotFetchable(
-            field(new CompactMultiTypeEsField("f", DataType.DATE_NANOS, true, Map.of(), EsField.TimeSeriesFieldType.NONE, null))
+            field(new MultiTypeEsField("f", DataType.DATE_NANOS, true, Map.of(), EsField.TimeSeriesFieldType.NONE, null, false))
+        );
+        assertNotFetchable(
+            field(new CompactMultiTypeEsField("f", DataType.DATE_NANOS, true, Map.of(), EsField.TimeSeriesFieldType.NONE, null, false))
         );
     }
 

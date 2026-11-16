@@ -22,9 +22,10 @@ public abstract sealed class TypeConflictedField extends EsField permits Invalid
         DataType esDataType,
         Map<String, EsField> properties,
         boolean aggregatable,
-        TimeSeriesFieldType timeSeriesFieldType
+        TimeSeriesFieldType timeSeriesFieldType,
+        boolean isUnderNested
     ) {
-        super(name, esDataType, properties, aggregatable, timeSeriesFieldType);
+        super(name, esDataType, properties, aggregatable, false, timeSeriesFieldType, false, false, isUnderNested);
     }
 
     public TypeConflictedField(StreamInput in) throws IOException {

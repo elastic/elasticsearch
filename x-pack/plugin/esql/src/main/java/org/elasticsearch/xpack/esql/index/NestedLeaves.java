@@ -38,7 +38,8 @@ public final class NestedLeaves {
 
     /**
      * Whether the fields under a nested object are read where {@code minTransportVersion} is the oldest node's version. An older
-     * data node would load null for them, so the coordinator resolving a query and each data node running it check this alike.
+     * data node would load null for them. Only {@code IndexResolver} checks this: data nodes read the child documents only of
+     * the fields it resolved as {@link org.elasticsearch.xpack.esql.core.type.EsField#isUnderNested}.
      */
     public static boolean enabled(@Nullable TransportVersion minTransportVersion) {
         return ENABLED && minTransportVersion != null && minTransportVersion.supports(VERSION);

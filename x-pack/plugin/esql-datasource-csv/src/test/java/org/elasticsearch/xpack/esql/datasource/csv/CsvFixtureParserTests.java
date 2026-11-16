@@ -51,4 +51,21 @@ public class CsvFixtureParserTests extends ESTestCase {
         assertNull("an unparseable cell is null, never a wrong instant", junk[1]);
         assertNull("an unparseable cell is null, never a wrong instant", junk[2]);
     }
+
+    /**
+     * The negative edge, where the seconds term alone underflows a long although the instant itself does not.
+     * {@code Instant.getNano()} is never negative, so it adds back: 1677-09-21T00:12:43.5Z is
+     * -9223372036500000000 nanoseconds, which fits, while its seconds term times 1e9 is -9223372037000000000, which
+     * does not. Computing the product in a long first throws and the cell silently nulls.
+     */
+    public void testSubMillisecondHeaderKeepsAnInstantWhoseSecondsTermAloneUnderflows() throws Exception {
+        Path csv = createTempFile("date_edge", ".csv");
+        Files.writeString(csv, """
+            id:integer,nanos:date_nanos
+            1,1677-09-21T00:12:43.500000000Z
+            """, StandardCharsets.UTF_8);
+
+        CsvFixtureParser.CsvFixtureResult result = CsvFixtureParser.parseCsvFile(csv);
+        assertEquals(-9223372036500000000L, result.rows().get(0)[1]);
+    }
 }

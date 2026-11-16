@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.csv;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -427,7 +428,13 @@ public final class CsvFixtureParser {
         try {
             Instant instant = Instant.parse(value);
             long nanosPerUnit = 1_000_000_000L / unitsPerSecond;
-            return Math.addExact(Math.multiplyExact(instant.getEpochSecond(), unitsPerSecond), instant.getNano() / nanosPerUnit);
+            // BigInteger, not multiplyExact: the seconds term alone underflows a long just below the representable
+            // floor while the instant itself still fits, because getNano() is always non-negative and adds back.
+            // 1677-09-21T00:12:43.5Z as nanos is -9223372036500000000, which fits, while -9223372037 * 1e9 does not.
+            return BigInteger.valueOf(instant.getEpochSecond())
+                .multiply(BigInteger.valueOf(unitsPerSecond))
+                .add(BigInteger.valueOf(instant.getNano() / nanosPerUnit))
+                .longValueExact();
         } catch (Exception e) {
             return null;
         }

@@ -89,8 +89,6 @@ record ColumnInfo(
      * followed by {@code castBlock} for every other pair.
      */
     ColumnInfo targetTyped(DataType target, @Nullable DateFormatter formatter) {
-        // No identity short-circuit, unlike fileTyped() above: the caller retypes only where target differs from
-        // esqlType, and a declared formatter arrives freshly built, so neither half of such a guard could hold.
         DataType fileType = fileEsqlType == null ? esqlType : fileEsqlType;
         return new ColumnInfo(descriptor, parquetType, target, maxDefLevel, maxRepLevel, logicalType, formatter, fileType);
     }

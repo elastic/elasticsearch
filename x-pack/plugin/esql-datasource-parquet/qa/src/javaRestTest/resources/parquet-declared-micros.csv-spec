@@ -95,10 +95,10 @@ id:integer | elements:long
 7          | null
 ;
 
-// A filter over the newly readable range, which the scan-and-sort cases above do not exercise. Row-group pruning
-// derives its raw bound from decoded == floorDiv(raw, 1000), so a wrong bound here drops rows the scan returns.
-// The lower predicate straddles nothing; the upper one sits between rows 2 and 3, both pre-epoch and sub-millisecond
-// apart from the bound, which is where a truncating bound would disagree with a flooring one.
+// A filter over the newly readable range, which the scan-and-sort cases above do not exercise: the predicate is
+// translated into raw space through decoded == floorDiv(raw, 1000), so it reads the instants the decode now carries.
+// Both bounds here are centuries from every row, so this case cannot tell a flooring bound from a truncating one --
+// the next case does that. The fixture is one row group, so it pins the filtered answer rather than any pruning.
 declaredDateOverMicrosTimestampFiltersAcrossTheNanosecondDomain
 required_capability: dataset_in_from_command
 required_capability: parquet_declared_date_reads_micros_in_one_step

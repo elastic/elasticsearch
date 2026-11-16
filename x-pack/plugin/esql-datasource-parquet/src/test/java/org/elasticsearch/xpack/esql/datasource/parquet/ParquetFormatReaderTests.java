@@ -8229,7 +8229,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
      * one route decodes in one step and another in two answers by plan shape rather than by data.
      * <p>
      * It varies the physical shape only: one required row, a declared column, no format, a strict policy. The
-     * formatter, the policy and the declared-vs-inferred gate are pinned by the seven tests at the end of this
+     * formatter, the policy and the declared-vs-inferred gate are pinned by the tests at the end of this
      * class instead.
      * <p>
      * It asserts agreement rather than a particular value, so it stays true of whatever the pairs become; the
@@ -8507,6 +8507,77 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * The deferred route's multi-run, multi-bucket path, with a two-step conversion on it. This is the code whose
+     * behaviour the retype moved: the cast used to run once on the stitched column and now runs inside each
+     * contiguous run, with the pieces joined by {@code BlockChunks.concat}.
+     *
+     * <p>Every other deferred test here asks for one row, two adjacent rows, or one row three times, which takes
+     * {@code readBatchSparse}'s {@code survivorCount == sourceRows} return or its contiguous fast path and a single
+     * bucket. This one spans row groups with gaps between the survivors, so the general run loop and the
+     * cross-bucket stitch both run, and two of the requested values do not fit {@code integer} -- so one run's cast
+     * yields a null and {@code concat} has to join a nulled chunk to populated ones. One position is requested
+     * twice, which exercises the gather replay.
+     */
+    public void testDeferredDefusedPairAcrossRunsAndRowGroups() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("v")
+            .optional(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("pad")
+            .named("test_schema");
+
+        int rows = 2000;
+        long tooBig = 2_147_483_648L;
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        OutputFile outputFile = createOutputFile(outputStream);
+        SimpleGroupFactory groupFactory = new SimpleGroupFactory(schema);
+        String padding = "x".repeat(200);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(new PlainCompressionCodecFactory())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .withRowGroupSize(4 * 1024L)
+                .withPageSize(512)
+                .build()
+        ) {
+            for (int i = 0; i < rows; i++) {
+                Group g = groupFactory.newGroup();
+                g.add("v", i == 700 || i == 1500 ? tooBig : (long) i);
+                g.add("pad", padding);
+                writer.write(g);
+            }
+        }
+        byte[] parquetData = outputStream.toByteArray();
+        StorageObject storageObject = createStorageObject(parquetData, "memory://defused_multirun.parquet");
+
+        // More than one row group, or the cross-bucket half of this test is vacuous.
+        ParquetMetadata footer = footerOf(storageObject);
+        assertThat("need several row groups for the multi-bucket path", footer.getBlocks().size(), greaterThan(1));
+
+        ParquetFormatReader reader = declaredReader("v");
+        // Gaps between survivors, spanning row groups, with 701 asked for twice.
+        long[] positions = new long[] { 5L, 700L, 701L, 701L, 1500L, 1990L };
+        try (ColumnExtractor extractor = new ParquetColumnExtractor(storageObject, reader, footer, ErrorPolicy.PERMISSIVE)) {
+            Block[] blocks = extractor.extract(new String[] { "v" }, new DataType[] { DataType.INTEGER }, positions, blockFactory);
+            try {
+                IntBlock out = (IntBlock) blocks[0];
+                assertEquals("one output position per requested position", positions.length, out.getPositionCount());
+                List<Object> actual = new ArrayList<>();
+                for (int p = 0; p < out.getPositionCount(); p++) {
+                    actual.add(out.isNull(p) ? null : out.getInt(out.getFirstValueIndex(p)));
+                }
+                // 700 and 1500 hold 2^31, which `integer` cannot take, so those cells null under PERMISSIVE.
+                assertEquals(Arrays.asList(5, null, 701, 701, null, 1990), actual);
+            } finally {
+                Releasables.close(blocks);
+            }
+        }
+    }
+
     /** The single cell of a one-row block, as a comparable value, or {@code null} when the position is null. */
     private static Object cellOf(Block block, DataType type, String where) {
         assertEquals(where, 1, block.getPositionCount());
@@ -8558,7 +8629,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
                         return List.of(g);
                     });
                     List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", to));
-                    // Per-shape location, for the footer-cache reason given on the agreement guard below.
+                    // Per-shape location, for the footer-cache reason given on the agreement guard above.
                     StorageObject storageObject = createStorageObject(
                         parquetData,
                         "memory://" + shape.label().replace(' ', '_') + ".parquet"
@@ -11964,9 +12035,9 @@ public class ParquetFormatReaderTests extends ESTestCase {
 
     /**
      * A {@code TIMESTAMP(MICROS)} column — the unit pyarrow writes for a {@code datetime64[us]} column — infers {@code date_nanos}, so
-     * declaring it {@code date} narrows through {@code castBlock}. A value before 1970 is an ordinary instant for
+     * declaring it {@code date} decodes straight to millis. A value before 1970 is an ordinary instant for
      * {@code date}, and it must read rather than fail the whole column: the 1970 floor belongs to the source type.
-     * The coercion is shared, but the {@code date_nanos} decode beneath it is not -- one decoder scales its batch
+     * The scaling is shared, but the decode beneath it is not -- one decoder scales its batch
      * array, the other reads value by value -- so the case runs both, selected with
      * {@link ParquetFormatReader#withBaselinePath()}.
      */
@@ -12329,7 +12400,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
     // The deferred route decodes a fused pair natively, so it has to carry what the eager readers' view carries:
     // the formatter, the error policy, and the declared-vs-inferred gate. One test per thing, flat and list.
 
-    /** A declared {@code format} reaches the deferred native decode: with it the token parses, without it it throws. */
+    /** A declared {@code format} reaches the deferred native decode: with it the token parses, without it the cell nulls. */
     public void testDeferredNativeDecodeHonorsTheDeclaredDateFormat() throws Exception {
         MessageType schema = Types.buildMessage()
             .required(PrimitiveType.PrimitiveTypeName.BINARY)

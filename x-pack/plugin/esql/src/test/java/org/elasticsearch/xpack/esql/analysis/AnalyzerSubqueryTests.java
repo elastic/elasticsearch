@@ -2159,6 +2159,19 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         }
     }
 
+    /**
+     * A bare time-series aggregation only gets its implicit {@code _timeseries} column after the union's columns are determined.
+     * The union must still return it, right after the column that precedes it in the subquery, as the subquery does on its own.
+     */
+    public void testUnionAllKeepsImplicitTimeSeriesColumnOfBareTimeSeriesAggregate() {
+        assumeTrue("Requires TS in subqueries", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+        LogicalPlan plan = analyzer().addEmployees("test").addK8s().query("""
+            FROM test, (TS k8s | STATS rate = rate(network.total_bytes_in) BY tbucket = TBUCKET(1 hour))
+            """);
+        List<String> names = plan.output().stream().map(Attribute::name).toList();
+        assertThat(names.subList(names.size() - 3, names.size()), equalTo(List.of("rate", "_timeseries", "tbucket")));
+    }
+
     private static void assertProjectionHasLong(Project project, String name, Class<? extends NamedExpression> kind) {
         NamedExpression match = project.projections().stream().filter(p -> name.equals(p.name())).findFirst().orElseThrow();
         NamedExpression typed = as(match, kind);

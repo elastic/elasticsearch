@@ -319,7 +319,6 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedJobBuilder;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry;
-import org.elasticsearch.xpack.ml.datafeed.esql.EsqlQueryParsers;
 import org.elasticsearch.xpack.ml.datafeed.esql.UnavailableEsqlQueryParser;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
 import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDatafeedQueryValidator;
@@ -598,7 +597,12 @@ public class MachineLearning extends Plugin
             machineLearningExtension.set(new DefaultMachineLearningExtension());
         }
         if (loader != null) {
-            EsqlQueryParsers.selectOne(loader.loadExtensions(EsqlQueryParser.class)).ifPresent(esqlQueryParser::trySet);
+            List<EsqlQueryParser> providers = loader.loadExtensions(EsqlQueryParser.class);
+            // Instances of one class count as one; providers of different classes are a misconfiguration.
+            if (providers.stream().map(Object::getClass).distinct().count() > 1) {
+                throw new IllegalStateException("Expected one ES|QL query parser provider but found " + providers);
+            }
+            providers.stream().findFirst().ifPresent(esqlQueryParser::trySet);
         }
     }
 

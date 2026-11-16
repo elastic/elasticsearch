@@ -7,8 +7,12 @@
 
 package org.elasticsearch.xpack.esql.parser;
 
+import org.elasticsearch.xpack.esql.plan.logical.Keep;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * The inline {@code EXTERNAL} command no longer exists: it must not parse in snapshot or release builds.
@@ -24,6 +28,23 @@ public class ExternalCommandRemovedTests extends AbstractStatementParserTests {
             ParsingException pe = expectThrows(ParsingException.class, () -> query(query));
             assertThat(query, pe.getMessage(), containsString("mismatched input 'EXTERNAL'"));
         }
+    }
+
+    public void testExternalCommandDoesNotParseInAnyCase() {
+        for (String keyword : new String[] { "external", "External", "eXtErNaL" }) {
+            ParsingException pe = expectThrows(ParsingException.class, () -> query(keyword + " \"s3://bucket/table\""));
+            assertThat(pe.getMessage(), containsString("mismatched input '" + keyword + "'"));
+        }
+    }
+
+    public void testExternalIsNotAProcessingCommand() {
+        ParsingException pe = expectThrows(ParsingException.class, () -> query("ROW a = 1 | EXTERNAL \"s3://bucket/table\""));
+        assertThat(pe.getMessage(), containsString("mismatched input 'EXTERNAL'"));
+    }
+
+    public void testExternalRemainsUsableAsAName() {
+        assertThat(query("FROM external"), instanceOf(UnresolvedRelation.class));
+        assertThat(query("ROW external = 1 | KEEP external"), instanceOf(Keep.class));
     }
 
     public void testExternalCommandDoesNotParseWithDefaultParser() {

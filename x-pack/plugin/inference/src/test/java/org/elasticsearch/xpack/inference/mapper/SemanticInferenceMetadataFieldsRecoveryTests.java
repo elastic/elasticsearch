@@ -41,7 +41,6 @@ import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.model.TestModel;
 
 import java.io.IOException;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
@@ -226,7 +225,7 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
             }
         });
         thread.start();
-        thread.join(Duration.ofSeconds(TEST_REQUEST_TIMEOUT.seconds()));
+        safeJoin(thread);
 
         Throwable t = failure.get();
         if (t != null) {

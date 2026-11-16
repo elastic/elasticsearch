@@ -41,6 +41,12 @@ import java.util.concurrent.Executor;
  * file. Per-read execution
  * parameters (projection, batch size, limit, error policy, split config) are bundled in
  * {@link FormatReadContext}.
+ * <p>
+ * Lifecycle: the registry holds one prototype per format for the node lifetime and closes it
+ * when the data-source module closes. {@code with*} methods that return a new object mint a
+ * copy the caller must close; identity returns ({@code this}) are not mints. {@link #close()}
+ * must be idempotent. Implementations that hold decompressors, native handles, cached metadata,
+ * or connections release them here — page iterators still close their own streams.
  */
 public interface FormatReader extends Closeable {
 

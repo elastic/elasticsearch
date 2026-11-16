@@ -1970,13 +1970,17 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
             );
         }
 
+        final var lastSeenBccBlobs = new AtomicReference<Set<String>>();
         try {
-            assertBusy(() -> assertTrue(listBccBlobNames(shardCommitsContainer).containsAll(bccBlobsRetainedByPITs)));
+            assertBusy(() -> {
+                lastSeenBccBlobs.set(listBccBlobNames(shardCommitsContainer));
+                assertTrue(lastSeenBccBlobs.get().containsAll(bccBlobsRetainedByPITs));
+            });
         } catch (AssertionError e) {
             logger.info(
                 "Expected surviving BCC blobs = {}, BCC blobs after search node relocation = {}",
                 bccBlobsRetainedByPITs,
-                listBccBlobNames(shardCommitsContainer)
+                lastSeenBccBlobs.get()
             );
             throw e;
         }

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.stateless.commits;
 
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -37,9 +36,12 @@ import static org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit.ME
 /// Blobs are written when a shard is created (before its recovery lists blobs, usually), when it starts, right after a BCC upload, and a
 /// few milliseconds after a BCC upload (by which point the shard may be closed or the index deleted, deliberately).
 ///
-/// State is static and cleared by [#reset(boolean)] before each test, which also decides whether that test injects at all. With a
-/// cluster shared across tests (`Scope.SUITE`), a blob of an earlier test is either cleared by the reset or, if written after it, skipped
-/// by the presence check because its index has been deleted.
+/// State is static and cleared by [#resetWithEnabledAndRandomSeed(boolean, long)] before each test, which also decides whether that test
+/// injects at all. With a cluster shared across tests (`Scope.SUITE`), a blob of an earlier test is either cleared by the reset or, if
+/// written after it, skipped by the presence check because its index has been deleted.
+///
+/// Random values are derived from the per-test seed and the event (shard, primary term, moment, generation), not from the thread that
+/// happens to run the injection, so that a test seed reproduces the same blobs.
 ///
 /// TODO(szybia): remove once merge blobs are uploaded for real
 public class MergeBlobInjector implements IndexEventListener {
@@ -70,20 +72,22 @@ public class MergeBlobInjector implements IndexEventListener {
     }
 
     private static final Set<InjectedBlob> INJECTED = ConcurrentHashMap.newKeySet();
-
     // Primary term of each shard removed by a restore to fewer shards, at the time it was removed
     private static final Map<ShardId, Long> REMOVED_SHARDS = new ConcurrentHashMap<>();
 
     private static volatile boolean enabled;
+    private static volatile long seed;
 
-    public static void reset(boolean enabled) {
+    public static void resetWithEnabledAndRandomSeed(boolean enabled, long seed) {
         INJECTED.clear();
         REMOVED_SHARDS.clear();
+        MergeBlobInjector.seed = seed;
         MergeBlobInjector.enabled = enabled;
     }
 
-    /// Blobs injected since the last [#reset(boolean)]. A blob is registered before its write and unregistered if the write throws, so
-    /// every entry was written and must still be in the object store. Blobs of removed shards are left out.
+    /// Blobs injected since the last [#resetWithEnabledAndRandomSeed(boolean, long)]. A blob is registered before its write and
+    /// unregistered if the write throws, so every entry was written and must still be in the object store.
+    /// Blobs of removed shards are left out.
     public static Set<InjectedBlob> injected() {
         return INJECTED.stream()
             .filter(blob -> blob.primaryTerm() > REMOVED_SHARDS.getOrDefault(blob.shardId(), 0L))
@@ -132,7 +136,7 @@ public class MergeBlobInjector implements IndexEventListener {
         }
         final ShardId shardId = indexShard.shardId();
         final long primaryTerm = indexShard.getPendingPrimaryTerm();
-        final long startGeneration = Randomness.get().nextLong(1, 1000);
+        final long startGeneration = random(shardId, primaryTerm, Moment.AFTER_SHARD_CREATED, 0).nextLong(1, 1000);
         try {
             threadPool.generic().execute(() -> inject(shardId, primaryTerm, Moment.AFTER_SHARD_CREATED, startGeneration));
         } catch (Exception e) {
@@ -149,7 +153,7 @@ public class MergeBlobInjector implements IndexEventListener {
         final long primaryTerm = indexShard.getOperationPrimaryTerm();
         // No BCC generation to relate to yet: pick any plausible merge start generation, including ones above every BCC the shard
         // will upload during a short test, so that listings see merge blobs "newer" than the latest commit.
-        final long startGeneration = Randomness.get().nextLong(1, 1000);
+        final long startGeneration = random(shardId, primaryTerm, Moment.AFTER_SHARD_STARTED, 0).nextLong(1, 1000);
         try {
             threadPool.generic().execute(() -> inject(shardId, primaryTerm, Moment.AFTER_SHARD_STARTED, startGeneration));
             commitService.addConsumerForNewUploadedBcc(shardId, info -> onBccUploaded(shardId, info));
@@ -169,13 +173,14 @@ public class MergeBlobInjector implements IndexEventListener {
             final long bccGeneration = termAndGeneration.generation();
             // below, equal to, or above the BCC generation, like a merge that started a few commits before it was first committed
             final long startGeneration = Math.max(1L, bccGeneration + (bccGeneration % 5) - 2);
-            if (Randomness.get().nextBoolean()) {
+            final Random random = random(shardId, termAndGeneration.primaryTerm(), Moment.AFTER_BCC_UPLOAD, bccGeneration);
+            if (random.nextBoolean()) {
                 threadPool.generic()
                     .execute(() -> inject(shardId, termAndGeneration.primaryTerm(), Moment.AFTER_BCC_UPLOAD, startGeneration));
             } else {
                 threadPool.schedule(
                     () -> inject(shardId, termAndGeneration.primaryTerm(), Moment.LATER, startGeneration),
-                    TimeValue.timeValueMillis(Randomness.get().nextInt(51)),
+                    TimeValue.timeValueMillis(random.nextInt(51)),
                     threadPool.generic()
                 );
             }
@@ -188,7 +193,7 @@ public class MergeBlobInjector implements IndexEventListener {
         if (enabled == false) {
             return;
         }
-        final Random random = Randomness.get();
+        final Random random = random(shardId, primaryTerm, moment, startGeneration);
         // stateless_merge_<gen>_<segment>_<discriminator>: the segment is the moment letter plus the generation in base 36, never a '_'
         final String blobName = MERGE_BLOB_PREFIX + startGeneration + '_' + moment.letter + Long.toString(startGeneration, 36) + '_'
             + HexFormat.of().toHexDigits(random.nextLong());
@@ -203,5 +208,9 @@ public class MergeBlobInjector implements IndexEventListener {
             INJECTED.remove(injectedBlob);
             logger.debug(() -> "failed to inject merge blob " + injectedBlob + " (" + moment + ")", e);
         }
+    }
+
+    private static Random random(ShardId shardId, long primaryTerm, Moment moment, long generation) {
+        return new Random(Objects.hash(seed, shardId.getIndexName(), shardId.id(), primaryTerm, moment.letter, generation));
     }
 }

@@ -201,7 +201,7 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
         }
         if (MERGE_BLOBS_ENABLED) {
             final boolean injectMergeBlobs = randomBoolean();
-            MergeBlobInjector.reset(injectMergeBlobs);
+            MergeBlobInjector.resetWithEnabledAndRandomSeed(injectMergeBlobs, randomLong());
             if (injectMergeBlobs) {
                 mergeBlobLogCapture = MockLog.capture("");
                 mergeBlobLogCapture.addExpectation(new NoMergeBlobWarningExpectation());
@@ -219,7 +219,7 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
             TranslogReplicatorTestUtils.requestSyncFlush(components.getTranslogReplicator());
         }
         // TODO(szybia): remove once merge blobs are uploaded for real
-        if (MERGE_BLOBS_ENABLED) {
+        if (MERGE_BLOBS_ENABLED && mergeBlobLogCapture != null) {
             try {
                 assertInjectedMergeBlobsStillPresent();
             } finally {

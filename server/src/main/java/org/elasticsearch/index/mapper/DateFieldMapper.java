@@ -526,7 +526,8 @@ public final class DateFieldMapper extends FieldMapper {
                     // A sorted-numeric column updates a single value at a time, so an updatable date must be single-valued.
                     .allowMultiValue(false)
                     .hasMultiFields(multiFieldsBuilder.hasMultiFields())
-                    .ignoreMalformed(ignoreMalformed.getValue())
+                    // Reject only an explicit ignore_malformed; an index-mode default (logsdb enables it for every field) is tolerated.
+                    .ignoreMalformed(ignoreMalformed.isConfigured() && ignoreMalformed.getValue())
                     .hasScript(script.get() != null)
                     .build(),
                 indexSettings

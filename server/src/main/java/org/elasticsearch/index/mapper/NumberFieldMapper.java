@@ -467,7 +467,8 @@ public class NumberFieldMapper extends FieldMapper {
                     // A sorted-numeric column updates a single value at a time, so an updatable numeric must be single-valued.
                     .allowMultiValue(false)
                     .hasMultiFields(multiFieldsBuilder.hasMultiFields())
-                    .ignoreMalformed(ignoreMalformed.getValue().value())
+                    // Reject only an explicit ignore_malformed; an index-mode default (logsdb enables it for every field) is tolerated.
+                    .ignoreMalformed(ignoreMalformed.getValue().explicit() && ignoreMalformed.getValue().value())
                     .hasScript(script.get() != null)
                     .build(),
                 indexSettings

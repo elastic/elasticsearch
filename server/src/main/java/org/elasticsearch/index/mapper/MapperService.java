@@ -692,10 +692,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
-     * Parses the decoded root object of a mapping that is already stored, without the type name around it, which is consumed
+     * Parses the decoded root object of a mapping that is already stored
      */
-    MappingBuilder parseStoredMappings(Map<String, Object> decodedMappings) {
-        return mappingParser.parseToBuilder(SINGLE_MAPPING_NAME, MergeReason.MAPPING_RECOVERY, decodedMappings);
+    MappingBuilder parseStoredMappings(Map<String, Object> decodedRoot) {
+        return mappingParser.parseToBuilder(SINGLE_MAPPING_NAME, MergeReason.MAPPING_RECOVERY, Map.of(SINGLE_MAPPING_NAME, decodedRoot));
     }
 
     private DocumentMapper doMerge(String type, MergeReason reason, Map<String, Object> mappingSourceAsMap) {

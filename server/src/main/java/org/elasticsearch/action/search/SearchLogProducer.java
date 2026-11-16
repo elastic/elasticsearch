@@ -20,7 +20,7 @@ import java.util.Optional;
 
 import static org.elasticsearch.common.logging.activity.QueryLogging.ES_QUERY_FIELDS_PREFIX;
 
-public class SearchLogProducer implements ActivityLogProducer<SearchLogContext> {
+public class SearchLogProducer implements ActivityLogProducer<SearchCaptureContext> {
 
     public static final String[] NEVER_MATCH = new String[] { "*", "-*" };
     public static final String QUERY_FIELD_HAS_AGGREGATIONS = ES_QUERY_FIELDS_PREFIX + "has_aggregations";
@@ -28,7 +28,7 @@ public class SearchLogProducer implements ActivityLogProducer<SearchLogContext> 
     public static final String QUERY_FIELD_SEARCH_HITS_GTE = ES_QUERY_FIELDS_PREFIX + "dsl.total_count_partial";
 
     @Override
-    public Optional<ESLogMessage> produce(SearchLogContext context, ActionLoggingFields additionalFields) {
+    public Optional<ESLogMessage> produce(SearchCaptureContext context, ActionLoggingFields additionalFields) {
         if (Arrays.equals(NEVER_MATCH, context.getIndexNames())) {
             // Exclude no-match pattern searches, there's not much use in them
             return Optional.empty();

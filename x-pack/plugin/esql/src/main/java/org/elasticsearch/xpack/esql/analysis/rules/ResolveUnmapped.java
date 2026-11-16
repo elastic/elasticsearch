@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules;
-import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -32,13 +31,13 @@ import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
 import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
+import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
-import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
@@ -69,7 +68,6 @@ import static org.elasticsearch.xpack.esql.analysis.Analyzer.ResolveRefs.nullify
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ResolveRefs.unmappedKeyword;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ResolveRefs.withAdditionalAttributesUnlessLookup;
 import static org.elasticsearch.xpack.esql.core.util.CollectionUtils.combine;
-import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
 /**
  * The rule handles fields that don't show up in the index mapping, but are used within the query. These fields can either be missing
@@ -102,6 +100,24 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
     @Override
     public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
         return applyScoped(plan, context.unmappedResolution(), null, context);
+    }
+
+    /**
+     * The {@link EqlRelation} counterpart of {@link Analyzer.ResolveRefs#withAdditionalAttributesUnlessLookup}: appends the unmapped-field
+     * columns to the EQL source's output. Same {@code NO_FIELDS}-marker replacement as {@code EsRelation}, and an empty
+     * add returns the same instance so the analyzer batch reaches a fixed point.
+     */
+    private static EqlRelation withAdditionalAttributes(EqlRelation eqlr, List<? extends Attribute> fields) {
+        if (fields.isEmpty()) {
+            return eqlr;
+        }
+        if (eqlr.output().equals(Analyzer.NO_FIELDS)) {
+            return eqlr.withAttributes(new ArrayList<>(fields));
+        }
+        List<Attribute> combined = new ArrayList<>(eqlr.output().size() + fields.size());
+        combined.addAll(eqlr.output());
+        combined.addAll(fields);
+        return eqlr.withAttributes(combined);
     }
 
     /**
@@ -187,17 +203,9 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
         }
 
         var transformed = load ? load(plan, unresolved, observedOnly(plan, onViewNullFill)) : nullify(plan, unresolved);
-        if (transformed == plan) {
-            // Nothing newly loaded or filled, but an earlier fill can still be pending: a view-boundary fill
-            // (nullFillViewBoundaries) below a nested merge only widens that merge's output once ResolveRefs
-            // realigns it, which happens after this rule's refreshPlan already ran its patch pass. The outer
-            // merge's alignment Projects then still hide the new column and resolution is stuck. Re-run the
-            // patch pass so the column surfaces, and refresh the waiting references (ResolveRefs marked them
-            // unresolvable in the meantime and skips marked attributes); once they resolve, this rule no-ops.
-            var patched = patchMergePlans(plan);
-            return patched == plan ? plan : refreshPlan(patched, allUnresolved);
-        }
-        return refreshPlan(transformed, allUnresolved);
+        // A field added to a merge branch surfaces through the merge once ResolveRefs adds it to the merge's output, which it
+        // does as soon as the branch's output has the field (see MergePlan#expressionsResolved).
+        return transformed == plan ? plan : refreshPlan(transformed, allUnresolved);
     }
 
     /**
@@ -225,7 +233,7 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
      * <p>
      * For non-EsRelation sources (Row, LocalRelation), it falls back to inserting Eval nodes with null assignments.
      * <p>
-     * It also "patches" the introduced attributes through the plan, where needed (like through a {@link MergePlan}).
+     * A field introduced in a {@link MergePlan} branch reaches the merge's output once ResolveRefs adds it there.
      */
     private static LogicalPlan nullify(LogicalPlan plan, LinkedHashSet<UnresolvedAttribute> unresolved) {
         // For EsRelation sources: add null-typed fields to the relation's output
@@ -233,6 +241,10 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
             if (p instanceof EsRelation esr) {
                 List<FieldAttribute> fieldsToNullify = fieldsToNullify(unresolved, Expressions.names(esr.output()));
                 return withAdditionalAttributesUnlessLookup(esr, fieldsToNullify, true);
+            }
+            // The EQL source has a real value channel too: add the null-typed columns to its output, like EsRelation.
+            if (p instanceof EqlRelation eqlr) {
+                return withAdditionalAttributes(eqlr, fieldsToNullify(unresolved, Expressions.names(eqlr.output())));
             }
             return p;
         });
@@ -247,9 +259,12 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
      * like {@code ROW x = 1 | EVAL y = unmapped_field}.
      */
     private static LogicalPlan nullifyNonEsRelationSources(LogicalPlan plan, LinkedHashSet<UnresolvedAttribute> unresolved) {
+        // EqlRelation was already handled above (fields added to its output), so it must be excluded here — otherwise
+        // the Eval-atop fallback would reach assertSourceType, whose default arm throws on the EQL source.
         return ViewUtils.transformUpOutsideViews(plan, p -> switch (p) {
-            case UnaryPlan unary when unary.child() instanceof LeafPlan leaf && leaf instanceof EsRelation == false ->
-                evalUnresolvedAtopUnary(unary, nullAliases(unresolved));
+            case UnaryPlan unary when unary.child() instanceof LeafPlan leaf
+                && leaf instanceof EsRelation == false
+                && leaf instanceof EqlRelation == false -> evalUnresolvedAtopUnary(unary, nullAliases(unresolved));
             case UnaryPlan unary -> unary;
             case LeafPlan leaf -> leaf;
             default -> evalUnresolvedAtopNaryNonEsRelation(p, nullAliases(unresolved));
@@ -328,8 +343,8 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
             newChildren.add(newChild);
         }
         // No output surgery is needed on a merge above a fill: the fill Eval widens its branch's output, which
-        // makes the merge report unresolved (MergePlan.expressionsResolved requires every branch to match the
-        // stored output), so ResolveRefs realigns it — null-filling siblings and preserving existing output ids.
+        // makes the merge report unresolved (MergePlan.expressionsResolved requires its output to have every branch
+        // column), so ResolveRefs adds the column to the merge's output, preserving existing output ids.
         return changed ? plan.replaceChildren(newChildren) : plan;
     }
 
@@ -348,11 +363,10 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
     ) {
         List<Alias> aliases = new ArrayList<>();
         var outputNames = viewBranch.outputSet().names();
-        LogicalPlan body = withoutMergeAlignment(viewBranch);
         for (UnresolvedAttribute ua : unresolved) {
             if (outputNames.contains(ua.name()) == false) {
                 aliases.add(load ? new Alias(ua.source(), ua.name(), new Literal(ua.source(), null, DataType.KEYWORD)) : nullAlias(ua));
-                if (load && viewBodyCanSurfaceLoadedField(body, ua.name())) {
+                if (load && viewBodyCanSurfaceLoadedField(viewBranch, ua.name())) {
                     onViewNullFill.accept(identity, ua.name());
                 }
             }
@@ -363,14 +377,14 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
 
     /**
      * Whether the view body {@code body} would surface a field {@code name} loaded at its sources. A merge retained in the body
-     * surfaces it when any branch does, judged below that branch's alignment layers. A view branch of a nested {@link BranchPlan}
-     * is skipped: that view's own boundary stops the mode whether or not the enclosing view applies it.
+     * surfaces it when any branch does. A view branch of a nested {@link BranchPlan} is skipped: that view's own boundary stops the
+     * mode whether or not the enclosing view applies it. The fill Evals that earlier passes of this rule put atop the view branch
+     * do not hide anything the body surfaces.
      */
     private static boolean viewBodyCanSurfaceLoadedField(LogicalPlan body, String name) {
         return branchCanSurfaceLoadedField(body, name, merge -> {
             for (int i = 0; i < merge.children().size(); i++) {
-                if (ViewUtils.isViewBody(merge, i) == false
-                    && viewBodyCanSurfaceLoadedField(withoutMergeAlignment(merge.children().get(i)), name)) {
+                if (ViewUtils.isViewBody(merge, i) == false && viewBodyCanSurfaceLoadedField(merge.children().get(i), name)) {
                     return true;
                 }
             }
@@ -379,31 +393,18 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
     }
 
     /**
-     * {@code branch} without the nodes stacked atop the view body to align branch outputs, whose Projects would otherwise hide
-     * every field the body could surface. Each analyzer pass that fills a field adds a fill Eval, and the outer merge then
-     * realigns with its own missing-column Eval and Project, so a field referenced only by a later command sees several such
-     * layers. All of them are plain Projects or Evals reusing their child's source. A view body without a {@code SET} resolves
-     * a user's KEEP, DROP or RENAME to a plain Project too, but one with the source of its own command, so peeling stops there.
-     */
-    private static LogicalPlan withoutMergeAlignment(LogicalPlan branch) {
-        LogicalPlan plan = branch;
-        // TODO: This use of source() for decision making is not ideal and can lead to problems. Source is for logging only.
-        while ((plan.getClass() == Project.class || plan instanceof Eval) && plan.source().equals(((UnaryPlan) plan).child().source())) {
-            plan = ((UnaryPlan) plan).child();
-        }
-        return plan;
-    }
-
-    /**
      * Adds {@code _source} keyword loaders for {@code toLoad} to every non-LOOKUP {@link EsRelation} reachable from {@code plan}
-     * outside view bodies; Row/LocalRelation sources can't load from {@code _source} and are left for
-     * {@code ResolveRefs#resolveMergePlan} to null-fill.
+     * outside view bodies; Row/LocalRelation sources can't load from {@code _source}, so in a merge they contribute nulls to the
+     * column (see {@code ResolveRefs#resolveMergePlan}).
      */
     private static LogicalPlan loadIntoSources(LogicalPlan plan, Set<UnresolvedAttribute> toLoad) {
         return ViewUtils.transformUpOutsideViews(plan, p -> {
             if (p instanceof EsRelation esr) {
                 List<FieldAttribute> fieldsToLoad = fieldsToLoad(toLoad, Expressions.names(esr.output()));
                 return withAdditionalAttributesUnlessLookup(esr, fieldsToLoad, true);
+            }
+            if (p instanceof EqlRelation eqlr) {
+                return withAdditionalAttributes(eqlr, fieldsToLoad(toLoad, Expressions.names(eqlr.output())));
             }
             return p;
         });
@@ -448,73 +449,6 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
         return loaded;
     }
 
-    // TODO: would an alternative to this be to have ResolveRefs#resolveMergePlan re-resolve the MergePlan?
-    // We might need some plan delimiters/markers to make it unequivocal which nodes belong to
-    // "make the merge work" - like ([Limit -] Project [- Eval])s - and which don't.
-    // PruneColumns does the same dance. There's some fragility w.r.t. assuming there to be a top Project and danger of the outputs not
-    // being aligned after applying the changes.
-    /**
-     * Update the merge's top Projects in the subplans, and correspondingly, its output, to account for newly introduced aliases.
-     * A view branch is left alone: this rule adds nothing inside one, only a fill atop it ({@link #nullFillViewOutput}), which
-     * widens the branch's output by itself. Its top Project may also be the view body's own KEEP/DROP/RENAME, analysed without
-     * this scope's setting, which must keep hiding (or renaming) what it does.
-     */
-    private static MergePlan patchMergePlan(MergePlan mergePlan) {
-        List<LogicalPlan> children = mergePlan.children();
-        List<LogicalPlan> newChildren = new ArrayList<>(children.size());
-        boolean changed = false;
-        for (int i = 0; i < children.size(); i++) {
-            LogicalPlan child = children.get(i);
-            LogicalPlan newChild = ViewUtils.isViewBody(mergePlan, i) ? child : patchBranchTopProject(child);
-            changed |= newChild != child;
-            newChildren.add(newChild);
-        }
-        return changed ? ((MergePlan) mergePlan.replaceChildren(newChildren)).refreshOutput() : mergePlan;
-    }
-
-    private static LogicalPlan patchBranchTopProject(LogicalPlan branch) {
-        return branch.transformDownSkipBranch((plan, skip) -> {
-            if (plan instanceof Project project) {
-                skip.set(true); // process top Project only (merge-injected)
-                // Only a merge-injected alignment Project (exact class; resolveMergePlan emits plain Projects) may
-                // surface newly loaded attributes. The branch's top projection can also be a user-written one
-                // (KEEP/DROP/RENAME Project subclasses) now that branches are no longer wrapped in Subquery nodes:
-                // such an explicit column list must keep hiding what it hides, otherwise a broadcast load would
-                // e.g. resurrect a DROPped unmapped field inside that branch.
-                // TODO: keying on the exact class is fragile. Either have resolveMergePlan emit ResolvingProject
-                // (which passes unmapped fields through by design) or add an explicit merge-injected marker on
-                // Project, and match on that instead.
-                if (plan.getClass() == Project.class) {
-                    plan = patchMergeProject(project);
-                }
-            }
-            return plan;
-        });
-    }
-
-    /**
-     * Add any missing attributes that are found in the child's output but not in the Project's output. These have been injected before
-     * by the evalUnresolvedAtopXXX methods and need to be "let through" the Project.
-     */
-    // Maybe using ResolvingProjects at the top of the merge branches would be a more simple solution; adding the `*` pattern
-    // would let any newly introduced attribute through without the need to patch the Projects, we'd just have to refresh the merge output.
-    private static Project patchMergeProject(Project project) {
-        List<Attribute> projectOutput = project.output();
-        List<Attribute> childOutput = project.child().output();
-        if (projectOutput.equals(childOutput) == false) {
-            List<Attribute> delta = new ArrayList<>(childOutput);
-            delta.removeAll(projectOutput);
-            // MarkJoin marks sit under the alignment Project but are not merge columns (MergePlan.outputUnion skips them). Letting them
-            // through here makes ResolveRefs drop them on the next pass and this rule add them back — a Resolution-batch loop that hits
-            // the 100-rule limit. Cast synthetics stay.
-            delta.removeIf(InSubqueryResolver::isInSubquerySynthetic);
-            if (delta.isEmpty() == false) {
-                project = project.withProjections(mergeOutputAttributes(delta, projectOutput));
-            }
-        }
-        return project;
-    }
-
     /**
      * UAs that weren't resolvable at first were added to the plan. But {@link Analyzer.ResolveRefs} has marked all or some of them as
      * unresolvable by attaching a custom message. This needs to be removed for {@link Analyzer.ResolveRefs} to attempt resolving them
@@ -530,18 +464,7 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
             }
             return ua;
         };
-        var refreshed = plan.transformExpressionsOnlyUp(UnresolvedAttribute.class, refresh);
-        // Bottom-up: patchForkProject reads project.child().output(), and a Fork reports a stored output rather than recomputing it,
-        // so a nested union has to be patched (and refreshOutput'd) before its parent reads it. Top-down leaves the outer branch's
-        // alignment Project without the newly loaded attribute, and resolveFork then null-fills the column.
-        return patchMergePlans(refreshed);
-    }
-
-    /**
-     * {@link #patchMergePlan} for every merge outside view bodies, bottom-up.
-     */
-    private static LogicalPlan patchMergePlans(LogicalPlan plan) {
-        return ViewUtils.transformUpOutsideViews(plan, p -> p instanceof MergePlan mergePlan ? patchMergePlan(mergePlan) : p);
+        return plan.transformExpressionsOnlyUp(UnresolvedAttribute.class, refresh);
     }
 
     /**
@@ -553,7 +476,10 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
         boolean changed = false;
         for (int i = 0; i < nAry.children().size(); i++) {
             LogicalPlan child = nAry.children().get(i);
-            if (child instanceof LeafPlan source && source instanceof EsRelation == false && ViewUtils.isViewBody(nAry, i) == false) {
+            if (child instanceof LeafPlan source
+                && source instanceof EsRelation == false
+                && source instanceof EqlRelation == false
+                && ViewUtils.isViewBody(nAry, i) == false) {
                 assertSourceType(source);
                 child = new Eval(source.source(), source, nullAliases);
                 changed = true;

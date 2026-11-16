@@ -86,9 +86,5 @@ public class NonDynamicFieldMapperTests extends NonDynamicFieldMapperTestCase {
         @Override
         protected void parseCreateField(DocumentParserContext context) throws IOException {}
 
-        @Override
-        public FieldMapper.Builder getMergeBuilder() {
-            return new Builder(leafName()).init(this);
-        }
     }
 }

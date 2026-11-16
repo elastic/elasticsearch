@@ -12,7 +12,12 @@ package org.elasticsearch.indices.analysis;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
+import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
+import org.apache.lucene.analysis.tokenattributes.PositionLengthAttribute;
+import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
@@ -114,13 +119,32 @@ public abstract class SharedAnalyzerTestCase extends ESTestCase {
         assertNotSame(build(registry, "a", a), build(registry, "b", b));
     }
 
+    /**
+     * One string per token carrying the term plus offsets, position increment/length and type, so
+     * comparisons catch behavioral differences that leave the term text unchanged (e.g. the word
+     * delimiter's {@code adjust_offsets}).
+     */
     protected static List<String> terms(Analyzer analyzer, String text) throws IOException {
         List<String> terms = new ArrayList<>();
         try (TokenStream stream = analyzer.tokenStream("f", text)) {
             CharTermAttribute term = stream.addAttribute(CharTermAttribute.class);
+            OffsetAttribute offset = stream.addAttribute(OffsetAttribute.class);
+            PositionIncrementAttribute posInc = stream.addAttribute(PositionIncrementAttribute.class);
+            PositionLengthAttribute posLen = stream.addAttribute(PositionLengthAttribute.class);
+            TypeAttribute type = stream.addAttribute(TypeAttribute.class);
             stream.reset();
             while (stream.incrementToken()) {
-                terms.add(term.toString());
+                terms.add(
+                    Strings.format(
+                        "%s [%d,%d) +%d/%d %s",
+                        term,
+                        offset.startOffset(),
+                        offset.endOffset(),
+                        posInc.getPositionIncrement(),
+                        posLen.getPositionLength(),
+                        type.type()
+                    )
+                );
             }
             stream.end();
         }

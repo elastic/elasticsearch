@@ -314,6 +314,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
                     null,
                     false,
                     false,
+                    false,
                     false
                 )
             )
@@ -695,6 +696,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             false,
             null,
             null,
+            false,
             false,
             false,
             false

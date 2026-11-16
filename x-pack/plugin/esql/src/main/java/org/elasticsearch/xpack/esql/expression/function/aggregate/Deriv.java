@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
+import org.elasticsearch.xpack.esql.expression.unit.UnitAware;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
@@ -42,7 +43,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_D
 /**
  * Calculates the derivative over time of a numeric field using linear regression.
  */
-public class Deriv extends TimeSeriesAggregateFunction implements ToAggregator, TimestampAware, AnyNullIsNull {
+public class Deriv extends TimeSeriesAggregateFunction implements ToAggregator, TimestampAware, AnyNullIsNull, UnitAware.PerSecond {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Deriv", Deriv::readFrom);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Deriv.class).ternary(Deriv::new).name("deriv");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()

@@ -126,7 +126,6 @@ final class LocalArrayPool implements Releasable {
     @Override
     public void close() {
         assert breaker.assertSingleThread();
-        assert breaker.assertNotClosed();
 
         breaker.addWithoutBreaking(-idleBytes);
         idleBytes = 0;

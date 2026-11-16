@@ -28,7 +28,7 @@ public final class TimeSeriesParams {
      * There are various types of metric used in time-series aggregations and downsampling.
      * Each supports different field types and different calculations.
      * Two of these, the COUNTER and GAUGE apply to most numerical types, mapping a single number,
-     * while the POSITION metric applies only to geo_point and therefor a pair of numbers (lat,lon).
+     * while the POSITION metric applies only to geo_point and therefore a pair of numbers (lat,lon).
      * To simplify code that depends on this difference, we use the parameter `scalar==true` for
      * single number metrics, and `false` for the POSITION metric.
      */

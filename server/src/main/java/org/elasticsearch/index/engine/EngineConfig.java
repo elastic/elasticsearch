@@ -217,7 +217,7 @@ public final class EngineConfig {
         // local node so that decisions to flush segments to disk are made by
         // IndexingMemoryController rather than Lucene.
         // Add an escape hatch in case this change proves problematic - it used
-        // to be a fixed amound of RAM: 256 MB.
+        // to be a fixed amount of RAM: 256 MB.
         // TODO: Remove this escape hatch in 8.x
         @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
         final String escapeHatchProperty = "es.index.memory.max_index_buffer_size";

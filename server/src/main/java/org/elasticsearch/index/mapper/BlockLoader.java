@@ -298,7 +298,7 @@ public interface BlockLoader {
         /**
          * Converts the length of each binary value associated with documents into a {@link NumericDocValues} representation.
          * The {@code NumericDocValues} returned provides access to the length of each binary value for each document and
-         * this can be accesed via {@link NumericDocValues#longValue()}.
+         * this can be accessed via {@link NumericDocValues#longValue()}.
          *
          * @return a {@link NumericDocValues} instance containing the length values, or {@code null} if
          *         unable to load the values due to unsupported underlying data or other constraints.
@@ -830,7 +830,7 @@ public interface BlockLoader {
     }
 
     /**
-     * A columnar representation of homogenous data. It has a position (row) count, and
+     * A columnar representation of homogeneous data. It has a position (row) count, and
      * various data retrieval methods for accessing the underlying data that is stored at a given
      * position. In other words, a fancy wrapper over an array.
      * <p>

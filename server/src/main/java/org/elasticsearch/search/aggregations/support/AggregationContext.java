@@ -285,7 +285,7 @@ public abstract class AggregationContext implements Releasable {
 
     /**
      * Is this request cacheable? Requests that have
-     * non-deterministic queries or scripts aren't cachable.
+     * non-deterministic queries or scripts aren't cacheable.
      */
     public abstract boolean isCacheable();
 

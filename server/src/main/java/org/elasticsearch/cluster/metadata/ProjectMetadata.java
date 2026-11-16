@@ -1065,7 +1065,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
      *
      * @param aliases The aliases to look for. Might contain include or exclude wildcards.
      * @param possibleMatches The data streams or indices that the aliases must point to in order to be returned
-     * @param getter A function that is used to get the alises for a given data stream or index
+     * @param getter A function that is used to get the aliases for a given data stream or index
      * @param setter A function that is used to keep track of the found aliases
      */
     private <T extends AliasInfo> void findAliasInfo(

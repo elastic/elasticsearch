@@ -249,7 +249,7 @@ public final class NumericTermsAggregator extends TermsAggregator {
 
         /**
          * Build an array of buckets for a particular ordinal. These arrays
-         * are asigned to the value returned by {@link #buildTopBucketsPerOrd}.
+         * are assigned to the value returned by {@link #buildTopBucketsPerOrd}.
          */
         abstract B[] buildBuckets(int size);
 

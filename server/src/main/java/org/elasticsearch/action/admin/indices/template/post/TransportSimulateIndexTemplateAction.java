@@ -416,7 +416,7 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalProjectM
      * @param simulatedProject The project metadata used to get the settings
      * @param dataStream If not null, this is used to get data stream settings overrides
      * @param templateName The name of the template
-     * @param template The template, used to check whether this is a data strema template
+     * @param template The template, used to check whether this is a data stream template
      * @return The settings to be used
      */
     private static Settings collectSettings(

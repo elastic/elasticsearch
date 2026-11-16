@@ -594,7 +594,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         /**
          * Runs the merge associated to this task. MUST be invoked after {@link #schedule()} returned {@link Schedule#RUN},
          * to confirm that the associated {@link MergeScheduler} assents to run the merge.
-         * Either one of {@link #run()} or {@link #abort()} MUST be invoked exactly once for evey {@link MergeTask}.
+         * Either one of {@link #run()} or {@link #abort()} MUST be invoked exactly once for every {@link MergeTask}.
          * After the merge is finished, this will also submit any follow-up merges from the task's merge source.
          */
         @Override
@@ -666,7 +666,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         /**
          * Aborts the merge task, for e.g. when the {@link MergeScheduler}, or the
          * {@link ThreadPoolMergeExecutorService} are closing. Either one of {@link #run()} or {@link #abort()}
-         * MUST be invoked exactly once for evey {@link MergeTask}.
+         * MUST be invoked exactly once for every {@link MergeTask}.
          * An aborted merge means that the segments involved will be made available
          * (by the {@link org.apache.lucene.index.IndexWriter}) to any subsequent merges.
          */

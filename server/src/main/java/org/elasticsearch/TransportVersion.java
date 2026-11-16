@@ -366,7 +366,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
      * <p>
      * The recommended use of this method is to declare a static final {@link TransportVersion}
      * as part of the file that it's used in. This constant is then used in conjunction with
-     * this method to check transport version compatability.
+     * this method to check transport version compatibility.
      * <p>
      * An example:
      * {@code

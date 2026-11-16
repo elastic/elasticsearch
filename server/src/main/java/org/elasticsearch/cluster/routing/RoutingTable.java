@@ -58,7 +58,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
     }
 
     /**
-     * Get's the {@link IndexShardRoutingTable} for the given shard id from the given {@link IndexRoutingTable}
+     * Gets the {@link IndexShardRoutingTable} for the given shard id from the given {@link IndexRoutingTable}
      * or throws a {@link ShardNotFoundException} if no shard by the given id is found in the IndexRoutingTable.
      *
      * @param indexRouting IndexRoutingTable

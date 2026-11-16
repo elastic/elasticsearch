@@ -19,7 +19,7 @@ import static org.elasticsearch.core.Strings.format;
 
 /**
  * A registry of Extensible interfaces/classes read from extensibles.json file.
- * The file is generated during Elasticsearch built time (or commited)
+ * The file is generated during Elasticsearch built time (or committed)
  * basing on the classes declared in stable plugins api (i.e. plugin-analysis-api)
  *
  * This file is present in server jar.
@@ -27,10 +27,10 @@ import static org.elasticsearch.core.Strings.format;
  * a class/interface can be indirectly extensible when it extends/implements a directly extensible class
  *
  * Information about extensible interfaces/classes are stored in a map where:
- * key and value are the same cannonical name of the class that is directly marked with @Extensible
+ * key and value are the same canonical name of the class that is directly marked with @Extensible
  * or
- * key: a cannonical name of the class that is indirectly extensible but extends another extensible class (directly/indirectly)
- * value: cannonical name of the class that is directly extensible
+ * key: a canonical name of the class that is indirectly extensible but extends another extensible class (directly/indirectly)
+ * value: canonical name of the class that is directly extensible
  *
  * The reason for indirectly extensible classes is to allow stable plugin apis to create hierarchies
  *

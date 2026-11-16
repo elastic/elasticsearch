@@ -1027,7 +1027,7 @@ public enum IndexMode {
     public abstract RoutingFields buildRoutingFields(IndexSettings settings);
 
     /**
-     * @return Whether timestamps should be validated for being withing the time range of an index.
+     * @return Whether timestamps should be validated for being within the time range of an index.
      */
     public abstract boolean shouldValidateTimestamp();
 

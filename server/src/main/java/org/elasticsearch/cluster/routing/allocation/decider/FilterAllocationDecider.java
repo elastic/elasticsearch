@@ -44,7 +44,7 @@ import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.validateIpValu
  * </p>
  * Note: Cluster settings are applied first and will override index specific
  * settings such that if a shard can be allocated according to the index routing
- * settings it wont be allocated on a node if the cluster specific settings
+ * settings it won't be allocated on a node if the cluster specific settings
  * would disallow the allocation. Filters are applied in the following order:
  * <ol>
  * <li>{@code required} - filters required allocations.

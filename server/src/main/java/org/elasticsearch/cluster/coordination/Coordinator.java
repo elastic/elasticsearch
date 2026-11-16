@@ -374,7 +374,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     /**
      * Since {@code clusterFormationClusterStateView} is read without the {@code mutex}, it is not guaranteed to be synchronised.
      * However, we still make a best effort to keep it as up to date as we can so that the health reporting is accurate.
-     * Everytime the {@code coordinationState} is updated beneath the {@code mutex}, we update the
+     * Every time the {@code coordinationState} is updated beneath the {@code mutex}, we update the
      * {@code clusterFormationClusterStateView} record too.
      */
     private void updateClusterFormationClusterStateView() {

@@ -129,7 +129,7 @@ public class TimeSeriesRoutingHashFieldMapper extends MetadataFieldMapper {
                 assert context.sourceToParse().id() != null;
                 if (context.indexSettings().useTimeSeriesSyntheticId()) {
                     // The extractRoutingHashFromSyntheticId method works from the binary data representation stored in Lucene,
-                    // so we have to reencode the id with Uid#encodeId here.
+                    // so we have to re-encode the id with Uid#encodeId here.
                     int hash = TsidExtractingIdFieldMapper.extractRoutingHashFromSyntheticId(Uid.encodeId(context.sourceToParse().id()));
                     routingHash = encode(hash);
                 } else {

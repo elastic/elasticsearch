@@ -40,7 +40,7 @@ public interface IndexAbstraction {
 
     /**
      * It retrieves the failure indices of an index abstraction given it supports the failure store.
-     * @param metadata certain abstractions require the project matadata to lazily retrieve the failure indices.
+     * @param metadata certain abstractions require the project metadata to lazily retrieve the failure indices.
      * @return All concrete failure indices this index abstraction is referring to. If the failure store is
      * not supported, it returns an empty list.
      */

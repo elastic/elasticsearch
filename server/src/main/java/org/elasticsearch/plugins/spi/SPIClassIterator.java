@@ -150,7 +150,7 @@ public final class SPIClassIterator<S> implements Iterator<Class<? extends S>> {
 
     @Override
     public Class<? extends S> next() {
-        // hasNext() implicitely loads the next profile, so it is essential to call this here!
+        // hasNext() implicitly loads the next profile, so it is essential to call this here!
         if (hasNext() == false) {
             throw new NoSuchElementException();
         }

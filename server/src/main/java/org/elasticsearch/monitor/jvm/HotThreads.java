@@ -151,7 +151,7 @@ public class HotThreads {
         }
 
         // Custom enum from string because of legacy support. The standard Enum.valueOf is static
-        // and cannot be overriden to show a nice error message in case the enum value isn't found
+        // and cannot be overridden to show a nice error message in case the enum value isn't found
         public static ReportType of(String type) {
             for (var report : values()) {
                 if (report.type.equals(type)) {
@@ -178,7 +178,7 @@ public class HotThreads {
         }
 
         // Custom enum from string because of legacy support. The standard Enum.valueOf is static
-        // and cannot be overriden to show a nice error message in case the enum value isn't found
+        // and cannot be overridden to show a nice error message in case the enum value isn't found
         public static SortOrder of(String order) {
             for (var sortOrder : values()) {
                 if (sortOrder.order.equals(order)) {

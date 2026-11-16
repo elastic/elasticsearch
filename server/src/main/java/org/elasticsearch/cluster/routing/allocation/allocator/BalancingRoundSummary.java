@@ -22,7 +22,7 @@ import java.util.Map;
  * @param nodeToWeightChanges The shard balance weight changes for each DiscoveryNode, comparing a previous DesiredBalance shard
  *                                allocation to a new DesiredBalance allocation.
  * @param numberOfShardsToMove The number of shard moves required to move from the previous desired balance to the new one. Does not include
- *                             new (index creation) or removed (index deletion) shard assignements.
+ *                             new (index creation) or removed (index deletion) shard assignments.
  */
 public record BalancingRoundSummary(Map<DiscoveryNode, NodesWeightsChanges> nodeToWeightChanges, long numberOfShardsToMove) {
 

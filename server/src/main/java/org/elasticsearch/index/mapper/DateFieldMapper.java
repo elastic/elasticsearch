@@ -679,7 +679,7 @@ public final class DateFieldMapper extends FieldMapper {
          * Format to use to resolve {@link Number}s from the source. Its valid
          * to send the numbers with up to six digits after the decimal place
          * and we'll parse them as {@code millis.nanos}. The source
-         * deseralization code isn't particularly careful here and can return
+         * deserialization code isn't particularly careful here and can return
          * {@code double} instead of the exact string in the {@code _source}.
          * So we have to *get* that string.
          * <p>

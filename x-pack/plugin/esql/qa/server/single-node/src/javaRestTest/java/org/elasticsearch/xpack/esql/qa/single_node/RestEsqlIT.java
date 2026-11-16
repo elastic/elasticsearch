@@ -146,8 +146,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("[pragma] only allowed in snapshot builds"));
     }
 
-    public void testStreamingNotAllowed() throws IOException {
-        assumeFalse("streaming is disabled on release builds", Build.current().isSnapshot());
+    public void testStreamingParameterNotAcceptedOnQuery() throws IOException {
         Request request = new Request("POST", "/_query");
         request.addParameter("streaming", "true");
         request.addParameter("format", "ndjson");
@@ -155,6 +154,15 @@ public class RestEsqlIT extends RestEsqlTestCase {
         ResponseException re = expectThrows(ResponseException.class, () -> client().performRequest(request));
         assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("contains unrecognized parameter: [streaming]"));
+    }
+
+    public void testStreamingEndpointNotAvailableOnReleaseBuilds() throws IOException {
+        assumeFalse("streaming is disabled on release builds", Build.current().isSnapshot());
+        Request request = new Request("POST", "/_query/stream");
+        request.setJsonEntity("{\"query\": \"ROW a = 1\"}");
+        ResponseException re = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("no handler found for uri"));
     }
 
     public void testDoNotLogWithInfo() throws IOException {

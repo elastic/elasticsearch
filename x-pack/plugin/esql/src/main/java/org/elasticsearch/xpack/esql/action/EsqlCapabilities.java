@@ -4557,10 +4557,9 @@ public class EsqlCapabilities {
         EXTERNAL_PARQUET_LIKE_MISSING_COLUMN_REJECTS_ROWS,
 
         /**
-         * Streaming execution on {@code POST /_query}: the {@code streaming} URL parameter is
-         * accepted, and with {@code format=ndjson} the response streams a columns line, one line
-         * per row and a last line (with {@code complete} and {@code next_offset}) as NDJSON as rows
-         * are produced.
+         * Streaming execution on {@code POST /_query?streaming=true&format=ndjson}. That API was removed:
+         * streaming is now served by {@code POST /_query/stream}, advertised by {@link #STREAMING_V2}.
+         * Kept because capabilities are append-only.
          * Snapshot-only while the streaming protocol is still changing.
          */
         STREAMING(Build.current().isSnapshot()),
@@ -4891,6 +4890,14 @@ public class EsqlCapabilities {
          * The {@code INTO} command, which writes a query's rows into an index and returns a summary row of total and created counts.
          */
         INTO_COMMAND(Build.current().isSnapshot()),
+
+        /**
+         * Streaming execution on {@code POST /_query/stream}: the response streams a columns line, one line
+         * per row and a last line (with {@code complete} and {@code next_offset}) as NDJSON as rows are produced.
+         * Replaces {@link #STREAMING}: streaming no longer runs on {@code POST /_query}.
+         * Snapshot-only while the streaming protocol is still changing.
+         */
+        STREAMING_V2(Build.current().isSnapshot()),
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

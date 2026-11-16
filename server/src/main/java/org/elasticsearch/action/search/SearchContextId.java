@@ -60,7 +60,7 @@ public final class SearchContextId {
         List<SearchPhaseResult> searchPhaseResults,
         Map<String, AliasFilter> aliasFilter,
         TransportVersion version,
-        ShardSearchFailure[] shardFailures
+        List<ShardSearchFailure> shardFailures
     ) {
         Map<ShardId, SearchContextIdForNode> shards = searchPhaseResults.stream()
             .collect(
@@ -80,12 +80,12 @@ public final class SearchContextId {
         Map<ShardId, SearchContextIdForNode> shards,
         Map<String, AliasFilter> aliasFilter,
         TransportVersion version,
-        ShardSearchFailure[] shardFailures
+        List<ShardSearchFailure> shardFailures
     ) {
         try (var out = new BytesStreamOutput()) {
             out.setTransportVersion(version);
             TransportVersion.writeVersion(version, out);
-            int shardSize = shards.size() + shardFailures.length;
+            int shardSize = shards.size() + shardFailures.size();
             out.writeVInt(shardSize);
             for (ShardId shardId : shards.keySet()) {
                 shardId.writeTo(out);

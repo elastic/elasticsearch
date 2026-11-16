@@ -73,6 +73,7 @@ public class BlockFactory {
     private final BlockFactory parent;
     private final long bytesRefRamOverestimateThreshold;
     private final double bytesRefRamOverestimateFactor;
+    private final LocalArrayPool localPool;
     protected volatile BufferAllocator arrowAllocator;
     private static final Cleaner cleaner = Cleaner.create();
 
@@ -93,6 +94,7 @@ public class BlockFactory {
         assert breaker instanceof LocalCircuitBreaker == false
             || (parent != null && ((LocalCircuitBreaker) builder.breaker).parentBreaker() == parent.breaker)
             : "use local breaker without parent block factory";
+        this.localPool = breaker instanceof LocalCircuitBreaker localBreaker ? localBreaker.pool() : null;
     }
 
     public BlockFactory(CircuitBreaker breaker, BigArrays bigArrays) {
@@ -285,8 +287,15 @@ public class BlockFactory {
         return v;
     }
 
-    public IntBlock.Builder newIntBlockBuilder(int estimatedSize) {
-        return new IntBlockBuilder(estimatedSize, this);
+    public final IntBlock.Builder newIntBlockBuilder(int estimatedSize) {
+        return newIntBlockBuilder(estimatedSize, false);
+    }
+
+    /**
+     * @param enablePooling Use this for short-lived blocks to let the driver reuse the backing arrays
+     */
+    public IntBlock.Builder newIntBlockBuilder(int estimatedSize, boolean enablePooling) {
+        return new IntBlockBuilder(estimatedSize, this, enablePooling && localPool != null);
     }
 
     public final IntBlock newIntArrayBlock(int[] values, int positionCount, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
@@ -408,8 +417,15 @@ public class BlockFactory {
         return v;
     }
 
-    public LongBlock.Builder newLongBlockBuilder(int estimatedSize) {
-        return new LongBlockBuilder(estimatedSize, this);
+    public final LongBlock.Builder newLongBlockBuilder(int estimatedSize) {
+        return newLongBlockBuilder(estimatedSize, false);
+    }
+
+    /**
+     * @param enablePooling Use this for short-lived blocks to let the driver reuse the backing arrays
+     */
+    public LongBlock.Builder newLongBlockBuilder(int estimatedSize, boolean enablePooling) {
+        return new LongBlockBuilder(estimatedSize, this, enablePooling && localPool != null);
     }
 
     public final LongBlock newLongArrayBlock(long[] values, int pc, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
@@ -462,8 +478,15 @@ public class BlockFactory {
         return v;
     }
 
-    public DoubleBlock.Builder newDoubleBlockBuilder(int estimatedSize) {
-        return new DoubleBlockBuilder(estimatedSize, this);
+    public final DoubleBlock.Builder newDoubleBlockBuilder(int estimatedSize) {
+        return newDoubleBlockBuilder(estimatedSize, false);
+    }
+
+    /**
+     * @param enablePooling Use this for short-lived blocks to let the driver reuse the backing arrays
+     */
+    public DoubleBlock.Builder newDoubleBlockBuilder(int estimatedSize, boolean enablePooling) {
+        return new DoubleBlockBuilder(estimatedSize, this, enablePooling && localPool != null);
     }
 
     public final DoubleBlock newDoubleArrayBlock(double[] values, int pc, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
@@ -764,5 +787,60 @@ public class BlockFactory {
             return ByteSizeValue.ofMb(2);
         }
         return ByteSizeValue.ofMb(4);
+    }
+
+    public boolean hasLocalPool() {
+        return localPool != null;
+    }
+
+    public final long[] acquireLongs(int size) {
+        final long[] arr = localPool != null ? localPool.pollLongs(size) : null;
+        if (arr != null) {
+            return arr;
+        }
+        breaker.addEstimateBytesAndMaybeBreak(LocalArrayPool.usedBytesForLongs(size), "<esql_block_factory>");
+        return new long[size];
+    }
+
+    public final void recycleLongs(long[] values) {
+        if (localPool != null) {
+            localPool.recycleLongs(values);
+        } else {
+            breaker.addWithoutBreaking(-LocalArrayPool.usedBytesForLongs(values.length));
+        }
+    }
+
+    public final int[] acquireInts(int size) {
+        final int[] arr = localPool != null ? localPool.pollInts(size) : null;
+        if (arr != null) {
+            return arr;
+        }
+        breaker.addEstimateBytesAndMaybeBreak(LocalArrayPool.usedBytesForInts(size), "<esql_block_factory>");
+        return new int[size];
+    }
+
+    public final void recycleInts(int[] values) {
+        if (localPool != null) {
+            localPool.recycleInts(values);
+        } else {
+            breaker.addWithoutBreaking(-LocalArrayPool.usedBytesForInts(values.length));
+        }
+    }
+
+    public final double[] acquireDoubles(int size) {
+        final double[] arr = localPool != null ? localPool.pollDoubles(size) : null;
+        if (arr != null) {
+            return arr;
+        }
+        breaker.addEstimateBytesAndMaybeBreak(LocalArrayPool.usedBytesForDoubles(size), "<esql_block_factory>");
+        return new double[size];
+    }
+
+    public final void recycleDoubles(double[] values) {
+        if (localPool != null) {
+            localPool.recycleDoubles(values);
+        } else {
+            breaker.addWithoutBreaking(-LocalArrayPool.usedBytesForDoubles(values.length));
+        }
     }
 }

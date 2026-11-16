@@ -36,7 +36,7 @@ public final class MvLastIntEvaluator extends AbstractMultivalueFunction.Abstrac
   public Block evalNullable(Block fieldVal) {
     IntBlock v = (IntBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+    try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(positionCount, true)) {
       for (int p = 0; p < positionCount; p++) {
         if (v.isNull(p)) {
           builder.appendNull();

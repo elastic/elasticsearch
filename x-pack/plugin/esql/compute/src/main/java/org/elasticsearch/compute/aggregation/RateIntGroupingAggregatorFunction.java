@@ -726,6 +726,18 @@ public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupin
         GroupingAggregatorEvaluationContext ctx
     ) {
         flushRawBuffers();
+        for (int p = 0; p < selected.getPositionCount(); p++) {
+            int group = selected.getInt(p);
+            var state = group < reducedStates.size() ? reducedStates.get(group) : null;
+            if (state != null && state.samples > 1) {
+                state.combineIntervals();
+            }
+        }
+        if (ctx instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
+            tsContext.computeAdjacentGroupIds();
+            // https://github.com/elastic/elasticsearch/issues/152758
+            assert assertTimestampsWithinBuckets(selected, tsContext);
+        }
         return (blocks, offset, selectedInPage) -> evaluateFinal(blocks, offset, selectedInPage, ctx);
     }
 
@@ -733,18 +745,6 @@ public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupin
         BlockFactory blockFactory = driverContext.blockFactory();
         int positionCount = selectedInPage.getPositionCount();
         try (var rates = blockFactory.newDoubleBlockBuilder(positionCount)) {
-            for (int p = 0; p < positionCount; p++) {
-                int group = selectedInPage.getInt(p);
-                var state = group < reducedStates.size() ? reducedStates.get(group) : null;
-                if (state != null && state.samples > 1) {
-                    state.combineIntervals();
-                }
-            }
-            if (ctx instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
-                tsContext.computeAdjacentGroupIds();
-                // https://github.com/elastic/elasticsearch/issues/152758
-                assert assertTimestampsWithinBuckets(selectedInPage, tsContext);
-            }
             for (int p = 0; p < positionCount; p++) {
                 int group = selectedInPage.getInt(p);
                 var state = group < reducedStates.size() ? reducedStates.get(group) : null;

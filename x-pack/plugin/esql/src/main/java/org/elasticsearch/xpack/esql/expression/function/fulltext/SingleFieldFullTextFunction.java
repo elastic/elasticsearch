@@ -198,7 +198,7 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
             failures.add(
                 fail(
                     field,
-                    "[{}] {} cannot search [{}]: Full-text matching on nested child fields is not supported yet.",
+                    "[{}] {} cannot search [{}]: Searching nested child fields is not supported yet.",
                     functionName(),
                     functionType(),
                     field.sourceText()

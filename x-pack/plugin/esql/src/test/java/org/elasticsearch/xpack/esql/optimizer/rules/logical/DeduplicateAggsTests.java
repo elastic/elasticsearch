@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -31,7 +32,9 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.contains;
@@ -747,5 +750,100 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
         aggFieldName(aggs.get(1), Count.class, "salary");
         assertThat(Expressions.attribute(div.left()), is(aggs.get(0).toAttribute()));
         assertThat(Expressions.attribute(div.right()), is(aggs.get(1).toAttribute()));
+    }
+
+    /**
+     * {@code mc} keeps the {@code INLINE STATS} in the plan: without a reference to {@code c} it is pruned before the aggregate
+     * is deduplicated.
+     */
+    public void testInlineStatsLeftSideAliasDeduplicates() {
+        var plan = plan("""
+            from test
+            | eval s2 = salary
+            | inline stats c = count(*) by languages
+            | stats a = min(s2), b = min(salary), mc = max(c)
+            """);
+
+        var project = as(plan, Project.class);
+        var projections = project.projections();
+        assertThat(Expressions.names(projections), contains("a", "b", "mc"));
+        assertThat(Expressions.name(aliased(projections.get(1), ReferenceAttribute.class)), is("a"));
+        var limit = as(project.child(), Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var aggs = agg.aggregates();
+        assertThat(Expressions.names(aggs), contains("a", "mc"));
+        aggFieldName(aggs.get(0), Min.class, "s2");
+        as(agg.child(), InlineJoin.class);
+    }
+
+    /**
+     * The lookup's {@code language_name} shadows the alias of the same name, so {@code count(language_name)} counts the lookup
+     * column, while {@code f2} still equals {@code first_name} on every joined row.
+     */
+    public void testLookupJoinShadowedAliasIsNotResolved() {
+        var plan = plan("""
+            from test
+            | eval language_code = languages, language_name = first_name, f2 = first_name
+            | lookup join languages_lookup on language_code
+            | stats a = count(language_name), b = count(first_name), c = count(f2)
+            """);
+
+        var project = as(plan, Project.class);
+        var projections = project.projections();
+        assertThat(Expressions.names(projections), contains("a", "b", "c"));
+        assertThat(Expressions.name(aliased(projections.get(2), ReferenceAttribute.class)), is("b"));
+        var limit = as(project.child(), Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var aggs = agg.aggregates();
+        assertThat(Expressions.names(aggs), contains("a", "b"));
+        aggFieldName(aggs.get(0), Count.class, "language_name");
+        aggFieldName(aggs.get(1), Count.class, "first_name");
+        assertTrue(agg.child().anyMatch(Join.class::isInstance));
+    }
+
+    /**
+     * The lookup's {@code language_name} shadows the {@code language_name} of the first {@code STATS}, which {@code c} duplicates,
+     * so {@code count(language_name)} and {@code count(c)} count different columns.
+     */
+    public void testLookupJoinShadowedAggregateOutputIsNotResolved() {
+        var plan = plan("""
+            from test
+            | stats language_name = count(*), c = count(*) by language_code = languages
+            | lookup join languages_lookup on language_code
+            | stats a = count(language_name), b = count(c)
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var aggs = agg.aggregates();
+        assertThat(Expressions.names(aggs), contains("a", "b"));
+        var join = as(agg.child(), Join.class);
+        var lookupColumn = Expressions.attribute(aliased(aggs.get(0), Count.class).field());
+        assertThat(join.right().outputSet().contains(lookupColumn), is(true));
+        var innerCount = Expressions.attribute(aliased(aggs.get(1), Count.class).field());
+        assertThat(join.left().outputSet().contains(innerCount), is(true));
+    }
+
+    /**
+     * The subquery only filters the rows of the left-hand side, so {@code s2} still equals {@code salary} on every row that
+     * reaches the aggregate.
+     */
+    public void testInSubqueryLeftSideAliasDeduplicates() {
+        assumeTrue("Requires IN subqueries", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        var plan = plan("""
+            from test
+            | eval s2 = salary
+            | where emp_no in (from employees | keep emp_no)
+            | stats a = min(s2), b = min(salary)
+            """);
+
+        var project = as(plan, Project.class);
+        var projections = project.projections();
+        assertThat(Expressions.names(projections), contains("a", "b"));
+        assertThat(Expressions.name(aliased(projections.get(1), ReferenceAttribute.class)), is("a"));
+        var limit = as(project.child(), Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.aggregates()), contains("a"));
+        assertTrue(agg.child().anyMatch(AbstractSubqueryJoin.class::isInstance));
     }
 }

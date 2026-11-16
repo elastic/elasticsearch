@@ -22,6 +22,9 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -66,7 +69,7 @@ public class ReplaceAggregateAggExpressionWithEval extends OptimizerRules.Optimi
         Map<GroupingFunction.NonEvaluatableGroupingFunction, Attribute> nonEvalGroupingAttributes = new HashMap<>(
             aggregate.groupings().size()
         );
-        collectAliases(aggregate, aggregate, a -> {
+        collectAliases(aggregate, a -> {
             if (a.child() instanceof GroupingFunction.NonEvaluatableGroupingFunction groupingFunction) {
                 nonEvalGroupingAttributes.put(groupingFunction, a.toAttribute());
             } else {
@@ -174,31 +177,37 @@ public class ReplaceAggregateAggExpressionWithEval extends OptimizerRules.Optimi
     }
 
     /**
-     * Collects the aliases used to compare the aggregate functions of {@code aggregate}. Functions that are equal once their
-     * arguments are resolved through these aliases are computed only once, so an alias {@code x = e} may only be collected if
-     * {@code x} equals {@code e} on every row that reaches {@code aggregate}.
+     * Collects the aliases used to compare the aggregate functions of the aggregate being optimized, starting from {@code plan}.
+     * Functions that are equal once their arguments are resolved through these aliases are computed only once, so an alias
+     * {@code x = e} may only be collected if {@code x} equals {@code e} on every row that reaches the aggregate.
      * <p>
      * Aliases from per-row commands such as {@code EVAL} and {@code RENAME} hold on every row. The walk skips these parts of the
      * plan, where they do not:
      * <ul>
-     *     <li>Any {@link Aggregate} other than {@code aggregate}, and everything below it. Its aggregate values depend on the rows
-     *     it aggregated: in {@code STATS c = COUNT(*) BY g | STATS d = COUNT(*) BY c}, {@code c} and {@code d} are both
+     *     <li>Any {@link Aggregate} below {@code plan}, and everything below it. Its aggregate values depend on the rows it
+     *     aggregated: in {@code STATS c = COUNT(*) BY g | STATS d = COUNT(*) BY c}, {@code c} and {@code d} are both
      *     {@code COUNT(*)} but count different rows. Its grouping keys keep their ids but not their values: a key that is
-     *     multi-valued below the aggregate holds a single value per group above it.</li>
-     *     <li>The right-hand side of an {@link InlineJoin}. It computes one value per group, and a row whose join key is
-     *     multi-valued joins several groups, so a value that is constant per group can be multi-valued on that row.</li>
+     *     multi-valued below that aggregate holds a single value per group above it.</li>
+     *     <li>The right-hand side of a {@link Join}. A {@code LEFT} join fills its columns with nulls on unmatched rows, and an
+     *     {@link InlineJoin} computes them per group, so a row whose join key is multi-valued gets them from several groups.
+     *     The left-hand side is walked unless the join is a {@code RIGHT} or {@code FULL} join, which fill its columns with nulls
+     *     on unmatched rows.</li>
      * </ul>
      */
-    private static void collectAliases(LogicalPlan plan, Aggregate aggregate, Consumer<Alias> consumer) {
-        // Stop at any aggregate other than the one being optimized, without walking below it.
-        if (plan != aggregate && plan instanceof Aggregate) {
-            return;
-        }
-        List<LogicalPlan> children = plan instanceof InlineJoin inlineJoin ? List.of(inlineJoin.left()) : plan.children();
+    private static void collectAliases(LogicalPlan plan, Consumer<Alias> consumer) {
+        List<LogicalPlan> children = plan instanceof Join join ? joinSidesToWalk(join) : plan.children();
         for (LogicalPlan child : children) {
-            collectAliases(child, aggregate, consumer);
+            // Stop at any aggregate other than the one being optimized, without walking below it.
+            if (child instanceof Aggregate == false) {
+                collectAliases(child, consumer);
+            }
         }
         plan.forEachExpression(Alias.class, consumer);
+    }
+
+    private static List<LogicalPlan> joinSidesToWalk(Join join) {
+        JoinType type = join.config().type();
+        return JoinTypes.RIGHT.equals(type) || JoinTypes.FULL.equals(type) ? List.of() : List.of(join.left());
     }
 
     private static AggregateFunction getCannonical(AggregateFunction af, AttributeMap<Expression> aliases) {

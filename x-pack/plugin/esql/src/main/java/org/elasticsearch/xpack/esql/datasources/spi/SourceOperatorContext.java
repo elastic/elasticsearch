@@ -485,9 +485,6 @@ public record SourceOperatorContext(
             return this;
         }
 
-        /**
-         * Coordinator task of the query. Defaults to {@code null} when the planner did not supply one.
-         */
         public Builder queryId(@Nullable TaskId queryId) {
             this.queryId = queryId;
             return this;

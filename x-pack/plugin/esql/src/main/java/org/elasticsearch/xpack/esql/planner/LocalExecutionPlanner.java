@@ -2491,20 +2491,12 @@ public class LocalExecutionPlanner {
         return PhysicalOperation.fromSource(factory, layout.build());
     }
 
-    /**
-     * Registry producer executor, wrapped with {@link TaskLoadAttribution#charging} only when a load target exists.
-     * Null target is identity so tests (and empty-shard DATA on main) keep the node-shared registry executor.
-     */
     private Executor attributedExecutor() {
         Executor executor = operatorFactoryRegistry.executor();
         TaskLoadAttribution.Target load = externalCompute == null ? null : externalCompute.load();
         return load == null ? executor : TaskLoadAttribution.charging(executor, load);
     }
 
-    /**
-     * Registry file-read executor, wrapped only when an I/O target exists. The CPU-only I/O adapter is not
-     * supplied on main; {@code ioTarget} stays null until that lands.
-     */
     private Executor attributedFileReadExecutor() {
         Executor executor = operatorFactoryRegistry.fileReadExecutor();
         TaskLoadAttribution.Target ioTarget = externalCompute == null ? null : externalCompute.ioTarget();

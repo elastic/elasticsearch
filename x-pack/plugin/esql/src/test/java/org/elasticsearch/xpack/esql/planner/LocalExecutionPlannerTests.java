@@ -32,7 +32,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
-import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -99,12 +98,16 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.CoalescedSplit;
+import org.elasticsearch.xpack.esql.datasources.DeferredExtractionCapable;
+import org.elasticsearch.xpack.esql.datasources.ExternalFieldExtractOperator;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
+import org.elasticsearch.xpack.esql.datasources.SourceExtractors;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
+import org.elasticsearch.xpack.esql.datasources.SyntheticColumns;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.Connector;
@@ -139,6 +142,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.DistinctByExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExternalFieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
@@ -713,11 +717,6 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         assertThat(captured.get().fileReadExecutor(), sameInstance(fileReadExecutor));
     }
 
-    /**
-     * Production WP-0 shape: {@code load} is set and {@code ioTarget} is null. Only the producer
-     * executor is wrapped; file-read stays the registry instance. {@code queryId} is copied onto
-     * the source-operator context.
-     */
     public void testPlanExternalSourceWrapsProducerOnlyWhenIoTargetNull() throws IOException {
         AtomicReference<SourceOperatorContext> captured = new AtomicReference<>();
         Executor producer = r -> r.run();
@@ -747,12 +746,26 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         assertThat(context.fileReadExecutor(), sameInstance(fileRead));
     }
 
-    /**
-     * Each non-null target wraps its registry executor with {@link TaskLoadAttribution#charging},
-     * so a no-op submitted on that context executor charges that target. Distinct tracking pools
-     * (not production {@code esql_external_io}) prove the wrap is bound to the matching inner
-     * executor.
-     */
+    public void testPlanExternalFieldExtractWrapsFileReadExecutor() throws IOException {
+        Executor producer = r -> r.run();
+        Executor fileRead = r -> r.run();
+        TaskId queryId = new TaskId("test-node", 7);
+
+        ExternalFieldExtractOperator.Factory identity = planExtractFactory(
+            new LocalExecutionPlanner.ExternalComputeContext(queryId, (nanos, finishNanos) -> {}, null),
+            producer,
+            fileRead
+        );
+        assertThat(identity.executor(), sameInstance(fileRead));
+
+        ExternalFieldExtractOperator.Factory wrapped = planExtractFactory(
+            new LocalExecutionPlanner.ExternalComputeContext(queryId, (nanos, finishNanos) -> {}, (nanos, finishNanos) -> {}),
+            producer,
+            fileRead
+        );
+        assertThat(wrapped.executor(), not(sameInstance(fileRead)));
+    }
+
     public void testPlanExternalSourceChargesLoadTargetAndPassesQueryId() throws Exception {
         AtomicReference<SourceOperatorContext> captured = new AtomicReference<>();
         SourceOperatorFactoryProvider provider = capturingProvider(captured);
@@ -2073,6 +2086,89 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         );
     }
 
+    private ExternalFieldExtractOperator.Factory planExtractFactory(
+        LocalExecutionPlanner.ExternalComputeContext externalCompute,
+        Executor producer,
+        Executor fileRead
+    ) throws IOException {
+        OperatorFactoryRegistry operatorFactoryRegistry = new OperatorFactoryRegistry(
+            Map.of(),
+            Map.of("file", context -> new DeferredNoopSourceFactory()),
+            producer,
+            fileRead
+        );
+        Attribute id = new FieldAttribute(
+            Source.EMPTY,
+            "id",
+            new EsField("id", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        Attribute rowPos = SyntheticColumns.newRowPositionMetadataAttribute(Source.EMPTY);
+        Attribute wide = new FieldAttribute(
+            Source.EMPTY,
+            "wide",
+            new EsField("wide", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        ExternalSourceExec source = new ExternalSourceExec(
+            Source.EMPTY,
+            "s3://bucket/data.parquet",
+            "file",
+            List.of(id, rowPos),
+            Map.of(),
+            Map.of(),
+            null,
+            10
+        ).withDeferredExtraction();
+        ExternalFieldExtractExec extract = new ExternalFieldExtractExec(Source.EMPTY, source, List.of(wide), rowPos);
+        var plan = planner(operatorFactoryRegistry, true, null, true, externalCompute).plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            extract,
+            EmptyIndexedByShardId.instance(),
+            randomBoolean()
+        );
+        List<Operator.OperatorFactory> factories = plan.driverFactories.get(0)
+            .driverSupplier()
+            .physicalOperation().intermediateOperatorFactories;
+        return (ExternalFieldExtractOperator.Factory) factories.stream()
+            .filter(ExternalFieldExtractOperator.Factory.class::isInstance)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("no extract factory in " + factories));
+    }
+
+    private static final class DeferredNoopSourceFactory implements SourceOperator.SourceOperatorFactory, DeferredExtractionCapable {
+        @Override
+        public SourceOperator get(DriverContext driverContext) {
+            return new SourceOperator() {
+                @Override
+                public Page getOutput() {
+                    return null;
+                }
+
+                @Override
+                public boolean isFinished() {
+                    return true;
+                }
+
+                @Override
+                public void finish() {}
+
+                @Override
+                public void close() {}
+            };
+        }
+
+        @Override
+        public String describe() {
+            return "test-deferred-source";
+        }
+
+        @Override
+        public SourceExtractors sourceExtractorsFor(DriverContext driverContext) {
+            throw new AssertionError("planning must not open extractors");
+        }
+    }
+
     private static ExternalSourceExec simpleFileSource() {
         List<Attribute> attrs = List.of(
             new FieldAttribute(Source.EMPTY, "a", new EsField("a", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
@@ -2094,10 +2190,6 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         );
     }
 
-    /**
-     * Submits a no-op that runs long enough to measure, then waits until it is the {@code completed}th
-     * task of {@code inner}.
-     */
     private static void runCharged(Executor charging, TaskExecutionTimeTrackingEsThreadPoolExecutor inner, long completed)
         throws Exception {
         charging.execute(() -> {

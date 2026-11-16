@@ -197,14 +197,27 @@ public class EsqlDatafeedQueryParserTests extends ESTestCase {
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
     }
 
+    /** The observable state of a parsed query, as the parsed query itself holds a plan whose nodes are not comparable. */
+    private static String summary(ParsedEsqlQuery query) {
+        return List.of(
+            query.indexPatterns(),
+            query.aggregates(),
+            query.outputLimit(),
+            query.limitBeforeAggregation(),
+            query.timeBucketing(),
+            query.withPipeline("KEEP a"),
+            query.sourceFieldOf("@timestamp")
+        ).toString();
+    }
+
     public void testConcurrentParsingShouldMatchSequentialResults() throws Exception {
         String[] queries = {
             "FROM a | LIMIT 500 | STATS c = COUNT(*) BY b = BUCKET(@timestamp, 1 hour)",
             "SET unmapped_fields=\"nullify\"; FROM (FROM r:a | WHERE x > 1), b | SORT @timestamp",
             "FROM t | FORK (WHERE a > 1 | LIMIT 5) (WHERE a < 1) | LIMIT 3" };
-        List<ParsedEsqlQuery> expected = new ArrayList<>();
+        List<String> expected = new ArrayList<>();
         for (String query : queries) {
-            expected.add(parser.parse(query));
+            expected.add(summary(parser.parse(query)));
         }
         ExecutorService executor = Executors.newFixedThreadPool(4);
         try {
@@ -214,7 +227,7 @@ public class EsqlDatafeedQueryParserTests extends ESTestCase {
                     int mismatches = 0;
                     for (int i = 0; i < 100; i++) {
                         int k = i % queries.length;
-                        if (parser.parse(queries[k]).equals(expected.get(k)) == false) {
+                        if (summary(parser.parse(queries[k])).equals(expected.get(k)) == false) {
                             mismatches++;
                         }
                     }

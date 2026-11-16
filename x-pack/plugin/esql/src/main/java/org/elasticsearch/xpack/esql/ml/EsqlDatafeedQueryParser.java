@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.ParsedEsqlQuery;
+import org.elasticsearch.xpack.ml.datafeed.esql.spi.TimeBucketing;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -49,7 +50,9 @@ import java.util.stream.Collectors;
 /** {@link EsqlQueryParser} for ES|QL datafeeds, backed by {@link EsqlParser}. It parses only: nothing is resolved against mappings. */
 public class EsqlDatafeedQueryParser implements EsqlQueryParser {
 
-    private final EsqlParser parser = new EsqlParser(new EsqlConfig(new EsqlFunctionRegistry()));
+    private final EsqlFunctionRegistry registry = new EsqlFunctionRegistry();
+    private final EsqlParser parser = new EsqlParser(new EsqlConfig(registry));
+    private final TimeBucketResolver timeBuckets = new TimeBucketResolver(registry);
     private final PreAnalyzer preAnalyzer = new PreAnalyzer();
 
     @Override
@@ -79,7 +82,9 @@ public class EsqlDatafeedQueryParser implements EsqlQueryParser {
             pipeline.outputLimit(),
             pipeline.limitBeforeAggregation(),
             pipeline.filterFields,
-            pipeline.sortFields
+            pipeline.sortFields,
+            pipeline.timeBucketing(timeBuckets),
+            plan
         );
     }
 
@@ -107,8 +112,11 @@ public class EsqlDatafeedQueryParser implements EsqlQueryParser {
         private final List<int[]> limitsWithAggregationsAbove = new ArrayList<>();
         private final Set<String> filterFields = new LinkedHashSet<>();
         private final Set<String> sortFields = new LinkedHashSet<>();
+        private final List<LogicalPlan> visited = new ArrayList<>();
         private LogicalPlan source;
         private int aggregates;
+        private Aggregate topAggregate;
+        private List<LogicalPlan> aboveTopAggregate = List.of();
 
         static TopLevelPipeline of(LogicalPlan plan) {
             TopLevelPipeline pipeline = new TopLevelPipeline();
@@ -130,14 +138,21 @@ public class EsqlDatafeedQueryParser implements EsqlQueryParser {
         }
 
         private void visit(LogicalPlan node) {
+            // Collected before visiting, so for an aggregate it holds the plans above it.
             switch (node) {
                 case Limit limit -> limitsWithAggregationsAbove.add(new int[] { limitValue(limit), aggregates });
-                case Aggregate ignored -> aggregates++;
+                case Aggregate aggregate -> {
+                    if (aggregates++ == 0) {
+                        topAggregate = aggregate;
+                        aboveTopAggregate = List.copyOf(visited);
+                    }
+                }
                 case Filter filter -> addFields(filter, filterFields);
                 case OrderBy orderBy -> addFields(orderBy, sortFields);
                 default -> {
                 }
             }
+            visited.add(node);
         }
 
         private static int limitValue(Limit limit) {
@@ -148,6 +163,11 @@ public class EsqlDatafeedQueryParser implements EsqlQueryParser {
 
         private static void addFields(LogicalPlan node, Set<String> fields) {
             node.forEachExpression(UnresolvedAttribute.class, attribute -> fields.add(attribute.name()));
+        }
+
+        /** How the top-most STATS buckets time. */
+        TimeBucketing timeBucketing(TimeBucketResolver resolver) {
+            return topAggregate == null ? TimeBucketResolver.NO_TIME_BUCKET : resolver.resolve(topAggregate, aboveTopAggregate);
         }
 
         /** Limits after the last STATS of the query, or all limits when there is no STATS. */
@@ -176,8 +196,15 @@ public class EsqlDatafeedQueryParser implements EsqlQueryParser {
         OptionalInt outputLimit,
         OptionalInt limitBeforeAggregation,
         Set<String> filterFields,
-        Set<String> sortFields
+        Set<String> sortFields,
+        TimeBucketing timeBucketing,
+        LogicalPlan plan
     ) implements ParsedEsqlQuery {
+
+        @Override
+        public Optional<String> sourceFieldOf(String outputColumn) {
+            return Optional.ofNullable(ColumnLineage.sourceFieldOf(plan, outputColumn));
+        }
 
         @Override
         public Optional<String> setting(String name) {

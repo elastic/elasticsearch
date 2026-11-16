@@ -41,6 +41,12 @@ public interface ParsedEsqlQuery {
     /** Whether a top-level {@code SORT} reads {@code field}. */
     boolean sortsOn(String field);
 
+    /** How the top-most {@code STATS} of the top-level pipeline buckets time. */
+    TimeBucketing timeBucketing();
+
+    /** The source field that the output column {@code outputColumn} carries unchanged, as traced through EVAL, RENAME, KEEP and DROP. */
+    Optional<String> sourceFieldOf(String outputColumn);
+
     /** The query followed by {@code pipeline}, for example {@code SORT ??timeField ASC}. Pass it without a leading pipe. */
     String withPipeline(String pipeline);
 

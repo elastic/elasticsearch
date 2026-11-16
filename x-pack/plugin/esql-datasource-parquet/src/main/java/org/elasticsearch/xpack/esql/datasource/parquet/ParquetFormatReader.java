@@ -4068,8 +4068,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     /**
      * Whether values from a column whose Parquet schema maps to {@code fileDerived} can be read using
      * the planner's {@code planner} type (same widening notion as globbed external sources). Package-private so the
-     * deferred-extraction path ({@link ParquetColumnExtractor#coerceToTarget}) makes the identical widening decision as
-     * the eager gate — the two must agree or a column reads differently depending on whether extraction was deferred.
+     * deferred-extraction path ({@link ParquetColumnExtractor#coercionAdmissible}) makes the identical widening
+     * decision as the eager gate — the two must agree or a column reads differently depending on whether extraction
+     * was deferred.
      */
     static boolean plannerTypeCompatibleWithFileDerivedType(DataType planner, DataType fileDerived) {
         DataType unified = EsqlDataTypeConverter.commonType(planner, fileDerived);

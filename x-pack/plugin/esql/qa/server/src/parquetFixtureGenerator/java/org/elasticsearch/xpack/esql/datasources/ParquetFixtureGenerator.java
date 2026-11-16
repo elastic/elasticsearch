@@ -337,6 +337,16 @@ public final class ParquetFixtureGenerator {
                 .optionalElement(PrimitiveType.PrimitiveTypeName.INT64)
                 .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
                 .named(col.name());
+            // The sub-millisecond TIMESTAMP units, matching their scalar arms. Without these a bracketed cell fell
+            // to the BINARY default below and the fixture exercised the string decoder instead of the timestamp one.
+            case "date_micros" -> Types.optionalList()
+                .optionalElement(PrimitiveType.PrimitiveTypeName.INT64)
+                .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+                .named(col.name());
+            case "date_nanos" -> Types.optionalList()
+                .optionalElement(PrimitiveType.PrimitiveTypeName.INT64)
+                .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.NANOS))
+                .named(col.name());
             case "time_millis" -> Types.optionalList()
                 .optionalElement(PrimitiveType.PrimitiveTypeName.INT32)
                 .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
@@ -434,7 +444,10 @@ public final class ParquetFixtureGenerator {
             case "long" -> listElement.append("element", ((Number) elem).longValue());
             case "double", "scaled_float", "float", "half_float" -> listElement.append("element", ((Number) elem).doubleValue());
             case "boolean" -> listElement.append("element", Boolean.TRUE.equals(elem));
-            case "date", "time_micros", "time_nanos" -> listElement.append("element", ((Number) elem).longValue());
+            case "date", "date_micros", "date_nanos", "time_micros", "time_nanos" -> listElement.append(
+                "element",
+                ((Number) elem).longValue()
+            );
             case "time_millis" -> listElement.append("element", ((Number) elem).intValue());
             default -> listElement.append("element", elem.toString());
         }

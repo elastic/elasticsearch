@@ -377,10 +377,14 @@ public final class CsvFixtureParser {
             case "double", "scaled_float", "float", "half_float" -> tryParseDouble(value);
             case "boolean", "bool" -> tryParseBoolean(value);
             case "date", "datetime", "dt" -> tryParseDatetime(value);
-            // date_nanos values are plain epoch-nanosecond longs in the fixture CSVs; parse the same way.
-            // date_micros is the microsecond timestamp unit, whose cells are plain epoch microseconds; it has no
-            // ESQL type of its own, so the header name says the unit (see ParquetFixtureGenerator's matching arm).
-            case "date_nanos", "date_micros" -> tryParseDatetime(value);
+            // A header naming a sub-millisecond unit takes a plain count of that unit, so it parses as a LONG and
+            // not through tryParseDatetime: that method's ISO fallback returns epoch MILLIS, which the generators
+            // then write verbatim as the named unit -- silently off by 1e3 for date_micros and 1e6 for date_nanos,
+            // with no failure anywhere to say so. tryParseLong yields null for an ISO cell instead, so a fixture
+            // written in the wrong form reads as a null column rather than as the wrong instant. date_micros has
+            // no ESQL type of its own (it renders date_nanos), which is why the header names the unit; see
+            // ParquetFixtureGenerator's matching scalar and list arms.
+            case "date_nanos", "date_micros" -> tryParseLong(value);
             // A parquet TIME column's value is a count of its own unit since midnight, so the fixture cell is a
             // plain number -- there is no date to parse. The unit lives in the type name because the annotation the
             // generator writes differs per unit, and the physical width with it (MILLIS is an INT32).

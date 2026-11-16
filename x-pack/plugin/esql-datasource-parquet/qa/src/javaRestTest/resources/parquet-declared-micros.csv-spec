@@ -68,3 +68,29 @@ id:integer | ts:date                  | note:keyword                            
 2          | 1500-01-01T00:00:00.000Z | half a millisecond after fifteen hundred  | 20          | 2.5
 3          | 1969-12-31T23:59:59.999Z | one microsecond before the epoch         | 30          | 3.5
 ;
+
+// A LIST of microsecond elements declared `date` takes the same fused one-step decode, in the list decode loop
+// rather than the flat one. Asserting every element rather than MV_MAX, and as the exact millisecond: a scale
+// applied to one element and not the others, or the old two-step route nulling the out-of-window ones, both pass
+// an aggregate assertion. Row 1 pairs an element below the nanosecond floor with one just below the epoch, which
+// is also where flooring and truncation differ.
+declaredDateOverAMicrosTimestampListDecodesEveryElementInOneStep
+required_capability: dataset_in_from_command
+required_capability: parquet_declared_date_reads_micros_in_one_step
+dataset: micros_declared_list: "{{micros_timestamp}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "integer"}, "tslist": {"type": "date"}}}}
+
+FROM micros_declared_list
+| SORT id
+| EVAL elements = TO_LONG(tslist)
+| KEEP id, elements
+;
+
+id:integer | elements:long
+1          | [-14831769600000, -1]
+2          | 32503680000000
+3          | 0
+4          | 1704067200123
+5          | -14831769600000
+6          | [32503680000000, -14831769600000]
+7          | null
+;

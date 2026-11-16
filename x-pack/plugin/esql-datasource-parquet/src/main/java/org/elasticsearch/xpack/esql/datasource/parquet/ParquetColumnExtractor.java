@@ -14,7 +14,6 @@ import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 import org.apache.parquet.schema.MessageType;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -99,11 +98,14 @@ import java.util.function.Consumer;
  *       bucket-visit order (independent of decode arrival order). A gather permutation then
  *       routes each caller slot to its position in the concatenated block via
  *       {@link Block#filter(boolean, int...)}, replaying duplicate requests for the same row.</li>
- *   <li><b>Coerce to the target type.</b> A {@link DeclaredTypeCoercions#fusedInDecode} pair decodes straight to
- *       the target on a view retyped in {@link #extract}; every other non-identity pair decodes at the file's own
- *       type and the stitched block goes through {@link DeclaredTypeCoercions#castBlock}, the same engine the eager
- *       paths use. Either way the pair must pass {@link #coercionAdmissible}, and one that does not reads as
- *       all-null with a Warning.</li>
+ *   <li><b>Coerce to the target type — inside the decode, ahead of the stitch above.</b> {@link #extract} retypes
+ *       the column view to the query's type for every pair {@link #coercionAdmissible} accepts, and the decode loops
+ *       do the rest: a {@link DeclaredTypeCoercions#fusedInDecode} pair decodes straight to the target, and every
+ *       other pair decodes at the file's own type and goes through {@link DeclaredTypeCoercions#castBlock}, which is
+ *       the same decision, in the same place, as on the eager scan. Because it precedes the gather, a per-value
+ *       coercion warning costs the budget once per decoded value, whatever number of caller slots replay that
+ *       value. A pair {@code coercionAdmissible} rejects is never retyped and reads as all-null with a Warning,
+ *       through {@link #nullFillUncoercible}.</li>
  * </ol>
  * <p>
  * I/O cost: one async coalesced fetch per visited row group, all dispatched in parallel up to
@@ -264,15 +266,13 @@ final class ParquetColumnExtractor implements ColumnExtractor {
             infos[c] = ParquetFormatReader.resolveColumnInfo(schema, columnNames[c]);
             if (infos[c] != null) {
                 resolved++;
-                // Decode-then-coerce is not equivalent for a fused pair: date_nanos -> date would materialise
-                // nanoseconds first and null what the one-step scale carries. The view needs the gate and the
-                // formatter for the same reason the eager readers' does.
+                // The decode loops own the fuse-or-cast decision: handed a target-typed view they decode a fused
+                // pair in one step and defuse every other pair to the file's type plus castBlock, which is exactly
+                // what the eager scan hands them. Retyping every admissible pair here puts this route on that one
+                // decision instead of a second copy of it, and leaves nothing for the stitched block to coerce.
                 DataType target = targetTypes == null ? null : targetTypes[c];
                 if (target != null && target != infos[c].esqlType() && coercionAdmissible(infos[c].esqlType(), target, columnNames[c])) {
-                    DateFormatter declaredFormatter = reader.declaredDateFormatterFor(columnNames[c]);
-                    if (DeclaredTypeCoercions.fusedInDecode(infos[c].esqlType(), target, declaredFormatter != null)) {
-                        infos[c] = infos[c].targetTyped(target, declaredFormatter);
-                    }
+                    infos[c] = infos[c].targetTyped(target, reader.declaredDateFormatterFor(columnNames[c]));
                 }
             }
         }
@@ -348,11 +348,11 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                 result[c] = stitched;
                 DataType target = targetTypes == null ? null : targetTypes[c];
                 if (target != null && target != infos[c].esqlType()) {
-                    // coerceToTarget consumes `stitched` (its finally closes it), so clear the
-                    // slot first — a throw mid-coercion must not double-close via the outer
+                    // nullFillUncoercible consumes `stitched` (its finally closes it), so clear the
+                    // slot first — a throw mid-report must not double-close via the outer
                     // defensive cleanup.
                     result[c] = null;
-                    result[c] = coerceToTarget(stitched, infos[c].esqlType(), target, columnNames[c], count, blockFactory);
+                    result[c] = nullFillUncoercible(stitched, infos[c].esqlType(), target, columnNames[c], count, blockFactory);
                 }
             }
             return result;
@@ -917,24 +917,30 @@ final class ParquetColumnExtractor implements ColumnExtractor {
     }
 
     /**
-     * Coerces one stitched block to {@code target} through {@link DeclaredTypeCoercions#castBlock}, with the same
-     * formatter and policy-aware sink the eager paths use. Runs for the supported pairs
-     * {@link DeclaredTypeCoercions#fusedInDecode} does NOT accept; a fused pair is decoded natively and skips this.
-     * Always consumes {@code physical}.
+     * Null-fills a column this file cannot supply as the query's type at all, and reports it under the policy.
+     * Every pair {@link #coercionAdmissible} accepts is retyped in {@link #extract} and coerced by the decode
+     * loops, which leaves the stitched block already at its target; so a column reaching here is one whose pair
+     * is inadmissible, and there is nothing to cast. Always consumes {@code physical}.
      */
-    private Block coerceToTarget(Block physical, DataType fileType, DataType target, String columnName, int count, BlockFactory factory) {
+    private Block nullFillUncoercible(
+        Block physical,
+        DataType fileType,
+        DataType target,
+        String columnName,
+        int count,
+        BlockFactory factory
+    ) {
         try {
-            if (coercionAdmissible(fileType, target, columnName)) {
-                return DeclaredTypeCoercions.castBlock(
-                    physical,
-                    fileType,
-                    target,
-                    reader.declaredDateFormatterFor(columnName),
-                    factory,
-                    columnName,
-                    castBlockWarnings()
-                );
-            }
+            // Inside the try: the caller has already cleared its slot, so an AssertionError thrown before the
+            // finally below would leak `physical` and contradict this method's "always consumes" contract.
+            assert coercionAdmissible(fileType, target, columnName) == false
+                : "admissible pair ["
+                    + fileType.typeName()
+                    + " -> "
+                    + target.typeName()
+                    + "] on column ["
+                    + columnName
+                    + "] reached the null-fill sink; extract retypes every admissible pair, so the decode loops own it";
             if (reader.isDeclaredTypeColumn(columnName)) {
                 // A declared column follows the policy, as on the eager scan; skip_row never defers extraction
                 // for a declared read, so a live sink here means null_field.
@@ -981,7 +987,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
     private SkipWarnings uncoercibleColumnWarnings;
 
     /**
-     * The sink for a column this file cannot supply as the query's type at all ({@link #coerceToTarget}), under the
+     * The sink for a column this file cannot supply as the query's type at all ({@link #nullFillUncoercible}), under the
      * summary the eager per-file validation uses, so a column reads under one message whichever path decodes it.
      * Lazily created and shared by every {@link #extract} call, so {@link SkipWarnings#addOnce} reports a column once.
      */
@@ -1020,7 +1026,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
      * The per-value coercion-failure sink handed to {@code castBlock}, or {@code null} under
      * {@code fail_fast} so the failure propagates — identical to the eager iterators'
      * policy-aware {@code coercionWarnings()}. Its being {@code null} also fails a declared column the
-     * file cannot supply at all ({@link #coerceToTarget}) under {@code fail_fast}, exactly as the eager
+     * file cannot supply at all ({@link #nullFillUncoercible}) under {@code fail_fast}, exactly as the eager
      * per-file validation does; otherwise that column, and the same fallback for an inferred column
      * (which widens or nulls under every policy), report on {@link #uncoercibleColumnWarnings()}.
      */

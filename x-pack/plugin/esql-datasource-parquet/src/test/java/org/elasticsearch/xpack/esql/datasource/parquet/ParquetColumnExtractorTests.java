@@ -283,10 +283,10 @@ public class ParquetColumnExtractorTests extends ESTestCase {
 
     public void testDeferredInferredIntegerOverInt64NullFillsWholeColumn() throws IOException {
         // The deferred-extraction twin of ParquetFormatReaderTests.testInt64InferredIntegerNullFillsWholeColumn. After a
-        // TopN, an INFERRED INTEGER target over an int64 column must null-fill via coerceToTarget — never downcast —
-        // otherwise the column reads differently depending on whether extraction was deferred. supports(LONG, INTEGER) is
-        // true, so a plain (non-declared) reader here pins the deferred branch of the gate split: dropping the
-        // isDeclaredTypeColumn guard in coerceToTarget coerces here and this fails.
+        // TopN, an INFERRED INTEGER target over an int64 column must null-fill via nullFillUncoercible — never
+        // downcast — otherwise the column reads differently depending on whether extraction was deferred.
+        // supports(LONG, INTEGER) is true, so a plain (non-declared) reader here pins the deferred branch of the gate
+        // split: dropping the isDeclaredTypeColumn guard in coercionAdmissible retypes the view and this fails.
         byte[] data = writeSingleInt64File(new long[] { 5L, 7L, 9L });
         StorageObject so = createStorageObject(data);
         try (ColumnExtractor extractor = newFullFileExtractor(so)) { // plain reader => "v" is inferred
@@ -308,9 +308,10 @@ public class ParquetColumnExtractorTests extends ESTestCase {
     }
 
     public void testDeferredDeclaredIntegerOverInt64Coerces() throws IOException {
-        // The declared contrast to the above on the SAME deferred path: when "v"'s INTEGER target is declared, the escape
-        // is licensed and coerceToTarget narrows per value (values in range => Integer results, not null) — proving the
-        // deferred gate distinguishes declared from inferred, exactly like the eager pair.
+        // The declared contrast to the above on the SAME deferred path: when "v"'s INTEGER target is declared the
+        // escape is licensed, extract retypes the view, and the decode loop narrows per value (values in range =>
+        // Integer results, not null) — proving the deferred gate distinguishes declared from inferred, exactly like
+        // the eager pair.
         byte[] data = writeSingleInt64File(new long[] { 5L, 7L, 9L });
         StorageObject so = createStorageObject(data);
         ParquetFormatReader reader = (ParquetFormatReader) new ParquetFormatReader(blockFactory).withDeclaredTypeColumns(Set.of("v"));

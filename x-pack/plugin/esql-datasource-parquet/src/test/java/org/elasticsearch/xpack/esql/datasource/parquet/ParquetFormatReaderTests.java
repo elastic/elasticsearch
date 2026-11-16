@@ -8190,40 +8190,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
                         parquetData,
                         "memory://" + shape.label().replace(' ', '_') + ".parquet"
                     );
-                    List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", to));
-                    List<Object> perRoute = new ArrayList<>();
-                    for (String decoder : List.of("pageReader", "rowAtATime")) {
-                        ParquetFormatReader engine = decoder.equals("rowAtATime")
-                            ? new ParquetFormatReader(blockFactory).withBaselinePath()
-                            : new ParquetFormatReader(blockFactory);
-                        ParquetFormatReader r = (ParquetFormatReader) engine.withDeclaredTypeColumns(Set.of("x"));
-                        try (
-                            CloseableIterator<Page> it = r.readRange(
-                                storageObject,
-                                new RangeReadContext(List.of("x"), 10, 0, parquetData.length, plannerTypes, ErrorPolicy.STRICT)
-                            )
-                        ) {
-                            perRoute.add(cellOf(it.next().getBlock(0), to, pair + " (" + decoder + ")"));
-                        }
-                    }
-                    ParquetFormatReader deferred = (ParquetFormatReader) new ParquetFormatReader(blockFactory).withDeclaredTypeColumns(
-                        Set.of("x")
-                    );
-                    try (
-                        ColumnExtractor extractor = new ParquetColumnExtractor(
-                            storageObject,
-                            deferred,
-                            footerOf(storageObject),
-                            ErrorPolicy.STRICT
-                        )
-                    ) {
-                        Block[] blocks = extractor.extract(new String[] { "x" }, new DataType[] { to }, new long[] { 0L }, blockFactory);
-                        try {
-                            perRoute.add(cellOf(blocks[0], to, pair + " (deferred)"));
-                        } finally {
-                            Releasables.close(blocks);
-                        }
-                    }
+                    List<Object> perRoute = cellsOnEveryRoute(storageObject, parquetData.length, to, ErrorPolicy.STRICT, pair);
                     assertEquals(
                         "fused pair "
                             + pair
@@ -8237,6 +8204,244 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * Reads column {@code x} of {@code storageObject} as {@code to} on each of the three routes that can produce a
+     * column -- the vectorized reader, the row-at-a-time reader, and the deferred extractor a plan uses when it
+     * materializes a column only for the rows a TopN kept -- and returns one cell per route, in that order.
+     *
+     * <p>The column is DECLARED on every route, which is what makes a {@link DeclaredTypeCoercions#supports} pair
+     * admissible rather than null-filled. The axis that reaches the row-at-a-time copy is
+     * {@link ParquetFormatReader#withBaselinePath()} and not the iterator flag: every shape these guards write is
+     * flat, and {@code ParquetColumnIterator} builds a {@link PageColumnReader} for every flat column of a row group
+     * it reads without a record filter, so the flag alone would run the vectorized dispatch twice and leave the
+     * row-at-a-time dispatch unentered.
+     *
+     * <p>Both route guards call this, so a change to how one of them reads cannot quietly stop applying to the other.
+     */
+    private List<Object> cellsOnEveryRoute(StorageObject storageObject, int length, DataType to, ErrorPolicy policy, String pair)
+        throws Exception {
+        List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", to));
+        List<Object> perRoute = new ArrayList<>();
+        for (String decoder : List.of("pageReader", "rowAtATime")) {
+            ParquetFormatReader engine = decoder.equals("rowAtATime")
+                ? new ParquetFormatReader(blockFactory).withBaselinePath()
+                : new ParquetFormatReader(blockFactory);
+            ParquetFormatReader r = (ParquetFormatReader) engine.withDeclaredTypeColumns(Set.of("x"));
+            try (
+                CloseableIterator<Page> it = r.readRange(
+                    storageObject,
+                    new RangeReadContext(List.of("x"), 10, 0, length, plannerTypes, policy)
+                )
+            ) {
+                perRoute.add(cellOf(it.next().getBlock(0), to, pair + " (" + decoder + ")"));
+            }
+        }
+        ParquetFormatReader deferred = (ParquetFormatReader) new ParquetFormatReader(blockFactory).withDeclaredTypeColumns(Set.of("x"));
+        try (ColumnExtractor extractor = new ParquetColumnExtractor(storageObject, deferred, footerOf(storageObject), policy)) {
+            Block[] blocks = extractor.extract(new String[] { "x" }, new DataType[] { to }, new long[] { 0L }, blockFactory);
+            try {
+                perRoute.add(cellOf(blocks[0], to, pair + " (deferred)"));
+            } finally {
+                Releasables.close(blocks);
+            }
+        }
+        return perRoute;
+    }
+
+    /**
+     * Guard: the DEFUSED counterpart of {@link #testEveryFusedInDecodePairAgreesAcrossReadRoutes}. For every pair
+     * {@link DeclaredTypeCoercions#supports} admits that {@link DeclaredTypeCoercions#fusedInDecode} does NOT, the
+     * three routes must still agree. Such a pair reaches its target by decoding at the file's own type and casting
+     * the block, and each route carries its own copy of the decision to do that rather than decode natively:
+     * {@code PageColumnReader#readBatch} for the vectorized reader, {@code ParquetColumnDecoding#readListColumn} for
+     * the list decode, and the retyped column view {@code ParquetColumnExtractor#extract} builds for the deferred
+     * one. A pair one route casts and another decodes natively answers by PLAN SHAPE rather than by data, silently.
+     *
+     * <p>This is the divergence class the fused guard cannot see: that one varies the pair only inside the fused
+     * set, so it is blind to a defused pair handled on one route and not another.
+     *
+     * <p><b>It is a standing guard, not evidence for any one change.</b> It passes against the revision before the
+     * deferred route was put on the decode loops' decision, because the routes agreed then too -- what that change
+     * removed was a duplicated decision, not a wrong answer. Read a green here as "the routes still agree", never
+     * as "this commit works".
+     *
+     * <p>What it does NOT reach, measured rather than supposed:
+     * <ul>
+     *   <li>One required row, one row group, position {@code {0}} -- so {@code readBatchSparse} takes its
+     *       {@code survivorCount == sourceRows} early return and the multi-run path, {@code BlockChunks.concat} over
+     *       cast chunks, multi-bucket stitching and replayed positions are never entered.</li>
+     *   <li>Of its cells, the ones whose only sample value cannot convert are null on all three routes and so cannot
+     *       tell a correct route from one that null-fills; every {@code keyword} target below {@code date} is such a
+     *       cell, the sample being an ISO date string. Count them with
+     *       {@code cellsOnEveryRoute(...).get(0) == null} if the proportion matters.</li>
+     *   <li>{@link ErrorPolicy#PERMISSIVE} only, so it says nothing about a strict read -- see
+     *       {@link #testDeferredDefusedPairFailsTheReadUnderAStrictPolicy}.</li>
+     *   <li>Flat shapes only, {@code fusedShapesFor} writing no list: the LIST decode loop's own copy of the
+     *       decision is pinned by {@link #testDeferredDefusedListPairAgreesWithTheEagerRoutes} instead.</li>
+     *   <li>Agreement, not values. A mutation that breaks all three routes identically passes.</li>
+     * </ul>
+     *
+     * <p>The {@code from} types are named here rather than taken from {@code DataType.values()} because
+     * {@link #fusedShapesFor} throws for a source it has no shape for; the four named are the ones it knows, and
+     * {@code DOUBLE}, {@code BOOLEAN}, {@code DATETIME} and {@code UNSIGNED_LONG} are rendered by Parquet and not
+     * covered. The pair count is asserted non-zero so the enumeration cannot go vacuous if the two predicates move
+     * together.
+     */
+    public void testEveryDefusedSupportedPairAgreesAcrossReadRoutes() throws Exception {
+        List<DataType> shapedSources = List.of(DataType.INTEGER, DataType.LONG, DataType.DATE_NANOS, DataType.KEYWORD);
+        int pairsChecked = 0;
+        for (DataType from : shapedSources) {
+            for (DataType to : DataType.values()) {
+                if (from == to || DeclaredTypeCoercions.supports(from, to) == false || DeclaredTypeCoercions.fusedInDecode(from, to)) {
+                    continue;
+                }
+                for (FusedShape shape : fusedShapesFor(from)) {
+                    String pair = from.typeName() + "->" + to.typeName() + " as " + shape.label();
+                    byte[] parquetData = createParquetFile(shape.schema(), factory -> {
+                        Group g = factory.newGroup();
+                        shape.writer().accept(g, "x");
+                        return List.of(g);
+                    });
+                    // A distinct location per shape: footerOf goes through a class-level FooterByteCache, so a
+                    // shared one makes a later shape decode against an earlier shape's footer.
+                    StorageObject storageObject = createStorageObject(
+                        parquetData,
+                        "memory://defused_" + shape.label().replace(' ', '_') + ".parquet"
+                    );
+                    List<Object> perRoute = cellsOnEveryRoute(storageObject, parquetData.length, to, ErrorPolicy.PERMISSIVE, pair);
+                    String message = "defused pair "
+                        + pair
+                        + ": the eager vectorized, row-at-a-time and deferred routes must agree; a pair one route "
+                        + "casts and another decodes natively answers by plan shape";
+                    // Pairwise rather than through List.of, which rejects the nulls a genuinely uncoercible value
+                    // produces under PERMISSIVE.
+                    assertEquals(message + " (rowAtATime vs pageReader)", perRoute.get(0), perRoute.get(1));
+                    assertEquals(message + " (deferred vs pageReader)", perRoute.get(0), perRoute.get(2));
+                    pairsChecked++;
+                }
+            }
+        }
+        assertThat(
+            "no defused supported pair was exercised, so this guard asserted nothing; supports and fusedInDecode "
+                + "have converged or the shaped-source list no longer reaches either",
+            pairsChecked,
+            greaterThan(0)
+        );
+    }
+
+    /**
+     * The LIST decode loop carries its own copy of the fuse-or-cast decision, and the deferred route reaches it
+     * through a retyped view exactly as the flat one does. A declared {@code LIST<int64>} read as {@code integer} is
+     * defused -- {@code supports(LONG, INTEGER)} holds, {@code fusedInDecode} rejects it -- so
+     * {@code readListColumn} must recurse at the file's element type and cast, on the deferred route as on the eager
+     * ones, element by element.
+     *
+     * <p>Pins the half of the retype that no other test reaches: skipping the retype for a repeated column leaves
+     * every flat case passing, which is how this arrived unpinned. Asserts the elements themselves rather than
+     * agreement, so a mutation that breaks all three routes alike still fails.
+     */
+    public void testDeferredDefusedListPairAgreesWithTheEagerRoutes() throws Exception {
+        Type listType = Types.optionalList().optionalElement(PrimitiveType.PrimitiveTypeName.INT64).named("v");
+        MessageType schema = new MessageType("test_schema", listType);
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g1 = factory.newGroup();
+            Group l1 = g1.addGroup("v");
+            l1.addGroup("list").append("element", 7L);
+            l1.addGroup("list").append("element", -9L);
+            Group g2 = factory.newGroup();
+            Group l2 = g2.addGroup("v");
+            l2.addGroup("list").append("element", 11L);
+            return List.of(g1, g2);
+        });
+        StorageObject storageObject = createStorageObject(parquetData, "memory://defused_list_int64.parquet");
+        List<Attribute> asInteger = List.of(new ReferenceAttribute(Source.EMPTY, "v", DataType.INTEGER));
+
+        List<List<Integer>> perRoute = new ArrayList<>();
+        for (String decoder : List.of("pageReader", "rowAtATime")) {
+            ParquetFormatReader engine = decoder.equals("rowAtATime")
+                ? new ParquetFormatReader(blockFactory).withBaselinePath()
+                : new ParquetFormatReader(blockFactory);
+            ParquetFormatReader r = (ParquetFormatReader) engine.withDeclaredTypeColumns(Set.of("v"));
+            try (
+                CloseableIterator<Page> it = r.readRange(
+                    storageObject,
+                    new RangeReadContext(List.of("v"), 10, 0, parquetData.length, asInteger, ErrorPolicy.PERMISSIVE)
+                )
+            ) {
+                perRoute.add(intElementsOf(it.next().getBlock(0), decoder));
+            }
+        }
+        ParquetFormatReader deferred = (ParquetFormatReader) new ParquetFormatReader(blockFactory).withDeclaredTypeColumns(Set.of("v"));
+        try (
+            ColumnExtractor extractor = new ParquetColumnExtractor(storageObject, deferred, footerOf(storageObject), ErrorPolicy.PERMISSIVE)
+        ) {
+            Block[] blocks = extractor.extract(
+                new String[] { "v" },
+                new DataType[] { DataType.INTEGER },
+                new long[] { 0L, 1L },
+                blockFactory
+            );
+            try {
+                perRoute.add(intElementsOf(blocks[0], "deferred"));
+            } finally {
+                Releasables.close(blocks);
+            }
+        }
+        List<Integer> expected = List.of(7, -9, 11);
+        for (int i = 0; i < perRoute.size(); i++) {
+            assertEquals("route " + i + " must narrow every element of the declared list: " + perRoute, expected, perRoute.get(i));
+        }
+    }
+
+    /** Every element of an {@code IntBlock}, flattened across positions, for comparing one route against another. */
+    private static List<Integer> intElementsOf(Block block, String where) {
+        assertTrue(where + ": expected an IntBlock, got " + block.getClass().getSimpleName(), block instanceof IntBlock);
+        IntBlock ints = (IntBlock) block;
+        List<Integer> out = new ArrayList<>();
+        for (int p = 0; p < ints.getPositionCount(); p++) {
+            int first = ints.getFirstValueIndex(p);
+            for (int v = 0; v < ints.getValueCount(p); v++) {
+                out.add(ints.getInt(first + v));
+            }
+        }
+        return out;
+    }
+
+    /**
+     * A defused pair on the deferred route follows the error policy, and under a STRICT policy a value the target
+     * cannot hold FAILS the read rather than nulling the cell. The sink the decode loop is handed decides this:
+     * {@code castBlockWarnings()} is null under strict so {@code castBlock} propagates, where the always-live
+     * {@code coercionWarnings()} would null and continue -- a difference invisible to any permissive test, which is
+     * why the route-agreement guards cannot see it.
+     *
+     * <p>{@code 2_147_483_648} is one past {@code Integer.MAX_VALUE}, so the narrowing fails on that value alone.
+     */
+    public void testDeferredDefusedPairFailsTheReadUnderAStrictPolicy() throws Exception {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("v").named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            g.add("v", 2_147_483_648L);
+            return List.of(g);
+        });
+        StorageObject storageObject = createStorageObject(parquetData, "memory://defused_strict_int64.parquet");
+        try (
+            ColumnExtractor extractor = new ParquetColumnExtractor(
+                storageObject,
+                declaredReader("v"),
+                footerOf(storageObject),
+                ErrorPolicy.STRICT
+            )
+        ) {
+            Exception e = expectThrows(
+                Exception.class,
+                () -> Releasables.close(
+                    extractor.extract(new String[] { "v" }, new DataType[] { DataType.INTEGER }, new long[] { 0L }, blockFactory)
+                )
+            );
+            assertThat(e.getMessage(), containsString("v"));
+        }
+    }
+
     /** The single cell of a one-row block, as a comparable value, or {@code null} when the position is null. */
     private static Object cellOf(Block block, DataType type, String where) {
         assertEquals(where, 1, block.getPositionCount());
@@ -8244,7 +8449,10 @@ public class ParquetFormatReaderTests extends ESTestCase {
             return null;
         }
         return switch (type) {
-            case LONG, DATETIME, DATE_NANOS -> ((LongBlock) block).getLong(0);
+            case LONG, DATETIME, DATE_NANOS, UNSIGNED_LONG -> ((LongBlock) block).getLong(0);
+            case INTEGER -> ((IntBlock) block).getInt(0);
+            case DOUBLE -> ((DoubleBlock) block).getDouble(0);
+            case BOOLEAN -> ((BooleanBlock) block).getBoolean(0);
             case KEYWORD, TEXT -> ((BytesRefBlock) block).getBytesRef(0, new BytesRef()).utf8ToString();
             default -> throw new AssertionError(where + ": no cell arm for " + type.typeName());
         };
@@ -12099,6 +12307,62 @@ public class ParquetFormatReaderTests extends ESTestCase {
                 Releasables.close(blocks);
             }
         }
+    }
+
+    /**
+     * Contract: a per-value coercion failure costs the warning budget once per DECODED value, however many caller
+     * slots replay that value. {@code stitchAndGather} filters with {@code mayContainDuplicates}, so one bucket
+     * position can serve several requested positions, and {@code SkipWarnings.MAX_ADDED_WARNINGS} must not be spent
+     * at the rate a caller happens to repeat a row.
+     *
+     * <p><b>This holds on both sides of the move of the cast into the decode loop</b>, so it pins the contract and
+     * not that change: measured green against the revision before it as well. An earlier reading of
+     * {@code stitchAndGather} predicted the post-stitch cast would charge one detail per slot; running it says
+     * otherwise, and the running is what counts.
+     */
+    public void testDeferredCoercionWarnsOncePerDecodedValueNotPerCallerSlot() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("ts")
+            .named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            g.add("ts", "not-a-date");
+            return List.of(g);
+        });
+        StorageObject storageObject = createStorageObject(parquetData, "memory://dup_slot_warnings.parquet");
+        List<String> warnings = new ArrayList<>();
+        try (
+            ColumnExtractor extractor = new ParquetColumnExtractor(
+                storageObject,
+                declaredReader("ts"),
+                footerOf(storageObject),
+                ErrorPolicy.PERMISSIVE,
+                warnings::add
+            )
+        ) {
+            // The one row of the file, requested three times: the gather replays bucket position 0 into three slots.
+            Block[] blocks = extractor.extract(
+                new String[] { "ts" },
+                new DataType[] { DataType.DATETIME },
+                new long[] { 0L, 0L, 0L },
+                blockFactory
+            );
+            try {
+                assertEquals("three requested positions", 3, blocks[0].getPositionCount());
+                for (int p = 0; p < 3; p++) {
+                    assertTrue("null_field nulls every replayed slot, position " + p, blocks[0].isNull(p));
+                }
+            } finally {
+                Releasables.close(blocks);
+            }
+        }
+        assertEquals(
+            "one summary and one detail; a cast after the gather would charge the detail once per caller slot: " + warnings,
+            2,
+            warnings.size()
+        );
     }
 
     /** The deferred native decode follows the error policy: an unparseable token nulls the cell under null_field. */

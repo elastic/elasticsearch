@@ -83,8 +83,10 @@ record ColumnInfo(
     }
 
     /**
-     * A view that decodes straight to {@code target} rather than the file's own type, carrying the column's
-     * declared date {@code formatter}. Only for a {@code DeclaredTypeCoercions.fusedInDecode} pair.
+     * A view typed at {@code target} rather than the file's own type, carrying the column's declared date
+     * {@code formatter}. The decode loops read it the way they read the eager scan's view: straight to
+     * {@code target} for a {@code DeclaredTypeCoercions.fusedInDecode} pair, and at {@link #fileEsqlType()}
+     * followed by {@code castBlock} for every other pair.
      */
     ColumnInfo targetTyped(DataType target, @Nullable DateFormatter formatter) {
         if (target == esqlType && formatter == dateFormatter) {

@@ -1,0 +1,236 @@
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      reason: "columnar index modes are required"
+  # Columnar indices are expected to reject `enabled: false` on an object field nested two levels deep
+  # (my_object.child), but today it is accepted. Remove this skip once the issue is fixed.
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/162523"
+
+---
+"index creation rejects enabled false on a second level object":
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_deep_object_disabled
+        body:
+          settings:
+            index.mode: columnar
+          mappings:
+            properties:
+              my_object:
+                type: object
+                properties:
+                  child:
+                    type: object
+                    enabled: false
+  - match: { error.root_cause.0.type: mapper_parsing_exception }
+  - match: { error.root_cause.0.reason: "/.*\\[enabled\\].*\\[false\\].*/" }
+
+  - do:
+      indices.exists:
+        index: test_deep_object_disabled
+  - is_false: ''
+
+---
+"index creation accepts a second level object when enabled is not false":
+  - do:
+      indices.create:
+        index: test_deep_object_enabled
+        body:
+          settings:
+            index.mode: columnar
+          mappings:
+            properties:
+              my_object:
+                type: object
+                properties:
+                  child:
+                    type: object
+                    enabled: true
+                    properties:
+                      name:
+                        type: keyword
+
+  - do:
+      indices.exists:
+        index: test_deep_object_enabled
+  - is_true: ''
+
+---
+"composable index template rejects enabled false on a second level object":
+  - do:
+      catch: bad_request
+      indices.put_index_template:
+        name: test_deep_object_disabled_template
+        body:
+          index_patterns: [ "test_deep_object_disabled_template_*" ]
+          template:
+            settings:
+              index.mode: columnar
+            mappings:
+              properties:
+                my_object:
+                  type: object
+                  properties:
+                    child:
+                      type: object
+                      enabled: false
+  - match: { error.caused_by.caused_by.type: mapper_parsing_exception }
+  - match: { error.caused_by.caused_by.reason: "/.*\\[enabled\\].*\\[false\\].*/" }
+
+  - do:
+      catch: missing
+      indices.get_index_template:
+        name: test_deep_object_disabled_template
+
+---
+"composable index template composed from a component template rejects enabled false on a second level object":
+  # The component template has no index.mode of its own, so it is accepted on its own. The mapping is only
+  # rejected once it is composed into an index template that resolves to a columnar index mode.
+  - do:
+      cluster.put_component_template:
+        name: test_deep_object_disabled_component
+        body:
+          template:
+            mappings:
+              properties:
+                my_object:
+                  type: object
+                  properties:
+                    child:
+                      type: object
+                      enabled: false
+
+  - do:
+      catch: bad_request
+      indices.put_index_template:
+        name: test_deep_object_disabled_composed_template
+        body:
+          index_patterns: [ "test_deep_object_disabled_composed_*" ]
+          composed_of: [ test_deep_object_disabled_component ]
+          template:
+            settings:
+              index.mode: columnar
+  - match: { error.caused_by.caused_by.type: mapper_parsing_exception }
+  - match: { error.caused_by.caused_by.reason: "/.*\\[enabled\\].*\\[false\\].*/" }
+
+  - do:
+      cluster.delete_component_template:
+        name: test_deep_object_disabled_component
+
+---
+"index creation rejects enabled false on a second level nested":
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_deep_nested_disabled
+        body:
+          settings:
+            index.mode: columnar
+          mappings:
+            properties:
+              my_object:
+                type: object
+                properties:
+                  child:
+                    type: nested
+                    enabled: false
+  - match: { error.root_cause.0.type: mapper_parsing_exception }
+  - match: { error.root_cause.0.reason: "/.*\\[enabled\\].*\\[false\\].*/" }
+
+  - do:
+      indices.exists:
+        index: test_deep_nested_disabled
+  - is_false: ''
+
+---
+"index creation accepts a second level nested when enabled is not false":
+  - do:
+      indices.create:
+        index: test_deep_nested_enabled
+        body:
+          settings:
+            index.mode: columnar
+          mappings:
+            properties:
+              my_object:
+                type: object
+                properties:
+                  child:
+                    type: nested
+                    enabled: true
+                    properties:
+                      name:
+                        type: keyword
+
+  - do:
+      indices.exists:
+        index: test_deep_nested_enabled
+  - is_true: ''
+
+---
+"composable index template rejects enabled false on a second level nested":
+  - do:
+      catch: bad_request
+      indices.put_index_template:
+        name: test_deep_nested_disabled_template
+        body:
+          index_patterns: [ "test_deep_nested_disabled_template_*" ]
+          template:
+            settings:
+              index.mode: columnar
+            mappings:
+              properties:
+                my_object:
+                  type: object
+                  properties:
+                    child:
+                      type: nested
+                      enabled: false
+  - match: { error.caused_by.caused_by.type: mapper_parsing_exception }
+  - match: { error.caused_by.caused_by.reason: "/.*\\[enabled\\].*\\[false\\].*/" }
+
+  - do:
+      catch: missing
+      indices.get_index_template:
+        name: test_deep_nested_disabled_template
+
+---
+"composable index template composed from a component template rejects enabled false on a second level nested":
+  # The component template has no index.mode of its own, so it is accepted on its own. The mapping is only
+  # rejected once it is composed into an index template that resolves to a columnar index mode.
+  - do:
+      cluster.put_component_template:
+        name: test_deep_nested_disabled_component
+        body:
+          template:
+            mappings:
+              properties:
+                my_object:
+                  type: object
+                  properties:
+                    child:
+                      type: nested
+                      enabled: false
+
+  - do:
+      catch: bad_request
+      indices.put_index_template:
+        name: test_deep_nested_disabled_composed_template
+        body:
+          index_patterns: [ "test_deep_nested_disabled_composed_*" ]
+          composed_of: [ test_deep_nested_disabled_component ]
+          template:
+            settings:
+              index.mode: columnar
+  - match: { error.caused_by.caused_by.type: mapper_parsing_exception }
+  - match: { error.caused_by.caused_by.reason: "/.*\\[enabled\\].*\\[false\\].*/" }
+
+  - do:
+      cluster.delete_component_template:
+        name: test_deep_nested_disabled_component

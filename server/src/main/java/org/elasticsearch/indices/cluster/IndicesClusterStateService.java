@@ -1666,10 +1666,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             );
 
             if (finalStrategy == FailureStrategy.RETRY) {
-                logger.warn(() -> "retry recovery for shard after failure [" + shardRouting + "]", failure);
+                final int bumpedLocalRetries = recoveryState.getLocalRetries() + 1;
+                final Type type = shardRouting.recoverySource().getType();
+                logger.warn(
+                    () -> format("%s retrying %s recovery locally after failure, local retry [%d]", key, type, bumpedLocalRetries),
+                    failure
+                );
                 // Record the retry ticket before scheduling so the next createShard (from this retry path
                 // or the cluster state application) uses the retry context.
-                int bumpedLocalRetries = recoveryState.getLocalRetries() + 1;
                 final var myRetryTicket = new PendingAllocationState.AwaitingRecoveryRetry(bumpedLocalRetries, primaryTerm);
                 boolean replace = pendingAllocationStates.replace(key, inFlightTicket, myRetryTicket);
                 assert replace : "expected our own InFlight ticket still present for " + key;

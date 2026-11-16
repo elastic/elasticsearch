@@ -267,6 +267,29 @@ class CiPartsPluginSpec extends AbstractProjectBuilderPluginSpec {
         project.tasks.getByName("v9.1.0#bwcTest").inputs.properties["ciShards"] == null
     }
 
+    def "a chained test task is not ordered after the run-first task that depends on it"() {
+        given:
+        new File(workspace, CiPartsPlugin.BWC_ASSIGNMENT_FILE).text = new CiPartAssignment(
+            3,
+            [(":lib:v{V}#bwcTest"): new CiPartAssignment.Split(2, CiPartAssignment.SplitBy.CLASS)],
+            [(":lib:v{V}#bwcTest#0"): 1, (":lib:v{V}#bwcTest#1"): 2, (":lib:v{V}#yamlBwcTest"): 2],
+            [(":lib"): 3],
+            runFirst
+        ).toJson()
+        registerBwcTasks("9.1.0")
+        project.gradle.startParameter.taskNames = ["v9.1.0#bwcTestPart2"]
+        applyPluginUnderTest(project)
+        bwcNames("9.1.0", 2)
+
+        expect:
+        // bwcTest depends on yamlBwcTest, so ordering yamlBwcTest after it would contradict that dependency
+        added("v9.1.0#yamlBwcTest") == [] as Set
+
+        where:
+        // yamlBwcTest not run-first, or run-first but shorter than bwcTest
+        runFirst << [[":lib:v{V}#bwcTest"], [":lib:v{V}#bwcTest", ":lib:v{V}#yamlBwcTest"]]
+    }
+
     def "bcUpgradeTest parts split the bcUpgradeTest task by class"() {
         given:
         project.gradle.startParameter.taskNames = ["bcUpgradeTestPart2"]

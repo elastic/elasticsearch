@@ -255,7 +255,7 @@ public abstract class CiPartsPlugin implements Plugin<Project> {
                 if (requestedParts.contains(part)) {
                     skipChainedTests(chained, assignment, keys, requestedParts);
                     if (assignment.runFirst().isEmpty() == false) {
-                        orderLongestFirst(project, selected, runFirstInPart(assignment, keys, part), service);
+                        orderLongestFirst(project, selected, chained, runFirstInPart(assignment, keys, part), service);
                     }
                 }
                 return selected;
@@ -278,9 +278,17 @@ public abstract class CiPartsPlugin implements Plugin<Project> {
      * <p>Other tasks are not ordered. A project's share includes build steps such as {@code compileJava} and
      * {@code processResources} that run-first tests of other projects depend on, so ordering them after those tests
      * contradicts the dependencies. Gradle should drop such contradictory orderings, but on some graphs its task graph
-     * calculation failed instead with a {@code NoSuchElementException}.
+     * calculation failed instead with a {@code NoSuchElementException}. For the same reason the {@code chained} test
+     * tasks, which other test tasks of the project depend on (a BWC {@code bwcTest} depends on {@code yamlBwcTest}),
+     * are not ordered either: their dependents pull them forward anyway.
      */
-    static void orderLongestFirst(Project project, List<Task> selected, List<String> runFirst, CiPartsBuildService service) {
+    static void orderLongestFirst(
+        Project project,
+        List<Task> selected,
+        List<Test> chained,
+        List<String> runFirst,
+        CiPartsBuildService service
+    ) {
         List<TaskProvider<Task>> longTasks = new ArrayList<>();
         List<String> longPaths = new ArrayList<>();
         for (String taskPath : runFirst) {
@@ -290,7 +298,7 @@ public abstract class CiPartsPlugin implements Plugin<Project> {
             });
         }
         for (Task task : selected) {
-            if (task.getProject() != project || (task instanceof Test) == false) {
+            if (task.getProject() != project || (task instanceof Test) == false || chained.contains(task)) {
                 continue;
             }
             int index = longPaths.indexOf(task.getPath());

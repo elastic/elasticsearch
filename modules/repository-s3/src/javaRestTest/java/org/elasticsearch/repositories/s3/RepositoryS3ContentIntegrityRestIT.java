@@ -193,10 +193,9 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-s3")
         .systemProperty("aws.region", regionSupplier)
-        // The code ignores these, so the value doesn't matter, but an operator may have set either to ask for fewer checksums. Every config
-        // that leaves the setting off still expects a checksum, so a regression that lets the SDK read them would fail here. Only
-        // when_required can show it, since when_supported is the SDK default. The system property is also left out half the time, because
-        // the SDK reads it before the env var and would otherwise hide the env var.
+        // The env var and system property should have no effect on S3 repositories, because S3Service always sets the checksum mode on the
+        // SDK builder from unsafely_omit_request_body_checksums. The system property is sometimes left out, because the SDK reads it
+        // first and would hide the env var.
         .environment("AWS_REQUEST_CHECKSUM_CALCULATION", () -> randomFrom("when_required", "when_supported"))
         .systemProperty("aws.requestChecksumCalculation", () -> randomFrom("when_required", "when_supported"), node -> randomBoolean())
         .apply(builder -> trustStore.apply(builder, true))

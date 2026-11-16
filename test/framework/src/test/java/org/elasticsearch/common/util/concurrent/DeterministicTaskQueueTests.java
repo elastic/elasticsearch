@@ -19,7 +19,6 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.PrimitiveIterator;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.Future;
@@ -28,6 +27,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.contains;
@@ -124,70 +124,49 @@ public class DeterministicTaskQueueTests extends ESTestCase {
     }
 
     /**
-     * Checks that task {@code L} runs before the first link of chain {@code C1 -> ... -> Cm} with a lower priority.
+     * Create a task with low priority(L) and chain of tasks with higher priority (C0->C1->...->Cm)
+     * and ensures that L is executed after Cm.
      */
-    public void testRandomPriorityRunsTaskAfterChainLinksThatDrewHigher() {
-        final int chainLength = between(1, 20);
-        final int linksBeforeL = between(0, chainLength);
-        final double priorityOfL = randomDoubleBetween(0.2, 0.8, true);
-        final double[] priorities = new double[chainLength + 1];
-        priorities[0] = priorityOfL;
-        for (int link = 1; link <= chainLength; link++) {
-            if (link <= linksBeforeL) {
-                priorities[link] = randomDoubleBetween(priorityOfL + 0.01, 1.0, true);
-            } else if (link == linksBeforeL + 1) {
-                priorities[link] = randomDoubleBetween(0.0, priorityOfL - 0.01, true);
-            } else {
-                priorities[link] = randomDouble();
-            }
-        }
+    public void testRandomPriorityTasksChain() {
+        final var chainLength = between(1, 20);
+        final var priorityOfL = randomDoubleBetween(0.0, 0.2, true);
+        final var chainPriorities = IntStream.range(0, chainLength)
+            .mapToDouble(i -> randomDoubleBetween(priorityOfL, 1.0, false))
+            .toArray();
 
-        final List<String> expected = new ArrayList<>();
-        for (int link = 1; link <= chainLength; link++) {
-            if (link == linksBeforeL + 1) {
-                expected.add("L");
-            }
-            expected.add("C" + link);
-        }
-        if (linksBeforeL == chainLength) {
-            expected.add("L");
-        }
-
-        assertThat(runChainWithPriorities(priorities), equalTo(expected));
-    }
-
-    /**
-     * Runs task {@code L} and chain {@code C1 -> ... -> Cm}, each link submitting the next.
-     *
-     * @param priorities priorities of {@code L}, {@code C1}, ..., {@code Cm}
-     * @return the order in which the tasks ran
-     */
-    private List<String> runChainWithPriorities(double... priorities) {
-        final PrimitiveIterator.OfDouble scripted = Arrays.stream(priorities).iterator();
-        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue(
+        // L becomes runnable first, then each link in turn
+        final var draws = DoubleStream.concat(DoubleStream.of(priorityOfL), Arrays.stream(chainPriorities)).iterator();
+        final var taskQueue = new DeterministicTaskQueue(
             new Random(0),
             new DeterministicTaskQueue.TaskSelector.RandomPriority(new Random(0) {
                 @Override
                 public double nextDouble() {
-                    return scripted.nextDouble();
+                    return draws.nextDouble();
                 }
             })
         );
-        final List<String> order = new ArrayList<>();
-        taskQueue.scheduleNow(() -> order.add("L"));
+
+        final var actualOrder = new ArrayList<String>();
+        taskQueue.scheduleNow(() -> actualOrder.add("L"));
         taskQueue.scheduleNow(new Runnable() {
             private int link = 1;
 
             @Override
             public void run() {
-                order.add("C" + link);
-                if (link++ < priorities.length - 1) {
+                actualOrder.add("C" + link);
+                if (link++ < chainLength) {
                     taskQueue.scheduleNow(this);
                 }
             }
         });
         taskQueue.runAllRunnableTasks();
-        return order;
+
+        final var expectedOrder = new ArrayList<String>();
+        for (int link = 1; link <= chainLength; link++) {
+            expectedOrder.add("C" + link);
+        }
+        expectedOrder.add("L");
+        assertThat(actualOrder, equalTo(expectedOrder));
     }
 
     public void testStartsAtTimeZero() {

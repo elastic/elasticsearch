@@ -628,7 +628,3 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testTranslogStressRecoveryTest
   issue: https://github.com/elastic/elasticsearch/issues/166061
-- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
-  tasks:
-  - :x-pack:plugin:inference:internalClusterTest
-  issue: https://github.com/elastic/elasticsearch/issues/166137

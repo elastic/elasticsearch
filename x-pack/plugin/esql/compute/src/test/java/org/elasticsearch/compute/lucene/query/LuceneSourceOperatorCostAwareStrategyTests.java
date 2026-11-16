@@ -53,11 +53,8 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
  * <p>A <b>no-limit</b> scan (e.g. {@code STATS}) visits every matching doc, so it shares the cost-threshold rule with
  * count and TopN: a scan-heavy doc-values filter → {@link LuceneSliceQueue.PartitioningStrategy#DOC}; a cheap indexed
  * lookup, an empty result, or the low-cost side of the threshold → {@link LuceneSliceQueue.PartitioningStrategy#SEGMENT};
- * a costly multi-term clause → SEGMENT; {@code MatchAll} → DOC. A point range or point set is SEGMENT while it matches fewer
- * than {@code minCostForDoc * POINT_RANGE_MIN_SLICES} docs in every segment, and DOC once one segment alone matches that many:
- * SEGMENT never cuts a segment, so a range that matches most of one big segment (a time window over recent data) would be
- * read by one driver. When the rows are wide, the plan loads many fields per doc, any costly clause is DOC whatever it
- * matches: SEGMENT sizes slices by segment docs, not by matches, so a selective filter leaves one driver with the work.
+ * a costly multi-term clause → SEGMENT; {@code MatchAll} → DOC. A point range or point set is DOC once one segment alone
+ * matches {@code minCostForDoc * POINT_RANGE_MIN_SLICES} docs, else SEGMENT. With wide rows any costly clause is DOC.
  *
  * <p>A <b>limited</b> scan (implicit {@code LIMIT}) keeps {@link LuceneSliceQueue.PartitioningStrategy#SHARD} for
  * costly-to-build clauses (BKD point ranges, multi-term), for indexed spatial queries (their scorers walk a BKD
@@ -70,9 +67,9 @@ public class LuceneSourceOperatorCostAwareStrategyTests extends ESTestCase {
 
     private static final int NUM_DOCS = 200;
     private static final long MIN_COST_FOR_DOC = 5;
-    /** A point range is promoted to DOC at {@code MIN_COST_FOR_DOC * POINT_RANGE_MIN_SLICES} = 50 matching docs in a segment. */
+    /** A point range is DOC from this many matching docs in one segment. */
     private static final long POINT_RANGE_BAR = MIN_COST_FOR_DOC * LuceneSourceOperator.Factory.POINT_RANGE_MIN_SLICES;
-    /** Puts the point range promotion bar, {@code 30 * POINT_RANGE_MIN_SLICES}, above the {@link #NUM_DOCS} docs. */
+    /** Puts the point range bar above the {@link #NUM_DOCS} docs. */
     private static final long HIGH_MIN_COST_FOR_DOC = 30;
 
     private static final String GEO = "geo";
@@ -147,15 +144,14 @@ public class LuceneSourceOperatorCostAwareStrategyTests extends ESTestCase {
     }
 
     public void testStatsPointRangeMatchingFewDocsPicksSegment() throws IOException {
-        // The same range, but with a task concurrency high enough that its matches cannot give every driver a minimum slice.
+        // The same range with a bar above the number of docs.
         Query query = nearlyAllDocsRange();
         assertCostlyAfterRewrite(reader, query);
         assertThat(pick(reader, query, NO_LIMIT, HIGH_MIN_COST_FOR_DOC), equalTo(SEGMENT));
     }
 
     public void testStatsPointRangeSpreadOverSegmentsPicksSegment() throws IOException {
-        // Four segments of 50 docs, nearly all matching. The matches add up to 199, but no segment alone reaches the bar of 60,
-        // and SEGMENT can run the four segments in parallel.
+        // Four segments of 50 docs, nearly all matching: 199 in total, but no segment alone reaches a bar of 60.
         try (Directory dir = newDirectory()) {
             try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))) {
                 for (int i = 0; i < NUM_DOCS; i++) {
@@ -172,17 +168,16 @@ public class LuceneSourceOperatorCostAwareStrategyTests extends ESTestCase {
                 assertThat(segmented.leaves().size(), equalTo(4));
                 Query query = nearlyAllDocsRange();
                 assertCostlyAfterRewrite(segmented, query);
-                // A minimum of 6 docs per slice makes the bar 60, which no segment of 50 reaches.
+                // Bar of 60: no segment reaches it.
                 assertThat(pick(segmented, query, NO_LIMIT, 6), equalTo(SEGMENT));
-                // A minimum of 4 makes the bar 40, which each full segment reaches.
+                // Bar of 40: each full segment reaches it.
                 assertThat(pick(segmented, query, NO_LIMIT, 4), equalTo(DOC));
             }
         }
     }
 
     public void testStatsWideRowsWithFewMatchesPicksDoc() throws IOException {
-        // A selective terms filter next to a point range, like a session filter over a time window: the matches are far
-        // below the threshold, but each one is read with many fields, so a few matches are still a lot of work.
+        // A selective multi-term filter next to a point range: few matches, far below the bar, but each is a wide row.
         Query query = new BooleanQuery.Builder().add(nearlyAllDocsRange(), BooleanClause.Occur.FILTER)
             .add(new WildcardQuery(new Term("kw", "v1?")), BooleanClause.Occur.FILTER)
             .build();
@@ -197,13 +192,13 @@ public class LuceneSourceOperatorCostAwareStrategyTests extends ESTestCase {
     }
 
     public void testStatsWideRowsWithoutCostlyClauseFollowsCostThreshold() throws IOException {
-        // Wide rows only change what a costly clause does. A cheap indexed lookup still stays on SEGMENT.
+        // Wide rows only change costly clauses: a cheap indexed lookup stays on SEGMENT.
         assertThat(pick(reader, new TermQuery(new Term("kw", "v7")), NO_LIMIT, MIN_COST_FOR_DOC, true), equalTo(SEGMENT));
         assertThat(pick(reader, Queries.NO_DOCS_INSTANCE, NO_LIMIT, MIN_COST_FOR_DOC, true), equalTo(SEGMENT));
     }
 
     public void testLimitedWideRowsPointRangeStillPicksShard() throws IOException {
-        // A limit can fire early, so a wide-row scan keeps the low-overhead SHARD for a costly clause.
+        // A limit can fire early, so SHARD stays.
         assertThat(pick(reader, nearlyAllDocsRange(), between(1, 1000), MIN_COST_FOR_DOC, true), equalTo(SHARD));
     }
 
@@ -215,7 +210,7 @@ public class LuceneSourceOperatorCostAwareStrategyTests extends ESTestCase {
     }
 
     public void testStatsPointRangeWithMultiTermClausePicksSegment() throws IOException {
-        // The point range alone matches enough docs for DOC, but a DOC slice would also rebuild the wildcard scorer.
+        // The range alone would take DOC, but a DOC slice would also rebuild the wildcard scorer.
         Query query = new BooleanQuery.Builder().add(nearlyAllDocsRange(), BooleanClause.Occur.FILTER)
             .add(new WildcardQuery(new Term("kw", "v*")), BooleanClause.Occur.FILTER)
             .build();
@@ -315,10 +310,7 @@ public class LuceneSourceOperatorCostAwareStrategyTests extends ESTestCase {
         return LuceneSourceOperator.Factory.autoStrategy(minCostForDoc, wide).pickStrategy(limit).apply(ctx, rewritten);
     }
 
-    /**
-     * A range over every doc but the first. Lucene rewrites a point range that covers every doc to match-all, which takes
-     * DOC for a different reason than the one under test.
-     */
+    /** Every doc but the first: a range over all docs would be rewritten to match-all, which takes DOC anyway. */
     private static Query nearlyAllDocsRange() {
         return LongPoint.newRangeQuery("pt", 1, NUM_DOCS - 1);
     }

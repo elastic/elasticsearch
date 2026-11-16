@@ -1477,16 +1477,12 @@ public class RestEsqlIT extends RestEsqlTestCase {
         }
     }
 
-    /**
-     * A point range that matches a lot of one shard is partitioned by {@code DOC}, so more than one driver can read the
-     * matches of a big segment. {@code SEGMENT} never cuts a segment. A range that matches too few docs to give every
-     * driver a minimum slice stays on {@code SEGMENT}.
-     */
+    /** A point range matching enough docs in one segment is {@code DOC}, so several drivers read it; fewer stays {@code SEGMENT}. */
     public void testAutoPartitioningPointRange() throws IOException {
         indexTimestampData(1);
         assumeTrue("require pragmas", Build.current().isSnapshot());
         String query = fromIndex() + " | WHERE value >= 100 AND value < 900 | STATS AVG(value)";
-        // The range matches 800 docs. With min_docs_per_slice=10 it needs about 100 docs in the segment to take DOC.
+        // 800 matches against a bar of about 100 docs.
         Map<String, Object> result = runWithLuceneSourceProfile(query, 10);
         assertResultMap(
             result,
@@ -1495,14 +1491,13 @@ public class RestEsqlIT extends RestEsqlTestCase {
             equalTo(List.of(List.of(499.5d)))
         );
         assertLuceneSourceStrategy(result, "DOC");
-        // With min_docs_per_slice=200 it needs about 2,000 docs, which is more than the index has.
+        // A bar of about 2,000 docs, more than the index has.
         assertLuceneSourceStrategy(runWithLuceneSourceProfile(query, 200), "SEGMENT");
     }
 
     /**
-     * Rows that are wide, many fields loaded and many {@code EVAL}s before the aggregation, make a scan with a pushed down
-     * range {@code DOC} however few docs match, because each match is a lot of work for the driver that gets it. A narrow
-     * row keeps {@code SEGMENT}.
+     * Wide rows (many fields and {@code EVAL}s before the aggregation) take {@code DOC} whatever the match count.
+     * Narrow rows stay {@code SEGMENT}.
      */
     public void testAutoPartitioningWideRows() throws IOException {
         indexTimestampData(1);
@@ -1515,7 +1510,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
             aggs.append(i == 0 ? "" : ", ").append("m").append(i).append(" = MIN(k").append(i).append(")");
         }
         String range = fromIndex() + " | WHERE value >= 100 AND value < 900";
-        // min_docs_per_slice=200 puts the match bar of the range above the index, so only the wide rows can take DOC.
+        // The range bar is above the index, so only the wide rows can take DOC.
         assertLuceneSourceStrategy(runWithLuceneSourceProfile(range + " | EVAL " + evals + " | STATS " + aggs, 200), "DOC");
         assertLuceneSourceStrategy(runWithLuceneSourceProfile(range + " | STATS m = MIN(value)", 200), "SEGMENT");
     }

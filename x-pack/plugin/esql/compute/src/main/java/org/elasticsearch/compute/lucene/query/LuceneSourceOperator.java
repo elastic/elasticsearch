@@ -204,9 +204,8 @@ public class LuceneSourceOperator extends LuceneOperator {
         /**
          * Cost-aware {@link DataPartitioning#AUTO} strategy for the unsorted source. A no-limit scan (e.g. {@code STATS})
          * visits every matching doc, so it shares the {@link #autoPartitioning} rule with count and TopN: costly →
-         * SEGMENT, cheap ({@code cost < minCostForDoc}) → SEGMENT, else DOC. The difference is a costly clause under
-         * {@code wideRows}, or a point range that matches at least {@code minCostForDoc * POINT_RANGE_MIN_SLICES} docs in
-         * a single segment: both are DOC; see {@link #unlimitedScanAutoStrategy}.
+         * SEGMENT, cheap ({@code cost < minCostForDoc}) → SEGMENT, else DOC. Exception: see
+         * {@link #unlimitedScanAutoStrategy}.
          * <p>
          * A query with a {@code limit} keeps {@link PartitioningStrategy#SHARD} unless it is a guaranteed full scan:
          * costly-to-build clauses (BKD point ranges, multi-term) keep {@code SHARD} because a single shard-level walk
@@ -227,36 +226,27 @@ public class LuceneSourceOperator extends LuceneOperator {
         }
 
         /**
-         * Estimated bytes per row, as the planner counts them for the rows the source emits (every loaded field and every
-         * {@code EVAL} until the first aggregation), from which a scan is treated as having wide, expensive rows. That is
-         * about ten keyword fields.
+         * Estimated bytes per row (loaded fields and {@code EVAL}s before the first aggregation) from which a scan has
+         * wide rows. About ten keyword fields.
          */
         public static final int WIDE_ROW_ESTIMATED_BYTES = 512;
 
         /**
-         * A point range is promoted to {@link PartitioningStrategy#DOC} when one segment alone is estimated to match this
-         * many minimum-size slices of docs ({@code minCostForDoc} each). The bar does not depend on the number of cores:
-         * what it protects is the cost of {@code DOC} rebuilding the point scorer in every slice, and that grows with the
-         * matches in the same way as the scan it saves.
+         * A point range goes to {@link PartitioningStrategy#DOC} when one segment alone is estimated to match this many
+         * minimum-size slices ({@code minCostForDoc} docs each). Fixed, so it does not depend on the core count.
          */
         public static final int POINT_RANGE_MIN_SLICES = 10;
 
         /**
-         * The no-limit branch of {@link #autoStrategy(long, boolean)}. It follows {@link #autoPartitioning}, except for
-         * a query with a costly clause, which {@link #autoPartitioning} sends to {@link PartitioningStrategy#SEGMENT}.
-         * {@code SEGMENT} never cuts a segment and sizes its slices by the docs of their segments, not by the docs that
-         * match. When the matches sit in few segments, which is what a selective filter over recent data gives, one
-         * driver gets most of the work. Two cases are worth the cost of {@link PartitioningStrategy#DOC}, which rebuilds
-         * the scorer of a segment in every slice that reads it:
+         * The no-limit branch of {@link #autoStrategy(long, boolean)}. A costly clause sends {@link #autoPartitioning} to
+         * SEGMENT, which sizes slices by segment docs, not matching docs, so matches in few segments land on one driver.
+         * DOC splits finer but rebuilds a segment's scorer in every slice, so it is used only when:
          * <ul>
-         *     <li>{@code wideRows}: each matching doc is read with many fields and goes through many expressions, so even a
-         *         few matches are more work than rebuilding scorers. Any costly clause qualifies.</li>
-         *     <li>The only costly clauses are point clauses (a range on a date or number, a point set) and one segment alone
-         *         is estimated to match at least {@code minCostForPointRangeDoc} docs. That is the usual shape of a time
-         *         window over recent data: the window sits in the newest segment.</li>
+         *     <li>{@code wideRows}: each match is expensive enough to outweigh the rebuild. Any costly clause qualifies.</li>
+         *     <li>every costly clause is a point clause and one segment alone is estimated to match
+         *         {@code minCostForPointRangeDoc} docs, like a time window in the newest segment.</li>
          * </ul>
-         * A multi-term clause (wildcard, regexp) does not qualify on its match count alone: rebuilding its scorer
-         * enumerates the terms of the segment once per slice, which a cost probe would also pay.
+         * A multi-term clause does not qualify on match count alone: its rebuild enumerates the segment's terms per slice.
          */
         private static PartitioningStrategy unlimitedScanAutoStrategy(
             ShardContext ctx,
@@ -389,9 +379,8 @@ public class LuceneSourceOperator extends LuceneOperator {
         }
 
         /**
-         * {@code true} when one segment alone is estimated to match at least {@code threshold} docs. Unlike
-         * {@link #queryCost}, which sums over the segments, this says whether the matches are concentrated in a segment
-         * that {@link PartitioningStrategy#SEGMENT} would give to a single driver.
+         * {@code true} if a single segment is estimated to match at least {@code threshold} docs. {@link #queryCost}
+         * sums over segments instead.
          */
         static boolean anyLeafCostAtLeast(ShardContext ctx, Query query, long threshold) throws IOException {
             Weight weight = costProbeWeight(ctx, query);
@@ -422,19 +411,12 @@ public class LuceneSourceOperator extends LuceneOperator {
             return containsClause(query, Factory::isCostlyToBuildScorer);
         }
 
-        /**
-         * {@code true} when {@code query} contains a costly multi-term clause (wildcard, regexp and the like), found by the
-         * same walk as {@link #containsCostlyClause}.
-         */
+        /** {@code true} when {@code query} has a costly multi-term clause (wildcard, regexp). */
         static boolean containsCostlyMultiTermClause(Query query) {
             return containsClause(query, CostlyMultiTermQueries::isCostlyMultiTermQuery);
         }
 
-        /**
-         * Walk the full query tree with a {@link QueryVisitor} and return {@code true} if {@code predicate} matches any
-         * sub-query, including those under {@code MUST_NOT} and any other compound structure that Lucene knows how to
-         * walk via {@link Query#visit}.
-         */
+        /** {@code true} if {@code predicate} matches any sub-query, including under {@code MUST_NOT}. */
         private static boolean containsClause(Query query, Predicate<Query> predicate) {
             boolean[] found = { false };
             query.visit(new QueryVisitor() {

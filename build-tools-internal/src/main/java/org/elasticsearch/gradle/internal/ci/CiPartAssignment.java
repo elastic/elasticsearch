@@ -37,7 +37,7 @@ import java.util.TreeSet;
  * @param splits   test tasks that run as several shards, keyed by task path
  * @param tests    test task path (or {@code <task path>#<shard>} for a split task) to part
  * @param projects project path to the part that runs its non-test {@code check} work
- * @param runFirst test task paths, longest first, that a part should start before its other work, because
+ * @param runFirst test task paths, longest first, that a part should start before its other test tasks, because
  *                 Gradle otherwise starts tasks in path order and a long test that starts late ends its part late
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

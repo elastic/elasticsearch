@@ -80,7 +80,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -179,9 +178,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         // log any errors that occur in a successful partial results scenario
         ActionListener<TermsEnumResponse> loggingListener = listener.delegateFailureAndWrap((l, termsEnumResponse) -> {
             // Deduplicate failures by exception message and index
-            List<ShardOperationFailedException> deduplicated = ExceptionsHelper.groupBy(
-                Arrays.asList(termsEnumResponse.getShardFailures())
-            );
+            List<ShardOperationFailedException> deduplicated = ExceptionsHelper.groupBy(termsEnumResponse.shardFailuresList());
             for (ShardOperationFailedException e : deduplicated) {
                 boolean causeHas500Status = false;
                 if (e.getCause() != null) {

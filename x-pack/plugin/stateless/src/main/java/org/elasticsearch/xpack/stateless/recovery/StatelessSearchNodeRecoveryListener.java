@@ -67,9 +67,7 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
     private final ClusterService clusterService;
     private final WarmingRatioProviderFactory warmingRatioProviderFactory;
     private final Client client;
-    private volatile boolean sourceWarmingInfoEnabled;
 
-    @SuppressWarnings("this-escape")
     public StatelessSearchNodeRecoveryListener(
         ObjectStoreService objectStoreService,
         RecoveryCommitRegistrationHandler recoveryCommitRegistrationHandler,
@@ -89,11 +87,6 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
         this.clusterService = clusterService;
         this.warmingRatioProviderFactory = warmingRatioProviderFactory;
         this.client = client;
-        clusterService.getClusterSettings()
-            .initializeAndWatch(
-                SearchRecoveryTimeoutCalculationService.SEARCH_OFFLINE_WARMING_SOURCE_WARMING_INFO_ENABLED_SETTING,
-                enabled -> this.sourceWarmingInfoEnabled = enabled
-            );
     }
 
     @Override
@@ -279,7 +272,8 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
         if (routing.initializing() == false || sourceNodeId == null) {
             return SourceShardWarmingInfo.NOT_REQUESTED;
         }
-        if (sourceWarmingInfoEnabled == false) {
+        if (clusterService.getClusterSettings()
+            .get(SearchRecoveryTimeoutCalculationService.SEARCH_OFFLINE_WARMING_SOURCE_WARMING_INFO_ENABLED_SETTING) == false) {
             return SourceShardWarmingInfo.NOT_REQUESTED;
         }
         final var state = clusterService.state();

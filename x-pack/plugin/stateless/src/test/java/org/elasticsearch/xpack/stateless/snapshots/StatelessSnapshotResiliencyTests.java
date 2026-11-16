@@ -825,7 +825,6 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
         private HollowShardsService hollowShardsService;
         private ReshardIndexService reshardIndexService;
         private SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService;
-        private StatelessSearchNodeRecoveryListener searchNodeRecoveryListener;
         private WarmingRatioProviderFactory warmingRatioProviderFactory;
 
         public TestStatelessPlugin(Settings settings) {
@@ -985,18 +984,6 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 return List.of(new RemoveRefreshClusterBlockService(settings, clusterService, threadPool));
             }
             warmingRatioProviderFactory = shardId -> mock(WarmingRatioProvider.class);
-            if (hasSearchRole) {
-                searchNodeRecoveryListener = new StatelessSearchNodeRecoveryListener(
-                    objectStoreService,
-                    new RecoveryCommitRegistrationHandler(client, clusterService),
-                    cacheWarmingService,
-                    projectResolver,
-                    bccHeaderReadExecutor,
-                    clusterService,
-                    warmingRatioProviderFactory,
-                    client
-                );
-            }
             return List.of();
         }
 
@@ -1131,7 +1118,18 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 );
             }
             if (hasSearchRole) {
-                indexModule.addIndexEventListener(searchNodeRecoveryListener);
+                indexModule.addIndexEventListener(
+                    new StatelessSearchNodeRecoveryListener(
+                        objectStoreService,
+                        new RecoveryCommitRegistrationHandler(client, clusterService),
+                        cacheWarmingService,
+                        projectResolver,
+                        bccHeaderReadExecutor,
+                        clusterService,
+                        warmingRatioProviderFactory,
+                        client
+                    )
+                );
             }
         }
 

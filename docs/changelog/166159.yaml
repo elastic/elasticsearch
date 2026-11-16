@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 166159
+summary: Charge large REST response chunks to the request breaker
+type: enhancement

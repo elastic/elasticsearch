@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
@@ -724,23 +723,9 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
                                 timeseries.put(id, loaded.toAttribute());
                             }
                             for (var label : labels.entrySet()) {
-                                Expression part = label.getValue();
-                                NamedExpression keyed = null;
-                                if (part instanceof Attribute attribute && attribute instanceof FieldAttribute == false) {
-                                    keyed = attribute;
-                                } else {
-                                    // A source field keyed on gets an id of its own: above the aggregate it is a reference, not the
-                                    // field. A grouping that keys by it already is that key.
-                                    for (Expression existing : aggregate.groupings()) {
-                                        if (keyed == null && existing instanceof Alias alias && alias.child().semanticEquals(part)) {
-                                            keyed = alias;
-                                        }
-                                    }
-                                    if (keyed == null) {
-                                        keyed = new Alias(part.source(), label.getKey(), part);
-                                    }
-                                }
-                                addIfAbsent(aliases, keyed);
+                                // a source field keyed on gets an id of its own: above the aggregate it is a reference, not the field
+                                Alias keyed = new Alias(label.getValue().source(), label.getKey(), label.getValue());
+                                aliases.add(keyed);
                                 label.setValue(keyed.toAttribute());
                             }
                             groupings.addAll(aliases);
@@ -776,15 +761,7 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
                         }
                     }
                     if (packedLabels.isEmpty()) {
-                        var distinct = new ArrayList<Expression>();
-                        for (Expression grouping : groupings) {
-                            if (grouping instanceof NamedExpression named
-                                && distinct.stream().anyMatch(g -> g instanceof NamedExpression n && n.id().equals(named.id()))) {
-                                continue;
-                            }
-                            distinct.add(grouping);
-                        }
-                        return aggregate.with(child, distinct, aggregates);
+                        return aggregate.with(child, groupings, aggregates);
                     }
                     Source at = aggregate.source();
                     PackDims pack = new PackDims(at, child, packedLabels, PackDims.newPackedAttribute(at));
@@ -855,12 +832,7 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
                             addIfAbsent(projections, (NamedExpression) scalar(projection));
                             continue;
                         }
-                        NameId id = projection.id();
-                        if (projection instanceof Alias alias) {
-                            define(id, alias.child());
-                        } else {
-                            record(projection.toAttribute());
-                        }
+                        NameId id = record(projection.toAttribute());
                         dropCopies(id);
                         materialize(id, evals);
                         if (timeseries.containsKey(id)) {

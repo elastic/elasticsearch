@@ -27,6 +27,8 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOConsumer;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.Build;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -62,6 +64,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType;
@@ -1387,6 +1390,32 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             );
             assertNull(indexOptions.rescoreVector);
         }
+    }
+
+    /**
+     * Peer recovery may load a leaf's vectors on a different thread than the one that opened the leaf (#166191).
+     */
+    public void testSyntheticVectorsLoaderLeafUsedOnAnotherThread() throws Exception {
+        var settings = Settings.builder().put(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), true).build();
+        MapperService mapperService = createMapperService(
+            settings,
+            fieldMapping(b -> b.field("type", "dense_vector").field("dims", 4).field("index", true).field("similarity", "l2_norm"))
+        );
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.array("field", 1f, 2f, 3f, 4f)));
+
+        withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), reader -> {
+            SourceLoader.SyntheticVectorsLoader loader = mapperService.mappingLookup().syntheticVectorsLoader(null);
+            PlainActionFuture<SourceLoader.SyntheticVectorsLoader.Leaf> leafFuture = new PlainActionFuture<>();
+
+            Thread thread = new Thread(() -> ActionListener.completeWith(leafFuture, () -> loader.leaf(reader.leaves().get(0))));
+            thread.start();
+            SourceLoader.SyntheticVectorsLoader.Leaf leaf = safeGet(leafFuture);
+            safeJoin(thread);
+
+            List<SourceLoader.SyntheticVectorPatch> patches = new ArrayList<>();
+            leaf.load(0, patches);
+            assertThat(patches, equalTo(List.of(new SourceLoader.LeafSyntheticVectorPath("field", List.of(1f, 2f, 3f, 4f)))));
+        });
     }
 
     public void testDims() {

@@ -11627,6 +11627,69 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
+     * The same read with a {@code format} declared beside the type. {@code date_nanos -> datetime} is the one fused
+     * pair a declared format does not defuse, because {@code castBlock}'s arm for it is a unit scale that never
+     * consults the formatter -- the annotation has already stated the unit. Defusing on the format would route this
+     * column back through nanoseconds and null both values, which is the original defect surviving for exactly the
+     * declaration people copy over from an index mapping. All three routes, since the extractor decides whether to
+     * retype from the same predicate.
+     */
+    public void testDeclaredDateWithAFormatStillReadsTheWholeMicrosRange() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("ts")
+            .named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group beforeFloor = factory.newGroup();
+            beforeFloor.add("ts", -14_831_769_600_000_000L); // 1500-01-01T00:00:00Z
+            Group afterCeiling = factory.newGroup();
+            afterCeiling.add("ts", 32_503_680_000_000_000L); // 3000-01-01T00:00:00Z
+            return List.of(beforeFloor, afterCeiling);
+        });
+        StorageObject storageObject = createStorageObject(parquetData, "memory://declared_micros_with_format.parquet");
+        ParquetFormatReader formatted = (ParquetFormatReader) declaredReader("ts").withDeclaredDateFormats(Map.of("ts", "epoch_second"));
+        List<Attribute> asDatetime = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME));
+        long[] expected = { -14_831_769_600_000L, 32_503_680_000_000L };
+        for (String decoder : List.of("pageReader", "rowAtATime")) {
+            ParquetFormatReader r = decoder.equals("rowAtATime") ? formatted.withBaselinePath() : formatted;
+            try (
+                CloseableIterator<Page> it = r.readRange(
+                    storageObject,
+                    new RangeReadContext(List.of("ts"), 10, 0, parquetData.length, asDatetime, ErrorPolicy.STRICT)
+                )
+            ) {
+                LongBlock l = (LongBlock) it.next().getBlock(0);
+                assertEquals(decoder, expected.length, l.getPositionCount());
+                for (int i = 0; i < expected.length; i++) {
+                    assertFalse(decoder + " position " + i + " is null", l.isNull(i));
+                    assertEquals(decoder + " position " + i, expected[i], l.getLong(i));
+                }
+            }
+        }
+        try (
+            ColumnExtractor extractor = new ParquetColumnExtractor(storageObject, formatted, footerOf(storageObject), ErrorPolicy.STRICT)
+        ) {
+            Block[] blocks = extractor.extract(
+                new String[] { "ts" },
+                new DataType[] { DataType.DATETIME },
+                new long[] { 0L, 1L },
+                blockFactory
+            );
+            try {
+                LongBlock l = (LongBlock) blocks[0];
+                assertEquals("deferred", expected.length, l.getPositionCount());
+                for (int i = 0; i < expected.length; i++) {
+                    assertFalse("deferred position " + i + " is null", l.isNull(i));
+                    assertEquals("deferred position " + i, expected[i], l.getLong(i));
+                }
+            } finally {
+                Releasables.close(blocks);
+            }
+        }
+    }
+
+    /**
      * A {@code TIMESTAMP(MICROS)} column — Arrow's and Spark's default timestamp unit — infers {@code date_nanos}, so
      * declaring it {@code date} narrows through {@code castBlock}. A value before 1970 is an ordinary instant for
      * {@code date}, and it must read rather than fail the whole column: the 1970 floor belongs to the source type.

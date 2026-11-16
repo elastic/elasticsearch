@@ -167,9 +167,12 @@ final class ParquetColumnDecoding {
             && time2.getUnit() != LogicalTypeAnnotation.TimeUnit.MICROS;
         return switch (declaredType) {
             // An identity read never nulls, and neither does a narrowing: floorDiv is total over the whole long
-            // domain. The MICROS decline is conservative now that the pair is fused; relaxing it needs the arm keyed
-            // on FILE type, since a uint64 or scale-0 DECIMAL column reaching `date` still throws. A wrong `false`
-            // here drops matching rows.
+            // domain. The MICROS decline is no longer forced by the DECLARED read, which is fused and total. It is
+            // not known to be safe to relax either: this arm is keyed on the declared type, and the same DATETIME
+            // target is reachable over the same file without a declaration, where the read still nulls -- see
+            // ParquetFormatReaderTests.testInferredDatetimeOverADateNanosFileNullsOnEveryRoute. Relaxing it means
+            // keying the arm on the FILE type and re-deriving that cell. A wrong `false` here drops matching rows,
+            // so it stays as it is.
             case DATETIME -> (logical == null || millisAnnotated || nanosAnnotated || timeAnnotated) == false;
             // A bare INT64 widens millis->nanos via castBlock and nulls pre-epoch/post-2262 values; NANOS is the
             // identity; MICROS/MILLIS scale and can overflow.
@@ -243,10 +246,10 @@ final class ParquetColumnDecoding {
             // the TIMESTAMP arm above applies for the same two units -- what the value counts from does not enter the
             // bound arithmetic. Sound against the footer because a TIME column's raw values compare chronologically
             // under signed comparison, the precondition decodeTemporalStat states for publishing their min/max.
-            // Only a DATE_NANOS target gets a relation. A declared `date` over a TIME column composes to
-            // floorDiv(raw x 1000, 1e6) == floorDiv(raw, 1000), i.e. the ScaleDown(1000) the TIMESTAMP(MICROS) arm
-            // above already uses, so an arm for it is expressible -- it is simply not written, and declining costs
-            // pruning rather than rows.
+            // Only a DATE_NANOS target gets a relation. A declared `date` over a TIME column is a fused pair, so it
+            // decodes in one step through convertTimestampToMillis' TIME arm: floorDiv(raw, 1000) for MICROS, which
+            // is the ScaleDown(1000) the TIMESTAMP(MICROS) arm above already uses. An arm for it is expressible --
+            // it is simply not written, and declining costs pruning rather than rows.
             //
             // MILLIS declines rather than publishing a relation. The Parquet spec puts TIME(MILLIS) on an INT32 and
             // parquet-mr enforces it -- Types rejects the pair with "TIME(MILLIS,true) can only annotate INT32" -- so
@@ -627,10 +630,11 @@ final class ParquetColumnDecoding {
     }
 
     /**
-     * The value the inferred read of an {@code INT64} column produces: a {@code TIMESTAMP} annotation's unit narrowed
-     * to millis, and a bare {@code INT64} unchanged. As with {@link #int32AsInferredLong}, reinterpreting the result
-     * as an epoch is the caller's step. {@code TIME} needs no case here: {@link #convertTimestampToMillis} carries
-     * one, and the scale is the same.
+     * The millisecond value a {@code DATETIME} decode arm reads out of an {@code INT64} column: a {@code TIMESTAMP}
+     * or {@code TIME} annotation's unit narrowed to millis, and a bare {@code INT64} unchanged. As with
+     * {@link #int32AsInferredLong}, reinterpreting the result as an epoch is the caller's step. Not the value the
+     * column's own INFERRED read produces for every annotation -- a {@code TIME(MICROS|NANOS)} column renders
+     * {@code date_nanos} and infers a nanosecond-of-day -- so read the name as naming the arm, not the inference.
      */
     static long int64AsInferredLong(long raw, @Nullable LogicalTypeAnnotation logical) {
         return convertTimestampToMillis(raw, logical);

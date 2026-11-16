@@ -14,6 +14,7 @@ import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.LicenseAware;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.analysis.rules.ViewUtils;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
@@ -172,7 +173,9 @@ public class Verifier {
         // A view's own SET unmapped_fields decides these checks inside its branch. The caller's mode does not.
         checkLoadRestrictions(plan, unmappedResolution, context, failures, false);
 
-        checkLoadAllModeSupportedCommands(plan, unmappedResolution, context, failures);
+        if (unmappedResolution.loadsAllUnmappedFields()) {
+            checkLoadAllModeSupportedCommands(plan, failures);
+        }
 
         checkTStepIncompatibleWithTRange(plan, failures);
         checkTimeSeriesCollapseSupported(plan, failures, context.minimumVersion());
@@ -725,35 +728,19 @@ public class Verifier {
      * Temporary MVP guardrail for {@code unmapped_fields="LOAD_ALL"} until the interaction of all commands with
      * {@code _unmapped_fields} is designed and implemented.
      * <p>
-     * Like {@link #checkLoadRestrictions}, it checks each view branch under that view's own mode, not the caller's, so a view
-     * body is not rejected for commands the caller's {@code LOAD_ALL} does not reach.
+     * The caller's setting does not reach into a view, which cannot set {@code LOAD_ALL} itself, so view bodies are not checked.
      */
-    private static void checkLoadAllModeSupportedCommands(
-        LogicalPlan plan,
-        UnmappedResolution resolution,
-        AnalyzerContext context,
-        Failures failures
-    ) {
-        if (plan instanceof BranchPlan branchPlan) {
-            List<LogicalPlan> children = branchPlan.children();
-            for (int i = 0; i < children.size(); i++) {
-                UnmappedResolution branchResolution = branchPlan.isViewBranch(i)
-                    ? ViewQuerySettings.forView(branchPlan.branchIdentity(i).settingsViewName(), context.viewSettings()).unmappedFields()
-                    : resolution;
-                checkLoadAllModeSupportedCommands(children.get(i), branchResolution, context, failures);
+    private static void checkLoadAllModeSupportedCommands(LogicalPlan plan, Failures failures) {
+        ViewUtils.forEachOutsideViews(plan, p -> {
+            if (supportedInLoadAllMode(p) == false) {
+                String command = p instanceof EsRelation esr && esr.indexMode().isTsdb() ? "TS"
+                    : p instanceof BranchPlan ? "BranchPlan"
+                    : p instanceof NamedSubquery ? "NamedSubquery"
+                    : p instanceof TelemetryAware ta ? ta.telemetryLabel()
+                    : p.nodeName();
+                failures.add(fail(p, loadAllUnsupportedCommandMessage(command)));
             }
-            return;
-        }
-        if (resolution.loadsAllUnmappedFields() && supportedInLoadAllMode(plan) == false) {
-            String command = plan instanceof EsRelation esr && esr.indexMode().isTsdb() ? "TS"
-                : plan instanceof NamedSubquery ? "NamedSubquery"
-                : plan instanceof TelemetryAware ta ? ta.telemetryLabel()
-                : plan.nodeName();
-            failures.add(fail(plan, loadAllUnsupportedCommandMessage(command)));
-        }
-        for (LogicalPlan child : plan.children()) {
-            checkLoadAllModeSupportedCommands(child, resolution, context, failures);
-        }
+        });
     }
 
     static String loadAllUnsupportedCommandMessage(String command) {

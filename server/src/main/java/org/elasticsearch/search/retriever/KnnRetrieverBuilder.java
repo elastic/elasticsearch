@@ -295,7 +295,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         }
 
         if (queryVectorBuilder != null) {
-            builder.field(QUERY_VECTOR_BUILDER_FIELD.getPreferredName(), queryVectorBuilder);
+            builder.field(QUERY_VECTOR_BUILDER_FIELD.getPreferredName(), queryVectorBuilder, params);
         }
 
         if (similarity != null) {
@@ -303,7 +303,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         }
 
         if (rescoreVectorBuilder != null) {
-            builder.field(RESCORE_VECTOR_FIELD.getPreferredName(), rescoreVectorBuilder);
+            builder.field(RESCORE_VECTOR_FIELD.getPreferredName(), rescoreVectorBuilder, params);
         }
     }
 

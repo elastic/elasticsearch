@@ -352,7 +352,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
 
     @Override
     protected void doToXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(RETRIEVER_FIELD.getPreferredName(), innerRetrievers.getFirst().retriever());
+        builder.field(RETRIEVER_FIELD.getPreferredName(), innerRetrievers.getFirst().retriever(), params);
         builder.field(INFERENCE_ID_FIELD.getPreferredName(), inferenceId);
         builder.field(INFERENCE_TEXT_FIELD.getPreferredName(), inferenceText);
         builder.field(FIELD_FIELD.getPreferredName(), field);

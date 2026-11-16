@@ -396,7 +396,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
 
     @Override
     protected void doToXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(RETRIEVER_FIELD.getPreferredName(), innerRetrievers.getFirst().retriever());
+        builder.field(RETRIEVER_FIELD.getPreferredName(), innerRetrievers.getFirst().retriever(), params);
         builder.field(TYPE_FIELD.getPreferredName(), diversificationType.value);
         builder.field(FIELD_FIELD.getPreferredName(), diversificationField);
         builder.field(RANK_WINDOW_SIZE_FIELD.getPreferredName(), rankWindowSize);
@@ -406,7 +406,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
         }
 
         if (queryVectorBuilder != null) {
-            builder.field(QUERY_VECTOR_BUILDER_FIELD.getPreferredName(), queryVectorBuilder);
+            builder.field(QUERY_VECTOR_BUILDER_FIELD.getPreferredName(), queryVectorBuilder, params);
         }
 
         if (lambda != null) {

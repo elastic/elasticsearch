@@ -253,13 +253,13 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
         if (keyed) {
             builder.startObject(FiltersAggregator.FILTERS_FIELD.getPreferredName());
             for (KeyedFilter keyedFilter : filters) {
-                builder.field(keyedFilter.key(), keyedFilter.filter());
+                builder.field(keyedFilter.key(), keyedFilter.filter(), params);
             }
             builder.endObject();
         } else {
             builder.startArray(FiltersAggregator.FILTERS_FIELD.getPreferredName());
             for (KeyedFilter keyedFilter : filters) {
-                builder.value(keyedFilter.filter());
+                builder.value(keyedFilter.filter(), params);
             }
             builder.endArray();
         }

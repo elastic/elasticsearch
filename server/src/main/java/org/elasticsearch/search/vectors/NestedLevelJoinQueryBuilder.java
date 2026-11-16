@@ -65,7 +65,7 @@ final class NestedLevelJoinQueryBuilder extends TransientQueryBuilder<NestedLeve
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         builder.field("field", vectorField);
-        builder.field("filter", filter);
+        builder.field("filter", filter, params);
         boostAndQueryNameToXContent(builder);
         builder.endObject();
     }

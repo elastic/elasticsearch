@@ -15,6 +15,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.retriever.KnnRetrieverBuilder;
+import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.search.vectors.VectorData;
@@ -63,6 +64,19 @@ public class SearchCaptureContextTests extends ESTestCase {
         var knn = new KnnVectorQueryBuilder("field", VECTOR, 5, 10, null, null, null);
         var source = new SearchSourceBuilder().aggregation(AggregationBuilders.filter("agg", knn));
         assertBase64Vector(captureContext(source).getQuery());
+    }
+
+    public void testStandardRetrieverKnnQueryIsBase64Encoded() {
+        var knn = new KnnVectorQueryBuilder("field", VECTOR, 5, 10, null, null, null);
+        var source = new SearchSourceBuilder().retriever(new StandardRetrieverBuilder(knn));
+        assertBase64Vector(captureContext(source).getQuery());
+    }
+
+    public void testRetrieverPreFilterKnnQueryIsBase64Encoded() {
+        var knn = new KnnVectorQueryBuilder("field", VECTOR, 5, 10, null, null, null);
+        var retriever = new StandardRetrieverBuilder(QueryBuilders.matchAllQuery());
+        retriever.getPreFilterQueryBuilders().add(knn);
+        assertBase64Vector(captureContext(new SearchSourceBuilder().retriever(retriever)).getQuery());
     }
 
     public void testNonVectorQueryIsUnaffected() {

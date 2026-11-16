@@ -227,7 +227,7 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
         builder.field(SEPARATOR_FIELD.getPreferredName(), separator);
         builder.startObject(AdjacencyMatrixAggregator.FILTERS_FIELD.getPreferredName());
         for (KeyedFilter keyedFilter : filters) {
-            builder.field(keyedFilter.key(), keyedFilter.filter());
+            builder.field(keyedFilter.key(), keyedFilter.filter(), params);
         }
         builder.endObject();
         builder.endObject();

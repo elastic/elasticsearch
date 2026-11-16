@@ -41,8 +41,20 @@ final class RecordBoundaryProbe {
 
     private RecordBoundaryProbe() {}
 
-    /** Message for the {@link TaskCancelledException} thrown when a probe observes the originating query cancelled. */
+    /**
+     * Cancel reason thrown when a probe observes cancellation during coordinator split discovery.
+     * {@link FileSplitProvider} uses this, and it is the default for the probe helpers that discovery
+     * calls. Read-time segmentation uses {@link #READ_CANCELLED_MESSAGE} instead: the same probe
+     * implementation runs in both phases, so the reason string has to come from the caller.
+     */
     static final String CANCELLED_MESSAGE = "ES|QL external split discovery cancelled";
+
+    /**
+     * Cancel reason thrown when a probe observes cancellation while a data node is segmenting a split
+     * it is about to parse. That walk is not split discovery; naming it as such made testers treat the
+     * reason as a phase signal it was not.
+     */
+    static final String READ_CANCELLED_MESSAGE = "ES|QL external read cancelled while probing record boundaries";
 
     /**
      * With more than this many bytes of a probe's window left to transfer, reconnecting on the next probe is
@@ -200,9 +212,25 @@ final class RecordBoundaryProbe {
         long windowBytes,
         BooleanSupplier isCancelled
     ) throws IOException {
-        if (isCancelled.getAsBoolean()) {
-            throw new TaskCancelledException(CANCELLED_MESSAGE);
-        }
+        return probeAt(splitter, storageObject, pos, fileLength, minSegment, maxRecordBytes, windowBytes, isCancelled, CANCELLED_MESSAGE);
+    }
+
+    /**
+     * As {@link #probeAt(RecordSplitter, StorageObject, long, long, long, int, long, BooleanSupplier)}, throwing
+     * {@code cancelledMessage} so the caller can name the phase that was cancelled.
+     */
+    static Outcome probeAt(
+        RecordSplitter splitter,
+        StorageObject storageObject,
+        long pos,
+        long fileLength,
+        long minSegment,
+        int maxRecordBytes,
+        long windowBytes,
+        BooleanSupplier isCancelled,
+        String cancelledMessage
+    ) throws IOException {
+        throwIfCancelled(isCancelled, cancelledMessage);
         long window = probeWindow(pos, fileLength, maxRecordBytes, windowBytes);
         long skipped;
         InputStream stream = storageObject.newStream(pos, window);
@@ -210,9 +238,7 @@ final class RecordBoundaryProbe {
             skipped = splitter.findNextRecordBoundary(probe.forSplitter());
             // A query cancelled while this probe was scanning has no follow-up probe to hand the pooled
             // connection to, so there is nothing to buy by draining the rest of the window.
-            if (isCancelled.getAsBoolean()) {
-                throw new TaskCancelledException(CANCELLED_MESSAGE);
-            }
+            throwIfCancelled(isCancelled, cancelledMessage);
             if (probe.remaining() <= MAX_DRAIN_BYTES) {
                 probe.drain();
             }
@@ -415,6 +441,7 @@ final class RecordBoundaryProbe {
      * cancel at all.
      *
      * @param strideBytes the grid the offsets sit on, i.e., how small a span the caller is asking for
+     * @param cancelledMessage reason string for a cancel observed during this walk; the caller names the phase
      */
     static List<Long> advancingBoundaries(
         RecordSplitter splitter,
@@ -423,7 +450,8 @@ final class RecordBoundaryProbe {
         long strideBytes,
         long minSegment,
         int maxRecordBytes,
-        BooleanSupplier isCancelled
+        BooleanSupplier isCancelled,
+        String cancelledMessage
     ) throws IOException {
         assert strideBytes > 0 : "stride must be positive, was " + strideBytes;
         List<Long> boundaries = new ArrayList<>();
@@ -431,7 +459,17 @@ final class RecordBoundaryProbe {
         long pos = strideBytes;
         while (pos < fileLength && fileLength - pos >= minSegment) {
             long window = probeWindow(pos, fileLength, maxRecordBytes, maxRecordBytes);
-            Outcome outcome = probeAt(splitter, storageObject, pos, fileLength, minSegment, maxRecordBytes, maxRecordBytes, isCancelled);
+            Outcome outcome = probeAt(
+                splitter,
+                storageObject,
+                pos,
+                fileLength,
+                minSegment,
+                maxRecordBytes,
+                maxRecordBytes,
+                isCancelled,
+                cancelledMessage
+            );
             switch (outcome.kind()) {
                 case FOUND -> {
                     assert outcome.boundary() > boundaries.get(boundaries.size() - 1) : "record boundary must be strictly increasing";
@@ -494,6 +532,27 @@ final class RecordBoundaryProbe {
         return provenBoundaries(splitter, storageObject, fileLength, strideBytes, minSegment, isCancelled, Integer.MAX_VALUE);
     }
 
+    static ProvenWalk provenBoundaries(
+        RecordSplitter splitter,
+        StorageObject storageObject,
+        long fileLength,
+        long strideBytes,
+        long minSegment,
+        BooleanSupplier isCancelled,
+        String cancelledMessage
+    ) throws IOException {
+        return provenBoundaries(
+            splitter,
+            storageObject,
+            fileLength,
+            strideBytes,
+            minSegment,
+            isCancelled,
+            Integer.MAX_VALUE,
+            cancelledMessage
+        );
+    }
+
     /**
      * As {@link #provenBoundaries(RecordSplitter, StorageObject, long, long, long, BooleanSupplier)}, stopping
      * once {@code maxBoundaries} starts (including the file start at 0) have been collected. A walk that
@@ -508,6 +567,28 @@ final class RecordBoundaryProbe {
         long minSegment,
         BooleanSupplier isCancelled,
         int maxBoundaries
+    ) throws IOException {
+        return provenBoundaries(
+            splitter,
+            storageObject,
+            fileLength,
+            strideBytes,
+            minSegment,
+            isCancelled,
+            maxBoundaries,
+            CANCELLED_MESSAGE
+        );
+    }
+
+    static ProvenWalk provenBoundaries(
+        RecordSplitter splitter,
+        StorageObject storageObject,
+        long fileLength,
+        long strideBytes,
+        long minSegment,
+        BooleanSupplier isCancelled,
+        int maxBoundaries,
+        String cancelledMessage
     ) throws IOException {
         List<Long> boundaries = new ArrayList<>();
         boundaries.add(0L);
@@ -538,7 +619,12 @@ final class RecordBoundaryProbe {
                 getsIssued++;
                 long start;
                 try (Closeable abortOnExit = () -> storageObject.abortStream(walkStream)) {
-                    start = splitter.findRecordStartAtOrAfter(walkStream, pos - exactCursor, isCancelled);
+                    // The splitter polls this supplier and throws its own reason when it is true. Wrap so a
+                    // cancel observed mid-walk carries the caller's phase message instead of the splitter's.
+                    start = splitter.findRecordStartAtOrAfter(walkStream, pos - exactCursor, () -> {
+                        throwIfCancelled(isCancelled, cancelledMessage);
+                        return false;
+                    });
                 }
                 if (start == RecordSplitter.RECORD_TOO_LARGE || start < 0) {
                     // Either a record longer than the splitter will read, or no record start left before
@@ -564,10 +650,14 @@ final class RecordBoundaryProbe {
             // Every emitted boundary is a proven record start, so it becomes the next exact-walk base.
             exactCursor = boundary;
             pos = boundary + strideBytes;
-            if (isCancelled.getAsBoolean()) {
-                throw new TaskCancelledException(CANCELLED_MESSAGE);
-            }
+            throwIfCancelled(isCancelled, cancelledMessage);
         }
         return new ProvenWalk(boundaries, false, getsIssued);
+    }
+
+    private static void throwIfCancelled(BooleanSupplier isCancelled, String cancelledMessage) {
+        if (isCancelled.getAsBoolean()) {
+            throw new TaskCancelledException(cancelledMessage);
+        }
     }
 }

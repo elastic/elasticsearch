@@ -1696,9 +1696,6 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                 );
             }
 
-            // If a value trips ignore_above, it is stored in the fallback binary doc values field only if synthetic source is enabled.
-            // Otherwise, that value only exists in stored _source.
-            final boolean docValuesContainAllValues = ignoreAbove.valuesPotentiallyIgnored() == false || isSyntheticSourceEnabled;
             final boolean preferLoadFromSource = blContext.fieldExtractPreference() == FieldExtractPreference.STORED
                 && isSyntheticSourceEnabled == false;
             // A flattened root with mapped sub-fields can't use the doc-values root loader: it would render mapped
@@ -1707,7 +1704,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             // Loading from _source instead renders every leaf as a string and keeps every key, so KEEP <root> is
             // identical on every loading path. The typed sub-field columns (e.g. attributes.status_code) are
             // unaffected and still return native values.
-            if (hasDocValues() && docValuesContainAllValues && preferLoadFromSource == false && mappedSubFields.isEmpty()) {
+            if (hasDocValues() && preferLoadFromSource == false && mappedSubFields.isEmpty()) {
                 return new RootFlattenedDocValuesBlockLoader(
                     name(),
                     ignoreAbove,
@@ -1722,6 +1719,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             FlattenedSourceValueFetcher fetcher = new FlattenedSourceValueFetcher(
                 blContext.sourcePaths(name()),
                 nullValue,
+                ignoreAbove,
                 blContext.indexSettings().getIgnoredSourceFormat(),
                 preserveLeafArrays == PreserveLeafArrays.EXACT
             );

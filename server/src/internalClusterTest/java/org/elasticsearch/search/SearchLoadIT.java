@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThrea
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -25,6 +26,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * The time of the tasks a search runs on a data node, its shard phases, the segment searches they fork and the partial
@@ -86,6 +88,7 @@ public class SearchLoadIT extends ESIntegTestCase {
             assertThat(chargedToShards(dataNode) - chargedBefore, equalTo(total));
         });
         assertThat(searchLoad("searched"), greaterThan(0.0));
+        assertCpuIsPartOfTheLoad("searched");
         assertThat(searchLoad("other"), equalTo(0.0));
     }
 
@@ -97,6 +100,21 @@ public class SearchLoadIT extends ESIntegTestCase {
             }
         }
         return charged;
+    }
+
+    /**
+     * The CPU time charged to {@code index} is part of its search load.
+     */
+    private static void assertCpuIsPartOfTheLoad(String index) {
+        SearchStats.Stats stats = indicesAdmin().prepareStats(index)
+            .setSearch(true)
+            .get()
+            .getIndex(index)
+            .getTotal()
+            .getSearch()
+            .getTotal();
+        assertThat(stats.getSearchCpuRate(), greaterThan(0.0));
+        assertThat(stats.getSearchCpuRate(), lessThanOrEqualTo(stats.getSearchLoadRate()));
     }
 
     private static double searchLoad(String index) {

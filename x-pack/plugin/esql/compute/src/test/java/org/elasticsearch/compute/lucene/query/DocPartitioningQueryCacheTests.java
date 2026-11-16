@@ -15,6 +15,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BulkScorer;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
@@ -29,6 +30,7 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -150,6 +152,57 @@ public class DocPartitioningQueryCacheTests extends ComputeTestCase {
         assertThat(cacheStats.getCacheCount(), equalTo(1L));
         assertThat(collector1.found, equalTo(100));
         assertThat(collector2.found, equalTo(100));
+    }
+
+    /**
+     * {@link ConstantScoreQuery} without scores hands the searcher its child's weight, which the searcher has already cached, so the
+     * searcher caches the same weight twice. {@link DocPartitioningQueryCache#doCache} keeps a single cache layer in that case by
+     * recognising its own wrapper. When the searcher has a circuit breaker it puts an accounting wrapper around the weight it caches,
+     * the already cached one included, which must not hide the wrapper from that check, or every clause would be looked up and built
+     * twice on each leaf.
+     */
+    public void testCachingAnAlreadyCachedWeightKeepsOneCacheLayer() throws Exception {
+        var dir = newDirectory();
+        var writer = new IndexWriter(dir, new IndexWriterConfig());
+        final int numDocs = between(10, 100);
+        for (int d = 0; d < numDocs; d++) {
+            writer.addDocument(new Document());
+        }
+        var reader = DirectoryReader.open(writer);
+        ShardId shard = new ShardId("index", "_na_", 0);
+        reader = ElasticsearchDirectoryReader.wrap(reader, shard);
+        writer.close();
+        var indicesQueryCache = new IndicesQueryCache(
+            Settings.builder().put(INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), true).build()
+        );
+        try {
+            var shardSearcher = new ContextIndexSearcher(
+                reader,
+                IndexSearcher.getDefaultSimilarity(),
+                indicesQueryCache,
+                TrivialQueryCachingPolicy.ALWAYS,
+                false
+            );
+            // a breaker makes the searcher wrap the weights it caches, as DefaultSearchContext does for every search
+            shardSearcher.setCircuitBreaker(new NoopCircuitBreaker("request"));
+            // derived like LuceneSliceQueue derives the searcher of a doc-partitioned slice
+            var searcher = shardSearcher.withQueryCache(new DocPartitioningQueryCache(shardSearcher.getQueryCache()));
+            AtomicInteger visited = new AtomicInteger();
+            Query query = new ConstantScoreQuery(new BlockingQuery(docId -> visited.incrementAndGet()));
+            Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
+            LeafReaderContext leaf = reader.leaves().get(0);
+            CountCollector collector = new CountCollector();
+            weight.bulkScorer(leaf).score(collector, null, 0, DocIdSetIterator.NO_MORE_DOCS);
+            assertThat(collector.found, equalTo(numDocs));
+            assertThat("the cache iterates the leaf once to build the entry", visited.get(), equalTo(numDocs));
+
+            QueryCacheStats cacheStats = indicesQueryCache.getStats(shard, () -> 0L);
+            assertThat("a single cache layer looks the clause up once", cacheStats.getMissCount(), equalTo(1L));
+            assertThat(cacheStats.getHitCount(), equalTo(0L));
+            assertThat(cacheStats.getCacheCount(), equalTo(1L));
+        } finally {
+            IOUtils.close(reader, dir);
+        }
     }
 
     static class CountCollector implements LeafCollector {

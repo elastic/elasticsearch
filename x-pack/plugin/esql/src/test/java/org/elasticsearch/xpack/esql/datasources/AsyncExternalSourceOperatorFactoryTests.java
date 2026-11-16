@@ -22,6 +22,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
@@ -109,6 +110,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -624,6 +626,38 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     private static final BlockFactory TEST_BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
         .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
+
+    private static DriverContext openParallelismDriverContext() {
+        return new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TEST_BLOCK_FACTORY, null);
+    }
+
+    public void testProducerBlockFactoryResolvesDriverParent() {
+        DriverContext rootContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TEST_BLOCK_FACTORY, null);
+        assertSame(TEST_BLOCK_FACTORY, AsyncExternalSourceOperatorFactory.producerBlockFactory(rootContext));
+
+        LocalCircuitBreaker local = new LocalCircuitBreaker(TEST_BLOCK_FACTORY.breaker(), 0, 0);
+        try {
+            BlockFactory child = TEST_BLOCK_FACTORY.newChildFactory(local);
+            DriverContext childContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, child, null);
+            BlockFactory resolved = AsyncExternalSourceOperatorFactory.producerBlockFactory(childContext);
+            assertSame(TEST_BLOCK_FACTORY, resolved);
+            assertSame(child.parent(), resolved);
+            assertNotSame(child, resolved);
+            assertThat(child.breaker(), instanceOf(LocalCircuitBreaker.class));
+            assertSame(TEST_BLOCK_FACTORY.breaker(), resolved.breaker());
+        } finally {
+            local.close();
+        }
+
+        DriverContext missingFactory = mock(DriverContext.class);
+        assertNull(AsyncExternalSourceOperatorFactory.producerBlockFactory(missingFactory));
+
+        DriverContext mocked = mock(DriverContext.class);
+        BlockFactory mockFactory = mock(BlockFactory.class);
+        when(mocked.blockFactory()).thenReturn(mockFactory);
+        when(mockFactory.parent()).thenReturn(null);
+        assertSame(mockFactory, AsyncExternalSourceOperatorFactory.producerBlockFactory(mocked));
+    }
 
     public void testMultiFileReadIteratesAllFiles() throws Exception {
         AtomicInteger readCount = new AtomicInteger(0);
@@ -4566,7 +4600,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 null,
                 null,
                 ExternalReadCounters.NOOP,
-                null
+                null,
+                openParallelismDriverContext()
             )
         );
     }
@@ -4597,7 +4632,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 null,
                 null,
                 ExternalReadCounters.NOOP,
-                null
+                null,
+                openParallelismDriverContext()
             );
             assertNotNull(iterator);
             iterator.close();
@@ -4641,7 +4677,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 null,
                 null,
                 ExternalReadCounters.NOOP,
-                null
+                null,
+                openParallelismDriverContext()
             );
             assertNotNull(iterator);
             try {
@@ -4703,7 +4740,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 null,
                 null,
                 ExternalReadCounters.NOOP,
-                null
+                null,
+                openParallelismDriverContext()
             );
             assertNotNull(iterator);
             long seen = 0;
@@ -4766,7 +4804,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             null,
             null,
             ExternalReadCounters.NOOP,
-            null
+            null,
+            openParallelismDriverContext()
         );
         assertNotNull(iterator);
         IOException thrown = expectThrows(IOException.class, iterator::hasNext);
@@ -4843,7 +4882,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 null,
                 null,
                 ExternalReadCounters.NOOP,
-                null
+                null,
+                openParallelismDriverContext()
             )
         );
         assertEquals("simulated parallelRead construction failure", thrown.getMessage());
@@ -4876,7 +4916,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 null,
                 null,
                 ExternalReadCounters.NOOP,
-                null
+                null,
+                openParallelismDriverContext()
             );
             assertNotNull(iterator);
             iterator.close();
@@ -4922,7 +4963,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 null,
                 null,
                 ExternalReadCounters.NOOP,
-                null
+                null,
+                openParallelismDriverContext()
             );
             assertNotNull(iterator);
             assertFalse("newStream must not run on the openWithParallelism thread", calledOnOpenThread.get());
@@ -5049,7 +5091,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 null,
                 null,
                 ExternalReadCounters.NOOP,
-                null
+                null,
+                openParallelismDriverContext()
             )
         );
         assertTrue(
@@ -5483,7 +5526,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             100,
             10,
             Runnable::run
-        ).sliceQueue(sliceQueue).rowLimit(limit).errorPolicy(ErrorPolicy.LENIENT).producerBlockFactory(TEST_BLOCK_FACTORY).build();
+        ).sliceQueue(sliceQueue).rowLimit(limit).errorPolicy(ErrorPolicy.LENIENT).build();
 
         DriverContext ctx = mockLimitBudgetDriverContext();
         SourceOperator op = factory.get(ctx);
@@ -5514,7 +5557,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             100,
             10,
             Runnable::run
-        ).fileList(fileList).rowLimit(limit).errorPolicy(ErrorPolicy.LENIENT).producerBlockFactory(TEST_BLOCK_FACTORY).build();
+        ).fileList(fileList).rowLimit(limit).errorPolicy(ErrorPolicy.LENIENT).build();
 
         assertEquals(FormatReader.NO_LIMIT, factory.sourceReaderRowLimit());
         DriverContext ctx = mockLimitBudgetDriverContext();
@@ -5551,12 +5594,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             100,
             10,
             Runnable::run
-        )
-            .sliceQueue(new ExternalSliceQueue(List.of(rangeSplit)))
-            .rowLimit(limit)
-            .errorPolicy(ErrorPolicy.LENIENT)
-            .producerBlockFactory(TEST_BLOCK_FACTORY)
-            .build();
+        ).sliceQueue(new ExternalSliceQueue(List.of(rangeSplit))).rowLimit(limit).errorPolicy(ErrorPolicy.LENIENT).build();
 
         assertEquals(FormatReader.NO_LIMIT, factory.sourceReaderRowLimit());
         DriverContext ctx = mockLimitBudgetDriverContext();
@@ -5629,7 +5667,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             100,
             1,
             Runnable::run
-        ).sliceQueue(sliceQueue).producerBlockFactory(TEST_BLOCK_FACTORY).build();
+        ).sliceQueue(sliceQueue).build();
         Limiter observed = new Limiter(100);
         factory.setObservedLimiter(observed);
 
@@ -5860,7 +5898,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             100,
             maxBufferSize,
             executor
-        ).sliceQueue(sliceQueue).rowLimit(rowLimit).producerBlockFactory(TEST_BLOCK_FACTORY).build();
+        ).sliceQueue(sliceQueue).rowLimit(rowLimit).build();
     }
 
     private static DriverContext mockLimitBudgetDriverContext() {

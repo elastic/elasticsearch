@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
@@ -220,21 +220,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      */
     @Nullable
     private final List<Attribute> unifiedReadSchema;
-    /**
-     * {@link BlockFactory} used by producer-thread iterator wrappers ({@link VirtualColumnIterator}
-     * for {@code _file.*} / Hive-style partition columns, {@link SchemaAdaptingIterator} for
-     * null-fill and type-casting under UBN). When {@code null}, the per-driver factory from
-     * {@link DriverContext#blockFactory()} is used as a fallback for tests.
-     * <p>
-     * Production wires the node-level (root) factory here so producer-thread allocations route
-     * through the global request circuit breaker instead of the driver-local breaker, which
-     * asserts single-thread access during the driver's run loop. Allocating against the local
-     * breaker from a generic-pool thread races with the driver's run loop and can corrupt the
-     * breaker's reserved-bytes accounting in production (assertions are stripped); see the class
-     * Javadoc on {@link org.elasticsearch.compute.data.LocalCircuitBreaker} for details.
-     */
-    @Nullable
-    private final BlockFactory producerBlockFactory;
     private final ExternalSliceQueue sliceQueue;
     private final ErrorPolicy errorPolicy;
     private final int parsingParallelism;
@@ -382,7 +367,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         Map<String, String> renames,
         Function<List<Attribute>, String> readConfigFingerprinter,
         @Nullable List<Attribute> unifiedReadSchema,
-        @Nullable BlockFactory producerBlockFactory,
         ExternalSliceQueue sliceQueue,
         ErrorPolicy errorPolicy,
         int parsingParallelism,
@@ -474,7 +458,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.renames = renames == null ? Map.of() : renames;
         this.readConfigFingerprinter = readConfigFingerprinter == null ? schema -> "" : readConfigFingerprinter;
         this.unifiedReadSchema = unifiedReadSchema;
-        this.producerBlockFactory = producerBlockFactory;
         this.sliceQueue = sliceQueue;
         this.errorPolicy = errorPolicy != null ? errorPolicy : formatReader.defaultErrorPolicy();
         this.parsingParallelism = Math.max(1, parsingParallelism);
@@ -551,8 +534,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         private Function<List<Attribute>, String> readConfigFingerprinter = schema -> "";
         @Nullable
         private List<Attribute> unifiedReadSchema;
-        @Nullable
-        private BlockFactory producerBlockFactory;
         private ExternalSliceQueue sliceQueue;
         private ErrorPolicy errorPolicy;
         private int parsingParallelism = 1;
@@ -649,19 +630,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
          */
         public Builder unifiedReadSchema(@Nullable List<Attribute> unifiedReadSchema) {
             this.unifiedReadSchema = unifiedReadSchema;
-            return this;
-        }
-
-        /**
-         * Sets the {@link BlockFactory} used by {@link VirtualColumnIterator} when materialising
-         * constant blocks for virtual partition / {@code _file.*} columns. Production should pass the
-         * node-level (root) factory so producer-thread allocations route through the global request
-         * circuit breaker rather than the driver-local breaker (which asserts single-thread access
-         * during the driver's run loop). Tests may leave this {@code null} to fall back to the
-         * driver context's factory.
-         */
-        public Builder producerBlockFactory(@Nullable BlockFactory producerBlockFactory) {
-            this.producerBlockFactory = producerBlockFactory;
             return this;
         }
 
@@ -802,7 +770,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 renames,
                 readConfigFingerprinter,
                 unifiedReadSchema,
-                producerBlockFactory,
                 sliceQueue,
                 errorPolicy,
                 parsingParallelism,
@@ -1202,8 +1169,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     /**
      * Wraps {@code pages} in a {@link VirtualColumnIterator} when this factory has any virtual
      * partition / {@code _file.*} columns. The iterator allocates the constant blocks against
-     * {@link #producerBlockFactory} when set (production: the node-level root factory) and
-     * falls back to the driver context's factory otherwise (test convenience). Returns
+     * {@link #producerBlockFactory(DriverContext)} — the request-level root factory, never the
+     * driver-local factory wrapping {@link org.elasticsearch.compute.data.LocalCircuitBreaker}. Returns
      * {@code pages} unchanged when there are no virtual columns to materialise — either the
      * dataset is unpartitioned, or the query projects no output columns at all (a zero-projection
      * {@code COUNT(*)} read, which forwards the reader's position-only pages untouched).
@@ -1238,13 +1205,42 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     }
 
     /**
-     * Resolves the {@link BlockFactory} used by producer-thread iterator wrappers (see field
-     * Javadoc on {@link #producerBlockFactory}). Production wires the node-level root factory;
-     * tests fall back to the driver-local factory because they typically run the producer and
-     * consumer on the same thread, so the local breaker's single-thread assertion does not fire.
+     * Root {@link BlockFactory} for producer / I/O thread allocations.
+     * <p>
+     * Child factories wrap a {@link org.elasticsearch.compute.data.LocalCircuitBreaker} that
+     * asserts single-thread access during the driver run loop. Allocating against that breaker
+     * from a generic-pool thread races with the driver and can corrupt reserved-bytes accounting
+     * (assertions are stripped in production). {@link BlockFactory#parent()} is the request-level
+     * factory whose breaker is thread-safe. A missing driver factory (tests that never stub one)
+     * returns {@code null} so {@link FormatReadContext} can keep a null breaker. An unstubbed mock
+     * {@code parent()} is treated as already-root.
      */
-    private BlockFactory producerBlockFactory(DriverContext driverContext) {
-        return producerBlockFactory != null ? producerBlockFactory : driverContext.blockFactory();
+    @Nullable
+    static BlockFactory producerBlockFactory(DriverContext driverContext) {
+        BlockFactory factory = driverContext.blockFactory();
+        if (factory == null) {
+            return null;
+        }
+        BlockFactory parent = factory.parent();
+        return parent != null ? parent : factory;
+    }
+
+    @Nullable
+    private static CircuitBreaker producerBreaker(@Nullable BlockFactory factory) {
+        return factory == null ? null : factory.breaker();
+    }
+
+    @Nullable
+    private static CircuitBreaker producerBreaker(DriverContext driverContext) {
+        return producerBreaker(producerBlockFactory(driverContext));
+    }
+
+    private static CircuitBreaker streamingBreaker(DriverContext driverContext) {
+        CircuitBreaker breaker = producerBreaker(driverContext);
+        if (breaker == null) {
+            throw new IllegalArgumentException("streaming parse requires a block factory");
+        }
+        return breaker;
     }
 
     /**
@@ -1879,6 +1875,13 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         final AsyncExternalSourceBuffer buffer;
         final DriverContext driverContext;
         /**
+         * Root factory resolved once at producer start from {@link #producerBlockFactory(DriverContext)}.
+         * Never the driver-local factory wrapping {@link org.elasticsearch.compute.data.LocalCircuitBreaker}.
+         * Null when tests mock a {@link DriverContext} with no factory.
+         */
+        @Nullable
+        final BlockFactory producerBlockFactory;
+        /**
          * The factory's shared reader instance. Used as the base for per-file withers (pushed filter,
          * read config) but does not hold per-operator counters — those flow through
          * {@link FormatReadContext#readCounters()}, owned by {@link #formatCounters}.
@@ -1954,6 +1957,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             this.projectedColumns = projectedColumns;
             this.buffer = buffer;
             this.driverContext = driverContext;
+            this.producerBlockFactory = producerBlockFactory(driverContext);
             this.operatorReader = operatorReader;
             this.formatCounters = formatCounters;
         }
@@ -2712,6 +2716,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     bufferedInformationalWarningSink(state.buffer),
                     state.buffer.readCounters(),
                     state.formatCounters,
+                    state.driverContext,
                     headerColumns
                 );
                 adapterOwnsRowCount = pages != null;
@@ -2740,7 +2745,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         .stats(fileSplit.offset(), statsStripeSize, splitIsFileFinal)
                         .statsColumnScope(statsColumnScope)
                         .informationalWarningSink(bufferedInformationalWarningSink(state.buffer))
-                        .breaker(producerBlockFactory != null ? producerBlockFactory.breaker() : null)
+                        .breaker(producerBreaker(state.producerBlockFactory))
                         .sharedErrorBudget(splitBudget)
                         .build();
                     final var finalReader = fileReader;
@@ -2748,7 +2753,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 }
                 if (compressedRowPosSlot >= 0) {
                     pages = new NullSpliceRowPositionStrategy(
-                        producerBlockFactory(state.driverContext),
+                        state.producerBlockFactory,
                         "compressed-offset split has no decompressed _rowPosition anchor"
                     ).apply(pages, compressedRowPosSlot);
                 } else {
@@ -2965,7 +2970,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 state.buffer::recordWarning,
                 bufferedInformationalWarningSink(state.buffer),
                 state.buffer.readCounters(),
-                state.formatCounters
+                state.formatCounters,
+                state.driverContext
             );
             boolean adapterOwnsRowCount = pages != null;
             if (pages == null) {
@@ -2978,7 +2984,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     .maxRecordBytes(maxRecordBytes)
                     .statsColumnScope(statsColumnScope)
                     .informationalWarningSink(bufferedInformationalWarningSink(state.buffer))
-                    .breaker(producerBlockFactory != null ? producerBlockFactory.breaker() : null)
+                    .breaker(producerBreaker(state.producerBlockFactory))
                     .sharedErrorBudget(fileBudget)
                     .readCounters(state.formatCounters)
                     .build();
@@ -3143,7 +3149,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     buffer::recordWarning,
                     bufferedInformationalWarningSink(buffer),
                     buffer.readCounters(),
-                    formatCounters
+                    formatCounters,
+                    driverContext
                 );
                 if (opened == null) {
                     FormatReadContext ctx = FormatReadContext.builder()
@@ -3154,7 +3161,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         .maxRecordBytes(maxRecordBytes)
                         .statsColumnScope(statsColumnScope)
                         .informationalWarningSink(bufferedInformationalWarningSink(buffer))
-                        .breaker(producerBlockFactory != null ? producerBlockFactory.breaker() : null)
+                        .breaker(producerBreaker(driverContext))
                         .readCounters(formatCounters)
                         .build();
                     opened = buffer.readCounters().meteredCpu(() -> reader.read(storageObject, ctx));
@@ -3425,7 +3432,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         @Nullable Consumer<String> partialResultsWarningSink,
         @Nullable Consumer<String> warningSink,
         @Nullable ExternalReadCounters readCounters,
-        @Nullable FormatReadCounters formatCounters
+        @Nullable FormatReadCounters formatCounters,
+        DriverContext driverContext
     ) throws IOException {
         return openWithParallelism(
             reader,
@@ -3442,6 +3450,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             warningSink,
             readCounters,
             formatCounters,
+            driverContext,
             null
         );
     }
@@ -3465,6 +3474,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         @Nullable Consumer<String> warningSink,
         @Nullable ExternalReadCounters readCounters,
         @Nullable FormatReadCounters formatCounters,
+        DriverContext driverContext,
         @Nullable List<String> fileHeaderColumns
     ) throws IOException {
         if (rowLimit != FormatReader.NO_LIMIT || parsingParallelism <= 1) {
@@ -3583,7 +3593,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     statsColumnScope,
                     new StreamingParallelParsingCoordinator.WarningSinks(partialResultsWarningSink, warningSink),
                     streamingSegmentatorAdmission,
-                    producerBlockFactory != null ? producerBlockFactory.breaker() : new NoopCircuitBreaker("streaming-parse"),
+                    streamingBreaker(driverContext),
                     readCounters,
                     formatCounters,
                     this::noFurtherCandidates,
@@ -3600,9 +3610,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 DecompressionCodec codec = cdr.codec();
                 // Shared by both the codec's native-footprint accounting and the coordinator's chunk
                 // buffers, so the whole streaming pipeline reports against a single breaker.
-                var streamingBreaker = producerBlockFactory != null
-                    ? producerBlockFactory.breaker()
-                    : new NoopCircuitBreaker("streaming-parse");
+                var streamingBreaker = streamingBreaker(driverContext);
                 // Route through the production decorator so every failure path releases both the codec's
                 // native handle (e.g. the PanamaZstdInputStream Arena) and the raw connection without
                 // draining it. DecompressingStorageObject.newStream() wraps raw in UncloseableInputStream

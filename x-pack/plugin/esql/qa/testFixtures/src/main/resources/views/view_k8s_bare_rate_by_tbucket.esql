@@ -1,0 +1,2 @@
+TS k8s
+| STATS rate=rate(network.total_bytes_in) BY tbucket = TBUCKET(1 hour)

@@ -73,6 +73,7 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.externalResolutionFor;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.rewriteDatasetsUnsecured;
@@ -2064,7 +2065,8 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
             // These cases name their datasets exactly, which reaches them at the wildcards_match_datasets default.
             false
         );
-        ExternalSourceResolution resolution = new ExternalSourceResolution(
+        ExternalSourceResolution resolution = externalResolutionFor(
+            projectMetadata,
             Map.of(
                 SALARIES_INT_RESOURCE,
                 externalSource(SALARIES_INT_RESOURCE, INTEGER),
@@ -2155,6 +2157,19 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
                 assertEquals(indices[i], relation.indexPattern());
             }
         }
+    }
+
+    /**
+     * A bare time-series aggregation only gets its implicit {@code _timeseries} column after the union's columns are determined.
+     * The union must still return it, right after the column that precedes it in the subquery, as the subquery does on its own.
+     */
+    public void testUnionAllKeepsImplicitTimeSeriesColumnOfBareTimeSeriesAggregate() {
+        assumeTrue("Requires TS in subqueries", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+        LogicalPlan plan = analyzer().addEmployees("test").addK8s().query("""
+            FROM test, (TS k8s | STATS rate = rate(network.total_bytes_in) BY tbucket = TBUCKET(1 hour))
+            """);
+        List<String> names = plan.output().stream().map(Attribute::name).toList();
+        assertThat(names.subList(names.size() - 3, names.size()), equalTo(List.of("rate", "_timeseries", "tbucket")));
     }
 
     private static void assertProjectionHasLong(Project project, String name, Class<? extends NamedExpression> kind) {

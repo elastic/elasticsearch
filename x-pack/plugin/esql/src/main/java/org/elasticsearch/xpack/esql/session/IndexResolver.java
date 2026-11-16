@@ -779,7 +779,7 @@ public class IndexResolver {
                 if (underNested) {
                     underNestedNames.add(name);
                 }
-                IndexFieldCapabilities fc = key(name, underNested ? flattened(root) : root);
+                IndexFieldCapabilities fc = key(name, root);
                 if (isNew) {
                     fieldsCaps.computeIfAbsent(
                         name,
@@ -1111,8 +1111,9 @@ public class IndexResolver {
     }
 
     /**
-     * A field under a nested object holds the values of all of the parent's objects, which are separate documents, so the
-     * parent's index and doc values hold none of them: queries and aggregations must not be pushed to Lucene.
+     * A field under a nested object holds the values of all of the parent's objects, which are separate documents, so a
+     * field each object holds once can hold many values in the parent's column. Its other capabilities are those of the
+     * child documents; {@link EsField#isUnderNested} keeps queries over it from being pushed to the parent's index.
      */
     private static IndexFieldCapabilities flattened(IndexFieldCapabilities fc) {
         return new IndexFieldCapabilities(
@@ -1120,7 +1121,7 @@ public class IndexResolver {
             fc.type(),
             fc.isMetadatafield(),
             fc.isSearchable(),
-            false,
+            fc.isAggregatable(),
             fc.isInference(),
             fc.isDimension(),
             fc.metricType(),

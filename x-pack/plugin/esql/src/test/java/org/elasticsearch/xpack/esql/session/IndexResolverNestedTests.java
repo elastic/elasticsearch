@@ -42,7 +42,9 @@ public class IndexResolverNestedTests extends ESTestCase {
         Map<String, EsField> mapping = resolve(TransportVersion.current(), nestedIndex());
         EsField pid = mapping.get("process").getProperties().get("pid");
         assertThat(pid.getDataType(), equalTo(DataType.LONG));
-        assertThat(pid.isAggregatable(), equalTo(false));
+        // Each object holds one pid, but the parent's column holds those of all of its objects
+        assertThat(pid.isStaticallySingleValued(), equalTo(false));
+        assertThat(pid.isAggregatable(), equalTo(true));
         assertThat(pid.isUnderNested(), equalTo(true));
         EsField note = mapping.get("process").getProperties().get("note");
         assertThat(note, instanceOf(TextEsField.class));
@@ -112,7 +114,7 @@ public class IndexResolverNestedTests extends ESTestCase {
         return index(
             "test",
             new IndexFieldCapabilitiesBuilder("process", "nested").build(),
-            new IndexFieldCapabilitiesBuilder("process.pid", "long").build(),
+            new IndexFieldCapabilitiesBuilder("process.pid", "long").isStaticallySingleValued(true).build(),
             new IndexFieldCapabilitiesBuilder("process.note", "text").build(),
             new IndexFieldCapabilitiesBuilder("name", "keyword").build()
         );

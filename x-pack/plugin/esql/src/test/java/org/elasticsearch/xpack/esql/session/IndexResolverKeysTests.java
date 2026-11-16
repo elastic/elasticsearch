@@ -100,7 +100,7 @@ public class IndexResolverKeysTests extends ESTestCase {
         EsField env = mapping.get("items").getProperties().get("attrs").getProperties().get("env");
         assertThat(env.getDataType(), equalTo(DataType.KEYWORD));
         assertThat(env.isUnderNested(), equalTo(true));
-        assertThat(env.isAggregatable(), equalTo(false));
+        assertThat(env.isAggregatable(), equalTo(true));
     }
 
     /** With a node that can't read the child documents, the flattened field under the nested object and its keys are left out. */

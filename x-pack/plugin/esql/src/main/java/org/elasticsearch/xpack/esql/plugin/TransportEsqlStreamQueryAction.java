@@ -497,6 +497,8 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
             if (terminal instanceof FieldAttribute fa && (terminal instanceof UnsupportedAttribute) == false
             // field_caps only sees mappings, so it cannot vouch that a field loaded from _source is empty
                 && fa.isPotentiallyUnmapped() == false
+                // nor yet that of the child documents a field under a nested object is read from
+                && fa.field().isUnderNested() == false
                 && fa.field().isAggregatable()
                 && FIELD_CAPS_EMPTINESS_IS_TRUSTWORTHY.contains(fa.dataType())) {
                 fieldNames[i] = fa.fieldName().string();

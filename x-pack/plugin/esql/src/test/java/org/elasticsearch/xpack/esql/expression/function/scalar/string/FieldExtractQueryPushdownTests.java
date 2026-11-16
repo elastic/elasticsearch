@@ -150,6 +150,29 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
         assertThat(fn.tryAsKeyedSubfieldName(noDocValuesPredicates), equalTo(Optional.empty()));
     }
 
+    /** A flattened field under a nested object keeps its keys in the child documents, which a query on the parents doesn't see. */
+    public void testTryAsKeyedSubfieldNameReturnsEmptyUnderNestedObject() {
+        assumeQueryPushdownEnabled();
+        FieldAttribute rootUnderNested = new FieldAttribute(
+            Source.EMPTY,
+            FLATTENED_ROOT_NAME,
+            new EsField(
+                FLATTENED_ROOT_NAME,
+                DataType.FLATTENED,
+                Collections.emptyMap(),
+                true,
+                false,
+                EsField.TimeSeriesFieldType.NONE,
+                false,
+                false,
+                true
+            )
+        );
+        FieldExtract fn = new FieldExtract(Source.EMPTY, rootUnderNested, Literal.keyword(Source.EMPTY, "host.name"));
+
+        assertThat(fn.tryAsKeyedSubfieldName(UNMAPPED_KEY_PREDICATES), equalTo(Optional.empty()));
+    }
+
     public void testTryAsKeyedSubfieldNameReturnsEmptyWhenCapabilityDisabled() {
         // The gate is set at JVM start; this test is meaningful only when the build leaves it disabled
         // (release builds). On snapshot builds the happy-path test above already exercises the on-state.

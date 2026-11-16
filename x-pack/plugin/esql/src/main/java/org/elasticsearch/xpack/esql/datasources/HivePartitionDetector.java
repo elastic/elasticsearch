@@ -439,7 +439,7 @@ public final class HivePartitionDetector implements PartitionDetector {
         if (value == null) {
             return null;
         }
-        if ((type == DataType.INTEGER || type == DataType.LONG || type == DataType.DOUBLE)
+        if ((type == DataType.INTEGER || type == DataType.LONG || type == DataType.UNSIGNED_LONG || type == DataType.DOUBLE)
             && DeclaredTypeCoercions.isPlainNumberText(value) == false) {
             throw new NumberFormatException("Cannot parse number [" + value + "]");
         }

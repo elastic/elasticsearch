@@ -6446,8 +6446,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 case DOUBLE -> {
                     // Parse the double straight from the record's char range, skipping the substring.
                     // jackson-core's fast parser is bit-identical to Double.parseDouble on accepted
-                    // inputs; on rejection we fall back to the shared conversion path, which itself
-                    // uses Double.parseDouble, so the accepted/rejected boundary matches the baseline.
+                    // inputs. Text outside the plain number grammar (type suffix, hex float, non-ASCII) and any
+                    // rejection go to the shared conversion path, which refuses or parses it by the same rule.
                     if (DeclaredTypeCoercions.isPlainNumberText(buf, start, len) == false) {
                         return emitConvertedStageField(new String(buf, start, len), bufIdx, dt);
                     }

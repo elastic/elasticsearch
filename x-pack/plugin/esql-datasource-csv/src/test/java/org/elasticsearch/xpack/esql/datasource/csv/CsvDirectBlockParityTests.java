@@ -322,7 +322,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
 
     /**
      * Probes the boundary of the direct path's char-range double parser (jackson-core's fast parser)
-     * against the Jackson baseline's {@link Double#parseDouble}. The cross-check inside {@code read}
+     * against the Jackson baseline. The cross-check inside {@code read}
      * asserts the two paths agree; golden values pin the accepted forms: leading sign and bare-dot literals.
      */
     public void testDoubleParserBoundaryForms() throws IOException {

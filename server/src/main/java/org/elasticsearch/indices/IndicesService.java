@@ -667,7 +667,7 @@ public class IndicesService extends AbstractLifecycleComponent
         long[] totals = new long[ids.size()];
         long[] charged = new long[ids.size()];
         long[] weights = new long[ids.size()];
-        return (nanos, finishNanos) -> {
+        return (nanos, cpuNanos, finishNanos) -> {
             synchronized (charged) {
                 boolean grew = false;
                 for (int i = 0; i < totals.length; i++) {
@@ -680,7 +680,7 @@ public class IndicesService extends AbstractLifecycleComponent
                         charged[i] = Math.max(charged[i], totals[i]);
                     }
                 }
-                ShardSearchStats.charge(shards, weights, nanos, finishNanos);
+                ShardSearchStats.charge(shards, weights, nanos, cpuNanos, finishNanos);
             }
         };
     }

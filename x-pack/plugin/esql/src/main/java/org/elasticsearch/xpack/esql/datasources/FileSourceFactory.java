@@ -13,7 +13,6 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -183,16 +182,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
     @Nullable
     private final ExecutorService splitDiscoveryExecutor;
     /**
-     * Node-level (root) {@link BlockFactory}, threaded into
-     * {@link AsyncExternalSourceOperatorFactory.Builder#producerBlockFactory(BlockFactory)} so that
-     * producer-thread allocations performed by iterator wrappers ({@link VirtualColumnIterator},
-     * {@link SchemaAdaptingIterator}) route through the global request circuit breaker rather than
-     * the driver-local breaker. May be {@code null} in tests where the factory falls back to
-     * {@link org.elasticsearch.compute.operator.DriverContext#blockFactory()}.
-     */
-    @Nullable
-    private final BlockFactory blockFactory;
-    /**
      * Gate for {@code file://} local-disk reads. Defaults to {@link LocalFileAccess#UNRESTRICTED} in
      * test-only constructors; production always goes through the full-arg constructor via {@link DataSourceModule}.
      */
@@ -222,16 +211,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
         DecompressionCodecRegistry codecRegistry,
         Settings settings
     ) {
-        this(
-            storageRegistry,
-            formatRegistry,
-            codecRegistry,
-            settings,
-            null,
-            null,
-            LocalFileAccess.UNRESTRICTED,
-            ExternalSourceMetrics.NOOP
-        );
+        this(storageRegistry, formatRegistry, codecRegistry, settings, null, LocalFileAccess.UNRESTRICTED, ExternalSourceMetrics.NOOP);
     }
 
     FileSourceFactory(
@@ -247,7 +227,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
             codecRegistry,
             settings,
             splitDiscoveryExecutor,
-            null,
             LocalFileAccess.UNRESTRICTED,
             ExternalSourceMetrics.NOOP
         );
@@ -259,27 +238,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
         DecompressionCodecRegistry codecRegistry,
         Settings settings,
         @Nullable ExecutorService splitDiscoveryExecutor,
-        @Nullable BlockFactory blockFactory
-    ) {
-        this(
-            storageRegistry,
-            formatRegistry,
-            codecRegistry,
-            settings,
-            splitDiscoveryExecutor,
-            blockFactory,
-            LocalFileAccess.UNRESTRICTED,
-            ExternalSourceMetrics.NOOP
-        );
-    }
-
-    FileSourceFactory(
-        StorageProviderRegistry storageRegistry,
-        FormatReaderRegistry formatRegistry,
-        DecompressionCodecRegistry codecRegistry,
-        Settings settings,
-        @Nullable ExecutorService splitDiscoveryExecutor,
-        @Nullable BlockFactory blockFactory,
         LocalFileAccess localFileAccess,
         ExternalSourceMetrics externalSourceMetrics
     ) {
@@ -289,7 +247,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
             codecRegistry,
             settings,
             splitDiscoveryExecutor,
-            blockFactory,
             localFileAccess,
             externalSourceMetrics,
             null
@@ -302,7 +259,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
         DecompressionCodecRegistry codecRegistry,
         Settings settings,
         @Nullable ExecutorService splitDiscoveryExecutor,
-        @Nullable BlockFactory blockFactory,
         LocalFileAccess localFileAccess,
         ExternalSourceMetrics externalSourceMetrics,
         @Nullable DatasetListingService listingService
@@ -313,7 +269,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
             codecRegistry,
             settings,
             splitDiscoveryExecutor,
-            blockFactory,
             localFileAccess,
             externalSourceMetrics,
             listingService,
@@ -327,7 +282,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
         DecompressionCodecRegistry codecRegistry,
         Settings settings,
         @Nullable ExecutorService splitDiscoveryExecutor,
-        @Nullable BlockFactory blockFactory,
         LocalFileAccess localFileAccess,
         ExternalSourceMetrics externalSourceMetrics,
         @Nullable DatasetListingService listingService,
@@ -340,7 +294,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
         this.codecRegistry = codecRegistry != null ? codecRegistry : new DecompressionCodecRegistry();
         this.settings = settings != null ? settings : Settings.EMPTY;
         this.splitDiscoveryExecutor = splitDiscoveryExecutor;
-        this.blockFactory = blockFactory;
         this.localFileAccess = localFileAccess != null ? localFileAccess : LocalFileAccess.UNRESTRICTED;
         this.externalSourceMetrics = externalSourceMetrics != null ? externalSourceMetrics : ExternalSourceMetrics.NOOP;
         this.segmentatorAdmission = new StreamingSegmentatorAdmission(
@@ -735,7 +688,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     .schemaMap(context.schemaMap())
                     .partitionColumnNames(context.partitionColumnNames())
                     .partitionValues(partitionValues)
-                    .producerBlockFactory(blockFactory)
                     .sliceQueue(context.sliceQueue())
                     .errorPolicy(errorPolicy)
                     .parsingParallelism(context.parsingParallelism())

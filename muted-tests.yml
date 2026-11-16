@@ -256,8 +256,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/162240
 - class: org.elasticsearch.search.heappressure.FuzzyHighlightHeapPressureIT
   issue: https://github.com/elastic/elasticsearch/issues/149983
-- class: org.elasticsearch.search.heappressure.QueryCacheDenseClauseHeapPressureIT
-  issue: https://github.com/elastic/elasticsearch/issues/139398
 - class: org.elasticsearch.painless.heappressure.PainlessFieldAllocationIT
   issue: https://github.com/elastic/elasticsearch/issues/162575
 - class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityTransformIT
@@ -361,11 +359,6 @@ tests:
   - :modules:apm:test
   method: testUnreachableDestinationReportsFailedExportMetric
   issue: https://github.com/elastic/elasticsearch/issues/164184
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForkUnmappedTypeConflictsIT
-  tasks:
-  - :x-pack:plugin:esql:qa:server:single-node:csvSpecTests
-  method: test {csv-spec:unmapped-type-conflicts.typeConflictDateNanosDateUnmappedNonExistentCastToDateNanos}
-  issue: https://github.com/elastic/elasticsearch/issues/164188
 - class: org.elasticsearch.xpack.esql.optimizer.GoldenGcTests
   tasks:
   - :x-pack:plugin:esql:test
@@ -474,11 +467,6 @@ tests:
   - :modules:repository-azure:test
   method: testWriteLargeBlob
   issue: https://github.com/elastic/elasticsearch/issues/163262
-- class: org.elasticsearch.xpack.ccr.index.engine.FollowingEngineTests
-  tasks:
-  - :x-pack:plugin:ccr:test
-  method: testProcessOnceOnPrimary
-  issue: https://github.com/elastic/elasticsearch/issues/165114
 - class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest
@@ -516,6 +504,7 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/165370
 - class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
   tasks:
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.0.8#javaRestTest
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.1.9#javaRestTest
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.2.8#javaRestTest
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.3.8#javaRestTest
@@ -523,19 +512,19 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/165487
 - class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
   tasks:
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.0.8#javaRestTest
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.1.9#javaRestTest
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.2.8#javaRestTest
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.3.8#javaRestTest
   method: testMergeKeywordAndFlattenedKey {null}
   issue: https://github.com/elastic/elasticsearch/issues/165489
 - class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
   tasks:
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.0.8#javaRestTest
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.1.9#javaRestTest
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.3.8#javaRestTest
   method: testMergeKeywordAndFlattenedKey {NONE}
   issue: https://github.com/elastic/elasticsearch/issues/165491
-- class: org.elasticsearch.xpack.stateless.StatelessComponentsOrderIT
-  tasks:
-  - :x-pack:plugin:stateless:internalClusterTest
-  method: testClosingNodeShouldWaitForOngoingMerge
-  issue: https://github.com/elastic/elasticsearch/issues/165534
 - class: org.elasticsearch.compute.operator.exchange.ExchangeServiceTests
   tasks:
   - :x-pack:plugin:esql:compute:test
@@ -546,11 +535,6 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testRelocationSourceWaitsForEarlyPrewarmBeforeHandoff
   issue: https://github.com/elastic/elasticsearch/issues/165656
-- class: org.elasticsearch.action.bulk.ShardBatchMapperParseTests
-  tasks:
-  - :server:test
-  method: testRequiredMultiFieldIsPresentWhenItsParentIs
-  issue: https://github.com/elastic/elasticsearch/issues/165673
 - class: org.elasticsearch.multi_cluster.MultiClusterWithSecurityYamlTestSuiteIT
   tasks:
   - :x-pack:plugin:transform:yamlRestTest
@@ -571,10 +555,10 @@ tests:
   - :x-pack:plugin:transform:yamlRestTest
   method: test {yaml=multi_cluster/80_transform/Batch transform local and remote index sharing the same name}
   issue: https://github.com/elastic/elasticsearch/issues/165722
-- class: org.elasticsearch.index.mapper.blockloader.FlattenedFieldRootBlockLoaderTests
+- class: org.elasticsearch.xpack.esql.EsqlSecurityIT
   tasks:
-  - :server:test
-  issue: https://github.com/elastic/elasticsearch/issues/165732
+  - :x-pack:plugin:esql:qa:security:javaRestTest
+  issue: https://github.com/elastic/elasticsearch/issues/165735
 - class: org.elasticsearch.xpack.spatial.SpatialDiskUsageIT
   tasks:
   - :x-pack:plugin:spatial:internalClusterTest
@@ -600,11 +584,6 @@ tests:
   - :x-pack:plugin:slm:internalClusterTest
   method: testSnapshotFailureOnMasterStepDown
   issue: https://github.com/elastic/elasticsearch/issues/165822
-- class: org.elasticsearch.action.search.SearchShardResponseCircuitBreakerIT
-  tasks:
-  - :server:internalClusterTest
-  method: testTripWhileSendingShardRequestLeavesNoReaderContext
-  issue: https://github.com/elastic/elasticsearch/issues/165825
 - class: org.elasticsearch.xpack.vectortile.feature.FeatureFactoryTests
   tasks:
   - :x-pack:plugin:vector-tile:test
@@ -620,11 +599,6 @@ tests:
   - :x-pack:plugin:stateless:test
   method: testSlowTranslogUploadIsHedged
   issue: https://github.com/elastic/elasticsearch/issues/165850
-- class: org.elasticsearch.benchmark.index.mapper.batch.ShardIndexingBenchmarkTests
-  tasks:
-  - :benchmarks:test
-  method: testBenchmarkLifecycle
-  issue: https://github.com/elastic/elasticsearch/issues/165852
 - class: org.elasticsearch.xpack.esql.datasource.parquet.ParquetPreWarmReleaseTests
   tasks:
   - :x-pack:plugin:esql-datasource-parquet:test
@@ -640,3 +614,31 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testOnlyForceMergesAreAllowedDuringRelocation
   issue: https://github.com/elastic/elasticsearch/issues/165933
+- class: org.elasticsearch.xpack.esql.action.ExternalProvenanceParityIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  issue: https://github.com/elastic/elasticsearch/issues/165944
+- class: org.elasticsearch.xpack.stateless.recovery.StatelessRecoveryMetricsIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testRecoveryMetricPublicationOnIndexingShardRelocation
+  issue: https://github.com/elastic/elasticsearch/issues/166001
+- class: org.elasticsearch.index.query.IntervalQueryBuilderTests
+  tasks:
+  - :server:test
+  method: testToQueryChargesBreakerOnce
+  issue: https://github.com/elastic/elasticsearch/issues/166038
+- class: org.elasticsearch.xpack.stateless.engine.translog.StatelessTranslogIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testTranslogStressRecoveryTest
+  issue: https://github.com/elastic/elasticsearch/issues/166061
+- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
+  tasks:
+  - :x-pack:plugin:inference:internalClusterTest
+  issue: https://github.com/elastic/elasticsearch/issues/166137
+- class: org.elasticsearch.xpack.esql.session.EsqlSessionQueryTimeFilterTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testTimeSeriesSources
+  issue: https://github.com/elastic/elasticsearch/issues/166145

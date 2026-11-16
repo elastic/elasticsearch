@@ -64,16 +64,6 @@ def dataSourceSpecExclusions = [
     owner: 'parquet',
     reason: 'Current-only specialized suite downloads about 93 MB from an external service.'
   ],
-  [
-    path: 'x-pack/plugin/esql-datasource-grpc/src/javaRestTest/resources/grpc-flight.csv-spec',
-    owner: 'grpc',
-    reason: 'Flight needs a BWC-aware multi-endpoint fixture and strict connector capability checks.'
-  ],
-  [
-    path: 'x-pack/plugin/esql-datasource-iceberg/qa/src/javaRestTest/resources/iceberg-basic.csv-spec',
-    owner: 'iceberg',
-    reason: 'IcebergSpecIT is @AwaitsFix and still uses raw EXTERNAL.'
-  ],
 ]
 
 def verifyDataSourceCsvSpecOwnership = tasks.register('verifyDataSourceCsvSpecOwnership') {

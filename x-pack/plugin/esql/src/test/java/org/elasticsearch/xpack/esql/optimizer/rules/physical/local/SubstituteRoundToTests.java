@@ -20,6 +20,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
@@ -65,10 +66,12 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -149,6 +152,12 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
     // The date range of SearchStats is from 2023-10-20 to 2023-10-23.
     private static final SearchStats searchStats = searchStats();
 
+    // The same date range, without the guarantee that the date is single valued.
+    private static final SearchStats MULTI_VALUED_STATS = new EsqlTestUtils.TestSearchStatsWithMinMax(
+        Map.of("date", 1697804103360L),
+        Map.of("date", 1698069301543L)
+    );
+
     // DateTrunc/Bucket is transformed to RoundTo first and then to QueryAndTags
     public void testDateTruncBucketTransformToQueryAndTags() {
         for (String dateHistogram : dateHistograms) {
@@ -228,8 +237,65 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
                 ),
                 new EsQueryExec.QueryBuilderAndTags(termQuery("date", "2023-10-22T00:00:00.000Z"), List.of(dateTimeToLong("2023-10-22")))
             );
-            verifyQueryAndTags(expectedQueryBuilderAndTags, queryBuilderAndTags);
+            verifySingleValueQueryAndTags(expectedQueryBuilderAndTags, queryBuilderAndTags);
         }
+    }
+
+    /**
+     * Without knowing that the date is single valued, the documents without a bucket are the ones that do not have a
+     * single date: a multivalued date has no bucket either.
+     */
+    public void testDateTruncMultiValuedDateTransformToQueryAndTags() {
+        PhysicalPlan plan = plannerOptimizer.plan("""
+            from test
+            | stats count(*) by x = date_trunc(1 day, date)
+            """, MULTI_VALUED_STATS, makeAnalyzer("mapping-all-types.json"));
+        ExchangeExec exchange = validatePlanBeforeExchange(plan, DataType.DATETIME, List.of("count(*)"));
+        List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags = getBuilderAndTagsFromStats(exchange, DataType.DATETIME);
+        assertThat(queryBuilderAndTags, hasSize(5));
+
+        EsQueryExec.QueryBuilderAndTags nullBucket = queryBuilderAndTags.getLast();
+        assertThat(nullBucket.tags(), equalTo(Collections.singletonList(null)));
+        BoolQueryBuilder noSingleDate = as(nullBucket.query(), BoolQueryBuilder.class);
+        assertThat(noSingleDate.mustNot(), hasSize(1));
+        SingleValueQuery.AbstractBuilder single = as(noSingleDate.mustNot().getFirst(), SingleValueQuery.AbstractBuilder.class);
+        assertEquals("date", single.field());
+        assertThat(single.next(), instanceOf(ExistsQueryBuilder.class));
+    }
+
+    /**
+     * A comparison of the query only matches single valued dates, and so do the queries that replace it and the range
+     * of each bucket. None of those dates is without a bucket.
+     */
+    public void testDateTruncMultiValuedDateTransformToQueryAndTagsWithWhereClauseOnSameField() {
+        PhysicalPlan plan = plannerOptimizer.plan("""
+            from test
+            | where date <= "2023-10-22" and date >= "2023-10-21"
+            | stats count(*) by x = date_trunc(1 day, date)
+            """, MULTI_VALUED_STATS, makeAnalyzer("mapping-all-types.json"));
+        ExchangeExec exchange = validatePlanBeforeExchange(plan, DataType.DATETIME, List.of("count(*)"));
+        List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags = getBuilderAndTagsFromStats(exchange, DataType.DATETIME);
+        assertThat(queryBuilderAndTags, hasSize(2));
+        for (EsQueryExec.QueryBuilderAndTags queryAndTags : queryBuilderAndTags) {
+            assertEquals("date", as(queryAndTags.query(), SingleValueQuery.AbstractBuilder.class).field());
+        }
+        assertThat(queryBuilderAndTags.get(0).tags(), equalTo(List.of(dateTimeToLong("2023-10-21"))));
+        assertThat(queryBuilderAndTags.get(1).tags(), equalTo(List.of(dateTimeToLong("2023-10-22"))));
+    }
+
+    /**
+     * A filter of the query DSL matches a multivalued date if any of its values match. Those dates have no bucket, which a
+     * count of the documents in the range of each bucket can not tell, so the count is not pushed down.
+     */
+    public void testDateTruncMultiValuedDateWithEsFilterNotPushed() {
+        RangeQueryBuilder esFilter = rangeQuery("date").from("2023-10-21T00:00:00.000Z").to("2023-10-22T00:00:00.000Z");
+        PhysicalPlan plan = plannerOptimizer.plan("""
+            from test
+            | stats count(*) by x = date_trunc(1 day, date)
+            """, MULTI_VALUED_STATS, makeAnalyzer("mapping-all-types.json"), esFilter);
+        assertThat(plan.anyMatch(EsStatsQueryExec.class::isInstance), is(false));
+        EsQueryExec esQueryExec = as(plan.collectFirstChildren(EsQueryExec.class::isInstance).getFirst(), EsQueryExec.class);
+        assertThat(esQueryExec.queryBuilderAndTags(), hasSize(5));
     }
 
     public void testDateTruncBucketTransformToQueryAndTagsWithEsFilter() {
@@ -257,7 +323,7 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
                     List.of(dateTimeToLong("2023-10-22"))
                 )
             );
-            verifyQueryAndTags(expectedQueryBuilderAndTags, queryBuilderAndTags);
+            verifySingleValueQueryAndTags(expectedQueryBuilderAndTags, queryBuilderAndTags);
         }
     }
 
@@ -624,7 +690,7 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
                             List.of(dateTimeToLong("2023-10-23"))
                         )
                     );
-                    verifyQueryAndTags(expectedQueryBuilderAndTags, queryBuilderAndTags);
+                    verifySingleValueQueryAndTags(expectedQueryBuilderAndTags, queryBuilderAndTags);
                 }
             }
         }
@@ -964,6 +1030,24 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
             int queryAndTags = plainQueryAndTags(plan);
             assertThat("points=" + points, queryAndTags, equalTo(1)); // no rewrite
         }
+    }
+
+    /**
+     * Verifies queries that replace a range of the query and the range of a bucket of the date. Each must go on matching
+     * only the single valued dates, like the ranges it replaces: {@code expected} are the queries inside that check.
+     */
+    private static void verifySingleValueQueryAndTags(
+        List<EsQueryExec.QueryBuilderAndTags> expected,
+        List<EsQueryExec.QueryBuilderAndTags> actual
+    ) {
+        assertEquals(expected.size(), actual.size());
+        List<EsQueryExec.QueryBuilderAndTags> unwrapped = new ArrayList<>(actual.size());
+        for (EsQueryExec.QueryBuilderAndTags queryAndTags : actual) {
+            SingleValueQuery.AbstractBuilder single = as(queryAndTags.query(), SingleValueQuery.AbstractBuilder.class);
+            assertEquals("date", single.field());
+            unwrapped.add(queryAndTags.withQuery(single.next()));
+        }
+        verifyQueryAndTags(expected, unwrapped);
     }
 
     private static void verifyQueryAndTags(List<EsQueryExec.QueryBuilderAndTags> expected, List<EsQueryExec.QueryBuilderAndTags> actual) {
@@ -1443,6 +1527,11 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
         // create a SearchStats with min and max in milliseconds
         Map<String, Object> minValue = Map.of("date", 1697804103360L); // 2023-10-20T12:15:03.360Z
         Map<String, Object> maxValue = Map.of("date", 1698069301543L); // 2023-10-23T13:55:01.543Z
-        return new EsqlTestUtils.TestSearchStatsWithMinMax(minValue, maxValue);
+        return new EsqlTestUtils.TestSearchStatsWithMinMax(minValue, maxValue) {
+            @Override
+            public boolean isSingleValue(FieldAttribute.FieldName field) {
+                return true;
+            }
+        };
     }
 }

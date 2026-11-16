@@ -878,7 +878,7 @@ public class S3StorageProvider implements StorageProvider {
                 if (truncatedWithoutToken(response)) {
                     throw new TruncatedWithoutTokenException();
                 }
-                continuationToken = response.nextContinuationToken();
+                continuationToken = continuationTokenOf(response);
             } while (continuationToken != null);
         } catch (TruncatedWithoutTokenException e) {
             throw new IOException("Failed to list children in the configured path: " + TRUNCATED_WITHOUT_TOKEN_MESSAGE);
@@ -1238,7 +1238,7 @@ public class S3StorageProvider implements StorageProvider {
                 );
             }
             currentBatch = response.contents().iterator();
-            continuationToken = response.nextContinuationToken();
+            continuationToken = continuationTokenOf(response);
             firstPageFetched = true;
         }
     }
@@ -1253,7 +1253,12 @@ public class S3StorageProvider implements StorageProvider {
         "the store returned a truncated listing page without a continuation token";
 
     private static boolean truncatedWithoutToken(ListObjectsV2Response response) {
-        return Boolean.TRUE.equals(response.isTruncated()) && response.nextContinuationToken() == null;
+        return Boolean.TRUE.equals(response.isTruncated()) && continuationTokenOf(response) == null;
+    }
+
+    private static String continuationTokenOf(ListObjectsV2Response response) {
+        String token = response.nextContinuationToken();
+        return token == null || token.isEmpty() ? null : token;
     }
 
 }

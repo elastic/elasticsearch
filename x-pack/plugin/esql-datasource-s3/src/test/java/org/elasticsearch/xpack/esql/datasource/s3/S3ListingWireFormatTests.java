@@ -45,6 +45,7 @@ public class S3ListingWireFormatTests extends ESTestCase {
 
     private static final Map<String, String> PAGES = new ConcurrentHashMap<>();
     private static final String FIRST = "first";
+    private static final int MAX_LISTED = 10;
 
     @ClassRule
     public static S3HttpFixture s3Fixture = new ScriptedListingFixture();
@@ -91,10 +92,27 @@ public class S3ListingWireFormatTests extends ESTestCase {
         assertThat(thrown.getMessage(), containsString("without a continuation token"));
     }
 
+    public void testTruncatedPageWithEmptyContinuationTokenElementOnTheWireFails() {
+        PAGES.clear();
+        PAGES.put(FIRST, page(List.of("data/a.csv"), "true", ""));
+
+        UncheckedIOException thrown = expectThrows(UncheckedIOException.class, S3ListingWireFormatTests::listNames);
+
+        assertThat(thrown.getMessage(), containsString("without a continuation token"));
+    }
+
+    public void testLastPageWithEmptyContinuationTokenElementOnTheWireEndsListing() throws IOException {
+        PAGES.clear();
+        PAGES.put(FIRST, page(List.of("data/a.csv"), "true", "token-1"));
+        PAGES.put("token-1", page(List.of("data/b.csv"), "false", ""));
+
+        assertEquals(List.of("a.csv", "b.csv"), listNames());
+    }
+
     private static List<String> listNames() throws IOException {
         List<String> names = new ArrayList<>();
         try (StorageIterator iterator = provider.listObjects(StoragePath.of("s3://" + BUCKET + "/data"), true)) {
-            while (iterator.hasNext()) {
+            while (iterator.hasNext() && names.size() < MAX_LISTED) {
                 names.add(iterator.next().path().objectName());
             }
         }

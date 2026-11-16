@@ -103,6 +103,33 @@ public class S3StorageIteratorPaginationTests extends ESTestCase {
         assertTruncatedWithoutTokenFails(List.of(truncatedWithoutToken("data/a.csv")), List.of());
     }
 
+    public void testTruncatedPageWithEmptyContinuationTokenFails() throws IOException {
+        assertTruncatedWithoutTokenFails(List.of(truncatedWithEmptyToken("data/a.csv")), List.of());
+    }
+
+    public void testTruncatedPageWithEmptyContinuationTokenMidListingFails() throws IOException {
+        assertTruncatedWithoutTokenFails(
+            List.of(page(List.of("data/a.csv"), "token-1"), truncatedWithEmptyToken("data/b.csv")),
+            List.of("a.csv")
+        );
+    }
+
+    public void testLastPageWithEmptyContinuationTokenEndsListing() throws IOException {
+        S3Client client = clientReturning(
+            List.of(
+                page(List.of("data/a.csv"), "token-1"),
+                ListObjectsV2Response.builder()
+                    .contents(objects(List.of("data/b.csv")))
+                    .isTruncated(false)
+                    .nextContinuationToken("")
+                    .build()
+            )
+        );
+
+        assertEquals(List.of("a.csv", "b.csv"), listNames(client));
+        verify(client, times(2)).listObjectsV2(any(ListObjectsV2Request.class));
+    }
+
     public void testPageWithoutIsTruncatedEndsListing() throws IOException {
         S3Client client = mock(S3Client.class);
         when(client.listObjectsV2(any(ListObjectsV2Request.class))).thenReturn(
@@ -218,6 +245,36 @@ public class S3StorageIteratorPaginationTests extends ESTestCase {
         verify(client, times(1)).listObjectsV2(any(ListObjectsV2Request.class));
     }
 
+    public void testListChildrenTruncatedPageWithEmptyTokenFails() {
+        S3Client client = clientReturning(List.of(truncatedWithEmptyToken("data/a.csv")));
+        S3StorageProvider provider = S3StorageProvider.forTesting(client, null);
+
+        IOException thrown = expectThrows(IOException.class, () -> provider.listChildren(PREFIX, 100));
+
+        assertThat(thrown.getMessage(), containsString("without a continuation token"));
+        verify(client, times(1)).listObjectsV2(any(ListObjectsV2Request.class));
+    }
+
+    public void testListChildrenLastPageWithEmptyTokenEndsListing() throws IOException {
+        S3Client client = clientReturning(
+            List.of(
+                page(List.of("data/a.csv"), "token-1"),
+                ListObjectsV2Response.builder()
+                    .contents(objects(List.of("data/b.csv")))
+                    .isTruncated(false)
+                    .nextContinuationToken("")
+                    .build()
+            )
+        );
+        S3StorageProvider provider = S3StorageProvider.forTesting(client, null);
+
+        StorageChildren children = provider.listChildren(PREFIX, 100);
+
+        assertNotNull(children);
+        assertEquals(List.of("a.csv", "b.csv"), children.files().stream().map(e -> e.path().objectName()).toList());
+        verify(client, times(2)).listObjectsV2(any(ListObjectsV2Request.class));
+    }
+
     public void testListChildrenTruncatedPageWithoutTokenCountsTheRequestOnce() {
         S3Client client = clientReturning(List.of(truncatedWithoutToken("data/a.csv")));
         S3StorageProvider provider = S3StorageProvider.forTesting(client, null);
@@ -249,6 +306,10 @@ public class S3StorageIteratorPaginationTests extends ESTestCase {
             pages.subList(1, pages.size()).toArray(new ListObjectsV2Response[0])
         );
         return client;
+    }
+
+    private static ListObjectsV2Response truncatedWithEmptyToken(String key) {
+        return ListObjectsV2Response.builder().contents(objects(List.of(key))).isTruncated(true).nextContinuationToken("").build();
     }
 
     private static ListObjectsV2Response truncatedWithoutToken(String key) {

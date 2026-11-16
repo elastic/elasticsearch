@@ -1,0 +1,569 @@
+---
+setup:
+  - do:
+      cluster.health:
+        wait_for_events: languid
+
+---
+"logs browser uses session sorting and preserves OTel mappings":
+  - do:
+      indices.create_data_stream:
+        name: logs-browser.otel-default
+  - do:
+      indices.get_data_stream:
+        name: logs-browser.otel-default
+  - match: { data_streams.0.template: "logs-browser.otel@template" }
+  - set: { data_streams.0.indices.0.index_name: backing_index }
+  - do:
+      indices.get_settings:
+        index: $backing_index
+  - match: { .$backing_index.settings.index.mode: logsdb }
+  - match: { .$backing_index.settings.index.sort.field: ["resource.attributes.service.name", "attributes.session.id", "@timestamp"] }
+  - match: { .$backing_index.settings.index.sort.order: ["asc", "asc", "desc"] }
+  - do:
+      field_caps:
+        index: logs-browser.otel-default
+        fields: ["resource.attributes.service.name", "attributes.session.id"]
+  - match: { fields.resource\.attributes\.service\.name.keyword.type: keyword }
+  - match: { fields.attributes\.session\.id.keyword.type: keyword }
+  - do:
+      bulk:
+        index: logs-browser.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2026-01-01T00:00:00Z","resource":{"attributes":{"service.name":"app"}},"attributes":{"session.id":"session-1","http.response.body.size":42}}'
+          - create: {}
+          - '{"@timestamp":"2026-01-01T00:00:01Z","resource":{"attributes":{"service.name":"app"}},"attributes":{"session.id":"session-1","http.response.body.size":43}}'
+          - create: {}
+          - '{"@timestamp":"2026-01-01T00:00:02Z"}'
+  - is_false: errors
+  - do:
+      search:
+        index: logs-browser.otel-default
+        body:
+          query:
+            term:
+              attributes.session.id: session-1
+          sort: [{ "@timestamp": desc }]
+          fields: ["service.name", "session.id", "http.response.body.bytes"]
+          aggs:
+            sessions:
+              composite:
+                sources:
+                  - service:
+                      terms:
+                        field: resource.attributes.service.name
+                        order: asc
+                  - session:
+                      terms:
+                        field: attributes.session.id
+                        order: asc
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0.fields.service\.name: ["app"] }
+  - match: { hits.hits.0.fields.session\.id: ["session-1"] }
+  - match: { hits.hits.0.fields.http\.response\.body\.bytes: [43] }
+  - length: { aggregations.sessions.buckets: 1 }
+  - match: { aggregations.sessions.buckets.0.key: { service: app, session: session-1 } }
+  - match: { aggregations.sessions.buckets.0.doc_count: 2 }
+
+---
+"logs android uses session sorting and preserves OTel mappings":
+  - do:
+      indices.create_data_stream:
+        name: logs-android.otel-production
+  - do:
+      indices.get_data_stream:
+        name: logs-android.otel-production
+  - match: { data_streams.0.template: "logs-android.otel@template" }
+  - set: { data_streams.0.indices.0.index_name: backing_index }
+  - do:
+      indices.get_settings:
+        index: $backing_index
+  - match: { .$backing_index.settings.index.mode: logsdb }
+  - match: { .$backing_index.settings.index.sort.field: ["resource.attributes.service.name", "attributes.session.id", "@timestamp"] }
+  - match: { .$backing_index.settings.index.sort.order: ["asc", "asc", "desc"] }
+  - do:
+      field_caps:
+        index: logs-android.otel-production
+        fields: ["resource.attributes.service.name", "attributes.session.id"]
+  - match: { fields.resource\.attributes\.service\.name.keyword.type: keyword }
+  - match: { fields.attributes\.session\.id.keyword.type: keyword }
+  - do:
+      bulk:
+        index: logs-android.otel-production
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2026-01-01T00:00:00Z","resource":{"attributes":{"service.name":"app"}},"attributes":{"session.id":"session-1","http.response.body.size":42}}'
+          - create: {}
+          - '{"@timestamp":"2026-01-01T00:00:01Z","resource":{"attributes":{"service.name":"app"}},"attributes":{"session.id":"session-1","http.response.body.size":43}}'
+          - create: {}
+          - '{"@timestamp":"2026-01-01T00:00:02Z"}'
+  - is_false: errors
+  - do:
+      search:
+        index: logs-android.otel-production
+        body:
+          query:
+            term:
+              attributes.session.id: session-1
+          sort: [{ "@timestamp": desc }]
+          fields: ["service.name", "session.id", "http.response.body.bytes"]
+          aggs:
+            sessions:
+              composite:
+                sources:
+                  - service:
+                      terms:
+                        field: resource.attributes.service.name
+                        order: asc
+                  - session:
+                      terms:
+                        field: attributes.session.id
+                        order: asc
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0.fields.service\.name: ["app"] }
+  - match: { hits.hits.0.fields.session\.id: ["session-1"] }
+  - match: { hits.hits.0.fields.http\.response\.body\.bytes: [43] }
+  - length: { aggregations.sessions.buckets: 1 }
+  - match: { aggregations.sessions.buckets.0.key: { service: app, session: session-1 } }
+  - match: { aggregations.sessions.buckets.0.doc_count: 2 }
+
+---
+"logs ios uses session sorting and preserves OTel mappings":
+  - do:
+      indices.create_data_stream:
+        name: logs-ios.otel-default
+  - do:
+      indices.get_data_stream:
+        name: logs-ios.otel-default
+  - match: { data_streams.0.template: "logs-ios.otel@template" }
+  - set: { data_streams.0.indices.0.index_name: backing_index }
+  - do:
+      indices.get_settings:
+        index: $backing_index
+  - match: { .$backing_index.settings.index.mode: logsdb }
+  - match: { .$backing_index.settings.index.sort.field: ["resource.attributes.service.name", "attributes.session.id", "@timestamp"] }
+  - match: { .$backing_index.settings.index.sort.order: ["asc", "asc", "desc"] }
+  - do:
+      field_caps:
+        index: logs-ios.otel-default
+        fields: ["resource.attributes.service.name", "attributes.session.id"]
+  - match: { fields.resource\.attributes\.service\.name.keyword.type: keyword }
+  - match: { fields.attributes\.session\.id.keyword.type: keyword }
+  - do:
+      bulk:
+        index: logs-ios.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2026-01-01T00:00:00Z","resource":{"attributes":{"service.name":"app"}},"attributes":{"session.id":"session-1","http.response.body.size":42}}'
+          - create: {}
+          - '{"@timestamp":"2026-01-01T00:00:01Z","resource":{"attributes":{"service.name":"app"}},"attributes":{"session.id":"session-1","http.response.body.size":43}}'
+          - create: {}
+          - '{"@timestamp":"2026-01-01T00:00:02Z"}'
+  - is_false: errors
+  - do:
+      search:
+        index: logs-ios.otel-default
+        body:
+          query:
+            term:
+              attributes.session.id: session-1
+          sort: [{ "@timestamp": desc }]
+          fields: ["service.name", "session.id", "http.response.body.bytes"]
+          aggs:
+            sessions:
+              composite:
+                sources:
+                  - service:
+                      terms:
+                        field: resource.attributes.service.name
+                        order: asc
+                  - session:
+                      terms:
+                        field: attributes.session.id
+                        order: asc
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0.fields.service\.name: ["app"] }
+  - match: { hits.hits.0.fields.session\.id: ["session-1"] }
+  - match: { hits.hits.0.fields.http\.response\.body\.bytes: [43] }
+  - length: { aggregations.sessions.buckets: 1 }
+  - match: { aggregations.sessions.buckets.0.key: { service: app, session: session-1 } }
+  - match: { aggregations.sessions.buckets.0.doc_count: 2 }
+
+---
+"logs react_native uses session sorting and preserves OTel mappings":
+  - do:
+      indices.create_data_stream:
+        name: logs-react_native.otel-production
+  - do:
+      indices.get_data_stream:
+        name: logs-react_native.otel-production
+  - match: { data_streams.0.template: "logs-react_native.otel@template" }
+  - set: { data_streams.0.indices.0.index_name: backing_index }
+  - do:
+      indices.get_settings:
+        index: $backing_index
+  - match: { .$backing_index.settings.index.mode: logsdb }
+  - match: { .$backing_index.settings.index.sort.field: ["resource.attributes.service.name", "attributes.session.id", "@timestamp"] }
+  - match: { .$backing_index.settings.index.sort.order: ["asc", "asc", "desc"] }
+  - do:
+      field_caps:
+        index: logs-react_native.otel-production
+        fields: ["resource.attributes.service.name", "attributes.session.id"]
+  - match: { fields.resource\.attributes\.service\.name.keyword.type: keyword }
+  - match: { fields.attributes\.session\.id.keyword.type: keyword }
+  - do:
+      bulk:
+        index: logs-react_native.otel-production
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2026-01-01T00:00:00Z","resource":{"attributes":{"service.name":"app"}},"attributes":{"session.id":"session-1","http.response.body.size":42}}'
+          - create: {}
+          - '{"@timestamp":"2026-01-01T00:00:01Z","resource":{"attributes":{"service.name":"app"}},"attributes":{"session.id":"session-1","http.response.body.size":43}}'
+          - create: {}
+          - '{"@timestamp":"2026-01-01T00:00:02Z"}'
+  - is_false: errors
+  - do:
+      search:
+        index: logs-react_native.otel-production
+        body:
+          query:
+            term:
+              attributes.session.id: session-1
+          sort: [{ "@timestamp": desc }]
+          fields: ["service.name", "session.id", "http.response.body.bytes"]
+          aggs:
+            sessions:
+              composite:
+                sources:
+                  - service:
+                      terms:
+                        field: resource.attributes.service.name
+                        order: asc
+                  - session:
+                      terms:
+                        field: attributes.session.id
+                        order: asc
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0.fields.service\.name: ["app"] }
+  - match: { hits.hits.0.fields.session\.id: ["session-1"] }
+  - match: { hits.hits.0.fields.http\.response\.body\.bytes: [43] }
+  - length: { aggregations.sessions.buckets: 1 }
+  - match: { aggregations.sessions.buckets.0.key: { service: app, session: session-1 } }
+  - match: { aggregations.sessions.buckets.0.doc_count: 2 }
+
+---
+"logs generic keeps the generic sort":
+  - do:
+      indices.create_data_stream:
+        name: logs-generic.otel-default
+  - do:
+      indices.get_data_stream:
+        name: logs-generic.otel-default
+  - match: { data_streams.0.template: "logs-otel@template" }
+  - set: { data_streams.0.indices.0.index_name: backing_index }
+  - do:
+      indices.get_settings:
+        index: $backing_index
+  - match: { .$backing_index.settings.index.sort.field: ["resource.attributes.host.name", "@timestamp"] }
+
+---
+"logs custom_app keeps the generic sort":
+  - do:
+      indices.create_data_stream:
+        name: logs-custom_app.otel-default
+  - do:
+      indices.get_data_stream:
+        name: logs-custom_app.otel-default
+  - match: { data_streams.0.template: "logs-otel@template" }
+  - set: { data_streams.0.indices.0.index_name: backing_index }
+  - do:
+      indices.get_settings:
+        index: $backing_index
+  - match: { .$backing_index.settings.index.sort.field: ["resource.attributes.host.name", "@timestamp"] }
+
+---
+"traces browser uses session sorting and preserves OTel mappings":
+  - do:
+      indices.create_data_stream:
+        name: traces-browser.otel-default
+  - do:
+      indices.get_data_stream:
+        name: traces-browser.otel-default
+  - match: { data_streams.0.template: "traces-browser.otel@template" }
+  - set: { data_streams.0.indices.0.index_name: backing_index }
+  - do:
+      indices.get_settings:
+        index: $backing_index
+  - match: { .$backing_index.settings.index.mode: logsdb }
+  - match: { .$backing_index.settings.index.sort.field: ["resource.attributes.service.name", "attributes.session.id", "@timestamp"] }
+  - match: { .$backing_index.settings.index.sort.order: ["asc", "asc", "desc"] }
+  - do:
+      field_caps:
+        index: traces-browser.otel-default
+        fields: ["resource.attributes.service.name", "attributes.session.id"]
+  - match: { fields.resource\.attributes\.service\.name.keyword.type: keyword }
+  - match: { fields.attributes\.session\.id.keyword.type: keyword }
+  - do:
+      bulk:
+        index: traces-browser.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2026-01-01T00:00:00Z","resource":{"attributes":{"service.name":"app"}},"attributes":{"session.id":"session-1","http.response.body.size":42}}'
+          - create: {}
+          - '{"@timestamp":"2026-01-01T00:00:01Z","resource":{"attributes":{"service.name":"app"}},"attributes":{"session.id":"session-1","http.response.body.size":43}}'
+          - create: {}
+          - '{"@timestamp":"2026-01-01T00:00:02Z"}'
+  - is_false: errors
+  - do:
+      search:
+        index: traces-browser.otel-default
+        body:
+          query:
+            term:
+              attributes.session.id: session-1
+          sort: [{ "@timestamp": desc }]
+          fields: ["service.name", "session.id", "http.response.body.bytes"]
+          aggs:
+            sessions:
+              composite:
+                sources:
+                  - service:
+                      terms:
+                        field: resource.attributes.service.name
+                        order: asc
+                  - session:
+                      terms:
+                        field: attributes.session.id
+                        order: asc
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0.fields.service\.name: ["app"] }
+  - match: { hits.hits.0.fields.session\.id: ["session-1"] }
+  - match: { hits.hits.0.fields.http\.response\.body\.bytes: [43] }
+  - length: { aggregations.sessions.buckets: 1 }
+  - match: { aggregations.sessions.buckets.0.key: { service: app, session: session-1 } }
+  - match: { aggregations.sessions.buckets.0.doc_count: 2 }
+
+---
+"traces android uses session sorting and preserves OTel mappings":
+  - do:
+      indices.create_data_stream:
+        name: traces-android.otel-production
+  - do:
+      indices.get_data_stream:
+        name: traces-android.otel-production
+  - match: { data_streams.0.template: "traces-android.otel@template" }
+  - set: { data_streams.0.indices.0.index_name: backing_index }
+  - do:
+      indices.get_settings:
+        index: $backing_index
+  - match: { .$backing_index.settings.index.mode: logsdb }
+  - match: { .$backing_index.settings.index.sort.field: ["resource.attributes.service.name", "attributes.session.id", "@timestamp"] }
+  - match: { .$backing_index.settings.index.sort.order: ["asc", "asc", "desc"] }
+  - do:
+      field_caps:
+        index: traces-android.otel-production
+        fields: ["resource.attributes.service.name", "attributes.session.id"]
+  - match: { fields.resource\.attributes\.service\.name.keyword.type: keyword }
+  - match: { fields.attributes\.session\.id.keyword.type: keyword }
+  - do:
+      bulk:
+        index: traces-android.otel-production
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2026-01-01T00:00:00Z","resource":{"attributes":{"service.name":"app"}},"attributes":{"session.id":"session-1","http.response.body.size":42}}'
+          - create: {}
+          - '{"@timestamp":"2026-01-01T00:00:01Z","resource":{"attributes":{"service.name":"app"}},"attributes":{"session.id":"session-1","http.response.body.size":43}}'
+          - create: {}
+          - '{"@timestamp":"2026-01-01T00:00:02Z"}'
+  - is_false: errors
+  - do:
+      search:
+        index: traces-android.otel-production
+        body:
+          query:
+            term:
+              attributes.session.id: session-1
+          sort: [{ "@timestamp": desc }]
+          fields: ["service.name", "session.id", "http.response.body.bytes"]
+          aggs:
+            sessions:
+              composite:
+                sources:
+                  - service:
+                      terms:
+                        field: resource.attributes.service.name
+                        order: asc
+                  - session:
+                      terms:
+                        field: attributes.session.id
+                        order: asc
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0.fields.service\.name: ["app"] }
+  - match: { hits.hits.0.fields.session\.id: ["session-1"] }
+  - match: { hits.hits.0.fields.http\.response\.body\.bytes: [43] }
+  - length: { aggregations.sessions.buckets: 1 }
+  - match: { aggregations.sessions.buckets.0.key: { service: app, session: session-1 } }
+  - match: { aggregations.sessions.buckets.0.doc_count: 2 }
+
+---
+"traces ios uses session sorting and preserves OTel mappings":
+  - do:
+      indices.create_data_stream:
+        name: traces-ios.otel-default
+  - do:
+      indices.get_data_stream:
+        name: traces-ios.otel-default
+  - match: { data_streams.0.template: "traces-ios.otel@template" }
+  - set: { data_streams.0.indices.0.index_name: backing_index }
+  - do:
+      indices.get_settings:
+        index: $backing_index
+  - match: { .$backing_index.settings.index.mode: logsdb }
+  - match: { .$backing_index.settings.index.sort.field: ["resource.attributes.service.name", "attributes.session.id", "@timestamp"] }
+  - match: { .$backing_index.settings.index.sort.order: ["asc", "asc", "desc"] }
+  - do:
+      field_caps:
+        index: traces-ios.otel-default
+        fields: ["resource.attributes.service.name", "attributes.session.id"]
+  - match: { fields.resource\.attributes\.service\.name.keyword.type: keyword }
+  - match: { fields.attributes\.session\.id.keyword.type: keyword }
+  - do:
+      bulk:
+        index: traces-ios.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2026-01-01T00:00:00Z","resource":{"attributes":{"service.name":"app"}},"attributes":{"session.id":"session-1","http.response.body.size":42}}'
+          - create: {}
+          - '{"@timestamp":"2026-01-01T00:00:01Z","resource":{"attributes":{"service.name":"app"}},"attributes":{"session.id":"session-1","http.response.body.size":43}}'
+          - create: {}
+          - '{"@timestamp":"2026-01-01T00:00:02Z"}'
+  - is_false: errors
+  - do:
+      search:
+        index: traces-ios.otel-default
+        body:
+          query:
+            term:
+              attributes.session.id: session-1
+          sort: [{ "@timestamp": desc }]
+          fields: ["service.name", "session.id", "http.response.body.bytes"]
+          aggs:
+            sessions:
+              composite:
+                sources:
+                  - service:
+                      terms:
+                        field: resource.attributes.service.name
+                        order: asc
+                  - session:
+                      terms:
+                        field: attributes.session.id
+                        order: asc
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0.fields.service\.name: ["app"] }
+  - match: { hits.hits.0.fields.session\.id: ["session-1"] }
+  - match: { hits.hits.0.fields.http\.response\.body\.bytes: [43] }
+  - length: { aggregations.sessions.buckets: 1 }
+  - match: { aggregations.sessions.buckets.0.key: { service: app, session: session-1 } }
+  - match: { aggregations.sessions.buckets.0.doc_count: 2 }
+
+---
+"traces react_native uses session sorting and preserves OTel mappings":
+  - do:
+      indices.create_data_stream:
+        name: traces-react_native.otel-production
+  - do:
+      indices.get_data_stream:
+        name: traces-react_native.otel-production
+  - match: { data_streams.0.template: "traces-react_native.otel@template" }
+  - set: { data_streams.0.indices.0.index_name: backing_index }
+  - do:
+      indices.get_settings:
+        index: $backing_index
+  - match: { .$backing_index.settings.index.mode: logsdb }
+  - match: { .$backing_index.settings.index.sort.field: ["resource.attributes.service.name", "attributes.session.id", "@timestamp"] }
+  - match: { .$backing_index.settings.index.sort.order: ["asc", "asc", "desc"] }
+  - do:
+      field_caps:
+        index: traces-react_native.otel-production
+        fields: ["resource.attributes.service.name", "attributes.session.id"]
+  - match: { fields.resource\.attributes\.service\.name.keyword.type: keyword }
+  - match: { fields.attributes\.session\.id.keyword.type: keyword }
+  - do:
+      bulk:
+        index: traces-react_native.otel-production
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2026-01-01T00:00:00Z","resource":{"attributes":{"service.name":"app"}},"attributes":{"session.id":"session-1","http.response.body.size":42}}'
+          - create: {}
+          - '{"@timestamp":"2026-01-01T00:00:01Z","resource":{"attributes":{"service.name":"app"}},"attributes":{"session.id":"session-1","http.response.body.size":43}}'
+          - create: {}
+          - '{"@timestamp":"2026-01-01T00:00:02Z"}'
+  - is_false: errors
+  - do:
+      search:
+        index: traces-react_native.otel-production
+        body:
+          query:
+            term:
+              attributes.session.id: session-1
+          sort: [{ "@timestamp": desc }]
+          fields: ["service.name", "session.id", "http.response.body.bytes"]
+          aggs:
+            sessions:
+              composite:
+                sources:
+                  - service:
+                      terms:
+                        field: resource.attributes.service.name
+                        order: asc
+                  - session:
+                      terms:
+                        field: attributes.session.id
+                        order: asc
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0.fields.service\.name: ["app"] }
+  - match: { hits.hits.0.fields.session\.id: ["session-1"] }
+  - match: { hits.hits.0.fields.http\.response\.body\.bytes: [43] }
+  - length: { aggregations.sessions.buckets: 1 }
+  - match: { aggregations.sessions.buckets.0.key: { service: app, session: session-1 } }
+  - match: { aggregations.sessions.buckets.0.doc_count: 2 }
+
+---
+"traces generic keeps the generic sort":
+  - do:
+      indices.create_data_stream:
+        name: traces-generic.otel-default
+  - do:
+      indices.get_data_stream:
+        name: traces-generic.otel-default
+  - match: { data_streams.0.template: "traces-otel@template" }
+  - set: { data_streams.0.indices.0.index_name: backing_index }
+  - do:
+      indices.get_settings:
+        index: $backing_index
+  - match: { .$backing_index.settings.index.sort.field: ["resource.attributes.host.name", "@timestamp"] }
+
+---
+"traces custom_app keeps the generic sort":
+  - do:
+      indices.create_data_stream:
+        name: traces-custom_app.otel-default
+  - do:
+      indices.get_data_stream:
+        name: traces-custom_app.otel-default
+  - match: { data_streams.0.template: "traces-otel@template" }
+  - set: { data_streams.0.indices.0.index_name: backing_index }
+  - do:
+      indices.get_settings:
+        index: $backing_index
+  - match: { .$backing_index.settings.index.sort.field: ["resource.attributes.host.name", "@timestamp"] }

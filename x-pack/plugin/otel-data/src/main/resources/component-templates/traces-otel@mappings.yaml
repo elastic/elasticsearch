@@ -46,6 +46,9 @@ template:
         dynamic: true
         priority: 20
         properties:
+          session.id:
+            type: keyword
+            ignore_above: 1024
           elastic.profiler_stack_trace_ids:
             type: counted_keyword
           # Explicitly map http.response.status_code to work around mapping conflict caused by non-semconv-compliant clients

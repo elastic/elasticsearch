@@ -1,0 +1,33 @@
+---
+version: ${xpack.oteldata.template.version}
+index_patterns: ["logs-react_native.otel-*"]
+priority: 130
+data_stream: {}
+allow_auto_create: true
+_meta:
+  description: OpenTelemetry react_native logs sorted by service and session
+  managed: true
+composed_of:
+  - logs@mappings
+  - logs@settings
+  - otel@mappings
+  - otel@settings
+  - logs-otel@mappings
+  - semconv-resource-to-ecs@mappings
+  - logs@custom
+  - logs-otel@custom
+  - ecs@mappings
+ignore_missing_component_templates:
+  - logs@custom
+  - logs-otel@custom
+template:
+  settings:
+    index:
+      sort:
+        field: [ "resource.attributes.service.name", "attributes.session.id", "@timestamp" ]
+        order: [ "asc", "asc", "desc" ]
+  mappings:
+    properties:
+      data_stream.type:
+        type: constant_keyword
+        value: logs

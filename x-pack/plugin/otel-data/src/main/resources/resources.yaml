@@ -1,7 +1,7 @@
 # "version" holds the version of the templates and ingest pipelines installed
 # by xpack-plugin otel-data. This must be increased whenever an existing template is
 # changed, in order for it to be updated on Elasticsearch upgrade.
-version: 22
+version: 23
 
 component-templates:
   - otel@mappings
@@ -40,3 +40,11 @@ index-templates:
   - metrics-service_destination.60m.otel@template
   - metrics-service_destination.10m.otel@template
   - metrics-service_destination.1m.otel@template
+  - logs-browser.otel@template
+  - logs-android.otel@template
+  - logs-ios.otel@template
+  - logs-react_native.otel@template
+  - traces-browser.otel@template
+  - traces-android.otel@template
+  - traces-ios.otel@template
+  - traces-react_native.otel@template

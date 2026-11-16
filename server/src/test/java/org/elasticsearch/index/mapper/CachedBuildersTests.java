@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.index.mapper.DocumentParserContext.CachedBuilders;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -46,6 +47,39 @@ public class CachedBuildersTests extends ESTestCase {
         assertThat(properties(copy).keySet(), equalTo(Set.of("obj")));
         assertThat(properties(property(copy, "obj")).keySet(), equalTo(Set.of("x")));
         assertThat(root.size(), equalTo(2));
+    }
+
+    public void testCopyOmitsRuntimeFieldsAndDynamicTemplatesOfTheRoot() {
+        Map<String, Object> root = Map.of(
+            "dynamic",
+            "false",
+            "runtime",
+            Map.of("rt", Map.of("type", "keyword")),
+            "dynamic_templates",
+            List.of(Map.of("strings", Map.of("match_mapping_type", "string", "mapping", Map.of("type", "keyword")))),
+            "properties",
+            Map.of("a", Map.of("type", "keyword"))
+        );
+
+        Map<String, Object> copy = copyOfPathTo("a", root);
+
+        assertThat(copy.keySet(), equalTo(Set.of("dynamic", "properties")));
+    }
+
+    public void testCopyKeepsEntriesCalledLikeThoseOfTheRootBelowIt() {
+        Map<String, Object> obj = Map.of(
+            "runtime",
+            Map.of("kept", "yes"),
+            "properties",
+            Map.of("x", Map.of("type", "long"), "meta", Map.of("type", "keyword"))
+        );
+        Map<String, Object> root = Map.of(
+            "properties",
+            Map.of("obj", Map.of("type", "object", "dynamic_templates", List.of()), "obj2", obj)
+        );
+
+        assertThat(property(copyOfPathTo("obj.x", root), "obj").keySet(), equalTo(Set.of("type", "dynamic_templates")));
+        assertThat(property(copyOfPathTo("obj2.x", root), "obj2").keySet(), equalTo(Set.of("runtime", "properties")));
     }
 
     public void testCopyLooksUpNamesWithDots() {

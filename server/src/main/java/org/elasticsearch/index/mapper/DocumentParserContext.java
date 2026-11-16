@@ -955,6 +955,11 @@ public abstract class DocumentParserContext {
      * so that later updates of the same field see the same instances.
      */
     static final class CachedBuilders {
+
+        // Don't clone and re-parse runtime fields or dynamic_templates - they don't form part
+        // of a dynamic update and including them just wastes CPU cycles
+        private static final Set<String> IGNORED_ROOT_PARAMS = Set.of("runtime", "dynamic_templates");
+
         private final Map<String, Mapper.Builder> fieldBuilders = new HashMap<>();
         private final Function<Map<String, Object>, MappingBuilder> mappingBuilder;
         // decoded once, as decoding the whole source for each field would be costly when many fields are updated
@@ -1002,6 +1007,9 @@ public abstract class DocumentParserContext {
         static Map<String, Object> copyOfPathTo(String fieldPath, @Nullable String currentPosition, Map<String, Object> mappings) {
             Map<String, Object> copy = new LinkedHashMap<>();
             for (Map.Entry<String, Object> entry : mappings.entrySet()) {
+                if (currentPosition == null && IGNORED_ROOT_PARAMS.contains(entry.getKey())) {
+                    continue;
+                }
                 if (entry.getKey().equals("properties") && entry.getValue() instanceof Map) {
                     copy.put(entry.getKey(), propertiesOnTheWayTo(fieldPath, currentPosition, (Map<String, Object>) entry.getValue()));
                 } else {

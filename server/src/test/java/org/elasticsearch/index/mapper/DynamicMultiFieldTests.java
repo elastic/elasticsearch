@@ -200,6 +200,25 @@ public class DynamicMultiFieldTests extends MapperServiceTestCase {
         assertThat(added.get(0).leafName(), equalTo("a"));
     }
 
+    public void testParentInAMappingWithRuntimeFieldsAndDynamicTemplates() throws IOException {
+        MapperService mapperService = createMapperService(topMapping(b -> {
+            b.startObject("runtime").startObject("rt").field("type", "keyword").endObject().endObject();
+            b.startArray("dynamic_templates");
+            b.startObject().startObject("strings").field("match_mapping_type", "string");
+            b.startObject("mapping").field("type", "keyword").endObject();
+            b.endObject().endObject();
+            b.endArray();
+            b.startObject("properties");
+            b.startObject("field").field("type", "text").endObject();
+            b.endObject();
+        }));
+
+        List<Mapper.Builder> added = addMultiField(mapperService, "field", "raw");
+
+        assertThat(added, hasSize(1));
+        assertThat(added.get(0).leafName(), equalTo("field"));
+    }
+
     public void testUnmappedParent() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "text")));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> addMultiField(mapperService, "missing", "raw"));

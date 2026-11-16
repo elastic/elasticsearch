@@ -30,7 +30,7 @@ import org.elasticsearch.xpack.ml.action.datafeed.TransportStartDatafeedAction;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory;
-import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryAnalyzer;
+import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDatafeedQuery;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
@@ -60,7 +60,7 @@ public class DatafeedJobBuilder {
     // here and silently strip the cloud token from the datafeed runner's field_caps probe.
     private final Supplier<CloudCredentialManager> cloudCredentialManagerSupplier;
     private final DatafeedSearchTelemetry searchTelemetry;
-    private final EsqlQueryAnalyzer esqlQueryAnalyzer;
+    private final EsqlQueryParser esqlQueryParser;
 
     private volatile long delayedDataCheckFreq;
     private volatile int ccsStabilizationCycles;
@@ -77,7 +77,7 @@ public class DatafeedJobBuilder {
         ClusterService clusterService,
         Supplier<CloudCredentialManager> cloudCredentialManagerSupplier,
         DatafeedSearchTelemetry searchTelemetry,
-        EsqlQueryAnalyzer esqlQueryAnalyzer
+        EsqlQueryParser esqlQueryParser
     ) {
         this.client = client;
         this.xContentRegistry = Objects.requireNonNull(xContentRegistry);
@@ -93,7 +93,7 @@ public class DatafeedJobBuilder {
         this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
         this.cloudCredentialManagerSupplier = Objects.requireNonNull(cloudCredentialManagerSupplier);
         this.searchTelemetry = Objects.requireNonNull(searchTelemetry);
-        this.esqlQueryAnalyzer = Objects.requireNonNull(esqlQueryAnalyzer);
+        this.esqlQueryParser = Objects.requireNonNull(esqlQueryParser);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DELAYED_DATA_CHECK_FREQ, this::setDelayedDataCheckFreq);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(CCS_STABILIZATION_CYCLES, v -> this.ccsStabilizationCycles = v);
         clusterService.getClusterSettings()
@@ -110,7 +110,7 @@ public class DatafeedJobBuilder {
             return -1;
         }
         if (datafeedConfig.getEsqlQuery() != null
-            && EsqlDatafeedQuery.parse(esqlQueryAnalyzer, datafeedConfig.getEsqlQuery()).hasAggregation()) {
+            && EsqlDatafeedQuery.parse(esqlQueryParser, datafeedConfig.getEsqlQuery()).hasAggregation()) {
             // Aggregating ES|QL emits bucket-floor timestamps; {@link ChunkedDataExtractorFactory} floors the window start on
             // restart, so advance past the last fully emitted grouping bucket. Raw {@code FROM} rows keep source timestamps.
             return latestRecordTimeMs + datafeedConfig.getGroupingInterval().millis() - 1;
@@ -192,7 +192,7 @@ public class DatafeedJobBuilder {
             xContentRegistry,
             timingStatsReporter,
             searchTelemetry,
-            esqlQueryAnalyzer,
+            esqlQueryParser,
             dataExtractorFactoryHandler
         );
     }

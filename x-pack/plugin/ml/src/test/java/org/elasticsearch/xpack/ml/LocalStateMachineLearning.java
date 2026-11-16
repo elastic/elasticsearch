@@ -25,9 +25,9 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.esql.ml.EsqlParserQueryAnalyzer;
+import org.elasticsearch.xpack.esql.ml.EsqlDatafeedQueryParser;
 import org.elasticsearch.xpack.inference.InferencePlugin;
-import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryAnalyzer;
+import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
 import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.xpack.security.Security;
 
@@ -55,12 +55,12 @@ public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin {
                 return thisVar.getLicenseState();
             }
         };
-        // The ES|QL plugin registers the analyzer through SPI, which in-JVM test clusters do not run.
+        // The ES|QL plugin registers the parser through SPI, which in-JVM test clusters do not run.
         mlPlugin.loadExtensions(new ExtensionLoader() {
             @Override
             public <T> List<T> loadExtensions(Class<T> extensionPointType) {
-                if (extensionPointType == EsqlQueryAnalyzer.class) {
-                    return List.of(extensionPointType.cast(new EsqlParserQueryAnalyzer()));
+                if (extensionPointType == EsqlQueryParser.class) {
+                    return List.of(extensionPointType.cast(new EsqlDatafeedQueryParser()));
                 }
                 return extensionLoader == null ? List.of() : extensionLoader.loadExtensions(extensionPointType);
             }

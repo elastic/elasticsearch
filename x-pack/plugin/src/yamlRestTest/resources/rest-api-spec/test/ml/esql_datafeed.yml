@@ -537,7 +537,7 @@ setup:
 
   - do:
       warnings_regex:
-        - ".*applies a LIMIT before an aggregation.*"
+        - ".*applies LIMIT \\[[0-9]+\\] before an aggregation.*"
       ml.put_datafeed:
         datafeed_id: esql-datafeed-limit-stats
         body: >

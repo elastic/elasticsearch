@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.esql;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
-import org.elasticsearch.xpack.esql.ml.EsqlParserQueryAnalyzer;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -79,7 +78,7 @@ public class EsqlToJsonProcessorTests extends ESTestCase {
     public void testMultipleRowsShouldIncrementWrittenDocumentCount() throws IOException {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         List<ColumnInfo> columns = List.of(column(TIME_FIELD, DATE));
-        try (EsqlToJsonProcessor processor = new EsqlToJsonProcessor(columns, new EsqlParserQueryAnalyzer(), outputStream)) {
+        try (EsqlToJsonProcessor processor = new EsqlToJsonProcessor(columns, outputStream)) {
             processor.process(List.of(isoAtEpochMillis(100L)));
             processor.process(List.of(isoAtEpochMillis(200L)));
             assertThat(processor.getWrittenDocumentCount(), equalTo(2L));
@@ -88,13 +87,7 @@ public class EsqlToJsonProcessorTests extends ESTestCase {
 
     public void testMultipleRowsShouldBeSeparatedBySingleSpaceForPreview() throws IOException {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        try (
-            EsqlToJsonProcessor processor = new EsqlToJsonProcessor(
-                List.of(column("v", KEYWORD)),
-                new EsqlParserQueryAnalyzer(),
-                outputStream
-            )
-        ) {
+        try (EsqlToJsonProcessor processor = new EsqlToJsonProcessor(List.of(column("v", KEYWORD)), outputStream)) {
             processor.process(List.of("a"));
             processor.process(List.of("b"));
         }
@@ -104,7 +97,7 @@ public class EsqlToJsonProcessorTests extends ESTestCase {
 
     private static String rowsToString(List<ColumnInfo> columns, List<Object> rowValues) throws IOException {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        try (EsqlToJsonProcessor processor = new EsqlToJsonProcessor(columns, new EsqlParserQueryAnalyzer(), outputStream)) {
+        try (EsqlToJsonProcessor processor = new EsqlToJsonProcessor(columns, outputStream)) {
             processor.process(rowValues);
         }
         return outputStream.toString(StandardCharsets.UTF_8).stripTrailing();

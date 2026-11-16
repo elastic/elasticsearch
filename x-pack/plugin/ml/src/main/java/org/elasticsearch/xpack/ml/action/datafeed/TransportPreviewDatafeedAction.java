@@ -49,10 +49,10 @@ import org.elasticsearch.xpack.core.ml.utils.Intervals;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
-import org.elasticsearch.xpack.ml.EsqlQueryAnalyzerHolder;
+import org.elasticsearch.xpack.ml.EsqlQueryParserHolder;
 import org.elasticsearch.xpack.ml.MachineLearningExtensionHolder;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
-import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryAnalyzer;
+import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
@@ -81,7 +81,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
     private final DatafeedConfigProvider datafeedConfigProvider;
     private final NamedXContentRegistry xContentRegistry;
     private final SecurityContext securityContext;
-    private final EsqlQueryAnalyzer esqlQueryAnalyzer;
+    private final EsqlQueryParser esqlQueryParser;
     private final CrossProjectModeDecider crossProjectModeDecider;
     private final CloudCredentialManager cloudCredentialManager;
 
@@ -97,7 +97,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
         DatafeedConfigProvider datafeedConfigProvider,
         NamedXContentRegistry xContentRegistry,
         MachineLearningExtensionHolder machineLearningExtensionHolder,
-        EsqlQueryAnalyzerHolder esqlQueryAnalyzerHolder
+        EsqlQueryParserHolder esqlQueryParserHolder
     ) {
         super(
             PreviewDatafeedAction.NAME,
@@ -116,7 +116,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
             ? new SecurityContext(settings, threadPool.getThreadContext())
             : null;
         this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
-        this.esqlQueryAnalyzer = esqlQueryAnalyzerHolder.analyzer();
+        this.esqlQueryParser = esqlQueryParserHolder.parser();
         this.cloudCredentialManager = machineLearningExtensionHolder.isEmpty()
             ? new CloudCredentialManager.Noop()
             : machineLearningExtensionHolder.getMachineLearningExtension().getCloudCredentialManager();
@@ -228,7 +228,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
                 xContentRegistry,
                 // Fake DatafeedTimingStatsReporter that does not have access to results index
                 new DatafeedTimingStatsReporter(new DatafeedTimingStats(datafeedConfig.getJobId()), (ts, refreshPolicy, listener1) -> {}),
-                esqlQueryAnalyzer,
+                esqlQueryParser,
                 responseHeaderPreservingListener.delegateFailure(
                     (l, dataExtractorFactory) -> isDateNanos(
                         previewClient,

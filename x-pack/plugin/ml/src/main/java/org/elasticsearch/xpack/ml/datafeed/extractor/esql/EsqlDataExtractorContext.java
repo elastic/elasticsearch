@@ -8,14 +8,12 @@
 package org.elasticsearch.xpack.ml.datafeed.extractor.esql;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryAnalyzer;
 
 import java.util.Map;
 
 record EsqlDataExtractorContext(
     String jobId,
     EsqlDatafeedQuery query,
-    EsqlQueryAnalyzer analyzer,
     String sourceTimeField,
     String emittedTimeField,
     long groupingIntervalMillis,

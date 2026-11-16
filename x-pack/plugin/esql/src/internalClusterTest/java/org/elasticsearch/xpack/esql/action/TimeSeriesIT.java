@@ -1169,7 +1169,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
 
     public void testLoadId() {
         Map<String, Tuple<String, String>> fromEsql = new HashMap<>();
-        try (var resp = run("FROM hosts* METADATA _id, _tsid | KEEP _id, _tsid, @timestamp | LIMIT 1000")) {
+        try (var resp = run("FROM hosts* METADATA _id, _tsid | KEEP _id, _tsid, @timestamp | LIMIT " + docs.size())) {
             List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
             for (List<Object> row : rows) {
                 String id = row.get(0).toString();
@@ -1181,7 +1181,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
         var searchResponse = client().prepareSearch("hosts*")
             .addFetchField("_tsid")
             .addFetchField("@timestamp")
-            .setSize(1000)
+            .setSize(docs.size())
             .setFetchSource(false)
             .get();
         Map<String, Tuple<String, String>> fromSearch = new HashMap<>();

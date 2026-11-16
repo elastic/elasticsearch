@@ -527,9 +527,9 @@ The following abbreviated response groups the segments of the `my_vector` field 
 2. Each `auto_calibration` entry represents one unique set of auto-calibration parameters.
 3. `calibrated` reports whether the segments were calibrated when they were merged.
 4. `type` identifies the kind of calibration parameters returned. The only supported value is `osq` (optimized scalar quantization).
-5. `number_of_segments` is the number of segments auto-calibrated with this parameter set.
-6. `number_of_vectors` is the total number of vectors in the segments.
-7. `size_in_bytes` is the on-disk size of this field's vector data in the segments.
+5. `number_of_vectors` is the total number of vectors in the segments.
+6. `size_in_bytes` is the on-disk size of this field's vector data in the segments.
+7. `number_of_segments` is the number of segments auto-calibrated with this parameter set.
 8. `parameters` reports the results of auto-calibration: for `osq` it shows the encoding (`bits` and `query_bits`), whether preconditioning is applied, and the oversampling factor.
    Refer to [Interaction with other parameters](#interaction-with-other-parameters) for how these values interact with query-time and mapping `oversample` values.
 9. Segments of this field that were not calibrated.

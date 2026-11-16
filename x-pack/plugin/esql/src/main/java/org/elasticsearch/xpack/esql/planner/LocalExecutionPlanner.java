@@ -969,7 +969,7 @@ public class LocalExecutionPlanner {
             new OutputOperatorFactory(
                 Expressions.names(output),
                 alignPageToAttributes(output, source.layout),
-                outputExec.getPageConsumer()
+                outputExec.getPageConsumerFactory()
             ),
             source.layout
         );

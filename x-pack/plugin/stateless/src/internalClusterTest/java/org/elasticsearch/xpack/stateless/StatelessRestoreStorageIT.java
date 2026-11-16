@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.stateless.allocation.SnapshotRestoreAllocationDecider;
 
 import java.util.Collection;
 import java.util.List;
@@ -68,7 +69,10 @@ public class StatelessRestoreStorageIT extends AbstractStatelessPluginIntegTestC
                             .stream()
                             .anyMatch(
                                 decision -> decision.type() == Decision.Type.THROTTLE
-                                    && decision.label().equals("stateless_snapshot_restore_storage")
+                                    && SnapshotRestoreAllocationDecider.NAME.equals(decision.label())
+                                    && decision.getExplanation() != null
+                                    && decision.getExplanation()
+                                        .startsWith(SnapshotRestoreAllocationDecider.EXPLANATION_INSUFFICIENT_DISK)
                             )
                     )
             );

@@ -26,7 +26,13 @@ import org.elasticsearch.xpack.stateless.IndexingDiskController;
  * Prevents snapshot restores from being admitted without space for their local files and a node-wide reserve.
  */
 public class SnapshotRestoreAllocationDecider extends AllocationDecider {
-    private static final String NAME = "stateless_snapshot_restore_storage";
+    public static final String NAME = "stateless_snapshot_restore_storage";
+
+    public static final String EXPLANATION_SIZE_FETCHING = "restore_size_fetching";
+    public static final String EXPLANATION_SIZE_UNAVAILABLE = "restore_size_unavailable";
+    public static final String EXPLANATION_DISK_STATS_MISSING = "restore_disk_stats_missing";
+    public static final String EXPLANATION_INSUFFICIENT_DISK = "restore_insufficient_disk";
+    public static final String EXPLANATION_SUFFICIENT_DISK = "restore_sufficient_disk";
 
     private final RelativeByteSizeValue indexingReservedDisk;
     private volatile boolean enabled;
@@ -53,18 +59,18 @@ public class SnapshotRestoreAllocationDecider extends AllocationDecider {
             return allocation.decision(
                 allocation.isSimulating() ? Decision.NO : Decision.THROTTLE,
                 NAME,
-                "snapshot shard size is still being fetched"
+                EXPLANATION_SIZE_FETCHING
             );
         }
         if (shardSize == ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE) {
-            return allocation.decision(Decision.NO, NAME, "snapshot shard size is permanently unavailable");
+            return allocation.decision(Decision.NO, NAME, EXPLANATION_SIZE_UNAVAILABLE);
         }
         var disk = allocation.clusterInfo().getNodeMostAvailableDiskUsages().get(node.nodeId());
         if (disk == null) {
             return allocation.decision(
                 allocation.isSimulating() ? Decision.NO : Decision.THROTTLE,
                 NAME,
-                "node disk information is unavailable"
+                EXPLANATION_DISK_STATS_MISSING
             );
         }
         // freeBytes does not yet reflect space that initializing shards on this node will occupy once
@@ -85,7 +91,8 @@ public class SnapshotRestoreAllocationDecider extends AllocationDecider {
         return allocation.decision(
             fits ? Decision.YES : allocation.isSimulating() ? Decision.NO : Decision.THROTTLE,
             NAME,
-            "snapshot restore storage: free [%d] bytes, incoming commitments [%d] bytes, shard [%d] bytes, indexing reserved [%d] bytes",
+            (fits ? EXPLANATION_SUFFICIENT_DISK : EXPLANATION_INSUFFICIENT_DISK)
+                + ": free [%d] bytes, incoming commitments [%d] bytes, shard [%d] bytes, indexing reserved [%d] bytes",
             disk.freeBytes(),
             committed,
             shardSize,

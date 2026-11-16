@@ -307,8 +307,8 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             // consume partial merge result from the un-batched execution path that is used for BwC, shard-level retries, and shard level
             // execution for shards on the coordinating node itself
             if (mergeResult != null) {
+                // Already charged: the partial merge that produced it swapped its estimate for this size.
                 consumePartialMergeResult(mergeResult, topDocsList, localAggsList);
-                breakerSize = addEstimateAndMaybeBreak(mergeResult.estimatedSize);
             }
             Tuple<TopDocsStats, MergeResult> batchedResult;
             while ((batchedResult = batchedResults.poll()) != null) {

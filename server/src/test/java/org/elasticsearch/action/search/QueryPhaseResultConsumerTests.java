@@ -690,6 +690,94 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
     }
 
     /**
+     * After partial merges on the coordinating node, the final reduce must only add its 0.5x estimate on top of what is
+     * already charged: the partial merge result is charged once, when it replaces the estimate of the merge.
+     */
+    public void testFinalReduceDoesNotChargePartialMergeResultTwice() throws Exception {
+        SearchPhaseController controller = new SearchPhaseController((t, agg) -> new AggregationReduceContext.Builder() {
+            @Override
+            public AggregationReduceContext forPartialReduction(@Nullable Collection<SearchHits> topHitsToRelease) {
+                return new AggregationReduceContext.ForPartial(BigArrays.NON_RECYCLING_INSTANCE, null, t, agg, b -> {}, topHitsToRelease);
+            }
+
+            @Override
+            public AggregationReduceContext forFinalReduction(@Nullable Collection<SearchHits> topHitsToRelease) {
+                return new AggregationReduceContext.ForFinal(BigArrays.NON_RECYCLING_INSTANCE, null, t, agg, b -> {}, topHitsToRelease);
+            }
+        });
+        int numShards = randomIntBetween(3, 10);
+        SearchRequest request = new SearchRequest("index");
+        request.source(new SearchSourceBuilder().aggregation(new SumAggregationBuilder("test")));
+        request.setBatchedReduceSize(2);
+        PeakTrackingBreaker breaker = new PeakTrackingBreaker();
+
+        try (
+            QueryPhaseResultConsumer consumer = new QueryPhaseResultConsumer(
+                request,
+                executor,
+                breaker,
+                controller,
+                () -> false,
+                SearchProgressListener.NOOP,
+                numShards,
+                e -> {
+                    throw new AssertionError("unexpected partial merge failure", e);
+                }
+            )
+        ) {
+            CountDownLatch latch = new CountDownLatch(numShards);
+            for (int i = 0; i < numShards; i++) {
+                QuerySearchResult result = queryResultWithAggs(i);
+                consumer.consumeResult(result, latch::countDown);
+                result.decRef();
+            }
+            assertTrue(latch.await(10, TimeUnit.SECONDS));
+            assertThat("partial merges must have run", consumer.getNumReducePhases(), greaterThan(0));
+
+            long chargedBeforeReduce = breaker.getUsed();
+            breaker.resetPeak();
+            consumer.reduce();
+            assertEquals(chargedBeforeReduce + Math.round(0.5d * chargedBeforeReduce), breaker.peak());
+        }
+    }
+
+    /**
+     * A breaker that never trips and remembers the highest amount charged, to check what a reduce asks for at its peak.
+     */
+    private static class PeakTrackingBreaker extends NoopCircuitBreaker {
+        private long used;
+        private long peak;
+
+        PeakTrackingBreaker() {
+            super(CircuitBreaker.REQUEST);
+        }
+
+        @Override
+        public synchronized void addEstimateBytesAndMaybeBreak(long bytes, String label) {
+            addWithoutBreaking(bytes);
+        }
+
+        @Override
+        public synchronized void addWithoutBreaking(long bytes) {
+            used += bytes;
+            peak = Math.max(peak, used);
+        }
+
+        @Override
+        public synchronized long getUsed() {
+            return used;
+        }
+
+        synchronized void resetPeak() {
+            peak = used;
+        }
+
+        synchronized long peak() {
+            return peak;
+        }
+    }
+
+    /**
      * Exercises {@link QueryPhaseResultConsumer} with real {@link InternalTopHits} reductions (production-shaped
      * {@link AggregationReduceContext}) and verifies pooled per-shard {@link SearchHits} are released after the
      * coordinator builds a {@link SearchResponse} and drops its reference.

@@ -2750,13 +2750,15 @@ public class InternalEngine extends Engine {
     private void capturePreImage(DocValuesUpdate op, List<Field> fields) throws IOException {
         // The pre-image must come from the generation the update patches, and that generation must be visible to the reader before the
         // update so the patch does not also reach a reindexed-away generation held in another segment. The version map carries the latest
-        // indexed generation even before a refresh makes it visible, so a reader still showing an older one is refreshed and retried.
-        final long liveVersion = latestIndexedVersion(op.uid());
+        // indexed generation even before a refresh makes it visible, so a reader still showing an older one is refreshed and retried. The
+        // check is on the sequence number, not the version: external_gte lets a reindex keep the replaced generation's version, so two
+        // generations can share a version but never a sequence number.
+        final long latestIndexedSeqNo = latestIndexedSeqNo(op.uid());
         boolean refreshed = false;
         while (true) {
             final boolean captured = performActionWithDirectoryReader(SearcherScope.INTERNAL, directoryReader -> {
-                final DocIdAndVersion live = VersionsAndSeqNoResolver.loadDocIdAndVersion(directoryReader, op.uid(), false);
-                if (live == null || live.version < liveVersion) {
+                final DocIdAndVersion live = VersionsAndSeqNoResolver.loadDocIdAndVersion(directoryReader, op.uid(), true);
+                if (live == null || live.seqNo < latestIndexedSeqNo) {
                     return Boolean.FALSE;
                 }
                 readPreImage(op, live.reader, live.docId, fields);
@@ -2778,12 +2780,12 @@ public class InternalEngine extends Engine {
     }
 
     /**
-     * The version of the latest indexed generation of this id held in the version map, which a refresh may not have made visible to the
-     * reader yet, or {@link Versions#NOT_FOUND} when the reader already reflects it. An in-place update leaves the version unchanged, so a
-     * higher version means a reindex is still pending.
+     * The sequence number of the latest indexed generation of this id held in the version map, which a refresh may not have made visible to
+     * the reader yet, or {@link SequenceNumbers#UNASSIGNED_SEQ_NO} when the version map holds no indexed generation (the reader already
+     * reflects it). A reader showing a generation with a lower sequence number is still behind a pending reindex.
      */
-    private long latestIndexedVersion(BytesRef uid) {
-        return versionMap.getUnderLock(uid) instanceof IndexVersionValue indexed ? indexed.version : Versions.NOT_FOUND;
+    private long latestIndexedSeqNo(BytesRef uid) {
+        return versionMap.getUnderLock(uid) instanceof IndexVersionValue indexed ? indexed.seqNo : SequenceNumbers.UNASSIGNED_SEQ_NO;
     }
 
     private static void readPreImage(DocValuesUpdate op, LeafReader reader, int docId, List<Field> fields) throws IOException {

@@ -13,14 +13,19 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.Bits;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.engine.DocValuesUpdatePreImage;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
@@ -196,6 +201,86 @@ public class DocValuesUpdateRecoverySourceTests extends IndexShardTestCase {
         } finally {
             closeShards(primary);
         }
+    }
+
+    /**
+     * Same as {@link #testInPlaceUpdateCapturesReindexedValueWhenReindexUnrefreshed}, but the reindex uses {@code version_type=external_gte}
+     * with the same version as the generation it replaces. The two generations then share a version but not a sequence number, so a
+     * staleness check on the version alone cannot tell that the reader still shows the replaced generation. The in-place update is prepared
+     * as {@code UpdateHelper} would after a realtime get served from the translog: against the reindex's seq_no, without a refresh.
+     */
+    public void testInPlaceUpdateCapturesReindexedValueWhenExternalGteReindexKeepsVersion() throws Exception {
+        assumeTrue("doc_values updatable feature flag must be enabled", FieldMapper.DOC_VALUES_UPDATABLE_FEATURE_FLAG.isEnabled());
+
+        final IndexShard primary = newRecoveredColumnarPrimary();
+        try {
+            final long version = 5L;
+            // Index count=1 at version 5 and refresh so the reader sees this generation.
+            final Engine.IndexResult index = indexExternalGte(primary, "1", version, "{\"count\":1}");
+            primary.refresh("test");
+            // Reindex to count=2 at the same version 5 (allowed by external_gte) without refreshing: the reader still shows count=1.
+            final Engine.IndexResult reindex = indexExternalGte(primary, "1", version, "{\"count\":2}");
+            assertThat("both generations share a version", reindex.getVersion(), equalTo(index.getVersion()));
+            assertThat("but not a sequence number", reindex.getSeqNo(), not(equalTo(index.getSeqNo())));
+
+            // In-place update the live (reindexed) generation to count=7, conditioned on its identity as the update path would be.
+            final Engine.DocValuesUpdateResult update = primary.applyDocValuesUpdateOnPrimary(
+                version,
+                "1",
+                List.of(new Translog.DocValuesUpdate.NumericFieldUpdate("count", 7)),
+                reindex.getSeqNo(),
+                reindex.getTerm()
+            );
+            assertThat(update.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+            primary.refresh("test");
+
+            assertThat(liveCount(primary), equalTo(7L));
+            // The pre-image captured on the live generation must be the value that generation was indexed with (2), not the value of the
+            // generation it replaced (1).
+            assertThat("captured pre-image", livePreImageCount(primary), equalTo(2L));
+            // Hence replaying the reindex operation must reconstruct its own value (2).
+            assertThat("reconstructed reindex operation", reconstructCount(primary, reindex.getSeqNo()), equalTo(2L));
+        } finally {
+            // Skip the translog-vs-Lucene history check on close: it trips on the same divergence, and its error would replace the
+            // assertion above that shows the values.
+            closeShard(primary, false);
+        }
+    }
+
+    /** The captured pre-image of {@code count} on the single live document. */
+    private static long livePreImageCount(IndexShard shard) throws IOException {
+        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+            final List<Long> values = new ArrayList<>();
+            for (LeafReaderContext leaf : searcher.getIndexReader().leaves()) {
+                final LeafReader reader = leaf.reader();
+                final Bits liveDocs = reader.getLiveDocs();
+                final SortedNumericDocValues preImage = reader.getSortedNumericDocValues(DocValuesUpdatePreImage.valueField("count"));
+                if (preImage == null) {
+                    continue;
+                }
+                for (int doc = 0; doc < reader.maxDoc(); doc++) {
+                    if ((liveDocs == null || liveDocs.get(doc)) && preImage.advanceExact(doc)) {
+                        values.add(preImage.nextValue());
+                    }
+                }
+            }
+            assertThat("expected exactly one live document with a captured pre-image", values, hasSize(1));
+            return values.getFirst();
+        }
+    }
+
+    private static Engine.IndexResult indexExternalGte(IndexShard primary, String id, long version, String source) throws IOException {
+        final Engine.IndexResult result = primary.applyIndexOperationOnPrimary(
+            version,
+            VersionType.EXTERNAL_GTE,
+            new SourceToParse(id, new BytesArray(source), XContentType.JSON),
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            0,
+            IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
+            false
+        );
+        assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+        return result;
     }
 
     private IndexShard newRecoveredColumnarPrimary() throws Exception {

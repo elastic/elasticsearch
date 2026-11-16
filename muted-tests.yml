@@ -426,11 +426,6 @@ tests:
   - :x-pack:plugin:transform:qa:multi-node-tests:javaRestTest
   method: testTransformLifecycleInALoop
   issue: https://github.com/elastic/elasticsearch/issues/155844
-- class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionDisruptionIT
-  tasks:
-  - :x-pack:plugin:dlm-frozen-transition:internalClusterTest
-  method: testMasterFailoverDuringMarkReadOnly
-  issue: https://github.com/elastic/elasticsearch/issues/164244
 - class: org.elasticsearch.xpack.searchablesnapshots.RetrySearchIntegTests
   tasks:
   - :x-pack:plugin:searchable-snapshots:internalClusterTest

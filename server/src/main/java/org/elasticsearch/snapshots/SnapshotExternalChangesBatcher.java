@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress.ShardSnapshotStatus;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
@@ -28,11 +29,12 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.RepositoryShardId;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 
 /**
@@ -187,8 +189,7 @@ final class SnapshotExternalChangesBatcher {
             // We should refactor it to ideally also go through SnapshotShardsUpdateContext by hand-crafting shard state updates that
             // encapsulate nodes leaving or indices having been deleted and passing them to the executor instead.
             SnapshotsInProgress updatedSnapshots = snapshotsInProgress;
-
-            Collection<SnapshotsInProgress.Entry> finishedSnapshots = new ArrayList<>();
+            final Map<ProjectId, Set<String>> updatedRepositories = new HashMap<>();
             for (final List<SnapshotsInProgress.Entry> snapshotsInRepo : snapshotsInProgress.entriesByRepo()) {
                 boolean changed = false;
                 final List<SnapshotsInProgress.Entry> updatedEntriesForRepo = new ArrayList<>();
@@ -267,7 +268,7 @@ final class SnapshotExternalChangesBatcher {
                                 final SnapshotsInProgress.Entry updatedSnapshot = snapshotEntry.withShardStates(shards);
                                 changed = true;
                                 if (updatedSnapshot.state().completed()) {
-                                    finishedSnapshots.add(updatedSnapshot);
+                                    addUpdatedRepository(updatedRepositories, updatedSnapshot.projectId(), updatedSnapshot.repository());
                                 }
                                 updatedEntriesForRepo.add(updatedSnapshot);
                             } else {
@@ -286,7 +287,7 @@ final class SnapshotExternalChangesBatcher {
                     } else {
                         // Now we're down to completed or un-modified snapshots
                         if (snapshotEntry.state().completed()) {
-                            finishedSnapshots.add(snapshotEntry);
+                            addUpdatedRepository(updatedRepositories, snapshotEntry.projectId(), snapshotEntry.repository());
                         }
                         updatedEntriesForRepo.add(snapshotEntry);
                     }
@@ -309,22 +310,27 @@ final class SnapshotExternalChangesBatcher {
 
             taskContext.success(() -> {
                 onTaskCompletion();
-                clusterStateProcessed(updatedState, finishedSnapshots);
+                clusterStateProcessed(updatedState, updatedRepositories);
             });
             return updatedState;
         }
 
-        private void clusterStateProcessed(ClusterState newState, Collection<SnapshotsInProgress.Entry> finishedSnapshots) {
-            for (SnapshotDeletionsInProgress.Entry entry : SnapshotDeletionsInProgress.get(newState).getEntries()) {
+        private void clusterStateProcessed(ClusterState newState, Map<ProjectId, Set<String>> updatedRepositories) {
+            for (final var entry : SnapshotDeletionsInProgress.get(newState).getEntries()) {
                 if (entry.state() == SnapshotDeletionsInProgress.State.STARTED) {
-                    repositoryDataWriteTaskRunner.ensureRepositoryDataWriteTaskRunning(entry.projectId(), entry.repository(), null);
+                    addUpdatedRepository(updatedRepositories, entry.projectId(), entry.repository());
                 }
             }
-            for (SnapshotsInProgress.Entry entry : finishedSnapshots) {
-                repositoryDataWriteTaskRunner.ensureRepositoryDataWriteTaskRunning(entry.projectId(), entry.repository(), null);
+            for (final var projectRepositories : updatedRepositories.entrySet()) {
+                for (final var repository : projectRepositories.getValue()) {
+                    repositoryDataWriteTaskRunner.ensureRepositoryDataWriteTaskRunning(projectRepositories.getKey(), repository, null);
+                }
             }
-            finishedSnapshots.clear();
             clonesStarter.startClones(SnapshotsInProgress.get(newState));
+        }
+
+        private static void addUpdatedRepository(Map<ProjectId, Set<String>> updatedRepositories, ProjectId projectId, String repository) {
+            updatedRepositories.computeIfAbsent(projectId, ignored -> new HashSet<>()).add(repository);
         }
     }
 }

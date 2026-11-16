@@ -77,6 +77,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.EngineTestUtils;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -1691,7 +1692,17 @@ public abstract class EngineTestCase extends ESTestCase {
         for (int d = 0; d < requests.length; d++) {
             items[d] = new BulkItemRequest(d, requests[d]);
         }
-        return IndexOperationBatch.initFromBulk(items, 0, requests.length, null, Engine.Operation.Origin.PRIMARY, 0L, 0L, null);
+        return IndexOperationBatch.initFromBulk(
+            items,
+            0,
+            requests.length,
+            null,
+            IndexMode.STANDARD,
+            Engine.Operation.Origin.PRIMARY,
+            0L,
+            0L,
+            null
+        );
     }
 
     public static IndexOperationBatch fromIndexOps(List<Engine.Index> operations, SourceBatch sourceBatch) {
@@ -1779,6 +1790,7 @@ public abstract class EngineTestCase extends ESTestCase {
             uids,
             ids,
             routings,
+            false,
             null,
             contentTypes,
             sources,

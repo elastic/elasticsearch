@@ -1665,7 +1665,7 @@ public class ExternalSourceCacheService implements Closeable {
                     if (prev != null && Objects.equals(prev, e.getValue()) == false) {
                         // Equal row count and mtime do not establish one file: a replica copied with its
                         // timestamp preserved measures the same rows and different columns.
-                        return refused(path, e.getKey(), prev, e.getValue());
+                        return refusedOnColumnStat(path, e.getKey());
                     }
                 }
             }
@@ -1675,10 +1675,22 @@ public class ExternalSourceCacheService implements Closeable {
 
     /**
      * Names the disagreement that refused a merge, so a non-deterministic read of one file stays visible.
+     * Callers pass row counts, mtimes and fingerprints; a value out of the data goes to {@link #refusedOnColumnStat}.
      * The path is redacted: for an https resource it is a pre-signed URL whose query string is the signature.
      *
      * @return {@code null} always, so a refusal reads as one statement
      */
+    /**
+     * As {@link #refused}, naming the column statistic but not its values: a minimum or maximum is a value out of
+     * the data itself.
+     *
+     * @return {@code null} always, so a refusal reads as one statement
+     */
+    private static Map<String, Object> refusedOnColumnStat(String path, String key) {
+        logger.debug("whole-file contributions for [{}] disagree on column statistic [{}]", ExternalFailures.redactHttpUrl(path), key);
+        return null;
+    }
+
     private static Map<String, Object> refused(String path, String what, Object mine, Object theirs) {
         logger.debug(
             "whole-file contributions for [{}] disagree on [{}]: [{}] against [{}]",

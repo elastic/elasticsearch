@@ -3336,6 +3336,64 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         }
     }
 
+    @TestLogging(
+        value = "org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService:DEBUG",
+        reason = "the refusal is a debug line, and this asserts it names the column without its extrema"
+    )
+    public void testTheRefusalDoesNotLogColumnExtrema() throws Exception {
+        // A column minimum or maximum is a value out of the data itself, so the gate that refuses on one names the
+        // column and stops there. The sibling gates above disagree on row counts, mtimes and fingerprints, none of
+        // which is data, and those do name both sides.
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/employees.csv";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(
+                path,
+                mtime,
+                TestDatasetIdentities.identity(".csv", "", Map.of("format", "csv")),
+                false
+            );
+            seedSchemaCacheWithReadConfig(service, key, path, "fp1", "config-own");
+
+            String minimum = "aaron.aaronson@example.com";
+            String otherMinimum = "zoe.zimmerman@example.com";
+            Map<String, Object> first = wholeFileWithShape(mtime, "fp1", "config-own", 100L);
+            first.put(SourceStatisticsSerializer.columnMinKey("email"), minimum);
+            Map<String, Object> second = wholeFileWithShape(mtime, "fp1", "config-own", 100L);
+            second.put(SourceStatisticsSerializer.columnMinKey("email"), otherMinimum);
+
+            try (MockLog mockLog = MockLog.capture(ExternalSourceCacheService.class)) {
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "the refusal, naming the column statistic",
+                        ExternalSourceCacheService.class.getCanonicalName(),
+                        Level.DEBUG,
+                        "*disagree on column statistic [" + SourceStatisticsSerializer.columnMinKey("email") + "]*"
+                    )
+                );
+                // Paired with the expectation above, so this cannot pass by the line never being logged at all.
+                mockLog.addExpectation(
+                    new MockLog.UnseenEventExpectation(
+                        "neither extremum on any line",
+                        ExternalSourceCacheService.class.getCanonicalName(),
+                        Level.DEBUG,
+                        "*" + minimum + "*"
+                    )
+                );
+                mockLog.addExpectation(
+                    new MockLog.UnseenEventExpectation(
+                        "nor the other one",
+                        ExternalSourceCacheService.class.getCanonicalName(),
+                        Level.DEBUG,
+                        "*" + otherMinimum + "*"
+                    )
+                );
+                service.reconcileSourceStatsFromContributions(Map.of(path, List.of(first, second)));
+                mockLog.assertAllExpectationsMatched();
+            }
+        }
+    }
+
     public void testReconcileWholeFileContributionsWithDisagreeingColumnStatIsASafeMiss() throws Exception {
         // Equal row count and equal mtime do not establish one file: a replica copied with its timestamp preserved
         // measures the same rows under the same name and can still disagree on a column. So the last gate is

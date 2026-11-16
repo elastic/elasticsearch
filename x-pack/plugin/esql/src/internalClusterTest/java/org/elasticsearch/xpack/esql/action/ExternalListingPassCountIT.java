@@ -283,6 +283,53 @@ public class ExternalListingPassCountIT extends AbstractExternalDataSourceIT {
     }
 
     /**
+     * The other direction from {@link #testAnEntryWiderThanTheBoundIsNotServed}: a bounded listing that
+     * drained the glob <em>is</em> the dataset, so a later unbounded query must not list again.
+     */
+    public void testACompleteBoundedListingAnswersALaterUnboundedQuery() throws Exception {
+        String dataset = registerCountingDataset("pass_bounded_then_unbounded", PADDING_FOLDERS);
+        String coordinator = internalCluster().getNodeNames()[0];
+
+        CountingStorageProvider.reset();
+        query(coordinator, "FROM " + dataset + " | LIMIT 0").close();
+        assertThat("the cold bounded query listed", CountingStorageProvider.listingPasses(), greaterThan(0L));
+
+        CountingStorageProvider.reset();
+        try (EsqlQueryResponse response = query(coordinator, "FROM " + dataset + " | STATS c = COUNT(*)")) {
+            assertThat(getValuesList(response).get(0).get(0), equalTo((long) MATCHING_FOLDERS));
+        }
+        assertThat(
+            "a bounded listing that drained the glob is the dataset; the aggregate must not list again",
+            CountingStorageProvider.listingPasses(),
+            equalTo(0L)
+        );
+        assertThat("and must not ask for directory children", CountingStorageProvider.childListings(), equalTo(0L));
+    }
+
+    /**
+     * A bounded listing that stopped short must not be offered as the dataset. Paired with
+     * {@link #testACompleteBoundedListingAnswersALaterUnboundedQuery}: either test alone passes against a
+     * rule that always aliases or never does.
+     */
+    public void testATruncatedBoundedListingDoesNotAnswerALaterUnboundedQuery() throws Exception {
+        String dataset = registerCountingDataset("pass_truncated_then_unbounded", 0, Map.of("partition_sample_size", 3));
+        String coordinator = internalCluster().getNodeNames()[0];
+
+        query(coordinator, "FROM " + dataset + " | LIMIT 0").close();
+
+        CountingStorageProvider.reset();
+        try (EsqlQueryResponse response = query(coordinator, "FROM " + dataset + " | STATS c = COUNT(*)")) {
+            assertThat(getValuesList(response).get(0).get(0), equalTo((long) MATCHING_FOLDERS));
+        }
+        assertThat(
+            "a prefix of three files cannot answer an aggregate over nine; the aggregate must list as if cold",
+            CountingStorageProvider.listingPasses(),
+            equalTo((long) MATCHING_FOLDERS)
+        );
+        assertThat("and the fan-out must ask for directory children", CountingStorageProvider.childListings(), greaterThan(0L));
+    }
+
+    /**
      * A glob that matches nothing must still list once; a mistyped glob used to cost two full listings.
      * <p>
      * One pass suffices because a drain that exhausted its prefix saw every key under it, so an empty result is the

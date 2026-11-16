@@ -34,6 +34,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
@@ -241,6 +242,98 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
             assertNull("a discarded result must release its aggregations", late.aggregations());
             late.decRef();
             assertFalse("the caller's reference must be the last one", late.hasReferences());
+        }
+    }
+
+    /**
+     * Once handed over, the charge for the reduced aggregations, their estimated heap, outlives the consumer.
+     */
+    public void testReducedAggregationsChargeIsHandedOver() throws Exception {
+        SearchRequest searchRequest = new SearchRequest("index");
+        searchRequest.source(new SearchSourceBuilder().aggregation(new SumAggregationBuilder("test")));
+        CircuitBreaker circuitBreaker = newLimitedBreaker(ByteSizeValue.ofMb(64));
+        int numShards = randomIntBetween(1, 4);
+        // Reduces with the request's aggregation builders, unlike the controller of the other tests.
+        SearchPhaseController controller = new SearchPhaseController((t, agg) -> new AggregationReduceContext.Builder() {
+            @Override
+            public AggregationReduceContext forPartialReduction(@Nullable Collection<SearchHits> topHitsToRelease) {
+                return new AggregationReduceContext.ForPartial(BigArrays.NON_RECYCLING_INSTANCE, null, t, agg, b -> {}, topHitsToRelease);
+            }
+
+            @Override
+            public AggregationReduceContext forFinalReduction(@Nullable Collection<SearchHits> topHitsToRelease) {
+                return new AggregationReduceContext.ForFinal(BigArrays.NON_RECYCLING_INSTANCE, null, t, agg, b -> {}, topHitsToRelease);
+            }
+        });
+
+        Releasable charge;
+        try (
+            QueryPhaseResultConsumer consumer = new QueryPhaseResultConsumer(
+                searchRequest,
+                executor,
+                circuitBreaker,
+                controller,
+                () -> false,
+                SearchProgressListener.NOOP,
+                numShards,
+                e -> {
+                    throw new AssertionError("unexpected partial merge failure", e);
+                }
+            )
+        ) {
+            for (int i = 0; i < numShards; i++) {
+                QuerySearchResult result = queryResultWithAggs(i);
+                consumer.consumeResult(result, () -> {});
+                result.decRef();
+            }
+            SearchPhaseController.ReducedQueryPhase reduced = consumer.reduce();
+            long estimate = reduced.aggregations().estimateHeapBytes();
+            assertThat(estimate, greaterThan(DelayableWriteable.getUncompressedSerializedSize(reduced.aggregations())));
+            assertEquals(estimate, circuitBreaker.getUsed());
+
+            charge = consumer.transferAggregationCharge();
+            assertNotNull(charge);
+        }
+        assertThat("closing the consumer must leave the handed over charge", circuitBreaker.getUsed(), greaterThan(0L));
+        charge.close();
+        assertEquals(0L, circuitBreaker.getUsed());
+        charge.close();
+        assertEquals("the charge must be released once", 0L, circuitBreaker.getUsed());
+    }
+
+    /** Without aggregations nothing is charged, so there is no charge to hand over. */
+    public void testNoAggregationChargeToHandOverWithoutAggregations() throws Exception {
+        CircuitBreaker circuitBreaker = newLimitedBreaker(ByteSizeValue.ofMb(64));
+        try (
+            QueryPhaseResultConsumer consumer = new QueryPhaseResultConsumer(
+                new SearchRequest("index"),
+                executor,
+                circuitBreaker,
+                searchPhaseController,
+                () -> false,
+                SearchProgressListener.NOOP,
+                1,
+                e -> {
+                    throw new AssertionError("unexpected partial merge failure", e);
+                }
+            )
+        ) {
+            QuerySearchResult result = new QuerySearchResult(
+                new ShardSearchContextId("", 0),
+                new SearchShardTarget("node", new ShardId("index", "uuid", 0), null),
+                null
+            );
+            result.topDocs(
+                new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
+                new DocValueFormat[0]
+            );
+            result.setShardIndex(0);
+            consumer.consumeResult(result, () -> {});
+            result.decRef();
+            consumer.reduce();
+
+            assertNull(consumer.transferAggregationCharge());
+            assertEquals(0L, circuitBreaker.getUsed());
         }
     }
 

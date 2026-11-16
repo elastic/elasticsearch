@@ -27,6 +27,7 @@ import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
@@ -184,6 +185,21 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         long bytes = circuitBreakerBytes;
         circuitBreakerBytes = 0;
         return bytes;
+    }
+
+    /**
+     * Hands the charge for the reduced aggregations to the response that holds them.
+     *
+     * @return the charge, or {@code null} if there is none
+     */
+    @Nullable
+    synchronized Releasable transferAggregationCharge() {
+        long bytes = circuitBreakerBytes;
+        if (bytes == 0) {
+            return null;
+        }
+        circuitBreakerBytes = 0;
+        return Releasables.releaseOnce(() -> circuitBreaker.addWithoutBreaking(-bytes));
     }
 
     @Override
@@ -363,10 +379,8 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             // reduced aggregations can be null if all shards failed
             && aggs != null) {
 
-            // Update the circuit breaker to replace the estimation with the uncompressed size of the newly reduced result.
-            // Uncompressed (not on-the-wire) size matches the heap held by the live aggregations tree, which is what
-            // we have at this point.
-            long finalSize = DelayableWriteable.getUncompressedSerializedSize(reducePhase.aggregations()) - breakerSize;
+            // Replace the estimate with the heap of the reduced result, which the response holds until it is released.
+            long finalSize = reducePhase.aggregations().estimateHeapBytes() - breakerSize;
             addWithoutBreaking(finalSize);
             logger.trace("aggs final reduction [{}] max [{}]", aggsCurrentBufferSize, maxAggsCurrentBufferSize);
         }

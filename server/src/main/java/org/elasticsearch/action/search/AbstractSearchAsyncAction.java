@@ -745,10 +745,15 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
                     : null,
                 buildSearchContextId(failures)
             );
-            if (request.bufferSubSearchResponseForMultiSearch() && results instanceof QueryPhaseResultConsumer queryPhaseResultConsumer) {
-                long handoffBytes = queryPhaseResultConsumer.transferAggregationBreakerBytesForMultiSearch();
-                if (handoffBytes > 0) {
-                    searchResponse.setQueryPhaseAggregationBreakerBytes(handoffBytes);
+            if (results instanceof QueryPhaseResultConsumer queryPhaseResultConsumer) {
+                if (request.bufferSubSearchResponseForMultiSearch()) {
+                    long handoffBytes = queryPhaseResultConsumer.transferAggregationBreakerBytesForMultiSearch();
+                    if (handoffBytes > 0) {
+                        searchResponse.setQueryPhaseAggregationBreakerBytes(handoffBytes);
+                    }
+                } else {
+                    // The response holds the aggregations, so it holds their charge.
+                    searchResponse.adoptAggregationCharge(queryPhaseResultConsumer.transferAggregationCharge());
                 }
             }
             ActionListener.respondAndRelease(listener, searchResponse);

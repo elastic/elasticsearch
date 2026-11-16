@@ -234,7 +234,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         }
     }
 
-    public void testDontRetryAfterShardClosedDuringRecoveryFromEmptyStore() throws Exception {
+    public void testDontRetryAfterShardClosedDuringRecoveryFromEmptyStore() {
         String node = internalCluster().startNode();
         String indexName = randomIndexName();
 
@@ -264,7 +264,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         }
     }
 
-    public void testDontRetryAfterShardClosedDuringRecoveryFromExistingStore() throws Exception {
+    public void testDontRetryAfterShardClosedDuringRecoveryFromExistingStore() {
         String node = internalCluster().startNode();
         String indexName = randomIndexName();
 
@@ -298,7 +298,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         }
     }
 
-    public void testDontRetryAfterShardClosedDuringRecoveryFromLocalShard() throws Exception {
+    public void testDontRetryAfterShardClosedDuringRecoveryFromLocalShard() {
         String node = internalCluster().startNode();
         final var sourceIndexName = randomIndexName();
         final var targetIndexName = randomIndexName();
@@ -338,7 +338,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         }
     }
 
-    public void testDontRetryAfterShardClosedDuringRecoveryFromSnapshot() throws Exception {
+    public void testDontRetryAfterShardClosedDuringRecoveryFromSnapshot() {
         String node = internalCluster().startNode();
         final var indexName = randomIndexName();
         final var repoName = "test-repo";

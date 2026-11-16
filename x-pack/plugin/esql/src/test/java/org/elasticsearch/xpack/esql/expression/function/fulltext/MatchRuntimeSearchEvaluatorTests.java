@@ -28,6 +28,8 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToText;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -1016,5 +1018,194 @@ public class MatchRuntimeSearchEvaluatorTests extends AbstractRuntimeSearchEvalu
                 }
             }
         });
+    }
+
+    /**
+     * Each value is read for the query's terms before it is analyzed, so these cover what that read must not drop:
+     * a term spelled in another case, a value holding a byte outside ASCII, a value of a row whose others spell
+     * nothing, and an analyzer whose tokens are not the whole value.
+     */
+    public void testAValueSpellingTheTermInAnotherCaseAnswers() {
+        Boolean[] result = evaluate(runtimeMatch(TEXT, new BytesRef("quick"), TEXT), factory -> bytesRefBlock(factory, builder -> {
+            builder.appendBytesRef(new BytesRef("The QUICK brown fox"));
+            builder.appendBytesRef(new BytesRef("nothing of the sort"));
+        }));
+        assertArrayEquals(new Boolean[] { true, false }, result);
+    }
+
+    public void testAValueOutsideAsciiAnswers() {
+        Boolean[] result = evaluate(runtimeMatch(TEXT, new BytesRef("na\u00efve"), TEXT), factory -> bytesRefBlock(factory, builder -> {
+            builder.appendBytesRef(new BytesRef("a na\u00efve answer"));
+            builder.appendBytesRef(new BytesRef("a plain one"));
+        }));
+        assertArrayEquals(new Boolean[] { true, false }, result);
+    }
+
+    public void testARowAnswersOnAValueItsOthersDoNotSpell() {
+        Boolean[] result = evaluate(runtimeMatch(TEXT, new BytesRef("fox"), TEXT), factory -> bytesRefBlock(factory, builder -> {
+            builder.beginPositionEntry();
+            builder.appendBytesRef(new BytesRef("nothing here"));
+            builder.appendBytesRef(new BytesRef("a brown fox"));
+            builder.endPositionEntry();
+            builder.beginPositionEntry();
+            builder.appendBytesRef(new BytesRef("nothing here"));
+            builder.appendBytesRef(new BytesRef("nor there"));
+            builder.endPositionEntry();
+        }));
+        assertArrayEquals(new Boolean[] { true, false }, result);
+    }
+
+    /**
+     * Under the keyword analyzer the whole value is one token, so a value spelling the query somewhere inside it is
+     * kept by the read and then answered no by analyzing it, as it was before.
+     */
+    public void testAValueSpellingTheTermIsStillAnsweredByItsTokens() {
+        Boolean[] result = evaluate(runtimeMatchOnToText("keyword", "brown fox", null), factory -> bytesRefBlock(factory, builder -> {
+            builder.appendBytesRef(new BytesRef("brown fox"));
+            builder.appendBytesRef(new BytesRef("a brown fox here"));
+        }));
+        assertArrayEquals(new Boolean[] { true, false }, result);
+    }
+
+    /**
+     * All of a row's values are one document, so a conjunction is answered by values spelling its terms between
+     * them. Reading the values for those terms must keep such a row, which reading each value on its own would not.
+     */
+    public void testAConjunctionIsAnsweredAcrossARowsValues() {
+        Boolean[] result = evaluate(
+            runtimeMatchWithOptions(TEXT, new BytesRef("quick fox"), TEXT, mapOptions("operator", "AND")),
+            factory -> bytesRefBlock(factory, builder -> {
+                builder.beginPositionEntry();
+                builder.appendBytesRef(new BytesRef("the quick one"));
+                builder.appendBytesRef(new BytesRef("a brown fox"));
+                builder.endPositionEntry();
+                builder.beginPositionEntry();
+                builder.appendBytesRef(new BytesRef("the quick one"));
+                builder.appendBytesRef(new BytesRef("a brown bear"));
+                builder.endPositionEntry();
+                builder.appendBytesRef(new BytesRef("nothing of the sort"));
+            })
+        );
+        assertArrayEquals(new Boolean[] { true, false, false }, result);
+    }
+
+    public void testAConjunctionSpelledInAnotherCaseAnswers() {
+        Boolean[] result = evaluate(
+            runtimeMatchWithOptions(TEXT, new BytesRef("quick fox"), TEXT, mapOptions("operator", "AND")),
+            factory -> bytesRefBlock(factory, builder -> {
+                builder.appendBytesRef(new BytesRef("The QUICK brown FOX"));
+                builder.appendBytesRef(new BytesRef("the quick brown bear"));
+            })
+        );
+        assertArrayEquals(new Boolean[] { true, false }, result);
+    }
+
+    /**
+     * {@code operator: AND} with a {@code minimum_should_match} asks for optional clauses a conjunction does not
+     * have, which nothing answers, as an indexed field answers it. Holding the terms must not answer it either.
+     */
+    public void testAConjunctionAskingForOptionalClausesItLacksMatchesNothing() {
+        Match match = runtimeMatchWithOptions(
+            TEXT,
+            new BytesRef("cat dog"),
+            TEXT,
+            mapOptions("operator", "AND", "minimum_should_match", "1")
+        );
+        Function<BlockFactory, Block> data = factory -> bytesRefBlock(factory, builder -> {
+            builder.appendBytesRef(new BytesRef("cat dog"));
+            builder.appendBytesRef(new BytesRef("Cat dog"));
+            builder.appendBytesRef(new BytesRef("a bird"));
+        });
+        assertArrayEquals(new Boolean[] { false, false, false }, evaluate(match, data));
+        assertArrayEquals(new Double[] { 0.0, 0.0, 0.0 }, score(match, data));
+    }
+
+    /**
+     * The read of each value's bytes held to the scorer, which analyzes every row and reads none of them: a row
+     * matches exactly where it scores. Values, queries and options are drawn at random over every analyzer whose
+     * values are read, with the rows a block can hold.
+     */
+    public void testMatchingAgreesWithScoring() {
+        final String[] analyzers = { "standard", "simple", "stop", "whitespace", "keyword" };
+        int matched = 0;
+        for (int iteration = 0; iteration < 300; iteration++) {
+            final String valuesAnalyzer = randomBoolean() ? null : randomFrom(analyzers);
+            final String query = randomRuntimeText(1, 4);
+            final List<String> options = new ArrayList<>();
+            if (randomBoolean()) {
+                options.addAll(List.of("analyzer", randomFrom(analyzers)));
+            }
+            if (randomBoolean()) {
+                options.addAll(List.of("operator", randomFrom("AND", "OR")));
+            }
+            if (randomBoolean()) {
+                options.addAll(List.of("minimum_should_match", randomFrom("1", "2", "3", "50%", "-1")));
+            }
+            final Match match = runtimeMatchOnToText(
+                valuesAnalyzer,
+                query,
+                options.isEmpty() ? null : mapOptions(options.toArray(String[]::new))
+            );
+            final List<List<String>> rows = new ArrayList<>();
+            for (int row = between(1, 6); row > 0; row--) {
+                final List<String> values = new ArrayList<>();
+                // No values is a null row, and an empty string is a value of no tokens.
+                for (int value = randomFrom(0, 1, 1, 1, 2, 3); value > 0; value--) {
+                    values.add(randomBoolean() && randomBoolean() ? "" : randomRuntimeText(0, 8));
+                }
+                rows.add(values);
+            }
+            final Function<BlockFactory, Block> data = factory -> bytesRefBlock(factory, builder -> {
+                for (List<String> values : rows) {
+                    if (values.isEmpty()) {
+                        builder.appendNull();
+                    } else if (values.size() == 1) {
+                        builder.appendBytesRef(new BytesRef(values.get(0)));
+                    } else {
+                        builder.beginPositionEntry();
+                        for (String value : values) {
+                            builder.appendBytesRef(new BytesRef(value));
+                        }
+                        builder.endPositionEntry();
+                    }
+                }
+            });
+            final Boolean[] matches = evaluate(match, data);
+            final Double[] scores = score(match, data);
+            for (int p = 0; p < rows.size(); p++) {
+                final boolean scored = scores[p] != null && scores[p] > 0;
+                assertEquals(
+                    "match [" + query + "] " + options + " over " + rows.get(p) + " analyzed by " + valuesAnalyzer,
+                    scored,
+                    Boolean.TRUE.equals(matches[p])
+                );
+                if (scored) {
+                    matched++;
+                }
+            }
+        }
+        assertThat("no row ever matched, so the comparison proved nothing", matched, greaterThan(50));
+    }
+
+    /**
+     * Text of a few words, drawn so that the read of a value meets what it must tell apart: another case, a word
+     * inside a longer one, a digit or an underscore running a word on, the punctuation that can join two words, a
+     * control character a folded compare takes for a digit, a run longer than the longest token, and text outside
+     * ASCII.
+     */
+    private static String randomRuntimeText(int minWords, int maxWords) {
+        final StringBuilder text = new StringBuilder();
+        for (int word = between(minWords, maxWords); word > 0; word--) {
+            if (text.isEmpty() == false) {
+                text.append(randomFrom(" ", " ", ", ", ".", "'", "_", "-", "\u0011", "\t"));
+            }
+            text.append(switch (between(0, 9)) {
+                case 0 -> "x".repeat(between(250, 258)) + "cat";
+                case 1 -> randomFrom("catalog", "bobcat", "cat5", "_cat", "c\u0011t");
+                case 2 -> randomFrom("café", "naïve", "Kat", "東京");
+                default -> randomFrom("cat", "Cat", "CAT", "dog", "Dog", "the", "k9", "11", "a", "fox");
+            });
+        }
+        return text.toString();
     }
 }

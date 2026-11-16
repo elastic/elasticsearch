@@ -321,6 +321,12 @@ public class CsvTestsDataLoader {
         new TestDataset("date_nanos"),
         new TestDataset("date_nanos_union_types"),
         new TestDataset("k8s", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json"),
+        new TestDataset(
+            "metric_floating_point_dims",
+            "metric-floating-point-dims-mappings.json",
+            "metric-floating-point-dims.csv",
+            "k8s-settings.json"
+        ),
         // The flavor of k8s dataset ingested via Prometheus Remote Write.
         new TestDataset("prometheus-k8s", "prometheus-k8s-mappings.json", "prometheus-k8s.csv", "prometheus-k8s-settings.json")
             .withRequiredCapabilities(EsqlCapabilities.Cap.FIX_TS_BLOCK_LOADER_PASSTHROUGH_ALIASING),

@@ -9,6 +9,9 @@
 
 package org.elasticsearch.index.mapper.flattened;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
@@ -25,6 +28,7 @@ import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -32,23 +36,43 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.TreeSet;
 
 public class RootFlattenedFromKeyedFieldDataTests extends ESTestCase {
+
+    private enum Layout {
+        SORTED_SET,
+        SEPARATE_COUNT,
+        ARRAY_ORDER_INLINE_NULL
+    }
+
+    private record Slot(String key, String value) {}
 
     private static final String KEYED_FIELD = "field._keyed";
     private static final String ROOT_FIELD = "field";
 
+    private final Layout layout;
+
+    public RootFlattenedFromKeyedFieldDataTests(@Name("layout") Layout layout) {
+        this.layout = layout;
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() {
+        return Arrays.stream(Layout.values()).map(layout -> new Object[] { layout }).toList();
+    }
+
     public void testSingleKeyedValue() throws IOException {
-        boolean binary = randomBoolean();
         try (Directory dir = newDirectory()) {
-            try (RandomIndexWriter writer = newRandomIndexWriter(dir, binary)) {
-                addDoc(writer, binary, "key1\0value1");
+            try (RandomIndexWriter writer = newRandomIndexWriter(dir, layout)) {
+                addDoc(writer, layout, "key1\0value1");
 
                 try (IndexReader reader = openReader(writer)) {
-                    SortableBinaryDocValues values = loadRootValues(reader, binary);
+                    SortableBinaryDocValues values = loadRootValues(reader, layout);
                     assertTrue(values.advanceExact(0));
                     assertEquals(1, values.docValueCount());
                     assertEquals(new BytesRef("value1"), values.nextValue());
@@ -58,13 +82,12 @@ public class RootFlattenedFromKeyedFieldDataTests extends ESTestCase {
     }
 
     public void testMultipleKeysUniqueValues() throws IOException {
-        boolean binary = randomBoolean();
         try (Directory dir = newDirectory()) {
-            try (RandomIndexWriter writer = newRandomIndexWriter(dir, binary)) {
-                addDoc(writer, binary, "key1\0alpha", "key2\0beta", "key3\0gamma");
+            try (RandomIndexWriter writer = newRandomIndexWriter(dir, layout)) {
+                addDoc(writer, layout, "key1\0alpha", "key2\0beta", "key3\0gamma");
 
                 try (IndexReader reader = openReader(writer)) {
-                    SortableBinaryDocValues values = loadRootValues(reader, binary);
+                    SortableBinaryDocValues values = loadRootValues(reader, layout);
                     assertTrue(values.advanceExact(0));
                     assertEquals(3, values.docValueCount());
                     assertEquals(new BytesRef("alpha"), values.nextValue());
@@ -76,13 +99,12 @@ public class RootFlattenedFromKeyedFieldDataTests extends ESTestCase {
     }
 
     public void testDuplicateValuesAcrossKeys() throws IOException {
-        boolean binary = randomBoolean();
         try (Directory dir = newDirectory()) {
-            try (RandomIndexWriter writer = newRandomIndexWriter(dir, binary)) {
-                addDoc(writer, binary, "key1\0foo", "key2\0foo", "key3\0bar");
+            try (RandomIndexWriter writer = newRandomIndexWriter(dir, layout)) {
+                addDoc(writer, layout, "key1\0foo", "key2\0foo", "key3\0bar");
 
                 try (IndexReader reader = openReader(writer)) {
-                    SortableBinaryDocValues values = loadRootValues(reader, binary);
+                    SortableBinaryDocValues values = loadRootValues(reader, layout);
                     assertTrue(values.advanceExact(0));
                     assertEquals(2, values.docValueCount());
                     assertEquals(new BytesRef("bar"), values.nextValue());
@@ -93,13 +115,12 @@ public class RootFlattenedFromKeyedFieldDataTests extends ESTestCase {
     }
 
     public void testAllDuplicateValues() throws IOException {
-        boolean binary = randomBoolean();
         try (Directory dir = newDirectory()) {
-            try (RandomIndexWriter writer = newRandomIndexWriter(dir, binary)) {
-                addDoc(writer, binary, "a\0same", "b\0same", "c\0same");
+            try (RandomIndexWriter writer = newRandomIndexWriter(dir, layout)) {
+                addDoc(writer, layout, "a\0same", "b\0same", "c\0same");
 
                 try (IndexReader reader = openReader(writer)) {
-                    SortableBinaryDocValues values = loadRootValues(reader, binary);
+                    SortableBinaryDocValues values = loadRootValues(reader, layout);
                     assertTrue(values.advanceExact(0));
                     assertEquals(1, values.docValueCount());
                     assertEquals(new BytesRef("same"), values.nextValue());
@@ -109,13 +130,12 @@ public class RootFlattenedFromKeyedFieldDataTests extends ESTestCase {
     }
 
     public void testValuesAreSorted() throws IOException {
-        boolean binary = randomBoolean();
         try (Directory dir = newDirectory()) {
-            try (RandomIndexWriter writer = newRandomIndexWriter(dir, binary)) {
-                addDoc(writer, binary, "key1\0zebra", "key2\0apple", "key3\0mango");
+            try (RandomIndexWriter writer = newRandomIndexWriter(dir, layout)) {
+                addDoc(writer, layout, "key1\0zebra", "key2\0apple", "key3\0mango");
 
                 try (IndexReader reader = openReader(writer)) {
-                    SortableBinaryDocValues values = loadRootValues(reader, binary);
+                    SortableBinaryDocValues values = loadRootValues(reader, layout);
                     assertTrue(values.advanceExact(0));
                     assertEquals(3, values.docValueCount());
                     assertEquals(new BytesRef("apple"), values.nextValue());
@@ -127,13 +147,12 @@ public class RootFlattenedFromKeyedFieldDataTests extends ESTestCase {
     }
 
     public void testEmptyDocument() throws IOException {
-        boolean binary = randomBoolean();
         try (Directory dir = newDirectory()) {
-            try (RandomIndexWriter writer = newRandomIndexWriter(dir, binary)) {
+            try (RandomIndexWriter writer = newRandomIndexWriter(dir, layout)) {
                 writer.addDocument(new Document());
 
                 try (IndexReader reader = openReader(writer)) {
-                    SortableBinaryDocValues values = loadRootValues(reader, binary);
+                    SortableBinaryDocValues values = loadRootValues(reader, layout);
                     assertFalse(values.advanceExact(0));
                 }
             }
@@ -141,14 +160,13 @@ public class RootFlattenedFromKeyedFieldDataTests extends ESTestCase {
     }
 
     public void testMultipleDocuments() throws IOException {
-        boolean binary = randomBoolean();
         try (Directory dir = newDirectory()) {
-            try (RandomIndexWriter writer = newRandomIndexWriter(dir, binary)) {
-                addDoc(writer, binary, "a\0x", "b\0y");
-                addDoc(writer, binary, "c\0y", "d\0z");
+            try (RandomIndexWriter writer = newRandomIndexWriter(dir, layout)) {
+                addDoc(writer, layout, "a\0x", "b\0y");
+                addDoc(writer, layout, "c\0y", "d\0z");
 
                 try (IndexReader reader = openReader(writer)) {
-                    SortableBinaryDocValues values = loadRootValues(reader, binary);
+                    SortableBinaryDocValues values = loadRootValues(reader, layout);
 
                     assertTrue(values.advanceExact(0));
                     assertEquals(2, values.docValueCount());
@@ -165,11 +183,10 @@ public class RootFlattenedFromKeyedFieldDataTests extends ESTestCase {
     }
 
     public void testRandomized() throws IOException {
-        boolean binary = randomBoolean();
         int docCount = randomIntBetween(1, 20);
 
         try (Directory dir = newDirectory()) {
-            try (RandomIndexWriter writer = newRandomIndexWriter(dir, binary)) {
+            try (RandomIndexWriter writer = newRandomIndexWriter(dir, layout)) {
                 Set<List<String>> expectedValuesPerDoc = new HashSet<>();
                 for (int d = 0; d < docCount; d++) {
                     int fieldCount = randomIntBetween(1, 10);
@@ -181,14 +198,14 @@ public class RootFlattenedFromKeyedFieldDataTests extends ESTestCase {
                         keyedValues[f] = key + "\0" + value;
                         uniqueValues.add(value);
                     }
-                    addDoc(writer, binary, keyedValues);
+                    addDoc(writer, layout, keyedValues);
 
                     // values should be sorted lexicographically
                     expectedValuesPerDoc.add(uniqueValues.stream().sorted().toList());
                 }
 
                 try (IndexReader reader = openReader(writer)) {
-                    SortableBinaryDocValues values = loadRootValues(reader, binary);
+                    SortableBinaryDocValues values = loadRootValues(reader, layout);
 
                     // Merge policies may reorder documents, so collect values
                     // as a set of sorted lists without assuming document order.
@@ -208,8 +225,104 @@ public class RootFlattenedFromKeyedFieldDataTests extends ESTestCase {
         }
     }
 
-    private static RandomIndexWriter newRandomIndexWriter(Directory dir, boolean binary) throws IOException {
-        if (binary) {
+    public void testNullSlotsAreIgnored() throws IOException {
+        assumeTrue("only the array order layout keeps null slots", layout == Layout.ARRAY_ORDER_INLINE_NULL);
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = newRandomIndexWriter(dir, layout)) {
+                addArrayOrderDoc(writer, new Slot("key1", null), new Slot("key2", "value"), new Slot("key3", null));
+
+                try (IndexReader reader = openReader(writer)) {
+                    SortableBinaryDocValues values = loadRootValues(reader, layout);
+                    assertTrue(values.advanceExact(0));
+                    assertEquals(1, values.docValueCount());
+                    assertEquals(new BytesRef("value"), values.nextValue());
+                }
+            }
+        }
+    }
+
+    public void testDocumentsWithOnlyNullSlotsHaveNoValues() throws IOException {
+        assumeTrue("only the array order layout keeps null slots", layout == Layout.ARRAY_ORDER_INLINE_NULL);
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = newRandomIndexWriter(dir, layout)) {
+                addArrayOrderDoc(writer, new Slot("key1", null));
+                addArrayOrderDoc(writer, new Slot("key1", null), new Slot("key2", null));
+
+                try (IndexReader reader = openReader(writer)) {
+                    SortableBinaryDocValues values = loadRootValues(reader, layout);
+                    assertFalse(values.advanceExact(0));
+                    assertFalse(values.advanceExact(1));
+                }
+            }
+        }
+    }
+
+    public void testEmptyStringIsAValueAndNullIsNot() throws IOException {
+        assumeTrue("only the array order layout keeps null slots", layout == Layout.ARRAY_ORDER_INLINE_NULL);
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = newRandomIndexWriter(dir, layout)) {
+                addArrayOrderDoc(writer, new Slot("key1", null), new Slot("key1", ""), new Slot("key1", null), new Slot("key1", ""));
+
+                try (IndexReader reader = openReader(writer)) {
+                    SortableBinaryDocValues values = loadRootValues(reader, layout);
+                    assertTrue(values.advanceExact(0));
+                    assertEquals(1, values.docValueCount());
+                    assertEquals(new BytesRef(""), values.nextValue());
+                }
+            }
+        }
+    }
+
+    public void testRandomizedWithNullSlots() throws IOException {
+        assumeTrue("only the array order layout keeps null slots", layout == Layout.ARRAY_ORDER_INLINE_NULL);
+        int docCount = randomIntBetween(1, 20);
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = newRandomIndexWriter(dir, layout)) {
+                Set<List<String>> expectedValuesPerDoc = new HashSet<>();
+                int expectedWithoutValues = 0;
+                for (int d = 0; d < docCount; d++) {
+                    Slot[] slots = new Slot[randomIntBetween(1, 10)];
+                    TreeSet<String> uniqueValues = new TreeSet<>((a, b) -> new BytesRef(a).compareTo(new BytesRef(b)));
+                    for (int f = 0; f < slots.length; f++) {
+                        String key = "key" + randomIntBetween(0, 100);
+                        String value = rarely() ? null : randomRealisticUnicodeOfLengthBetween(0, 20);
+                        slots[f] = new Slot(key, value);
+                        if (value != null) {
+                            uniqueValues.add(value);
+                        }
+                    }
+                    addArrayOrderDoc(writer, slots);
+                    if (uniqueValues.isEmpty()) {
+                        expectedWithoutValues++;
+                    } else {
+                        expectedValuesPerDoc.add(new ArrayList<>(uniqueValues));
+                    }
+                }
+
+                try (IndexReader reader = openReader(writer)) {
+                    SortableBinaryDocValues values = loadRootValues(reader, layout);
+                    Set<List<String>> actualValuesPerDoc = new HashSet<>();
+                    int actualWithoutValues = 0;
+                    for (int d = 0; d < docCount; d++) {
+                        if (values.advanceExact(d) == false) {
+                            actualWithoutValues++;
+                            continue;
+                        }
+                        List<String> actual = new ArrayList<>();
+                        for (int i = 0; i < values.docValueCount(); i++) {
+                            actual.add(values.nextValue().utf8ToString());
+                        }
+                        actualValuesPerDoc.add(actual);
+                    }
+                    assertEquals(expectedWithoutValues, actualWithoutValues);
+                    assertEquals(expectedValuesPerDoc, actualValuesPerDoc);
+                }
+            }
+        }
+    }
+
+    private static RandomIndexWriter newRandomIndexWriter(Directory dir, Layout layout) throws IOException {
+        if (layout != Layout.SORTED_SET) {
             IndexWriterConfig iwc = newIndexWriterConfig();
             iwc.setCodec(TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat()));
             return new RandomIndexWriter(random(), dir, iwc);
@@ -217,21 +330,50 @@ public class RootFlattenedFromKeyedFieldDataTests extends ESTestCase {
         return new RandomIndexWriter(random(), dir);
     }
 
-    private static void addDoc(RandomIndexWriter writer, boolean binary, String... keyedValues) throws IOException {
-        Document doc = new Document();
-        if (binary) {
-            var field = new MultiValuedBinaryDocValuesField.SeparateCount(
-                KEYED_FIELD,
-                MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
-            );
-            for (String kv : keyedValues) {
-                field.add(new BytesRef(kv));
+    private static void addDoc(RandomIndexWriter writer, Layout layout, String... keyedValues) throws IOException {
+        switch (layout) {
+            case SORTED_SET -> {
+                Document doc = new Document();
+                for (String kv : keyedValues) {
+                    doc.add(new SortedSetDocValuesField(KEYED_FIELD, new BytesRef(kv)));
+                }
+                writer.addDocument(doc);
             }
-            doc.add(field);
-            doc.add(NumericDocValuesField.indexedField(KEYED_FIELD + ".counts", field.count()));
-        } else {
-            for (String kv : keyedValues) {
-                doc.add(new SortedSetDocValuesField(KEYED_FIELD, new BytesRef(kv)));
+            case SEPARATE_COUNT -> {
+                Document doc = new Document();
+                var field = new MultiValuedBinaryDocValuesField.SeparateCount(
+                    KEYED_FIELD,
+                    MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+                );
+                for (String kv : keyedValues) {
+                    field.add(new BytesRef(kv));
+                }
+                doc.add(field);
+                doc.add(NumericDocValuesField.indexedField(KEYED_FIELD + ".counts", field.count()));
+                writer.addDocument(doc);
+            }
+            case ARRAY_ORDER_INLINE_NULL -> {
+                Slot[] slots = new Slot[keyedValues.length];
+                for (int i = 0; i < keyedValues.length; i++) {
+                    int separator = keyedValues[i].indexOf('\0');
+                    slots[i] = new Slot(keyedValues[i].substring(0, separator), keyedValues[i].substring(separator + 1));
+                }
+                addArrayOrderDoc(writer, slots);
+            }
+        }
+    }
+
+    private static void addArrayOrderDoc(RandomIndexWriter writer, Slot... slots) throws IOException {
+        LuceneDocument doc = new LuceneDocument();
+        for (Slot slot : slots) {
+            if (slot.value() == null) {
+                MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull.recordNull(doc, KEYED_FIELD, new BytesRef(slot.key() + "\0"));
+            } else {
+                MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull.recordValue(
+                    doc,
+                    KEYED_FIELD,
+                    new BytesRef(slot.key() + "\0" + slot.value())
+                );
             }
         }
         writer.addDocument(doc);
@@ -242,8 +384,14 @@ public class RootFlattenedFromKeyedFieldDataTests extends ESTestCase {
         return ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer.w), new ShardId("test", "_na_", 0));
     }
 
-    private static SortableBinaryDocValues loadRootValues(IndexReader reader, boolean binary) {
-        var builder = new RootFlattenedFromKeyedFieldData.Builder(ROOT_FIELD, KEYED_FIELD, binary, IndexVersion.current());
+    private static SortableBinaryDocValues loadRootValues(IndexReader reader, Layout layout) {
+        var builder = new RootFlattenedFromKeyedFieldData.Builder(
+            ROOT_FIELD,
+            KEYED_FIELD,
+            layout != Layout.SORTED_SET,
+            layout == Layout.ARRAY_ORDER_INLINE_NULL,
+            IndexVersion.current()
+        );
         IndexFieldData<?> fieldData = builder.build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
         return fieldData.load(reader.leaves().get(0)).getBytesValues();
     }

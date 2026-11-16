@@ -14,6 +14,7 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
@@ -26,6 +27,9 @@ import java.util.Arrays;
  * <p>
  * Values are stored in document order using the uniform {@code [valueLen+1][key\0value]} encoding; a prefix of {@code 0} marks a null slot
  * ({@code [0][key\0]}). This reader discards nulls and slots whose key does not match {@code targetKey}, then sorts the remaining values.
+ * <p>
+ * A reader created with {@link #allKeys} keeps the non-null slots of every key instead. The result is the sorted distinct values of the
+ * whole field, which is how the root of a flattened field reads its values.
  */
 public final class KeyFilteredSortingArrayOrderBinaryDocValues extends SortingBinaryDocValues {
 
@@ -34,10 +38,21 @@ public final class KeyFilteredSortingArrayOrderBinaryDocValues extends SortingBi
     private final BytesRef targetKey;
     private final ByteArrayStreamInput in = new ByteArrayStreamInput();
 
-    public KeyFilteredSortingArrayOrderBinaryDocValues(BinaryDocValues binary, NumericDocValues counts, BytesRef targetKey) {
+    /**
+     * @param targetKey the key whose values to return, or {@code null} to return the values of every key
+     */
+    public KeyFilteredSortingArrayOrderBinaryDocValues(BinaryDocValues binary, NumericDocValues counts, @Nullable BytesRef targetKey) {
         this.binary = binary;
         this.counts = counts;
         this.targetKey = targetKey;
+    }
+
+    /**
+     * Reads the values of every key, which is how the root of a flattened field reads its values. The values of a document are the
+     * non-null values of all keys, sorted and distinct.
+     */
+    public static KeyFilteredSortingArrayOrderBinaryDocValues allKeys(BinaryDocValues binary, NumericDocValues counts) {
+        return new KeyFilteredSortingArrayOrderBinaryDocValues(binary, counts, null);
     }
 
     /**
@@ -70,7 +85,6 @@ public final class KeyFilteredSortingArrayOrderBinaryDocValues extends SortingBi
         int slotCount = Math.toIntExact(counts.longValue());
 
         if (binary.advanceExact(doc) == false) {
-            // No binary blob: all slots for all keys are null; nothing to return.
             return false;
         }
 
@@ -95,15 +109,16 @@ public final class KeyFilteredSortingArrayOrderBinaryDocValues extends SortingBi
                 int keyLen = ESVectorUtil.indexOf(bytes.bytes, slotKeyStart, bytes.length - (slotKeyStart - bytes.offset), (byte) 0);
                 assert keyLen != -1 : "KeyedArrayOrderInlineNull slot has no separator byte";
                 in.skipBytes(keyLen + 1);
-                if (keyLen == targetKey.length
-                    && Arrays.equals(
-                        bytes.bytes,
-                        slotKeyStart,
-                        slotKeyStart + keyLen,
-                        targetKey.bytes,
-                        targetKey.offset,
-                        targetKey.offset + targetKey.length
-                    )) {
+                if (targetKey == null
+                    || (keyLen == targetKey.length
+                        && Arrays.equals(
+                            bytes.bytes,
+                            slotKeyStart,
+                            slotKeyStart + keyLen,
+                            targetKey.bytes,
+                            targetKey.offset,
+                            targetKey.offset + targetKey.length
+                        ))) {
                     values[matching].copyBytes(bytes.bytes, in.getPosition(), valueLen);
                     matching++;
                 }

@@ -1,0 +1,127 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities, allowed_warnings ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ flattened_datatype ]
+      reason: "Strict columnar index modes and the flattened data type are required"
+
+  - do:
+      indices.create:
+        index: logsdb_ship
+        body:
+          settings:
+            index.mode: logsdb
+            index.number_of_shards: 1
+          mappings:
+            properties:
+              "@timestamp": { type: date }
+              crew: { type: flattened }
+
+  - do:
+      indices.create:
+        index: logsdb_columnar_ship
+        body:
+          settings:
+            index.mode: logsdb_columnar
+            index.number_of_shards: 1
+          mappings:
+            properties:
+              "@timestamp": { type: date }
+              crew: { type: flattened }
+
+---
+two slots, two roles with one value each:
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "index": { "_index": "logsdb_ship" } }'
+          - '{ "@timestamp": "2026-05-04T00:00:00.000Z", "crew": { "pilot": "han solo", "copilot": "chewbacca" } }'
+          - '{ "index": { "_index": "logsdb_columnar_ship" } }'
+          - '{ "@timestamp": "2026-05-04T00:00:00.000Z", "crew": { "pilot": "han solo", "copilot": "chewbacca" } }'
+
+  - is_false: errors
+
+  - do:
+      allowed_warnings:
+        - "No limit defined, adding default limit of [1000]"
+      esql.query:
+        body:
+          query: 'FROM logsdb_ship | KEEP crew'
+  - set: { values: expected_crew }
+
+  - do:
+      allowed_warnings:
+        - "No limit defined, adding default limit of [1000]"
+      esql.query:
+        body:
+          query: 'FROM logsdb_columnar_ship | KEEP crew'
+  - match: { values: $expected_crew }
+
+  - do:
+      allowed_warnings:
+        - "No limit defined, adding default limit of [1000]"
+      esql.query:
+        body:
+          query: 'FROM logsdb_ship | STATS crew_documents = COUNT(crew)'
+  - set: { values: expected_count }
+
+  - do:
+      allowed_warnings:
+        - "No limit defined, adding default limit of [1000]"
+      esql.query:
+        body:
+          query: 'FROM logsdb_columnar_ship | STATS crew_documents = COUNT(crew)'
+  - match: { values: $expected_count }
+
+---
+two slots, one role with two values:
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "index": { "_index": "logsdb_ship" } }'
+          - '{ "@timestamp": "2026-05-04T00:00:00.000Z", "crew": { "passengers": [ "luke skywalker", "princess leia" ] } }'
+          - '{ "index": { "_index": "logsdb_columnar_ship" } }'
+          - '{ "@timestamp": "2026-05-04T00:00:00.000Z", "crew": { "passengers": [ "luke skywalker", "princess leia" ] } }'
+
+  - is_false: errors
+
+  - do:
+      allowed_warnings:
+        - "No limit defined, adding default limit of [1000]"
+      esql.query:
+        body:
+          query: 'FROM logsdb_ship | KEEP crew'
+  - set: { values: expected_crew }
+
+  - do:
+      allowed_warnings:
+        - "No limit defined, adding default limit of [1000]"
+      esql.query:
+        body:
+          query: 'FROM logsdb_columnar_ship | KEEP crew'
+  - match: { values: $expected_crew }
+
+  - do:
+      allowed_warnings:
+        - "No limit defined, adding default limit of [1000]"
+      esql.query:
+        body:
+          query: 'FROM logsdb_ship | STATS crew_documents = COUNT(crew)'
+  - set: { values: expected_count }
+
+  - do:
+      allowed_warnings:
+        - "No limit defined, adding default limit of [1000]"
+      esql.query:
+        body:
+          query: 'FROM logsdb_columnar_ship | STATS crew_documents = COUNT(crew)'
+  - match: { values: $expected_count }

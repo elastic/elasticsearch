@@ -1781,7 +1781,13 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                     );
                 }
             }
-            return new RootFlattenedFromKeyedFieldData.Builder(name(), name() + KEYED_FIELD_SUFFIX, usesBinaryDocValues, indexVersion);
+            return new RootFlattenedFromKeyedFieldData.Builder(
+                name(),
+                name() + KEYED_FIELD_SUFFIX,
+                usesBinaryDocValues,
+                usesArrayOrderBinaryDocValues,
+                indexVersion
+            );
         }
 
         @Override

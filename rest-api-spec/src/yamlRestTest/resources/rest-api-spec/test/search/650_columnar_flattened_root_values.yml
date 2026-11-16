@@ -1,0 +1,285 @@
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: [ "mapper.flattened.columnar_root_values" ]
+      reason: "columnar index mode and the flattened root values fix required"
+
+  - do:
+      indices.create:
+        index: standard_ship
+        body:
+          settings:
+            index.number_of_shards: 1
+          mappings:
+            properties:
+              crew:
+                type: flattened
+
+  - do:
+      indices.create:
+        index: columnar_ship
+        body:
+          settings:
+            index.mode: columnar
+            index.number_of_shards: 1
+          mappings:
+            properties:
+              crew:
+                type: flattened
+
+---
+one slot, one role:
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "index": { "_index": "standard_ship", "_id": "millennium_falcon" } }'
+          - '{ "crew": { "pilot": "han solo" } }'
+          - '{ "index": { "_index": "columnar_ship", "_id": "millennium_falcon" } }'
+          - '{ "crew": { "pilot": "han solo" } }'
+
+  - is_false: errors
+
+  - do:
+      search:
+        index: standard_ship
+        body: { size: 0, aggs: { crew_members: { value_count: { field: crew } }, crew_names: { terms: { field: crew } } } }
+  - set: { aggregations.crew_members.value: expected_count }
+  - set: { aggregations.crew_names.buckets: expected_names }
+
+  - do:
+      search:
+        index: columnar_ship
+        body: { size: 0, aggs: { crew_members: { value_count: { field: crew } }, crew_names: { terms: { field: crew } } } }
+  - match: { aggregations.crew_members.value: $expected_count }
+  - match: { aggregations.crew_names.buckets: $expected_names }
+
+---
+one slot, one role holding a value longer than 127 bytes:
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "index": { "_index": "standard_ship", "_id": "dagobah_x_wing" } }'
+          - '{ "crew": { "motto": "Do or do not. There is no try. Fear is the path to the dark side. Fear leads to anger. Anger leads to hate. Hate leads to suffering. Always in motion is the future." } }'
+          - '{ "index": { "_index": "columnar_ship", "_id": "dagobah_x_wing" } }'
+          - '{ "crew": { "motto": "Do or do not. There is no try. Fear is the path to the dark side. Fear leads to anger. Anger leads to hate. Hate leads to suffering. Always in motion is the future." } }'
+
+  - is_false: errors
+
+  - do:
+      search:
+        index: standard_ship
+        body: { size: 0, aggs: { crew_members: { value_count: { field: crew } }, crew_names: { terms: { field: crew } } } }
+  - set: { aggregations.crew_members.value: expected_count }
+  - set: { aggregations.crew_names.buckets: expected_names }
+
+  - do:
+      search:
+        index: columnar_ship
+        body: { size: 0, aggs: { crew_members: { value_count: { field: crew } }, crew_names: { terms: { field: crew } } } }
+  - match: { aggregations.crew_members.value: $expected_count }
+  - match: { aggregations.crew_names.buckets: $expected_names }
+
+---
+one slot, one role given as an array with one element:
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "index": { "_index": "standard_ship", "_id": "tantive_iv" } }'
+          - '{ "crew": { "passengers": [ "princess leia" ] } }'
+          - '{ "index": { "_index": "columnar_ship", "_id": "tantive_iv" } }'
+          - '{ "crew": { "passengers": [ "princess leia" ] } }'
+
+  - is_false: errors
+
+  - do:
+      search:
+        index: standard_ship
+        body: { size: 0, aggs: { crew_members: { value_count: { field: crew } }, crew_names: { terms: { field: crew } } } }
+  - set: { aggregations.crew_members.value: expected_count }
+  - set: { aggregations.crew_names.buckets: expected_names }
+
+  - do:
+      search:
+        index: columnar_ship
+        body: { size: 0, aggs: { crew_members: { value_count: { field: crew } }, crew_names: { terms: { field: crew } } } }
+  - match: { aggregations.crew_members.value: $expected_count }
+  - match: { aggregations.crew_names.buckets: $expected_names }
+
+---
+one slot per document across several documents:
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "index": { "_index": "standard_ship", "_id": "millennium_falcon" } }'
+          - '{ "crew": { "pilot": "han solo" } }'
+          - '{ "index": { "_index": "standard_ship", "_id": "cloud_city_shuttle" } }'
+          - '{ "crew": { "pilot": "lando calrissian" } }'
+          - '{ "index": { "_index": "standard_ship", "_id": "x_wing" } }'
+          - '{ "crew": { "droid": "r2-d2" } }'
+          - '{ "index": { "_index": "columnar_ship", "_id": "millennium_falcon" } }'
+          - '{ "crew": { "pilot": "han solo" } }'
+          - '{ "index": { "_index": "columnar_ship", "_id": "cloud_city_shuttle" } }'
+          - '{ "crew": { "pilot": "lando calrissian" } }'
+          - '{ "index": { "_index": "columnar_ship", "_id": "x_wing" } }'
+          - '{ "crew": { "droid": "r2-d2" } }'
+
+  - is_false: errors
+
+  - do:
+      search:
+        index: standard_ship
+        body: { size: 0, aggs: { crew_members: { value_count: { field: crew } }, crew_names: { terms: { field: crew } } } }
+  - set: { aggregations.crew_members.value: expected_count }
+  - set: { aggregations.crew_names.buckets: expected_names }
+
+  - do:
+      search:
+        index: columnar_ship
+        body: { size: 0, aggs: { crew_members: { value_count: { field: crew } }, crew_names: { terms: { field: crew } } } }
+  - match: { aggregations.crew_members.value: $expected_count }
+  - match: { aggregations.crew_names.buckets: $expected_names }
+
+---
+two slots, two roles with one value each:
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "index": { "_index": "standard_ship", "_id": "millennium_falcon" } }'
+          - '{ "crew": { "pilot": "han solo", "copilot": "chewbacca" } }'
+          - '{ "index": { "_index": "columnar_ship", "_id": "millennium_falcon" } }'
+          - '{ "crew": { "pilot": "han solo", "copilot": "chewbacca" } }'
+
+  - is_false: errors
+
+  - do:
+      search:
+        index: standard_ship
+        body: { size: 0, aggs: { crew_members: { value_count: { field: crew } }, crew_names: { terms: { field: crew } } } }
+  - set: { aggregations.crew_members.value: expected_count }
+  - set: { aggregations.crew_names.buckets: expected_names }
+  - match: { aggregations.crew_members.value: 2 }
+  - match: { aggregations.crew_names.buckets.0.key: chewbacca }
+  - match: { aggregations.crew_names.buckets.1.key: han solo }
+
+  - do:
+      search:
+        index: columnar_ship
+        body: { size: 0, aggs: { crew_members: { value_count: { field: crew } }, crew_names: { terms: { field: crew } } } }
+  - match: { aggregations.crew_members.value: $expected_count }
+  - match: { aggregations.crew_names.buckets: $expected_names }
+
+---
+two slots, one role with two values:
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "index": { "_index": "standard_ship", "_id": "millennium_falcon" } }'
+          - '{ "crew": { "passengers": [ "luke skywalker", "princess leia" ] } }'
+          - '{ "index": { "_index": "columnar_ship", "_id": "millennium_falcon" } }'
+          - '{ "crew": { "passengers": [ "luke skywalker", "princess leia" ] } }'
+
+  - is_false: errors
+
+  - do:
+      search:
+        index: standard_ship
+        body: { size: 0, aggs: { crew_members: { value_count: { field: crew } }, crew_names: { terms: { field: crew } } } }
+  - set: { aggregations.crew_members.value: expected_count }
+  - set: { aggregations.crew_names.buckets: expected_names }
+  - match: { aggregations.crew_members.value: 2 }
+  - match: { aggregations.crew_names.buckets.0.key: luke skywalker }
+  - match: { aggregations.crew_names.buckets.1.key: princess leia }
+
+  - do:
+      search:
+        index: columnar_ship
+        body: { size: 0, aggs: { crew_members: { value_count: { field: crew } }, crew_names: { terms: { field: crew } } } }
+  - match: { aggregations.crew_members.value: $expected_count }
+  - match: { aggregations.crew_names.buckets: $expected_names }
+
+---
+the same value under several documents and keys:
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "index": { "_index": "standard_ship", "_id": "millennium_falcon" } }'
+          - '{ "crew": { "pilot": "han solo", "copilot": "chewbacca" } }'
+          - '{ "index": { "_index": "standard_ship", "_id": "x_wing" } }'
+          - '{ "crew": { "pilot": "luke skywalker", "droid": [ "r2-d2", "r2-d2" ] } }'
+          - '{ "index": { "_index": "standard_ship", "_id": "tantive_iv" } }'
+          - '{ "crew": { "passengers": [ "princess leia", "luke skywalker" ], "copilot": "chewbacca" } }'
+          - '{ "index": { "_index": "columnar_ship", "_id": "millennium_falcon" } }'
+          - '{ "crew": { "pilot": "han solo", "copilot": "chewbacca" } }'
+          - '{ "index": { "_index": "columnar_ship", "_id": "x_wing" } }'
+          - '{ "crew": { "pilot": "luke skywalker", "droid": [ "r2-d2", "r2-d2" ] } }'
+          - '{ "index": { "_index": "columnar_ship", "_id": "tantive_iv" } }'
+          - '{ "crew": { "passengers": [ "princess leia", "luke skywalker" ], "copilot": "chewbacca" } }'
+
+  - is_false: errors
+
+  - do:
+      search:
+        index: standard_ship
+        body: { size: 0, aggs: { crew_members: { value_count: { field: crew } }, crew_names: { terms: { field: crew } } } }
+  - set: { aggregations.crew_members.value: expected_count }
+  - set: { aggregations.crew_names.buckets: expected_names }
+  - match: { aggregations.crew_members.value: 7 }
+  - length: { aggregations.crew_names.buckets: 5 }
+  - match: { aggregations.crew_names.buckets.0.key: chewbacca }
+  - match: { aggregations.crew_names.buckets.0.doc_count: 2 }
+  - match: { aggregations.crew_names.buckets.1.key: luke skywalker }
+  - match: { aggregations.crew_names.buckets.1.doc_count: 2 }
+
+  - do:
+      search:
+        index: columnar_ship
+        body: { size: 0, aggs: { crew_members: { value_count: { field: crew } }, crew_names: { terms: { field: crew } } } }
+  - match: { aggregations.crew_members.value: $expected_count }
+  - match: { aggregations.crew_names.buckets: $expected_names }
+
+---
+sort and docvalue_fields on the root field:
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "index": { "_index": "standard_ship", "_id": "millennium_falcon" } }'
+          - '{ "crew": { "pilot": "han solo", "copilot": "chewbacca" } }'
+          - '{ "index": { "_index": "standard_ship", "_id": "x_wing" } }'
+          - '{ "crew": { "pilot": "luke skywalker", "droid": [ "r2-d2", "r2-d2" ] } }'
+          - '{ "index": { "_index": "standard_ship", "_id": "tantive_iv" } }'
+          - '{ "crew": { "passengers": [ "princess leia", "luke skywalker" ], "copilot": "chewbacca" } }'
+          - '{ "index": { "_index": "columnar_ship", "_id": "millennium_falcon" } }'
+          - '{ "crew": { "pilot": "han solo", "copilot": "chewbacca" } }'
+          - '{ "index": { "_index": "columnar_ship", "_id": "x_wing" } }'
+          - '{ "crew": { "pilot": "luke skywalker", "droid": [ "r2-d2", "r2-d2" ] } }'
+          - '{ "index": { "_index": "columnar_ship", "_id": "tantive_iv" } }'
+          - '{ "crew": { "passengers": [ "princess leia", "luke skywalker" ], "copilot": "chewbacca" } }'
+
+  - is_false: errors
+
+  - do:
+      search:
+        index: standard_ship
+        filter_path: hits.hits._id,hits.hits.sort,hits.hits.fields
+        body: { _source: false, docvalue_fields: [ crew ], sort: [ { crew: { order: asc, mode: max } }, { _doc: asc } ] }
+  - set: { hits.hits: expected_hits }
+  - length: { hits.hits: 3 }
+
+  - do:
+      search:
+        index: columnar_ship
+        filter_path: hits.hits._id,hits.hits.sort,hits.hits.fields
+        body: { _source: false, docvalue_fields: [ crew ], sort: [ { crew: { order: asc, mode: max } }, { _doc: asc } ] }
+  - match: { hits.hits: $expected_hits }

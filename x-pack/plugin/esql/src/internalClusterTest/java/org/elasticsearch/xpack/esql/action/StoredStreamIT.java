@@ -8,14 +8,19 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.apache.logging.log4j.Level;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.ShardBatchIndexer;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -26,24 +31,27 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.esql.EsqlStreamResultsIndex;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.StoredResultMetadata;
-import org.elasticsearch.xpack.esql.plugin.TransportReadStreamPagesAction;
-import org.elasticsearch.xpack.esql.plugin.TransportReadStreamPagesAction.StoredPage;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.LongStream;
 
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.xpack.core.ClientHelper.ESQL_ORIGIN;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -139,14 +147,7 @@ public class StoredStreamIT extends AbstractEsqlIntegTestCase {
             // pages are stored in the background, after the stream completes
             String id = streamRef.get().id();
             try {
-                assertBusy(() -> {
-                    try {
-                        assertThat(readPages(id, 0, 1).size(), equalTo(1));
-                    } catch (Exception e) {
-                        // the result is stored in the background and may not be there yet
-                        throw new AssertionError(e);
-                    }
-                });
+                assertBusy(() -> { assertThat(readPages(id).size(), greaterThan(0)); });
             } catch (Exception e) {
                 throw new AssertionError(e);
             }
@@ -166,22 +167,18 @@ public class StoredStreamIT extends AbstractEsqlIntegTestCase {
 
         NamedWriteableRegistry registry = internalCluster().getInstance(NamedWriteableRegistry.class);
         AtomicReference<StoredResultMetadata> metadata = new AtomicReference<>();
+        AtomicReference<List<StoredPage>> allPages = new AtomicReference<>();
         assertBusy(() -> {
-            List<StoredPage> first;
-            try {
-                first = readPages(docId, 0, 1);
-            } catch (Exception e) {
-                // the result is stored in the background and may not be there yet
-                throw new AssertionError(e);
-            }
-            assertThat(first.size(), equalTo(1));
-            StoredResultMetadata m = new StoredResultMetadata(input(first.get(0), registry));
+            List<StoredPage> all = readPages(docId);
+            assertThat(all.get(0).seq(), equalTo(0));
+            StoredResultMetadata m = new StoredResultMetadata(input(all.get(0), registry));
             assertThat(m.status(), equalTo(StoredResultMetadata.Status.COMPLETED));
             metadata.set(m);
+            allPages.set(all);
             // the result is kept for the keep_alive of its request; the cluster's clock is cached, so it can lag by a little
             long slack = TimeValue.timeValueMinutes(1).millis();
-            assertThat(first.get(0).expirationTime(), greaterThanOrEqualTo(before + KEEP_ALIVE.millis() - slack));
-            assertThat(first.get(0).expirationTime(), lessThanOrEqualTo(System.currentTimeMillis() + KEEP_ALIVE.millis() + slack));
+            assertThat(all.get(0).expirationTime(), greaterThanOrEqualTo(before + KEEP_ALIVE.millis() - slack));
+            assertThat(all.get(0).expirationTime(), lessThanOrEqualTo(System.currentTimeMillis() + KEEP_ALIVE.millis() + slack));
         });
         assertThat(metadata.get().rowCount(), equalTo((long) numDocs));
         assertThat(metadata.get().pageCount(), greaterThan(1));
@@ -189,7 +186,7 @@ public class StoredStreamIT extends AbstractEsqlIntegTestCase {
 
         BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
         List<Long> values = new ArrayList<>();
-        List<StoredPage> pages = readPages(docId, 1, metadata.get().pageCount() + 1);
+        List<StoredPage> pages = allPages.get().subList(1, allPages.get().size());
         assertThat(pages.size(), equalTo(metadata.get().pageCount()));
         long expectedFirstRow = 0;
         for (int i = 0; i < pages.size(); i++) {
@@ -227,17 +224,11 @@ public class StoredStreamIT extends AbstractEsqlIntegTestCase {
             var subscriber = new StreamQueryTestUtils.CountingStreamSubscriber();
             String docId = stream(true, subscriber).id();
             assertBusy(() -> {
-                List<StoredPage> first;
-                try {
-                    first = readPages(docId, 0, 1);
-                } catch (Exception e) {
-                    // the result is stored in the background and may not be there yet
-                    throw new AssertionError(e);
-                }
-                assertThat(first.size(), equalTo(1));
-                StoredResultMetadata metadata = new StoredResultMetadata(input(first.get(0), registry));
+                List<StoredPage> all = readPages(docId);
+                assertThat(all.get(0).seq(), equalTo(0));
+                StoredResultMetadata metadata = new StoredResultMetadata(input(all.get(0), registry));
                 assertThat(metadata.status(), equalTo(StoredResultMetadata.Status.COMPLETED));
-                List<StoredPage> pages = readPages(docId, 1, metadata.pageCount());
+                List<StoredPage> pages = all.subList(1, all.size());
                 assertThat(pages.size(), equalTo(metadata.pageCount()));
                 assertThat(pages.stream().mapToLong(StoredPage::rowCount).sum(), equalTo((long) numDocs));
             });
@@ -261,10 +252,66 @@ public class StoredStreamIT extends AbstractEsqlIntegTestCase {
         assertThat(nodes, greaterThan(1L));
     }
 
-    private List<StoredPage> readPages(String docId, int fromSeq, int maxPages) {
-        return client().execute(TransportReadStreamPagesAction.TYPE, new TransportReadStreamPagesAction.Request(docId, fromSeq, maxPages))
-            .actionGet(TEST_REQUEST_TIMEOUT)
-            .pages();
+    /**
+     * A stored page as its document holds it; {@code expirationTime} is {@code -1} when the document has none.
+     */
+    private record StoredPage(
+        int seq,
+        long firstRow,
+        int rowCount,
+        TransportVersion transportVersion,
+        long expirationTime,
+        BytesReference bytes
+    ) {}
+
+    /**
+     * The pages stored for a result so far, in order, read from the doc values of their documents. Fails with an
+     * {@link AssertionError} while nothing is stored, so that it can be retried in {@code assertBusy}.
+     */
+    private List<StoredPage> readPages(String streamId) {
+        SearchResponse response;
+        try {
+            response = searchPages(streamId);
+        } catch (Exception e) {
+            // the result is stored in the background and its index may not exist yet
+            throw new AssertionError(e);
+        }
+        try {
+            List<StoredPage> pages = new ArrayList<>();
+            for (SearchHit hit : response.getHits().getHits()) {
+                var expiration = hit.field(EsqlStreamResultsIndex.EXPIRATION_TIME_FIELD);
+                pages.add(
+                    new StoredPage(
+                        ((Number) hit.field(EsqlStreamResultsIndex.PAGE_SEQ_FIELD).getValue()).intValue(),
+                        ((Number) hit.field(EsqlStreamResultsIndex.FIRST_ROW_FIELD).getValue()).longValue(),
+                        ((Number) hit.field(EsqlStreamResultsIndex.ROW_COUNT_FIELD).getValue()).intValue(),
+                        TransportVersion.fromId(((Number) hit.field(EsqlStreamResultsIndex.TRANSPORT_VERSION_FIELD).getValue()).intValue()),
+                        expiration == null || expiration.getValues().isEmpty() ? -1 : ((Number) expiration.getValue()).longValue(),
+                        new BytesArray(Base64.getDecoder().decode((String) hit.field(EsqlStreamResultsIndex.PAGE_FIELD).getValue()))
+                    )
+                );
+            }
+            assertThat(pages.size(), greaterThan(0));
+            return pages;
+        } finally {
+            response.decRef();
+        }
+    }
+
+    private SearchResponse searchPages(String streamId) {
+        return new OriginSettingClient(client(), ESQL_ORIGIN).prepareSearch(EsqlStreamResultsIndex.INDEX)
+            .setRouting(streamId)
+            .setQuery(termQuery(EsqlStreamResultsIndex.STREAM_ID_FIELD, streamId))
+            .addSort(EsqlStreamResultsIndex.PAGE_SEQ_FIELD, SortOrder.ASC)
+            .setSize(10_000)
+            .setFetchSource(false)
+            .addDocValueField(EsqlStreamResultsIndex.PAGE_SEQ_FIELD)
+            .addDocValueField(EsqlStreamResultsIndex.FIRST_ROW_FIELD)
+            .addDocValueField(EsqlStreamResultsIndex.ROW_COUNT_FIELD)
+            .addDocValueField(EsqlStreamResultsIndex.TRANSPORT_VERSION_FIELD)
+            .addDocValueField(EsqlStreamResultsIndex.EXPIRATION_TIME_FIELD)
+            .addDocValueField(EsqlStreamResultsIndex.PAGE_FIELD)
+            .get(TEST_REQUEST_TIMEOUT);
     }
 
     private static StreamInput input(StoredPage stored, NamedWriteableRegistry registry) throws IOException {

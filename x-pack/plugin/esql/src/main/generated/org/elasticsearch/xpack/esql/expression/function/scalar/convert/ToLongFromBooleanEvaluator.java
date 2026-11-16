@@ -44,7 +44,7 @@ public final class ToLongFromBooleanEvaluator extends AbstractConvertFunction.Ab
     if (vector.isConstant()) {
       return driverContext.blockFactory().newConstantLongBlockWith(evalValue(vector, 0), positionCount);
     }
-    try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+    try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount, true)) {
       for (int p = 0; p < positionCount; p++) {
         builder.appendLong(evalValue(vector, p));
       }
@@ -61,7 +61,7 @@ public final class ToLongFromBooleanEvaluator extends AbstractConvertFunction.Ab
   public Block evalBlock(Block b) {
     BooleanBlock block = (BooleanBlock) b;
     int positionCount = block.getPositionCount();
-    try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+    try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount, true)) {
       for (int p = 0; p < positionCount; p++) {
         int valueCount = block.getValueCount(p);
         int start = block.getFirstValueIndex(p);

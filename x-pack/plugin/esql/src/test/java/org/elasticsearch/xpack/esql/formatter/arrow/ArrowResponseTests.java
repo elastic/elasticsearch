@@ -32,6 +32,7 @@ import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.util.VectorSchemaRootAppender;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
@@ -42,6 +43,9 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -63,6 +67,7 @@ import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
@@ -86,6 +91,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -309,6 +315,60 @@ public class ArrowResponseTests extends ESTestCase {
         )
     );
 
+    static final ValueType AGGREGATE_METRIC_DOUBLE_VALUES = new ValueType() {
+        @Override
+        public Block.Builder createBlockBuilder(BlockFactory factory) {
+            return factory.newAggregateMetricDoubleBlockBuilder(0);
+        }
+
+        @Override
+        public void addValue(Block.Builder builder, Density density) {
+            if (density.nextIsNull()) {
+                builder.appendNull();
+            } else {
+                int metrics = randomIntBetween(1, 15);
+                ((AggregateMetricDoubleBlockBuilder) builder).appendLiteral(
+                    new AggregateMetricDoubleLiteral(
+                        (metrics & 1) != 0 ? randomDouble() : null,
+                        (metrics & 2) != 0 ? randomDouble() : null,
+                        (metrics & 4) != 0 ? randomDouble() : null,
+                        (metrics & 8) != 0 ? randomIntBetween(0, Integer.MAX_VALUE) : null
+                    )
+                );
+            }
+        }
+
+        @Override
+        public Object valueAt(Block block, int position, BytesRef scratch) {
+            AggregateMetricDoubleBlock aggregate = (AggregateMetricDoubleBlock) block;
+            DoubleBlock min = aggregate.minBlock();
+            DoubleBlock max = aggregate.maxBlock();
+            DoubleBlock sum = aggregate.sumBlock();
+            IntBlock count = aggregate.countBlock();
+            return new AggregateMetricDoubleLiteral(
+                min.isNull(position) ? null : min.getDouble(min.getFirstValueIndex(position)),
+                max.isNull(position) ? null : max.getDouble(max.getFirstValueIndex(position)),
+                sum.isNull(position) ? null : sum.getDouble(sum.getFirstValueIndex(position)),
+                count.isNull(position) ? null : count.getInt(count.getFirstValueIndex(position))
+            );
+        }
+
+        @Override
+        public Object valueAt(ValueVector arrowVec, int position) {
+            StructVector vector = (StructVector) arrowVec;
+            Float8Vector min = (Float8Vector) vector.getChild("min");
+            Float8Vector max = (Float8Vector) vector.getChild("max");
+            Float8Vector sum = (Float8Vector) vector.getChild("sum");
+            IntVector count = (IntVector) vector.getChild("value_count");
+            return new AggregateMetricDoubleLiteral(
+                min.isNull(position) ? null : min.get(position),
+                max.isNull(position) ? null : max.get(position),
+                sum.isNull(position) ? null : sum.get(position),
+                count.isNull(position) ? null : count.get(position)
+            );
+        }
+    };
+
     static final Map<DataType, ValueType> VALUE_TYPES = Map.ofEntries(
         Map.entry(DataType.INTEGER, INTEGER_VALUES),
         Map.entry(DataType.COUNTER_INTEGER, INTEGER_VALUES),
@@ -340,8 +400,15 @@ public class ArrowResponseTests extends ESTestCase {
         Map.entry(DataType.CARTESIAN_SHAPE, CARTESIAN_SHAPE_VALUES),
 
         Map.entry(DataType.DATE_RANGE, DATE_RANGE_VALUES),
-        Map.entry(DataType.DOUBLE_RANGE, DOUBLE_RANGE_VALUES)
+        Map.entry(DataType.DOUBLE_RANGE, DOUBLE_RANGE_VALUES),
+        Map.entry(DataType.AGGREGATE_METRIC_DOUBLE, AGGREGATE_METRIC_DOUBLE_VALUES)
     );
+
+    /**
+     * Types whose blocks are always single-valued, so tests can't build multivalued columns of them. Kept independent of
+     * the formatters so that a formatter that wrongly rejects multivalued columns fails the tests instead of skipping them.
+     */
+    static final Set<DataType> SINGLE_VALUED_TYPES = EnumSet.of(DataType.AGGREGATE_METRIC_DOUBLE);
 
     // ---------------------------------------------------------------------------------------------
     // Tests
@@ -532,6 +599,140 @@ public class ArrowResponseTests extends ESTestCase {
             for (int i = 0; i < values.size(); i++) {
                 assertEquals(values.get(i), vector.getObjectNoOverflow(i));
             }
+        }
+    }
+
+    public void testAggregateMetricDoubleOutput() throws IOException {
+        List<AggregateMetricDoubleLiteral> expected = List.of(
+            new AggregateMetricDoubleLiteral(10.0, 30.0, 60.0, 3),
+            new AggregateMetricDoubleLiteral(null, null, 45.0, 5),
+            new AggregateMetricDoubleLiteral(null, null, null, null),
+            new AggregateMetricDoubleLiteral(null, null, 0.0, 0),
+            new AggregateMetricDoubleLiteral(-Double.MAX_VALUE, null, null, null),
+            new AggregateMetricDoubleLiteral(null, Double.MAX_VALUE, null, null),
+            new AggregateMetricDoubleLiteral(null, null, null, Integer.MAX_VALUE)
+        );
+        AggregateMetricDoubleBlock block;
+        try (AggregateMetricDoubleBlockBuilder builder = blockFactory.newAggregateMetricDoubleBlockBuilder(expected.size())) {
+            expected.forEach(builder::appendLiteral);
+            block = builder.build();
+        }
+        var column = TestColumn.create("metric", DataType.AGGREGATE_METRIC_DOUBLE, false);
+        try (
+            TestCase testCase = new TestCase(List.of(column), List.of(new TestPage(List.of(TestBlock.create(column, block)))));
+            VectorSchemaRoot root = toArrowVectors(testCase)
+        ) {
+            StructVector vector = (StructVector) root.getVector("metric");
+            assertAggregateMetricDoubleSchema(vector);
+            assertEquals(expected.size(), vector.getValueCount());
+            for (int position = 0; position < expected.size(); position++) {
+                if (position == 2) {
+                    assertTrue(vector.isNull(position));
+                    for (FieldVector child : vector.getChildrenFromFields()) {
+                        assertTrue(child.isNull(position));
+                    }
+                } else {
+                    assertFalse(vector.isNull(position));
+                    assertEquals(expected.get(position), AGGREGATE_METRIC_DOUBLE_VALUES.valueAt(vector, position));
+                }
+            }
+        }
+    }
+
+    public void testAggregateMetricDoubleMissingMetrics() throws IOException {
+        AggregateMetricDoubleBlock block;
+        try (AggregateMetricDoubleBlockBuilder builder = blockFactory.newAggregateMetricDoubleBlockBuilder(3)) {
+            builder.appendLiteral(new AggregateMetricDoubleLiteral(null, null, 45.0, 5));
+            builder.appendNull();
+            builder.appendLiteral(new AggregateMetricDoubleLiteral(null, null, 0.0, 0));
+            block = builder.build();
+        }
+        assertTrue(block.minBlock().areAllValuesNull());
+        assertTrue(block.maxBlock().areAllValuesNull());
+        var column = TestColumn.create("metric", DataType.AGGREGATE_METRIC_DOUBLE, false);
+        compareEsqlAndArrow(new TestCase(List.of(column), List.of(new TestPage(List.of(TestBlock.create(column, block))))));
+    }
+
+    public void testAggregateMetricDoubleEmptyResponse() throws IOException {
+        var column = TestColumn.create("metric", DataType.AGGREGATE_METRIC_DOUBLE, false);
+        try (TestCase testCase = new TestCase(List.of(column), List.of()); VectorSchemaRoot root = toArrowVectors(testCase)) {
+            assertEquals(0, root.getRowCount());
+            assertAggregateMetricDoubleSchema((StructVector) root.getVector("metric"));
+        }
+    }
+
+    /**
+     * No production path builds an aggregate summary with a multivalued metric, so a hand-built block must be rejected
+     * before the schema is sent rather than producing a list schema with struct pages.
+     */
+    public void testAggregateMetricDoubleRejectsMultivaluedMetric() {
+        DoubleBlock min;
+        try (DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(1)) {
+            builder.beginPositionEntry().appendDouble(1.0).appendDouble(2.0).endPositionEntry();
+            min = builder.build();
+        }
+        AggregateMetricDoubleBlock block = blockFactory.newAggregateMetricDoubleBlock(
+            min,
+            blockFactory.newConstantDoubleBlockWith(2.0, 1),
+            blockFactory.newConstantDoubleBlockWith(3.0, 1),
+            blockFactory.newConstantIntBlockWith(2, 1)
+        );
+        try (Page page = new Page(block)) {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> new ArrowResponse(List.of(new ArrowResponse.Column(DataType.AGGREGATE_METRIC_DOUBLE, "metric")), List.of(page))
+            );
+            assertEquals(
+                "Column [metric] of ES|QL type [aggregate_metric_double] has multivalued fields, "
+                    + "which the Arrow format does not support for this type",
+                e.getMessage()
+            );
+            assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
+        }
+    }
+
+    /**
+     * A metric block with value indexes but one value per position reports {@code mayHaveMultivaluedFields()} without
+     * actually being multivalued. Such a summary must be written as a plain struct rather than rejected.
+     */
+    public void testAggregateMetricDoubleAcceptsSingleValuedMetricWithValueIndexes() throws IOException {
+        DoubleBlock min = blockFactory.newDoubleArrayBlock(
+            new double[] { 1.0, 2.0 },
+            2,
+            new int[] { 0, 1, 2 },
+            null,
+            randomFrom(Block.MvOrdering.values())
+        );
+        assertTrue(min.mayHaveMultivaluedFields());
+        assertFalse(min.doesHaveMultivaluedFields());
+        AggregateMetricDoubleBlock block = blockFactory.newAggregateMetricDoubleBlock(
+            min,
+            blockFactory.newConstantDoubleBlockWith(3.0, 2),
+            blockFactory.newConstantDoubleBlockWith(4.0, 2),
+            blockFactory.newConstantIntBlockWith(2, 2)
+        );
+        var column = TestColumn.create("metric", DataType.AGGREGATE_METRIC_DOUBLE, false);
+        try (
+            TestCase testCase = new TestCase(List.of(column), List.of(new TestPage(List.of(TestBlock.create(column, block)))));
+            VectorSchemaRoot root = toArrowVectors(testCase)
+        ) {
+            assertAggregateMetricDoubleSchema((StructVector) root.getVector("metric"));
+            compareEsqlAndArrow(testCase, root);
+        }
+    }
+
+    private static void assertAggregateMetricDoubleSchema(StructVector vector) {
+        Field field = vector.getField();
+        assertEquals(Types.MinorType.STRUCT.getType(), field.getType());
+        assertTrue(field.isNullable());
+        assertEquals("aggregate_metric_double", field.getMetadata().get(BlockArrowFormatter.ESQL_TYPE_METADATA));
+        assertEquals(List.of("min", "max", "sum", "value_count"), field.getChildren().stream().map(Field::getName).toList());
+        for (Field child : field.getChildren()) {
+            assertTrue(child.isNullable());
+            assertEquals(
+                child.getName().equals("value_count") ? Types.MinorType.INT.getType() : Types.MinorType.FLOAT8.getType(),
+                child.getType()
+            );
         }
     }
 
@@ -1165,10 +1366,13 @@ public class ArrowResponseTests extends ESTestCase {
 
     record TestColumn(String name, DataType type, ValueType valueType, boolean multivalue) {
         static TestColumn create(String name, DataType type) {
-            return create(name, type, randomBoolean());
+            return create(name, type, SINGLE_VALUED_TYPES.contains(type) == false && randomBoolean());
         }
 
         static TestColumn create(String name, DataType type, boolean multivalue) {
+            if (multivalue && SINGLE_VALUED_TYPES.contains(type)) {
+                throw new IllegalArgumentException("[" + type.outputType() + "] columns are always single-valued");
+            }
             return new TestColumn(name, type, VALUE_TYPES.get(type), multivalue);
         }
     }

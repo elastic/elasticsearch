@@ -36,6 +36,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
@@ -58,17 +59,22 @@ public final class IntoPageWriter {
         private final String destination;
         private final List<String> columns;
         private final List<DataType> types;
-        private final boolean explainOnly;
+        private final Indexing indexing;
         private final AtomicReference<Exception> failure = new AtomicReference<>();
 
-        public static Factory createFactory(Client client, String destination, List<Attribute> output, boolean explainOnly) {
+        public enum Indexing {
+            INDEX,
+            EXPLAIN
+        }
+
+        public static Factory createFactory(Client client, String destination, List<Attribute> output, Indexing indexing) {
             return new Factory(
                 client,
                 client.threadPool().getThreadContext().newRestorableContext(false),
                 destination,
                 Expressions.names(output),
                 output.stream().map(Attribute::dataType).toList(),
-                explainOnly
+                indexing
             );
         }
 
@@ -78,14 +84,14 @@ public final class IntoPageWriter {
             String destination,
             List<String> columns,
             List<DataType> types,
-            boolean explainOnly
+            Indexing indexing
         ) {
             this.client = client;
             this.caller = caller;
             this.destination = destination;
             this.columns = columns;
             this.types = types;
-            this.explainOnly = explainOnly;
+            this.indexing = indexing;
         }
 
         String destination() {
@@ -107,8 +113,8 @@ public final class IntoPageWriter {
     private final DriverContext driverContext;
     private final CircuitBreaker breaker;
 
-    private long total;
-    private long created;
+    private final AtomicLong total = new AtomicLong();
+    private final AtomicLong created = new AtomicLong();
     private long inFlightBytes;
     private boolean finished;
     // null whenever no driver is blocked on this writer; allocated in isBlocked() and cleared in wake().
@@ -123,7 +129,7 @@ public final class IntoPageWriter {
 
     public void consume(Page page) {
         try {
-            if (sink.explainOnly == false && sink.failure.get() == null) {
+            if (sink.indexing == Factory.Indexing.INDEX && sink.failure.get() == null) {
                 send(bulkFor(page));
             }
         } finally {
@@ -167,9 +173,9 @@ public final class IntoPageWriter {
             release(bytes);
             return;
         }
+        total.addAndGet(actions);
         synchronized (this) {
             inFlightBytes += bytes;
-            total += actions;
         }
         driverContext.addAsyncAction();
         ActionListener<BulkResponse> listener = ActionListener.runAfter(
@@ -199,9 +205,7 @@ public final class IntoPageWriter {
                 return;
             }
         }
-        synchronized (this) {
-            created += response.getItems().length;
-        }
+        created.addAndGet(response.getItems().length);
     }
 
     private void recordFailure(Exception e) {
@@ -261,8 +265,8 @@ public final class IntoPageWriter {
         return finished && inFlightBytes == 0;
     }
 
-    synchronized IntoStats stats() {
-        return new IntoStats(total, created);
+    IntoStats stats() {
+        return new IntoStats(total.get(), created.get());
     }
 
     @Nullable

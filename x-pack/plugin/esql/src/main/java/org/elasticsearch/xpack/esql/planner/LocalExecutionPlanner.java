@@ -991,10 +991,12 @@ public class LocalExecutionPlanner {
                     client,
                     into.destination(),
                     into.sourceAttributes(),
-                    configuration.explainOnly()
+                    configuration.explainOnly() ? IntoPageWriter.Factory.Indexing.EXPLAIN : IntoPageWriter.Factory.Indexing.INDEX
                 );
-                Function<Page, Page> alignment = alignPageToAttributes(into.sourceAttributes(), source.layout);
-                yield source.with(new IntoOperator.Factory(sink, alignment), outputLayout);
+                yield source.with(
+                    new IntoOperator.Factory(sink, alignPageToAttributes(into.sourceAttributes(), source.layout)),
+                    outputLayout
+                );
             }
             case SUM -> source.with(new IntoStatsSumOperator.Factory(), outputLayout);
         };

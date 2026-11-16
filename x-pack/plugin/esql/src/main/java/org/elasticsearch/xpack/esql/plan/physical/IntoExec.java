@@ -128,7 +128,7 @@ public class IntoExec extends UnaryExec {
 
     @Override
     public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
-        sb.append(nodeName()).append('[').append(mapper.index(destination)).append(']');
+        sb.append(nodeName()).append('[').append(mode).append(',').append(mapper.index(destination)).append(']');
     }
 
     @Override

@@ -401,6 +401,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         this.verifier = verifier;
     }
 
+    /**
+     * Runs the analysis rules and returns the plan without verification, so a test can record that plan.
+     */
+    public LogicalPlan analyzeWithoutVerification(LogicalPlan plan) {
+        return execute(plan);
+    }
+
     public LogicalPlan analyze(LogicalPlan plan) {
         BitSet partialMetrics = new BitSet(FeatureMetric.values().length);
         LogicalPlan analyzed = execute(plan);
@@ -458,10 +465,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static class ResolveDescribe extends ParameterizedAnalyzerRule<Describe, AnalyzerContext> {
         @Override
         protected LogicalPlan rule(Describe describe, AnalyzerContext context) {
-            if (describe.child().resolved() == false) {
-                return describe;
-            }
-            if (describe.child().anyMatch(Into.class::isInstance)) {
+            if (describe.child().resolved() == false || describe.child().anyMatch(Into.class::isInstance)) {
                 return describe;
             }
             List<IndexResolution> resolutions = new ArrayList<>(context.indexResolution().values());
@@ -3817,6 +3821,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         @Override
         public LogicalPlan apply(LogicalPlan logicalPlan, AnalyzerContext context) {
             if (logicalPlan instanceof Into) {
+                // INTO returns one stats row, so the default 1000 cap must not truncate the rows it writes.
                 return logicalPlan;
             }
             List<LogicalPlan> limits = logicalPlan.collectFirstChildren(Limit.class::isInstance);
@@ -3856,6 +3861,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
             if (plan instanceof Into) {
+                // INTO writes the rows as produced, so the implicit @timestamp sort must not be injected under it.
                 return plan;
             }
             if (plan instanceof Limit limit) {
@@ -4832,6 +4838,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private static LogicalPlan planWithoutSyntheticAttributes(LogicalPlan plan) {
             if (plan instanceof Into into) {
+                // An IN-subquery mark ($$...) must not be written as a document field.
                 LogicalPlan newChild = planWithoutSyntheticAttributes(into.child());
                 return newChild == into.child() ? into : into.replaceChild(newChild);
             }

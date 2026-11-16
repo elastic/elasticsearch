@@ -40,6 +40,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.esql.into.IntoPageWriter.Factory.Indexing.INDEX;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.CREATED;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.REFUSED;
 import static org.hamcrest.Matchers.containsString;
@@ -71,7 +72,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
         client = new IntoTestUtils.CapturingClient(threadPool);
         blockFactory = blockFactory();
         driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory, null);
-        sink = IntoPageWriter.Factory.createFactory(client, IntoTestUtils.DESTINATION, COLUMNS, false);
+        sink = IntoPageWriter.Factory.createFactory(client, IntoTestUtils.DESTINATION, COLUMNS, INDEX);
         writer = sink.create(driverContext);
     }
 

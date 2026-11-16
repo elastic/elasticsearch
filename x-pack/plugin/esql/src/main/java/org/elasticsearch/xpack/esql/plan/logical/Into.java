@@ -103,6 +103,8 @@ public class Into extends UnaryPlan
 
     @Override
     public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
+        // A child feeds its parent, so the root is the last command. The verifier runs this check on every
+        // node, and true means that node has this INTO as its input, so a command runs after it.
         return (p, failures) -> {
             if (p.children().contains(this)) {
                 failures.add(fail(this, "INTO must be the last command of the query"));

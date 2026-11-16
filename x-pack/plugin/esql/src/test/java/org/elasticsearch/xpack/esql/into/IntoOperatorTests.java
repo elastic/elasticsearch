@@ -25,13 +25,14 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.esql.into.IntoPageWriter.Factory.Indexing.EXPLAIN;
+import static org.elasticsearch.xpack.esql.into.IntoPageWriter.Factory.Indexing.INDEX;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.CREATED;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.REFUSED;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.stats;
@@ -43,20 +44,13 @@ import static org.hamcrest.Matchers.nullValue;
 public class IntoOperatorTests extends ComputeTestCase {
     private static final List<Attribute> COLUMNS = List.of(new ReferenceAttribute(Source.EMPTY, "h", DataType.KEYWORD));
 
-    private ThreadPool threadPool;
-    private IntoTestUtils.CapturingClient client;
-    private BlockFactory blockFactory;
-    private DriverContext driverContext;
-    private IntoPageWriter.Factory sink;
-
-    @Before
-    public void setUpOperator() throws Exception {
-        threadPool = new TestThreadPool(getTestName());
-        client = new IntoTestUtils.CapturingClient(threadPool);
-        blockFactory = blockFactory();
-        driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory, null);
-        sink = IntoPageWriter.Factory.createFactory(client, IntoTestUtils.DESTINATION, COLUMNS, false);
-    }
+    @SuppressWarnings("this-escape")
+    private final ThreadPool threadPool = new TestThreadPool(getTestName());
+    private final IntoTestUtils.CapturingClient client = new IntoTestUtils.CapturingClient(threadPool);
+    @SuppressWarnings("this-escape")
+    private final BlockFactory blockFactory = blockFactory();
+    private final DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory, null);
+    private final IntoPageWriter.Factory sink = IntoPageWriter.Factory.createFactory(client, IntoTestUtils.DESTINATION, COLUMNS, INDEX);
 
     @After
     public void tearDownOperator() throws Exception {
@@ -114,7 +108,7 @@ public class IntoOperatorTests extends ComputeTestCase {
     }
 
     public void testExplainModeDiscardsPages() {
-        IntoPageWriter.Factory explainSink = IntoPageWriter.Factory.createFactory(client, IntoTestUtils.DESTINATION, COLUMNS, true);
+        IntoPageWriter.Factory explainSink = IntoPageWriter.Factory.createFactory(client, IntoTestUtils.DESTINATION, COLUMNS, EXPLAIN);
         Operator op = new IntoOperator.Factory(explainSink, Function.identity()).get(driverContext);
         op.addInput(page("explained"));
         op.finish();

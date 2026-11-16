@@ -3,7 +3,7 @@ navigation_title: "Datasets"
 description: "Learn what an ES|QL Data Federation dataset defines and find the references for defining, creating, and querying datasets."
 applies_to:
   stack: preview 9.6+, experimental =9.5
-  serverless: unavailable
+  serverless: preview
 products:
   - id: elasticsearch
 ---

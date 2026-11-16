@@ -3,7 +3,7 @@ navigation_title: "Skip folders by filtering files"
 description: "Use partition_spec to skip folders when filtering on columns inside your files, reducing I/O for time-partitioned datasets."
 applies_to:
   stack: preview 9.6+
-  serverless: unavailable
+  serverless: preview
 products:
   - id: elasticsearch
 ---

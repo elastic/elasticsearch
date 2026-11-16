@@ -3,7 +3,7 @@ navigation_title: "Create and manage"
 description: "Create, inspect, update, and delete ES|QL Data Federation datasets in Kibana or with the Elasticsearch API."
 applies_to:
   stack: preview 9.6+, experimental =9.5
-  serverless: unavailable
+  serverless: preview
 products:
   - id: elasticsearch
 ---

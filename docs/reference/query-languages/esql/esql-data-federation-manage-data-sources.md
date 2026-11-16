@@ -3,7 +3,7 @@ navigation_title: "Manage data sources"
 description: "Connect, view, edit, and delete ES|QL Data Federation data sources in Kibana or with the Elasticsearch API."
 applies_to:
   stack: preview 9.6+, experimental =9.5
-  serverless: unavailable
+  serverless: preview
 products:
   - id: elasticsearch
 ---
@@ -59,7 +59,7 @@ Some connection options are available only with the [API](#manage-data-sources-u
 Connecting a data source doesn't test whether it can read your files. To check the connection, [create a dataset](esql-data-federation-manage-datasets.md) that reads from it and query the dataset.
 
 <!--
-{applies_to}`stack: preview 9.7+` You can also check the connection with the [test a connection](#test-a-connection) API.
+{applies_to}`stack: preview 9.7+` {applies_to}`serverless: preview` You can also check the connection with the [test a connection](#test-a-connection) API.
 -->
 
 ### Edit a data source
@@ -95,7 +95,7 @@ Data sources are managed under the `/_query/data_source` endpoint. All data sour
 This section is a quick reference for each operation. For the complete request and response details, follow the API reference links in the table.
 
 <!-- Restore this table row when the test connection API is released:
-| [Test connection](#test-a-connection) {applies_to}`stack: preview 9.7+` | `POST /_query/data_source/_test` | [Test an ES\|QL data source connection]({{es-apis}}operation/operation-esql-data-source-test-connection) |
+| [Test connection](#test-a-connection) {applies_to}`stack: preview 9.7+` {applies_to}`serverless: preview` | `POST /_query/data_source/_test` | [Test an ES\|QL data source connection]({{es-apis}}operation/operation-esql-data-source-test-connection) |
 -->
 
 ### Create or update a data source [create-or-update-a-data-source]
@@ -105,7 +105,7 @@ This section is a quick reference for each operation. For the complete request a
 The create request does not validate connectivity to the external system.
 
 <!--
-{applies_to}`stack: preview 9.7+` To verify that credentials and endpoint are correct before saving, use the [test connection](#test-a-connection) endpoint.
+{applies_to}`stack: preview 9.7+` {applies_to}`serverless: preview` To verify that credentials and endpoint are correct before saving, use the [test connection](#test-a-connection) endpoint.
 -->
 
 ::::{tab-set}

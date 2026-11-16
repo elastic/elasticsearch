@@ -3,7 +3,7 @@ navigation_title: "Manage in UI"
 description: "Create, view, and edit ES|QL Data Federation datasets with the Add dataset wizard in Kibana."
 applies_to:
   stack: preview 9.6+, experimental =9.5
-  serverless: unavailable
+  serverless: preview
 products:
   - id: elasticsearch
   - id: kibana

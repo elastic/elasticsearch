@@ -3,7 +3,7 @@ navigation_title: "Amazon S3 costs"
 description: "Understand the AWS charges for querying Amazon S3 with ES|QL Data Federation, and learn how to estimate, monitor, and reduce them."
 applies_to:
   stack: preview 9.6+
-  serverless: unavailable
+  serverless: preview
 products:
   - id: elasticsearch
 ---

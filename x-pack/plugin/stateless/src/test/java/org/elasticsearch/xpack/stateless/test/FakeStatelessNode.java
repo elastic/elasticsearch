@@ -73,6 +73,7 @@ import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingLimits;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -323,8 +324,7 @@ public class FakeStatelessNode implements Closeable {
                     sharedCacheService,
                     threadPool,
                     clusterSettings,
-                    nodeSettings,
-                    ByteSizeValue.ZERO
+                    new DataNodeRecoveryThrottlingLimits(clusterSettings, nodeSettings, ByteSizeValue.ZERO)
                 )
             );
             onlinePrewarmingService = new StatelessOnlinePrewarmingService(

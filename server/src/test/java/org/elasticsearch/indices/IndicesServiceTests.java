@@ -84,7 +84,7 @@ import org.elasticsearch.index.similarity.NonNegativeScoresSimilarity;
 import org.elasticsearch.indices.IndicesService.ShardDeletionCheckResult;
 import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
-import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings;
+import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingLimits;
 import org.elasticsearch.indices.recovery.TestRecoverySchedulingListener;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -1211,7 +1211,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
     public void testTryIncRecoveryFastPath() throws Exception {
         updateClusterSettings(
             Settings.builder()
-                .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1)
+                .put(DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1)
                 .build()
         );
         final String blockingIndex = randomIndexName();
@@ -1262,7 +1262,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             assertAcked(indicesAdmin().prepareDelete(blockingIndex, closedIndex));
             updateClusterSettings(
                 Settings.builder()
-                    .putNull(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey())
+                    .putNull(DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey())
                     .build()
             );
         }

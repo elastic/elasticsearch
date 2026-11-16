@@ -93,7 +93,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.PostRecoveryMerger;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
-import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings;
+import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingLimits;
 import org.elasticsearch.indices.recovery.RecoveryGate;
 import org.elasticsearch.indices.recovery.RecoveryGateMonitor;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -104,7 +104,6 @@ import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.node.PluginComponentBinding;
@@ -755,8 +754,7 @@ public class StatelessPlugin extends Plugin
             cacheService,
             threadPool,
             clusterService.getClusterSettings(),
-            clusterService.getSettings(),
-            JvmInfo.jvmInfo().getMem().getHeapMax()
+            services.dataNodeRecoveryThrottlingLimits()
         );
         components.add(searchRecoveryTimeoutCalculationService);
         var cacheWarmingService = createSharedBlobCacheWarmingService(
@@ -966,7 +964,7 @@ public class StatelessPlugin extends Plugin
                 hollowShardMetrics.get(),
                 relocationMetricsCollectorProvider,
                 services.client(),
-                JvmInfo.jvmInfo().getMem().getHeapMax()
+                services.dataNodeRecoveryThrottlingLimits()
             )
         );
         components.add(primaryRelocationSourceService);
@@ -1459,11 +1457,11 @@ public class StatelessPlugin extends Plugin
             StatelessPrimaryRelocationSourceService.PRE_FLUSH_SLOW_UPLOAD_QUEUE_THRESHOLD_SETTING,
             StatelessPrimaryRelocationSourceService.PREWARM_WAIT_TIMEOUT_SETTING,
             StatelessPrimaryRelocationSourceService.TRANSFER_HOLLOW_COMMIT_METADATA_SETTING,
-            DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING,
-            DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
-            DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING,
-            DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING,
-            DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING,
+            DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING,
+            DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
+            DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING,
+            DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING,
+            DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING,
             RecoveryDirectCancellationService.ENABLE_DIRECT_RECOVERY_CANCELLATIONS_SETTING,
             RecoveryDirectCancellationService.ENABLE_DIRECT_CANCELLATIONS_FOR_SNAPSHOTS_SETTING,
             RecoveryGateMonitor.ENABLE_RECOVERY_GATES_SETTING,

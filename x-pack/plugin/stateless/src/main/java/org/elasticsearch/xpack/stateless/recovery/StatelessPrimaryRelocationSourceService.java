@@ -31,7 +31,6 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -51,7 +50,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
-import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings;
+import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingLimits;
 import org.elasticsearch.indices.recovery.RecoveryClusterStateDelay;
 import org.elasticsearch.indices.recovery.RecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction;
@@ -157,7 +156,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         HollowShardsMetrics hollowShardsMetrics,
         StatelessPrimaryRelocationMetricsCollectorProvider relocationMetricsCollectorProvider,
         Client client,
-        ByteSizeValue maxHeap
+        DataNodeRecoveryThrottlingLimits dataNodeRecoveryThrottlingLimits
     ) {
         this.clusterService = clusterService;
         this.threadPool = threadPool;
@@ -171,7 +170,12 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         this.relocationMetricsCollectorProvider = relocationMetricsCollectorProvider;
         this.client = client;
         this.throttledPrimaryRelocations = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.INDEX_ROLE)
-            ? new ThrottledPrimaryRelocations(clusterService, recoveryExecutor, this::startRelocationWithFreshClusterState, maxHeap)
+            ? new ThrottledPrimaryRelocations(
+                clusterService,
+                recoveryExecutor,
+                this::startRelocationWithFreshClusterState,
+                dataNodeRecoveryThrottlingLimits
+            )
             : null;
 
         clusterService.getClusterSettings()
@@ -781,9 +785,9 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         private final ClusterService clusterService;
         private final Executor executor;
         private final RelocationRunner runner;
-        private final ByteSizeValue maxHeap;
+        private final DataNodeRecoveryThrottlingLimits dataNodeRecoveryThrottlingLimits;
 
-        /// Effective max concurrent outgoing relocations, see [DataNodeRecoveryThrottlingSettings#watchOutgoingRecoveryLimit].
+        /// Effective max concurrent outgoing relocations, see [DataNodeRecoveryThrottlingLimits#addOutgoingRecoveryLimitConsumer].
         private int effectiveMaxConcurrentOutgoingRelocations;
         private int activeRelocationCount = 0;
 
@@ -791,19 +795,20 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
 
         private boolean closed = false;
 
-        ThrottledPrimaryRelocations(ClusterService clusterService, Executor executor, RelocationRunner runner, ByteSizeValue maxHeap) {
+        ThrottledPrimaryRelocations(
+            ClusterService clusterService,
+            Executor executor,
+            RelocationRunner runner,
+            DataNodeRecoveryThrottlingLimits dataNodeRecoveryThrottlingLimits
+        ) {
             this.clusterService = clusterService;
             this.executor = executor;
             this.runner = runner;
-            this.maxHeap = maxHeap;
+            this.dataNodeRecoveryThrottlingLimits = dataNodeRecoveryThrottlingLimits;
         }
 
         void start() {
-            DataNodeRecoveryThrottlingSettings.watchOutgoingRecoveryLimit(
-                clusterService.getClusterSettings(),
-                maxHeap,
-                this::applyMaxConcurrentOutgoingRelocations
-            );
+            dataNodeRecoveryThrottlingLimits.addOutgoingRecoveryLimitConsumer(this::applyMaxConcurrentOutgoingRelocations);
         }
 
         @Override

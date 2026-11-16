@@ -74,7 +74,7 @@ import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
-import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings;
+import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingLimits;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction;
 import org.elasticsearch.indices.recovery.StatelessUnpromotableRelocationAction;
@@ -444,8 +444,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             res.add(StatelessPrimaryRelocationSourceService.PRE_FLUSH_SLOW_UPLOAD_QUEUE_THRESHOLD_SETTING);
             res.add(StatelessPrimaryRelocationSourceService.PREWARM_WAIT_TIMEOUT_SETTING);
             res.add(StatelessPrimaryRelocationSourceService.TRANSFER_HOLLOW_COMMIT_METADATA_SETTING);
-            res.add(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING);
-            res.add(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING);
+            res.addAll(DataNodeRecoveryThrottlingLimits.settings());
             return Set.copyOf(res);
         }
 
@@ -561,7 +560,11 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                     HollowShardsMetrics.NOOP,
                     primaryRelocationMetricsCollectorProvider,
                     client,
-                    ByteSizeValue.ofBytes(Long.MAX_VALUE)
+                    new DataNodeRecoveryThrottlingLimits(
+                        clusterService().getClusterSettings(),
+                        settings,
+                        ByteSizeValue.ofBytes(Long.MAX_VALUE)
+                    )
                 );
                 final var primaryRelocationTargetService = new StatelessPrimaryRelocationTargetService(
                     clusterService(),
@@ -870,8 +873,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 cacheService,
                 threadPool,
                 clusterService.getClusterSettings(),
-                clusterService.getSettings(),
-                ByteSizeValue.ZERO
+                new DataNodeRecoveryThrottlingLimits(clusterService.getClusterSettings(), clusterService.getSettings(), ByteSizeValue.ZERO)
             );
             this.cacheWarmingService = new SharedBlobCacheWarmingService(
                 cacheService,

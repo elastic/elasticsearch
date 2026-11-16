@@ -38,7 +38,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings;
+import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingLimits;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.FakeTimeThreadPool;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -103,13 +103,13 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             cacheService,
             threadPool,
             clusterSettings,
-            onlyRole(DiscoveryNodeRole.SEARCH_ROLE),
-            ByteSizeValue.ZERO
+            new DataNodeRecoveryThrottlingLimits(clusterSettings, onlyRole(DiscoveryNodeRole.SEARCH_ROLE), ByteSizeValue.ZERO)
         );
     }
 
     private static ClusterSettings newClusterSettings(Settings settings) {
-        final Set<Setting<?>> registeredSettings = new HashSet<>(DataNodeRecoveryThrottlingSettings.settings());
+        final Set<Setting<?>> registeredSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        registeredSettings.addAll(DataNodeRecoveryThrottlingLimits.settings());
         registeredSettings.addAll(
             List.of(
                 SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_WITH_SHUTDOWN_SETTING,
@@ -1039,8 +1039,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                 Mockito.mock(StatelessSharedBlobCacheService.class),
                 threadPool,
                 clusterSettings,
-                onlyRole(DiscoveryNodeRole.SEARCH_ROLE),
-                ByteSizeValue.ZERO
+                new DataNodeRecoveryThrottlingLimits(clusterSettings, onlyRole(DiscoveryNodeRole.SEARCH_ROLE), ByteSizeValue.ZERO)
             );
             this.plan = plan;
         }
@@ -1731,7 +1730,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             clusterSettings.applySettings(
                 Settings.builder()
                     .put(
-                        DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
+                        DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
                         throttledSlots
                     )
                     .build()
@@ -1745,7 +1744,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             clusterSettings.applySettings(
                 Settings.builder()
                     .put(
-                        DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
+                        DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
                         randomIntBetween(relocationsToTarget, relocationsToTarget * 2)
                     )
                     .build()
@@ -1845,7 +1844,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                 )
                 .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(), true)
                 .put(
-                    DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
+                    DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
                     maxConcurrentRelocationRecoveries
                 )
                 .build();
@@ -1900,7 +1899,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                 .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), "10s")
                 .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING.getKey(), 0.5)
                 .put(
-                    DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
+                    DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
                     maxConcurrentRelocationRecoveries
                 )
                 .build();
@@ -1989,10 +1988,9 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             // 2 incoming recoveries, of which 50% may be non-critical (including all relocations), so a single relocation slot.
             clusterSettings.applySettings(
                 Settings.builder()
-                    .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 2)
+                    .put(DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 2)
                     .put(
-                        DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING
-                            .getKey(),
+                        DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING.getKey(),
                         "50%"
                     )
                     .build()
@@ -2025,7 +2023,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                 .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), "10s")
                 .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING.getKey(), 0.1)
                 .put(
-                    DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
+                    DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
                     maxConcurrentRelocationRecoveries
                 )
                 .build();
@@ -2146,7 +2144,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                     Settings.builder()
                         .put(settings)
                         .put(
-                            DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
+                            DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
                             testCase[0]
                         )
                         .build(),

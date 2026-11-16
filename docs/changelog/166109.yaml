@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166109
+summary: Keep store fault on retry refusal
+type: bug

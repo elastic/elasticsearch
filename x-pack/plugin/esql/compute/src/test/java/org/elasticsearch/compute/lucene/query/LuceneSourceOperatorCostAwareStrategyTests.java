@@ -48,13 +48,14 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
- * Tests {@link LuceneSourceOperator.Factory#autoStrategy(long, boolean)}, the cost-aware source strategy.
+ * Tests {@link LuceneSourceOperator.Factory#autoStrategy(long, boolean, boolean)}, the cost-aware source strategy.
  *
  * <p>A <b>no-limit</b> scan (e.g. {@code STATS}) visits every matching doc, so it shares the cost-threshold rule with
  * count and TopN: a scan-heavy doc-values filter → {@link LuceneSliceQueue.PartitioningStrategy#DOC}; a cheap indexed
  * lookup, an empty result, or the low-cost side of the threshold → {@link LuceneSliceQueue.PartitioningStrategy#SEGMENT};
- * a costly multi-term clause → SEGMENT; {@code MatchAll} → DOC. A point range or point set is DOC once one segment alone
- * matches {@code minCostForDoc * POINT_RANGE_MIN_SLICES} docs, else SEGMENT. With wide rows any costly clause is DOC.
+ * a costly multi-term clause → SEGMENT; {@code MatchAll} → DOC. A filter with a point range or point set is DOC once one
+ * segment alone matches {@code minCostForDoc * POINT_RANGE_MIN_SLICES} docs for its required clauses, without counting
+ * the multi-term ones, else SEGMENT, but only for narrow rows. With the opt-in for wide rows, any costly clause is DOC.
  *
  * <p>A <b>limited</b> scan (implicit {@code LIMIT}) keeps {@link LuceneSliceQueue.PartitioningStrategy#SHARD} for
  * costly-to-build clauses (BKD point ranges, multi-term), for indexed spatial queries (their scorers walk a BKD
@@ -147,7 +148,7 @@ public class LuceneSourceOperatorCostAwareStrategyTests extends ESTestCase {
         // The same range with a bar above the number of docs.
         Query query = nearlyAllDocsRange();
         assertCostlyAfterRewrite(reader, query);
-        assertThat(pick(reader, query, NO_LIMIT, HIGH_MIN_COST_FOR_DOC, false), equalTo(SEGMENT));
+        assertThat(pick(reader, query, NO_LIMIT, HIGH_MIN_COST_FOR_DOC), equalTo(SEGMENT));
     }
 
     public void testStatsPointRangeSpreadOverSegmentsPicksSegment() throws IOException {
@@ -169,37 +170,11 @@ public class LuceneSourceOperatorCostAwareStrategyTests extends ESTestCase {
                 Query query = nearlyAllDocsRange();
                 assertCostlyAfterRewrite(segmented, query);
                 // Bar of 60: no segment reaches it.
-                assertThat(pick(segmented, query, NO_LIMIT, 6, false), equalTo(SEGMENT));
+                assertThat(pick(segmented, query, NO_LIMIT, 6), equalTo(SEGMENT));
                 // Bar of 40: each full segment reaches it.
-                assertThat(pick(segmented, query, NO_LIMIT, 4, false), equalTo(DOC));
+                assertThat(pick(segmented, query, NO_LIMIT, 4), equalTo(DOC));
             }
         }
-    }
-
-    public void testStatsWideRowsWithFewMatchesPicksDoc() throws IOException {
-        // A selective multi-term filter next to a point range: few matches, far below the bar, but each is a wide row.
-        Query query = new BooleanQuery.Builder().add(nearlyAllDocsRange(), BooleanClause.Occur.FILTER)
-            .add(new WildcardQuery(new Term("kw", "v1?")), BooleanClause.Occur.FILTER)
-            .build();
-        assertThat(pick(reader, query, NO_LIMIT, HIGH_MIN_COST_FOR_DOC, false), equalTo(SEGMENT));
-        assertThat(pick(reader, query, NO_LIMIT, HIGH_MIN_COST_FOR_DOC, true), equalTo(DOC));
-    }
-
-    public void testStatsWideRowsWithPointRangeFewMatchesPicksDoc() throws IOException {
-        Query query = nearlyAllDocsRange();
-        assertThat(pick(reader, query, NO_LIMIT, HIGH_MIN_COST_FOR_DOC, false), equalTo(SEGMENT));
-        assertThat(pick(reader, query, NO_LIMIT, HIGH_MIN_COST_FOR_DOC, true), equalTo(DOC));
-    }
-
-    public void testStatsWideRowsWithoutCostlyClauseFollowsCostThreshold() throws IOException {
-        // Wide rows only change costly clauses: a cheap indexed lookup stays on SEGMENT.
-        assertThat(pick(reader, new TermQuery(new Term("kw", "v7")), NO_LIMIT, MIN_COST_FOR_DOC, true), equalTo(SEGMENT));
-        assertThat(pick(reader, Queries.NO_DOCS_INSTANCE, NO_LIMIT, MIN_COST_FOR_DOC, true), equalTo(SEGMENT));
-    }
-
-    public void testLimitedWideRowsPointRangeStillPicksShard() throws IOException {
-        // A limit can fire early, so SHARD stays.
-        assertThat(pick(reader, nearlyAllDocsRange(), between(1, 1000), MIN_COST_FOR_DOC, true), equalTo(SHARD));
     }
 
     public void testStatsPointSetMatchingEnoughDocsPicksDoc() throws IOException {
@@ -209,12 +184,75 @@ public class LuceneSourceOperatorCostAwareStrategyTests extends ESTestCase {
         assertThat(pick(query, NO_LIMIT), equalTo(DOC));
     }
 
-    public void testStatsPointRangeWithMultiTermClausePicksSegment() throws IOException {
-        // The range alone would take DOC, but a DOC slice would also rebuild the wildcard scorer.
-        Query query = new BooleanQuery.Builder().add(nearlyAllDocsRange(), BooleanClause.Occur.FILTER)
-            .add(new WildcardQuery(new Term("kw", "v*")), BooleanClause.Occur.FILTER)
-            .build();
+    public void testStatsPointRangeWithMultiTermClausePicksDoc() throws IOException {
+        // The wildcard is left out of the estimate, so the range that fills the segment decides.
+        Query query = rangeAnd(new WildcardQuery(new Term("kw", "v*")));
+        assertCostlyAfterRewrite(reader, query);
+        assertThat(pick(query, NO_LIMIT), equalTo(DOC));
+    }
+
+    public void testStatsPointRangeWithMultiTermClauseBelowBarPicksSegment() throws IOException {
+        Query query = rangeAnd(new WildcardQuery(new Term("kw", "v*")));
+        assertThat(pick(reader, query, NO_LIMIT, HIGH_MIN_COST_FOR_DOC), equalTo(SEGMENT));
+    }
+
+    public void testStatsMultiTermWithoutPointClausePicksSegment() throws IOException {
+        // No point clause to say where the matches are, so the costly multi-term clause keeps SEGMENT.
+        Query query = new WildcardQuery(new Term("kw", "v*"));
+        assertCostlyAfterRewrite(reader, query);
         assertThat(pick(query, NO_LIMIT), equalTo(SEGMENT));
+    }
+
+    public void testStatsPointRangeWithSelectiveTermPicksSegment() throws IOException {
+        // The term matches one doc, so the required clauses together are far below the bar.
+        Query query = rangeAnd(new TermQuery(new Term("kw", "v7")));
+        assertCostlyAfterRewrite(reader, query);
+        assertThat(pick(query, NO_LIMIT), equalTo(SEGMENT));
+    }
+
+    public void testStatsPointRangeThatIsNotRequiredPicksSegment() throws IOException {
+        Query wildcard = new WildcardQuery(new Term("kw", "v*"));
+        // an optional range: the wildcard alone can match, so the range says nothing about where the matches are
+        Query should = new BooleanQuery.Builder().add(nearlyAllDocsRange(), BooleanClause.Occur.SHOULD)
+            .add(wildcard, BooleanClause.Occur.SHOULD)
+            .build();
+        assertThat(pick(should, NO_LIMIT), equalTo(SEGMENT));
+        // a negated range selects the docs outside of it
+        Query mustNot = new BooleanQuery.Builder().add(nearlyAllDocsRange(), BooleanClause.Occur.MUST_NOT)
+            .add(wildcard, BooleanClause.Occur.FILTER)
+            .build();
+        assertThat(pick(mustNot, NO_LIMIT), equalTo(SEGMENT));
+    }
+
+    public void testStatsWideRowsKeepSegmentUnlessOptedIn() throws IOException {
+        // A range that fills the segment takes DOC for narrow rows, but wide rows pay too much CPU for it.
+        Query range = nearlyAllDocsRange();
+        assertThat(pick(reader, range, NO_LIMIT, MIN_COST_FOR_DOC, true, false), equalTo(DOC));
+        assertThat(pick(reader, range, NO_LIMIT, MIN_COST_FOR_DOC, false, false), equalTo(SEGMENT));
+        assertThat(
+            pick(reader, rangeAnd(new WildcardQuery(new Term("kw", "v*"))), NO_LIMIT, MIN_COST_FOR_DOC, false, false),
+            equalTo(SEGMENT)
+        );
+    }
+
+    public void testStatsWideRowsOptInPicksDocForAnyCostlyClause() throws IOException {
+        // The opt-in: a multi-term clause without a point clause, with few matches, but each match is a wide row.
+        Query wildcard = new WildcardQuery(new Term("kw", "v1?"));
+        assertThat(pick(reader, wildcard, NO_LIMIT, HIGH_MIN_COST_FOR_DOC, false, false), equalTo(SEGMENT));
+        assertThat(pick(reader, wildcard, NO_LIMIT, HIGH_MIN_COST_FOR_DOC, false, true), equalTo(DOC));
+        // and a point range that matches far fewer docs than the bar
+        assertThat(pick(reader, nearlyAllDocsRange(), NO_LIMIT, HIGH_MIN_COST_FOR_DOC, false, true), equalTo(DOC));
+    }
+
+    public void testStatsWideRowsOptInWithoutCostlyClauseFollowsCostThreshold() throws IOException {
+        // The opt-in only changes costly clauses: a cheap indexed lookup stays on SEGMENT.
+        assertThat(pick(reader, new TermQuery(new Term("kw", "v7")), NO_LIMIT, MIN_COST_FOR_DOC, false, true), equalTo(SEGMENT));
+        assertThat(pick(reader, Queries.NO_DOCS_INSTANCE, NO_LIMIT, MIN_COST_FOR_DOC, false, true), equalTo(SEGMENT));
+    }
+
+    public void testLimitedWideRowsOptInPointRangeStillPicksShard() throws IOException {
+        // A limit can fire early, so SHARD stays.
+        assertThat(pick(reader, nearlyAllDocsRange(), between(1, 1000), MIN_COST_FOR_DOC, false, true), equalTo(SHARD));
     }
 
     // --- implicit limit: cost-aware, not always SHARD ---
@@ -295,19 +333,38 @@ public class LuceneSourceOperatorCostAwareStrategyTests extends ESTestCase {
     }
 
     private LuceneSliceQueue.PartitioningStrategy pick(IndexReader indexReader, Query query, int limit) throws IOException {
-        return pick(indexReader, query, limit, MIN_COST_FOR_DOC, false);
+        return pick(indexReader, query, limit, MIN_COST_FOR_DOC);
     }
 
-    private LuceneSliceQueue.PartitioningStrategy pick(IndexReader indexReader, Query query, int limit, long minCostForDoc, boolean wide)
+    private LuceneSliceQueue.PartitioningStrategy pick(IndexReader indexReader, Query query, int limit, long minCostForDoc)
         throws IOException {
+        return pick(indexReader, query, limit, minCostForDoc, true, false);
+    }
+
+    private LuceneSliceQueue.PartitioningStrategy pick(
+        IndexReader indexReader,
+        Query query,
+        int limit,
+        long minCostForDoc,
+        boolean narrowRows,
+        boolean wideRowsOptIn
+    ) throws IOException {
         ShardContext ctx = new LuceneSourceOperatorTests.MockShardContext(indexReader, 0);
         Query rewritten = new IndexSearcher(indexReader).rewrite(query);
-        return LuceneSourceOperator.Factory.autoStrategy(minCostForDoc, wide).pickStrategy(limit).apply(ctx, rewritten);
+        return LuceneSourceOperator.Factory.autoStrategy(minCostForDoc, narrowRows, wideRowsOptIn)
+            .pickStrategy(limit)
+            .apply(ctx, rewritten);
     }
 
     /** Every doc but the first: a range over all docs would be rewritten to match-all, which takes DOC anyway. */
     private static Query nearlyAllDocsRange() {
         return LongPoint.newRangeQuery("pt", 1, NUM_DOCS - 1);
+    }
+
+    private static Query rangeAnd(Query other) {
+        return new BooleanQuery.Builder().add(nearlyAllDocsRange(), BooleanClause.Occur.FILTER)
+            .add(other, BooleanClause.Occur.FILTER)
+            .build();
     }
 
     private static void assertCostlyAfterRewrite(IndexReader indexReader, Query query) throws IOException {

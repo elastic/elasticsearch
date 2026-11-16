@@ -294,6 +294,20 @@ public final class QuerySettings {
         .build();
 
     @Param(
+        name = "doc_partitioning_for_wide_rows",
+        type = { "boolean" },
+        since = "9.7+",
+        description = "When enabled, a scan with a costly filter (a terms filter, a wildcard or a range) that reads wide rows, many "
+            + "fields per matching document, is split into finer slices that run on more cores. This can speed up queries whose "
+            + "matches sit in a few segments, but it uses several times more CPU and can be slower when the matches already spread "
+            + "over many segments. Defaults to `false`."
+    )
+    public static final QuerySettingDef<Boolean> DOC_PARTITIONING_FOR_WIDE_ROWS = QuerySettingDef.bool("doc_partitioning_for_wide_rows")
+        .withPreview()
+        .withTelemetryLabels(List.of("false", "true"), value -> Boolean.toString(Boolean.TRUE.equals(value)))
+        .build();
+
+    @Param(
         name = "exemplars",
         type = { "boolean", "map_param" },
         description = "When enabled, the provided `TS ... | STATS` or `PROMQL` query is not executed. Instead, exemplars considered"
@@ -333,6 +347,7 @@ public final class QuerySettings {
     public static final List<QuerySettingDef<?>> ALL = List.of(
         APPROXIMATION,
         COLUMN_METADATA,
+        DOC_PARTITIONING_FOR_WIDE_ROWS,
         EXEMPLARS,
         WILDCARDS_MATCH_DATASETS,
         WILDCARDS_MATCH_VIEWS,

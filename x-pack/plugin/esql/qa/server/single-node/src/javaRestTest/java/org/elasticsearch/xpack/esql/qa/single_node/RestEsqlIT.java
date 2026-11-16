@@ -1495,24 +1495,41 @@ public class RestEsqlIT extends RestEsqlTestCase {
         assertLuceneSourceStrategy(runWithLuceneSourceProfile(query, 200), "SEGMENT");
     }
 
-    /**
-     * Wide rows (many fields and {@code EVAL}s before the aggregation) take {@code DOC} whatever the match count.
-     * Narrow rows stay {@code SEGMENT}.
-     */
-    public void testAutoPartitioningWideRows() throws IOException {
+    /** A wildcard next to a point range does not stop the range from taking {@code DOC}: only the range is counted. */
+    public void testAutoPartitioningPointRangeWithWildcard() throws IOException {
         indexTimestampData(1);
         assumeTrue("require pragmas", Build.current().isSnapshot());
-        int fields = 14; // about 50 estimated bytes each, so the rows are wider than LuceneSourceOperator.Factory.WIDE_ROW_ESTIMATED_BYTES
+        String query = fromIndex() + " | WHERE value >= 100 AND value < 900 AND test.keyword LIKE \"value*\" | STATS AVG(value)";
+        assertLuceneSourceStrategy(runWithLuceneSourceProfile(query, 10), "DOC");
+        // The same query with a bar above the index.
+        assertLuceneSourceStrategy(runWithLuceneSourceProfile(query, 200), "SEGMENT");
+        // The wildcard alone has no point clause to say where the matches are.
+        String wildcardOnly = fromIndex() + " | WHERE test.keyword LIKE \"value*\" | STATS AVG(value)";
+        assertLuceneSourceStrategy(runWithLuceneSourceProfile(wildcardOnly, 10), "SEGMENT");
+    }
+
+    /**
+     * Wide rows (many fields and {@code EVAL}s before the aggregation) keep {@code SEGMENT}, because {@code DOC} costs them
+     * several times the CPU. The query setting {@code doc_partitioning_for_wide_rows} is off by default. When it is on,
+     * wide rows take {@code DOC} whatever the match count.
+     */
+    public void testAutoPartitioningWideRowsOption() throws IOException {
+        indexTimestampData(1);
+        assumeTrue("require pragmas", Build.current().isSnapshot());
+        int fields = 14; // about 50 estimated bytes each
         StringBuilder evals = new StringBuilder();
         StringBuilder aggs = new StringBuilder();
         for (int i = 0; i < fields; i++) {
             evals.append(i == 0 ? "" : ", ").append("k").append(i).append(" = TO_STRING(value + ").append(i).append(")");
             aggs.append(i == 0 ? "" : ", ").append("m").append(i).append(" = MIN(k").append(i).append(")");
         }
-        String range = fromIndex() + " | WHERE value >= 100 AND value < 900";
-        // The range bar is above the index, so only the wide rows can take DOC.
-        assertLuceneSourceStrategy(runWithLuceneSourceProfile(range + " | EVAL " + evals + " | STATS " + aggs, 200), "DOC");
-        assertLuceneSourceStrategy(runWithLuceneSourceProfile(range + " | STATS m = MIN(value)", 200), "SEGMENT");
+        // With a bar of about 100 docs the point range would take DOC, but wide rows keep SEGMENT unless opted in.
+        String wide = fromIndex() + " | WHERE value >= 100 AND value < 900 | EVAL " + evals + " | STATS " + aggs;
+        assertLuceneSourceStrategy(runWithLuceneSourceProfile(wide, 10), "SEGMENT");
+        assertLuceneSourceStrategy(runWithLuceneSourceProfile("SET doc_partitioning_for_wide_rows = true; " + wide, 10), "DOC");
+        // Narrow rows take DOC by the point range rule, with or without the option.
+        String narrow = fromIndex() + " | WHERE value >= 100 AND value < 900 | STATS m = MIN(value)";
+        assertLuceneSourceStrategy(runWithLuceneSourceProfile(narrow, 10), "DOC");
     }
 
     private Map<String, Object> runWithLuceneSourceProfile(String query, int minDocsPerSlice) throws IOException {

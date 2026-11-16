@@ -6,6 +6,9 @@
 :::{include} column_metadata.md
 :::
 
+:::{include} doc_partitioning_for_wide_rows.md
+:::
+
 :::{include} project_routing.md
 :::
 

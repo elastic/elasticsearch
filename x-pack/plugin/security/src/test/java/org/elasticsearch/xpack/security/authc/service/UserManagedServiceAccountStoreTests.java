@@ -865,6 +865,15 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         assertThat(requests, empty());
     }
 
+    public void testPutAccountRejectsTooManyInitials() {
+        final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
+        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, null, null, "ABC", authentication, RefreshPolicy.NONE, future);
+
+        final ValidationException e = expectThrows(ValidationException.class, future::actionGet);
+        assertThat(e.validationErrors(), contains("service account initials may not be more than 2 characters long, but [3] were given"));
+        assertThat(requests, empty());
+    }
+
     public void testPutAccountRejectsMoreRolesThanAnAccountMayHold() {
         final int max = Validation.UserManagedServiceAccounts.MAX_ROLES;
         final List<String> tooMany = randomBoolean()

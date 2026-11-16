@@ -42,12 +42,12 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
-import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.STREAM_ID_FIELD;
 import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.EXPIRATION_TIME_FIELD;
 import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.FIRST_ROW_FIELD;
 import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.PAGE_FIELD;
 import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.PAGE_SEQ_FIELD;
 import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.ROW_COUNT_FIELD;
+import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.STREAM_ID_FIELD;
 import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.TRANSPORT_VERSION_FIELD;
 
 /**
@@ -86,7 +86,7 @@ final class StoredResultWriter implements PageStreamPublisher.PageObserver {
     private final byte[] docIdBytes;
     private final StoredResultMetadata running;
     private final long expirationTime;
-    private final PageStreamPublisher publisher;
+    private final Runnable onCapacity;
 
     // Guarded by this; unackedBytes and failure are also read without it, by hasCapacity
     private final ArrayDeque<Chunk> chunks = new ArrayDeque<>();
@@ -98,6 +98,9 @@ final class StoredResultWriter implements PageStreamPublisher.PageObserver {
     private boolean finished;
     private volatile Exception failure;
 
+    /**
+     * @param onCapacity called when {@link #hasCapacity()} may have turned true
+     */
     StoredResultWriter(
         Client client,
         ClusterService clusterService,
@@ -105,7 +108,7 @@ final class StoredResultWriter implements PageStreamPublisher.PageObserver {
         String docId,
         StoredResultMetadata running,
         long expirationTime,
-        PageStreamPublisher publisher
+        Runnable onCapacity
     ) {
         this.client = new OriginSettingClient(client, ASYNC_SEARCH_ORIGIN);
         this.clusterService = clusterService;
@@ -114,7 +117,7 @@ final class StoredResultWriter implements PageStreamPublisher.PageObserver {
         this.docIdBytes = docId.getBytes(StandardCharsets.UTF_8);
         this.running = running;
         this.expirationTime = expirationTime;
-        this.publisher = publisher;
+        this.onCapacity = onCapacity;
     }
 
     /**
@@ -279,7 +282,7 @@ final class StoredResultWriter implements PageStreamPublisher.PageObserver {
                 fail(e);
             }
         }
-        publisher.observerCapacityAvailable();
+        onCapacity.run();
         flush();
     }
 

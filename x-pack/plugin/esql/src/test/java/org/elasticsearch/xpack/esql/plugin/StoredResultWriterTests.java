@@ -21,7 +21,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.PageStreamPublisher;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -66,7 +65,7 @@ public class StoredResultWriterTests extends ESTestCase {
             RESULT,
             StoredResultMetadata.running(Map.of(), List.of(), ZoneOffset.UTC),
             0,
-            new PageStreamPublisher()
+            () -> {}
         );
     }
 

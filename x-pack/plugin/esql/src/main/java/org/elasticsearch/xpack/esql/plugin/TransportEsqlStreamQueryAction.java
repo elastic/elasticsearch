@@ -502,7 +502,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                 StoredResultMetadata.running(securityHeaders, columns, zoneId),
                 threadPool.absoluteTimeInMillis() + Objects.requireNonNullElse(request.keepAlive(), EsqlQueryRequest.DEFAULT_KEEP_ALIVE)
                     .millis(),
-                publisher
+                publisher::observerCapacityAvailable
             );
             publisher.observePages(writer);
             writer.start();

@@ -89,6 +89,7 @@ public class RestEsqlStreamQueryActionTests extends ESTestCase {
     public void testFormatAndAcceptDefaultToNdjson() {
         RestEsqlStreamQueryAction.validateFormat(null, null);
         RestEsqlStreamQueryAction.validateFormat("ndjson", null);
+        RestEsqlStreamQueryAction.validateFormat("NDJSON", null);
         RestEsqlStreamQueryAction.validateFormat(null, "");
         RestEsqlStreamQueryAction.validateFormat(null, "  ");
     }
@@ -99,10 +100,22 @@ public class RestEsqlStreamQueryActionTests extends ESTestCase {
         RestEsqlStreamQueryAction.validateFormat(null, "application/*");
         RestEsqlStreamQueryAction.validateFormat(null, "application/x-ndjson; charset=utf-8");
         RestEsqlStreamQueryAction.validateFormat(null, "text/csv, application/x-ndjson;q=0.9");
+        RestEsqlStreamQueryAction.validateFormat(null, "application/vnd.elasticsearch+x-ndjson;compatible-with=9");
+        RestEsqlStreamQueryAction.validateFormat(null, "application/vnd.elasticsearch+x-ndjson; compatible-with=8");
+        RestEsqlStreamQueryAction.validateFormat(null, "Application/X-NDJSON");
+        RestEsqlStreamQueryAction.validateFormat(null, "APPLICATION/*");
+        RestEsqlStreamQueryAction.validateFormat(null, "text/csv, Application/X-Ndjson;q=0.9");
+        RestEsqlStreamQueryAction.validateFormat(null, "Application/Vnd.Elasticsearch+X-NDJSON;compatible-with=9");
     }
 
     public void testAcceptHeaderThatDoesNotAllowNdjson() {
-        for (String accept : new String[] { "text/csv", "application/json", "application/vnd.apache.arrow.stream", "text/*" }) {
+        for (String accept : new String[] {
+            "text/csv",
+            "Text/CSV",
+            "application/json",
+            "application/vnd.apache.arrow.stream",
+            "text/*",
+            "application/vnd.elasticsearch+json;compatible-with=9" }) {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
                 () -> RestEsqlStreamQueryAction.validateFormat(null, accept)

@@ -17,9 +17,11 @@ import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -39,6 +41,7 @@ public class RestEsqlStreamQueryAction extends BaseRestHandler {
 
     static final String NDJSON_FORMAT_VALUE = "ndjson";
     static final String NDJSON_MEDIA_TYPE = "application/x-ndjson";
+    static final String VND_NDJSON_MEDIA_TYPE = XContentType.VENDOR_APPLICATION_PREFIX + "x-ndjson";
 
     /**
      * Streaming is unreleased, so it is available on snapshot builds only. When this is false the handler is never
@@ -109,10 +112,12 @@ public class RestEsqlStreamQueryAction extends BaseRestHandler {
 
     /**
      * NDJSON is the only format for now. It is the default, so a request may leave out both the {@code format} parameter
-     * and the {@code Accept} header, but it may not ask for anything else.
+     * and the {@code Accept} header, but it may not ask for anything else. The REST API compatibility form of NDJSON
+     * ({@code application/vnd.elasticsearch+x-ndjson;compatible-with=N}) is accepted too; the framework has already
+     * validated the version by the time this runs.
      */
     static void validateFormat(String format, String accept) {
-        if (format != null && NDJSON_FORMAT_VALUE.equals(format) == false) {
+        if (format != null && NDJSON_FORMAT_VALUE.equalsIgnoreCase(format) == false) {
             throw new IllegalArgumentException(
                 "[format] must be [" + NDJSON_FORMAT_VALUE + "] for [POST /_query/stream], got [" + format + "]"
             );
@@ -121,8 +126,11 @@ public class RestEsqlStreamQueryAction extends BaseRestHandler {
             return;
         }
         for (String mediaRange : accept.split(",")) {
-            String mediaType = mediaRange.split(";", 2)[0].trim();
-            if (mediaType.equals("*/*") || mediaType.equals("application/*") || mediaType.equals(NDJSON_MEDIA_TYPE)) {
+            String mediaType = mediaRange.split(";", 2)[0].trim().toLowerCase(Locale.ROOT);
+            if (mediaType.equals("*/*")
+                || mediaType.equals("application/*")
+                || mediaType.equals(NDJSON_MEDIA_TYPE)
+                || mediaType.equals(VND_NDJSON_MEDIA_TYPE)) {
                 return;
             }
         }

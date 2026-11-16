@@ -4557,12 +4557,12 @@ public class EsqlCapabilities {
         EXTERNAL_PARQUET_LIKE_MISSING_COLUMN_REJECTS_ROWS,
 
         /**
-         * Streaming execution on {@code POST /_query?streaming=true&format=ndjson}. That API was removed:
-         * streaming is now served by {@code POST /_query/stream}, advertised by {@link #STREAMING_V2}.
-         * Kept because capabilities are append-only.
-         * Snapshot-only while the streaming protocol is still changing.
+         * Streaming execution on {@code POST /_query?streaming=true&format=ndjson}. That API was removed and
+         * {@code POST /_query} now rejects the {@code streaming} parameter, so this capability is disabled and no
+         * node advertises it. Streaming is served by {@code POST /_query/stream}, advertised by {@link #STREAMING_V2}.
+         * Kept only because capabilities are append-only.
          */
-        STREAMING(Build.current().isSnapshot()),
+        STREAMING(false),
 
         /**
          * The external-dataset warning and error texts were rewritten; csv-spec tests that assert them require this so an

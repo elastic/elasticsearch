@@ -9,12 +9,15 @@ package org.elasticsearch.xpack.esql.qa.single_node;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
 import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -355,6 +358,24 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
         tolerateDefaultLimitWarning(accepted);
         accepted.setOptions(accepted.getOptions().toBuilder().addHeader("Accept", "application/x-ndjson"));
         assertThat(client().performRequest(accepted).getStatusLine().getStatusCode(), equalTo(200));
+    }
+
+    public void testAcceptRestCompatibleNdjson() throws IOException {
+        int major = RestApiVersion.current().major;
+        Request request = new Request("POST", "/_query/stream");
+        request.setEntity(
+            new StringEntity(
+                "{\"query\": \"FROM stream-test | LIMIT 1\"}",
+                ContentType.parse("application/vnd.elasticsearch+json;compatible-with=" + major)
+            )
+        );
+        tolerateDefaultLimitWarning(request);
+        request.setOptions(
+            request.getOptions().toBuilder().addHeader("Accept", "application/vnd.elasticsearch+x-ndjson;compatible-with=" + major)
+        );
+        Response response = client().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+        assertThat(response.getEntity().getContentType().getValue(), containsString("ndjson"));
     }
 
     public void testStreamingParametersRemovedFromQueryEndpoint() {

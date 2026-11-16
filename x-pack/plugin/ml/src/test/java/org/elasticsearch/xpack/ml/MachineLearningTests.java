@@ -36,8 +36,9 @@ import org.elasticsearch.xpack.core.ml.action.SetUpgradeModeAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.ml.autoscaling.AbstractNodeAvailabilityZoneMapper;
 import org.elasticsearch.xpack.ml.autoscaling.NodeRealAvailabilityZoneMapper;
-import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryAnalyzer;
-import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryStructure;
+import org.elasticsearch.xpack.ml.datafeed.esql.UnavailableEsqlQueryParser;
+import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
+import org.elasticsearch.xpack.ml.datafeed.esql.spi.ParsedEsqlQuery;
 import org.elasticsearch.xpack.ml.rest.RestMlInfoAction;
 import org.elasticsearch.xpack.ml.rest.dataframe.RestGetDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestGetTrainedModelsAction;
@@ -54,6 +55,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -341,45 +343,57 @@ public class MachineLearningTests extends ESTestCase {
         }
     }
 
-    public void testSameEsqlQueryAnalyzerLoadedRepeatedlyShouldNotFail() throws IOException {
+    public void testNoEsqlQueryParserProviderShouldFallBackToUnavailableParser() throws IOException {
         try (MachineLearning machineLearning = new MachineLearning(Settings.EMPTY)) {
-            ExtensiblePlugin.ExtensionLoader loader = esqlAnalyzerLoader(new FirstTestAnalyzer(), new FirstTestAnalyzer());
-            machineLearning.loadExtensions(loader);
-            machineLearning.loadExtensions(loader);
+            machineLearning.loadExtensions(esqlParserLoader());
+            assertThat(machineLearning.esqlQueryParser(), instanceOf(UnavailableEsqlQueryParser.class));
         }
     }
 
-    public void testDifferentEsqlQueryAnalyzersShouldFailToLoad() throws IOException {
+    public void testRealEsqlQueryParserLoadedAfterNullLoaderShouldBeUsed() throws IOException {
         try (MachineLearning machineLearning = new MachineLearning(Settings.EMPTY)) {
-            ExtensiblePlugin.ExtensionLoader loader = esqlAnalyzerLoader(new FirstTestAnalyzer(), new SecondTestAnalyzer());
+            machineLearning.loadExtensions(null);
+            FirstTestParser parser = new FirstTestParser();
+            machineLearning.loadExtensions(esqlParserLoader(parser));
+            assertThat(machineLearning.esqlQueryParser(), sameInstance(parser));
+        }
+    }
+
+    public void testSameEsqlQueryParserLoadedRepeatedlyShouldNotFail() throws IOException {
+        try (MachineLearning machineLearning = new MachineLearning(Settings.EMPTY)) {
+            ExtensiblePlugin.ExtensionLoader loader = esqlParserLoader(new FirstTestParser(), new FirstTestParser());
+            machineLearning.loadExtensions(loader);
+            machineLearning.loadExtensions(loader);
+            assertThat(machineLearning.esqlQueryParser(), instanceOf(FirstTestParser.class));
+        }
+    }
+
+    public void testDifferentEsqlQueryParsersShouldFailToLoad() throws IOException {
+        try (MachineLearning machineLearning = new MachineLearning(Settings.EMPTY)) {
+            ExtensiblePlugin.ExtensionLoader loader = esqlParserLoader(new FirstTestParser(), new SecondTestParser());
             IllegalStateException e = expectThrows(IllegalStateException.class, () -> machineLearning.loadExtensions(loader));
-            assertThat(e.getMessage(), containsString("Expected one ES|QL query analyzer provider"));
+            assertThat(e.getMessage(), containsString("Expected one ES|QL query parser provider"));
         }
     }
 
-    private static ExtensiblePlugin.ExtensionLoader esqlAnalyzerLoader(EsqlQueryAnalyzer... analyzers) {
+    private static ExtensiblePlugin.ExtensionLoader esqlParserLoader(EsqlQueryParser... parsers) {
         return new ExtensiblePlugin.ExtensionLoader() {
             @Override
             @SuppressWarnings("unchecked")
             public <T> List<T> loadExtensions(Class<T> extensionPointType) {
-                return extensionPointType == EsqlQueryAnalyzer.class ? (List<T>) List.of(analyzers) : List.of();
+                return extensionPointType == EsqlQueryParser.class ? (List<T>) List.of(parsers) : List.of();
             }
         };
     }
 
-    private static class FirstTestAnalyzer implements EsqlQueryAnalyzer {
+    private static class FirstTestParser implements EsqlQueryParser {
         @Override
-        public EsqlQueryStructure analyze(String query) {
+        public ParsedEsqlQuery parse(String query) {
             throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public boolean isDateType(String outputType) {
-            return false;
         }
     }
 
-    private static class SecondTestAnalyzer extends FirstTestAnalyzer {}
+    private static class SecondTestParser extends FirstTestParser {}
 
     public static class MlTestExtensionLoader implements ExtensiblePlugin.ExtensionLoader {
 

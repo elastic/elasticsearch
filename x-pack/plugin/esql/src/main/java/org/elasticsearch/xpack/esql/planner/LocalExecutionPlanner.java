@@ -208,6 +208,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalFieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.FetchSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
@@ -325,6 +326,7 @@ public class LocalExecutionPlanner {
      * tied to the build they run under.
      */
     private final boolean snapshotBuild;
+    private final FetchSourceProvider fetchSources;
     @Nullable
     private final Executor parallelWorkerExecutor;
     private final int esqlWorkerPoolSize;
@@ -352,6 +354,7 @@ public class LocalExecutionPlanner {
         AbstractPhysicalOperationProviders physicalOperationProviders,
         OperatorFactoryRegistry operatorFactoryRegistry,
         boolean snapshotBuild,
+        PlannerServices services,
         @Nullable Executor parallelWorkerExecutor,
         int esqlWorkerPoolSize,
         MatcherWatchdog grokMatcherWatchdog,
@@ -378,6 +381,7 @@ public class LocalExecutionPlanner {
         this.physicalOperationProviders = physicalOperationProviders;
         this.operatorFactoryRegistry = operatorFactoryRegistry;
         this.snapshotBuild = snapshotBuild;
+        this.fetchSources = services.fetchSources();
         this.parallelWorkerExecutor = parallelWorkerExecutor;
         this.esqlWorkerPoolSize = esqlWorkerPoolSize;
         // Resolved once by the caller from the live ClusterSettings (the setting is dynamic), then shared
@@ -414,6 +418,33 @@ public class LocalExecutionPlanner {
         boolean singleNodeOptimizations,
         @Nullable SharedSortBound sortBound
     ) {
+        return plan(description, foldCtx, plannerSettings, localPhysicalPlan, shardContexts, singleNodeOptimizations, sortBound, null);
+    }
+
+    /**
+     * Plans a plan whose root is no sink, like the fetch plan of a fetch request. Every driver ends in {@code rootSink}.
+     */
+    public LocalExecutionPlan plan(
+        String description,
+        FoldContext foldCtx,
+        PlannerSettings plannerSettings,
+        PhysicalPlan localPhysicalPlan,
+        IndexedByShardId<? extends ShardContext> shardContexts,
+        SinkOperatorFactory rootSink
+    ) {
+        return plan(description, foldCtx, plannerSettings, localPhysicalPlan, shardContexts, false, null, Objects.requireNonNull(rootSink));
+    }
+
+    private LocalExecutionPlan plan(
+        String description,
+        FoldContext foldCtx,
+        PlannerSettings plannerSettings,
+        PhysicalPlan localPhysicalPlan,
+        IndexedByShardId<? extends ShardContext> shardContexts,
+        boolean singleNodeOptimizations,
+        @Nullable SharedSortBound sortBound,
+        @Nullable SinkOperatorFactory rootSink
+    ) {
         final boolean timeSeries = localPhysicalPlan.anyMatch(p -> p instanceof TimeSeriesAggregateExec);
         var context = new LocalExecutionPlannerContext(
             description,
@@ -440,6 +471,9 @@ public class LocalExecutionPlanner {
             a -> a.getMode().isOutputPartial() ? a : new ProjectExec(a.source(), a, Expressions.asAttributes(a.aggregates()))
         );
         PhysicalOperation physicalOperation = plan(localPhysicalPlan, context);
+        if (rootSink != null) {
+            physicalOperation = physicalOperation.withSink(rootSink, physicalOperation.layout);
+        }
 
         final TimeValue statusInterval = configuration.pragmas().statusInterval();
         context.addDriverFactory(
@@ -534,6 +568,8 @@ public class LocalExecutionPlanner {
         // source nodes
         else if (node instanceof EsQueryExec esQuery) {
             return planEsQueryNode(esQuery, context);
+        } else if (node instanceof FetchSourceExec fetchSource) {
+            return planFetchSource(fetchSource, context);
         } else if (node instanceof EsStatsQueryExec statsQuery) {
             return planEsStats(statsQuery, context);
         } else if (node instanceof LocalSourceExec localSource) {
@@ -2854,6 +2890,15 @@ public class LocalExecutionPlanner {
             elementTypes.add(PlannerUtils.toElementType(inverse.get(channel).type()));
         }
         return source.with(new GroupedLimitOperator.Factory(limitValue, groupKeys, elementTypes), source.layout);
+    }
+
+    private PhysicalOperation planFetchSource(FetchSourceExec source, LocalExecutionPlannerContext context) {
+        FetchSourceProvider.FetchSource fetch = fetchSources.fetchSource(source, context.pageSize(source, source.estimatedRowSize()));
+        // each driver loads one shard of the fetch request
+        context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, fetch.drivers()));
+        Layout.Builder layout = new Layout.Builder();
+        layout.append(source.doc());
+        return PhysicalOperation.fromSource(fetch.factory(), layout.build());
     }
 
     private PhysicalOperation planMvExpand(MvExpandExec mvExpandExec, LocalExecutionPlannerContext context) {

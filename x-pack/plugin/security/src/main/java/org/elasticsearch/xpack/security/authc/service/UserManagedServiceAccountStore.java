@@ -386,8 +386,8 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
     }
 
     /**
-     * Creates the account, or replaces it wholesale if it already exists. Each {@code null} one of {@code description}, {@code fullName} and {@code initials}
-     * leaves the account without that field.
+     * Creates the account, or replaces it wholesale if it already exists. A {@code null} {@code description},
+     * {@code fullName} or {@code initials} leaves the account without that field.
      * <p>
      * The write is a single update with an upsert, so that which of the two happened is decided by the index rather
      * than by a read that a concurrent write could make stale. The upsert is the whole document with the caller as

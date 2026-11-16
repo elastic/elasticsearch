@@ -177,6 +177,14 @@ public class SingleValueQuery extends Query {
 
         protected abstract AbstractBuilder rewrite(QueryBuilder next);
 
+        /**
+         * The same check of the same field, around another query. Used when the wrapped query is replaced by an equivalent
+         * one, which must go on matching only the documents with a single value.
+         */
+        public final AbstractBuilder withNext(QueryBuilder next) {
+            return rewrite(next);
+        }
+
         @Override
         protected final QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
             QueryBuilder rewritten = next.rewrite(queryRewriteContext);

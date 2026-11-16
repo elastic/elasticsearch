@@ -147,7 +147,7 @@ public class LuceneSourceOperatorCostAwareStrategyTests extends ESTestCase {
         // The same range with a bar above the number of docs.
         Query query = nearlyAllDocsRange();
         assertCostlyAfterRewrite(reader, query);
-        assertThat(pick(reader, query, NO_LIMIT, HIGH_MIN_COST_FOR_DOC), equalTo(SEGMENT));
+        assertThat(pick(reader, query, NO_LIMIT, HIGH_MIN_COST_FOR_DOC, false), equalTo(SEGMENT));
     }
 
     public void testStatsPointRangeSpreadOverSegmentsPicksSegment() throws IOException {
@@ -169,9 +169,9 @@ public class LuceneSourceOperatorCostAwareStrategyTests extends ESTestCase {
                 Query query = nearlyAllDocsRange();
                 assertCostlyAfterRewrite(segmented, query);
                 // Bar of 60: no segment reaches it.
-                assertThat(pick(segmented, query, NO_LIMIT, 6), equalTo(SEGMENT));
+                assertThat(pick(segmented, query, NO_LIMIT, 6, false), equalTo(SEGMENT));
                 // Bar of 40: each full segment reaches it.
-                assertThat(pick(segmented, query, NO_LIMIT, 4), equalTo(DOC));
+                assertThat(pick(segmented, query, NO_LIMIT, 4, false), equalTo(DOC));
             }
         }
     }
@@ -295,12 +295,7 @@ public class LuceneSourceOperatorCostAwareStrategyTests extends ESTestCase {
     }
 
     private LuceneSliceQueue.PartitioningStrategy pick(IndexReader indexReader, Query query, int limit) throws IOException {
-        return pick(indexReader, query, limit, MIN_COST_FOR_DOC);
-    }
-
-    private LuceneSliceQueue.PartitioningStrategy pick(IndexReader indexReader, Query query, int limit, long minCostForDoc)
-        throws IOException {
-        return pick(indexReader, query, limit, minCostForDoc, false);
+        return pick(indexReader, query, limit, MIN_COST_FOR_DOC, false);
     }
 
     private LuceneSliceQueue.PartitioningStrategy pick(IndexReader indexReader, Query query, int limit, long minCostForDoc, boolean wide)

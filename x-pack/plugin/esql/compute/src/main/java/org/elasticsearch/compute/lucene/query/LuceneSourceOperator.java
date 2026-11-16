@@ -219,9 +219,8 @@ public class LuceneSourceOperator extends LuceneOperator {
          * visit {@code ~maxDoc} regardless of match density and the limit is never reached early.
          */
         public static DataPartitioning.AutoStrategy autoStrategy(long minCostForDoc, boolean wideRows) {
-            long minCostForPointRangeDoc = minCostForDoc * POINT_RANGE_MIN_SLICES;
             return limit -> limit == NO_LIMIT
-                ? (ctx, query) -> unlimitedScanAutoStrategy(ctx, query, minCostForDoc, minCostForPointRangeDoc, wideRows)
+                ? (ctx, query) -> unlimitedScanAutoStrategy(ctx, query, minCostForDoc, wideRows)
                 : (ctx, query) -> limitedScanAutoStrategy(ctx, query, minCostForDoc);
         }
 
@@ -244,32 +243,27 @@ public class LuceneSourceOperator extends LuceneOperator {
          * <ul>
          *     <li>{@code wideRows}: each match is expensive enough to outweigh the rebuild. Any costly clause qualifies.</li>
          *     <li>every costly clause is a point clause and one segment alone is estimated to match
-         *         {@code minCostForPointRangeDoc} docs, like a time window in the newest segment.</li>
+         *         {@code minCostForDoc * POINT_RANGE_MIN_SLICES} docs, like a time window in the newest segment.</li>
          * </ul>
          * A multi-term clause does not qualify on match count alone: its rebuild enumerates the segment's terms per slice.
          */
-        private static PartitioningStrategy unlimitedScanAutoStrategy(
-            ShardContext ctx,
-            Query query,
-            long minCostForDoc,
-            long minCostForPointRangeDoc,
-            boolean wideRows
-        ) {
-            if (containsCostlyClause(query)) {
-                if (wideRows) {
-                    return DOC;
-                }
-                if (containsCostlyMultiTermClause(query) == false) {
-                    try {
-                        if (anyLeafCostAtLeast(ctx, query, minCostForPointRangeDoc)) {
-                            return DOC;
-                        }
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                }
+        private static PartitioningStrategy unlimitedScanAutoStrategy(ShardContext ctx, Query query, long minCostForDoc, boolean wideRows) {
+            if (containsCostlyClause(query) && (wideRows || pointRangeFillsSegment(ctx, query, minCostForDoc * POINT_RANGE_MIN_SLICES))) {
+                return DOC;
             }
             return autoPartitioning(ctx, query, DOC, minCostForDoc, SEGMENT);
+        }
+
+        /** {@code true} if there is no costly multi-term clause and one segment alone is estimated to match {@code bar} docs. */
+        private static boolean pointRangeFillsSegment(ShardContext ctx, Query query, long bar) {
+            if (containsClause(query, CostlyMultiTermQueries::isCostlyMultiTermQuery)) {
+                return false;
+            }
+            try {
+                return anyLeafCostAtLeast(ctx, query, bar);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
         }
 
         private static PartitioningStrategy limitedScanAutoStrategy(ShardContext ctx, Query query, long minCostForDoc) {
@@ -409,11 +403,6 @@ public class LuceneSourceOperator extends LuceneOperator {
          */
         static boolean containsCostlyClause(Query query) {
             return containsClause(query, Factory::isCostlyToBuildScorer);
-        }
-
-        /** {@code true} when {@code query} has a costly multi-term clause (wildcard, regexp). */
-        static boolean containsCostlyMultiTermClause(Query query) {
-            return containsClause(query, CostlyMultiTermQueries::isCostlyMultiTermQuery);
         }
 
         /** {@code true} if {@code predicate} matches any sub-query, including under {@code MUST_NOT}. */

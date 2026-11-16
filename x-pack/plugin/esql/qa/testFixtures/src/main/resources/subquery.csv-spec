@@ -2155,3 +2155,40 @@ m:date_nanos                   | @timestamp:date_nanos          | _fork:keyword
 null                           | 2023-10-23T13:33:34.937Z       | fork2
 null                           | 2023-10-23T13:33:34.937123456Z | fork2
 ;
+
+forkAfterSingleSubqueryWithFork
+required_capability: fork_v9
+required_capability: subquery_in_from_command
+required_capability: allow_fork_across_subquery_view_let_boundary
+
+FROM (FROM sample_data | FORK (WHERE event_duration > 2000000) (WHERE event_duration <= 2000000))
+| FORK (WHERE event_duration > 3000000) (WHERE event_duration <= 3000000)
+| KEEP event_duration, _fork
+| SORT _fork, event_duration
+;
+
+event_duration:long | _fork:keyword
+3450233             | fork1
+5033755             | fork1
+8268153             | fork1
+725448              | fork2
+1232382             | fork2
+1756467             | fork2
+2764889             | fork2
+;
+
+forkAfterSingleSubqueryWithForkStats
+required_capability: fork_v9
+required_capability: subquery_in_from_command
+required_capability: allow_fork_across_subquery_view_let_boundary
+
+FROM (FROM sample_data | FORK (WHERE event_duration > 2000000) (WHERE event_duration <= 2000000))
+| FORK (WHERE event_duration > 3000000) (WHERE event_duration <= 3000000)
+| STATS c = COUNT(*) BY _fork
+| SORT _fork
+;
+
+c:long | _fork:keyword
+3      | fork1
+4      | fork2
+;

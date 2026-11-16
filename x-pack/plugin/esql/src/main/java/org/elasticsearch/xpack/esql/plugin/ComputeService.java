@@ -1239,6 +1239,9 @@ public class ComputeService {
         }
 
         final ActionListener<Result> dispatchListener = ActionListener.notifyOnce(listener);
+        if (completeIfStopped(execInfo, physicalPlan, configuration, null, dispatchListener)) {
+            return;
+        }
         try {
             switch (executionPlan) {
                 case SubPlan.Leaf leaf -> executePlan(
@@ -1286,8 +1289,11 @@ public class ComputeService {
     /**
      * Completes {@code listener} with an empty result when async STOP already landed, so the query does not
      * start discovery, register an exchange, or run drivers. Returns {@code true} when the caller must return.
-     * STOP itself is a one-shot broadcast; anything that starts after {@code markAsStopped()} has to read
-     * {@link EsqlExecutionInfo#isStopped()} or it runs to completion and the STOP call blocks for the whole query.
+     * <p>
+     * Only the dispatch entry ({@link #execute}) and the post-discovery hop call this, and only when
+     * {@link EsqlExecutionInfo#hasComputeStarted()} is still false. A later {@code execute()} for INLINE
+     * STATS or a subquery must still run so STOP can cut live work instead of replacing in-flight pages
+     * with an empty result.
      */
     static boolean completeIfStopped(
         EsqlExecutionInfo execInfo,
@@ -1296,7 +1302,7 @@ public class ComputeService {
         Supplier<ExchangeSink> exchangeSinkSupplier,
         ActionListener<Result> listener
     ) {
-        if (execInfo == null || execInfo.isStopped() == false) {
+        if (execInfo == null || execInfo.isStopped() == false || execInfo.hasComputeStarted()) {
             return false;
         }
         execInfo.markPartial();
@@ -1341,9 +1347,6 @@ public class ComputeService {
             Releasables.close(run);
             listener.onFailure(e);
         });
-        if (completeIfStopped(execInfo, physicalPlan, configuration, exchangeSinkSupplier, releasing)) {
-            return;
-        }
         // Capture the inbound ThreadContext before Phase-2 hops to esql_external_io / SDK
         // threads. Those completions have no security user; SEARCH's executor would then
         // preserve the empty context into runCompute. Same pattern as ExternalSourceResolver.
@@ -1490,9 +1493,6 @@ public class ComputeService {
         SiblingPlacement placement,
         @Nullable ByteSizeValue maxResultSize
     ) {
-        if (completeIfStopped(execInfo, collected.plan(), configuration, exchangeSinkSupplier, listener)) {
-            return;
-        }
         final ExternalDistributionResult distributionResult;
         try {
             // SEARCH-thread CPU after the IO hop (distribution / coalesce). Footer and probe CPU
@@ -1541,9 +1541,6 @@ public class ComputeService {
             return;
         }
         Runnable cancelQueryOnFailure = cancelQueryOnFailure(rootTask);
-        if (completeIfStopped(execInfo, resolvedPlan, configuration, exchangeSinkSupplier, listener)) {
-            return;
-        }
         if (dataNodePlan == null) {
             if (hasConcreteIndices) {
                 String error = "expected no concrete indices without data node plan; got " + clusterToConcreteIndices;
@@ -1619,9 +1616,6 @@ public class ComputeService {
          * entire plan.
          */
         List<Attribute> outputAttributes = resolvedPlan.output();
-        if (completeIfStopped(execInfo, resolvedPlan, configuration, exchangeSinkSupplier, listener)) {
-            return;
-        }
         var exchangeSource = new ExchangeSourceHandler(configuration.pragmas().exchangeBufferSize(), searchExecutor);
         listener = ActionListener.runBefore(listener, () -> exchangeService.removeExchangeSourceHandler(sessionId));
         exchangeService.addExchangeSourceHandler(sessionId, exchangeSource);
@@ -1802,9 +1796,6 @@ public class ComputeService {
         PlanTimeProfile planTimeProfile,
         ActionListener<Result> listener
     ) {
-        if (completeIfStopped(execInfo, resolvedPlan, configuration, exchangeSinkSupplier, listener)) {
-            return;
-        }
         List<Attribute> outputAttributes = resolvedPlan.output();
         var exchangeSource = new ExchangeSourceHandler(configuration.pragmas().exchangeBufferSize(), searchExecutor);
         listener = ActionListener.runBefore(listener, () -> exchangeService.removeExchangeSourceHandler(sessionId));
@@ -2097,10 +2088,8 @@ public class ComputeService {
         PlanTimeProfile planTimeProfile,
         ActionListener<DriverCompletionInfo> listener
     ) {
-        if (task instanceof EsqlQueryTask asyncTask && asyncTask.executionInfo() != null && asyncTask.executionInfo().isStopped()) {
-            asyncTask.executionInfo().markPartial();
-            listener.onResponse(DriverCompletionInfo.EMPTY);
-            return;
+        if (task instanceof EsqlQueryTask asyncTask && asyncTask.executionInfo() != null) {
+            asyncTask.executionInfo().markComputeStarted();
         }
         QueryWarnings singleValueQueryWarnings = QueryWarnings.EMIT;
         Set<String> unmappedFieldNames = PlannerUtils.unmappedFieldNames(plan);

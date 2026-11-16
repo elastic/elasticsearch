@@ -46,6 +46,16 @@ public class ComputeServiceStopTests extends ESTestCase {
         assertEquals(plan.output(), result.schema());
     }
 
+    public void testCompleteIfStoppedNoopsOnceComputeHasStarted() {
+        EsqlExecutionInfo info = new EsqlExecutionInfo(s -> false, EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
+        info.markAsStopped();
+        info.markComputeStarted();
+        PlainActionFuture<Result> future = new PlainActionFuture<>();
+        assertFalse(ComputeService.completeIfStopped(info, plan(), configuration(new QueryPragmas(Settings.EMPTY)), null, future));
+        assertFalse(future.isDone());
+        assertFalse(info.isPartial());
+    }
+
     private static PhysicalPlan plan() {
         return new LocalSourceExec(Source.EMPTY, List.of(), EmptyLocalSupplier.EMPTY);
     }

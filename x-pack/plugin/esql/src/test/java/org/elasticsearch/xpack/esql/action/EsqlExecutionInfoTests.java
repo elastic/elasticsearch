@@ -79,6 +79,25 @@ public class EsqlExecutionInfoTests extends ESTestCase {
         assertTrue("a hook registered after STOP must run immediately, not wait for a second broadcast", fired.get());
     }
 
+    public void testStopHookImmediateTrueIsVisibleToLaterRunStopHooks() {
+        EsqlExecutionInfo info = createEsqlExecutionInfo(false);
+        AtomicBoolean first = new AtomicBoolean(true);
+        info.markAsStopped();
+        info.addStopHook(() -> first.getAndSet(false));
+        assertFalse("the immediate call consumed the one-shot transition", first.get());
+        assertTrue("runStopHooks must still report the cut so STOP can mark is_partial", info.runStopHooks());
+        assertTrue(info.isPartial());
+    }
+
+    public void testStopHookImmediateTrueMarksPartialAfterRunStopHooksAlreadySampled() {
+        EsqlExecutionInfo info = createEsqlExecutionInfo(false);
+        info.markAsStopped();
+        assertFalse(info.runStopHooks());
+        assertFalse(info.isPartial());
+        info.addStopHook(() -> true);
+        assertTrue("immediate cut after STOP already sampled hooks must still mark is_partial", info.isPartial());
+    }
+
     public void testPlanningBytesAreNotSerialized() throws IOException {
         EsqlExecutionInfo info = createEsqlExecutionInfo(false);
         info.externalPlanning(new ExternalPlanningReservation(NoopCircuitBreaker.INSTANCE));

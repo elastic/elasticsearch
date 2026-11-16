@@ -107,6 +107,19 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     private volatile boolean isPartial; // Does this request have partial results?
     private transient volatile boolean isStopped; // Have we received stop command?
     /**
+     * Set once coordinator compute has started ({@code ComputeService.runCompute}). STOP that arrives
+     * earlier may still skip dispatch; STOP after this bit is set must cut live work rather than
+     * replace a later {@code execute()} (INLINE STATS, subplans) with an empty result.
+     */
+    private transient volatile boolean computeStarted;
+    /**
+     * Sticky "a stop hook cut live work" bit. {@link #addStopHook} can fire a hook immediately when
+     * {@link #isStopped} is already true; that call consumes the hook's one-shot transition, so a
+     * later {@link #runStopHooks()} would otherwise see only {@code false} and leave {@code is_partial}
+     * unset on a coordinator-only plan.
+     */
+    private transient volatile boolean stopCutLiveWork;
+    /**
      * Hooks that {@code TransportEsqlAsyncStopAction} fires to interrupt query execution for plans that have no
      * exchange-sink path back to the coordinator. Each hook should return {@code true} only when it actually
      * cut a live unit of work (e.g. transitioned a {@link org.elasticsearch.compute.operator.Driver} from
@@ -443,18 +456,34 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     }
 
     /**
+     * Records that coordinator compute has started for this query. Sticky; later STOP must cut
+     * live work instead of skipping a subsequent {@code execute()} with an empty result.
+     */
+    public void markComputeStarted() {
+        computeStarted = true;
+    }
+
+    public boolean hasComputeStarted() {
+        return computeStarted;
+    }
+
+    /**
      * Registers a hook that {@link #runStopHooks()} fires when the user requests async STOP for this query.
      * The hook should return {@code true} only on the transition from running to finishing — see
      * {@link #stopHooks} for the rationale.
      * <p>
      * If {@link #markAsStopped()} has already run, the hook is invoked immediately. STOP is a one-shot
      * broadcast of the hooks registered at that moment; a driver that starts afterwards would otherwise
-     * never learn the query was stopped.
+     * never learn the query was stopped. A {@code true} from that immediate call is sticky on
+     * {@link #runStopHooks()} so STOP still observes the cut if it races after this registration.
      */
     public void addStopHook(BooleanSupplier hook) {
         stopHooks.add(hook);
-        if (isStopped) {
-            hook.getAsBoolean();
+        if (isStopped && hook.getAsBoolean()) {
+            stopCutLiveWork = true;
+            // STOP may already have sampled {@link #runStopHooks()}; is_partial is sticky so the
+            // cut is still visible on the response.
+            markPartial();
         }
     }
 
@@ -484,11 +513,16 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
      * loudly.
      */
     public boolean runStopHooks() {
-        boolean anyCut = false;
+        boolean anyCut = stopCutLiveWork;
         for (BooleanSupplier hook : stopHooks) {
             anyCut |= hook.getAsBoolean();
         }
-        return anyCut;
+        if (anyCut) {
+            stopCutLiveWork = true;
+        }
+        // Re-read after the loop: a concurrent {@link #addStopHook} can consume a one-shot
+        // transition and set the sticky bit after the snapshot above.
+        return anyCut || stopCutLiveWork;
     }
 
     public void clusterInfoInitializing(boolean clusterInfoInitializing) {

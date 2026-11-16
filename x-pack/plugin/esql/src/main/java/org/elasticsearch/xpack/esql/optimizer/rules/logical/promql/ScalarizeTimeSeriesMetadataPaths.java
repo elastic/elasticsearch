@@ -575,81 +575,30 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
         }
 
         /**
-         * The aggregate keyed by the parts of its label containers: each container, and its promoted labels. A container leaves
-         * out the labels every use above leaves out, which become keys of their own so the groups stay the same. The time-series
+         * The aggregate keyed by the parts of its label containers: each container, and its promoted labels. The time-series
          * aggregate keys by the labels as they are and its translation packs them; any other aggregate packs them itself: a label
          * of several values keys as a whole.
          */
         private LogicalPlan rewriteAggregate(Aggregate aggregate) {
-            boolean timeSeries = aggregate instanceof TimeSeriesAggregate;
             var evals = new ArrayList<Alias>();
             var groupings = new ArrayList<Expression>();
             var keys = new ArrayList<NameId>();
             var packedLabels = new ArrayList<Attribute>();
             source = promqlSource(aggregate);
             for (Expression grouping : aggregate.groupings()) {
-                if ((grouping instanceof NamedExpression named && isContainer(named)) == false) {
+                if ((grouping instanceof NamedExpression key && isContainer(key)) == false) {
                     groupings.add(grouping);
                     continue;
                 }
-                NamedExpression key = (NamedExpression) grouping;
-                NameId id = key.id();
-                Expression definition = key instanceof Alias alias ? alias.child() : key;
-                define(id, definition);
-                SortedMap<String, Expression> labels = promoted.get(id);
-                Set<String> out = tolerated.get(id);
-                // The aggregate returns what it groups by: a container stays a key of it, whether or not anything above uses
-                // it. A label every use above leaves out keys on its own, and the container is without it: the key still
-                // tells apart what the container told apart. Of the source's labels only a dimension is in the container.
-                Expression whole = timeseries.get(id);
-                if (whole != null && out != null) {
-                    var split = new TreeSet<String>();
-                    for (String name : out) {
-                        if (without.get(id).contains(name) || isSource(whole) && PromqlLabels.getLabel(source, name) == null) {
-                            continue;
-                        }
-                        Expression value = labels.get(name);
-                        if (value == null && isSource(whole)) {
-                            value = PromqlLabels.getField(source, name);
-                        }
-                        if (value != null && isAbsent(value) == false) {
-                            labels.put(name, value);
-                            split.add(name);
-                        }
-                    }
-                    if (split.isEmpty() == false) {
-                        timeseries.put(id, unset(whole, without.get(id), split, Source.EMPTY));
-                        without.get(id).addAll(split);
-                    }
-                }
-                dropCopies(id);
-                if (timeSeries) {
-                    // the time-series aggregate keys by an expression as it is
-                    var aliases = new ArrayList<NamedExpression>();
-                    Expression container = container(id);
-                    if (container != null) {
-                        NamedExpression loaded = container instanceof Attribute attribute
-                            ? attribute
-                            : new Alias(container.source(), MetadataAttribute.TIMESERIES, container);
-                        addIfAbsent(aliases, loaded);
-                        if (isSource(timeseries.get(id))) {
-                            sources.put(loaded.id(), source);
-                        }
-                        timeseries.put(id, loaded.toAttribute());
-                    }
-                    for (var label : labels.entrySet()) {
-                        // a source field keyed on gets an id of its own: above the aggregate it is a reference, not the field
-                        Alias keyed = new Alias(label.getValue().source(), label.getKey(), label.getValue());
-                        aliases.add(keyed);
-                        label.setValue(keyed.toAttribute());
-                    }
-                    groupings.addAll(aliases);
+                NameId id = defineKey((NamedExpression) grouping);
+                if (aggregate instanceof TimeSeriesAggregate) {
+                    groupings.addAll(loadKey(id));
                 } else {
                     materialize(id, evals);
                     if (timeseries.containsKey(id)) {
                         groupings.add(timeseries.get(id));
                     }
-                    labels.values().forEach(label -> addIfAbsent(packedLabels, (Attribute) label));
+                    promoted.get(id).values().forEach(label -> addIfAbsent(packedLabels, (Attribute) label));
                 }
                 keys.add(id);
             }
@@ -662,29 +611,100 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
             var aggregates = new ArrayList<NamedExpression>();
             for (NamedExpression aggregateExpression : aggregate.aggregates()) {
                 NameId id = aggregateExpression.id();
-                if (keys.contains(id) == false) {
-                    if (packedLabels.stream().noneMatch(label -> label.id().equals(id))) {
-                        addIfAbsent(aggregates, (NamedExpression) scalar(aggregateExpression));
+                if (keys.contains(id)) {
+                    if (timeseries.containsKey(id)) {
+                        addIfAbsent(aggregates, (Attribute) timeseries.get(id));
                     }
-                    continue;
-                }
-                if (timeseries.containsKey(id)) {
-                    addIfAbsent(aggregates, (Attribute) timeseries.get(id));
-                }
-                if (packedLabels.isEmpty()) {
-                    promoted.get(id).values().forEach(label -> addIfAbsent(aggregates, (Attribute) label));
+                    if (packedLabels.isEmpty()) {
+                        promoted.get(id).values().forEach(label -> addIfAbsent(aggregates, (Attribute) label));
+                    }
+                } else if (packedLabels.stream().noneMatch(label -> label.id().equals(id))) {
+                    addIfAbsent(aggregates, (NamedExpression) scalar(aggregateExpression));
                 }
             }
             if (packedLabels.isEmpty()) {
                 return aggregate.with(child, groupings, aggregates);
             }
+            return unpack(aggregate, child, groupings, aggregates, keys, packedLabels);
+        }
+
+        /**
+         * Defines the container key {@code key} of an aggregate. The aggregate returns what it groups by: a container stays a key
+         * of it, whether or not anything above uses it. A label every use above leaves out keys on its own, and the container is
+         * without it: the key still tells apart what the container told apart. Of the source's labels only a dimension is in the
+         * container.
+         */
+        private NameId defineKey(NamedExpression key) {
+            NameId id = key.id();
+            define(id, key instanceof Alias alias ? alias.child() : key);
+            Expression whole = timeseries.get(id);
+            Set<String> out = tolerated.get(id);
+            if (whole != null && out != null) {
+                SortedMap<String, Expression> labels = promoted.get(id);
+                var split = new TreeSet<String>();
+                for (String name : out) {
+                    if (without.get(id).contains(name) || isSource(whole) && PromqlLabels.getLabel(source, name) == null) {
+                        continue;
+                    }
+                    Expression value = labels.get(name);
+                    if (value == null && isSource(whole)) {
+                        value = PromqlLabels.getField(source, name);
+                    }
+                    if (value != null && isAbsent(value) == false) {
+                        labels.put(name, value);
+                        split.add(name);
+                    }
+                }
+                if (split.isEmpty() == false) {
+                    timeseries.put(id, unset(whole, without.get(id), split, Source.EMPTY));
+                    without.get(id).addAll(split);
+                }
+            }
+            dropCopies(id);
+            return id;
+        }
+
+        /** The groupings of a time-series aggregate keyed by the container {@code id}: its parts as they are loaded. */
+        private List<NamedExpression> loadKey(NameId id) {
+            var aliases = new ArrayList<NamedExpression>();
+            Expression container = container(id);
+            if (container != null) {
+                NamedExpression loaded = container instanceof Attribute attribute
+                    ? attribute
+                    : new Alias(container.source(), MetadataAttribute.TIMESERIES, container);
+                aliases.add(loaded);
+                if (isSource(timeseries.get(id))) {
+                    sources.put(loaded.id(), source);
+                }
+                timeseries.put(id, loaded.toAttribute());
+            }
+            for (var label : promoted.get(id).entrySet()) {
+                // a source field keyed on gets an id of its own: above the aggregate it is a reference, not the field
+                Alias keyed = new Alias(label.getValue().source(), label.getKey(), label.getValue());
+                aliases.add(keyed);
+                label.setValue(keyed.toAttribute());
+            }
+            return aliases;
+        }
+
+        /**
+         * {@code aggregate} grouped by {@code groupings} and the {@code packedLabels} packed into one key, which is unpacked
+         * above it. An unpacked label keeps its id: what reads it above the aggregate reads the unpacked attribute.
+         */
+        private LogicalPlan unpack(
+            Aggregate aggregate,
+            LogicalPlan child,
+            List<Expression> groupings,
+            List<NamedExpression> aggregates,
+            List<NameId> keys,
+            List<Attribute> packedLabels
+        ) {
             Source at = aggregate.source();
             PackDims pack = new PackDims(at, child, packedLabels, PackDims.newPackedAttribute(at));
             Alias packed = PackDims.newPackedGrouping(at, pack.packed());
             groupings.add(packed);
             aggregates.add(packed.toAttribute());
             Aggregate packedAggregate = aggregate.with(pack, groupings, aggregates);
-            // an unpacked label keeps its id: what reads it above the aggregate reads the unpacked attribute
             var unpacked = new LinkedHashMap<NameId, Attribute>();
             for (Attribute label : packedLabels) {
                 unpacked.put(

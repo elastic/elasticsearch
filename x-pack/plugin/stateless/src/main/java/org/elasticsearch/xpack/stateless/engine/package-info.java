@@ -71,9 +71,8 @@
  * searchable. Since GETs (and mGETs) run on the search nodes, we need to be able to perform the lookup on the LVM until the search
  * shards have received the new commit that contains the entries that were moved from the current to the old map. The LVM archive keeps
  * track of the entries that have been moved out of the old map due to a local refresh, but are not yet available on the search nodes,
- * i.e., the unpromotable refresh is in progress. The archive is used when doing a lookup on the LVM
- * (see {@link org.elasticsearch.index.engine.LiveVersionMap}#getUnderLock). In Stateful, this is a no-op since we use a
- * {@link org.elasticsearch.index.engine.LiveVersionMapArchive}#NOOP_ARCHIVE.
+ * i.e., the unpromotable refresh is in progress. The archive is used when doing a lookup on the LVM for a realtime GET.
+ * In Stateful, this is a no-op since we use a {@link org.elasticsearch.index.engine.LiveVersionMapArchive}#NOOP_ARCHIVE.
  * <p>
  * The StatelessLiveVersionMapArchive is notified when the unpromotable replicas are refreshed (step 4), and this leads to pruning
  * the entries kept in the archive

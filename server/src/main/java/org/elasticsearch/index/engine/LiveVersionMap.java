@@ -303,9 +303,24 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
     }
 
     /**
-     * Returns the live version (add or delete) for this uid.
+     * Returns the live version (add or delete) for this uid, including entries that were moved to the archive by a refresh.
      */
     VersionValue getUnderLock(final BytesRef uid) {
+        VersionValue value = getForWriteUnderLock(uid);
+        if (value != null) {
+            return value;
+        }
+        // We first check the tombstone then the archive since the archive accumulates ids from the old map, and we
+        // makes sure in `putDeleteUnderLock` the old map does not hold an entry that is in tombstone, archive also wouldn't have them.
+        return archive.get(uid);
+    }
+
+    /**
+     * Returns the live version (add or delete) for this uid as seen by the write path: the current map, the old map and the tombstones,
+     * but not the archive. Everything in the archive is already visible in the internal reader, so we don't need this for the write path
+     * which is fully done on a single node.
+     */
+    VersionValue getForWriteUnderLock(final BytesRef uid) {
         return getUnderLock(uid, maps);
     }
 
@@ -322,18 +337,11 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
             return value;
         }
 
-        // We first check the tombstone then the archive since the archive accumulates ids from the old map, and we
-        // makes sure in `putDeleteUnderLock` the old map does not hold an entry that is in tombstone, archive also wouldn't have them.
-        value = tombstones.get(uid);
-        if (value != null) {
-            return value;
-        }
-
-        return archive.get(uid);
+        return tombstones.get(uid);
     }
 
-    VersionValue getVersionForAssert(final BytesRef uid) {
-        VersionValue value = getUnderLock(uid, maps);
+    VersionValue getVersionForWriteForAssert(final BytesRef uid) {
+        VersionValue value = getForWriteUnderLock(uid);
         if (value == null) {
             value = getUnderLock(uid, unsafeKeysMap);
         }

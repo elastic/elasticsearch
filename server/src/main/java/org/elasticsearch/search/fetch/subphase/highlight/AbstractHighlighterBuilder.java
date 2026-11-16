@@ -583,14 +583,14 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        innerXContent(builder);
+        innerXContent(builder, params);
         builder.endObject();
         return builder;
     }
 
-    protected abstract void innerXContent(XContentBuilder builder) throws IOException;
+    protected abstract void innerXContent(XContentBuilder builder, Params params) throws IOException;
 
-    void commonOptionsToXContent(XContentBuilder builder) throws IOException {
+    void commonOptionsToXContent(XContentBuilder builder, Params params) throws IOException {
         if (preTags != null) {
             builder.array(PRE_TAGS_FIELD.getPreferredName(), preTags);
         }
@@ -613,7 +613,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
             builder.field(FRAGMENTER_FIELD.getPreferredName(), fragmenter);
         }
         if (highlightQuery != null) {
-            builder.field(HIGHLIGHT_QUERY_FIELD.getPreferredName(), highlightQuery);
+            builder.field(HIGHLIGHT_QUERY_FIELD.getPreferredName(), highlightQuery, params);
         }
         if (order != null) {
             builder.field(ORDER_FIELD.getPreferredName(), order.toString());

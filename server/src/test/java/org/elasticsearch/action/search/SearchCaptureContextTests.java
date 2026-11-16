@@ -14,6 +14,7 @@ import org.elasticsearch.index.mapper.vectors.DecodedVector;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.retriever.KnnRetrieverBuilder;
 import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
@@ -77,6 +78,12 @@ public class SearchCaptureContextTests extends ESTestCase {
         var retriever = new StandardRetrieverBuilder(QueryBuilders.matchAllQuery());
         retriever.getPreFilterQueryBuilders().add(knn);
         assertBase64Vector(captureContext(new SearchSourceBuilder().retriever(retriever)).getQuery());
+    }
+
+    public void testHighlightQueryKnnIsBase64Encoded() {
+        var knn = new KnnVectorQueryBuilder("field", VECTOR, 5, 10, null, null, null);
+        var source = new SearchSourceBuilder().highlighter(new HighlightBuilder().field("f").highlightQuery(knn));
+        assertBase64Vector(captureContext(source).getQuery());
     }
 
     public void testNonVectorQueryIsUnaffected() {

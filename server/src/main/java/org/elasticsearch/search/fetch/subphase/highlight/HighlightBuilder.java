@@ -200,7 +200,7 @@ public final class HighlightBuilder extends AbstractHighlighterBuilder<Highlight
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        innerXContent(builder);
+        innerXContent(builder, params);
         builder.endObject();
         return builder;
     }
@@ -339,9 +339,9 @@ public final class HighlightBuilder extends AbstractHighlighterBuilder<Highlight
     }
 
     @Override
-    public void innerXContent(XContentBuilder builder) throws IOException {
+    public void innerXContent(XContentBuilder builder, Params params) throws IOException {
         // first write common options
-        commonOptionsToXContent(builder);
+        commonOptionsToXContent(builder, params);
         // special options for top-level highlighter
         if (fields.size() > 0) {
             if (useExplicitFieldOrder) {
@@ -353,7 +353,7 @@ public final class HighlightBuilder extends AbstractHighlighterBuilder<Highlight
                 if (useExplicitFieldOrder) {
                     builder.startObject();
                 }
-                field.innerXContent(builder);
+                field.innerXContent(builder, params);
                 if (useExplicitFieldOrder) {
                     builder.endObject();
                 }
@@ -455,10 +455,10 @@ public final class HighlightBuilder extends AbstractHighlighterBuilder<Highlight
         }
 
         @Override
-        public void innerXContent(XContentBuilder builder) throws IOException {
+        public void innerXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject(name);
             // write common options
-            commonOptionsToXContent(builder);
+            commonOptionsToXContent(builder, params);
             // write special field-highlighter options
             if (fragmentOffset != -1) {
                 builder.field(FRAGMENT_OFFSET_FIELD.getPreferredName(), fragmentOffset);

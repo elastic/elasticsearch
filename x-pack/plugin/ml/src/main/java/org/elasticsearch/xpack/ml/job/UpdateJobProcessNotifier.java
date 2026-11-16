@@ -19,6 +19,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.action.UpdateProcessAction;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.job.process.autodetect.UpdateParams;
+import org.elasticsearch.xpack.ml.utils.MlInvariantLogger;
 import org.elasticsearch.xpack.ml.utils.VolatileCursorIterator;
 
 import java.util.ArrayList;
@@ -48,11 +49,13 @@ import static org.elasticsearch.xpack.core.ml.action.UpdateProcessAction.Respons
 public class UpdateJobProcessNotifier {
 
     private static final Logger logger = LogManager.getLogger(UpdateJobProcessNotifier.class);
+    private static final int QUEUE_CAPACITY = 1000;
 
     private final Client client;
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
-    private final LinkedBlockingQueue<UpdateHolder> orderedJobUpdates = new LinkedBlockingQueue<>(1000);
+    private final LinkedBlockingQueue<UpdateHolder> orderedJobUpdates = new LinkedBlockingQueue<>(QUEUE_CAPACITY);
+    private final MlInvariantLogger invariantLogger = new MlInvariantLogger();
 
     private volatile ThreadPool.Cancellable cancellable;
 
@@ -77,7 +80,21 @@ public class UpdateJobProcessNotifier {
     boolean submitJobUpdate(UpdateParams update, ActionListener<Boolean> listener) {
         boolean offered = orderedJobUpdates.offer(new UpdateHolder(update, listener));
         if (offered == false) {
-            logger.warn("Update queue is full ({}), failed to submit update for job [{}]", orderedJobUpdates.size(), update.getJobId());
+            if (update.isUpdateScheduledEvents()) {
+                // Only a job update that changes groups sets this flag; the process keeps stale scheduled events for those jobs.
+                invariantLogger.degraded(
+                    logger,
+                    MlInvariantLogger.Kind.CALENDAR_UPDATE_DROPPED,
+                    MlInvariantLogger.KIND_ONLY,
+                    "Update queue is full ("
+                        + QUEUE_CAPACITY
+                        + "), failed to submit scheduled events update for job ["
+                        + update.getJobId()
+                        + "]"
+                );
+            } else {
+                logger.warn("Update queue is full ({}), failed to submit update for job [{}]", orderedJobUpdates.size(), update.getJobId());
+            }
         }
         return offered;
     }

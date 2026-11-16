@@ -35,6 +35,12 @@ public interface RestHandler {
      */
     void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception;
 
+    /**
+     * Whether the circuit breakers may reject this request when the node is short on memory. Return {@code false} for requests that must
+     * keep working then, such as logging in or recovering a cluster. Their memory is still charged, so other requests are rejected sooner.
+     * Parsing their content is still checked once it charges more than a fixed allowance, so a body that parses into far more than such
+     * requests need is still bounded.
+     */
     default boolean canTripCircuitBreaker() {
         return true;
     }

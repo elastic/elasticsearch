@@ -31,6 +31,12 @@ public class RestUpdateDesiredNodesAction extends BaseRestHandler {
     }
 
     @Override
+    public boolean canTripCircuitBreaker() {
+        // Recovering a cluster must work under memory pressure.
+        return false;
+    }
+
+    @Override
     public List<Route> routes() {
         return List.of(new Route(RestRequest.Method.PUT, "_internal/desired_nodes/{history_id}/{version}"));
     }

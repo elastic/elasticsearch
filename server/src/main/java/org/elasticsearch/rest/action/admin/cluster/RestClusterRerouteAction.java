@@ -90,6 +90,12 @@ public class RestClusterRerouteAction extends BaseRestHandler {
     }
 
     @Override
+    public boolean canTripCircuitBreaker() {
+        // Recovering a cluster must work under memory pressure.
+        return false;
+    }
+
+    @Override
     public boolean allowSystemIndexAccessByDefault() {
         return true;
     }

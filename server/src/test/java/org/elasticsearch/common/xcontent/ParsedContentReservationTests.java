@@ -399,17 +399,43 @@ public class ParsedContentReservationTests extends ESTestCase {
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 
-    public void testReservationThatCannotTripChargesWithoutBreaking() throws IOException {
+    public void testReservationThatCannotTripIsNotCheckedWithinItsAllowance() throws IOException {
         CircuitBreaker breaker = requestBreaker(ByteSizeValue.ofBytes(1));
         XContentType type = randomFrom(TYPES);
-        BytesReference content = document(type, 20_000);
+        // Several chunks, so the parser passes them to the reservation, which would check each of them if it could trip.
+        BytesReference content = document(type, 10_000);
+        long expected = expectedCharge(type, content);
+        assertThat(expected, greaterThan(2 * ChargingXContentParser.CHUNK_BYTES));
+        assertThat(expected, lessThan(ParsedContentReservation.NON_TRIPPING_ALLOWANCE_BYTES));
         try (ParsedContentReservation reservation = new ParsedContentReservation(breaker, false)) {
             try (XContentParser parser = reservation.track(parser(type, content))) {
                 readAllTokens(parser);
             }
-            assertThat(reservation.reservedBytes(), equalTo(expectedCharge(type, content)));
+            assertThat(reservation.reservedBytes(), equalTo(expected));
             assertThat(breaker.getUsed(), equalTo(reservation.reservedBytes()));
             assertThat(breaker.getTrippedCount(), equalTo(0L));
+        }
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testReservationThatCannotTripIsCheckedBeyondItsAllowance() throws IOException {
+        CircuitBreaker breaker = requestBreaker(ByteSizeValue.ofBytes(1));
+        XContentType type = randomFrom(TYPES);
+        BytesReference content = document(type, 40_000);
+        assertThat(expectedCharge(type, content), greaterThan(ParsedContentReservation.NON_TRIPPING_ALLOWANCE_BYTES));
+        try (ParsedContentReservation reservation = new ParsedContentReservation(breaker, false)) {
+            expectThrows(CircuitBreakingException.class, () -> {
+                try (XContentParser parser = reservation.track(parser(type, content))) {
+                    readAllTokens(parser);
+                }
+            });
+            // Every chunk within the allowance was charged without a check, and the one that would go beyond it tripped.
+            assertThat(reservation.reservedBytes(), lessThanOrEqualTo(ParsedContentReservation.NON_TRIPPING_ALLOWANCE_BYTES));
+            assertThat(
+                reservation.reservedBytes(),
+                greaterThan(ParsedContentReservation.NON_TRIPPING_ALLOWANCE_BYTES - 2 * ChargingXContentParser.CHUNK_BYTES)
+            );
+            assertThat(breaker.getTrippedCount(), equalTo(1L));
         }
         assertThat(breaker.getUsed(), equalTo(0L));
     }

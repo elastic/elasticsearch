@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -41,7 +42,6 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.keepExistingUnsupportedAttributes;
-import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferenceAttributesPreservingIds;
 
 /**
  * N-ary logical plan whose children are independently planned branches and whose output is the
@@ -207,20 +207,43 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
      * their columns, in their order.
      */
     protected List<Attribute> refreshedOutput() {
-        List<Attribute> converted = toReferenceAttributesPreservingIds(mergeColumns(children(), output()), this.output());
+        List<Attribute> merged = mergeColumns(children(), output());
+        List<Attribute> converted = mergesScoreAsMetadata()
+            ? toReferenceAttributesPreservingIds(children(), merged, output())
+            : Expressions.toReferenceAttributesPreservingIds(merged, output());
         // LOAD_ALL stamps _unmapped_fields; preserve type-conflict UnsupportedAttributes that union-type resolution Eval-null'd in
         // children.
         if (unmappedFieldsAttributeFromChildren() != null) {
             converted = keepExistingUnsupportedAttributes(converted, this.output());
         }
-        converted = withScoreAttributeFromChildren(children(), converted);
         return withUnmappedFieldsAttributeFromChildren(converted);
     }
 
     /**
-     * Whether {@link #withScoreAttributeFromChildren} may merge {@code _score} as a {@link MetadataAttribute}.
+     * Converts the merged columns {@code mergedColumns} into output attributes, preserving the ids of the columns of {@code existingOutput}
+     * ({@link Expressions#toReferenceAttributesPreservingIds}), then re-classes {@code _score} according to {@code branches}, see
+     * {@link #withScoreAttributeFromChildren}. A merge for which {@link #mergesScoreAsMetadata()} is {@code false} must use
+     * {@link Expressions#toReferenceAttributesPreservingIds} directly instead.
+     *
+     * @param branches the branches as they will be after this output is installed, which may differ from {@link #children()}
+     *                 while the analyzer is still aligning them
+     * @param mergedColumns the merged columns to convert into output attributes
+     * @param existingOutput the MergePlan's output before the branches changed, whose ids to preserve
      */
-    protected boolean mergesScoreAsMetadata() {
+    public static List<Attribute> toReferenceAttributesPreservingIds(
+        List<LogicalPlan> branches,
+        List<? extends NamedExpression> mergedColumns,
+        List<Attribute> existingOutput
+    ) {
+        return withScoreAttributeFromChildren(branches, Expressions.toReferenceAttributesPreservingIds(mergedColumns, existingOutput));
+    }
+
+    /**
+     * Whether {@link #withScoreAttributeFromChildren} may merge {@code _score} as a {@link MetadataAttribute}. Callers that
+     * derive this merge's output pick between {@link #toReferenceAttributesPreservingIds} and the plain
+     * {@link Expressions#toReferenceAttributesPreservingIds} accordingly.
+     */
+    public boolean mergesScoreAsMetadata() {
         return true;
     }
 
@@ -247,10 +270,7 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
      * @param branches the branches as they will be after this output is installed, which may differ from {@link #children()}
      *                 while the analyzer is still aligning them
      */
-    public List<Attribute> withScoreAttributeFromChildren(List<LogicalPlan> branches, List<Attribute> converted) {
-        if (mergesScoreAsMetadata() == false) {
-            return converted;
-        }
+    public static List<Attribute> withScoreAttributeFromChildren(List<LogicalPlan> branches, List<Attribute> converted) {
         int index = IntStream.range(0, converted.size())
             .filter(i -> converted.get(i).name().equals(MetadataAttribute.SCORE))
             .findFirst()

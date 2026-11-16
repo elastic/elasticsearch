@@ -255,7 +255,7 @@ public final class Fork extends MergePlan implements TelemetryAware {
      * TODO: this is a known issue (https://github.com/elastic/elasticsearch/issues/161746), and will fixed in the future.
      */
     @Override
-    protected boolean mergesScoreAsMetadata() {
+    public boolean mergesScoreAsMetadata() {
         return false;
     }
 }

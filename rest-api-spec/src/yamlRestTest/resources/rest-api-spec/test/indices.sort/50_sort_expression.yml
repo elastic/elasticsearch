@@ -15,7 +15,7 @@ setup:
         body:
           settings:
             number_of_shards: 1
-            index.sort: "rank DESC MISSING_FIRST"
+            index.sort: "rank DESC"
           mappings:
             properties:
               rank:
@@ -27,13 +27,14 @@ setup:
         flat_settings: true
 
   # The expression is stored as is, so that PUT and GET are idempotent, and the index.sort.* settings stay unset.
-  - match: { sorted_index.settings.index\.sort: "rank DESC MISSING_FIRST" }
+  - match: { sorted_index.settings.index\.sort: "rank DESC" }
   - is_false: sorted_index.settings.index\.sort\.field
   - is_false: sorted_index.settings.index\.sort\.order
   - is_false: sorted_index.settings.index\.sort\.mode
   - is_false: sorted_index.settings.index\.sort\.missing
 
   # The expression has no default to report, the derived index.sort.* values are reported as defaults.
+  # Like in ES|QL, a descending field without NULLS sorts nulls first, unlike index.sort.missing which defaults to _last.
   - do:
       indices.get_settings:
         index: sorted_index
@@ -77,7 +78,7 @@ setup:
         body:
           settings:
             number_of_shards: 1
-            index.sort: "rank DESC MISSING_FIRST, other MV_FIRST_MAX"
+            index.sort: "rank DESC NULLS LAST, MV_MAX(other)"
           mappings:
             properties:
               rank:
@@ -90,7 +91,7 @@ setup:
         index: original_index
         flat_settings: true
   - set: { original_index.settings.index\.sort: stored_sort }
-  - match: { original_index.settings.index\.sort: "rank DESC MISSING_FIRST, other MV_FIRST_MAX" }
+  - match: { original_index.settings.index\.sort: "rank DESC NULLS LAST, MV_MAX(other)" }
 
   # Feeding the stored value back into a create request must be accepted and yield the same stored value.
   - do:
@@ -131,7 +132,7 @@ setup:
   - match: { error.root_cause.0.reason: "/cannot.be.combined.with.\\[index.sort.field\\]/" }
 
 ---
-"Sort expression rejects an unknown keyword":
+"Sort expression rejects an unexpected token":
   - do:
       catch: bad_request
       indices.create:
@@ -143,7 +144,62 @@ setup:
             properties:
               rank:
                 type: long
-  - match: { error.root_cause.0.reason: "/unknown.keyword.\\[SIDEWAYS\\]/" }
+  - match: { error.root_cause.0.reason: "/unexpected.token.\\[SIDEWAYS\\]/" }
+
+---
+"Sort expression rejects the previous keyword syntax and unsupported functions":
+  - do:
+      catch: bad_request
+      indices.create:
+        index: sorted_index
+        body:
+          settings:
+            index.sort: "rank MV_FIRST_MAX"
+          mappings:
+            properties:
+              rank:
+                type: long
+  - match: { error.root_cause.0.reason: "/unexpected.token.\\[MV_FIRST_MAX\\]/" }
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: sorted_index
+        body:
+          settings:
+            index.sort: "ABS(rank)"
+          mappings:
+            properties:
+              rank:
+                type: long
+  - match: { error.root_cause.0.reason: "/unsupported.function.\\[ABS\\]/" }
+
+---
+"Sort expression defaults to ES|QL null ordering":
+  - do:
+      indices.create:
+        index: sorted_index
+        body:
+          settings:
+            number_of_shards: 1
+            index.sort: "rank, other DESC, third DESC NULLS LAST, fourth ASC NULLS FIRST"
+          mappings:
+            properties:
+              rank:
+                type: long
+              other:
+                type: long
+              third:
+                type: long
+              fourth:
+                type: long
+
+  - do:
+      indices.get_settings:
+        index: sorted_index
+        include_defaults: true
+  - match: { sorted_index.defaults.index.sort.order: [ "asc", "desc", "desc", "asc" ] }
+  - match: { sorted_index.defaults.index.sort.missing: [ "_last", "_first", "_last", "_first" ] }
 
 ---
 "Sort expression rejects a trailing comma":
@@ -201,7 +257,7 @@ setup:
           template:
             settings:
               index.sort: "rank SIDEWAYS"
-  - match: { error.reason: "/unknown.keyword.\\[SIDEWAYS\\]/" }
+  - match: { error.reason: "/unexpected.token.\\[SIDEWAYS\\]/" }
 
 ---
 "Sort expression cannot sort on a field under a nested object":

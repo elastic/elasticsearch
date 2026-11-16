@@ -333,7 +333,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         QueryWarnings singleValueQueryWarnings,
         @Nullable SharedSortBound sortBound
     ) {
-        super(contexts, driverContext, maxPageSize, sliceQueue, directoryBytesRead, singleValueQueryWarnings);
+        super(contexts, driverContext, maxPageSize, sliceQueue, directoryBytesRead, singleValueQueryWarnings, false);
         this.driverContext = driverContext;
         this.sorts = sorts;
         this.estimatedPerRowSortSize = estimatedPerRowSortSize;
@@ -504,7 +504,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
 
             int shardId = shardContext.index();
             shardRowsEmitted[shardId] += size;
-            shard = blockFactory.newConstantIntBlockWith(shardId, size).asVector();
+            shard = blockFactory.newConstantIntVector(shardId, size);
             segments = currentSegmentBuilder.build();
             docs = currentDocsBuilder.build();
             docBlock = new DocVector(refCounteds, shard, segments, docs, DocVector.config()).asBlock();

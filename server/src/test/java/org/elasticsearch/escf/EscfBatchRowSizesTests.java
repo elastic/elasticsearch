@@ -81,6 +81,8 @@ public class EscfBatchRowSizesTests extends ESTestCase {
         assertKnownSize("{\"s\":\"\"}", 0);
         assertKnownSize("{\"l\":1}", 8);
         assertKnownSize("{\"d\":1.5}", 8);
+        // A spelling that is not the canonical rendering rides along with the double and does not change its size.
+        assertKnownSize("{\"d\":1.50}", 8);
         assertKnownSize("{\"b\":true}", 0);
         // A boolean array is a union array: one type byte per element, unlike a scalar boolean.
         assertKnownSize("{\"ba\":[true,false,true]}", 3);

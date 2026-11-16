@@ -373,6 +373,12 @@ public class CsvTestsDataLoader {
             .withSetting("k8s-settings.json")
             .withRequiredCapabilities(EsqlCapabilities.Cap.EXEMPLARS_SETTING_DEVELOPMENT_V8),
         new TestDataset(
+            "promql-long-dimension",
+            "promql-long-dimension-mappings.json",
+            "promql-long-dimension.csv",
+            "promql-long-dimension-settings.json"
+        ).withRequiredCapabilities(EsqlCapabilities.Cap.PROMQL_SORT_BY_LABEL),
+        new TestDataset(
             "prom-metrics-name",
             "prom-metrics-name-mappings.json",
             "k8s-prometheus-name.csv",
@@ -435,6 +441,7 @@ public class CsvTestsDataLoader {
         new TestDataset("dense_vector_bfloat16").withRequiredCapabilities(EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT),
         new TestDataset("dense_vector_arithmetic"),
         new TestDataset("knn_hex_vectors"),
+        new TestDataset("knn_hex_flattened"),
         new TestDataset("web_logs"),
         new TestDataset("employees_no_mv", "mapping-default.json", "employees_no_mv.csv").noSubfields(),
         new TestDataset("mv_sample", "mapping-mv_sample.json", "mv_sample.csv"),
@@ -456,6 +463,20 @@ public class CsvTestsDataLoader {
             .withRequiredCapabilities(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_TECH_PREVIEW),
         new TestDataset("tdigest_standard_index").withRequiredCapabilities(EsqlCapabilities.Cap.TDIGEST_TECH_PREVIEW),
         new TestDataset("histogram_standard_index").withRequiredCapabilities(EsqlCapabilities.Cap.HISTOGRAM_RELEASE_VERSION),
+        new TestDataset("eql_test").withRequiredCapabilities(EsqlCapabilities.Cap.EQL_COMMAND),
+        // EQL engine golden corpora, ported for differential validation of the EQL source command's typed pipeline.
+        new TestDataset("endgame-140", "mapping-endgame-140.json", "endgame-140.csv", "endgame-140-settings.json").withRequiredCapabilities(
+            EsqlCapabilities.Cap.EQL_COMMAND
+        ),
+        new TestDataset("sample1", "mapping-sample1.json", "sample1.csv", "sample-settings.json").withRequiredCapabilities(
+            EsqlCapabilities.Cap.EQL_COMMAND
+        ),
+        new TestDataset("sample2", "mapping-sample2.json", "sample2.csv", "sample-settings.json").withRequiredCapabilities(
+            EsqlCapabilities.Cap.EQL_COMMAND
+        ),
+        new TestDataset("sample3", "mapping-sample3.json", "sample3.csv", "sample-settings.json").withRequiredCapabilities(
+            EsqlCapabilities.Cap.EQL_COMMAND
+        ),
         new TestDataset(
             "tdigest_timeseries_index",
             "tdigest_timeseries_index-mappings.json",
@@ -551,6 +572,9 @@ public class CsvTestsDataLoader {
         new ViewConfig("partial_mapping_view_message_wildcard"),
         new ViewConfig("partial_mapping_mv_view"),
         new ViewConfig("view_with_subquery"),
+        new ViewConfig("view_fork_sample_data"),
+        new ViewConfig("view_fork_employees"),
+        new ViewConfig("view_in_subquery_with_fork", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
         new ViewConfig("view_row_constants", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),
         new ViewConfig("view_row_eval", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),
         new ViewConfig("view_row_employees_subquery", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),

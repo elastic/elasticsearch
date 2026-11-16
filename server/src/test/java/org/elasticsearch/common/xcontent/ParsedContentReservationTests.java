@@ -13,18 +13,27 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
+import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -39,12 +48,14 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -55,7 +66,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * Tests that a tracked parser charges for every token however it is read, that the breaker is checked each time a request charges a
- * chunk, and that the charge is held until the reservation closes.
+ * chunk, and that the charge is held until the reservation closes and no hold remains.
  */
 public class ParsedContentReservationTests extends ESTestCase {
 
@@ -403,6 +414,78 @@ public class ParsedContentReservationTests extends ESTestCase {
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 
+    public void testHeldMemoryMetricShowsTheChargeUnderItsCategory() throws IOException {
+        RecordingMeterRegistry meter = new RecordingMeterRegistry();
+        CircuitBreaker breaker = requestBreaker(ByteSizeValue.ofMb(100), meter);
+        XContentType type = randomFrom(TYPES);
+        BytesReference content = document(type, 20_000);
+        try (ParsedContentReservation reservation = new ParsedContentReservation(breaker, randomBoolean())) {
+            try (XContentParser parser = reservation.track(parser(type, content))) {
+                readAllTokens(parser);
+            }
+            assertThat(reservation.reservedBytes(), greaterThan(0L));
+            assertThat(heldMemory(meter, ChildMemoryCircuitBreaker.CATEGORY_PARSED_REQUEST), equalTo(reservation.reservedBytes()));
+            assertThat(heldMemory(meter, ChildMemoryCircuitBreaker.CATEGORY_UNCATEGORIZED), equalTo(0L));
+        }
+        // Released under the same category, so it does not stay held there.
+        assertThat(heldMemory(meter, ChildMemoryCircuitBreaker.CATEGORY_PARSED_REQUEST), equalTo(0L));
+        assertThat(heldMemory(meter, ChildMemoryCircuitBreaker.CATEGORY_UNCATEGORIZED), equalTo(0L));
+    }
+
+    public void testChargeThatRacesWithCloseIsReleasedUnderItsCategory() {
+        RecordingMeterRegistry meter = new RecordingMeterRegistry();
+        CircuitBreakerMetrics metrics = metrics(meter);
+        ByteSizeValue limit = ByteSizeValue.ofMb(100);
+        HierarchyCircuitBreakerService service = requestBreakerService(limit, metrics);
+        AtomicReference<ParsedContentReservation> reservation = new AtomicReference<>();
+        // A breaker of its own, since the service's request breaker cannot close the reservation. Named request so its metrics match
+        // the ones read below. Its usage is not counted by the service's parent limit.
+        ChildMemoryCircuitBreaker breaker = new ChildMemoryCircuitBreaker(
+            metrics,
+            new BreakerSettings(CircuitBreaker.REQUEST, limit.getBytes(), 1.0),
+            logger,
+            service,
+            CircuitBreaker.REQUEST
+        ) {
+            @Override
+            public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
+                super.addEstimateBytesAndMaybeBreak(bytes, label);
+                closeReservation();
+            }
+
+            @Override
+            public void addWithoutBreaking(long bytes, String label) {
+                super.addWithoutBreaking(bytes, label);
+                if (bytes > 0) {
+                    closeReservation();
+                }
+            }
+
+            // Simulates the request completing while a forked parser is still charging.
+            private void closeReservation() {
+                ParsedContentReservation toClose = reservation.getAndSet(null);
+                if (toClose != null) {
+                    toClose.close();
+                }
+            }
+        };
+        for (boolean checked : new boolean[] { true, false }) {
+            ParsedContentReservation racing = new ParsedContentReservation(breaker, true);
+            reservation.set(racing);
+            long bytes = between(1, 10_000);
+            if (checked) {
+                racing.reserve(bytes);
+            } else {
+                racing.reserveWithoutBreaking(bytes);
+            }
+            assertThat(racing.reservedBytes(), equalTo(0L));
+            assertThat(breaker.getUsed(), equalTo(0L));
+            // Released under the category it was charged under, so neither stays held or goes negative.
+            assertThat(heldMemory(meter, ChildMemoryCircuitBreaker.CATEGORY_PARSED_REQUEST), equalTo(0L));
+            assertThat(heldMemory(meter, ChildMemoryCircuitBreaker.CATEGORY_UNCATEGORIZED), equalTo(0L));
+        }
+    }
+
     public void testParserReadingAfterTheRequestCompletedIsNotCharged() throws IOException {
         CircuitBreaker breaker = requestBreaker(ByteSizeValue.ofBytes(1));
         XContentType type = randomFrom(TYPES);
@@ -420,6 +503,74 @@ public class ParsedContentReservationTests extends ESTestCase {
         assertThat(breaker.getTrippedCount(), equalTo(0L));
         // Closing again releases nothing more.
         reservation.close();
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testChargeIsHeldUntilTheRequestAndEveryHoldAreReleased() throws IOException {
+        CircuitBreaker breaker = requestBreaker(ByteSizeValue.ofMb(100));
+        XContentType type = randomFrom(TYPES);
+        ParsedContentReservation reservation = new ParsedContentReservation(breaker, true);
+        try (XContentParser parser = reservation.track(parser(type, document(type, between(2, 100))))) {
+            readAllTokens(parser);
+        }
+        long charged = reservation.reservedBytes();
+        assertThat(charged, greaterThan(0L));
+        // The request responds, closing the reservation, before or after the work that keeps the parsed request releases its holds.
+        List<Releasable> releases = new ArrayList<>();
+        releases.add(reservation);
+        for (int i = between(1, 3); i > 0; i--) {
+            releases.add(reservation.hold());
+        }
+        Collections.shuffle(releases, random());
+        for (Releasable release : releases.subList(0, releases.size() - 1)) {
+            release.close();
+            // Closing twice does not drop another hold.
+            release.close();
+            assertThat(breaker.getUsed(), equalTo(charged));
+        }
+        // Content parsed for the request while it is held is charged too.
+        try (XContentParser parser = reservation.track(parser(type, document(type, 1)))) {
+            readAllTokens(parser);
+        }
+        long chargedWhileHeld = reservation.reservedBytes();
+        assertThat(chargedWhileHeld, greaterThan(charged));
+        assertThat(breaker.getUsed(), equalTo(chargedWhileHeld));
+        releases.getLast().close();
+        assertThat(reservation.reservedBytes(), equalTo(0L));
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testHoldAfterTheChargeIsReleasedDoesNothing() throws IOException {
+        CircuitBreaker breaker = requestBreaker(ByteSizeValue.ofMb(100));
+        XContentType type = randomFrom(TYPES);
+        ParsedContentReservation reservation = new ParsedContentReservation(breaker, true);
+        reservation.close();
+        try (Releasable ignored = reservation.hold()) {
+            try (XContentParser parser = reservation.track(parser(type, document(type, between(2, 100))))) {
+                readAllTokens(parser);
+            }
+            assertThat(reservation.reservedBytes(), equalTo(0L));
+            assertThat(breaker.getUsed(), equalTo(0L));
+        }
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testHoldsTheReservationInTheThreadContextIfAny() throws IOException {
+        CircuitBreaker breaker = requestBreaker(ByteSizeValue.ofMb(100));
+        XContentType type = randomFrom(TYPES);
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        // No request is handled, so there is nothing to hold.
+        ParsedContentReservation.hold(threadContext).close();
+        ParsedContentReservation reservation = new ParsedContentReservation(breaker, true);
+        threadContext.putTransient(ParsedContentReservation.TRANSIENT_NAME, reservation);
+        try (XContentParser parser = reservation.track(parser(type, document(type, between(2, 100))))) {
+            readAllTokens(parser);
+        }
+        long charged = reservation.reservedBytes();
+        Releasable hold = ParsedContentReservation.hold(threadContext);
+        reservation.close();
+        assertThat(breaker.getUsed(), equalTo(charged));
+        hold.close();
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 
@@ -552,8 +703,26 @@ public class ParsedContentReservationTests extends ESTestCase {
     }
 
     private static CircuitBreaker requestBreaker(ByteSizeValue limit) {
-        HierarchyCircuitBreakerService service = new HierarchyCircuitBreakerService(
-            CircuitBreakerMetrics.NOOP,
+        return requestBreakerService(limit, CircuitBreakerMetrics.NOOP).getBreaker(CircuitBreaker.REQUEST);
+    }
+
+    /** A request breaker that records its metrics in {@code meter}. */
+    private static CircuitBreaker requestBreaker(ByteSizeValue limit, RecordingMeterRegistry meter) {
+        return requestBreakerService(limit, metrics(meter)).getBreaker(CircuitBreaker.REQUEST);
+    }
+
+    private static CircuitBreakerMetrics metrics(RecordingMeterRegistry meter) {
+        return new CircuitBreakerMetrics(new TelemetryProvider.NoopTelemetryProvider() {
+            @Override
+            public MeterRegistry getMeterRegistry() {
+                return meter;
+            }
+        });
+    }
+
+    private static HierarchyCircuitBreakerService requestBreakerService(ByteSizeValue limit, CircuitBreakerMetrics metrics) {
+        return new HierarchyCircuitBreakerService(
+            metrics,
             Settings.builder()
                 .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), limit)
                 // Only the request breaker's own limit, so the results do not depend on the test JVM's heap.
@@ -562,7 +731,17 @@ public class ParsedContentReservationTests extends ESTestCase {
             List.of(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
-        return service.getBreaker(CircuitBreaker.REQUEST);
+    }
+
+    /** The request breaker's {@code es.breaker.memory.held.usage} under {@code category}. */
+    private static long heldMemory(RecordingMeterRegistry meter, String category) {
+        return meter.getRecorder()
+            .getMeasurements(InstrumentType.LONG_UP_DOWN_COUNTER, CircuitBreakerMetrics.ES_BREAKER_MEMORY_HELD)
+            .stream()
+            .filter(m -> CircuitBreaker.REQUEST.equals(m.attributes().get(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE)))
+            .filter(m -> category.equals(m.attributes().get(ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE)))
+            .mapToLong(Measurement::getLong)
+            .sum();
     }
 
     /** What a tracked parser charges once {@code reader} has read {@code content} and the parser is closed. */

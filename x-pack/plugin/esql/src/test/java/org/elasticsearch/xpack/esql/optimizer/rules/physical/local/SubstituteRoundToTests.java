@@ -352,6 +352,60 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
         }
     }
 
+    /**
+     * An interval in days and a count of the date field, which a filter on the field makes single valued, are pushed down
+     * exactly like the same interval in hours and a count of the documents.
+     */
+    public void testDateTruncDaysWithFieldCountTransformToQueryAndTags() {
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        PhysicalPlan hoursAndDocCount = plannerOptimizer.plan("""
+            from test
+            | where date >= "2023-10-20" and date < "2023-10-24"
+            | eval x = date_trunc(48 hours, date)
+            | stats c = count(*) by x
+            """, searchStats, analyzer);
+        EsStatsQueryExec expected = (EsStatsQueryExec) hoursAndDocCount.collectFirstChildren(EsStatsQueryExec.class::isInstance).getFirst();
+        EsStatsQueryExec.ByStat expectedStat = as(expected.stat(), EsStatsQueryExec.ByStat.class);
+        assertThat(expectedStat.queryBuilderAndTags(), hasSize(2));
+
+        for (String aggregate : List.of("count(*)", "count(date)")) {
+            String query = LoggerMessageFormat.format(null, """
+                from test
+                | where date >= "2023-10-20" and date < "2023-10-24"
+                | eval x = date_trunc(2 days, date)
+                | stats c = {} by x
+                """, aggregate);
+            PhysicalPlan plan = plannerOptimizer.plan(query, searchStats, analyzer);
+            List<PhysicalPlan> stats = plan.collectFirstChildren(EsStatsQueryExec.class::isInstance);
+            assertThat(query, stats, hasSize(1));
+            assertThat(query, as(stats.getFirst(), EsStatsQueryExec.class).stat(), equalTo(expectedStat));
+        }
+    }
+
+    /**
+     * The count of a field is only pushed down when a filter makes that very field single valued.
+     */
+    public void testDateTruncWithFieldCountNotPushed() {
+        for (String query : List.of("""
+            from test
+            | where date >= "2023-10-20" and date < "2023-10-24"
+            | eval x = date_trunc(2 days, date)
+            | stats c = count(long) by x
+            """, """
+            from test
+            | eval x = date_trunc(2 days, date)
+            | stats c = count(date) by x
+            """, """
+            from test
+            | where date >= "2023-10-20" or long > 10
+            | eval x = date_trunc(2 days, date)
+            | stats c = count(date) by x
+            """)) {
+            PhysicalPlan plan = plannerOptimizer.plan(query, searchStats, makeAnalyzer("mapping-all-types.json"));
+            assertThat(query, plan.anyMatch(EsStatsQueryExec.class::isInstance), is(false));
+        }
+    }
+
     public void testInlineStatsWithFilterOnCountTransformToQueryAndTags() {
         assumeTrue("Requires INLINE STATS", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
         for (String dateHistogram : dateHistograms) {
@@ -1067,9 +1121,10 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
         assertThat(secondExchange.inBetweenAggs(), is(true));
         AggregateExec secondInitialAgg = as(secondExchange.child(), AggregateExec.class);
         FieldExtractExec secondFieldExtract = as(secondInitialAgg.child(), FieldExtractExec.class);
+        // Multiple days have rounding points too, so the date is not extracted: the query tags the rows with their bucket
         EvalExec secondDateTruncEval = as(secondFieldExtract.child(), EvalExec.class);
-        FieldExtractExec secondDateFieldExtract = as(secondDateTruncEval.child(), FieldExtractExec.class);
-        as(secondDateFieldExtract.child(), EsQueryExec.class);
+        EsQueryExec secondQuery = as(secondDateTruncEval.child(), EsQueryExec.class);
+        assertThat(secondQuery.queryBuilderAndTags(), is(not(empty())));
     }
 
     public void testSubqueryWithCountStarAndDateTrunc() {

@@ -114,6 +114,9 @@ import static org.elasticsearch.xpack.stateless.commits.BccUploadMetrics.BCC_REP
 import static org.elasticsearch.xpack.stateless.commits.BccUploadMetrics.BCC_SIZE_ATTRIBUTE_KEY;
 import static org.elasticsearch.xpack.stateless.commits.BccUploadMetrics.BCC_TIMESTAMP_RANGE_HISTOGRAM_METRIC;
 import static org.elasticsearch.xpack.stateless.commits.BccUploadMetrics.BCC_TOTAL_SIZE_HISTOGRAM_METRIC;
+import static org.elasticsearch.xpack.stateless.commits.BccUploadMetrics.BCC_UPLOAD_ATTEMPTS_HISTOGRAM_METRIC;
+import static org.elasticsearch.xpack.stateless.commits.BccUploadMetrics.BCC_UPLOAD_DURATION_HISTOGRAM_METRIC;
+import static org.elasticsearch.xpack.stateless.commits.BccUploadMetrics.BCC_UPLOAD_GENERATION_QUEUE_DURATION_HISTOGRAM_METRIC;
 import static org.elasticsearch.xpack.stateless.commits.GetVirtualBatchedCompoundCommitChunksPressure.CHUNK_REQUESTS_REJECTED_METRIC;
 import static org.elasticsearch.xpack.stateless.commits.GetVirtualBatchedCompoundCommitChunksPressure.CURRENT_CHUNKS_BYTES_METRIC;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.SETTING_HOLLOW_INGESTION_TTL;
@@ -126,6 +129,7 @@ import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.S
 import static org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationHandoffAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
@@ -1426,6 +1430,30 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
                 final List<Measurement> sizeMeasurements = metricsPlugin.getLongHistogramMeasurement(BCC_TOTAL_SIZE_HISTOGRAM_METRIC);
                 assertThat(sizeMeasurements, hasSize(1));
                 assertMeasurement(sizeMeasurements.get(0), ByteSizeUnit.BYTES.toMB(virtualBcc.getTotalSizeInBytes()));
+
+                final List<Measurement> uploadDurationMeasurements = metricsPlugin.getLongHistogramMeasurement(
+                    BCC_UPLOAD_DURATION_HISTOGRAM_METRIC
+                );
+                assertThat(uploadDurationMeasurements, hasSize(1));
+                assertThat(uploadDurationMeasurements.get(0).getLong(), greaterThanOrEqualTo(0L));
+                assertThat(
+                    uploadDurationMeasurements.get(0).attributes(),
+                    equalTo(Map.of(BCC_SIZE_ATTRIBUTE_KEY, BccUploadMetrics.bccSizeBucket(virtualBcc.getTotalSizeInBytes())))
+                );
+
+                final List<Measurement> uploadAttemptsMeasurements = metricsPlugin.getLongHistogramMeasurement(
+                    BCC_UPLOAD_ATTEMPTS_HISTOGRAM_METRIC
+                );
+                assertThat(uploadAttemptsMeasurements, hasSize(1));
+                assertThat(uploadAttemptsMeasurements.get(0).getLong(), greaterThanOrEqualTo(1L));
+                assertThat(uploadAttemptsMeasurements.get(0).attributes(), anEmptyMap());
+
+                final List<Measurement> generationQueueMeasurements = metricsPlugin.getLongHistogramMeasurement(
+                    BCC_UPLOAD_GENERATION_QUEUE_DURATION_HISTOGRAM_METRIC
+                );
+                assertThat(generationQueueMeasurements, hasSize(1));
+                assertThat(generationQueueMeasurements.get(0).getLong(), greaterThanOrEqualTo(0L));
+                assertThat(generationQueueMeasurements.get(0).attributes(), anEmptyMap());
 
                 final List<Measurement> headersSizeMeasurements = metricsPlugin.getLongHistogramMeasurement(
                     BCC_HEADERS_SIZE_HISTOGRAM_METRIC

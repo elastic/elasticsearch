@@ -13,7 +13,6 @@ import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Locale;
 import java.util.function.BooleanSupplier;
-import java.util.function.Function;
 
 /**
  * Utility functions for time series related mapper parameters
@@ -76,22 +75,21 @@ public final class TimeSeriesParams {
         }
     }
 
-    public static FieldMapper.Parameter<MetricType> metricParam(Function<FieldMapper, MetricType> initializer, MetricType... values) {
+    public static FieldMapper.Parameter<MetricType> metricParam(MetricType... values) {
         assert values.length > 0;
         EnumSet<MetricType> acceptedValues = EnumSet.noneOf(MetricType.class);
         acceptedValues.addAll(Arrays.asList(values));
         return FieldMapper.Parameter.restrictedEnumParam(
             TIME_SERIES_METRIC_PARAM,
             false,
-            initializer,
             (MetricType) null,
             MetricType.class,
             acceptedValues
         ).acceptsNull();
     }
 
-    public static FieldMapper.Parameter<Boolean> dimensionParam(Function<FieldMapper, Boolean> initializer, BooleanSupplier hasDocValues) {
-        return FieldMapper.Parameter.boolParam(TIME_SERIES_DIMENSION_PARAM, false, initializer, false).addValidator(v -> {
+    public static FieldMapper.Parameter<Boolean> dimensionParam(BooleanSupplier hasDocValues) {
+        return FieldMapper.Parameter.boolParam(TIME_SERIES_DIMENSION_PARAM, false, false).addValidator(v -> {
             if (v && (hasDocValues.getAsBoolean() == false)) {
                 throw new IllegalArgumentException(
                     "Field [" + TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM + "] requires that [doc_values] is true"

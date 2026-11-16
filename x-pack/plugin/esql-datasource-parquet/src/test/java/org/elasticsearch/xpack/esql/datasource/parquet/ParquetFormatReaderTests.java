@@ -105,6 +105,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.junit.After;
 import org.junit.Before;
@@ -9753,6 +9754,92 @@ public class ParquetFormatReaderTests extends ESTestCase {
             assertEquals(new BytesRef("literal"), ((BytesRefBlock) page.getBlock(0)).getBytesRef(0, new BytesRef()));
             page.releaseBlocks();
         }
+    }
+
+    public void testLiteralDottedNameFilterKeepsMatchingRows() throws Exception {
+        // Flat leaf named source.ip. WHERE source.ip == "188.166.20.77" (quotes not required;
+        // `source.ip` parses to the same name) must keep the two matching rows. Splitting the
+        // name into source → ip makes RowGroupFilter drop every group and return zero rows.
+        MessageType schema = new MessageType(
+            "test_schema",
+            Types.optional(PrimitiveType.PrimitiveTypeName.BINARY).as(LogicalTypeAnnotation.stringType()).named("source.ip"),
+            Types.optional(PrimitiveType.PrimitiveTypeName.INT32).named("destination.port")
+        );
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group a = factory.newGroup();
+            a.append("source.ip", "188.166.20.77");
+            a.append("destination.port", 443);
+            Group b = factory.newGroup();
+            b.append("source.ip", "1.2.3.4");
+            b.append("destination.port", 443);
+            Group c = factory.newGroup();
+            c.append("source.ip", "188.166.20.77");
+            c.append("destination.port", 22);
+            return List.of(a, b, c);
+        });
+
+        ParquetFormatReader baseline = new ParquetFormatReader(blockFactory);
+        assertEquals(3, countRows(baseline, parquetData, List.of("source.ip")));
+
+        Equals ipEq = new Equals(
+            Source.EMPTY,
+            new ReferenceAttribute(Source.EMPTY, "source.ip", DataType.KEYWORD),
+            new org.elasticsearch.xpack.esql.core.expression.Literal(Source.EMPTY, new BytesRef("188.166.20.77"), DataType.KEYWORD),
+            null
+        );
+        int ipMatches = countRows(
+            new ParquetFormatReader(blockFactory).withPushedFilter(new ParquetPushedExpressions(List.of(ipEq))),
+            parquetData,
+            List.of("source.ip")
+        );
+        assertEquals("flat dotted equality must not drop matching row groups", 2, ipMatches);
+
+        Equals portEq = new Equals(
+            Source.EMPTY,
+            new ReferenceAttribute(Source.EMPTY, "destination.port", DataType.INTEGER),
+            new org.elasticsearch.xpack.esql.core.expression.Literal(Source.EMPTY, 443, DataType.INTEGER),
+            null
+        );
+        int portMatches = countRows(
+            new ParquetFormatReader(blockFactory).withPushedFilter(new ParquetPushedExpressions(List.of(portEq))),
+            parquetData,
+            List.of("destination.port")
+        );
+        assertEquals("flat dotted integer equality must not drop matching row groups", 2, portMatches);
+    }
+
+    public void testNestedDottedNameFilterStillMatches() throws Exception {
+        // Nested source { ip } is also queried as source.ip, still without extra quotes.
+        // Pushdown must keep the multi-segment path source → ip.
+        MessageType schema = new MessageType(
+            "test_schema",
+            Types.optionalGroup()
+                .optional(PrimitiveType.PrimitiveTypeName.BINARY)
+                .as(LogicalTypeAnnotation.stringType())
+                .named("ip")
+                .named("source")
+        );
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group a = factory.newGroup();
+            a.addGroup("source").append("ip", "188.166.20.77");
+            Group b = factory.newGroup();
+            b.addGroup("source").append("ip", "1.2.3.4");
+            Group c = factory.newGroup();
+            c.addGroup("source").append("ip", "188.166.20.77");
+            return List.of(a, b, c);
+        });
+        Equals ipEq = new Equals(
+            Source.EMPTY,
+            new ReferenceAttribute(Source.EMPTY, "source.ip", DataType.KEYWORD),
+            new org.elasticsearch.xpack.esql.core.expression.Literal(Source.EMPTY, new BytesRef("188.166.20.77"), DataType.KEYWORD),
+            null
+        );
+        int matches = countRows(
+            new ParquetFormatReader(blockFactory).withPushedFilter(new ParquetPushedExpressions(List.of(ipEq))),
+            parquetData,
+            List.of("source.ip")
+        );
+        assertEquals(2, matches);
     }
 
     public void testNestedStructDepthCap() throws Exception {

@@ -527,6 +527,7 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/165489
 - class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
   tasks:
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.1.9#javaRestTest
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.3.8#javaRestTest
   method: testMergeKeywordAndFlattenedKey {NONE}
   issue: https://github.com/elastic/elasticsearch/issues/165491

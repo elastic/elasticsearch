@@ -537,8 +537,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             return;
         }
         final Optional<IndexMetadata> indexMetadata = state.metadata().findIndex(key.shardId().getIndex());
+        assert indexMetadata.isPresent() : "index metadata missing for current routing [" + currentRouting + "]";
         Optional<Long> currentPrimaryTerm = indexMetadata.map(metadata -> metadata.primaryTerm(key.shardId().id()));
-        if (currentPrimaryTerm.isPresent() && currentPrimaryTerm.get() > ticket.primaryTerm()) {
+        assert currentPrimaryTerm.get() >= ticket.primaryTerm() : "primary term went backwards for shard [" + key.shardId() + "]";
+        if (currentPrimaryTerm.get() > ticket.primaryTerm()) {
             // Primary term advanced, treated as a new allocation
             logger.debug(
                 "{} evicting stale {} ticket: primary term advanced from {} to {}",

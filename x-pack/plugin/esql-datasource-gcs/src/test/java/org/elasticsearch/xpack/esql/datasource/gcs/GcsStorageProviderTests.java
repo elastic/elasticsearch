@@ -63,7 +63,7 @@ public class GcsStorageProviderTests extends ESTestCase {
             }
         });
         GcsConfiguration config = federatedConfiguration();
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> new GcsStorageProvider(config));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new GcsStorageProvider(config));
         assertThat(e.getMessage(), containsString("workload-identity"));
     }
 

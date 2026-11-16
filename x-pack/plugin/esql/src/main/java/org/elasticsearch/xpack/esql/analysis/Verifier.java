@@ -14,6 +14,7 @@ import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.LicenseAware;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.analysis.rules.ViewUtils;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
@@ -726,9 +727,11 @@ public class Verifier {
     /**
      * Temporary MVP guardrail for {@code unmapped_fields="LOAD_ALL"} until the interaction of all commands with
      * {@code _unmapped_fields} is designed and implemented.
+     * <p>
+     * The caller's setting does not reach into a view, which cannot set {@code LOAD_ALL} itself, so view bodies are not checked.
      */
     private static void checkLoadAllModeSupportedCommands(LogicalPlan plan, Failures failures) {
-        plan.forEachDown(p -> {
+        ViewUtils.forEachOutsideViews(plan, p -> {
             if (supportedInLoadAllMode(p) == false) {
                 String command = p instanceof EsRelation esr && esr.indexMode().isTsdb() ? "TS"
                     : p instanceof BranchPlan ? "BranchPlan"

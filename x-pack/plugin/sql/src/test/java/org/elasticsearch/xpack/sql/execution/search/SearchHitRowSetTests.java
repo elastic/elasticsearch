@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.sql.execution.search;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESTestCase;
@@ -98,21 +97,6 @@ public class SearchHitRowSetTests extends ESTestCase {
     }
 
     private static SearchResponse newSearchResponse(SearchHits hits) {
-        return new SearchResponse(
-            hits,
-            null,
-            null,
-            false,
-            null,
-            null,
-            0,
-            null,
-            1,
-            1,
-            0,
-            0L,
-            ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
-        );
+        return new SearchResponse(hits, null, null, false, null, null, 0, null, 1, 1, 0, 0L, List.of(), SearchResponse.Clusters.EMPTY);
     }
 }

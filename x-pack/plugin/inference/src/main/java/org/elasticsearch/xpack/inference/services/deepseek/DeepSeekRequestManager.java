@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.deepseek;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -18,6 +17,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.BaseRequestManager
 import org.elasticsearch.xpack.inference.external.http.sender.CompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.ExecutableInferenceRequest;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
+import org.elasticsearch.xpack.inference.external.http.sender.TimedListener;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.deepseek.request.DeepSeekChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiCompletionResponseHandler;
@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.inference.services.openai.response.OpenAiCompleti
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiUnifiedChatCompletionResponseEntity;
 
 import java.util.Objects;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs.createUnsupportedTypeException;
 
@@ -48,12 +47,11 @@ public class DeepSeekRequestManager extends BaseRequestManager {
     public void execute(
         InferenceInputs inferenceInputs,
         RequestSender requestSender,
-        Supplier<Boolean> hasRequestCompletedFunction,
-        ActionListener<InferenceServiceResults> listener
+        TimedListener<InferenceServiceResults> timedListener
     ) {
         switch (inferenceInputs) {
-            case UnifiedChatInput uci -> execute(uci, requestSender, hasRequestCompletedFunction, listener);
-            case CompletionInput cci -> execute(cci, requestSender, hasRequestCompletedFunction, listener);
+            case UnifiedChatInput uci -> execute(uci, requestSender, timedListener);
+            case CompletionInput cci -> execute(cci, requestSender, timedListener);
             default -> throw createUnsupportedTypeException(inferenceInputs, UnifiedChatInput.class);
         }
     }
@@ -61,22 +59,20 @@ public class DeepSeekRequestManager extends BaseRequestManager {
     private void execute(
         UnifiedChatInput inferenceInputs,
         RequestSender requestSender,
-        Supplier<Boolean> hasRequestCompletedFunction,
-        ActionListener<InferenceServiceResults> listener
+        TimedListener<InferenceServiceResults> timedListener
     ) {
         var request = new DeepSeekChatCompletionRequest(inferenceInputs, model);
-        execute(new ExecutableInferenceRequest(requestSender, logger, request, CHAT_COMPLETION, hasRequestCompletedFunction, listener));
+        execute(new ExecutableInferenceRequest(requestSender, logger, request, CHAT_COMPLETION, timedListener));
     }
 
     private void execute(
         CompletionInput inferenceInputs,
         RequestSender requestSender,
-        Supplier<Boolean> hasRequestCompletedFunction,
-        ActionListener<InferenceServiceResults> listener
+        TimedListener<InferenceServiceResults> timedListener
     ) {
         var unifiedInputs = new UnifiedChatInput(inferenceInputs.getInputs(), "user", inferenceInputs.stream());
         var request = new DeepSeekChatCompletionRequest(unifiedInputs, model);
-        execute(new ExecutableInferenceRequest(requestSender, logger, request, COMPLETION, hasRequestCompletedFunction, listener));
+        execute(new ExecutableInferenceRequest(requestSender, logger, request, COMPLETION, timedListener));
     }
 
     private static ResponseHandler createChatCompletionHandler() {

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 164665
+summary: A name under a flattened field is a field
+type: enhancement

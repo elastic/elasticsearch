@@ -223,11 +223,6 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
             this.useLegacyFormat = useLegacyFormat(indexSettings);
         }
 
-        public Builder(SemanticTextFieldMapper mapper) {
-            super(mapper);
-            this.useLegacyFormat = useLegacyFormat(indexSettings);
-        }
-
         @Override
         public Builder setInferenceId(String id) {
             return (SemanticTextFieldMapper.Builder) super.setInferenceId(id);
@@ -452,8 +447,6 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
                 builderParams,
                 indexVersionCreated,
                 indexSettings.getMode(),
-                modelRegistry,
-                vectorsFormatProviders,
                 sourceColumnarStored
             );
         }
@@ -470,25 +463,9 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
         BuilderParams builderParams,
         IndexVersion indexCreatedVersion,
         IndexMode indexMode,
-        ModelRegistry modelRegistry,
-        List<VectorsFormatProvider> vectorsFormatProviders,
         boolean sourceColumnarStored
     ) {
-        super(
-            simpleName,
-            mappedFieldType,
-            builderParams,
-            indexCreatedVersion,
-            indexMode,
-            modelRegistry,
-            vectorsFormatProviders,
-            sourceColumnarStored
-        );
-    }
-
-    @Override
-    public SemanticTextFieldMapper.Builder getMergeBuilder() {
-        return new Builder(this);
+        super(simpleName, mappedFieldType, builderParams, indexCreatedVersion, indexMode, sourceColumnarStored);
     }
 
     @Override

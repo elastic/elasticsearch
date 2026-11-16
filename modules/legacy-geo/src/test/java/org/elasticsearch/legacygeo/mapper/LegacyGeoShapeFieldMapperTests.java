@@ -542,38 +542,38 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
     public void testSerializeDefaults() throws Exception {
         ToXContent.Params includeDefaults = new ToXContent.MapParams(singletonMap("include_defaults", "true"));
         {
-            DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_shape").field("tree", "quadtree")));
-            String serialized = Strings.toString(mapper.mappers().getMapper("field"), includeDefaults);
+            MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "geo_shape").field("tree", "quadtree")));
+            String serialized = fieldMappingToString(mapperService, "field", includeDefaults);
             assertTrue(serialized, serialized.contains("\"precision\":\"50.0m\""));
             assertTrue(serialized, serialized.contains("\"tree_levels\":21"));
         }
         {
-            DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_shape").field("tree", "geohash")));
-            String serialized = Strings.toString(mapper.mappers().getMapper("field"), includeDefaults);
+            MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "geo_shape").field("tree", "geohash")));
+            String serialized = fieldMappingToString(mapperService, "field", includeDefaults);
             assertTrue(serialized, serialized.contains("\"precision\":\"50.0m\""));
             assertTrue(serialized, serialized.contains("\"tree_levels\":9"));
         }
         {
-            DocumentMapper mapper = createDocumentMapper(
+            MapperService mapperService = createMapperService(
                 fieldMapping(b -> b.field("type", "geo_shape").field("tree", "quadtree").field("tree_levels", "6"))
             );
-            String serialized = Strings.toString(mapper.mappers().getMapper("field"), includeDefaults);
+            String serialized = fieldMappingToString(mapperService, "field", includeDefaults);
             assertFalse(serialized, serialized.contains("\"precision\":"));
             assertTrue(serialized, serialized.contains("\"tree_levels\":6"));
         }
         {
-            DocumentMapper mapper = createDocumentMapper(
+            MapperService mapperService = createMapperService(
                 fieldMapping(b -> b.field("type", "geo_shape").field("tree", "quadtree").field("precision", "6"))
             );
-            String serialized = Strings.toString(mapper.mappers().getMapper("field"), includeDefaults);
+            String serialized = fieldMappingToString(mapperService, "field", includeDefaults);
             assertTrue(serialized, serialized.contains("\"precision\":\"6.0m\""));
             assertFalse(serialized, serialized.contains("\"tree_levels\":"));
         }
         {
-            DocumentMapper mapper = createDocumentMapper(
+            MapperService mapperService = createMapperService(
                 fieldMapping(b -> b.field("type", "geo_shape").field("tree", "quadtree").field("precision", "6m").field("tree_levels", "5"))
             );
-            String serialized = Strings.toString(mapper.mappers().getMapper("field"), includeDefaults);
+            String serialized = fieldMappingToString(mapperService, "field", includeDefaults);
             assertTrue(serialized, serialized.contains("\"precision\":\"6.0m\""));
             assertTrue(serialized, serialized.contains("\"tree_levels\":5"));
         }
@@ -581,10 +581,10 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
     }
 
     public void testPointsOnlyDefaultsWithTermStrategy() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(
+        MapperService mapperService = createMapperService(
             fieldMapping(b -> b.field("type", "geo_shape").field("tree", "quadtree").field("precision", "10m").field("strategy", "term"))
         );
-        Mapper fieldMapper = mapper.mappers().getMapper("field");
+        Mapper fieldMapper = mapperService.documentMapper().mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
 
         LegacyGeoShapeFieldMapper geoShapeFieldMapper = (LegacyGeoShapeFieldMapper) fieldMapper;
@@ -595,7 +595,7 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
         assertThat(strategy.getGrid().getMaxLevels(), equalTo(23));
         assertThat(strategy.isPointsOnly(), equalTo(true));
         // term strategy changes the default for points_only, check that we handle it correctly
-        assertThat(Strings.toString(geoShapeFieldMapper), not(containsString("points_only")));
+        assertThat(fieldMappingToString(mapperService, "field"), not(containsString("points_only")));
         assertFieldWarnings("tree", "precision", "strategy");
     }
 

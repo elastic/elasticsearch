@@ -144,7 +144,8 @@ public class EsqlProfileSchemaDocumentTests {
                         10,
                         11,
                         12,
-                        new SequenceSourceStatus.LatestValidCounters(1, 2, 3, 4, 5, 6, 7)
+                        new SequenceSourceStatus.LatestValidCounters(1, 2, 3, 4, 5, 6, 7),
+                        null
                     )
                 ),
                 new OperatorStatus("Limit", null)

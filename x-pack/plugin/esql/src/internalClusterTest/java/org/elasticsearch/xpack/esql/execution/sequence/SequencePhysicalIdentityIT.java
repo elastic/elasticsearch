@@ -49,7 +49,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsString;
 
-/** Selected physical documents bound payload field evaluation even when routed IDs repeat. */
+/** First-read values retain physical document identity when routed IDs repeat. */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2)
 public class SequencePhysicalIdentityIT extends AbstractSequenceIntegTestCase {
     private static final String A = "sequence-physical-identity-a";
@@ -63,8 +63,8 @@ public class SequencePhysicalIdentityIT extends AbstractSequenceIntegTestCase {
         return CollectionUtils.appendToCopy(super.nodePlugins(), SequenceMappedFieldsIT.FailingRuntimeFieldPlugin.class);
     }
 
-    /** A predicate-excluded routed copy between selected positions must not evaluate an output-only runtime field. */
-    public void testFullReplayFetchesOnlySelectedPhysicalDocuments() throws Exception {
+    /** An excluded routed copy between selected positions must not be loaded by the candidate search. */
+    public void testFirstReadKeepsSelectedPhysicalDocumentsDistinct() throws Exception {
         coordinator = Arrays.stream(internalCluster().getNodeNames()).sorted().findFirst().orElseThrow();
         createIndices();
         IndexRouting routing = IndexRouting.fromIndexMetadata(clusterService().state().metadata().getProject().index(A));
@@ -119,8 +119,8 @@ public class SequencePhysicalIdentityIT extends AbstractSequenceIntegTestCase {
                 demanded.add(List.of("key-" + event, first, second, 8L, 0.0, 0.0));
             }
             assertEquals(pruned, query(sequence(primary, false)));
-            // The independent runtime expression forces full replay. Assert raw scores: adding one would
-            // round away Float.MIN_VALUE and fail to detect an accidentally scoring physical selector.
+            // Keep the raw scores in the assertion: adding one could round away Float.MIN_VALUE
+            // and hide an accidentally scoring candidate search.
             assertEquals(demanded, query(sequence(primary, true), true));
         }
     }
@@ -179,7 +179,7 @@ public class SequencePhysicalIdentityIT extends AbstractSequenceIntegTestCase {
         return query(text, false);
     }
 
-    private List<List<Object>> query(String text, boolean requirePayloadReplay) {
+    private List<List<Object>> query(String text, boolean verifySingleRead) {
         try (
             var response = client(coordinator).execute(
                 EsqlQueryAction.INSTANCE,
@@ -187,7 +187,7 @@ public class SequencePhysicalIdentityIT extends AbstractSequenceIntegTestCase {
             ).actionGet()
         ) {
             assertFalse(response.isPartial());
-            if (requirePayloadReplay) {
+            if (verifySingleRead) {
                 assertNotNull(response.profile());
                 var statuses = response.profile()
                     .drivers()
@@ -199,8 +199,10 @@ public class SequencePhysicalIdentityIT extends AbstractSequenceIntegTestCase {
                     .toList();
                 assertEquals(1, statuses.size());
                 SequenceSourceStatus status = statuses.getFirst();
-                assertTrue("raw scores must be checked after payload hydration", status.payloadSearchRequests() > 0);
-                assertTrue("demanded output must execute beyond the two selection drivers", status.stageDrivers() > 2);
+                assertEquals("one candidate search per stage", 2L, status.candidateSearchRequests());
+                assertEquals("selected values must not be reread", 0L, status.payloadSearchRequests());
+                assertEquals("selected values must not produce payload hits", 0L, status.payloadRowsFetched());
+                assertEquals("one candidate page per stage", 2L, status.stageDrivers());
             }
             return getValuesList(response);
         }

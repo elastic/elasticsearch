@@ -68,6 +68,18 @@ public class SequenceSerializationTests extends AbstractLogicalPlanSerialization
         return true;
     }
 
+    /** R5 peers do not understand the new internal query, so the logical plan fails before writing any bytes. */
+    public void testR5PeerIsRejectedBeforeWritingSourceScopePlan() throws Exception {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(Sequence.ESQL_SEQUENCE_R5);
+            assertThat(
+                expectThrows(IllegalArgumentException.class, () -> createTestInstance().writeTo(out)).getMessage(),
+                containsString("SEQUENCE is not supported")
+            );
+            assertEquals(0, out.size());
+        }
+    }
+
     public void testRejectUnsupportedPeerBeforeWriting() throws Exception {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setTransportVersion(TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE_R5));

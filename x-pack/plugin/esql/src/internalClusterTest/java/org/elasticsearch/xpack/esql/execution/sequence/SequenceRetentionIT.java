@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.execution.sequence;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -38,7 +39,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsString;
 
-/** Correctness, warning and failure gates for finite selection retention, before any performance adoption. */
+/** First-read retention preserves typed values, source identities and bounded diagnostics. */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2)
 public class SequenceRetentionIT extends AbstractSequenceIntegTestCase {
     private static final Instant BASE = Instant.parse("2026-09-25T21:14:51.389000001Z");
@@ -83,7 +84,8 @@ public class SequenceRetentionIT extends AbstractSequenceIntegTestCase {
         }
     }
 
-    public void testUnmatchedOutputOnlyConversionCannotWarnOrDisplaceSelectedWarning() {
+    /** Visited unmatched rows can fill the warning budget before a selected row; source filters can exclude them. */
+    public void testUnmatchedOutputWarningsShareTheFirstReadBudget() {
         createIndex(FIRST, false);
         createIndex(SECOND, false);
         var bulk = client().prepareBulk();
@@ -98,22 +100,32 @@ public class SequenceRetentionIT extends AbstractSequenceIntegTestCase {
         refresh(FIRST, SECOND);
         String query = """
             SEQUENCE BY key WITHIN 30s PRIMARY 1
-            (FROM sequence-retention-a | EVAL converted=TO_LONG(payload) | KEEP key,converted),
+            (FROM sequence-retention-a %s | EVAL converted=TO_LONG(payload) | KEEP key,converted),
             (FROM sequence-retention-b | KEEP key)
             | KEEP key,converted | LIMIT 1
             """;
         seed(FIRST, "selected", source(50, "shared", "A", "7"));
-        Observed valid = observe(query, "NONE");
+        Observed valid = observe(query.formatted(""), "NONE");
         assertEquals(List.of(List.of("shared", 7L)), valid.values());
-        assertTrue(valid.warnings().isEmpty());
+        assertEquals(20, valid.warnings().stream().filter(warning -> warning.contains("Cannot parse number [unmatched-bad-")).count());
+        assertEquals(1, valid.warnings().stream().filter(warning -> warning.contains("Only first 20 failures recorded.")).count());
         seed(FIRST, "selected", source(50, "shared", "A", "selected-bad"));
-        Observed invalid = observe(query, "NONE");
+        Observed invalid = observe(query.formatted(""), "NONE");
         assertEquals(List.of(Arrays.asList("shared", null)), invalid.values());
-        assertEquals(1, invalid.warnings().stream().filter(warning -> warning.contains("Cannot parse number [selected-bad]")).count());
-        assertFalse(invalid.warnings().stream().anyMatch(warning -> warning.contains("unmatched-bad")));
+        assertEquals(valid.warnings(), invalid.warnings());
+        assertFalse(invalid.warnings().stream().anyMatch(warning -> warning.contains("selected-bad")));
         assertEquals(1, invalid.warnings().stream().filter(warning -> warning.contains("Only first 20 failures recorded.")).count());
-        assertEquals("output-only conversion still uses full replay", 3L, invalid.status().stageDrivers());
-        assertEquals(1L, invalid.status().payloadRowsFetched());
+        assertEquals(2L, invalid.status().stageDrivers());
+        assertEquals(0L, invalid.status().payloadSearchRequests());
+        assertEquals(0L, invalid.status().payloadRowsFetched());
+
+        Observed filtered = observe(query.formatted("| WHERE key==\"shared\""), "NONE");
+        assertEquals(invalid.values(), filtered.values());
+        assertEquals(1, filtered.warnings().stream().filter(warning -> warning.contains("Cannot parse number [selected-bad]")).count());
+        assertFalse(filtered.warnings().stream().anyMatch(warning -> warning.contains("unmatched-bad")));
+        assertEquals(1, filtered.warnings().stream().filter(warning -> warning.contains("Only first 20 failures recorded.")).count());
+        assertEquals(2L, filtered.status().stageDrivers());
+        assertEquals(0L, filtered.status().payloadRowsFetched());
     }
 
     public void testSelectionDependentWarningsKeepTheirCandidateAllowance() {
@@ -141,7 +153,8 @@ public class SequenceRetentionIT extends AbstractSequenceIntegTestCase {
         assertEquals(result.warnings(), observe(query, "NONE").warnings());
     }
 
-    public void testOutputOnlyRuntimeFailureRemainsLateAndPrunedValuesStayAbsent() {
+    /** Demanded outputs can fail before any match, while discarded outputs require neither loading nor evaluation. */
+    public void testOutputOnlyRuntimeFailureOccursAtFirstReadAndPrunedValuesStayAbsent() {
         createIndex(FIRST, true);
         createIndex(SECOND, false);
         seed(FIRST, "A", source(0, "shared", "A", "bad"));
@@ -152,11 +165,12 @@ public class SequenceRetentionIT extends AbstractSequenceIntegTestCase {
             (FROM sequence-retention-b | WHERE phase=="%s" | KEEP key)
             | KEEP key,failure | LIMIT 1
             """;
-        Observed empty = observe(query.formatted("missing"), "NONE");
-        assertTrue(empty.values().isEmpty());
-        assertEquals(0L, empty.status().payloadSearchRequests());
-        RuntimeException failure = expectThrows(RuntimeException.class, () -> observe(query.formatted("B"), "NONE"));
-        assertThat(ExceptionsHelper.stackTrace(failure), containsString("sequence mapped loading failure"));
+        RuntimeException plain = expectThrows(RuntimeException.class, () -> ordinary(FIRST, "KEEP key,failure", "NONE"));
+        assertThat(ExceptionsHelper.stackTrace(plain), containsString("sequence mapped loading failure"));
+        for (String phase : List.of("missing", "B")) {
+            RuntimeException failure = expectThrows(RuntimeException.class, () -> observe(query.formatted(phase), "NONE"));
+            assertEquals(loadingErrors(plain), loadingErrors(failure));
+        }
         Observed pruned = observe("""
             SEQUENCE BY key WITHIN 30s PRIMARY 1
             (FROM sequence-retention-a | EVAL discarded=TO_LONG(payload) | DROP discarded | KEEP key),
@@ -166,9 +180,12 @@ public class SequenceRetentionIT extends AbstractSequenceIntegTestCase {
         assertEquals(List.of(List.of("shared")), pruned.values());
         assertTrue(pruned.warnings().isEmpty());
         assertEquals(0L, pruned.status().payloadSearchRequests());
+        assertEquals(0L, pruned.status().payloadRowsFetched());
+        assertEquals(2L, pruned.status().stageDrivers());
     }
 
-    public void testLimitOneDoesNotLoadLaterRuntimeFailure() {
+    /** LIMIT does not protect a demanded value already loaded in a candidate page before matching. */
+    public void testLimitOneCannotHideRuntimeFailureOnTheFirstReadPage() {
         String good = FIRST + "-good", bad = FIRST + "-bad";
         createIndex(good, false);
         createIndex(bad, true);
@@ -184,11 +201,18 @@ public class SequenceRetentionIT extends AbstractSequenceIntegTestCase {
             (FROM sequence-retention-a-* | KEEP key,failure), (FROM sequence-retention-b | KEEP key)
             | KEEP key,failure | LIMIT %s
             """;
-        Observed limited = observe(query.formatted(1), "NONE");
+        RuntimeException plain = expectThrows(RuntimeException.class, () -> ordinary(bad, "KEEP key,failure", "NONE"));
+        assertThat(ExceptionsHelper.stackTrace(plain), containsString("sequence mapped loading failure"));
+        for (int limit : List.of(1, 2)) {
+            RuntimeException failure = expectThrows(RuntimeException.class, () -> observe(query.formatted(limit), "NONE"));
+            assertEquals(loadingErrors(plain), loadingErrors(failure));
+        }
+        Observed limited = observe(query.formatted(1).replace("sequence-retention-a-*", good), "NONE");
         assertEquals(List.of(List.of("good", 7L)), limited.values());
         assertTrue(limited.warnings().isEmpty());
-        RuntimeException failure = expectThrows(RuntimeException.class, () -> observe(query.formatted(2), "NONE"));
-        assertThat(ExceptionsHelper.stackTrace(failure), containsString("sequence mapped loading failure"));
+        assertEquals(ordinary(good, "KEEP key,failure", "NONE"), limited.values());
+        assertEquals(0L, limited.status().payloadSearchRequests());
+        assertEquals(0L, limited.status().payloadRowsFetched());
     }
 
     public void testProcessedMetadataNamesAndExplicitSourceRemainOrdinaryValues() {
@@ -215,10 +239,12 @@ public class SequenceRetentionIT extends AbstractSequenceIntegTestCase {
             """, "NONE");
         assertEquals(List.of(List.of(first)), original.values());
         assertEquals(2L, original.status().stageDrivers());
-        assertEquals(1L, original.status().payloadRowsFetched());
+        assertEquals(0L, original.status().payloadSearchRequests());
+        assertEquals(0L, original.status().payloadRowsFetched());
     }
 
-    public void testMixedUnionBranchesUseTheirOwnRetentionAndFallback() {
+    /** Predicate-dependent and output-only branches retain their own processed values without a selected-row replay. */
+    public void testMixedUnionBranchesRetainFirstReadValuesInEitherOrder() {
         String third = "sequence-retention-c";
         createIndex(FIRST, false);
         createIndex(SECOND, false);
@@ -227,19 +253,20 @@ public class SequenceRetentionIT extends AbstractSequenceIntegTestCase {
         seed(third, "C", source(1, "two", "A", "beta"));
         seed(SECOND, "B-one", source(2, "one", "B", "unused"));
         seed(SECOND, "B-two", source(3, "two", "B", "unused"));
-        String selected = "(FROM sequence-retention-a | EVAL value=TO_LOWER(payload) | WHERE value!=\"skip\" | KEEP key,value)";
-        String replayed = "(FROM sequence-retention-c | EVAL value=TO_UPPER(payload) | KEEP key,value)";
+        String filtered = "(FROM sequence-retention-a | EVAL value=TO_LOWER(payload) | WHERE value!=\"skip\" | KEEP key,value)";
+        String outputOnly = "(FROM sequence-retention-c | EVAL value=TO_UPPER(payload) | KEEP key,value)";
         for (boolean reverse : List.of(false, true)) {
             String query = """
                 SEQUENCE BY key WITHIN 30s PRIMARY 1
                 (FROM %s,%s), (FROM sequence-retention-b | KEEP key)
                 | KEEP key,value | LIMIT 10
-                """.formatted(reverse ? replayed : selected, reverse ? selected : replayed);
+                """.formatted(reverse ? outputOnly : filtered, reverse ? filtered : outputOnly);
             Observed result = observe(query, "NONE");
             assertEquals(List.of(List.of("one", "alpha"), List.of("two", "BETA")), result.values());
             assertTrue(result.warnings().isEmpty());
-            assertEquals(1L, result.status().payloadRowsFetched());
-            assertEquals(4L, result.status().stageDrivers());
+            assertEquals(0L, result.status().payloadSearchRequests());
+            assertEquals(0L, result.status().payloadRowsFetched());
+            assertEquals(3L, result.status().stageDrivers());
         }
     }
 
@@ -288,9 +315,23 @@ public class SequenceRetentionIT extends AbstractSequenceIntegTestCase {
     }
 
     private List<List<Object>> ordinary(String index, String pipeline, String preference) {
-        try (var response = run(syncEsqlQueryRequest("FROM " + index + " | " + pipeline + " | LIMIT 10").pragmas(pragmas(preference)))) {
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM " + index + " | " + pipeline + " | LIMIT 10").allowPartialResults(false)
+                    .pragmas(pragmas(preference))
+            )
+        ) {
             return getValuesList(response);
         }
+    }
+
+    /** Search shard roots and ordinary data-node failures use different wrappers around the same loading error. */
+    private static List<String> loadingErrors(Exception failure) {
+        return Arrays.stream(ElasticsearchException.guessRootCauses(failure))
+            .map(root -> ExceptionsHelper.unwrapCause(root).getMessage())
+            .distinct()
+            .sorted()
+            .toList();
     }
 
     private static QueryPragmas pragmas(String preference) {

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InS
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.MultiColumnInSubquery;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -46,10 +48,6 @@ public final class SequenceMatchOutput {
     public static final class Declaration extends UnaryPlan {
         private final int primary;
         private final Map<String, Integer> stageNames;
-
-        public Declaration(Source source, LogicalPlan child, int primary) {
-            this(source, child, primary, Map.of());
-        }
 
         /** Named references lower to existing positions before analysis, so aliases never enter a runtime plan. */
         public Declaration(Source source, LogicalPlan child, int primary, Map<String, Integer> stageNames) {
@@ -109,9 +107,6 @@ public final class SequenceMatchOutput {
             });
             return plan == statement.plan() ? statement : new EsqlStatement(plan, statement.settings(), statement.letBindings());
         }
-        if (declarations.size() != 1 || declarations.getFirst().child() instanceof Sequence == false) {
-            throw new ParsingException(plan.source(), "SEQUENCE must start the query; it is not supported inside a union or subquery");
-        }
         Declaration header = declarations.getFirst();
         Sequence sequence = prepareStageConditions((Sequence) header.child(), header.stageNames);
         if (statement.letBindings().isEmpty() == false) {
@@ -122,6 +117,15 @@ public final class SequenceMatchOutput {
         }
         LogicalPlan cursor = plan;
         while (cursor != header) {
+            if (cursor instanceof LookupJoin join) {
+                join.right().forEachExpressionDown(UnresolvedFunction.class, function -> {
+                    if (function.name().equalsIgnoreCase("member")) {
+                        throw new ParsingException(function.source(), "MEMBER is not available inside the joined side of LOOKUP JOIN");
+                    }
+                });
+                cursor = join.left();
+                continue;
+            }
             if (cursor instanceof UnaryPlan == false) {
                 throw new ParsingException(cursor.source(), "Command [{}] is outside the sequence output prototype", cursor.nodeName());
             }
@@ -173,7 +177,7 @@ public final class SequenceMatchOutput {
         return prepare(new EsqlStatement(plan, statement.settings(), statement.letBindings()), header.primary - 1, members);
     }
 
-    /** Splits only the final WHERE, preserving its own-row binding point through the permitted trailing projections. */
+    /** Consecutive trailing WHEREs share one own-row binding point before the permitted trailing projections. */
     private static Sequence prepareStageConditions(Sequence sequence, Map<String, Integer> stageNames) {
         List<LogicalPlan> stages = new ArrayList<>();
         for (int ownStage = 0; ownStage < sequence.children().size(); ownStage++) {
@@ -184,6 +188,7 @@ public final class SequenceMatchOutput {
                 projections.add((UnaryPlan) cursor);
                 cursor = ((UnaryPlan) cursor).child();
             }
+            cursor = mergeTrailingFilters(cursor);
             if (cursor instanceof Filter filter && containsMember(filter.condition())) {
                 List<Expression> own = new ArrayList<>();
                 List<Expression> deferred = new ArrayList<>();
@@ -222,11 +227,11 @@ public final class SequenceMatchOutput {
                         List.of()
                     );
                 }
-                for (int projection = projections.size() - 1; projection >= 0; projection--) {
-                    cursor = projections.get(projection).replaceChild(cursor);
-                }
-                stage = stage.replaceChild(cursor);
             }
+            for (int projection = projections.size() - 1; projection >= 0; projection--) {
+                cursor = projections.get(projection).replaceChild(cursor);
+            }
+            stage = stage.replaceChild(cursor);
             stage.forEachExpressionDown(UnresolvedFunction.class, function -> {
                 if (function.name().equalsIgnoreCase("member")) {
                     throw new ParsingException(
@@ -238,6 +243,18 @@ public final class SequenceMatchOutput {
             stages.add(stage);
         }
         return sequence.replaceChildren(stages);
+    }
+
+    /** No schema-changing command separates these filters, so their fields keep the same binding and source locations. */
+    private static LogicalPlan mergeTrailingFilters(LogicalPlan plan) {
+        while (plan instanceof Filter filter && filter.child() instanceof Filter preceding) {
+            plan = new Filter(
+                filter.source(),
+                preceding.child(),
+                Predicates.combineAnd(List.of(preceding.condition(), filter.condition()))
+            );
+        }
+        return plan;
     }
 
     private static boolean containsMember(Expression expression) {
@@ -297,9 +314,6 @@ public final class SequenceMatchOutput {
         pending.add(plan);
         while (pending.isEmpty() == false) {
             LogicalPlan current = pending.removeFirst();
-            if (current instanceof Declaration) {
-                throw new ParsingException(current.source(), "LET is outside the sequence output prototype");
-            }
             if (current instanceof Explain explain) {
                 pending.add(explain.query());
             }
@@ -332,10 +346,6 @@ public final class SequenceMatchOutput {
                 } else {
                     return;
                 }
-                List<Declaration> declarations = subquery.collect(Declaration.class);
-                if (declarations.isEmpty() == false) {
-                    throw new ParsingException(declarations.getFirst().source(), "SEQUENCE is not supported as an IN subquery source");
-                }
                 subquery.forEachExpressionDown(UnresolvedFunction.class, function -> {
                     if (function.name().equalsIgnoreCase("member")) {
                         throw new ParsingException(function.source(), "MEMBER is not available inside an IN subquery");
@@ -350,22 +360,39 @@ public final class SequenceMatchOutput {
     /** An analysis-only reference to a compiler binding, independent of its collision-free temporary name. */
     public static class BindingReference extends UnresolvedAttribute {
         private BindingReference(Source source, String name, NameId binding) {
-            super(source, name, binding, null);
+            this(source, name, binding, null);
+        }
+
+        private BindingReference(Source source, String name, NameId binding, @Nullable String message) {
+            super(source, name, binding, message);
         }
 
         @Override
         protected NodeInfo<? extends BindingReference> info() {
-            return NodeInfo.create(this, BindingReference::new, name(), id());
+            return NodeInfo.create(
+                this,
+                (source, name, binding, message, custom) -> new BindingReference(source, name, binding, custom ? message : null),
+                name(),
+                id(),
+                unresolvedMessage(),
+                customMessage()
+            );
         }
 
         @Override
         public BindingReference withId(NameId id) {
-            return new BindingReference(source(), name(), id);
+            return new BindingReference(source(), name(), id, customMessage() ? unresolvedMessage() : null);
         }
 
         @Override
         public BindingReference withLocation(Source source) {
-            return new BindingReference(source, name(), id());
+            return new BindingReference(source, name(), id(), customMessage() ? unresolvedMessage() : null);
+        }
+
+        /** A diagnostic must not turn a protected compiler binding into an ordinary NULLIFY/name lookup. */
+        @Override
+        public BindingReference withUnresolvedMessage(@Nullable String message) {
+            return new BindingReference(source(), name(), id(), message);
         }
 
         /** Resolve only a binding still present in the current pipeline, never a similarly named ordinary field. */
@@ -384,23 +411,40 @@ public final class SequenceMatchOutput {
         private final Member member;
 
         private MemberReference(Source source, Member member, NameId binding) {
-            super(source, "MEMBER(" + (member.stage() + 1) + ", " + member.field() + ")", binding);
+            this(source, member, binding, null);
+        }
+
+        private MemberReference(Source source, Member member, NameId binding, @Nullable String message) {
+            super(source, "MEMBER(" + (member.stage() + 1) + ", " + member.field() + ")", binding, message);
             this.member = member;
         }
 
         @Override
         protected NodeInfo<MemberReference> info() {
-            return NodeInfo.create(this, MemberReference::new, member, id());
+            return NodeInfo.create(
+                this,
+                (source, member, binding, message, custom) -> new MemberReference(source, member, binding, custom ? message : null),
+                member,
+                id(),
+                unresolvedMessage(),
+                customMessage()
+            );
         }
 
         @Override
         public MemberReference withId(NameId id) {
-            return new MemberReference(source(), member, id);
+            return new MemberReference(source(), member, id, customMessage() ? unresolvedMessage() : null);
         }
 
         @Override
         public MemberReference withLocation(Source source) {
-            return new MemberReference(source, member, id());
+            return new MemberReference(source, member, id(), customMessage() ? unresolvedMessage() : null);
+        }
+
+        /** Missing-member diagnostics retain the earlier stage and field for scope-aware NULLIFY handling. */
+        @Override
+        public MemberReference withUnresolvedMessage(@Nullable String message) {
+            return new MemberReference(source(), member, id(), message);
         }
 
         public String field() {
@@ -536,9 +580,7 @@ public final class SequenceMatchOutput {
                     int suffix = 1;
                     while (names.add(name) == false)
                         name = "sequence_provenance_" + suffix++;
-                    output.add(
-                        keepUnmapped ? new Alias(value.source(), name, value, value.id(), false) : new Alias(value.source(), name, value)
-                    );
+                    output.add(SequenceSchema.projection(value, name, keepUnmapped ? value.id() : null, false));
                     continue;
                 }
                 if (input.synthetic() == false && (i < keyCount || stage == context.primary())) {
@@ -546,9 +588,7 @@ public final class SequenceMatchOutput {
                         ? ((SequenceStage) sequence.children().get(context.primary())).keys().get(i).name()
                         : input.name();
                     // Recomputing a compiler projection must not change an already published binding.
-                    output.add(
-                        keepUnmapped ? new Alias(value.source(), name, value, value.id(), false) : new Alias(value.source(), name, value)
-                    );
+                    output.add(SequenceSchema.projection(value, name, keepUnmapped ? value.id() : null, false));
                 }
                 for (var entry : context.members().entrySet()) {
                     Member member = entry.getKey();
@@ -560,7 +600,7 @@ public final class SequenceMatchOutput {
                     if ((i < keyCount || stage == member.stage()) && input.synthetic() == false && name.equals(member.field())) {
                         NameId binding = entry.getValue();
                         // Reserve against parsed and resolved user names; MEMBER resolution uses only the binding ID.
-                        output.add(new Alias(value.source(), temporaryName(usedNames, "sequence_member", binding), value, binding, true));
+                        output.add(SequenceSchema.projection(value, temporaryName(usedNames, "sequence_member", binding), binding, true));
                     }
                 }
             }

@@ -316,7 +316,7 @@ public class SequenceLatestValidLimitsIT extends AbstractSequenceIntegTestCase {
         );
     }
 
-    /** Default N=8 needs seven stages to exhaust the production search quota; LIMIT closes before the independent tail. */
+    /** Admitted N=8 still exercises the work guard after R6 lowers the seven-stage default; LIMIT closes before the tail. */
     public void testLimitOneKeepsDropAndWorkLimitSummaries() {
         createIndices(7);
         var bulk = client().prepareBulk();
@@ -366,7 +366,7 @@ public class SequenceLatestValidLimitsIT extends AbstractSequenceIntegTestCase {
             (FROM sequence-limits-e | KEEP key),(FROM sequence-limits-f | KEEP key),
             (FROM sequence-limits-g | WHERE v==MEMBER(1,v) | KEEP key,label)
             | KEEP key,label | LIMIT 1
-            """);
+            """, 8);
         assertEquals(List.of(List.of("good", "good-1")), observed.values());
         assertEquals(1, observed.status().completedMatches());
         assertEquals(1, observed.status().rowsEmitted());

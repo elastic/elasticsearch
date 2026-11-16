@@ -7,13 +7,20 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
+import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneColumns;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
@@ -31,6 +38,18 @@ import java.util.Set;
  */
 public final class SequenceStageProjection {
     private SequenceStageProjection() {}
+
+    /** Only exact source searches can be removed from the coordinator, which has no index to recheck them. */
+    public static boolean isExactSourceSearchPredicate(Filter filter, Expression predicate) {
+        return filter.child() instanceof EsRelation source
+            && predicate instanceof FullTextFunction function
+            && function.isRuntimeSearch() == false
+            && function instanceof Knn == false
+            && source.outputSet().containsAll(predicate.references())
+            && predicate.references().stream().noneMatch(MetadataAttribute::isScoreAttribute)
+            && TranslationAware.translatable(predicate, LucenePushdownPredicates.DEFAULT)
+                .finish() == TranslationAware.FinishedTranslatable.YES;
+    }
 
     /** Returns only event sources; membership subquery sources retain their ordinary ES|QL execution. */
     public static List<EsRelation> eventSources(SequenceStage stage) {
@@ -232,6 +251,17 @@ public final class SequenceStageProjection {
             return new BoundPlan(new LocalRelation(relation.source(), attributes, EmptyLocalSupplier.EMPTY), false, List.of());
         }
         LogicalPlan result = plan.replaceChildren(children);
+        if (active && plan instanceof Filter filter && filter.child() == selected) {
+            List<Expression> conjuncts = Predicates.splitAnd(filter.condition());
+            List<Expression> remaining = conjuncts.stream()
+                .filter(predicate -> isExactSourceSearchPredicate(filter, predicate) == false)
+                .toList();
+            if (remaining.size() != conjuncts.size()) {
+                result = remaining.isEmpty()
+                    ? children.getFirst()
+                    : new Filter(filter.source(), children.getFirst(), Predicates.combineAnd(remaining));
+            }
+        }
         if (result instanceof Project project) {
             List<NamedExpression> projections = new ArrayList<>(project.projections());
             Set<NameId> included = new HashSet<>();

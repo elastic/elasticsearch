@@ -299,7 +299,9 @@ final class SequenceLatestValidMatcher implements SequencePairing {
             DocState document = addDocument(state, ordinal);
             Row row = new Row(state, document, stage, ordinal, rank, payload, values, bytes);
             state.records++;
-            document.records++;
+            if (document != null) {
+                document.records++;
+            }
             if (ring.size == bound) {
                 remove(ring.rows[0]);
                 position--;
@@ -333,9 +335,9 @@ final class SequenceLatestValidMatcher implements SequencePairing {
     private KeyState addKey(BytesRef key) {
         long bytes = RamUsageEstimator.shallowSizeOfInstance(KeyState.class) + HASH_ENTRY_BYTES + bytesRefBytes(key) + referenceArrayBytes(
             stages - 1
-        ) + RamUsageEstimator.shallowSizeOfInstance(HashMap.class);
+        ) + (stages == 2 ? 0 : RamUsageEstimator.shallowSizeOfInstance(HashMap.class));
         reserve(bytes);
-        KeyState state = new KeyState(BytesRef.deepCopyOf(key), new Ring[stages - 1], bytes);
+        KeyState state = new KeyState(BytesRef.deepCopyOf(key), new Ring[stages - 1], bytes, stages > 2);
         if (keyCapacity == 0 || keys.size() + 1 > keyCapacity * 3L / 4) {
             int next = keyCapacity == 0 ? 64 : Math.multiplyExact(keyCapacity, 2);
             long nextBytes = referenceArrayBytes(next);
@@ -351,6 +353,10 @@ final class SequenceLatestValidMatcher implements SequencePairing {
     }
 
     private DocState addDocument(KeyState state, SequenceOrdinal ordinal) {
+        if (state.documents == null) {
+            // Two stages retain only stage zero, so document cross-marks can never affect another retained stage.
+            return null;
+        }
         DocState document = state.documents.get(ordinal);
         if (document != null) {
             return document;
@@ -411,7 +417,7 @@ final class SequenceLatestValidMatcher implements SequencePairing {
             row.releaseValues();
         } finally {
             release(row.bytes);
-            if (--row.document.records == 0) {
+            if (row.document != null && --row.document.records == 0) {
                 state.documents.remove(row.document.ordinal);
                 release(row.document.bytes);
             }
@@ -547,6 +553,9 @@ final class SequenceLatestValidMatcher implements SequencePairing {
     private void directTarget(Row row) {
         row.directGeneration = generation;
         DocState document = row.document;
+        if (document == null) {
+            return;
+        }
         if (document.targetGeneration != generation) {
             document.targetGeneration = generation;
             document.originStage = row.stage;
@@ -564,7 +573,9 @@ final class SequenceLatestValidMatcher implements SequencePairing {
                 Row row = ring.rows[position];
                 if (row.used == false
                     && (row.directGeneration == generation
-                        || (row.document.targetGeneration == generation && row.document.originStage != row.stage))) {
+                        || (row.document != null
+                            && row.document.targetGeneration == generation
+                            && row.document.originStage != row.stage))) {
                     row.used = true;
                     if (row.stage == 0) {
                         unusedStarts.remove(row);
@@ -790,17 +801,18 @@ final class SequenceLatestValidMatcher implements SequencePairing {
     private static final class KeyState {
         private final BytesRef key;
         private final Ring[] rings;
-        private final Map<SequenceOrdinal, DocState> documents = new HashMap<>(64);
+        private final Map<SequenceOrdinal, DocState> documents;
         private long bytes;
         private long documentTableBytes;
         private int documentCapacity;
         private int records;
         private boolean hitBound;
 
-        private KeyState(BytesRef key, Ring[] rings, long bytes) {
+        private KeyState(BytesRef key, Ring[] rings, long bytes, boolean sharedDocuments) {
             this.key = key;
             this.rings = rings;
             this.bytes = bytes;
+            documents = sharedDocuments ? new HashMap<>(64) : null;
         }
     }
 

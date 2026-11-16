@@ -65,7 +65,7 @@ final class SequenceLatestValidConfig {
     }
 
     static SequenceLatestValidConfig defaults(List<List<ValueDemand>> demands, List<PredicateGroup> groups) {
-        return bounded(Math.min(DEFAULT_MAX_CANDIDATES, maximumCandidates(demands.size())), demands, groups);
+        return bounded(defaultCandidates(demands.size()), demands, groups);
     }
 
     static SequenceLatestValidConfig bounded(int maxCandidates, List<List<ValueDemand>> demands, List<PredicateGroup> groups) {
@@ -88,7 +88,15 @@ final class SequenceLatestValidConfig {
         return new SequenceLatestValidConfig(OptionalInt.of(maxCandidates), searchStepLimit, true, demands, groups);
     }
 
-    /** Integer division bounds the exponent without computing an overflowing power. */
+    /** The complete default search stays below the step limit for every supported stage count. */
+    static int defaultCandidates(int stages) {
+        if (stages < 2) {
+            throw new IllegalArgumentException("sequence requires at least two stages");
+        }
+        return 1 << Math.min(Integer.numberOfTrailingZeros(DEFAULT_MAX_CANDIDATES), 16 / (stages - 1));
+    }
+
+    /** The hidden setting retains its previous ceiling for tests and measurements above the default. */
     static int maximumCandidates(int stages) {
         if (stages < 2) {
             throw new IllegalArgumentException("sequence requires at least two stages");

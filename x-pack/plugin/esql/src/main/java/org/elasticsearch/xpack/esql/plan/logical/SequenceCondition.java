@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
@@ -244,15 +243,7 @@ public final class SequenceCondition extends UnaryPlan implements PostAnalysisVe
                 source = matches.getFirst();
                 stage = ownStage;
             }
-            Attribute reference = new ReferenceAttribute(
-                attribute.source(),
-                null,
-                attribute.name(),
-                source.dataType(),
-                source.nullable(),
-                new NameId(),
-                true
-            );
+            Attribute reference = SequenceSchema.reference(source, attribute.source(), attribute.name(), new NameId(), true);
             bindings.put(reference.id(), new Input(reference, stage, source));
             return reference;
         });

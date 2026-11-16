@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.type.DateEsField;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Sequence;
@@ -76,7 +77,7 @@ public class SequenceConditionAnalyzerTests extends ESTestCase {
     }
 
     public void testOlderClusterRejectsEverySequenceShape() {
-        TransportVersion old = TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE_R5);
+        TransportVersion old = TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE_R6_SOURCE_SCOPE);
         for (String stages : List.of(
             "(FROM a),(FROM b)",
             "(FROM a),(FROM b) WITHIN 5s",
@@ -148,6 +149,59 @@ public class SequenceConditionAnalyzerTests extends ESTestCase {
         assertFalse(condition.references().contains(earlier.source()));
         assertFalse(((SequenceStage) sequence.children().get(1)).output().stream().anyMatch(a -> a.id().equals(own.source().id())));
         assertTrue(sequence.output().stream().noneMatch(a -> a.name().contains("own") || a.synthetic()));
+    }
+
+    /** Merging consecutive WHEREs preserves the computed input's identity before a later projection removes its name. */
+    public void testConsecutiveWheresPreserveOwnBindingAndErrors() {
+        Sequence sequence = analyzed("""
+            SEQUENCE BY key WITHIN 30s PRIMARY 2 (FROM a | KEEP key,label),
+            (FROM b | EVAL own=TO_UPPER(label) | WHERE own != "SKIP" | WHERE own == MEMBER(1,label)
+             | WHERE key == MEMBER(1,key) | DROP own | KEEP key,label)
+            | KEEP key,label | LIMIT 10
+            """);
+        SequenceCondition condition = sequence.collect(SequenceCondition.class)
+            .stream()
+            .filter(candidate -> candidate.inputs().stream().anyMatch(input -> input.stage() == 1 && input.source().name().equals("own")))
+            .findFirst()
+            .orElseThrow();
+        SequenceCondition.Input own = condition.inputs()
+            .stream()
+            .filter(input -> input.stage() == 1 && input.source().name().equals("own"))
+            .findFirst()
+            .orElseThrow();
+        assertTrue(condition.child().output().stream().anyMatch(attribute -> attribute.id().equals(own.source().id())));
+        assertFalse(((SequenceStage) sequence.children().get(1)).output().stream().anyMatch(attribute -> attribute.name().equals("own")));
+        configured().statementError("""
+            SEQUENCE BY key WITHIN 30s PRIMARY 2 (FROM a),
+            (FROM b | WHERE missing_own == 1 | WHERE label == MEMBER(1,label)) | KEEP key | LIMIT 10
+            """, allOf(containsString("Unknown column"), containsString("missing_own")));
+        configured().statementError("""
+            SEQUENCE BY key WITHIN 30s PRIMARY 2 (FROM a),
+            (FROM b | WHERE label != "skip" | WHERE label == MEMBER(1,missing_member)) | KEEP key | LIMIT 10
+            """, containsString("final output column [missing_member]"));
+    }
+
+    /** MEMBER bindings live in the left input even when they are used after one or more ordinary lookup joins. */
+    public void testLookupJoinAfterSequencePreservesMemberBinding() {
+        var lookup = new EsIndex(
+            "supporting",
+            Map.of(
+                "key",
+                new EsField("key", DataType.KEYWORD, Map.of(), true, NONE),
+                "indicator",
+                new EsField("indicator", DataType.KEYWORD, Map.of(), true, NONE)
+            ),
+            Map.of("supporting", new IndexProperties(IndexMode.LOOKUP, 0)),
+            Map.of(),
+            Map.of()
+        );
+        LogicalPlan plan = configured().addLookupIndex(IndexResolution.valid(lookup)).statement("""
+            SEQUENCE BY key WITHIN 30s PRIMARY 2 (FROM a),(FROM b)
+            | LOOKUP JOIN supporting ON key
+            | EVAL earlier=MEMBER(1,label) | KEEP key,label,earlier,indicator | LIMIT 10
+            """);
+        assertEquals(List.of("key", "label", "earlier", "indicator"), plan.output().stream().map(Attribute::name).toList());
+        assertEquals(plan.output(), optimizer().optimize(plan).output());
     }
 
     public void testEarlierPrimaryConditionPreservesOrdinaryBindings() {

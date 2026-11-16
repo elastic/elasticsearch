@@ -162,6 +162,69 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     private static final String HIGHLIGHT_PREFIX_KEYWORD = "prefix";
     private static final String DENSE_VECTOR_SUFFIX_KEYWORD = "suffix";
 
+    /**
+     * Prototype-only stage labels must not look like ECS field sets. This fixed list is from ECS 9.5.0:
+     * https://www.elastic.co/docs/reference/ecs/ecs-field-reference . It deliberately does not inspect source mappings.
+     * Base and tracing are field-set names too, although their fields do not share one object prefix.
+     */
+    private static final Set<String> SEQUENCE_RESERVED_ECS_FIELD_SETS = Set.of(
+        "agent",
+        "as",
+        "base",
+        "client",
+        "cloud",
+        "code_signature",
+        "container",
+        "data_stream",
+        "destination",
+        "device",
+        "dll",
+        "dns",
+        "ecs",
+        "elf",
+        "email",
+        "entity",
+        "entity_reference",
+        "error",
+        "event",
+        "faas",
+        "file",
+        "gen_ai",
+        "geo",
+        "group",
+        "hash",
+        "host",
+        "http",
+        "interface",
+        "log",
+        "macho",
+        "network",
+        "observer",
+        "orchestrator",
+        "organization",
+        "os",
+        "package",
+        "pe",
+        "process",
+        "registry",
+        "related",
+        "risk",
+        "rule",
+        "server",
+        "service",
+        "source",
+        "threat",
+        "tls",
+        "tracing",
+        "url",
+        "user",
+        "user_agent",
+        "vlan",
+        "volume",
+        "vulnerability",
+        "x509"
+    );
+
     public LogicalPlanBuilder(ParsingContext context) {
         super(context);
         this.planSize = PlanSize.unlimited();
@@ -560,6 +623,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                         stageName
                     );
                 }
+                if (SEQUENCE_RESERVED_ECS_FIELD_SETS.contains(stageName)) {
+                    throw new ParsingException(
+                        source(stageContext),
+                        "SEQUENCE stage name [{}] is an ECS field set name; name the stage for what the event does instead",
+                        stageName
+                    );
+                }
             }
             String memberLabel = stageName == null ? Integer.toString(stages.size() + 1) : stageName;
             String namedStageSuffix = stageName == null ? "" : " [" + stageName + "]";
@@ -669,7 +739,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitReturnMatchesCommand(EsqlBaseParser.ReturnMatchesCommandContext ctx) {
         throw new ParsingException(
             source(ctx),
-            "RETURN MATCHES was removed; use the ordinary sequence provenance column or MEMBER(stage, field)"
+            "RETURN MATCHES was removed; use the ordinary [sequence_provenance] column or MEMBER(stage, field)"
         );
     }
 

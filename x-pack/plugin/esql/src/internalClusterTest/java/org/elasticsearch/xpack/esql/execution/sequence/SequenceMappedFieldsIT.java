@@ -192,8 +192,8 @@ public class SequenceMappedFieldsIT extends AbstractSequenceIntegTestCase {
                     SequenceSourceStatus status = statuses.getFirst();
                     assertEquals(2L, status.candidateSearchRequests());
                     assertEquals(2L, status.candidateRowsFetched());
-                    assertEquals(2L, status.payloadSearchRequests());
-                    assertEquals(2L, status.payloadRowsFetched());
+                    assertEquals(0L, status.payloadSearchRequests());
+                    assertEquals(0L, status.payloadRowsFetched());
                     assertEquals(1L, status.completedMatches());
                     assertEquals(1L, status.rowsEmitted());
                     assertEquals(2L, status.stageDrivers());
@@ -319,8 +319,8 @@ public class SequenceMappedFieldsIT extends AbstractSequenceIntegTestCase {
         assertThat(ExceptionsHelper.stackTrace(failure), containsString("sequence mapped loading failure"));
     }
 
-    /** Repeatable runtime fields retain the ordinary mapped-loader and selected-replay path. */
-    public void testDeterministicRuntimeKeyAndPayloadReplay() {
+    /** Runtime fields use the ordinary mapped loader and their demanded outputs survive first-read capture. */
+    public void testDeterministicRuntimeKeyAndCapturedOutput() {
         createRuntimeIndex("sequence-repeatable", "constant");
         try (var response = run("""
             sequence by changing within 30s PRIMARY 1
@@ -333,26 +333,27 @@ public class SequenceMappedFieldsIT extends AbstractSequenceIntegTestCase {
         }
     }
 
-    /** A declared nondeterministic key or zero-hit predicate is rejected before any script value is evaluated. */
-    public void testNondeterministicRuntimeKeyAndPredicateAreRejected() {
+    /** First-read capture accepts runtime values that can change between independent searches. */
+    public void testNondeterministicRuntimeKeyAndPredicateAreAccepted() {
         createRuntimeIndex("sequence-nondeterministic", "changing");
         for (String query : List.of("""
-            sequence by changing within 30s PRIMARY 1
-            (from sequence-nondeterministic | where phase=="A"), (from sequence-nondeterministic | where phase=="B")
-            | keep changing | limit 1
+            SEQUENCE BY changing WITHIN 30s PRIMARY 1
+            (FROM sequence-nondeterministic | WHERE phase=="A"), (FROM sequence-nondeterministic | WHERE phase=="B")
+            | KEEP changing | LIMIT 1
             """, """
-            sequence by key within 30s PRIMARY 1
-            (from sequence-nondeterministic | where phase=="A" and changing<0),
-            (from sequence-nondeterministic | where phase=="B")
-            | keep key | limit 1
+            SEQUENCE BY key WITHIN 30s PRIMARY 1
+            (FROM sequence-nondeterministic | WHERE phase=="A" AND changing<0),
+            (FROM sequence-nondeterministic | WHERE phase=="B") | KEEP key | LIMIT 1
             """)) {
-            assertNonRepeatable(query, "nondeterministic runtime field [changing]");
-            assertEquals(0, FailingRuntimeFieldPlugin.EXECUTIONS.get());
+            try (var response = run(query)) {
+                assertValues(response.values(), List.of());
+            }
+            assertTrue(FailingRuntimeFieldPlugin.EXECUTIONS.get() > 0);
         }
     }
 
-    /** Timestamp validation is mandatory even when the visible projection and matching keys do not request it. */
-    public void testNondeterministicRuntimeTimestampRejectedWhenPruned() {
+    /** Hidden event time uses the stage read without a separate repeatability refusal. */
+    public void testNondeterministicRuntimeTimestampIsAcceptedWhenPruned() {
         FailingRuntimeFieldPlugin.EXECUTIONS.set(0);
         createIndex(
             "sequence-runtime-time",
@@ -360,23 +361,27 @@ public class SequenceMappedFieldsIT extends AbstractSequenceIntegTestCase {
             Settings.EMPTY
         );
         indexPair("sequence-runtime-time", Map.of());
-        assertNonRepeatable("""
-            sequence by key within 30s PRIMARY 1
-            (from sequence-runtime-time | where phase=="A"), (from sequence-runtime-time | where phase=="B")
-            | keep key | limit 1
-            """, "nondeterministic runtime field [@timestamp]");
-        assertEquals(0, FailingRuntimeFieldPlugin.EXECUTIONS.get());
+        try (var response = run("""
+            SEQUENCE BY key WITHIN 30s PRIMARY 1
+            (FROM sequence-runtime-time | WHERE phase=="A"), (FROM sequence-runtime-time | WHERE phase=="B")
+            | KEEP key | LIMIT 1
+            """)) {
+            assertValues(response.values(), List.of(List.of("shared")));
+        }
+        assertTrue(FailingRuntimeFieldPlugin.EXECUTIONS.get() > 0);
     }
 
-    /** Output-only demands are validated in candidate search, including a query that cannot complete a match. */
-    public void testNondeterministicOutputOnlyRuntimeIsRejectedWithoutMatch() {
+    /** Output demands are loaded with source hits even when the query cannot complete a match. */
+    public void testNondeterministicOutputIsLoadedEvenWithoutMatch() {
         createRuntimeIndex("sequence-output-runtime", "changing");
-        assertNonRepeatable("""
-            sequence by key within 30s PRIMARY 1
-            (from sequence-output-runtime | where phase=="A"), (from sequence-output-runtime | where phase=="missing")
-            | keep changing | limit 1
-            """, "nondeterministic runtime field [changing]");
-        assertEquals(0, FailingRuntimeFieldPlugin.EXECUTIONS.get());
+        try (var response = run("""
+            SEQUENCE BY key WITHIN 30s PRIMARY 1
+            (FROM sequence-output-runtime | WHERE phase=="A"), (FROM sequence-output-runtime | WHERE phase=="missing")
+            | KEEP changing | LIMIT 1
+            """)) {
+            assertValues(response.values(), List.of());
+        }
+        assertTrue(FailingRuntimeFieldPlugin.EXECUTIONS.get() > 0);
     }
 
     /** An irrelevant later source is not globally linted after compute rejects every possible start. */
@@ -388,11 +393,16 @@ public class SequenceMappedFieldsIT extends AbstractSequenceIntegTestCase {
         assertEquals(0, FailingRuntimeFieldPlugin.EXECUTIONS.get());
     }
 
-    /** Changing only the first-stage computed predicate makes the same later demand mandatory to validate. */
-    public void testNondeterministicLaterDemandIsRejectedWithEligibleStart() {
+    /** An eligible start causes the later stage to load and retain its demanded runtime value. */
+    public void testNondeterministicLaterDemandIsCapturedWithEligibleStart() {
         String query = createNondeterministicLaterDemandQuery(2);
-        assertNonRepeatable(query, "nondeterministic runtime field [changing]");
-        assertEquals(0, FailingRuntimeFieldPlugin.EXECUTIONS.get());
+        try (var response = run(query)) {
+            List<List<Object>> values = getValuesList(response);
+            assertEquals(1, values.size());
+            assertEquals("shared", values.getFirst().getFirst());
+            assertTrue(((Number) values.getFirst().get(1)).longValue() > 0);
+        }
+        assertTrue(FailingRuntimeFieldPlugin.EXECUTIONS.get() > 0);
     }
 
     private String createNondeterministicLaterDemandQuery(int accepted) {
@@ -428,8 +438,8 @@ public class SequenceMappedFieldsIT extends AbstractSequenceIntegTestCase {
         assertTrue(FailingRuntimeFieldPlugin.EXECUTIONS.get() > 0);
     }
 
-    /** A deterministic script cannot hide a nondeterministic runtime dependency behind a document lookup. */
-    public void testDeterministicRuntimeCannotHideNondeterministicDependency() {
+    /** A runtime dependency follows ordinary mapped loading even when its value can change across reads. */
+    public void testRuntimeDependencyIsAcceptedWithFirstReadCapture() {
         FailingRuntimeFieldPlugin.EXECUTIONS.set(0);
         createIndex(
             "sequence-runtime-dependency",
@@ -442,38 +452,76 @@ public class SequenceMappedFieldsIT extends AbstractSequenceIntegTestCase {
             Settings.EMPTY
         );
         indexPair("sequence-runtime-dependency", Map.of());
-        assertNonRepeatable("""
-            sequence by dependent within 30s PRIMARY 1
-            (from sequence-runtime-dependency | where phase=="A"), (from sequence-runtime-dependency | where phase=="B")
-            | keep dependent | limit 1
-            """, "nondeterministic runtime field [changing]");
-        assertEquals(0, FailingRuntimeFieldPlugin.EXECUTIONS.get());
+        try (var response = run("""
+            SEQUENCE BY dependent WITHIN 30s PRIMARY 1
+            (FROM sequence-runtime-dependency | WHERE phase=="A"), (FROM sequence-runtime-dependency | WHERE phase=="B")
+            | KEEP dependent | LIMIT 1
+            """)) {
+            assertValues(response.values(), List.of());
+        }
+        assertTrue(FailingRuntimeFieldPlugin.EXECUTIONS.get() > 0);
     }
 
-    /** Request-filter script factories must be repeatable, while the query's fixed NOW/date-math clock stays usable. */
-    public void testNondeterministicRequestFilterIsRejectedAndFixedNowRemainsSupported() {
+    /** Request-filter scripts follow ordinary search semantics and the fixed NOW/date-math clock remains usable. */
+    public void testNondeterministicRequestFilterAndFixedNowAreAccepted() {
         createRuntimeIndex("sequence-filter-runtime", "constant");
         String query = """
             sequence by key within 30s PRIMARY 1
             (from sequence-filter-runtime | where phase=="A"), (from sequence-filter-runtime | where phase=="B")
             | keep key | limit 1
             """;
-        RuntimeException failure = expectThrows(
-            RuntimeException.class,
-            () -> run(
+        try (
+            var response = run(
                 syncEsqlQueryRequest(query).filter(
                     QueryBuilders.scriptQuery(new Script(ScriptType.INLINE, "sequence_failure", "filter", Map.of()))
                 ).allowPartialResults(false)
             )
-        );
-        assertThat(ExceptionsHelper.stackTrace(failure), containsString("requires repeatable evaluation"));
-        assertThat(ExceptionsHelper.stackTrace(failure), containsString("nondeterministic script"));
+        ) {
+            assertValues(response.values(), List.of());
+        }
         try (
             var response = run(
                 syncEsqlQueryRequest(query).filter(QueryBuilders.rangeQuery("@timestamp").gte("now-10y").lte("now+10y"))
                     .allowPartialResults(false)
             )
         ) {
+            assertValues(response.values(), List.of(List.of("shared")));
+        }
+    }
+
+    /** Ordinary asynchronous terms lookup is accepted after removing the second-read repeatability guard. */
+    public void testTermsLookupRequestFilterMatchesNativeSearch() {
+        createRuntimeIndex("sequence-lookup-source", "constant");
+        for (String phase : List.of("A", "B")) {
+            prepareIndex("sequence-lookup-source").setId("other-" + phase)
+                .setSource("@timestamp", (phase.equals("A") ? BASE : BASE.plusNanos(1)).toString(), "key", "other", "phase", phase)
+                .get();
+        }
+        refresh("sequence-lookup-source");
+        createIndex("sequence-lookup-values", Map.of("properties", Map.of("keys", Map.of("type", "keyword"))), Settings.EMPTY);
+        prepareIndex("sequence-lookup-values").setId("allowed").setSource(Map.of("keys", List.of("shared"))).get();
+        refresh("sequence-lookup-values");
+        var filter = new org.elasticsearch.index.query.TermsQueryBuilder(
+            "key",
+            new org.elasticsearch.indices.TermsLookup("sequence-lookup-values", "allowed", "keys")
+        );
+        // This snapshot's ordinary ES|QL filter planner does not execute asynchronous terms lookup. Native search
+        // is the control: SEQUENCE uses that same search machinery, and must exclude the second key's events.
+        SearchResponse control = client().prepareSearch("sequence-lookup-source")
+            .setQuery(filter)
+            .setTrackTotalHits(true)
+            .setSize(10)
+            .get();
+        try {
+            assertEquals(2L, control.getHits().getTotalHits().value());
+        } finally {
+            control.decRef();
+        }
+        try (var response = run(syncEsqlQueryRequest("""
+            SEQUENCE BY key WITHIN 30s PRIMARY 1
+            (FROM sequence-lookup-source | WHERE phase=="A"), (FROM sequence-lookup-source | WHERE phase=="B")
+            | KEEP key | LIMIT 10
+            """).filter(filter).allowPartialResults(false))) {
             assertValues(response.values(), List.of(List.of("shared")));
         }
     }
@@ -588,13 +636,7 @@ public class SequenceMappedFieldsIT extends AbstractSequenceIntegTestCase {
     private SearchResponse guardedPitRead(BytesReference pit, String index, String phase) {
         return client().prepareSearch()
             .setSource(
-                new SearchSourceBuilder().query(
-                    new SequenceRepeatabilityQueryBuilder(
-                        QueryBuilders.termQuery("phase", phase),
-                        List.of("@timestamp", "changing"),
-                        List.of(index)
-                    )
-                )
+                new SearchSourceBuilder().query(new SequenceSourceQueryBuilder(QueryBuilders.termQuery("phase", phase), List.of(index)))
                     .pointInTimeBuilder(new PointInTimeBuilder(pit).setKeepAlive(TimeValue.timeValueMinutes(2)))
                     .fetchField("changing")
                     .size(1)
@@ -608,12 +650,6 @@ public class SequenceMappedFieldsIT extends AbstractSequenceIntegTestCase {
 
     private static Map<String, Object> runtimeField(String type, String script) {
         return Map.of("type", type, "script", Map.of("lang", "sequence_failure", "source", script));
-    }
-
-    private void assertNonRepeatable(String query, String feature) {
-        RuntimeException failure = expectThrows(RuntimeException.class, () -> run(syncEsqlQueryRequest(query).allowPartialResults(false)));
-        assertThat(ExceptionsHelper.stackTrace(failure), containsString("requires repeatable evaluation"));
-        assertThat(ExceptionsHelper.stackTrace(failure), containsString(feature));
     }
 
     /**

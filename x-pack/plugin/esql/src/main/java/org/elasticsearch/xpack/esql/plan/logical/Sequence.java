@@ -43,9 +43,9 @@ import java.util.Set;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
 /**
- * An ordered, positive-stage EQL sequence producing one wide row per completed match. This is deliberately separate
- * from {@link MergePlan}: union branch limit pushdown would silently discard valid candidates. Output limits and
- * predicates operate on already selected matches, without changing predecessor selection or backtracking.
+ * An ordered, positive-stage sequence producing one wide row per completed match through bounded latest-valid
+ * backward search. Union branch limit pushdown through {@link MergePlan} would silently discard valid candidates.
+ * Output limits and predicates operate on already selected matches, without changing predecessor selection or backtracking.
  */
 public final class Sequence extends LogicalPlan
     implements
@@ -61,12 +61,16 @@ public final class Sequence extends LogicalPlan
     );
     public static final TransportVersion ESQL_SEQUENCE_SINGLE_ENGINE = TransportVersion.fromName("esql_sequence_single_engine");
     public static final TransportVersion ESQL_SEQUENCE_R5 = TransportVersion.fromName("esql_sequence_r5");
+    public static final TransportVersion ESQL_SEQUENCE_R6_SOURCE_SCOPE = TransportVersion.fromName("esql_sequence_r6_source_scope");
 
-    /** Matches EQL's syntax capacity; candidate cardinality is governed separately by paging and the request breaker. */
+    /** Syntax capacity; stage-specific candidate bounds and the search-step limit govern matching work separately. */
     public static final int MAX_STAGES = 256;
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Sequence", Sequence::new);
 
     private static final String PROVENANCE_ATTRIBUTE = "_sequence_provenance";
+
+    /** A binding belongs to one stage and source identity; diagnostic display names can collide or change. */
+    private record SourceBinding(int stage, NameId source) {}
 
     private final long maxSpanNanos;
     private final List<Attribute> sourceAttributes;
@@ -137,7 +141,7 @@ public final class Sequence extends LogicalPlan
 
     /** Rejects peers which cannot run the current provenance and profiling contract before any enclosing plan bytes are read or written. */
     public static void checkPlanSupported(TransportVersion version) {
-        if (version.supports(ESQL_SEQUENCE_R5) == false) {
+        if (version.supports(ESQL_SEQUENCE_R6_SOURCE_SCOPE) == false) {
             throw new IllegalArgumentException("SEQUENCE is not supported in transport version [" + version + "]");
         }
     }
@@ -230,23 +234,30 @@ public final class Sequence extends LogicalPlan
         }
         List<Attribute> inputs = new ArrayList<>();
         List<Integer> stages = new ArrayList<>();
-        Map<String, Attribute> previous = new HashMap<>();
-        for (Attribute attribute : output) {
-            previous.put(attribute.name(), attribute);
+        Map<SourceBinding, Attribute> previous = new HashMap<>();
+        for (int column = 0; column < sourceAttributes.size(); column++) {
+            previous.put(new SourceBinding(sourceStages.get(column), sourceAttributes.get(column).id()), output.get(column));
         }
         SequenceStage first = (SequenceStage) children().getFirst();
         List<Attribute> columns = new ArrayList<>();
         for (Attribute key : first.keys()) {
-            columns.add(reference(key, key.name(), previous));
+            columns.add(reference(key, 0, key.name(), previous));
             inputs.add(key);
             stages.add(0);
         }
+        Set<String> names = new HashSet<>();
+        columns.forEach(column -> names.add(column.name()));
         for (int stage = 0; stage < children().size(); stage++) {
             SequenceStage child = (SequenceStage) children().get(stage);
             Set<Attribute> keys = new HashSet<>(child.keys());
             for (Attribute attribute : child.output()) {
                 if (keys.contains(attribute) == false) {
-                    columns.add(reference(attribute, "stage" + (stage + 1) + "." + attribute.name(), previous));
+                    String base = "stage" + (stage + 1) + "." + attribute.name();
+                    String name = base;
+                    int suffix = 1;
+                    while (names.add(name) == false)
+                        name = base + "_" + suffix++;
+                    columns.add(reference(attribute, stage, name, previous));
                     inputs.add(attribute);
                     stages.add(stage);
                 }
@@ -264,8 +275,6 @@ public final class Sequence extends LogicalPlan
         if (provenance == null) {
             provenance = new MetadataAttribute(Source.EMPTY, PROVENANCE_ATTRIBUTE, DataType.KEYWORD, Nullability.FALSE, null, true, false);
         }
-        Set<String> names = new HashSet<>();
-        columns.forEach(column -> names.add(column.name()));
         String base = Attribute.rawTemporaryName("sequence_provenance", provenance.id().toString());
         String name = base;
         int suffix = 1;
@@ -330,10 +339,10 @@ public final class Sequence extends LogicalPlan
             : new Sequence(source(), children(), maxSpanNanos, inputs, stages, columns, schemaResolved);
     }
 
-    private static ReferenceAttribute reference(Attribute source, String name, Map<String, Attribute> previous) {
-        Attribute existing = previous.get(name);
+    private static Attribute reference(Attribute source, int stage, String name, Map<SourceBinding, Attribute> previous) {
+        Attribute existing = previous.get(new SourceBinding(stage, source.id()));
         NameId id = existing == null ? null : existing.id();
-        return new ReferenceAttribute(source.source(), null, name, source.dataType(), source.nullable(), id, false);
+        return SequenceSchema.reference(source, source.source(), name, id, false);
     }
 
     @Override

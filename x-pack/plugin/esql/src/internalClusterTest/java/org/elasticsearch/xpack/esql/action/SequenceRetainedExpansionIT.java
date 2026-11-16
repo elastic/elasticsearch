@@ -174,7 +174,7 @@ public class SequenceRetainedExpansionIT extends AbstractSequenceIntegTestCase {
     }
 
     /** Unpinned unequal non-key rows challenge which scalar survives same-key dedup, including explicit repeated candidates. */
-    public void testNonKeySelectedPositionSurvivesDirectAndForcedReplay() throws Exception {
+    public void testNonKeySelectedPositionSurvivesDirectAndComputedValues() throws Exception {
         verifyNonKey(false, false, true);
         verifyNonKey(false, true, true);
     }
@@ -719,21 +719,21 @@ public class SequenceRetainedExpansionIT extends AbstractSequenceIntegTestCase {
             String stem = expandedKeys ? "CONCAT(actor,\"/\",raw_key)" : "actor";
             String pair = "MV_APPEND(CONCAT(" + stem + ",\"/z\"),CONCAT(" + stem + ",\"/a\"))";
             if (duplicateValues) pair = "MV_APPEND(" + pair + "," + pair + ")";
-            for (boolean replay : List.of(false, true))
+            for (boolean computedValue : List.of(false, true))
                 for (int primary : List.of(1, 2))
                     for (int page : List.of(1, 128)) {
                         String stage = prefix
                             + "EVAL pick="
                             + pair
                             + " | MV_EXPAND pick | EVAL value="
-                            + (replay ? "CONCAT(pick,\"/replay\")" : "pick")
+                            + (computedValue ? "CONCAT(pick,\"/replay\")" : "pick")
                             + " | KEEP "
                             + key
                             + ",value";
                         String seq = sequence(key, primary, stage, stage);
-                        String first = replay ? "REPLACE(value,\"/replay\",\"\")" : "value";
+                        String first = computedValue ? "REPLACE(value,\"/replay\",\"\")" : "value";
                         String member = "MEMBER(" + (3 - primary) + ",value)";
-                        String other = replay ? "REPLACE(" + member + ",\"/replay\",\"\")" : member;
+                        String other = computedValue ? "REPLACE(" + member + ",\"/replay\",\"\")" : member;
                         String typedQuery = projected(
                             seq,
                             "EVAL present=" + first + ",other=" + other + " | KEEP " + key + ",present,other",
@@ -767,15 +767,14 @@ public class SequenceRetainedExpansionIT extends AbstractSequenceIntegTestCase {
                         assertEquals(wanted.size(), typed.status.completedMatches());
                         Result count = query(seq + " | STATS matched=COUNT(*) | LIMIT 1", page, false);
                         assertEquals(List.of(cells((long) wanted.size())), count.values);
+                        assertTrue("candidate reads must run", typed.status.candidateSearchRequests() > 0);
+                        assertTrue("candidate rows must be read", typed.status.candidateRowsFetched() > 0);
                         assertEquals(0L, count.status.payloadSearchRequests());
+                        assertEquals(0L, count.status.payloadRowsFetched());
+                        assertEquals(0L, typed.status.payloadSearchRequests());
+                        assertEquals(0L, typed.status.payloadRowsFetched());
                         assertEquals(count.status.candidateSearchRequests(), typed.status.candidateSearchRequests());
                         assertEquals(count.status.candidateRowsFetched(), typed.status.candidateRowsFetched());
-                        if (replay) assertTrue("actual replay drivers must run", typed.status.stageDrivers() > count.status.stageDrivers());
-                        else assertEquals(
-                            "direct selected cell must need no replay driver",
-                            count.status.stageDrivers(),
-                            typed.status.stageDrivers()
-                        );
                         emit(
                             Map.of(
                                 "non_key_position_proof",
@@ -786,8 +785,8 @@ public class SequenceRetainedExpansionIT extends AbstractSequenceIntegTestCase {
                                 duplicateValues,
                                 "provenance",
                                 withProvenance,
-                                "forced_replay",
-                                replay,
+                                "computed_value",
+                                computedValue,
                                 "primary",
                                 primary,
                                 "page",

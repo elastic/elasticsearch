@@ -152,7 +152,7 @@ import org.elasticsearch.xpack.esql.enrich.StreamingLookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.execution.sequence.SequenceDocValuesFetchSubPhase;
 import org.elasticsearch.xpack.esql.execution.sequence.SequenceDocValuesSearchExt;
-import org.elasticsearch.xpack.esql.execution.sequence.SequenceRepeatabilityQueryBuilder;
+import org.elasticsearch.xpack.esql.execution.sequence.SequenceSourceQueryBuilder;
 import org.elasticsearch.xpack.esql.execution.sequence.SequenceSourceStatus;
 import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -985,11 +985,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     @Override
     public List<QuerySpec<?>> getQueries() {
         return List.of(
-            new QuerySpec<>(
-                SequenceRepeatabilityQueryBuilder.NAME,
-                SequenceRepeatabilityQueryBuilder::new,
-                SequenceRepeatabilityQueryBuilder::fromXContent
-            )
+            new QuerySpec<>(SequenceSourceQueryBuilder.NAME, SequenceSourceQueryBuilder::new, SequenceSourceQueryBuilder::fromXContent)
         );
     }
 

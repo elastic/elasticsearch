@@ -12,11 +12,18 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.tree.SourceTests;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.parser.EsqlConfig;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -24,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 
 /** Compiler-only nodes need parser-created binding identities, rather than independent reflective constructor arguments. */
@@ -46,6 +54,29 @@ public class SequenceMatchOutputNodeTests extends ESTestCase {
         assertEquals(copy, declaration.replaceChildren(List.of(replacement)));
         assertEquals(1, declaration.transformPropertiesOnly(Integer.class, ignored -> 1).nodeProperties().get(1));
         assertEquals(declaration.stageNames(), declaration.nodeProperties().get(2));
+    }
+
+    /** Joined-side plans are independent of sequence MEMBER bindings, and only the left spine may contain the header. */
+    public void testLookupJoinedSideCannotCaptureMemberOrSequenceHeader() {
+        Sequence sequence = parsed().collect(Sequence.class).getFirst();
+        var declaration = new SequenceMatchOutput.Declaration(Source.EMPTY, sequence, 2, Map.of());
+        var empty = new LocalRelation(Source.EMPTY, List.of(), EmptyLocalSupplier.EMPTY);
+        var member = new UnresolvedFunction(
+            Source.EMPTY,
+            "MEMBER",
+            List.of(new Literal(Source.EMPTY, 1, DataType.INTEGER), new UnresolvedAttribute(Source.EMPTY, "key"))
+        );
+        var joinedSide = new Filter(Source.EMPTY, empty, member);
+        var join = new LookupJoin(Source.EMPTY, declaration, joinedSide, List.of(), null, ExecutesOn.ExecuteLocation.ANY);
+        assertThat(
+            expectThrows(ParsingException.class, () -> SequenceMatchOutput.prepare(new EsqlStatement(join, List.of()))).getMessage(),
+            containsString("MEMBER is not available inside the joined side of LOOKUP JOIN")
+        );
+        var misplaced = new LookupJoin(Source.EMPTY, empty, declaration, List.of(), null, ExecutesOn.ExecuteLocation.ANY);
+        assertThat(
+            expectThrows(ParsingException.class, () -> SequenceMatchOutput.prepare(new EsqlStatement(misplaced, List.of()))).getMessage(),
+            containsString("is outside the sequence output prototype")
+        );
     }
 
     /** Copies must keep protected identity and MEMBER provenance, including when an ordinary field has the same display name. */
@@ -78,6 +109,41 @@ public class SequenceMatchOutputNodeTests extends ESTestCase {
                 reference.id()
             );
             assertEquals(matching.withLocation(reference.source()), reference.resolve(List.of(sameName, matching)));
+        }
+    }
+
+    /** Missing-field diagnostics and later copies must preserve the protected binding subtype used by NULLIFY. */
+    public void testDiagnosticCopiesPreserveProtectedIdentity() {
+        List<SequenceMatchOutput.BindingReference> references = new ArrayList<>();
+        parsed().forEachExpressionDown(SequenceMatchOutput.BindingReference.class, references::add);
+        assertTrue(references.stream().anyMatch(SequenceMatchOutput.MemberReference.class::isInstance));
+        for (var reference : references) {
+            String message = "stage output does not expose this field";
+            var diagnosed = reference.withUnresolvedMessage(message);
+            assertEquals(reference.getClass(), diagnosed.getClass());
+            assertEquals(reference.id(), diagnosed.id());
+            assertEquals(message, diagnosed.unresolvedMessage());
+            assertTrue(diagnosed.customMessage());
+            NameId replacement = new NameId();
+            var copied = diagnosed.withId(replacement);
+            assertEquals(diagnosed.getClass(), copied.getClass());
+            assertEquals(replacement, copied.id());
+            assertEquals(message, copied.unresolvedMessage());
+            assertEquals(copied, diagnosed.transformPropertiesOnly(NameId.class, ignored -> replacement));
+            var relocated = diagnosed.withLocation(SourceTests.randomSource());
+            assertEquals(diagnosed.getClass(), relocated.getClass());
+            assertEquals(diagnosed.id(), relocated.id());
+            assertEquals(message, relocated.unresolvedMessage());
+            var reset = diagnosed.withUnresolvedMessage(null);
+            assertEquals(reference.getClass(), reset.getClass());
+            assertEquals(reference.id(), reset.id());
+            assertFalse(reset.customMessage());
+            assertEquals(reference.unresolvedMessage(), reset.unresolvedMessage());
+            if (reference instanceof SequenceMatchOutput.MemberReference member) {
+                var memberCopy = (SequenceMatchOutput.MemberReference) diagnosed;
+                assertEquals(member.stage(), memberCopy.stage());
+                assertEquals(member.field(), memberCopy.field());
+            }
         }
     }
 

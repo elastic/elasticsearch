@@ -2024,6 +2024,9 @@ public class ComputeService {
             // snapshots cannot disagree on anything that is read.
             ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(clusterService.state());
             DatasetConfigResolver datasetConfigResolver = DatasetConfigResolver.forProduction(projectMetadata);
+            long sequenceMemoryLimit = sequenceClient == null
+                ? 0
+                : clusterService.getClusterSettings().get(PlannerSettings.SEQUENCE_MAX_MEMORY).getBytes();
             LocalExecutionPlanner planner = new LocalExecutionPlanner(
                 context.sessionId(),
                 context.clusterAlias(),
@@ -2065,7 +2068,8 @@ public class ComputeService {
                                 ActionListener.releaseAfter(done, () -> Releasables.close(drivers))
                             ),
                             threadPool.getThreadContext().newRestorableContext(true),
-                            context.executionInfo()
+                            context.executionInfo(),
+                            sequenceMemoryLimit
                         )
                     )
             );

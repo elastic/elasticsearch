@@ -11,17 +11,20 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
+import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.SequenceSourceTypes;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 
@@ -37,7 +40,7 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
  * expansion: its execution must carry the original timestamp and PIT ordinal separately from user-visible columns.
  * It does not introduce an output limit or sort into the candidate stream.
  */
-public final class SequenceStage extends UnaryPlan implements PostAnalysisVerificationAware {
+public final class SequenceStage extends UnaryPlan implements PostAnalysisVerificationAware, PostOptimizationVerificationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
         "SequenceStage",
@@ -141,6 +144,26 @@ public final class SequenceStage extends UnaryPlan implements PostAnalysisVerifi
         verifyEventPlan(child(), failures);
     }
 
+    /** Alias folding can expose an indexed search only after the analyzed stage was accepted. */
+    @Override
+    public void postOptimizationVerification(Failures failures) {
+        List<EsRelation> sources = SequenceStageProjection.eventSources(this);
+        child().forEachDown(Filter.class, filter -> {
+            if (sources.stream().anyMatch(source -> source == filter.child())
+                && filter.child().output().stream().anyMatch(MetadataAttribute::isScoreAttribute)
+                && Predicates.splitAnd(filter.condition())
+                    .stream()
+                    .anyMatch(predicate -> SequenceStageProjection.isExactSourceSearchPredicate(filter, predicate))) {
+                failures.add(
+                    fail(
+                        filter,
+                        "Indexed full-text search in a SEQUENCE stage does not support METADATA [_score]; remove that metadata request"
+                    )
+                );
+            }
+        });
+    }
+
     /** Scalar correlation types; multivalued positions require an explicit stage MV_EXPAND at runtime. */
     public static boolean supportsKeyType(DataType type) {
         return KEY_TYPES.contains(type);
@@ -158,10 +181,28 @@ public final class SequenceStage extends UnaryPlan implements PostAnalysisVerifi
             verifyEventPlan(join.left(), failures);
             return;
         }
+        List<Expression> sourceSearches = plan instanceof Filter filter
+            ? Predicates.splitAnd(filter.condition())
+                .stream()
+                .filter(predicate -> SequenceStageProjection.isExactSourceSearchPredicate(filter, predicate))
+                .toList()
+            : List.of();
+        if (sourceSearches.isEmpty() == false
+            && plan instanceof Filter filter
+            && filter.child().output().stream().anyMatch(MetadataAttribute::isScoreAttribute)) {
+            failures.add(
+                fail(plan, "Indexed full-text search in a SEQUENCE stage does not support METADATA [_score]; remove that metadata request")
+            );
+        }
         plan.forEachExpression(FullTextFunction.class, function -> {
-            if (function.isRuntimeSearch() == false) {
+            if (function.isRuntimeSearch() == false && sourceSearches.stream().noneMatch(predicate -> predicate == function)) {
                 failures.add(
-                    fail(function, "Indexed search function [{}] is not supported inside a SEQUENCE stage", function.functionName())
+                    fail(
+                        function,
+                        "Indexed search function [{}] in a SEQUENCE stage requires an exact top-level AND term in a WHERE directly after FROM; "
+                            + "OR or NOT outside the search string is not supported",
+                        function.functionName()
+                    )
                 );
             }
         });

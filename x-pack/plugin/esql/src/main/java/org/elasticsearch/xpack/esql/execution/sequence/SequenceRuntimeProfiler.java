@@ -50,58 +50,75 @@ final class SequenceRuntimeProfiler {
         return enabled ? clock.getAsLong() : 0L;
     }
 
-    synchronized void finish(Phase phase, long start) {
+    void finish(Phase phase, long start) {
         Objects.requireNonNull(phase);
-        if (enabled) {
+        if (enabled == false) {
+            return;
+        }
+        synchronized (this) {
             int index = phase.ordinal();
             nanos[index] = saturatedAdd(nanos[index], Math.max(0L, clock.getAsLong() - start));
         }
     }
 
-    synchronized void addRowsFetched(int stage, long count) {
+    void addRowsFetched(int stage, long count) {
         checkStageAndCount(stage, count);
-        if (enabled) {
+        if (enabled == false) {
+            return;
+        }
+        synchronized (this) {
             rowsFetched[stage] = saturatedAdd(rowsFetched[stage], count);
         }
     }
 
-    synchronized void addCandidatesAdmitted(int stage, long count) {
+    void addCandidatesAdmitted(int stage, long count) {
         checkStageAndCount(stage, count);
-        if (enabled) {
+        if (enabled == false) {
+            return;
+        }
+        synchronized (this) {
             candidatesAdmitted[stage] = saturatedAdd(candidatesAdmitted[stage], count);
         }
     }
 
-    synchronized void observeKeys(long currentKeys) {
+    void observeKeys(long currentKeys) {
         checkNonnegative(currentKeys);
-        if (enabled) {
+        if (enabled == false) {
+            return;
+        }
+        synchronized (this) {
             peakKeys = Math.max(peakKeys, currentKeys);
         }
     }
 
-    synchronized void observeBytesHeld(long currentBytes) {
+    void observeBytesHeld(long currentBytes) {
         checkNonnegative(currentBytes);
-        if (enabled) {
+        if (enabled == false) {
+            return;
+        }
+        synchronized (this) {
             peakBytesHeld = Math.max(peakBytesHeld, currentBytes);
         }
     }
 
-    synchronized SequenceSourceStatus.RuntimeProfile snapshot() {
+    SequenceSourceStatus.RuntimeProfile snapshot() {
         if (enabled == false) {
             return null;
         }
-        return new SequenceSourceStatus.RuntimeProfile(
-            nanos[Phase.SEARCH_WAIT.ordinal()],
-            nanos[Phase.STAGE_RUN.ordinal()],
-            nanos[Phase.CANDIDATE_BUILD.ordinal()],
-            nanos[Phase.MATCHER.ordinal()],
-            nanos[Phase.CONDITION.ordinal()],
-            nanos[Phase.RESULT_BUILD.ordinal()],
-            asList(rowsFetched),
-            asList(candidatesAdmitted),
-            peakKeys,
-            peakBytesHeld
-        );
+        synchronized (this) {
+            return new SequenceSourceStatus.RuntimeProfile(
+                nanos[Phase.SEARCH_WAIT.ordinal()],
+                nanos[Phase.STAGE_RUN.ordinal()],
+                nanos[Phase.CANDIDATE_BUILD.ordinal()],
+                nanos[Phase.MATCHER.ordinal()],
+                nanos[Phase.CONDITION.ordinal()],
+                nanos[Phase.RESULT_BUILD.ordinal()],
+                asList(rowsFetched),
+                asList(candidatesAdmitted),
+                peakKeys,
+                peakBytesHeld
+            );
+        }
     }
 
     private void checkStageAndCount(int stage, long count) {

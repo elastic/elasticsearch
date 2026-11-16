@@ -6,7 +6,7 @@
  */
 
 /**
- * Correlates event-preserving ES|QL stages using EQL's positive-sequence selection. Compact matching state is kept
- * separate from typed payload retrieval so source paging, output pruning and cancellation retain their ES|QL contracts.
+ * Correlates event-preserving ES|QL stages with bounded latest-valid backward search. The coordinator source
+ * manages matching state, typed stage payloads, source paging, output pruning and cancellation.
  */
 package org.elasticsearch.xpack.esql.execution.sequence;

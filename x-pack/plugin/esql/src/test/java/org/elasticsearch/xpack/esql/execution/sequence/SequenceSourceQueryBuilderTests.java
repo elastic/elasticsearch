@@ -28,72 +28,43 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 /** The guard must survive empty-query rewrites and transport without becoming publicly constructible. */
-public class SequenceRepeatabilityQueryBuilderTests extends AbstractWireSerializingTestCase<SequenceRepeatabilityQueryBuilder> {
+public class SequenceSourceQueryBuilderTests extends AbstractWireSerializingTestCase<SequenceSourceQueryBuilder> {
     @Override
-    protected SequenceRepeatabilityQueryBuilder createTestInstance() {
-        return new SequenceRepeatabilityQueryBuilder(
-            new TermQueryBuilder("phase", randomAlphaOfLength(5)),
-            List.of("key", "payload"),
-            List.of("sequence-a", "sequence-b")
-        );
+    protected SequenceSourceQueryBuilder createTestInstance() {
+        return new SequenceSourceQueryBuilder(new TermQueryBuilder("phase", randomAlphaOfLength(5)), List.of("sequence-a", "sequence-b"));
     }
 
     @Override
-    protected SequenceRepeatabilityQueryBuilder mutateInstance(SequenceRepeatabilityQueryBuilder instance) {
-        return new SequenceRepeatabilityQueryBuilder(new TermQueryBuilder("phase", "changed"), List.of("other"), List.of("sequence-a"));
+    protected SequenceSourceQueryBuilder mutateInstance(SequenceSourceQueryBuilder instance) {
+        return new SequenceSourceQueryBuilder(new TermQueryBuilder("phase", "changed"), List.of("sequence-a"));
     }
 
     @Override
-    protected Writeable.Reader<SequenceRepeatabilityQueryBuilder> instanceReader() {
-        return SequenceRepeatabilityQueryBuilder::new;
+    protected Writeable.Reader<SequenceSourceQueryBuilder> instanceReader() {
+        return SequenceSourceQueryBuilder::new;
     }
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
             List.of(
-                SequenceRepeatabilityQueryBuilder.ENTRY,
+                SequenceSourceQueryBuilder.ENTRY,
                 new NamedWriteableRegistry.Entry(QueryBuilder.class, TermQueryBuilder.NAME, TermQueryBuilder::new)
             )
         );
     }
 
-    public void testMatchNoneDoesNotEraseValidation() throws Exception {
-        var guard = new SequenceRepeatabilityQueryBuilder(new MatchNoneQueryBuilder(), List.of("changing"), List.of("sequence-a"));
+    public void testMatchNonePreservesScopeBoundary() throws Exception {
+        var guard = new SequenceSourceQueryBuilder(new MatchNoneQueryBuilder(), List.of("sequence-a"));
         var context = new QueryRewriteContext(XContentParserConfiguration.EMPTY, null, () -> 0L);
         assertSame(guard, guard.rewrite(context));
-    }
-
-    /** Identity hydration must not touch fields that selection required but the requested output does not demand. */
-    public void testIdentityReadValidatesOnlyDemandedFields() throws Exception {
-        assertValidatedFields(List.of("payload"));
-    }
-
-    public void testCandidateReadExplicitlyValidatesTimestamp() throws Exception {
-        assertValidatedFields(List.of("@timestamp", "key"));
-    }
-
-    private void assertValidatedFields(List<String> fields) throws Exception {
-        // This boundary only delegates field admission; real mapped-value behavior is covered by the integration tests.
-        SearchExecutionContext context = mock(SearchExecutionContext.class);
-        when(context.index()).thenReturn(new Index("sequence-a", "sequence-a-uuid"));
-        var guard = new SequenceRepeatabilityQueryBuilder(new MatchNoneQueryBuilder(), fields, List.of("sequence-a"));
-
-        assertThat(guard.doToQuery(context, new MaxClauseCountQueryVisitor(Integer.MAX_VALUE)), instanceOf(MatchNoDocsQuery.class));
-        verify(context).index();
-        for (String field : fields) {
-            verify(context).getFieldType(field);
-        }
-        verify(context, times(fields.size())).getFieldType(anyString());
     }
 
     /** Foreign PIT slots must remain empty before any source-specific query or mapping interpretation. */
@@ -104,7 +75,7 @@ public class SequenceRepeatabilityQueryBuilderTests extends AbstractWireSerializ
         when(context.index()).thenReturn(new Index("outside-source", "outside-source-uuid"));
         QueryBuilder delegate = mock(QueryBuilder.class);
         when(delegate.rewrite(context)).thenThrow(new AssertionError("foreign PIT slot must not rewrite the source query"));
-        var guard = new SequenceRepeatabilityQueryBuilder(delegate, List.of("changing"), List.of("sequence-a"));
+        var guard = new SequenceSourceQueryBuilder(delegate, List.of("sequence-a"));
         var visitor = new MaxClauseCountQueryVisitor(Integer.MAX_VALUE);
 
         assertThat(guard.doToQuery(context, visitor), instanceOf(MatchNoDocsQuery.class));
@@ -114,14 +85,40 @@ public class SequenceRepeatabilityQueryBuilderTests extends AbstractWireSerializ
         verifyNoInteractions(delegate);
     }
 
+    /** A known foreign shard must stop before a delegate can rewrite fields or register an external lookup. */
+    public void testForeignRewriteDoesNotTouchDelegate() throws Exception {
+        SearchExecutionContext context = mock(SearchExecutionContext.class);
+        when(context.getFullyQualifiedIndex()).thenReturn(new Index("outside-source", "outside-source-uuid"));
+        QueryBuilder delegate = mock(QueryBuilder.class);
+        var guard = new SequenceSourceQueryBuilder(delegate, List.of("sequence-a"));
+        assertTrue(guard.rewrite(context) instanceof MatchNoneQueryBuilder);
+        verify(context).getQueryRewriteInterceptor();
+        verify(context).getFullyQualifiedIndex();
+        verifyNoMoreInteractions(context);
+        verifyNoInteractions(delegate);
+    }
+
+    /** Ordinary own-index rewriting preserves the scope boundary and the original query metadata. */
+    public void testOwnRewritePreservesScopeAndQueryMetadata() throws Exception {
+        SearchExecutionContext context = mock(SearchExecutionContext.class);
+        when(context.getFullyQualifiedIndex()).thenReturn(new Index("sequence-a", "sequence-a-uuid"));
+        QueryBuilder delegate = mock(QueryBuilder.class);
+        when(delegate.rewrite(context)).thenReturn(new TermQueryBuilder("phase", "resolved"));
+        var guard = new SequenceSourceQueryBuilder(delegate, List.of("sequence-a")).boost(2).queryName("scoped");
+        QueryBuilder rewritten = guard.rewrite(context);
+        assertTrue(rewritten instanceof SequenceSourceQueryBuilder);
+        assertEquals(2, rewritten.boost(), 0);
+        assertEquals("scoped", rewritten.queryName());
+        assertThat(rewritten.toString(), containsString("resolved"));
+        verify(delegate).rewrite(context);
+    }
+
     public void testRejectUnsupportedPeer() throws Exception {
         try (var out = new BytesStreamOutput()) {
-            out.setTransportVersion(
-                TransportVersionUtils.getPreviousVersion(SequenceRepeatabilityQueryBuilder.ESQL_SEQUENCE_REPEATABLE_INPUT)
-            );
+            out.setTransportVersion(TransportVersionUtils.getPreviousVersion(SequenceSourceQueryBuilder.ESQL_SEQUENCE_R6_SOURCE_SCOPE));
             assertThat(
                 expectThrows(IllegalArgumentException.class, () -> createTestInstance().writeTo(out)).getMessage(),
-                containsString("SEQUENCE repeatable source evaluation is not supported")
+                containsString("SEQUENCE source isolation is not supported")
             );
         }
     }
@@ -130,7 +127,7 @@ public class SequenceRepeatabilityQueryBuilderTests extends AbstractWireSerializ
         try (var parser = createParser(JsonXContent.jsonXContent, "{}")) {
             parser.nextToken();
             assertThat(
-                expectThrows(XContentParseException.class, () -> SequenceRepeatabilityQueryBuilder.fromXContent(parser)).getMessage(),
+                expectThrows(XContentParseException.class, () -> SequenceSourceQueryBuilder.fromXContent(parser)).getMessage(),
                 containsString("reserved for internal ES|QL searches")
             );
         }

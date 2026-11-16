@@ -16,9 +16,11 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -26,19 +28,25 @@ import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DateEsField;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
+import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Sequence;
 import org.elasticsearch.xpack.esql.plan.logical.SequenceMatchOutput;
 import org.elasticsearch.xpack.esql.plan.logical.SequenceStage;
+import org.elasticsearch.xpack.esql.plan.logical.SequenceStageProjection;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
@@ -146,7 +154,7 @@ public class SequenceAnalyzerTests extends ESTestCase {
         }
     }
 
-    /** A nullified expansion input keeps the ordinary schema independently of retained evidence. */
+    /** A nullified expansion input keeps the ordinary schema. */
     public void testNullifyExpandedOrdinaryPrimaryOne() {
         assertNullifyExpandedBindings(1);
     }
@@ -522,13 +530,147 @@ public class SequenceAnalyzerTests extends ESTestCase {
         }
     }
 
-    public void testIndexedSearchRequiresAnExplicitStageBoundary() {
-        for (String predicate : List.of("MATCH(label, \"term\")", "QSTR(\"label:term\")", "KQL(\"label:term\")")) {
+    public void testExactSourceSearchConjunctsAreAccepted() {
+        for (String predicate : List.of(
+            "MATCH(label, \"term\")",
+            "MATCH(label, \"term\", {\"boost\": 2.0})",
+            "label : \"term\"",
+            "MATCH_PHRASE(label, \"term\")",
+            "QSTR(\"label:term\")",
+            "KQL(\"label:term\")",
+            "KQL(\"label:term or not label:other\")"
+        )) {
+            assertNotNull(configured().statement(Strings.format("""
+                sequence by host.id WITHIN 30s PRIMARY 1
+                (from a | where %s AND label != "skip" | keep host.id), (from b | keep host.id) | limit 1
+                """, predicate)));
+        }
+    }
+
+    public void testIndexedSearchOutsideExactSourceConjunctIsRejected() {
+        for (String commands : List.of(
+            "WHERE KQL(\"label:term\") OR label == \"other\"",
+            "WHERE NOT KQL(\"label:term\")",
+            "WHERE KQL(\"label:term\") AND (KQL(\"label:term\") OR label == \"other\")",
+            "EVAL copy=label | WHERE MATCH(label, \"term\")",
+            "EVAL copy=label | WHERE KQL(\"label:term\")",
+            "MV_EXPAND label | WHERE KQL(\"label:term\")"
+        )) {
             configured().statementError(Strings.format("""
                 sequence by host.id WITHIN 30s PRIMARY 1
-                (from a | where %s | keep host.id), (from b | keep host.id) | limit 1
-                """, predicate), containsString("is not supported inside a SEQUENCE stage"));
+                (from a | %s | keep host.id), (from b | keep host.id) | limit 1
+                """, commands), allOf(containsString("exact top-level AND term"), containsString("OR or NOT outside the search string")));
         }
+        configured().statementError("""
+            sequence by host.id WITHIN 30s PRIMARY 1 (from a),
+            (from b | where KQL("label:term") OR label == MEMBER(1,label)) | limit 1
+            """, allOf(containsString("Indexed search function [KQL]"), containsString("OR or NOT outside the search string")));
+    }
+
+    /** Runtime MATCH already works over computed values and remains independent of the indexed-search gate. */
+    public void testRuntimeSearchAfterStageTransformsRemainsAccepted() {
+        for (String commands : List.of(
+            "EVAL searched=label | WHERE MATCH(searched, \"term\")",
+            "EVAL searched=label | MV_EXPAND searched | WHERE MATCH(searched, \"term\") OR searched == \"other\""
+        )) {
+            assertNotNull(configured().statement(Strings.format("""
+                sequence by host.id WITHIN 30s PRIMARY 1
+                (from a | %s | keep host.id), (from b | keep host.id) | limit 1
+                """, commands)));
+        }
+    }
+
+    /** Indexed scoring is not preserved by the search reader's filter context; ordinary/runtime score paths keep their contract. */
+    public void testIndexedSourceSearchScoreBoundaryIsBranchLocal() {
+        LogicalPlan plain = configured().statement("""
+            sequence by host.id WITHIN 30s PRIMARY 1
+            (from a | where MATCH(label, "term")), (from b) | limit 1
+            """);
+        SequenceStage first = (SequenceStage) plain.collect(Sequence.class).getFirst().children().getFirst();
+        assertTrue(
+            SequenceStageProjection.eventSources(first)
+                .stream()
+                .flatMap(source -> source.output().stream())
+                .noneMatch(MetadataAttribute::isScoreAttribute)
+        );
+        configured().statementError("""
+            sequence by host.id WITHIN 30s PRIMARY 1
+            (from a metadata _score | where MATCH(label, "term") | keep host.id,_score), (from b)
+            | keep host.id,_score | limit 1
+            """, containsString("does not support METADATA [_score]"));
+        for (String commands : List.of("WHERE label == \"term\"", "EVAL searched=TO_UPPER(label) | WHERE MATCH(searched, \"TERM\")")) {
+            assertNotNull(optimizer().optimize(configured().statement("""
+                sequence by host.id WITHIN 30s PRIMARY 1
+                (from a metadata _score | %s | keep host.id,_score), (from b) | keep host.id,_score | limit 1
+                """.formatted(commands))));
+        }
+        assertNotNull(configured().statement("""
+            sequence by host.id WITHIN 30s PRIMARY 1
+            (from (from a metadata _score | where label == "term" | keep host.id,_score),
+                  (from b | where MATCH(label, "term") | keep host.id)),
+            (from b | keep host.id) | keep host.id | limit 1
+            """));
+        configured().statementError("""
+            sequence by host.id WITHIN 30s PRIMARY 1
+            (from (from a metadata _score | where MATCH(label, "term") | keep host.id,_score),
+                  (from b | where label == "term" | keep host.id)),
+            (from b | keep host.id) | keep host.id | limit 1
+            """, containsString("does not support METADATA [_score]"));
+    }
+
+    /** A raw-field alias can become indexed after analysis; its score refusal must follow the optimized source branch. */
+    public void testIndexedScoreRefusalAfterAliasFolding() {
+        for (String firstStage : List.of(
+            "from a metadata _score | eval searched=label | where MATCH(searched, \"term\") | keep host.id,_score",
+            "from (from a metadata _score | eval searched=label | where MATCH(searched, \"term\") | keep host.id,_score), "
+                + "(from b | where label == \"term\" | keep host.id)"
+        )) {
+            var analyzed = configured().statement(
+                "sequence by host.id WITHIN 30s PRIMARY 1 (" + firstStage + "), (from b) | keep host.id,_score | limit 1"
+            );
+            assertThat(
+                expectThrows(VerificationException.class, () -> optimizer().optimize(analyzed)).getMessage(),
+                containsString("does not support METADATA [_score]")
+            );
+        }
+        var separateBranches = configured().statement("""
+            sequence by host.id WITHIN 30s PRIMARY 1
+            (from (from a metadata _score | where label == "term" | keep host.id,_score),
+                  (from b | eval searched=label | where MATCH(searched,"term") | keep host.id)),
+            (from b) | keep host.id,_score | limit 1
+            """);
+        assertNotNull(optimizer().optimize(separateBranches));
+        var membership = configured().statement("""
+            sequence by host.id WITHIN 30s PRIMARY 1
+            (from a metadata _score | where host.id IN
+                (from b metadata _score | where MATCH(label,"term") AND _score >= 0 | keep host.id) | keep host.id,_score),
+            (from b) | keep host.id,_score | limit 1
+            """);
+        assertNotNull(optimizer().optimize(membership));
+    }
+
+    /** No current full-text implementation requests a recheck; this subclass pins refusal if one does in future. */
+    public void testApproximateSourceTranslationCannotElideItsRecheck() {
+        LogicalPlan plan = configured().statement("""
+            sequence by host.id WITHIN 30s PRIMARY 1
+            (from a | where MATCH(label, "term")), (from b) | limit 1
+            """);
+        Filter filter = plan.collect(Filter.class).getFirst();
+        Match exact = (Match) filter.condition();
+        Match approximate = new Match(exact.source(), exact.field(), exact.query(), exact.options(), exact.queryBuilder()) {
+            @Override
+            public TranslationAware.Translatable translatable(LucenePushdownPredicates predicates) {
+                return TranslationAware.Translatable.RECHECK;
+            }
+        };
+        assertTrue(SequenceStageProjection.isExactSourceSearchPredicate(filter, exact));
+        assertFalse(SequenceStageProjection.isExactSourceSearchPredicate(filter, approximate));
+
+        var vector = new FieldAttribute(Source.EMPTY, "vector", new EsField("vector", DataType.DENSE_VECTOR, Map.of(), true, NONE));
+        var knn = new Knn(Source.EMPTY, vector, new Literal(Source.EMPTY, List.of(1.0, 0.0), DataType.DOUBLE), null).withImplicitK(1);
+        var vectorSource = ((EsRelation) filter.child()).withAttributes(List.of(vector));
+        assertEquals(TranslationAware.FinishedTranslatable.YES, knn.translatable(LucenePushdownPredicates.DEFAULT).finish());
+        assertFalse(SequenceStageProjection.isExactSourceSearchPredicate(new Filter(Source.EMPTY, vectorSource, knn), knn));
     }
 
     public void testViewStagesRequireTheirOwnRequestFilterScope() {

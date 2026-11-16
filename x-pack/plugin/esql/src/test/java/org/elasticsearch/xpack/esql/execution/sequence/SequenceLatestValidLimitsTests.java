@@ -26,6 +26,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.plan.logical.Sequence;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -52,13 +53,20 @@ public class SequenceLatestValidLimitsTests extends ESTestCase {
             { 4, 64, 8 },
             { 5, 32, 8 },
             { 6, 16, 8 },
-            { 7, 8, 8 },
+            { 7, 8, 4 },
             { 8, 4, 4 },
-            { 11, 4, 4 },
+            { 9, 4, 4 },
+            { 10, 4, 2 },
+            { 11, 4, 2 },
             { 12, 2, 2 },
-            { 21, 2, 2 },
+            { 17, 2, 2 },
+            { 18, 2, 1 },
+            { 19, 2, 1 },
+            { 20, 2, 1 },
+            { 21, 2, 1 },
             { 22, 1, 1 },
-            { 32, 1, 1 } };
+            { 32, 1, 1 },
+            { 256, 1, 1 } };
         for (int[] row : table) {
             int stages = row[0];
             int ceiling = row[1];
@@ -82,6 +90,7 @@ public class SequenceLatestValidLimitsTests extends ESTestCase {
             }
         }
         for (int stages : new int[] { -1, 0, 1 }) {
+            expectThrows(IllegalArgumentException.class, () -> SequenceLatestValidConfig.defaultCandidates(stages));
             expectThrows(IllegalArgumentException.class, () -> SequenceLatestValidConfig.maximumCandidates(stages));
             expectThrows(IllegalArgumentException.class, () -> SequenceLatestValidConfig.validateCandidateBound(1, stages));
         }
@@ -93,6 +102,55 @@ public class SequenceLatestValidLimitsTests extends ESTestCase {
         assertEquals(1024, SequenceLatestValidConfig.MAX_CANDIDATES);
         assertEquals(20, SequenceLatestValidConfig.MAX_CANDIDATE_EXPONENT);
         assertEquals(131072L, SequenceLatestValidConfig.SEARCH_STEP_LIMIT);
+    }
+
+    /** R6 deliberately lowers only these defaults; the complete geometric search never reaches the guard. */
+    public void testEverySupportedDefaultFitsSearchStepLimit() {
+        List<Integer> changedStages = new ArrayList<>();
+        long maximumSteps = 0;
+        int maximumAtStageCount = 0;
+        for (int stages = 2; stages <= Sequence.MAX_STAGES; stages++) {
+            int candidates = SequenceLatestValidConfig.defaults(demands(stages, 0), List.of()).maxCandidates().orElseThrow();
+            int previous = Math.min(8, SequenceLatestValidConfig.maximumCandidates(stages));
+            if (candidates != previous) {
+                changedStages.add(stages);
+            }
+            long steps = 0;
+            long level = 1;
+            for (int earlier = 1; earlier < stages; earlier++) {
+                level = Math.multiplyExact(level, candidates);
+                steps = Math.addExact(steps, level);
+            }
+            assertTrue("default search for [" + stages + "] stages takes [" + steps + "] steps", steps < 131072);
+            if (steps > maximumSteps) {
+                maximumSteps = steps;
+                maximumAtStageCount = stages;
+            }
+        }
+        assertEquals(List.of(7, 10, 11, 18, 19, 20, 21), changedStages);
+        assertEquals(131070L, maximumSteps);
+        assertEquals(17, maximumAtStageCount);
+    }
+
+    /** Rejecting every complete 17-stage tuple exercises the largest default search without abandoning it. */
+    public void testLargestDefaultSearchDoesNotAbandon() {
+        int stages = 17;
+        var config = SequenceLatestValidConfig.defaults(demands(stages, 1), List.of(equal(stages - 1, 0)));
+        try (Harness h = new Harness(config, CONTRACT_WINDOW_MILLIS)) {
+            int candidates = config.maxCandidates().orElseThrow();
+            for (int stage = 0; stage < stages - 1; stage++) {
+                for (int row = 0; row < candidates; row++) {
+                    long tick = stage * candidates + row;
+                    h.add(stage, tick * CONTRACT_TICK_MILLIS, tick, "s" + stage + "_" + row, 0);
+                }
+            }
+            long finalTick = (stages - 1L) * candidates;
+            h.add(stages - 1, finalTick * CONTRACT_TICK_MILLIS, finalTick, "f", 1);
+            assertEquals(List.of(), h.matches);
+            assertEquals(List.of(131070L), h.perFinalSteps);
+            assertSearch(h, 131070, 131070, 0);
+            assertEquals(0, h.matcher.boundDrops());
+        }
     }
 
     /** Numerically identical test configuration must retain its explicit nonproduction provenance. */

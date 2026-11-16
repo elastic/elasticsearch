@@ -24,11 +24,12 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * A bounded snapshot of native sequence search, matching and stage execution work. Child stages create separate
- * drivers for candidate pages and selected payload; their cumulative CPU and iterations belong here because the
- * parent driver's CPU measures only its own work. Hits are counted before ordinary stage filtering or expansion,
- * including repeated reads of selected events. Server-reported search took values include distributed work and
- * should not be added to driver CPU. The historical max-pending counter counts retained candidate slots, including used markers; it is not a key count.
+ * A bounded snapshot of sequence search, matching and stage execution work. Child stage drivers execute candidate
+ * pages; their cumulative CPU and iterations belong here because the parent driver measures only its own CPU.
+ * Hits are counted before ordinary stage filtering or expansion. Values are retained at first read, while separate
+ * stages or branches may still read the same event. Server-reported search took values include distributed work
+ * and should not be added to driver CPU. The historical max-pending counter counts retained candidate slots,
+ * including used markers; it is not a key count.
  */
 public record SequenceSourceStatus(
     long candidateSearchRequests,
@@ -46,46 +47,9 @@ public record SequenceSourceStatus(
     LatestValidCounters latestValidCounters,
     RuntimeProfile runtime
 ) implements Operator.Status {
-    /** Historical reservation for the simplified sequence status wire form. */
-    public static final TransportVersion ESQL_SEQUENCE_SINGLE_ENGINE_STATUS = Sequence.ESQL_SEQUENCE_SINGLE_ENGINE;
-
     /** Counters are mandatory even before a source has processed its first row. */
     public SequenceSourceStatus {
         Objects.requireNonNull(latestValidCounters);
-    }
-
-    /** Preserve the aggregate-only constructor for existing status producers. */
-    public SequenceSourceStatus(
-        long candidateSearchRequests,
-        long payloadSearchRequests,
-        long candidateRowsFetched,
-        long payloadRowsFetched,
-        long completedMatches,
-        long rowsEmitted,
-        long stageDrivers,
-        long stageDriverCpuNanos,
-        long stageDriverIterations,
-        long candidateSearchTookMillis,
-        long payloadSearchTookMillis,
-        long maxPendingCandidates,
-        LatestValidCounters latestValidCounters
-    ) {
-        this(
-            candidateSearchRequests,
-            payloadSearchRequests,
-            candidateRowsFetched,
-            payloadRowsFetched,
-            completedMatches,
-            rowsEmitted,
-            stageDrivers,
-            stageDriverCpuNanos,
-            stageDriverIterations,
-            candidateSearchTookMillis,
-            payloadSearchTookMillis,
-            maxPendingCandidates,
-            latestValidCounters,
-            null
-        );
     }
 
     private static final ProfileSchema<RuntimeProfile> RUNTIME_SCHEMA = ProfileSchema.of(
@@ -200,7 +164,7 @@ public record SequenceSourceStatus(
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return Sequence.ESQL_SEQUENCE_R5;
+        return Sequence.ESQL_SEQUENCE_R6_SOURCE_SCOPE;
     }
 
     @Override

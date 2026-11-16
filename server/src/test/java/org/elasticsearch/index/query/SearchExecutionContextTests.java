@@ -121,7 +121,6 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
@@ -136,42 +135,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class SearchExecutionContextTests extends ESTestCase {
-
-    public void testRepeatableEvaluationDoesNotRequirePitMappingIdentity() {
-        SearchExecutionContext context = createSearchExecutionContext("uuid", null);
-        context.requireRepeatableEvaluation();
-        assertNotNull(context.toQuery(new MatchAllQueryBuilder()));
-    }
-
-    public void testRepeatableEvaluationUsesLiveMapping() {
-        MappingLookup changed = createMappingLookup(List.of(new MockFieldMapper.FakeFieldType("new_field")), List.of());
-        SearchExecutionContext context = createSearchExecutionContext("uuid", null, changed, Map.of());
-        assertNotNull(context.getFieldType("new_field"));
-        assertNotNull(context.toQuery(new MatchAllQueryBuilder()));
-        context.requireRepeatableEvaluation();
-        SearchExecutionContext copy = new SearchExecutionContext(context);
-        for (SearchExecutionContext guarded : List.of(context, copy)) {
-            assertNotNull(guarded.getFieldType("new_field"));
-            assertNotNull(guarded.toQuery(new MatchAllQueryBuilder()));
-        }
-    }
-
-    public void testRepeatableEvaluationPreservesPolicyThroughCopyAndReset() {
-        SearchExecutionContext context = createSearchExecutionContext("uuid", null);
-        context.requireRepeatableEvaluation();
-        SearchExecutionContext copy = new SearchExecutionContext(context);
-        for (SearchExecutionContext guarded : List.of(context, copy)) {
-            assertThat(
-                expectThrows(IllegalArgumentException.class, guarded::getClient).getMessage(),
-                containsString("requires repeatable evaluation")
-            );
-            assertNotNull(guarded.toQuery(new MatchAllQueryBuilder()));
-            assertThat(
-                expectThrows(IllegalArgumentException.class, guarded::getClient).getMessage(),
-                containsString("requires repeatable evaluation")
-            );
-        }
-    }
 
     public void testFailIfFieldMappingNotFound() {
         SearchExecutionContext context = createSearchExecutionContext(IndexMetadata.INDEX_UUID_NA_VALUE, null);

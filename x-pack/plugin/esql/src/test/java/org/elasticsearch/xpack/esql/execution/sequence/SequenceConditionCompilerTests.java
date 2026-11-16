@@ -55,6 +55,63 @@ import static org.hamcrest.Matchers.containsString;
 
 /** Native scalar evaluators and the real matcher share typed, separately owned one-position candidate values. */
 public class SequenceConditionCompilerTests extends ESTestCase {
+    /** Returned evaluator blocks are Source-owned even when a failed admission closes them immediately. */
+    public void testReturnedBooleanBlockAdmissionFailureReleasesResultAndBorrowedInputs() throws Exception {
+        Attribute first = attribute("first", DataType.INTEGER);
+        Attribute own = attribute("own", DataType.INTEGER);
+        var previous = input(0, first);
+        var current = input(1, own);
+        var condition = new SequenceCondition(
+            Source.EMPTY,
+            local(own),
+            1,
+            new Equals(Source.EMPTY, previous.reference(), current.reference()),
+            List.of(0),
+            List.of(previous, current)
+        );
+        Sequence sequence = sequence(local(first), condition);
+        SequenceMemoryBudget budget = new SequenceMemoryBudget(100_000);
+        try (Resources resources = new Resources("1mb")) {
+            CircuitBreaker scoped = budget.newScope().breaker(resources.breaker);
+            try (
+                var compiler = SequenceConditionCompiler.compile(
+                    sequence,
+                    16,
+                    FoldContext.small(),
+                    resources.context,
+                    null,
+                    scoped,
+                    budget
+                );
+                var left = resources.blocks.newConstantIntBlockWith(4, 1);
+                var right = resources.blocks.newConstantIntBlockWith(4, 1)
+            ) {
+                var compiled = SequenceConditionCompiler.class.getDeclaredField("compiled");
+                compiled.setAccessible(true);
+                Object group = ((List<?>) compiled.get(compiler)).getFirst();
+                var pageBytesField = group.getClass().getDeclaredField("pageBytes");
+                pageBytesField.setAccessible(true);
+                long filler = 100_000 - budget.currentBytes() - pageBytesField.getLong(group);
+                // A synthetic occupied reservation leaves room for the real input Page but no returned BooleanBlock.
+                scoped.addEstimateBytesAndMaybeBreak(filler, "occupied-before-condition");
+                try {
+                    long before = budget.currentBytes();
+                    long requestBefore = resources.breaker.getUsed();
+                    CircuitBreakingException failure = expectThrows(
+                        CircuitBreakingException.class,
+                        () -> compiler.config().groups().getFirst().predicate().test((stage, slot) -> stage == 0 ? left : right)
+                    );
+                    assertThat(failure.getMessage(), containsString("esql.sequence.max_memory"));
+                    assertEquals(before, budget.currentBytes());
+                    assertEquals(requestBefore, resources.breaker.getUsed());
+                } finally {
+                    scoped.addWithoutBreaking(-filler);
+                }
+            }
+        }
+        assertEquals(0, budget.currentBytes());
+    }
+
     /** F4 4A waits for both earlier rows before evaluating arithmetic over their stored cells. */
     public void testConjunctReadingTwoEarlierStagesUsesBothRowsInTheRealMatcher() {
         Attribute x = attribute("x", DataType.INTEGER);

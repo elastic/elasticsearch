@@ -166,7 +166,8 @@ public class SequenceCapacityIT extends AbstractSequenceIntegTestCase {
         Measured measured = measure("many_live_keys", SEQUENCE + PROJECT + "| limit 1", new Shape(2049, 1536, 1));
         assertEquals(List.of(List.of(matchedKey, "A1535", "B", payload("A", 1535), payload("B", 1535))), measured.values());
         assertEquals(1537L, measured.source().candidateRowsFetched());
-        assertEquals(2L, measured.source().payloadRowsFetched());
+        assertEquals(0L, measured.source().payloadSearchRequests());
+        assertEquals(0L, measured.source().payloadRowsFetched());
         assertEquals(1536L, measured.source().maxPendingCandidates());
         assertEquals(1L, measured.source().completedMatches());
         assertEquals(1L, measured.source().rowsEmitted());

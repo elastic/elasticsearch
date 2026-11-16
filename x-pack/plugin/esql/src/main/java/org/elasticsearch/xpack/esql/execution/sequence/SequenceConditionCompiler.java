@@ -53,14 +53,20 @@ final class SequenceConditionCompiler implements Releasable {
 
     private final DriverContext ownerContext;
     private final CircuitBreaker breaker;
+    private final @Nullable SequenceMemoryBudget memoryBudget;
     private final List<CompiledGroup> compiled = new ArrayList<>();
     private DriverContext evaluationContext;
     private SequenceLatestValidConfig config;
     private long heldBytes;
     private boolean closed;
 
-    private SequenceConditionCompiler(DriverContext ownerContext, @Nullable CircuitBreaker scopedBreaker) {
+    private SequenceConditionCompiler(
+        DriverContext ownerContext,
+        @Nullable CircuitBreaker scopedBreaker,
+        @Nullable SequenceMemoryBudget memoryBudget
+    ) {
         this.ownerContext = ownerContext;
+        this.memoryBudget = memoryBudget;
         breaker = scopedBreaker == null ? LocalCircuitBreaker.forAsyncIo(ownerContext.breaker()) : scopedBreaker;
     }
 
@@ -84,7 +90,20 @@ final class SequenceConditionCompiler implements Releasable {
         @Nullable AnalysisRegistry analysisRegistry,
         @Nullable CircuitBreaker scopedBreaker
     ) {
-        var result = new SequenceConditionCompiler(ownerContext, scopedBreaker);
+        return compile(sequence, maxCandidates, foldContext, ownerContext, analysisRegistry, scopedBreaker, null);
+    }
+
+    /** The source admits evaluator result ownership without changing the evaluator's ordinary context or scratch. */
+    static SequenceConditionCompiler compile(
+        Sequence sequence,
+        int maxCandidates,
+        FoldContext foldContext,
+        DriverContext ownerContext,
+        @Nullable AnalysisRegistry analysisRegistry,
+        @Nullable CircuitBreaker scopedBreaker,
+        @Nullable SequenceMemoryBudget memoryBudget
+    ) {
+        var result = new SequenceConditionCompiler(ownerContext, scopedBreaker, memoryBudget);
         try {
             result.prepare(sequence, maxCandidates, foldContext, analysisRegistry);
             return result;
@@ -294,11 +313,22 @@ final class SequenceConditionCompiler implements Releasable {
                 }
                 try (Page page = new Page(1, inputs)) {
                     acquired = 0; // The page now owns every increment, including aliased channels.
-                    try (BooleanBlock result = (BooleanBlock) evaluator.eval(page)) {
+                    long resultBytes = 0;
+                    try (Block evaluated = evaluator.eval(page)) {
+                        if (memoryBudget != null) {
+                            long admission = memoryBudget.foreignBytes(evaluated);
+                            memoryBudget.admitForeign(admission);
+                            resultBytes = admission;
+                        }
+                        BooleanBlock result = (BooleanBlock) evaluated;
                         if (result.getPositionCount() != 1) {
                             throw new IllegalStateException("SEQUENCE condition must produce exactly one position");
                         }
                         return result.isNull(0) == false && result.getValueCount(0) == 1 && result.getBoolean(result.getFirstValueIndex(0));
+                    } finally {
+                        if (memoryBudget != null) {
+                            memoryBudget.releaseForeign(resultBytes);
+                        }
                     }
                 }
             } finally {

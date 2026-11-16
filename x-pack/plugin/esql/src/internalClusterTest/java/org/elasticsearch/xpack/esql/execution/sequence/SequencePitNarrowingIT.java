@@ -96,8 +96,8 @@ public class SequencePitNarrowingIT extends AbstractSequenceIntegTestCase {
         );
     }
 
-    /** Old per-stage field admission must remain observable even when captured scopes cross and no event can be accepted. */
-    public void testCrossedScopesKeepRequiredTimestampRejection() throws Exception {
+    /** A non-deterministic timestamp dependency is accepted while crossed physical scopes stay empty. */
+    public void testCrossedScopesAcceptNondeterministicTimestampAndRemainEmpty() throws Exception {
         crossedScopePolicy(false);
     }
 
@@ -162,35 +162,17 @@ public class SequencePitNarrowingIT extends AbstractSequenceIntegTestCase {
             )
         );
         try (var gate = new Gate(EsqlSearchShardsAction.NAME)) {
-            if (deterministic) {
-                List<List<Object>> actual = runGated(request, gate, mutations);
-                assertEquals(List.of(), actual);
-                System.out.println("SEQUENCE_CROSSED_SCOPE_POLICY deterministic=empty native_indices=" + decodedIndices(gate));
-            } else {
-                var failure = expectThrows(RuntimeException.class, () -> {
-                    List<List<Object>> actual = runGated(request, gate, mutations);
-                    System.out.println(
-                        "SEQUENCE_CROSSED_SCOPE_POLICY unexpected_success rows="
-                            + actual
-                            + " native_indices="
-                            + decodedIndices(gate)
-                            + " value_evaluations="
-                            + SequenceMappedFieldsIT.FailingRuntimeFieldPlugin.EXECUTIONS.get()
-                    );
-                    fail("crossed-scope required timestamp policy unexpectedly succeeded: " + actual);
-                });
-                org.hamcrest.MatcherAssert.assertThat(
-                    org.elasticsearch.ExceptionsHelper.stackTrace(failure),
-                    org.hamcrest.Matchers.containsString("requires repeatable evaluation")
-                );
-                org.hamcrest.MatcherAssert.assertThat(
-                    org.elasticsearch.ExceptionsHelper.stackTrace(failure),
-                    org.hamcrest.Matchers.containsString("nondeterministic runtime field [@timestamp]")
-                );
-                assertEquals(0, SequenceMappedFieldsIT.FailingRuntimeFieldPlugin.EXECUTIONS.get());
-                assertEquals(Set.of(FIRST, SECOND), decodedIndices(gate));
-                System.out.println("SEQUENCE_CROSSED_SCOPE_POLICY nondeterministic=rejected native_indices=" + decodedIndices(gate));
-            }
+            List<List<Object>> actual = runGated(request, gate, mutations);
+            assertEquals(List.of(), actual);
+            assertEquals(Set.of(FIRST, SECOND), decodedIndices(gate));
+            System.out.println(
+                "SEQUENCE_CROSSED_SCOPE_POLICY deterministic="
+                    + deterministic
+                    + " rows=empty native_indices="
+                    + decodedIndices(gate)
+                    + " value_evaluations="
+                    + SequenceMappedFieldsIT.FailingRuntimeFieldPlugin.EXECUTIONS.get()
+            );
             assertEquals(List.of(left, right), gate.openIndices.get());
             assertFalse(gate.completeScopes.isEmpty());
             assertTrue(gate.completeScopes.stream().allMatch(scope -> scope.equals(List.of(left, right))));
@@ -298,6 +280,76 @@ public class SequencePitNarrowingIT extends AbstractSequenceIntegTestCase {
                     throw cleanup;
                 }
             }
+        }
+    }
+
+    /** A timestamp mapping changed after PIT open can make a previously out-of-range source eligible. */
+    public void testRequestTimeFilterKeepsRuntimeTimestampChangeAfterPitOpen() throws Exception {
+        coordinator = Arrays.stream(internalCluster().getNodeNames()).sorted().findFirst().orElseThrow();
+        createIndex(FIRST, "date", Map.of("marker", Map.of("type", "keyword")));
+        createIndex(SECOND, "date", Map.of("only_b", Map.of("type", "long")));
+        seed(FIRST, "A", BASE.plusSeconds(10).toString(), "A", Map.of("marker", "present"));
+        seed(SECOND, "B", BASE.toString(), "B", Map.of("only_b", 7L));
+        refresh(FIRST, SECOND);
+        // A WRITE-only block forces PIT can-match at two shards while allowing the later mapping update.
+        assertAcked(indicesAdmin().prepareUpdateSettings(FIRST).setSettings(Settings.builder().put("index.blocks.write", true)));
+        var query = request(FIRST + "," + SECOND, true).filter(
+            org.elasticsearch.index.query.QueryBuilders.rangeQuery("@timestamp")
+                .gte(BASE.plusSeconds(9).toString())
+                .lt(BASE.plusSeconds(12).toString())
+        );
+        try (var gate = new Gate(TransportSearchAction.NAME)) {
+            assertEquals(List.of(Arrays.asList("shared", "A", "B", null, 7L)), runGated(query, gate, List.of(() -> {
+                Opened opened = gate.opened.get();
+                assertNotNull("the native PIT open must complete before the first candidate search", opened);
+                logger.info("SEQUENCE G7 PIT open total={} skipped={}", opened.total(), opened.skipped());
+                assertEquals("the baseline must retain both populated shard contexts", 2, opened.total());
+                assertAcked(
+                    client(coordinator).admin()
+                        .indices()
+                        .preparePutMapping(SECOND)
+                        .setSource(
+                            Map.of(
+                                "runtime",
+                                Map.of(
+                                    "@timestamp",
+                                    Map.of(
+                                        "type",
+                                        "date",
+                                        "script",
+                                        Map.of(
+                                            "lang",
+                                            "sequence_failure",
+                                            "source",
+                                            "timestamp",
+                                            "params",
+                                            Map.of("millis", BASE.plusSeconds(11).toEpochMilli())
+                                        )
+                                    )
+                                )
+                            )
+                        )
+                );
+            })));
+            assertEquals("the baseline scoped-index hint must skip neither populated shard", 0, gate.opened.get().skipped());
+            assertEquals(Set.of(FIRST, SECOND), decodedIndices(gate));
+            String expectedFilter = Strings.toString(query.filter());
+            int filtered = -1;
+            int unfiltered = -1;
+            for (int attempt = 0; attempt < gate.fieldCaps.size(); attempt++) {
+                FieldCapsCall call = gate.fieldCaps.get(attempt);
+                if (Set.copyOf(call.indices()).equals(Set.of(FIRST, SECOND)) == false) {
+                    continue;
+                }
+                if (expectedFilter.equals(call.filter())) {
+                    filtered = attempt;
+                } else if (call.filter() == null && filtered >= 0) {
+                    unfiltered = attempt;
+                    break;
+                }
+            }
+            assertTrue("time-filtered field caps must be observed: " + gate.fieldCaps, filtered >= 0);
+            assertTrue("the later unfiltered retry must be observed: " + gate.fieldCaps, unfiltered > filtered);
         }
     }
 

@@ -175,7 +175,8 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
     }
 
     private static LogicalPlan resolve(LogicalPlan plan, boolean load, BiConsumer<BranchIdentity, String> onViewNullFill) {
-        if (plan.childrenResolved() == false) {
+        // A waiting MEMBER condition must not block null-filling an earlier stage through its ordinary projection boundaries.
+        if (plan.childrenResolved() == false && (load || plan instanceof Sequence == false)) {
             return plan;
         }
 

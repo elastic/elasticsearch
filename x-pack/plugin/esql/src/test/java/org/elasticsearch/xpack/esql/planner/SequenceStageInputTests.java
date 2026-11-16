@@ -280,7 +280,64 @@ public class SequenceStageInputTests extends ESTestCase {
         assertNull(expanded.searchQuery(0));
     }
 
-    public void testSelectionRetentionExportsExistingWhereValueWithoutOutputOnlyEval() {
+    /** The index has already applied each full-text term; only the ordinary scalar term runs on the local page. */
+    public void testExactSourceSearchIsPushedWithoutCoordinatorReevaluation() {
+        for (String predicate : List.of(
+            "MATCH(label, \"term\")",
+            "label : \"term\"",
+            "MATCH_PHRASE(label, \"term\")",
+            "QSTR(\"label:term\")",
+            "KQL(\"label:term or not label:other\")"
+        )) {
+            var source = new SequenceStageInput(firstStage("""
+                sequence by label WITHIN 30 seconds PRIMARY 1
+                (from a | where %s AND label != "skip" | keep label), (from b | keep label) | limit 3
+                """.formatted(predicate)));
+            assertNotNull(source.searchQuery(0));
+            try (
+                Page raw = raw(source.source(0).output(), List.of(Map.of("label", "kept"), Map.of("label", "skip")));
+                var bound = source.bind(0, raw, blockFactory())
+            ) {
+                List<Page> pages = run(bound);
+                try {
+                    assertEquals(1, pages.stream().mapToInt(Page::getPositionCount).sum());
+                    BytesRefBlock labels = pages.getFirst().getBlock(0);
+                    assertEquals("kept", labels.getBytesRef(labels.getFirstValueIndex(0), new BytesRef()).utf8ToString());
+                } finally {
+                    pages.forEach(Page::releaseBlocks);
+                }
+            }
+        }
+    }
+
+    /** The selected union branch supplies both its own query and its own local page, with no other branch recheck. */
+    public void testSourceSearchPushdownUsesOnlyActiveUnionBranch() {
+        var source = new SequenceStageInput(firstStage("""
+            sequence by label WITHIN 30 seconds PRIMARY 1
+            (from (from a | where KQL("label:first") | keep label),
+                  (from b | where KQL("label:second") | keep label)),
+            (from b | keep label) | limit 3
+            """));
+        assertEquals(2, source.sourceCount());
+        for (int branch = 0; branch < source.sourceCount(); branch++) {
+            String query = source.searchQuery(branch).toString();
+            assertTrue(query, query.contains(branch == 0 ? "first" : "second"));
+            assertFalse(query, query.contains(branch == 0 ? "second" : "first"));
+            try (
+                Page raw = raw(source.source(branch).output(), List.of(Map.of("label", "kept")));
+                var bound = source.bind(branch, raw, blockFactory())
+            ) {
+                List<Page> pages = run(bound);
+                try {
+                    assertEquals(1, pages.stream().mapToInt(Page::getPositionCount).sum());
+                } finally {
+                    pages.forEach(Page::releaseBlocks);
+                }
+            }
+        }
+    }
+
+    public void testFirstReadRetainsOnlyDemandedComputedValues() {
         SequenceStage stage = firstStage("""
             sequence by label WITHIN 30 seconds PRIMARY 1
             (from a | eval lower=TO_LOWER(label), output_only=TO_LONG(label)
@@ -289,8 +346,7 @@ public class SequenceStageInputTests extends ESTestCase {
             """);
         Attribute lower = stage.output().stream().filter(attribute -> attribute.name().equals("lower")).findFirst().orElseThrow();
         var retained = SequenceStageInput.selection(stage, List.of(lower));
-        assertTrue(retained.retention(0).direct());
-        assertEquals(List.of(lower), retained.retention(0).retained());
+        assertEquals(List.of(lower), retained.retained(0));
         assertEquals(List.of("label"), retained.source(0).output().stream().map(Attribute::name).toList());
         try (
             Page raw = raw(
@@ -307,49 +363,33 @@ public class SequenceStageInputTests extends ESTestCase {
             }
         }
         Attribute output = stage.output().stream().filter(attribute -> attribute.name().equals("output_only")).findFirst().orElseThrow();
-        var replay = SequenceStageInput.selection(stage, List.of(output));
-        assertFalse("an EVAL sibling absent from the selection closure must replay", replay.retention(0).direct());
-        assertEquals(List.of("label"), replay.source(0).output().stream().map(Attribute::name).toList());
-        assertEquals(2, replay.output(0).size());
+        var computed = SequenceStageInput.selection(stage, List.of(output));
+        assertEquals(List.of(output), computed.retained(0));
+        assertEquals(List.of("label"), computed.source(0).output().stream().map(Attribute::name).toList());
+        assertEquals(List.of("label", "output_only"), computed.output(0).subList(0, 2).stream().map(Attribute::name).toList());
     }
 
-    public void testSelectionRetentionTracesGenuineMetadataAndRawMappedAliases() {
+    public void testFirstReadIncludesDemandedMetadataAndMappedAliases() {
         SequenceStage stage = firstStage("""
-            sequence by label WITHIN 30 seconds PRIMARY 1
-            (from a metadata _id, _index, _source | rename _id as original_id, _source as body, labels as values
-              | keep label, original_id, _index, body, values),
-            (from b | keep label) | limit 3
+            SEQUENCE BY label WITHIN 30s PRIMARY 1
+            (FROM a METADATA _id,_index,_source | RENAME _id AS original_id,_source AS body,labels AS values
+              | KEEP label,original_id,_index,body,values),
+            (FROM b | KEEP label) | LIMIT 3
             """);
         List<Attribute> demands = stage.output().stream().filter(attribute -> attribute.name().equals("label") == false).toList();
         var selection = SequenceStageInput.selection(stage, demands);
-        var retention = selection.retention(0);
-        assertTrue(retention.direct());
-        assertTrue(retention.retained().isEmpty());
+        assertEquals(demands, selection.retained(0));
         assertEquals(
-            List.of("_id", "_index", "_source", "labels"),
-            retention.bindings().stream().map(binding -> binding.source().name()).toList()
+            List.of("_id", "_index", "_source", "label", "labels"),
+            selection.source(0).output().stream().map(Attribute::name).sorted().toList()
         );
         assertEquals(
-            List.of(
-                SequenceStageInput.ValueKind.METADATA,
-                SequenceStageInput.ValueKind.METADATA,
-                SequenceStageInput.ValueKind.METADATA,
-                SequenceStageInput.ValueKind.FIELD
-            ),
-            retention.bindings().stream().map(SequenceStageInput.ValueBinding::kind).toList()
+            List.of("label", "original_id", "_index", "body", "values"),
+            selection.output(0).subList(0, 5).stream().map(Attribute::name).toList()
         );
-        assertEquals(List.of("_source", "labels"), retention.fetched().stream().map(Attribute::name).toList());
-        assertEquals(List.of("label"), selection.source(0).output().stream().map(Attribute::name).toList());
-        SequenceStage overwritten = firstStage("""
-            sequence by label WITHIN 30 seconds PRIMARY 1
-            (from a metadata _id | eval _id=TO_UPPER(label) | keep label, _id),
-            (from b | keep label) | limit 3
-            """);
-        Attribute changedId = overwritten.output().stream().filter(attribute -> attribute.name().equals("_id")).findFirst().orElseThrow();
-        assertFalse(SequenceStageInput.selection(overwritten, List.of(changedId)).retention(0).direct());
     }
 
-    public void testSelectionRetentionIsBranchLocalAcrossUnionProducerBindings() {
+    public void testFirstReadComputesDemandedValuesInEveryUnionBranch() {
         SequenceStage stage = firstStage("""
             sequence by label WITHIN 30 seconds PRIMARY 1
             (from (from a | eval value=TO_LOWER(label) | where value!="skip" | keep label, value),
@@ -358,11 +398,10 @@ public class SequenceStageInputTests extends ESTestCase {
             """);
         Attribute value = stage.output().stream().filter(attribute -> attribute.name().equals("value")).findFirst().orElseThrow();
         var selection = SequenceStageInput.selection(stage, List.of(value));
-        assertTrue(selection.retention(0).direct());
-        assertEquals(List.of(value), selection.retention(0).retained());
+        assertEquals(List.of(value), selection.retained(0));
         assertEquals(3, selection.output(0).size());
-        assertFalse(selection.retention(1).direct());
-        assertEquals(2, selection.output(1).size());
+        assertEquals(List.of(value), selection.retained(1));
+        assertEquals(3, selection.output(1).size());
         for (int branch : List.of(0, 1)) {
             assertEquals(List.of("label"), selection.source(branch).output().stream().map(Attribute::name).toList());
             try (
@@ -373,7 +412,7 @@ public class SequenceStageInputTests extends ESTestCase {
                 try {
                     assertEquals(selection.output(branch), bound.plan().output());
                     assertEquals(1, pages.stream().mapToInt(Page::getPositionCount).sum());
-                    assertEquals(branch == 0 ? 3 : 2, pages.getFirst().getBlockCount());
+                    assertEquals(3, pages.getFirst().getBlockCount());
                 } finally {
                     pages.forEach(Page::releaseBlocks);
                 }
@@ -381,7 +420,23 @@ public class SequenceStageInputTests extends ESTestCase {
         }
     }
 
-    /** Retained proof objects must describe the current optimized output, not an earlier attribute wrapper. */
+    /** E5 retains demanded output cells while column pruning removes unused computations and raw fields. */
+    public void testE5OnlyDemandedOutputColumnsAreRetained() {
+        SequenceStage stage = firstStage("""
+            SEQUENCE BY label WITHIN 30 seconds PRIMARY 1
+            (FROM a | EVAL unused=TO_LONG(labels),kept=CONCAT(label,"/needed") | DROP unused | KEEP label,kept),
+            (FROM b | KEEP label) | KEEP kept | LIMIT 1
+            """);
+        Attribute kept = stage.output().stream().filter(attribute -> attribute.name().equals("kept")).findFirst().orElseThrow();
+        var selection = SequenceStageInput.selection(stage, List.of(kept));
+        assertEquals(List.of(kept), selection.retained(0));
+        assertEquals(List.of("label"), selection.source(0).output().stream().map(Attribute::name).toList());
+        assertFalse(
+            selection.output(0).stream().anyMatch(attribute -> attribute.name().equals("unused") || attribute.name().equals("labels"))
+        );
+    }
+
+    /** Retained projections must describe the current optimized output, not an earlier attribute wrapper. */
     public void testRetainedExpandedOriginalUsesCurrentOutputAttribute() {
         SequenceStage stage = firstStage("""
             SEQUENCE BY label WITHIN 30 seconds PRIMARY 2
@@ -398,11 +453,10 @@ public class SequenceStageInputTests extends ESTestCase {
             .orElseThrow();
         assertNotEquals("the optimizer must exercise the stale wrapper boundary", source, current);
         var selection = SequenceStageInput.selection(stage, List.of(source));
-        var retained = selection.retention(0);
-        assertTrue(retained.direct());
-        assertEquals(1, retained.retained().size());
-        assertSame(current, retained.retained().getFirst());
-        assertTrue(selection.output(0).stream().anyMatch(attribute -> attribute == retained.retained().getFirst()));
+        var retained = selection.retained(0);
+        assertEquals(1, retained.size());
+        assertSame(current, retained.getFirst());
+        assertTrue(selection.output(0).stream().anyMatch(attribute -> attribute == retained.getFirst()));
     }
 
     /** Each union branch keeps the original array while its copied value expands through the same stage. */
@@ -419,7 +473,6 @@ public class SequenceStageInputTests extends ESTestCase {
         var selection = SequenceStageInput.selection(stage, List.of(original));
         assertEquals(2, selection.sourceCount());
         for (int branch = 0; branch < selection.sourceCount(); branch++) {
-            assertTrue(selection.retention(branch).direct());
             try (
                 Page raw = raw(selection.source(branch).output(), List.of(Map.of("label", "source", "labels", List.of("Alpha", "Beta"))));
                 var bound = selection.bind(branch, raw, blockFactory())
@@ -463,7 +516,7 @@ public class SequenceStageInputTests extends ESTestCase {
         );
         String message = expectThrows(
             IllegalStateException.class,
-            () -> SequenceStageInput.selection(stage, List.of(wrongType)).retention(0)
+            () -> SequenceStageInput.selection(stage, List.of(wrongType)).retained(0)
         ).getMessage();
         assertTrue(message, message.contains("output changed type of column [lower#"));
         assertTrue(
@@ -482,7 +535,6 @@ public class SequenceStageInputTests extends ESTestCase {
             """);
         Attribute value = extracted.output().stream().filter(attribute -> attribute.name().equals("value")).findFirst().orElseThrow();
         var selection = SequenceStageInput.selection(extracted, List.of(value));
-        assertTrue(selection.retention(0).direct());
         try (
             Page raw = raw(selection.source(0).output(), List.of(Map.of("label", "alpha/one")));
             var bound = selection.bind(0, raw, blockFactory())
@@ -500,8 +552,7 @@ public class SequenceStageInputTests extends ESTestCase {
             """);
         Attribute labels = expanded.output().stream().filter(attribute -> attribute.name().equals("labels")).findFirst().orElseThrow();
         var expansion = SequenceStageInput.selection(expanded, List.of(labels));
-        assertTrue(expansion.retention(0).direct());
-        assertEquals(List.of(labels), expansion.retention(0).retained());
+        assertEquals(List.of(labels), expansion.retained(0));
         try (
             Page raw = raw(expansion.source(0).output(), List.of(Map.of("label", "shared", "labels", List.of("a", "b"))));
             var bound = expansion.bind(0, raw, blockFactory())
@@ -515,14 +566,14 @@ public class SequenceStageInputTests extends ESTestCase {
         }
     }
 
-    /** An output-free stage needs no eligibility proof or its temporary-plan admission. */
-    public void testEmptyDemandSelectionSkipsRetentionProofAdmission() {
+    /** An output-free stage needs no value projection or its temporary-plan admission. */
+    public void testEmptyDemandSelectionSkipsValueProjectionAdmission() {
         SequenceStage stage = firstStage("""
             sequence WITHIN 30 seconds PRIMARY 1 (from a), (from b)
             | stats count(*) | limit 3
             """);
         var selection = SequenceStageInput.selection(stage, List.of(), bytes -> {
-            throw new AssertionError("empty output demand reserved retention proof bytes [" + bytes + "]");
+            throw new AssertionError("empty output demand reserved value projection bytes [" + bytes + "]");
         });
         assertEquals(1, selection.sourceCount());
         assertTrue(selection.source(0).output().isEmpty());
@@ -602,8 +653,8 @@ public class SequenceStageInputTests extends ESTestCase {
         }
     }
 
-    /** The empty-demand shortcut must leave nonempty branch proofs lazy, admitted and memoized. */
-    public void testNonemptyDemandSelectionStillAdmitsEachUsedBranchProof() {
+    /** The empty-demand shortcut must leave nonempty branch projections lazy, admitted and memoized. */
+    public void testDemandedProjectionIsLazyAdmittedAndMemoizedPerBranch() {
         SequenceStage stage = firstStage("""
             sequence by label WITHIN 30 seconds PRIMARY 1
             (from (from a | eval value=TO_LOWER(label) | where value!="skip" | keep label, value),
@@ -615,14 +666,14 @@ public class SequenceStageInputTests extends ESTestCase {
         var selection = SequenceStageInput.selection(stage, List.of(value), admitted::add);
         assertEquals(2, selection.sourceCount());
         assertTrue(admitted.isEmpty());
-        assertTrue(selection.retention(0).direct());
+        assertEquals(List.of(value), selection.retained(0));
         assertEquals(1, admitted.size());
         assertTrue(admitted.getFirst() > 0);
         selection.source(0);
         selection.searchQuery(0);
         selection.output(0);
         assertEquals(1, admitted.size());
-        assertFalse(selection.retention(1).direct());
+        assertEquals(List.of(value), selection.retained(1));
         assertEquals(2, admitted.size());
         assertTrue(admitted.get(1) > 0);
     }

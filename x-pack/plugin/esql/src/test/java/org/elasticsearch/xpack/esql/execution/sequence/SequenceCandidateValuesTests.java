@@ -30,11 +30,10 @@ import java.util.List;
 /** Mandatory cells keep their complete typed position even after the input page is released. */
 public class SequenceCandidateValuesTests extends ESTestCase {
     /** Fresh retained cells outlive their input and join their container in one simultaneous held estimate. */
-    public void testProfiledFreshCellsShareTheCombinedHeldEstimate() {
+    public void testFreshCellsShareTheAlwaysActiveBudget() {
         CircuitBreaker breaker = breaker("1mb");
         MockBlockFactory blocks = new MockBlockFactory(BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker));
-        SequenceHeldMemory memory = new SequenceHeldMemory();
-        SequenceHeldBlocks held = new SequenceHeldBlocks(memory);
+        SequenceMemoryBudget memory = new SequenceMemoryBudget(1_000_000);
         CircuitBreaker explicit = memory.newScope().breaker(breaker);
         SequenceCandidateValues values;
         try (
@@ -48,32 +47,30 @@ public class SequenceCandidateValuesTests extends ESTestCase {
                 0,
                 List.of(demand("many"), demand("null")),
                 new int[] { 0, 1 },
-                blocks,
-                explicit,
-                held
+                memory.newScope().blockFactory(blocks),
+                explicit
             );
             assertNotSame(source.getBlock(0), values.block(0));
-            assertSame(blocks, values.block(0).blockFactory());
+            assertEquals(blocks.maxPrimitiveArrayBytes(), values.block(0).blockFactory().maxPrimitiveArrayBytes());
         }
         long expected = values.containerBytes() + values.block(0).ramBytesUsed() + values.block(1).ramBytesUsed();
         assertEquals(expected, memory.currentBytes());
-        assertEquals(expected, memory.peakBytes());
-        assertEquals(2, held.distinctBlocks());
+        assertTrue(memory.peakBytes() >= expected);
+
         values.close();
         values.close();
         assertEquals(0, memory.currentBytes());
-        assertEquals(0, held.distinctBlocks());
+
         assertEquals(0, breaker.getUsed());
         blocks.ensureAllBlocksAreReleased();
     }
 
     /** Both early admission failure and a later invalid channel leave no copied-cell ownership behind. */
-    public void testProfiledPartialCopyAndContainerFailureReleaseHeldCells() {
+    public void testPartialCopyAndContainerFailureRefundTheBudget() {
         for (String limit : List.of("1mb", "1b")) {
             CircuitBreaker breaker = breaker(limit);
             MockBlockFactory blocks = new MockBlockFactory(BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker));
-            SequenceHeldMemory memory = new SequenceHeldMemory();
-            SequenceHeldBlocks held = new SequenceHeldBlocks(memory);
+            SequenceMemoryBudget memory = new SequenceMemoryBudget(1_000_000);
             CircuitBreaker explicit = memory.newScope().breaker(breaker);
             try (Page source = new Page(1, BlockUtils.fromArrayRow(TestBlockFactory.getNonBreakingInstance(), new Object[] { 4, 5 }))) {
                 Class<? extends Exception> failure = limit.equals("1b") ? CircuitBreakingException.class : IllegalArgumentException.class;
@@ -84,13 +81,12 @@ public class SequenceCandidateValuesTests extends ESTestCase {
                         0,
                         List.of(demand("a"), demand("b")),
                         new int[] { 0, -1 },
-                        blocks,
-                        explicit,
-                        held
+                        memory.newScope().blockFactory(blocks),
+                        explicit
                     )
                 );
                 assertEquals(0, memory.currentBytes());
-                assertEquals(0, held.distinctBlocks());
+
                 assertEquals(0, breaker.getUsed());
                 assertEquals(limit.equals("1b"), memory.peakBytes() == 0);
             }
@@ -98,8 +94,8 @@ public class SequenceCandidateValuesTests extends ESTestCase {
         }
     }
 
-    /** The default and explicit-null paths preserve the ordinary owner layout, admission size and supplied factory. */
-    public void testUnprofiledCopyKeepsTheOrdinaryOwnerAndFactory() {
+    /** Repeated copies use one owner layout, admission size and supplied factory. */
+    public void testCopiesUseOneOwnerAndTheSuppliedFactory() {
         CircuitBreaker breaker = breaker("1mb");
         MockBlockFactory blocks = new MockBlockFactory(BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker));
         try (Page source = new Page(1, BlockUtils.fromArrayRow(TestBlockFactory.getNonBreakingInstance(), new Object[] { 4 }))) {
@@ -109,7 +105,7 @@ public class SequenceCandidateValuesTests extends ESTestCase {
                 assertSame(blocks, values.block(0).blockFactory());
                 container = values.containerBytes();
             }
-            try (var values = SequenceCandidateValues.copyRow(source, 0, List.of(demand("a")), new int[] { 0 }, blocks, breaker, null)) {
+            try (var values = SequenceCandidateValues.copyRow(source, 0, List.of(demand("a")), new int[] { 0 }, blocks, breaker)) {
                 assertEquals(SequenceCandidateValues.class, values.getClass());
                 assertEquals(container, values.containerBytes());
                 assertSame(blocks, values.block(0).blockFactory());

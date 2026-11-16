@@ -715,7 +715,7 @@ public class SequenceTimeBoundIT extends AbstractSequenceIntegTestCase {
         assertEquals(Long.class, page.after.get(0).getClass());
         assertEquals(timestamp, page.after.get(0));
         assertEquals(Long.class, page.after.get(1).getClass());
-        assertTrue(page.query, page.query.contains(SequenceRepeatabilityQueryBuilder.NAME));
+        assertTrue(page.query, page.query.contains(SequenceSourceQueryBuilder.NAME));
     }
 
     /** Own an ordinary control PIT and prove both raw comparator cells and exact multi-page source identities before SEQUENCE. */
@@ -1086,10 +1086,7 @@ public class SequenceTimeBoundIT extends AbstractSequenceIntegTestCase {
             for (CandidateRequest request : result.requests) {
                 if (request.indices.contains(B)) {
                     assertTrue("an out-of-domain upper bound must not be parsed as nanos", request.query.contains("match_none"));
-                    assertTrue(
-                        "match-none must retain repeatability validation",
-                        request.query.contains(SequenceRepeatabilityQueryBuilder.NAME)
-                    );
+                    assertTrue("match-none must retain the source scope", request.query.contains(SequenceSourceQueryBuilder.NAME));
                 }
             }
         }

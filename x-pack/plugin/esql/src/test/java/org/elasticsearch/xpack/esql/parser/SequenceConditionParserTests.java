@@ -87,12 +87,16 @@ public class SequenceConditionParserTests extends ESTestCase {
             SEQUENCE WITHIN 30s PRIMARY 2
             (FROM a),(FROM b | WHERE label == MEMBER(1,label) | KEEP label | RENAME label AS renamed | DROP renamed)
             """);
-        for (String after : List.of("EVAL x = 1", "WHERE true", "MV_EXPAND label", "DISSECT label \"%{x}\"", "GROK label \"%{WORD:x}\"")) {
+        for (String after : List.of("EVAL x = 1", "MV_EXPAND label", "DISSECT label \"%{x}\"", "GROK label \"%{WORD:x}\"")) {
             error(
                 "SEQUENCE WITHIN 30s PRIMARY 2 (FROM a),(FROM b | WHERE label == MEMBER(1,label) | " + after + ")",
                 "only KEEP, DROP or RENAME may follow"
             );
         }
+        error(
+            "SEQUENCE WITHIN 30s PRIMARY 2 (FROM a),(FROM b | WHERE label == MEMBER(1,label) | KEEP label | WHERE true)",
+            "only KEEP, DROP or RENAME may follow"
+        );
         error("SEQUENCE WITHIN 30s PRIMARY 2 (FROM a),(FROM b | EVAL x = MEMBER(1,label))", "final WHERE");
     }
 
@@ -115,16 +119,18 @@ public class SequenceConditionParserTests extends ESTestCase {
             """);
     }
 
-    public void testNegationRemainsOneDeferredConjunctAndTwoMemberWheresAreRefused() {
+    public void testNegationRemainsOneDeferredConjunctAndConsecutiveWheresMerge() {
         SequenceCondition condition = sequence("""
             SEQUENCE WITHIN 30s PRIMARY 2 (FROM a),(FROM b | WHERE NOT (label == MEMBER(1,label)))
             """).collect(SequenceCondition.class).getFirst();
         assertEquals(List.of(0), condition.referencedStages());
         assertEquals(1, condition.condition().collect(SequenceMatchOutput.MemberReference.class).size());
-        error("""
+        Sequence merged = sequence("""
             SEQUENCE WITHIN 30s PRIMARY 2 (FROM a),
-            (FROM b | WHERE label == MEMBER(1,label) | WHERE label != MEMBER(1,label))
-            """, "only KEEP, DROP or RENAME may follow");
+            (FROM b | WHERE label != "skip" | WHERE label == MEMBER(1,label) | WHERE label != MEMBER(1,label) | KEEP label)
+            """);
+        assertEquals(2, merged.collect(SequenceCondition.class).size());
+        assertEquals(1, merged.collect(Filter.class).size());
     }
 
     private Sequence sequence(String query) {

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.execution.sequence;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -27,7 +28,9 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
@@ -38,6 +41,43 @@ public class SequenceLatestValidMatcherTests extends ESTestCase {
         new ReferenceAttribute(Source.EMPTY, null, "value", DataType.INTEGER)
     );
     private static final List<Integer> BOUNDS = List.of(1, 2, 3, 8, 16, Integer.MAX_VALUE);
+
+    /** Two-stage cross-marking has only one retained stage, so no per-key document table is needed. */
+    public void testTwoStageKeyAccountingSkipsDocumentTable() throws Exception {
+        for (int candidates : List.of(1, 8)) {
+            try (Harness h = new Harness(config(8, 2, false, List.of()), 30, null, () -> false)) {
+                long base = h.breaker.getUsed();
+                for (int doc = 0; doc < candidates; doc++) {
+                    h.add(0, doc, doc, "k", "start", null);
+                }
+                var keysField = SequenceLatestValidMatcher.class.getDeclaredField("keys");
+                keysField.setAccessible(true);
+                Object state = ((Map<?, ?>) keysField.get(h.matcher)).values().iterator().next();
+                var documentsField = state.getClass().getDeclaredField("documents");
+                documentsField.setAccessible(true);
+                assertNull(documentsField.get(state));
+                var table = SequenceLatestValidMatcher.class.getDeclaredField("keyTableBytes");
+                table.setAccessible(true);
+                long after = h.breaker.getUsed() - base - table.getLong(h.matcher);
+                var hashEntry = SequenceLatestValidMatcher.class.getDeclaredField("HASH_ENTRY_BYTES");
+                hashEntry.setAccessible(true);
+                long documentBytes = RamUsageEstimator.shallowSizeOfInstance(
+                    Class.forName(SequenceLatestValidMatcher.class.getName() + "$DocState")
+                ) + hashEntry.getLong(null) + RamUsageEstimator.shallowSizeOfInstance(SequenceOrdinal.class);
+                long saved = RamUsageEstimator.shallowSizeOfInstance(HashMap.class) + RamUsageEstimator.alignObjectSize(
+                    RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + 64L * RamUsageEstimator.NUM_BYTES_OBJECT_REF
+                ) + candidates * documentBytes;
+                logger.info(
+                    "SEQUENCE two-stage per-key estimate: candidates [{}], before [{}], after [{}], saved [{}] bytes",
+                    candidates,
+                    after + saved,
+                    after,
+                    saved
+                );
+                assertTrue(saved > 0);
+            }
+        }
+    }
 
     /** Frozen retired two-stage history: no condition, both ordinary and per-link time windows. */
     public void testTwoStageMatchesKeepFrozenRetiredMembersAndOrderAtEveryBound() {

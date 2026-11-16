@@ -179,7 +179,7 @@ public class Verifier {
         checkHighlightAnalyzersAgree(plan, failures, context.minimumVersion());
         checkDenseVectorSupported(plan, failures, context.minimumVersion());
         checkFillNullFieldCount(plan, failures, context.flags().maxFillNullFields());
-        if (context.minimumVersion().supports(Sequence.ESQL_SEQUENCE_R5) == false) {
+        if (context.minimumVersion().supports(Sequence.ESQL_SEQUENCE_R6_SOURCE_SCOPE) == false) {
             plan.forEachDown(
                 Sequence.class,
                 sequence -> failures.add(fail(sequence, "SEQUENCE is not supported by all nodes in the cluster"))

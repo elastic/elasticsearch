@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.execution.sequence;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
+import java.util.concurrent.FutureTask;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class SequenceRuntimeProfilerTests extends ESTestCase {
@@ -24,6 +26,28 @@ public class SequenceRuntimeProfilerTests extends ESTestCase {
         profiler.observeKeys(4);
         profiler.observeBytesHeld(5);
         assertNull(profiler.snapshot());
+    }
+
+    public void testDisabledHooksDoNotAcquireProfilerLock() throws Exception {
+        var profiler = new SequenceRuntimeProfiler(false, 1, () -> { throw new AssertionError("clock read"); });
+        var calls = new FutureTask<Void>(() -> {
+            profiler.finish(SequenceRuntimeProfiler.Phase.MATCHER, profiler.start());
+            profiler.addRowsFetched(0, 1);
+            profiler.addCandidatesAdmitted(0, 1);
+            profiler.observeKeys(1);
+            profiler.observeBytesHeld(1);
+            assertNull(profiler.snapshot());
+            return null;
+        });
+        var thread = new Thread(calls);
+        try {
+            synchronized (profiler) {
+                thread.start();
+                calls.get(10, TimeUnit.SECONDS);
+            }
+        } finally {
+            thread.join();
+        }
     }
 
     public void testTotalsStagesAndPeakSnapshots() {
@@ -62,13 +86,16 @@ public class SequenceRuntimeProfilerTests extends ESTestCase {
 
     public void testInvalidInputs() {
         expectThrows(IllegalArgumentException.class, () -> new SequenceRuntimeProfiler(true, -1, () -> 0));
-        var profiler = new SequenceRuntimeProfiler(true, 2, () -> 0);
-        expectThrows(IndexOutOfBoundsException.class, () -> profiler.addRowsFetched(-1, 1));
-        expectThrows(IndexOutOfBoundsException.class, () -> profiler.addCandidatesAdmitted(2, 1));
-        expectThrows(IllegalArgumentException.class, () -> profiler.addRowsFetched(0, -1));
-        expectThrows(IllegalArgumentException.class, () -> profiler.addCandidatesAdmitted(0, -1));
-        expectThrows(IllegalArgumentException.class, () -> profiler.observeKeys(-1));
-        expectThrows(IllegalArgumentException.class, () -> profiler.observeBytesHeld(-1));
+        for (boolean enabled : List.of(false, true)) {
+            var profiler = new SequenceRuntimeProfiler(enabled, 2, () -> 0);
+            expectThrows(NullPointerException.class, () -> profiler.finish(null, 0));
+            expectThrows(IndexOutOfBoundsException.class, () -> profiler.addRowsFetched(-1, 1));
+            expectThrows(IndexOutOfBoundsException.class, () -> profiler.addCandidatesAdmitted(2, 1));
+            expectThrows(IllegalArgumentException.class, () -> profiler.addRowsFetched(0, -1));
+            expectThrows(IllegalArgumentException.class, () -> profiler.addCandidatesAdmitted(0, -1));
+            expectThrows(IllegalArgumentException.class, () -> profiler.observeKeys(-1));
+            expectThrows(IllegalArgumentException.class, () -> profiler.observeBytesHeld(-1));
+        }
     }
 
     public void testCountersSaturate() {

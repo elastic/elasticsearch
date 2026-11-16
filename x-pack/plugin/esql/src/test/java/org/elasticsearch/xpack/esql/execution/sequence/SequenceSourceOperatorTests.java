@@ -72,9 +72,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.SearchSortValues;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ShardDocSortField;
-import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
@@ -118,7 +116,6 @@ import org.junit.BeforeClass;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -140,10 +137,29 @@ public class SequenceSourceOperatorTests extends ESTestCase {
         assumeTrue("requires native SEQUENCE", EsqlCapabilities.Cap.SEQUENCE_COMMAND.isEnabled());
     }
 
+    /** Exercise Factory.get with no hidden pragma; the selected limit is private execution state, not a status API. */
+    public void testProductionFactorySelectsStageAwareDefaults() throws ReflectiveOperationException {
+        var boundField = SequenceSourceOperator.class.getDeclaredField("candidateBound");
+        boundField.setAccessible(true);
+        for (int[] row : new int[][] { { 2, 8 }, { 7, 4 }, { 10, 2 }, { 18, 1 } }) {
+            List<String> members = new ArrayList<>();
+            for (int stage = 0; stage < row[0]; stage++) {
+                members.add("(FROM a | KEEP key)");
+            }
+            Sequence sequence = plan("SEQUENCE BY key WITHIN 30s PRIMARY 1 " + String.join(",", members) + " | KEEP key | LIMIT 1");
+            try (var harness = new Harness(false, null, null, sequence)) {
+                assertEquals("factory default for [" + row[0] + "] stages", row[1], boundField.getInt(harness.source));
+                assertTrue("constructing the production factory must not start a search", harness.client.pending.isEmpty());
+                harness.finishDriver();
+                harness.assertFinished();
+            }
+        }
+    }
+
     /** A failed stage releases raw/bound cells and the prepared compiler on the same held-memory timeline. */
-    public void testProfiledHeldEstimateReleasesAfterStageFailure() {
+    public void testBudgetReleasesAfterStageFailure() {
         try (var harness = new Harness(true, true)) {
-            SequenceHeldMemory memory = sourceHeldMemory(harness.source);
+            SequenceMemoryBudget memory = sourceBudget(harness.source);
             assertNotNull(memory);
             assertTrue(memory.currentBytes() > 0);
             assertEquals(memory.peakBytes(), harness.source.status().runtime().peakBytesHeld());
@@ -164,7 +180,7 @@ public class SequenceSourceOperatorTests extends ESTestCase {
     }
 
     /** A secondary condition close failure cannot strand scoped admissions or replace a real admission failure. */
-    public void testProfiledHeldEstimatePreservesPrimaryFailureWhenCleanupThrows() {
+    public void testBudgetPreservesPrimaryFailureWhenCleanupThrows() {
         try (var harness = new Harness(true, true)) {
             harness.source.close();
             var cleanup = new IllegalStateException("secondary profiled condition cleanup");
@@ -173,14 +189,13 @@ public class SequenceSourceOperatorTests extends ESTestCase {
                     harness.operatorFactory,
                     harness.context,
                     TimeValue.timeValueMinutes(2),
-                    1,
                     latestConfig(harness.sequence),
                     () -> {
                         throw cleanup;
                     }
                 )
             ) {
-                SequenceHeldMemory memory = sourceHeldMemory(source);
+                SequenceMemoryBudget memory = sourceBudget(source);
                 assertNull(source.getOutput());
                 harness.client.take(EsqlSearchShardsAction.TYPE).listener.onResponse(shards("a"));
                 long limit = harness.breaker.getLimit();
@@ -200,9 +215,9 @@ public class SequenceSourceOperatorTests extends ESTestCase {
     }
 
     /** Collected output and bound input remain Source-held after close until the delayed terminal callback cleans them. */
-    public void testProfiledHeldPagesSurviveCloseUntilDeferredStageCleanup() {
+    public void testBudgetOwnsPagesUntilDeferredStageCleanup() {
         try (var harness = new Harness(true, true)) {
-            SequenceHeldMemory memory = sourceHeldMemory(harness.source);
+            SequenceMemoryBudget memory = sourceBudget(harness.source);
             harness.deferStage = 1;
             harness.prepareOpen().listener.onResponse(openResponse());
             assertNull(harness.source.getOutput());
@@ -222,17 +237,15 @@ public class SequenceSourceOperatorTests extends ESTestCase {
     }
 
     /** Returning a Page ends Source attribution while preserving its original factory and downstream breaker ownership. */
-    public void testHeldEstimateResultHandoffPreservesFactoryWithProfilingOnAndOff() {
+    public void testBudgetResultHandoffPreservesRequestOwnershipWithProfilingOnAndOff() {
         Sequence sequence = plan("""
             SEQUENCE BY key WITHIN 30 seconds PRIMARY 1
             (FROM a | KEEP key), (FROM b | KEEP key) | KEEP key | LIMIT 1
             """);
         for (boolean profile : List.of(false, true)) {
-            try (
-                var harness = new Harness(true, null, null, sequence, null, null, null, false, DriverContext.WarningsMode.COLLECT, profile)
-            ) {
-                SequenceHeldMemory memory = sourceHeldMemory(harness.source);
-                assertEquals(profile, memory != null);
+            try (var harness = new Harness(true, null, null, sequence, null, null, false, DriverContext.WarningsMode.COLLECT, profile)) {
+                SequenceMemoryBudget memory = sourceBudget(harness.source);
+                assertNotNull(memory);
                 assertEquals(profile, harness.source.status().runtime() != null);
                 harness.prepareOpen().listener.onResponse(openResponse());
                 Page result = null;
@@ -249,12 +262,14 @@ public class SequenceSourceOperatorTests extends ESTestCase {
                     assertNotNull(result);
                     assertEquals(1, result.getPositionCount());
                     for (int column = 0; column < result.getBlockCount(); column++) {
-                        assertSame(harness.blocks, result.getBlock(column).blockFactory());
+                        BlockFactory output = result.getBlock(column).blockFactory();
+                        assertEquals(harness.blocks.maxPrimitiveArrayBytes(), output.maxPrimitiveArrayBytes());
+                        assertEquals(harness.blocks.bytesRefRamOverestimateThreshold(), output.bytesRefRamOverestimateThreshold());
                     }
                     harness.finishDriver();
+                    assertEquals(0, memory.currentBytes());
+                    assertTrue(memory.peakBytes() > 0);
                     if (profile) {
-                        assertEquals(0, memory.currentBytes());
-                        assertTrue(memory.peakBytes() > 0);
                         assertEquals(memory.peakBytes(), harness.source.status().runtime().peakBytesHeld());
                     }
                     assertTrue("the unclosed outgoing Page keeps its real breaker reservation", harness.breaker.getUsed() > 0);
@@ -270,55 +285,112 @@ public class SequenceSourceOperatorTests extends ESTestCase {
         }
     }
 
-    /** Both append failures must leave the collector empty, release its Page, and preserve the original failure. */
-    public void testProfiledStagePagesAppendFailureIsAtomic() throws Exception {
-        for (boolean failHolder : List.of(true, false)) {
-            for (boolean appendBeforeThrow : List.of(false, true)) {
-                try (var harness = new Harness(true, true)) {
-                    SequenceHeldMemory memory = sourceHeldMemory(harness.source);
-                    long heldBefore = memory.currentBytes();
-                    long breakerBefore = harness.breaker.getUsed();
-                    Error primary = new AssertionError("controlled collector append failure");
-                    Class<?> type = Class.forName(SequenceSourceOperator.class.getName() + "$StagePages");
-                    var constructor = type.getDeclaredConstructor(SequenceSourceOperator.class);
-                    constructor.setAccessible(true);
-                    Object collector = constructor.newInstance(harness.source);
-                    var pagesField = type.getDeclaredField("pages");
-                    var heldField = type.getDeclaredField("heldPages");
-                    pagesField.setAccessible(true);
-                    heldField.setAccessible(true);
-                    List<Page> pages = failHolder ? new ArrayList<>() : rejectingAppend(primary, appendBeforeThrow);
-                    List<SequenceHeldBlocks.Owner> holders = failHolder ? rejectingAppend(primary, appendBeforeThrow) : new ArrayList<>();
-                    pagesField.set(collector, pages);
-                    heldField.set(collector, holders);
-                    var add = type.getDeclaredMethod("add", Page.class);
-                    add.setAccessible(true);
-                    // The private collector implements Releasable; reflection isolates faults without a production callback.
-                    try (Releasable ignored = (Releasable) collector) {
-                        Page accepted = new Page(harness.blocks.newConstantBytesRefBlockWith(new BytesRef("accepted"), 1));
-                        add.invoke(collector, accepted);
-                        SequenceHeldBlocks.Owner acceptedHolder = holders.getFirst();
-                        long acceptedHeld = memory.currentBytes();
-                        long acceptedBreaker = harness.breaker.getUsed();
-                        Page page = new Page(harness.blocks.newConstantBytesRefBlockWith(new BytesRef("retained"), 1));
-                        InvocationTargetException failure = expectThrows(
-                            InvocationTargetException.class,
-                            () -> add.invoke(collector, page)
-                        );
-                        assertSame(primary, failure.getCause());
-                        assertEquals("failed append must preserve only the earlier page", List.of(accepted), pages);
-                        assertEquals("failed append must preserve only its earlier lease", List.of(acceptedHolder), holders);
-                        assertEquals(acceptedHeld, memory.currentBytes());
-                        assertEquals(acceptedBreaker, harness.breaker.getUsed());
-                    }
-                    assertEquals(heldBefore, memory.currentBytes());
-                    assertEquals(breakerBefore, harness.breaker.getUsed());
-                    harness.blocks.ensureAllBlocksAreReleased();
-                    harness.finishDriver();
-                    harness.assertFinished();
-                    assertEquals(0, memory.currentBytes());
+    /** An append failure releases the rejected Page and preserves all earlier admitted ownership. */
+    public void testStagePageAppendFailureRefundsAdmissionAtomically() throws Exception {
+        for (boolean appendBeforeThrow : List.of(false, true)) {
+            try (var harness = new Harness(true, true)) {
+                SequenceMemoryBudget budget = sourceBudget(harness.source);
+                long before = budget.currentBytes();
+                long breakerBefore = harness.breaker.getUsed();
+                Error primary = new AssertionError("controlled collector append failure");
+                Class<?> type = Class.forName(SequenceSourceOperator.class.getName() + "$StagePages");
+                var constructor = type.getDeclaredConstructor(SequenceSourceOperator.class);
+                constructor.setAccessible(true);
+                Object collector = constructor.newInstance(harness.source);
+                var pagesField = type.getDeclaredField("pages");
+                pagesField.setAccessible(true);
+                List<Page> pages = rejectingAppend(primary, appendBeforeThrow);
+                pagesField.set(collector, pages);
+                var add = type.getDeclaredMethod("add", Page.class);
+                add.setAccessible(true);
+                try (Releasable ignored = (Releasable) collector) {
+                    Page accepted = new Page(harness.blocks.newConstantBytesRefBlockWith(new BytesRef("accepted"), 1));
+                    add.invoke(collector, accepted);
+                    long acceptedBudget = budget.currentBytes();
+                    long acceptedBreaker = harness.breaker.getUsed();
+                    Page rejected = new Page(harness.blocks.newConstantBytesRefBlockWith(new BytesRef("rejected"), 1));
+                    InvocationTargetException failure = expectThrows(
+                        InvocationTargetException.class,
+                        () -> add.invoke(collector, rejected)
+                    );
+                    assertSame(primary, failure.getCause());
+                    assertEquals(List.of(accepted), pages);
+                    assertEquals(acceptedBudget, budget.currentBytes());
+                    assertEquals(acceptedBreaker, harness.breaker.getUsed());
                 }
+                assertEquals(before, budget.currentBytes());
+                assertEquals(breakerBefore, harness.breaker.getUsed());
+                harness.finishDriver();
+                harness.assertFinished();
+                assertEquals(0, budget.currentBytes());
             }
+        }
+    }
+
+    /** Profiling cannot change source admission or permit output before this first-page budget rejection. */
+    public void testSameMemoryLimitWithProfilingOnAndOffFailsBeforeAnyOutput() {
+        Sequence sequence = optimizedPlan("""
+            SEQUENCE BY key WITHIN 30s PRIMARY 1
+            (FROM a | KEEP key,payload), (FROM b | KEEP key) | KEEP key,payload | LIMIT 1
+            """);
+        Long wanted = null;
+        for (boolean profile : List.of(false, true)) {
+            try (
+                var harness = new Harness(
+                    true,
+                    null,
+                    null,
+                    sequence,
+                    null,
+                    null,
+                    false,
+                    DriverContext.WarningsMode.COLLECT,
+                    profile,
+                    65_536
+                )
+            ) {
+                harness.prepareLatestOpen();
+                assertNull(harness.source.getOutput());
+                var pending = harness.client.take(TransportSearchAction.TYPE);
+                deliverLatest(pending, latestPage("a", 0, List.of(new LatestRow(0, 0, "shared", List.of("x".repeat(80_000))))));
+                CircuitBreakingException failure = expectThrows(CircuitBreakingException.class, harness.source::getOutput);
+                assertThat(failure.getMessage(), containsString("esql.sequence.max_memory"));
+                assertEquals(65_536, failure.getByteLimit());
+                assertEquals(0, harness.source.status().rowsEmitted());
+                if (wanted == null) {
+                    wanted = failure.getBytesWanted();
+                } else {
+                    assertEquals(wanted.longValue(), failure.getBytesWanted());
+                }
+                finishLatest(harness);
+                assertEquals(0, sourceBudget(harness.source).currentBytes());
+            }
+        }
+    }
+
+    /** A rejected child output is released before its ownership can enter the source collector. */
+    public void testForeignStagePageOverBudgetIsReleasedAtAdmission() throws Exception {
+        try (var harness = new Harness(true, null, null, null, null, null, false, DriverContext.WarningsMode.COLLECT, false, 16_384)) {
+            SequenceMemoryBudget budget = sourceBudget(harness.source);
+            long before = budget.currentBytes();
+            long requestBefore = harness.breaker.getUsed();
+            Class<?> type = Class.forName(SequenceSourceOperator.class.getName() + "$StagePages");
+            var constructor = type.getDeclaredConstructor(SequenceSourceOperator.class);
+            constructor.setAccessible(true);
+            Object collector = constructor.newInstance(harness.source);
+            var add = type.getDeclaredMethod("add", Page.class);
+            add.setAccessible(true);
+            try (Releasable ignored = (Releasable) collector) {
+                Page page = new Page(harness.blocks.newConstantBytesRefBlockWith(new BytesRef("x".repeat(32_768)), 1));
+                InvocationTargetException failure = expectThrows(InvocationTargetException.class, () -> add.invoke(collector, page));
+                assertTrue(failure.getCause() instanceof CircuitBreakingException);
+                assertThat(failure.getCause().getMessage(), containsString("esql.sequence.max_memory"));
+                assertEquals(before, budget.currentBytes());
+                assertEquals(requestBefore, harness.breaker.getUsed());
+            }
+            harness.finishDriver();
+            harness.assertFinished();
+            assertEquals(0, budget.currentBytes());
         }
     }
 
@@ -347,11 +419,11 @@ public class SequenceSourceOperatorTests extends ESTestCase {
     }
 
     /** Inspect cleanup of unpublished current state without adding a test-only accessor to the production source. */
-    private static SequenceHeldMemory sourceHeldMemory(SequenceSourceOperator source) {
+    private static SequenceMemoryBudget sourceBudget(SequenceSourceOperator source) {
         try {
-            var field = SequenceSourceOperator.class.getDeclaredField("heldMemory");
+            var field = SequenceSourceOperator.class.getDeclaredField("memoryBudget");
             field.setAccessible(true);
-            return (SequenceHeldMemory) field.get(source);
+            return (SequenceMemoryBudget) field.get(source);
         } catch (ReflectiveOperationException e) {
             throw new AssertionError(e);
         }
@@ -451,7 +523,7 @@ public class SequenceSourceOperatorTests extends ESTestCase {
             )
         );
         for (QueryBuilder filter : filters) {
-            try (var harness = new Harness(false, null, null, null, null, filter)) {
+            try (var harness = new Harness(false, null, null, null, filter)) {
                 var pending = harness.prepareOpen();
                 var request = (OpenPointInTimeRequest) pending.request;
                 boolean openDelivered = false;
@@ -570,15 +642,15 @@ public class SequenceSourceOperatorTests extends ESTestCase {
     }
 
     /** A search extends the fixed lease without introducing another background owner. */
-    public void testEachSearchExtendsThirtyMinuteLeaseWithoutHeartbeat() {
+    public void testEachSearchExtendsFiveMinuteLeaseWithoutHeartbeat() {
         var queue = new DeterministicTaskQueue();
         try (var harness = new Harness(false, queue)) {
             var open = harness.prepareOpen();
-            assertEquals(TimeValue.timeValueMinutes(30), ((OpenPointInTimeRequest) open.request).keepAlive());
+            assertEquals(TimeValue.timeValueMinutes(5), ((OpenPointInTimeRequest) open.request).keepAlive());
             open.listener.onResponse(openResponse());
             assertNull(harness.source.getOutput());
             var search = harness.client.take(TransportSearchAction.TYPE);
-            assertEquals(TimeValue.timeValueMinutes(30), ((SearchRequest) search.request).source().pointInTimeBuilder().getKeepAlive());
+            assertEquals(TimeValue.timeValueMinutes(5), ((SearchRequest) search.request).source().pointInTimeBuilder().getKeepAlive());
             queue.runTasksUpToTimeInOrder(TimeValue.timeValueMinutes(40).millis());
             assertTrue("an idle search must not schedule heartbeat requests", harness.client.pending.isEmpty());
             harness.finishDriver();
@@ -832,19 +904,15 @@ public class SequenceSourceOperatorTests extends ESTestCase {
         }
     }
 
-    public void testSynchronousStageCompletionIsConsumedBeforeAnotherDispatch() {
+    public void testSynchronousStageCompletionReturnsCapturedOutputWithoutAnotherSearch() {
         try (var harness = new Harness(true)) {
-            harness.respond(harness.preparePayloadSearch(), 0);
-            assertNull(harness.source.getOutput());
-            assertTrue("the synchronous replay completion must be consumed before the next search", harness.client.pending.isEmpty());
-            // Only stage 0 has an output-only computation, so stage 1 needs no payload replay.
+            harness.prepareCompletedStages();
             try (Page page = harness.source.getOutput()) {
                 assertNotNull(page);
                 assertEquals(1, page.getPositionCount());
-                assertEquals(3, page.getBlockCount());
                 BytesRefBlock key = page.getBlock(0), value = page.getBlock(1);
                 assertEquals("shared", key.getBytesRef(key.getFirstValueIndex(0), new BytesRef()).utf8ToString());
-                assertEquals("shared/replay", value.getBytesRef(value.getFirstValueIndex(0), new BytesRef()).utf8ToString());
+                assertEquals("shared/captured", value.getBytesRef(value.getFirstValueIndex(0), new BytesRef()).utf8ToString());
                 assertProvenance(
                     page,
                     0,
@@ -852,12 +920,10 @@ public class SequenceSourceOperatorTests extends ESTestCase {
                     List.of(new SequenceProvenance.Member(1, "a", "event-a"), new SequenceProvenance.Member(2, "b", "event-b"))
                 );
             }
-            assertEquals(3, harness.stageExecutions);
-            assertEquals(1L, harness.source.status().payloadSearchRequests());
-            assertEquals(1L, harness.source.status().rowsEmitted());
-            harness.finishDriver();
-            harness.client.take(TransportClosePointInTimeAction.TYPE).listener.onResponse(new ClosePointInTimeResponse(true, 2));
-            harness.assertFinished();
+            assertTrue(harness.client.pending.isEmpty());
+            assertEquals(2, harness.stageExecutions);
+            assertEquals(0L, harness.source.status().payloadSearchRequests());
+            finishLatest(harness);
         }
     }
 
@@ -891,9 +957,9 @@ public class SequenceSourceOperatorTests extends ESTestCase {
                 }
             }
             assertTrue("a start present only on the second candidate page must complete", emitted);
-            assertEquals(3, firstStageSearches);
-            assertEquals(4, harness.stageExecutions);
-            assertEquals("selection and payload use separate lazy templates", 3, harness.stagePlans);
+            assertEquals(2, firstStageSearches);
+            assertEquals(3, harness.stageExecutions);
+            assertEquals("one prepared template per used source branch", 2, harness.stagePlans);
             harness.finishDriver();
             harness.client.take(TransportClosePointInTimeAction.TYPE).listener.onResponse(new ClosePointInTimeResponse(true, 2));
             harness.assertFinished();
@@ -1007,190 +1073,7 @@ public class SequenceSourceOperatorTests extends ESTestCase {
         }
     }
 
-    public void testCloseWhilePayloadSearchPendingRetainsAdmissionUntilTerminalDelivery() {
-        for (boolean failure : List.of(false, true)) {
-            try (var harness = new Harness(true)) {
-                var search = harness.preparePayloadSearch();
-                harness.finishDriver();
-                assertFalse(harness.done.isDone());
-                harness.blocks.ensureAllBlocksAreReleased();
-                assertTrue("the pending payload query must retain its identity admission", harness.breaker.getUsed() > 0);
-                if (failure) {
-                    search.listener.onFailure(new IllegalStateException("payload search failed after close"));
-                } else {
-                    harness.respond(search, 0);
-                }
-                assertEquals("terminal delivery must refund payload query admission", 0, harness.breaker.getUsed());
-                assertEquals("closed sources must not plan payload replay", 2, harness.stageExecutions);
-                assertTrue("close dispatch must not await the PIT response", harness.done.isDone());
-                harness.client.take(TransportClosePointInTimeAction.TYPE).listener.onResponse(new ClosePointInTimeResponse(true, 2));
-                harness.assertFinished();
-            }
-        }
-    }
-
-    /** Physical fetch order differs from match order in the second batch, including each shard's first document. */
-    public void testPhysicalPayloadOrderPreservesSelectedCellsAcrossBatches() {
-        Sequence sequence = plan("""
-            sequence by key WITHIN 30 seconds PRIMARY 1
-            (from a metadata _id, _source | keep key, _id, _source, payload),
-            (from b metadata _id, _source | keep key, _id, _source, payload)
-            | eval other_id=MEMBER(2, _id), other_payload=MEMBER(2, payload)
-            | keep key, _id, _source, payload, other_id, other_payload | limit 3
-            """);
-        // This unit exercises the core source before consumer projection pruning, retaining both stage source slots.
-        try (var harness = new Harness(true, null, null, sequence)) {
-            harness.prepareOpen().listener.onResponse(openResponse());
-            List<Map<String, String>> actual = new ArrayList<>();
-            int[] payloadCalls = new int[2];
-            for (int attempt = 0; attempt < 100 && actual.size() < 3; attempt++) {
-                try (Page page = harness.source.getOutput()) {
-                    if (page != null) {
-                        for (int row = 0; row < page.getPositionCount(); row++) {
-                            Map<String, String> values = new LinkedHashMap<>();
-                            for (int column = 0; column < page.getBlockCount(); column++) {
-                                if (Sequence.isProvenanceAttribute(sequence.sourceAttributes().get(column))) {
-                                    assertProvenance(
-                                        page,
-                                        row,
-                                        column,
-                                        List.of(
-                                            new SequenceProvenance.Member(1, "a", "event-a-" + actual.size()),
-                                            new SequenceProvenance.Member(2, "b", "event-b-" + actual.size())
-                                        )
-                                    );
-                                    continue;
-                                }
-                                BytesRefBlock block = page.getBlock(column);
-                                assertEquals(1, block.getValueCount(row));
-                                values.put(
-                                    sequence.sourceStages().get(column) + ":" + sequence.sourceAttributes().get(column).name(),
-                                    block.getBytesRef(block.getFirstValueIndex(row), new BytesRef()).utf8ToString()
-                                );
-                            }
-                            actual.add(values);
-                        }
-                    }
-                }
-                if (harness.client.pending.isEmpty() == false) {
-                    var pending = harness.client.take(TransportSearchAction.TYPE);
-                    var request = (SearchRequest) pending.request;
-                    int stage = request.getPointInTimeAuthorizationScope().indices()[0].equals("a") ? 0 : 1;
-                    boolean identity = request.source().sorts().size() == 1;
-                    List<Integer> events;
-                    if (identity) {
-                        int batch = payloadCalls[stage]++;
-                        assertTrue("only two bounded payload batches are needed", batch < 2);
-                        events = batch == 0 ? List.of(0) : List.of(2, 1);
-                        assertEquals(ShardDocSortField.NAME, ((FieldSortBuilder) request.source().sorts().getFirst()).getFieldName());
-                        assertEquals(SortOrder.ASC, ((FieldSortBuilder) request.source().sorts().getFirst()).order());
-                        assertArrayEquals(
-                            new Object[] {
-                                SequenceSourceOperator.precedingShardDoc(ShardDocSortField.encodeShardAndDoc(stage, batch == 0 ? 2 : 0)) },
-                            request.source().searchAfter()
-                        );
-                        assertEquals(Integer.valueOf(Integer.MAX_VALUE), request.getPreFilterShardSize());
-                        assertFalse(request.allowPartialSearchResults());
-                        assertNotNull(request.source().pointInTimeBuilder());
-                        assertTrue(request.source().fetchSource().fetchSource());
-                        var projection = (SequenceDocValuesSearchExt) request.source().ext().getFirst();
-                        assertEquals(List.of("payload"), projection.fields().stream().map(field -> field.field).toList());
-                    } else {
-                        assertFalse(request.source().fetchSource().fetchSource());
-                        var projection = (SequenceDocValuesSearchExt) request.source().ext().getFirst();
-                        assertEquals(List.of("@timestamp", "key"), projection.fields().stream().map(field -> field.field).toList());
-                        events = List.of(0, 1, 2);
-                    }
-                    harness.respond(pending, stage, orderedEvents(stage, events, identity));
-                }
-            }
-            List<Map<String, String>> expected = new ArrayList<>();
-            for (int event = 0; event < 3; event++) {
-                expected.add(
-                    Map.of(
-                        "0:key",
-                        "key" + event,
-                        "0:_id",
-                        "event-a-" + event,
-                        "0:_source",
-                        eventSource("a", event),
-                        "0:payload",
-                        "payload-a-" + event,
-                        "1:_id",
-                        "event-b-" + event,
-                        "1:_source",
-                        eventSource("b", event),
-                        "1:payload",
-                        "payload-b-" + event
-                    )
-                );
-            }
-            assertEquals(expected, actual);
-            assertArrayEquals(new int[] { 2, 2 }, payloadCalls);
-            assertEquals(4L, harness.source.status().payloadSearchRequests());
-            assertEquals("late raw fields and original source do not need stage replay", 2, harness.stageExecutions);
-            harness.finishDriver();
-            harness.client.take(TransportClosePointInTimeAction.TYPE).listener.onResponse(new ClosePointInTimeResponse(true, 2));
-            harness.assertFinished();
-        }
-    }
-
-    public void testCloseWhilePayloadReplayPendingRetainsAdmissionUntilTerminalDelivery() {
-        for (boolean failure : List.of(false, true)) {
-            try (var harness = new Harness(true)) {
-                harness.deferStage = 3;
-                harness.respond(harness.preparePayloadSearch(), 0);
-                assertNull(harness.source.getOutput());
-                assertNotNull(harness.deferredStage);
-                assertEquals(3, harness.stageExecutions);
-                harness.finishDriver();
-                assertFalse(harness.done.isDone());
-                assertTrue("the pending replay must retain event metadata and bound blocks", harness.breaker.getUsed() > 0);
-                if (failure) {
-                    harness.deferredStage.onFailure(new IllegalStateException("payload replay failed after close"));
-                } else {
-                    harness.deferredStage.onResponse(null);
-                }
-                assertEquals("terminal replay delivery must refund its metadata and blocks", 0, harness.breaker.getUsed());
-                harness.blocks.ensureAllBlocksAreReleased();
-                assertEquals(0L, harness.source.status().rowsEmitted());
-                assertTrue("close dispatch must not await the PIT response", harness.done.isDone());
-                harness.client.take(TransportClosePointInTimeAction.TYPE).listener.onResponse(new ClosePointInTimeResponse(true, 2));
-                harness.assertFinished();
-            }
-        }
-    }
-
-    public void testMissingPhysicalPayloadUsesControlledReconstructionError() {
-        try (var harness = new Harness(true)) {
-            var search = harness.preparePayloadSearch();
-            harness.respond(search, 0, SearchResponse.emptyResponseBuilder().build());
-            assertEquals(
-                "SEQUENCE could not reconstruct the selected event from its point-in-time snapshot",
-                expectThrows(IllegalArgumentException.class, harness.source::getOutput).getMessage()
-            );
-            harness.finishDriver();
-            harness.client.take(TransportClosePointInTimeAction.TYPE).listener.onResponse(new ClosePointInTimeResponse(true, 2));
-            harness.assertFinished();
-        }
-    }
-
     /** A hit at the selected physical coordinate must retain the selected index/ID identity. */
-    public void testConflictingPhysicalPayloadIdentityRemainsAnInvariantFailure() {
-        try (var harness = new Harness(true)) {
-            var search = harness.preparePayloadSearch();
-            // The ordinary fixture selected event-a; this hit has a different ID at the same shard/document coordinate.
-            harness.respond(search, 0, eventPage(0, 0, 1, "shared"));
-            assertEquals(
-                "SEQUENCE selected PIT ordinal has conflicting source identity",
-                expectThrows(IllegalStateException.class, harness.source::getOutput).getMessage()
-            );
-            harness.finishDriver();
-            harness.client.take(TransportClosePointInTimeAction.TYPE).listener.onResponse(new ClosePointInTimeResponse(true, 2));
-            harness.assertFinished();
-        }
-    }
-
     public void testRetainedSelectionAndOriginalIdsNeedNoPayloadSearch() {
         Sequence sequence = plan("""
             sequence by key WITHIN 30 seconds PRIMARY 1
@@ -1239,18 +1122,16 @@ public class SequenceSourceOperatorTests extends ESTestCase {
 
     /** Optimize the complete statement so MV_EXPAND's copy alias and the outer MEMBER demand both participate. */
     public void testOptimizedExpandedAliasPreservesOriginalMemberPayload() {
-        for (boolean replay : List.of(false, true)) {
-            assertOptimizedStagePayload(
-                "EVAL expanded = payload | MV_EXPAND expanded | KEEP key, payload",
-                "payload",
-                List.of("left", "right"),
-                List.of("left", "right"),
-                replay
-            );
-        }
+        assertOptimizedStagePayload(
+            "EVAL expanded = payload | MV_EXPAND expanded | KEEP key, payload",
+            "payload",
+            List.of("left", "right"),
+            List.of("left", "right")
+        );
+
     }
 
-    /** Handwritten ordinary projection/extraction regressions through the real optimizer and both materialization paths. */
+    /** Projection and extraction preserve demanded values through the real optimizer and first-read capture. */
     public void testOptimizedStageShapesPreserveDemandedPayload() {
         for (String[] shape : List.of(
             new String[] {
@@ -1269,9 +1150,8 @@ public class SequenceSourceOperatorTests extends ESTestCase {
                 "payload",
                 "LEFT" }
         )) {
-            for (boolean replay : List.of(false, true)) {
-                assertOptimizedStagePayload(shape[0], shape[1], List.of("LEFT"), List.of(shape[2]), replay);
-            }
+            assertOptimizedStagePayload(shape[0], shape[1], List.of("LEFT"), List.of(shape[2]));
+
         }
     }
 
@@ -1297,9 +1177,8 @@ public class SequenceSourceOperatorTests extends ESTestCase {
                     .append(" | WHERE TO_LOWER(")
                     .append(previous)
                     .append(") == \"left\" | KEEP key, payload");
-                for (boolean replay : List.of(false, true)) {
-                    assertOptimizedStagePayload(commands.toString(), "payload", List.of("LEFT", "right"), List.of("LEFT", "right"), replay);
-                }
+                assertOptimizedStagePayload(commands.toString(), "payload", List.of("LEFT", "right"), List.of("LEFT", "right"));
+
             }
         }
     }
@@ -1324,23 +1203,15 @@ public class SequenceSourceOperatorTests extends ESTestCase {
                 + pattern
                 + "\""
                 + " | WHERE parsed == \"LEFT\" | KEEP key, payload";
-            for (boolean replay : List.of(false, true)) {
-                assertOptimizedStagePayload(commands, "payload", List.of("LEFT", "right"), List.of("LEFT", "right"), replay);
-            }
+            assertOptimizedStagePayload(commands, "payload", List.of("LEFT", "right"), List.of("LEFT", "right"));
+
         }
     }
 
-    /** Selection exports only the key; replay exports payload first, so their cached key channels must differ. */
-    public void testFullReplayUsesItsOwnChannelLayout() {
-        for (boolean smallRetainedCapacity : List.of(false, true)) {
-            assertOptimizedStagePayload(
-                "EVAL payload = TO_LOWER(payload) | KEEP payload, key",
-                "payload",
-                List.of("LEFT"),
-                List.of("left"),
-                smallRetainedCapacity
-            );
-        }
+    /** Demand order can differ from key order without changing the selected values. */
+    public void testDemandedOutputKeepsItsOwnChannelLayout() {
+        assertOptimizedStagePayload("EVAL payload = TO_LOWER(payload) | KEEP payload, key", "payload", List.of("LEFT"), List.of("left"));
+
     }
 
     /** Source-operator inputs report their owning stage position without transporting diagnostic-only plan state. */
@@ -1364,9 +1235,9 @@ public class SequenceSourceOperatorTests extends ESTestCase {
         );
         String message = expectThrows(
             IllegalStateException.class,
-            () -> SequenceStageInput.selection(stage, List.of(wrongType), unused -> {}, 2).retention(0)
+            () -> SequenceStageInput.selection(stage, List.of(wrongType), unused -> {}, 2).retained(0)
         ).getMessage();
-        assertThat(message, containsString("SEQUENCE stage [2] branch [1] output changed type of column [lower#"));
+        assertThat(message, containsString("SEQUENCE stage [2] output changed type of column [lower#"));
     }
 
     /** Correlation keys need the same identity binding as carried values after the alias rewrite. */
@@ -1475,13 +1346,7 @@ public class SequenceSourceOperatorTests extends ESTestCase {
         );
     }
 
-    private void assertOptimizedStagePayload(
-        String commands,
-        String member,
-        List<String> inputValues,
-        List<String> expectedValues,
-        boolean replay
-    ) {
+    private void assertOptimizedStagePayload(String commands, String member, List<String> inputValues, List<String> expectedValues) {
         Sequence sequence = optimizedPlan(Strings.format("""
             SEQUENCE BY key WITHIN 30 seconds PRIMARY origin
             (FROM a | KEEP key) AS origin,
@@ -1489,7 +1354,7 @@ public class SequenceSourceOperatorTests extends ESTestCase {
             | EVAL original = MEMBER(execution, %s)
             | KEEP key, original | LIMIT 1
             """, commands, member));
-        try (var harness = new Harness(true, null, null, sequence, replay ? 1 : null)) {
+        try (var harness = new Harness(true, null, null, sequence)) {
             harness.prepareOpen().listener.onResponse(openResponse());
             boolean emitted = false;
             for (int attempt = 0; attempt < 30 && emitted == false; attempt++) {
@@ -1586,92 +1451,6 @@ public class SequenceSourceOperatorTests extends ESTestCase {
         }
     }
 
-    public void testCloseWhileDirectPayloadPendingReleasesRetainedCells() {
-        Sequence sequence = plan("""
-            sequence by key WITHIN 30 seconds PRIMARY 1
-            (from a metadata _source | keep key, _source, payload), (from b | keep key)
-            | keep key, _source, payload | limit 1
-            """);
-        for (boolean failure : List.of(false, true)) {
-            try (var harness = new Harness(true, null, null, sequence)) {
-                var search = harness.preparePayloadSearch();
-                harness.finishDriver();
-                assertFalse(harness.done.isDone());
-                assertTrue(harness.breaker.getUsed() > 0);
-                if (failure) {
-                    search.listener.onFailure(new IllegalStateException("direct payload cancelled"));
-                } else {
-                    harness.respond(search, 0);
-                }
-                assertEquals(2, harness.stageExecutions);
-                assertEquals(0L, harness.source.status().rowsEmitted());
-                assertEquals(0, harness.breaker.getUsed());
-                harness.client.take(TransportClosePointInTimeAction.TYPE).listener.onResponse(new ClosePointInTimeResponse(true, 2));
-                harness.assertFinished();
-            }
-        }
-    }
-
-    public void testMixedRetainedOverflowFallsBackAndDropsBackingBeforeDeferredReplayClose() {
-        Sequence sequence = plan("""
-            sequence by key WITHIN 30 seconds PRIMARY 1
-            (from a | eval selected=TO_UPPER(payload) | where selected!="skip" | keep key,selected),
-            (from b | keep key)
-            | keep key,selected | limit 3
-            """);
-        for (boolean failure : List.of(false, true)) {
-            try (var harness = new Harness(true, null, null, sequence, 256)) {
-                harness.deferStage = 3;
-                harness.prepareOpen().listener.onResponse(openResponse());
-                int emitted = 0;
-                int payloadSearches = 0;
-                for (int attempt = 0; attempt < 100 && harness.deferredStage == null; attempt++) {
-                    try (Page page = harness.source.getOutput()) {
-                        if (page != null) {
-                            emitted += page.getPositionCount();
-                        }
-                    }
-                    if (harness.client.pending.isEmpty() == false) {
-                        var pending = harness.client.take(TransportSearchAction.TYPE);
-                        var request = (SearchRequest) pending.request;
-                        int stage = request.getPointInTimeAuthorizationScope().indices()[0].equals("a") ? 0 : 1;
-                        boolean identity = request.source().sorts().size() == 1;
-                        List<Integer> events;
-                        if (identity) {
-                            assertEquals(0, stage);
-                            payloadSearches++;
-                            events = List.of(2, 1);
-                        } else {
-                            events = List.of(0, 1, 2);
-                        }
-                        harness.respond(
-                            pending,
-                            stage,
-                            orderedEvents(stage, events, identity, event -> event == 2 ? "x".repeat(8192) : "small-" + event)
-                        );
-                    }
-                }
-                assertNotNull(harness.deferredStage);
-                assertEquals("the first small match materializes directly", 1, emitted);
-                assertEquals("the mixed second batch uses one full-replay fetch", 1, payloadSearches);
-                assertEquals(3, harness.stageExecutions);
-                assertEquals(3L, harness.source.status().completedMatches());
-                harness.finishDriver();
-                assertFalse(harness.done.isDone());
-                assertTrue("the deferred replay still owns its real input/output blocks", harness.breaker.getUsed() > 0);
-                if (failure) {
-                    harness.deferredStage.onFailure(new IllegalStateException("mixed fallback cancelled"));
-                } else {
-                    harness.deferredStage.onResponse(null);
-                }
-                assertEquals(0, harness.breaker.getUsed());
-                harness.blocks.ensureAllBlocksAreReleased();
-                harness.client.take(TransportClosePointInTimeAction.TYPE).listener.onResponse(new ClosePointInTimeResponse(true, 2));
-                harness.assertFinished();
-            }
-        }
-    }
-
     /** Genuine millis extrema must retain their rows and advance the document tie after a full raw page. */
     public void testRawMillisExtremaAdvanceAcrossPages() {
         for (long timestamp : List.of(Long.MIN_VALUE, Long.MAX_VALUE)) {
@@ -1757,7 +1536,7 @@ public class SequenceSourceOperatorTests extends ESTestCase {
                 }
                 if (timestampType == DataType.DATETIME) {
                     for (String query : laterQueries) {
-                        assertTrue(query, query.contains(SequenceRepeatabilityQueryBuilder.NAME));
+                        assertTrue(query, query.contains(SequenceSourceQueryBuilder.NAME));
                         assertFalse("out-of-format derived lower endpoints must stay open: " + query, query.contains("\"gte\""));
                     }
                 }
@@ -1821,7 +1600,7 @@ public class SequenceSourceOperatorTests extends ESTestCase {
             (FROM a | MV_EXPAND key | EVAL accepted=LENGTH(key)+LENGTH(payload) | WHERE accepted==7 | KEEP key),
             (FROM b | KEEP key) | KEEP key | LIMIT 10
             """);
-        try (var harness = latestValid ? new Harness(sequence, null, latestConfig(sequence)) : new Harness(true, null, null, sequence)) {
+        try (var harness = latestValid ? new Harness(sequence, latestConfig(sequence)) : new Harness(true, null, null, sequence)) {
             var open = harness.prepareOpen();
             open.listener.onResponse(openResponse());
             Pending<SearchResponse> later = null;
@@ -1897,48 +1676,32 @@ public class SequenceSourceOperatorTests extends ESTestCase {
     }
 
     /** The demand carrier exports a canonical union while proving only optional late-output bindings. */
-    public void testLatestValidMandatoryProjectionKeepsDirectAndReplayExportsSeparate() {
-        for (boolean direct : List.of(false, true)) {
-            Sequence sequence = optimizedPlan("""
-                SEQUENCE BY key WITHIN 30 seconds PRIMARY 1
-                (FROM a | EVAL selected=TO_UPPER(payload), demanded=TO_LOWER(payload), late=CONCAT(key,"/late")
-                  | WHERE selected!="SKIP" | KEEP selected,key,demanded,late),
-                (FROM b | KEEP key) | KEEP selected,key,demanded,late | LIMIT 10
-                """);
-            var stage = (SequenceStage) sequence.children().getFirst();
-            Attribute demanded = stageAttribute(sequence, 0, "demanded");
-            Attribute optional = stageAttribute(sequence, 0, direct ? "selected" : "late");
-            Attribute key = stageAttribute(sequence, 0, "key");
-            List<Long> admissions = new ArrayList<>();
-            var selection = SequenceStageInput.selection(
-                stage,
-                List.of(optional),
-                List.of(new SequenceLatestValidConfig.ValueDemand(demanded), new SequenceLatestValidConfig.ValueDemand(key)),
-                admissions::add,
-                1
-            );
-            assertTrue(admissions.isEmpty());
-            var retention = selection.retention(0);
-            assertEquals(direct, retention.direct());
-            assertEquals(1, admissions.size());
-            assertEquals(direct ? 1 : 0, retention.bindings().size());
-            List<Attribute> output = selection.output(0);
-            List<Attribute> expected = stage.output()
-                .stream()
-                .filter(
-                    attribute -> attribute.id().equals(demanded.id())
-                        || attribute.id().equals(key.id())
-                        || (direct && attribute.id().equals(optional.id()))
-                )
-                .toList();
-            assertEquals(expected, output.subList(0, output.size() - 1));
-            for (Attribute attribute : expected) {
-                assertSame(attribute, output.get(SequenceStageInput.outputChannel(output, attribute, "stage [1]")));
-            }
-            selection.output(0);
-            selection.source(0);
-            assertEquals("one lazy proof per stable branch", 1, admissions.size());
-        }
+    public void testMandatoryAndOutputValuesAreProjectedTogetherAtFirstRead() {
+        Sequence sequence = optimizedPlan("""
+            SEQUENCE BY key WITHIN 30s PRIMARY 1
+            (FROM a | EVAL selected=TO_UPPER(payload),demanded=TO_LOWER(payload),late=CONCAT(key,"/late")
+              | WHERE selected!="SKIP" | KEEP selected,key,demanded,late),
+            (FROM b | KEEP key) | KEEP selected,key,demanded,late | LIMIT 10
+            """);
+        var stage = (SequenceStage) sequence.children().getFirst();
+        Attribute demanded = stageAttribute(sequence, 0, "demanded");
+        Attribute optional = stageAttribute(sequence, 0, "late");
+        Attribute key = stageAttribute(sequence, 0, "key");
+        List<Long> admissions = new ArrayList<>();
+        var selection = SequenceStageInput.selection(
+            stage,
+            List.of(optional),
+            List.of(new SequenceLatestValidConfig.ValueDemand(demanded), new SequenceLatestValidConfig.ValueDemand(key)),
+            admissions::add,
+            1
+        );
+        assertTrue(admissions.isEmpty());
+        assertEquals(List.of(optional), selection.retained(0));
+        assertEquals(1, admissions.size());
+        assertEquals(List.of("key", "demanded", "late"), selection.output(0).subList(0, 3).stream().map(Attribute::name).toList());
+        selection.output(0);
+        selection.source(0);
+        assertEquals("one lazy projection per source branch", 1, admissions.size());
     }
 
     /** An internal demand cannot recover a field removed by a stage's final projection. */
@@ -1961,7 +1724,7 @@ public class SequenceSourceOperatorTests extends ESTestCase {
             List.of(List.of(new SequenceLatestValidConfig.ValueDemand(wrongType)), List.of()),
             List.of()
         );
-        String changed = expectThrows(IllegalStateException.class, () -> new Harness(sequence, null, badType)).getMessage();
+        String changed = expectThrows(IllegalStateException.class, () -> new Harness(sequence, badType)).getMessage();
         assertThat(changed, containsString("SEQUENCE stage [1] output changed type of column [payload#"));
         Sequence removed = plan("""
             SEQUENCE BY key WITHIN 30 seconds PRIMARY 1
@@ -1978,14 +1741,14 @@ public class SequenceSourceOperatorTests extends ESTestCase {
             List.of(List.of(new SequenceLatestValidConfig.ValueDemand(removedPayload)), List.of()),
             List.of()
         );
-        String lost = expectThrows(IllegalStateException.class, () -> new Harness(removed, null, missing)).getMessage();
+        String lost = expectThrows(IllegalStateException.class, () -> new Harness(removed, missing)).getMessage();
         assertThat(lost, containsString("SEQUENCE stage [1] output lost column [payload#"));
     }
 
     /** Long middle-stage streams do not move U beyond the last unused stage-1 timestamp. */
     public void testLatestValidLongMiddleTailKeepsStartBound() {
         Sequence sequence = latestThreeStagePlan();
-        try (var harness = new Harness(sequence, null, latestConfig(sequence))) {
+        try (var harness = new Harness(sequence, latestConfig(sequence))) {
             harness.prepareLatestOpen();
             AtomicInteger middleReads = new AtomicInteger();
             List<List<List<String>>> rows = drainLatest(harness, request -> {
@@ -2017,7 +1780,7 @@ public class SequenceSourceOperatorTests extends ESTestCase {
     /** Used rows retain ring slots/high-water state but cannot keep fetching a middle-stage tail. */
     public void testLatestValidUsedStartMarkersStopReads() {
         Sequence sequence = latestThreeStagePlan();
-        try (var harness = new Harness(sequence, null, latestConfig(sequence))) {
+        try (var harness = new Harness(sequence, latestConfig(sequence))) {
             harness.prepareLatestOpen();
             AtomicInteger middleReads = new AtomicInteger();
             List<List<List<String>>> rows = drainLatest(harness, request -> {
@@ -2046,7 +1809,7 @@ public class SequenceSourceOperatorTests extends ESTestCase {
     /** Buffered stage-1 rows still extend U and keep the reader alive after the first start has been used. */
     public void testLatestValidBufferedStartsSurviveFirstMatch() {
         Sequence sequence = latestThreeStagePlan();
-        try (var harness = new Harness(sequence, null, latestConfig(sequence))) {
+        try (var harness = new Harness(sequence, latestConfig(sequence))) {
             harness.prepareLatestOpen();
             List<List<List<String>>> rows = drainLatest(harness, request -> {
                 String index = request.getPointInTimeAuthorizationScope().indices()[0];
@@ -2074,7 +1837,7 @@ public class SequenceSourceOperatorTests extends ESTestCase {
             (FROM b | EVAL accepted=TO_LOWER(payload) | WHERE accepted=="keep" | KEEP key),
             (FROM c | KEEP key) | KEEP key | LIMIT 10
             """);
-        try (var harness = new Harness(sequence, null, latestConfig(sequence))) {
+        try (var harness = new Harness(sequence, latestConfig(sequence))) {
             harness.prepareLatestOpen();
             AtomicInteger middleReads = new AtomicInteger();
             List<List<List<String>>> rows = drainLatest(harness, request -> {
@@ -2099,8 +1862,8 @@ public class SequenceSourceOperatorTests extends ESTestCase {
         }
     }
 
-    /** Mandatory-only raw inputs join candidate repeatability checks without widening optional replay or KEEP. */
-    public void testLatestValidMandatoryOnlyInputKeepsRepeatabilityGuard() {
+    /** Mandatory-only inputs join the first-read projection without loading unused KEEP values. */
+    public void testMandatoryOnlyInputLoadsItsDemandWithoutUnusedSource() {
         Sequence analyzed = plan("""
             SEQUENCE BY key WITHIN 30 seconds PRIMARY 1
             (FROM a METADATA _source | EVAL captured=TO_LOWER(payload) | RENAME captured AS visible
@@ -2114,8 +1877,8 @@ public class SequenceSourceOperatorTests extends ESTestCase {
         );
         assertEquals(List.of("key"), sequence.sourceAttributes().stream().map(Attribute::name).toList());
         var stage = (SequenceStage) sequence.children().getFirst();
-        var optionalReplay = new SequenceStageInput(stage, sequence.sourceAttributes());
-        assertEquals(List.of("key"), optionalReplay.source(0).output().stream().map(Attribute::name).toList());
+        var optionalOutput = new SequenceStageInput(stage, sequence.sourceAttributes());
+        assertEquals(List.of("key"), optionalOutput.source(0).output().stream().map(Attribute::name).toList());
         var config = SequenceLatestValidConfig.defaults(
             List.of(List.of(new SequenceLatestValidConfig.ValueDemand(stageAttribute(sequence, 0, "visible"))), List.of()),
             List.of(new SequenceLatestValidConfig.PredicateGroup(1, List.of(0), selected -> {
@@ -2123,7 +1886,7 @@ public class SequenceSourceOperatorTests extends ESTestCase {
                 return true;
             }))
         );
-        try (var harness = new Harness(sequence, null, config)) {
+        try (var harness = new Harness(sequence, config)) {
             harness.prepareLatestOpen();
             List<List<List<String>>> rows = drainLatest(harness, request -> {
                 assertEquals("this key-only fixture must not perform payload hydration", 2, request.source().sorts().size());
@@ -2133,10 +1896,10 @@ public class SequenceSourceOperatorTests extends ESTestCase {
                     Strings.toString(request.source().query()),
                     false
                 );
-                assertTrue(query.get(SequenceRepeatabilityQueryBuilder.NAME) instanceof Map<?, ?>);
-                Map<?, ?> guard = (Map<?, ?>) query.get(SequenceRepeatabilityQueryBuilder.NAME);
+                assertTrue(query.get(SequenceSourceQueryBuilder.NAME) instanceof Map<?, ?>);
+                Map<?, ?> guard = (Map<?, ?>) query.get(SequenceSourceQueryBuilder.NAME);
                 List<String> expected = index.equals("a") ? List.of("@timestamp", "key", "payload") : List.of("@timestamp", "key");
-                assertEquals(expected, guard.get("fields"));
+                assertEquals(List.of(index), guard.get("indices"));
                 var projection = (SequenceDocValuesSearchExt) request.source().ext().getFirst();
                 assertEquals(expected, projection.fields().stream().map(field -> field.field).toList());
                 assertFalse("undemanded _source in KEEP must remain pruned", request.source().fetchSource().fetchSource());
@@ -2152,59 +1915,58 @@ public class SequenceSourceOperatorTests extends ESTestCase {
         }
     }
 
-    /** Mandatory cells remain available through direct retention, full replay and optional envelope overflow. */
-    public void testLatestValidMandatoryValuesThroughEvalKeepRenameAndReplay() {
+    /** Mandatory cells and output cells remain independent through EVAL, KEEP and RENAME. */
+    public void testMandatoryAndOutputValuesThroughEvalKeepAndRename() {
         for (boolean direct : List.of(false, true)) {
-            for (Integer capacity : new Integer[] { null, 1 }) {
-                Sequence sequence = optimizedPlan(direct ? """
-                    SEQUENCE BY key WITHIN 30 seconds PRIMARY 1
-                    (FROM a | EVAL captured=TO_LOWER(payload) | RENAME captured AS visible
-                      | WHERE visible!="skip" | KEEP key,visible),
-                    (FROM b | KEEP key) | KEEP key,visible | LIMIT 10
-                    """ : """
-                    SEQUENCE BY key WITHIN 30 seconds PRIMARY 1
-                    (FROM a | EVAL captured=TO_LOWER(payload), late=CONCAT(key,"/late")
-                      | RENAME captured AS visible | WHERE visible!="skip" | KEEP payload,key,visible,late),
-                    (FROM b | KEEP key) | KEEP key,visible,late | LIMIT 10
-                    """);
-                var calls = new AtomicInteger();
-                SequenceLatestValidConfig config = SequenceLatestValidConfig.defaults(
+            Sequence sequence = optimizedPlan(direct ? """
+                SEQUENCE BY key WITHIN 30 seconds PRIMARY 1
+                (FROM a | EVAL captured=TO_LOWER(payload) | RENAME captured AS visible
+                  | WHERE visible!="skip" | KEEP key,visible),
+                (FROM b | KEEP key) | KEEP key,visible | LIMIT 10
+                """ : """
+                SEQUENCE BY key WITHIN 30 seconds PRIMARY 1
+                (FROM a | EVAL captured=TO_LOWER(payload), late=CONCAT(key,"/late")
+                  | RENAME captured AS visible | WHERE visible!="skip" | KEEP payload,key,visible,late),
+                (FROM b | KEEP key) | KEEP key,visible,late | LIMIT 10
+                """);
+            var calls = new AtomicInteger();
+            SequenceLatestValidConfig config = SequenceLatestValidConfig.defaults(
+                List.of(
                     List.of(
-                        List.of(
-                            new SequenceLatestValidConfig.ValueDemand(stageAttribute(sequence, 0, "visible")),
-                            new SequenceLatestValidConfig.ValueDemand(stageAttribute(sequence, 0, "key"))
-                        ),
-                        List.of(new SequenceLatestValidConfig.ValueDemand(stageAttribute(sequence, 1, "key")))
+                        new SequenceLatestValidConfig.ValueDemand(stageAttribute(sequence, 0, "visible")),
+                        new SequenceLatestValidConfig.ValueDemand(stageAttribute(sequence, 0, "key"))
                     ),
-                    List.of(new SequenceLatestValidConfig.PredicateGroup(1, List.of(0), selected -> {
-                        calls.incrementAndGet();
-                        assertEquals(List.of("left"), strings(selected.block(0, 0), 0));
-                        assertEquals(List.of("shared"), strings(selected.block(0, 1), 0));
-                        assertEquals(List.of("shared"), strings(selected.block(1, 0), 0));
-                        return true;
-                    }))
-                );
-                try (var harness = new Harness(sequence, capacity, config)) {
-                    harness.prepareLatestOpen();
-                    List<List<List<String>>> rows = drainLatest(harness, request -> {
-                        String index = request.getPointInTimeAuthorizationScope().indices()[0];
-                        return latestPage(
-                            index,
-                            index.equals("a") ? 0 : 1,
-                            List.of(new LatestRow(index.equals("a") ? 0 : 1, 0, "shared", List.of("LEFT")))
-                        );
-                    });
-                    assertEquals(1, rows.size());
-                    assertTrue(rows.getFirst().contains(List.of("shared")));
-                    assertTrue(rows.getFirst().contains(List.of("left")));
-                    if (direct == false) {
-                        assertTrue(rows.getFirst().contains(List.of("shared/late")));
-                    }
-                    assertTrue(calls.get() > 0);
-                    assertEquals(direct && capacity == null ? 0L : 1L, harness.source.status().payloadSearchRequests());
-                    finishLatest(harness);
+                    List.of(new SequenceLatestValidConfig.ValueDemand(stageAttribute(sequence, 1, "key")))
+                ),
+                List.of(new SequenceLatestValidConfig.PredicateGroup(1, List.of(0), selected -> {
+                    calls.incrementAndGet();
+                    assertEquals(List.of("left"), strings(selected.block(0, 0), 0));
+                    assertEquals(List.of("shared"), strings(selected.block(0, 1), 0));
+                    assertEquals(List.of("shared"), strings(selected.block(1, 0), 0));
+                    return true;
+                }))
+            );
+            try (var harness = new Harness(sequence, config)) {
+                harness.prepareLatestOpen();
+                List<List<List<String>>> rows = drainLatest(harness, request -> {
+                    String index = request.getPointInTimeAuthorizationScope().indices()[0];
+                    return latestPage(
+                        index,
+                        index.equals("a") ? 0 : 1,
+                        List.of(new LatestRow(index.equals("a") ? 0 : 1, 0, "shared", List.of("LEFT")))
+                    );
+                });
+                assertEquals(1, rows.size());
+                assertTrue(rows.getFirst().contains(List.of("shared")));
+                assertTrue(rows.getFirst().contains(List.of("left")));
+                if (direct == false) {
+                    assertTrue(rows.getFirst().contains(List.of("shared/late")));
                 }
+                assertTrue(calls.get() > 0);
+                assertEquals(0L, harness.source.status().payloadSearchRequests());
+                finishLatest(harness);
             }
+
         }
     }
 
@@ -2231,32 +1993,31 @@ public class SequenceSourceOperatorTests extends ESTestCase {
                 return strings(selected.block(0, 0), 0).equals(strings(selected.block(1, 0), 0));
             }))
         );
-        for (Integer capacity : new Integer[] { null, 1 }) {
-            try (var harness = new Harness(sequence, capacity, config)) {
-                harness.prepareLatestOpen();
-                List<List<List<String>>> rows = drainLatest(harness, request -> {
-                    String index = request.getPointInTimeAuthorizationScope().indices()[0];
-                    return latestPage(
-                        index,
-                        index.equals("a") ? 0 : 1,
-                        List.of(new LatestRow(index.equals("a") ? 0 : 1, 0, "shared", List.of("x", "y")))
-                    );
-                });
-                assertEquals(2, rows.size());
-                for (int row = 0; row < rows.size(); row++) {
-                    List<String> expected = List.of(row == 0 ? "x" : "y");
-                    assertEquals(expected, sourceCell(sequence, rows.get(row), 0, "payload"));
-                    assertEquals(expected, sourceCell(sequence, rows.get(row), 1, "payload"));
-                    assertEquals(List.of("first"), sourceCell(sequence, rows.get(row), 0, "branch"));
-                    assertEquals(List.of("event-a-0"), sourceCell(sequence, rows.get(row), 0, "_id"));
-                    assertEquals(List.of("event-b-0"), sourceCell(sequence, rows.get(row), 1, "_id"));
-                }
-                assertEquals(2L, harness.source.status().completedMatches());
-                assertEquals(3L, harness.source.status().candidateSearchRequests());
-                assertEquals(capacity == null ? 0L : 4L, harness.source.status().payloadSearchRequests());
-                finishLatest(harness);
+        try (var harness = new Harness(sequence, config)) {
+            harness.prepareLatestOpen();
+            List<List<List<String>>> rows = drainLatest(harness, request -> {
+                String index = request.getPointInTimeAuthorizationScope().indices()[0];
+                return latestPage(
+                    index,
+                    index.equals("a") ? 0 : 1,
+                    List.of(new LatestRow(index.equals("a") ? 0 : 1, 0, "shared", List.of("x", "y")))
+                );
+            });
+            assertEquals(2, rows.size());
+            for (int row = 0; row < rows.size(); row++) {
+                List<String> expected = List.of(row == 0 ? "x" : "y");
+                assertEquals(expected, sourceCell(sequence, rows.get(row), 0, "payload"));
+                assertEquals(expected, sourceCell(sequence, rows.get(row), 1, "payload"));
+                assertEquals(List.of("first"), sourceCell(sequence, rows.get(row), 0, "branch"));
+                assertEquals(List.of("event-a-0"), sourceCell(sequence, rows.get(row), 0, "_id"));
+                assertEquals(List.of("event-b-0"), sourceCell(sequence, rows.get(row), 1, "_id"));
             }
+            assertEquals(2L, harness.source.status().completedMatches());
+            assertEquals(3L, harness.source.status().candidateSearchRequests());
+            assertEquals(0L, harness.source.status().payloadSearchRequests());
+            finishLatest(harness);
         }
+
     }
 
     /** Predicate failure and cancellation release transferred values and all unconsumed buffered owners. */
@@ -2276,7 +2037,7 @@ public class SequenceSourceOperatorTests extends ESTestCase {
                     throw new IllegalStateException("controlled mandatory predicate failure");
                 }))
             );
-            try (var harness = new Harness(sequence, null, config)) {
+            try (var harness = new Harness(sequence, config)) {
                 harness.prepareLatestOpen();
                 RuntimeException failure = expectThrows(RuntimeException.class, () -> drainLatest(harness, request -> {
                     String index = request.getPointInTimeAuthorizationScope().indices()[0];
@@ -2298,6 +2059,39 @@ public class SequenceSourceOperatorTests extends ESTestCase {
         }
     }
 
+    /** First-read output capture must release its producing page when copying the retained cell trips the breaker. */
+    public void testE5RetainedOutputCopyBreakerFailureReleasesStagePage() {
+        Sequence sequence = optimizedPlan("""
+            SEQUENCE BY key WITHIN 30 seconds PRIMARY 1
+            (FROM a | KEEP key,payload), (FROM b | KEEP key) | KEEP key,payload | LIMIT 1
+            """);
+        var config = SequenceLatestValidConfig.defaults(List.of(List.of(), List.of()), List.of());
+        try (var harness = new Harness(sequence, config)) {
+            harness.prepareLatestOpen();
+            assertNull(harness.source.getOutput());
+            var pending = harness.client.take(TransportSearchAction.TYPE);
+            deliverLatest(pending, latestPage("a", 0, List.of(new LatestRow(0, 0, "shared", List.of("x".repeat(65_536))))));
+            assertNull(harness.source.getOutput());
+            assertEquals(1, harness.stageExecutions);
+            long limit = harness.breaker.getLimit();
+            harness.breaker.setLimitAndOverhead(harness.breaker.getUsed() + 4096, 1);
+            try {
+                CircuitBreakingException failure = expectThrows(CircuitBreakingException.class, harness.source::getOutput);
+                assertTrue(
+                    "failure must reach retained output capture",
+                    java.util.Arrays.stream(failure.getStackTrace())
+                        .anyMatch(
+                            frame -> frame.getClassName().equals(SequenceSourceOperator.class.getName())
+                                && frame.getMethodName().equals("handle")
+                        )
+                );
+            } finally {
+                harness.breaker.setLimitAndOverhead(limit, 1);
+            }
+            finishLatest(harness);
+        }
+    }
+
     /** Mandatory block admission can fail while its producing page still belongs to the stage completion. */
     public void testLatestValidMandatoryCopyBreakerFailureReleasesStagePage() {
         Sequence sequence = optimizedPlan("""
@@ -2308,7 +2102,7 @@ public class SequenceSourceOperatorTests extends ESTestCase {
             List.of(List.of(new SequenceLatestValidConfig.ValueDemand(stageAttribute(sequence, 0, "payload"))), List.of()),
             List.of()
         );
-        try (var harness = new Harness(sequence, null, config)) {
+        try (var harness = new Harness(sequence, config)) {
             harness.prepareLatestOpen();
             assertNull(harness.source.getOutput());
             var pending = harness.client.take(TransportSearchAction.TYPE);
@@ -2332,57 +2126,8 @@ public class SequenceSourceOperatorTests extends ESTestCase {
         }
     }
 
-    /** A pending full replay keeps its own cells alive after source close also closes the matcher. */
-    public void testLatestValidDeferredReplayAfterMatcherCloseReleasesMandatoryValues() {
-        Sequence sequence = optimizedPlan("""
-            SEQUENCE BY key WITHIN 30 seconds PRIMARY 1
-            (FROM a | EVAL visible=TO_LOWER(payload), late=CONCAT(key,"/late") | KEEP key,visible,late),
-            (FROM b | KEEP key) | KEEP key,visible,late | LIMIT 1
-            """);
-        var config = SequenceLatestValidConfig.defaults(
-            List.of(List.of(new SequenceLatestValidConfig.ValueDemand(stageAttribute(sequence, 0, "visible"))), List.of()),
-            List.of()
-        );
-        for (boolean failed : List.of(false, true)) {
-            try (var harness = new Harness(sequence, 1, config)) {
-                harness.deferStage = 3;
-                harness.prepareLatestOpen();
-                for (int attempt = 0; attempt < 30 && harness.deferredStage == null; attempt++) {
-                    assertNull(harness.source.getOutput());
-                    if (harness.client.pending.isEmpty() == false) {
-                        var pending = harness.client.take(TransportSearchAction.TYPE);
-                        var request = (SearchRequest) pending.request;
-                        String index = request.getPointInTimeAuthorizationScope().indices()[0];
-                        deliverLatest(
-                            pending,
-                            latestPage(
-                                index,
-                                index.equals("a") ? 0 : 1,
-                                List.of(new LatestRow(index.equals("a") ? 0 : 1, 0, "shared", List.of("LEFT")))
-                            )
-                        );
-                    }
-                }
-                assertNotNull(harness.deferredStage);
-                assertEquals(1L, harness.source.status().completedMatches());
-                harness.finishDriver();
-                assertFalse(harness.done.isDone());
-                assertTrue(harness.breaker.getUsed() > 0);
-                ActionListener<Void> terminal = harness.deferredStage;
-                harness.deferredStage = null;
-                if (failed) {
-                    terminal.onFailure(new TaskCancelledException("closed latest-valid replay"));
-                } else {
-                    terminal.onResponse(null);
-                }
-                harness.client.take(TransportClosePointInTimeAction.TYPE).listener.onResponse(new ClosePointInTimeResponse(true, 3));
-                harness.assertFinished();
-            }
-        }
-    }
-
-    /** A later merged row expires old markers before the second batch reconstructs their selected payload. */
-    public void testLatestValidLatePayloadReplaySurvivesUsedRecordExpiry() {
+    /** Captured output stays available after a later merged row expires the corresponding matcher record. */
+    public void testCapturedOutputSurvivesUsedRecordExpiry() {
         Sequence sequence = optimizedPlan("""
             SEQUENCE BY key WITHIN 10 seconds PRIMARY 1
             (FROM a | EVAL visible=TO_LOWER(payload), late=CONCAT(key,"/late") | KEEP key,visible,late),
@@ -2395,17 +2140,11 @@ public class SequenceSourceOperatorTests extends ESTestCase {
                 return true;
             }))
         );
-        try (var harness = new Harness(sequence, 1, config)) {
+        try (var harness = new Harness(sequence, config)) {
             harness.prepareLatestOpen();
-            AtomicInteger payloadReads = new AtomicInteger();
             List<List<List<String>>> rows = drainLatest(harness, request -> {
                 String index = request.getPointInTimeAuthorizationScope().indices()[0];
-                if (request.source().sorts().size() == 1) {
-                    int doc = payloadReads.getAndIncrement();
-                    assertTrue(doc < 2);
-                    assertEquals(doc + 1, harness.source.status().completedMatches());
-                    return latestPage("a", 0, List.of(new LatestRow(doc * 10L, doc, "shared", List.of("VALUE"))));
-                }
+                assertEquals(2, request.source().sorts().size());
                 return switch (index) {
                     case "a" -> latestPage(
                         "a",
@@ -2434,7 +2173,7 @@ public class SequenceSourceOperatorTests extends ESTestCase {
                 };
             });
             assertEquals(2, rows.size());
-            assertEquals(2, payloadReads.get());
+            assertEquals(0L, harness.source.status().payloadSearchRequests());
             for (List<List<String>> row : rows) {
                 assertEquals(List.of("value"), sourceCell(sequence, row, 0, "visible"));
                 assertEquals(List.of("shared/late"), sourceCell(sequence, row, 0, "late"));
@@ -2443,12 +2182,12 @@ public class SequenceSourceOperatorTests extends ESTestCase {
         }
     }
 
-    /** Factory equality and description still use exactly the original nine record components. */
+    /** Factory equality includes the captured per-query budget, while the source description remains stable. */
     public void testLatestValidFactorySelectionPreservesDefaultRecordContract() {
         Sequence sequence = latestThreeStagePlan();
-        try (var harness = new Harness(sequence, null, latestConfig(sequence))) {
+        try (var harness = new Harness(sequence, latestConfig(sequence))) {
             var factory = harness.operatorFactory;
-            assertEquals(9, SequenceSourceOperator.Factory.class.getRecordComponents().length);
+            assertEquals(10, SequenceSourceOperator.Factory.class.getRecordComponents().length);
             var copy = new SequenceSourceOperator.Factory(
                 factory.plan(),
                 factory.client(),
@@ -2479,7 +2218,7 @@ public class SequenceSourceOperatorTests extends ESTestCase {
     }
 
     /** Own WHERE values stay private while MEMBER continues to name the earlier stage's final processed output. */
-    public void testCompiledConditionsKeepOwnValuesThroughTrailingProjectionsAndReplay() {
+    public void testCompiledConditionsKeepOwnValuesThroughTrailingProjections() {
         for (String projection : List.of("KEEP key,payload", "DROP own", "RENAME own AS renamed | KEEP key,renamed")) {
             String exported = projection.startsWith("RENAME") ? "renamed" : "payload";
             Sequence sequence = optimizedPlan("""
@@ -2491,31 +2230,30 @@ public class SequenceSourceOperatorTests extends ESTestCase {
                 """.formatted(projection, exported));
             assertTrue(sequence.hasConditions());
             assertFalse(sequence.children().get(1).output().stream().anyMatch(attribute -> attribute.name().equals("own")));
-            for (Integer capacity : new Integer[] { null, 1 }) {
-                try (var harness = new Harness(sequence, capacity)) {
-                    harness.prepareLatestOpen();
-                    List<List<List<String>>> rows = drainLatest(harness, request -> {
-                        String index = request.getPointInTimeAuthorizationScope().indices()[0];
-                        return latestPage(
-                            index,
-                            index.equals("a") ? 0 : 1,
-                            List.of(
-                                new LatestRow(
-                                    index.equals("a") ? 0 : 1,
-                                    0,
-                                    "shared",
-                                    index.equals("a") ? List.of("LEFT") : List.of("right", "LEFT")
-                                )
+            try (var harness = new Harness(sequence)) {
+                harness.prepareLatestOpen();
+                List<List<List<String>>> rows = drainLatest(harness, request -> {
+                    String index = request.getPointInTimeAuthorizationScope().indices()[0];
+                    return latestPage(
+                        index,
+                        index.equals("a") ? 0 : 1,
+                        List.of(
+                            new LatestRow(
+                                index.equals("a") ? 0 : 1,
+                                0,
+                                "shared",
+                                index.equals("a") ? List.of("LEFT") : List.of("right", "LEFT")
                             )
-                        );
-                    });
-                    assertEquals(1, rows.size());
-                    assertEquals(List.of("left"), sourceCell(sequence, rows.getFirst(), 0, "artifact"));
-                    assertEquals(List.of(exported.equals("renamed") ? "left" : "LEFT"), sourceCell(sequence, rows.getFirst(), 1, exported));
-                    assertEquals(capacity == null, harness.source.status().payloadSearchRequests() == 0);
-                    finishLatest(harness);
-                }
+                        )
+                    );
+                });
+                assertEquals(1, rows.size());
+                assertEquals(List.of("left"), sourceCell(sequence, rows.getFirst(), 0, "artifact"));
+                assertEquals(List.of(exported.equals("renamed") ? "left" : "LEFT"), sourceCell(sequence, rows.getFirst(), 1, exported));
+                assertEquals(0L, harness.source.status().payloadSearchRequests());
+                finishLatest(harness);
             }
+
         }
     }
 
@@ -2528,7 +2266,7 @@ public class SequenceSourceOperatorTests extends ESTestCase {
               | WHERE own == MEMBER(1,artifact) | DROP own | RENAME published AS own | KEEP key,own)
             | EVAL observed=MEMBER(2,own) | KEEP key,artifact,observed | LIMIT 10
             """);
-        try (var harness = new Harness(sequence, null)) {
+        try (var harness = new Harness(sequence)) {
             harness.prepareLatestOpen();
             List<List<List<String>>> rows = drainLatest(harness, request -> {
                 String index = request.getPointInTimeAuthorizationScope().indices()[0];
@@ -2563,18 +2301,11 @@ public class SequenceSourceOperatorTests extends ESTestCase {
                 expectThrows(IllegalArgumentException.class, () -> harness.operatorFactory.get(harness.context, config));
                 expectThrows(
                     IllegalArgumentException.class,
-                    () -> new SequenceSourceOperator(harness.operatorFactory, harness.context, TimeValue.timeValueMinutes(2), 1, config)
+                    () -> new SequenceSourceOperator(harness.operatorFactory, harness.context, TimeValue.timeValueMinutes(2), config, null)
                 );
                 expectThrows(
                     IllegalArgumentException.class,
-                    () -> new SequenceSourceOperator(
-                        harness.operatorFactory,
-                        harness.context,
-                        TimeValue.timeValueMinutes(2),
-                        1,
-                        config,
-                        null
-                    )
+                    () -> new SequenceSourceOperator(harness.operatorFactory, harness.context, TimeValue.timeValueMinutes(2), config, null)
                 );
                 assertEquals(before, harness.breaker.getUsed());
                 assertTrue(harness.client.pending.isEmpty());
@@ -2631,7 +2362,6 @@ public class SequenceSourceOperatorTests extends ESTestCase {
                         harness.operatorFactory,
                         harness.context,
                         TimeValue.timeValueMinutes(2),
-                        1,
                         config,
                         cleanup
                     )
@@ -2663,7 +2393,6 @@ public class SequenceSourceOperatorTests extends ESTestCase {
                     harness.operatorFactory,
                     harness.context,
                     TimeValue.timeValueMinutes(2),
-                    1,
                     latestConfig(harness.sequence),
                     () -> {
                         closes.incrementAndGet();
@@ -2699,7 +2428,6 @@ public class SequenceSourceOperatorTests extends ESTestCase {
                     harness.operatorFactory,
                     harness.context,
                     TimeValue.timeValueMinutes(2),
-                    1,
                     latestConfig(harness.sequence),
                     () -> {
                         throw primary;
@@ -2733,7 +2461,7 @@ public class SequenceSourceOperatorTests extends ESTestCase {
             """);
         var config = SequenceLatestValidConfig.bounded(1, latestConfig(sequence).mandatoryDemands(), List.of());
         for (var mode : DriverContext.WarningsMode.values()) {
-            try (var harness = new Harness(true, null, null, sequence, null, null, config, false, mode)) {
+            try (var harness = new Harness(true, null, null, sequence, null, config, false, mode)) {
                 harness.prepareLatestOpen();
                 for (int attempt = 0; attempt < 100
                     && harness.source.status().latestValidCounters().candidatesDroppedAtBound() == 0; attempt++) {
@@ -2785,7 +2513,7 @@ public class SequenceSourceOperatorTests extends ESTestCase {
             (FROM f | WHERE TO_LONG(payload) == TO_LONG(MEMBER(1,payload)) | KEEP key)
             | KEEP key,payload | LIMIT 10
             """);
-        try (var harness = new Harness(sequence, null)) {
+        try (var harness = new Harness(sequence)) {
             harness.prepareLatestOpen();
             List<List<List<String>>> result = drainLatest(harness, request -> {
                 assertTrue("summaries and condition warnings wait for terminal closure", harness.observedWarnings.isEmpty());
@@ -2837,7 +2565,7 @@ public class SequenceSourceOperatorTests extends ESTestCase {
             SEQUENCE BY key WITHIN 30 seconds PRIMARY 1 (FROM a | KEEP key),(FROM b | KEEP key)
             | KEEP key | LIMIT 10
             """);
-        try (var harness = new Harness(sequence, null)) {
+        try (var harness = new Harness(sequence)) {
             harness.prepareLatestOpen();
             List<List<List<String>>> rows = drainLatest(harness, request -> {
                 String index = request.getPointInTimeAuthorizationScope().indices()[0];
@@ -3049,7 +2777,7 @@ public class SequenceSourceOperatorTests extends ESTestCase {
         SearchHit hit = SearchHit.unpooled(0, "event-" + index);
         hit.shard(new SearchShardTarget("node", new ShardId(index, index + "-uuid", 0), null));
         hit.setDocumentField(new DocumentField("key", List.of(new BytesRef("shared"))));
-        hit.setDocumentField(new DocumentField("@timestamp", List.of(java.time.Instant.parse(timestamp).toEpochMilli())));
+        hit.setDocumentField(new DocumentField("@timestamp", List.of(timestamp)));
         Object[] sort = { timestamp, ShardDocSortField.encodeShardAndDoc(stage, 0) };
         Object[] raw = { java.time.Instant.parse(timestamp).toEpochMilli(), sort[1] };
         hit.sortValues(SearchSortValues.fromFormattedAndRaw(sort, raw));
@@ -3086,7 +2814,7 @@ public class SequenceSourceOperatorTests extends ESTestCase {
             SearchHit hit = SearchHit.unpooled(doc, "event-" + index + "-" + doc);
             hit.shard(new SearchShardTarget("node", new ShardId(index, index + "-uuid", 0), null));
             hit.setDocumentField(new DocumentField("key", List.of(new BytesRef(key))));
-            hit.setDocumentField(new DocumentField("@timestamp", List.of(timestamp.toEpochMilli())));
+            hit.setDocumentField(new DocumentField("@timestamp", List.of(timestamp.toString())));
             Object[] sort = { timestamp.toString(), ShardDocSortField.encodeShardAndDoc(stage, doc) };
             Object[] raw = { timestamp.toEpochMilli(), sort[1] };
             hit.sortValues(SearchSortValues.fromFormattedAndRaw(sort, raw));
@@ -3146,7 +2874,7 @@ public class SequenceSourceOperatorTests extends ESTestCase {
             if (identity) {
                 sort = new Object[] { shardDoc };
             } else {
-                hit.setDocumentField(new DocumentField("@timestamp", List.of(timestamp.toEpochMilli())));
+                hit.setDocumentField(new DocumentField("@timestamp", List.of(timestamp.toString())));
                 sort = new Object[] { timestamp.toString(), shardDoc };
             }
             Object[] raw = identity ? sort : new Object[] { timestamp.toEpochMilli(), shardDoc };
@@ -3184,12 +2912,12 @@ public class SequenceSourceOperatorTests extends ESTestCase {
         return new SearchShardsResponse(groups, 0, List.of(), Map.of());
     }
 
-    /** Lifecycle tests deliberately demand one output-only computation to keep the full-replay path covered. */
-    private static Sequence replayPlan() {
+    /** Lifecycle tests demand a computed output cell so capture and terminal cleanup both own real values. */
+    private static Sequence computedOutputPlan() {
         return plan("""
             sequence by key WITHIN 30 seconds PRIMARY 1
-            (from a | eval replay_payload=CONCAT(key,"/replay") | keep key,replay_payload), (from b | keep key)
-            | keep key,replay_payload | limit 1
+            (from a | eval captured_payload=CONCAT(key,"/captured") | keep key,captured_payload), (from b | keep key)
+            | keep key,captured_payload | limit 1
             """);
     }
 
@@ -3263,7 +2991,7 @@ public class SequenceSourceOperatorTests extends ESTestCase {
         }
 
         private Harness(boolean realStages, boolean profile) {
-            this(realStages, null, null, null, null, null, null, false, DriverContext.WarningsMode.COLLECT, profile);
+            this(realStages, null, null, null, null, null, false, DriverContext.WarningsMode.COLLECT, profile);
         }
 
         private Harness(boolean realStages, DeterministicTaskQueue queue) {
@@ -3274,18 +3002,26 @@ public class SequenceSourceOperatorTests extends ESTestCase {
             this(realStages, queue, executionInfo, null);
         }
 
-        private Harness(boolean realStages, DeterministicTaskQueue queue, EsqlExecutionInfo executionInfo, Sequence suppliedSequence) {
-            this(realStages, queue, executionInfo, suppliedSequence, null);
+        private Harness(boolean realStages, DeterministicTaskQueue queue, EsqlExecutionInfo executionInfo, Sequence sequence) {
+            this(realStages, queue, executionInfo, sequence, null);
         }
 
         private Harness(
             boolean realStages,
             DeterministicTaskQueue queue,
             EsqlExecutionInfo executionInfo,
-            Sequence suppliedSequence,
-            Integer retainedHandleCapacity
+            Sequence sequence,
+            QueryBuilder filter
         ) {
-            this(realStages, queue, executionInfo, suppliedSequence, retainedHandleCapacity, null);
+            this(realStages, queue, executionInfo, sequence, filter, null, false, DriverContext.WarningsMode.COLLECT, false);
+        }
+
+        private Harness(Sequence sequence, SequenceLatestValidConfig config) {
+            this(true, null, null, sequence, null, config, false, DriverContext.WarningsMode.COLLECT, false);
+        }
+
+        private Harness(Sequence sequence) {
+            this(true, null, null, sequence, null, null, true, DriverContext.WarningsMode.COLLECT, false);
         }
 
         private Harness(
@@ -3293,77 +3029,36 @@ public class SequenceSourceOperatorTests extends ESTestCase {
             DeterministicTaskQueue queue,
             EsqlExecutionInfo executionInfo,
             Sequence suppliedSequence,
-            Integer retainedHandleCapacity,
-            QueryBuilder requestFilter
-        ) {
-            this(realStages, queue, executionInfo, suppliedSequence, retainedHandleCapacity, requestFilter, null);
-        }
-
-        private Harness(Sequence sequence, Integer retainedHandleCapacity, SequenceLatestValidConfig latestValid) {
-            this(true, null, null, sequence, retainedHandleCapacity, null, latestValid);
-        }
-
-        private Harness(Sequence sequence, Integer retainedHandleCapacity) {
-            this(true, null, null, sequence, retainedHandleCapacity, null, null, true);
-        }
-
-        private Harness(
-            boolean realStages,
-            DeterministicTaskQueue queue,
-            EsqlExecutionInfo executionInfo,
-            Sequence suppliedSequence,
-            Integer retainedHandleCapacity,
-            QueryBuilder requestFilter,
-            SequenceLatestValidConfig latestValid
-        ) {
-            this(realStages, queue, executionInfo, suppliedSequence, retainedHandleCapacity, requestFilter, latestValid, false);
-        }
-
-        private Harness(
-            boolean realStages,
-            DeterministicTaskQueue queue,
-            EsqlExecutionInfo executionInfo,
-            Sequence suppliedSequence,
-            Integer retainedHandleCapacity,
-            QueryBuilder requestFilter,
-            SequenceLatestValidConfig latestValid,
-            boolean compileConditions
-        ) {
-            this(
-                realStages,
-                queue,
-                executionInfo,
-                suppliedSequence,
-                retainedHandleCapacity,
-                requestFilter,
-                latestValid,
-                compileConditions,
-                DriverContext.WarningsMode.COLLECT
-            );
-        }
-
-        private Harness(
-            boolean realStages,
-            DeterministicTaskQueue queue,
-            EsqlExecutionInfo executionInfo,
-            Sequence suppliedSequence,
-            Integer retainedHandleCapacity,
             QueryBuilder requestFilter,
             SequenceLatestValidConfig latestValid,
             boolean compileConditions,
             DriverContext.WarningsMode warningsMode
         ) {
+            this(realStages, queue, executionInfo, suppliedSequence, requestFilter, latestValid, compileConditions, warningsMode, false);
+        }
+
+        private Harness(
+            boolean realStages,
+            DeterministicTaskQueue queue,
+            EsqlExecutionInfo executionInfo,
+            Sequence suppliedSequence,
+            QueryBuilder requestFilter,
+            SequenceLatestValidConfig latestValid,
+            boolean compileConditions,
+            DriverContext.WarningsMode warningsMode,
+            boolean profile
+        ) {
             this(
                 realStages,
                 queue,
                 executionInfo,
                 suppliedSequence,
-                retainedHandleCapacity,
                 requestFilter,
                 latestValid,
                 compileConditions,
                 warningsMode,
-                false
+                profile,
+                org.elasticsearch.xpack.esql.planner.PlannerSettings.SEQUENCE_MAX_MEMORY.getDefault(Settings.EMPTY).getBytes()
             );
         }
 
@@ -3372,12 +3067,12 @@ public class SequenceSourceOperatorTests extends ESTestCase {
             DeterministicTaskQueue queue,
             EsqlExecutionInfo executionInfo,
             Sequence suppliedSequence,
-            Integer retainedHandleCapacity,
             QueryBuilder requestFilter,
             SequenceLatestValidConfig latestValid,
             boolean compileConditions,
             DriverContext.WarningsMode warningsMode,
-            boolean profile
+            boolean profile,
+            long memoryLimit
         ) {
             realThreadPool = queue == null ? new TestThreadPool("sequence-callbacks") : null;
             threadPool = queue == null ? realThreadPool : queue.getThreadPool();
@@ -3408,7 +3103,7 @@ public class SequenceSourceOperatorTests extends ESTestCase {
                     return added;
                 }
             };
-            sequence = suppliedSequence == null ? replayPlan() : suppliedSequence;
+            sequence = suppliedSequence == null ? computedOutputPlan() : suppliedSequence;
             try (var ignored = threadPool.getThreadContext().stashContext()) {
                 threadPool.getThreadContext().putHeader("sequence-test-caller", "owner");
                 operatorFactory = new SequenceSourceOperator.Factory(
@@ -3430,47 +3125,13 @@ public class SequenceSourceOperatorTests extends ESTestCase {
                         executeStage(drivers, listener);
                     },
                     threadPool.getThreadContext().newRestorableContext(true),
-                    executionInfo
+                    executionInfo,
+                    memoryLimit
                 );
-                if (compileConditions) {
-                    if (retainedHandleCapacity == null) {
-                        source = (SequenceSourceOperator) operatorFactory.getWithConditions(
-                            context,
-                            sequence.children().size() == 6 ? 16 : 8,
-                            null
-                        );
-                    } else {
-                        var conditions = SequenceConditionCompiler.compile(sequence, 8, FoldContext.small(), context, null);
-                        boolean success = false;
-                        try {
-                            source = new SequenceSourceOperator(
-                                operatorFactory,
-                                context,
-                                TimeValue.timeValueMinutes(2),
-                                retainedHandleCapacity,
-                                conditions.config(),
-                                conditions
-                            );
-                            success = true;
-                        } finally {
-                            if (success == false) {
-                                conditions.close();
-                            }
-                        }
-                    }
-                } else {
-                    source = retainedHandleCapacity == null
-                        ? (SequenceSourceOperator) (latestValid == null
-                            ? operatorFactory.get(context)
-                            : operatorFactory.get(context, latestValid))
-                        : new SequenceSourceOperator(
-                            operatorFactory,
-                            context,
-                            TimeValue.timeValueMinutes(2),
-                            retainedHandleCapacity,
-                            latestValid
-                        );
-                }
+                source = (SequenceSourceOperator) (compileConditions
+                    ? operatorFactory.getWithConditions(context, sequence.children().size() == 6 ? 16 : 8, null)
+                    : latestValid == null ? operatorFactory.get(context)
+                    : operatorFactory.get(context, latestValid));
             } catch (RuntimeException | Error e) {
                 context.finish();
                 assertEquals("failed construction must release matcher and projection ownership", 0, breaker.getUsed());
@@ -3609,17 +3270,15 @@ public class SequenceSourceOperatorTests extends ESTestCase {
             }
         }
 
-        private Pending<SearchResponse> preparePayloadSearch() {
+        private void prepareCompletedStages() {
             prepareOpen().listener.onResponse(openResponse());
             for (int stage = 0; stage < 2; stage++) {
                 assertNull(source.getOutput());
                 respond(client.take(TransportSearchAction.TYPE), stage);
                 assertNull(source.getOutput());
-                assertTrue("a synchronous stage completion must be consumed before another search", client.pending.isEmpty());
+                assertTrue("synchronous completion is consumed before dispatch", client.pending.isEmpty());
             }
-            assertNull(source.getOutput());
             assertEquals(2, stageExecutions);
-            return client.take(TransportSearchAction.TYPE);
         }
 
         private Pending<OpenPointInTimeResponse> prepareOpen() {

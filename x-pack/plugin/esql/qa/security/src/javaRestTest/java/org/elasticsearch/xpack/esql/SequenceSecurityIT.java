@@ -83,62 +83,107 @@ public class SequenceSecurityIT extends ESRestTestCase {
         return assertOK(client().performRequest(request));
     }
 
-    /** The existing default-distribution fixture verifies real Painless determinism declarations and HTTP error delivery. */
-    public void testSequenceRepeatabilityWithPainless() throws Exception {
+    /** First-read demands admit real Painless scripts; samples have types and ranges, not a cross-request repeatability promise. */
+    public void testFirstReadAcceptsNondeterministicAndCompositePainlessFields() throws Exception {
         createSequenceSecurityEvents(true);
         Request mappings = new Request("PUT", "sequence-security-events/_mapping");
         mappings.setJsonEntity("""
             {"runtime":{
               "stable":{"type":"long","script":{"source":"emit(1L)"}},
-              "unstable":{"type":"long","script":{"source":"emit((long)(Math.random()*1000000))"}}
+              "unstable":{"type":"long","script":{"source":"emit((long)(Math.random()*1000000))"}},
+              "unstable_key":{"type":"long","script":{"source":"emit(Math.random()<1.0 ? 1L : 2L)"}},
+              "composite":{"type":"composite",
+                "script":{"source":"emit('key',1L); emit('number',doc['number'].value); emit('label',doc['payload'].value)"},
+                "fields":{"key":{"type":"long"},"number":{"type":"long"},"label":{"type":"keyword"}}},
+              "undemanded":{"type":"long","script":{"source":"throw new IllegalStateException('undemanded runtime field executed')"}}
             }}
             """);
         assertOK(adminClient().performRequest(mappings));
 
         Map<String, Object> ordinary = entityAsMap(runESQLCommand("test-admin", "FROM sequence-security-events | KEEP unstable | LIMIT 1"));
-        assertEquals(1, requireType(List.class, ordinary.get("values")).size());
-        String stages = """
-            SEQUENCE BY %s WITHIN 30s PRIMARY 1
+        List<?> ordinaryRows = requireType(List.class, ordinary.get("values"));
+        assertEquals(1, ordinaryRows.size());
+        long ordinarySample = requireType(Number.class, requireType(List.class, ordinaryRows.getFirst()).getFirst()).longValue();
+        assertTrue(ordinarySample >= 0 && ordinarySample < 1000000);
+        assertEquals("long", requireType(Map.class, requireType(List.class, ordinary.get("columns")).getFirst()).get("type"));
+        String stableQuery = """
+            SEQUENCE BY stable WITHIN 30s PRIMARY 1
             (FROM sequence-security-events | WHERE phase=="A" AND tenant=="allowed"),
             (FROM sequence-security-events | WHERE phase=="B" AND tenant=="allowed")
             | EVAL member2_payload = MEMBER(2, payload)
-            | KEEP %s, payload, member2_payload | LIMIT 10
+            | KEEP stable, payload, member2_payload | LIMIT 10
             """;
-        String stableQuery = stages.formatted("stable", "stable");
         Map<String, Object> stable = entityAsMap(runESQLCommand("test-admin", stableQuery));
         assertEquals(List.of(List.of(1, "visible-A", "visible-B")), stable.get("values"));
 
-        ResponseException runtime = expectThrows(
-            ResponseException.class,
-            () -> runESQLCommand("test-admin", stages.formatted("unstable", "unstable"))
-        );
-        assertEquals(HttpStatus.SC_BAD_REQUEST, runtime.getResponse().getStatusLine().getStatusCode());
-        String runtimeError = EntityUtils.toString(runtime.getResponse().getEntity());
-        assertThat(runtimeError, containsString("requires repeatable evaluation"));
-        assertThat(runtimeError, containsString("nondeterministic runtime field [unstable]"));
-
-        Request requestFilter = new Request("POST", "_query");
-        requestFilter.setOptions(runAsUserOptions("test-admin"));
-        requestFilter.setJsonEntity(
-            Strings.toString(
-                JsonXContent.contentBuilder()
-                    .startObject()
-                    .field("query", stableQuery)
-                    .field("filter", Map.of("script", Map.of("script", Map.of("source", "Math.random()<1.0"))))
-                    .endObject()
-            )
-        );
-        ResponseException filter = expectThrows(ResponseException.class, () -> client().performRequest(requestFilter));
-        assertEquals(HttpStatus.SC_BAD_REQUEST, filter.getResponse().getStatusLine().getStatusCode());
-        String filterError = EntityUtils.toString(filter.getResponse().getEntity());
-        assertThat(filterError, containsString("requires repeatable evaluation"));
-        assertThat(filterError, containsString("nondeterministic script"));
+        // Math.random is declared nondeterministic even when its range gives this key a known result.
+        // Actual samples are checked independently in each response; no values are compared across requests.
+        for (String key : List.of("unstable_key", "composite.key")) {
+            String query = """
+                SEQUENCE BY %s WITHIN 30s PRIMARY 1
+                (FROM sequence-security-events METADATA _id | WHERE phase=="A" AND tenant=="allowed"),
+                (FROM sequence-security-events METADATA _id | WHERE phase=="B" AND tenant=="allowed")
+                | EVAL selected_key=%s, other_id=MEMBER(2,_id), other_payload=MEMBER(2,payload),
+                  other_number=MEMBER(2,composite.number), other_label=MEMBER(2,composite.label), other_sample=MEMBER(2,unstable)
+                | KEEP selected_key,_id,payload,composite.number,composite.label,other_id,other_payload,
+                       other_number,other_label,unstable,other_sample | LIMIT 10
+                """.formatted(key, key);
+            for (boolean filtered : List.of(false, true)) {
+                Request request = new Request("POST", "_query");
+                request.setOptions(runAsUserOptions("test-admin"));
+                var body = JsonXContent.contentBuilder().startObject().field("query", query).field("profile", true);
+                if (filtered) {
+                    body.field("filter", Map.of("script", Map.of("script", Map.of("source", "Math.random()<1.0"))));
+                }
+                request.setJsonEntity(Strings.toString(body.endObject()));
+                Map<String, Object> result = entityAsMap(assertOK(client().performRequest(request)));
+                assertEquals(Boolean.FALSE, result.get("is_partial"));
+                List<?> columns = requireType(List.class, result.get("columns"));
+                assertEquals(
+                    List.of(
+                        "selected_key",
+                        "_id",
+                        "payload",
+                        "composite.number",
+                        "composite.label",
+                        "other_id",
+                        "other_payload",
+                        "other_number",
+                        "other_label",
+                        "unstable",
+                        "other_sample"
+                    ),
+                    columns.stream().map(column -> requireType(Map.class, column).get("name")).toList()
+                );
+                assertEquals(
+                    List.of("long", "keyword", "keyword", "long", "keyword", "keyword", "keyword", "long", "keyword", "long", "long"),
+                    columns.stream().map(column -> requireType(Map.class, column).get("type")).toList()
+                );
+                List<?> rows = requireType(List.class, result.get("values"));
+                assertEquals(1, rows.size());
+                List<?> row = requireType(List.class, rows.getFirst());
+                assertEquals(11, row.size());
+                assertEquals(1L, requireType(Number.class, row.get(0)).longValue());
+                assertEquals(List.of("visible-A", "visible-A"), row.subList(1, 3));
+                assertEquals(9007199254740993L, requireType(Number.class, row.get(3)).longValue());
+                assertEquals("visible-A", row.get(4));
+                assertEquals(List.of("visible-B", "visible-B"), row.subList(5, 7));
+                assertEquals(8L, requireType(Number.class, row.get(7)).longValue());
+                assertEquals("visible-B", row.get(8));
+                for (Object value : row.subList(9, 11)) {
+                    long sample = requireType(Number.class, value).longValue();
+                    assertTrue(sample >= 0 && sample < 1000000);
+                }
+                // Selecting these demands succeeds while the independent throwing field remains unrequested.
+                assertDirectSequenceProfile(result, 0, 0, 1);
+            }
+        }
     }
 
     /** Provenance identifies only the authorized matched documents after stage and outer edits. */
     public void testProvenancePreservesDocumentAndFieldSecurity() throws Exception {
         createSequenceSecurityEvents(true);
-        Map<String, Object> ordinary = retentionQuery("sequence_dls_fls", """
+        Map<String, Object> ordinary = sequenceQuery("sequence_dls_fls", """
             FROM sequence-security-events METADATA _id, _source
             | WHERE _id IN ("visible-A", "visible-B") | KEEP _id, _source | SORT _id | LIMIT 10
             """);
@@ -151,7 +196,7 @@ public class SequenceSecurityIT extends ESRestTestCase {
 
         for (int primary : List.of(1, 2)) {
             int other = 3 - primary;
-            Map<String, Object> result = retentionQuery("sequence_dls_fls", retentionStages(primary, true) + """
+            Map<String, Object> result = sequenceQuery("sequence_dls_fls", retentionStages(primary, true) + """
                 | EVAL payload = CONCAT(payload, "-outer"), other_payload = MEMBER(%s, payload)
                 | KEEP payload, other_payload, _id, _index, sequence_provenance | LIMIT 10
                 """.formatted(other));
@@ -175,7 +220,7 @@ public class SequenceSecurityIT extends ESRestTestCase {
                     + " | EVAL leaked = "
                     + expression
                     + " | KEEP leaked,sequence_provenance | LIMIT 10";
-                Map<String, Object> unrestricted = retentionQuery("test-admin", query);
+                Map<String, Object> unrestricted = sequenceQuery("test-admin", query);
                 List<?> rows = requireType(List.class, unrestricted.get("values"));
                 assertEquals(2, rows.size());
                 assertEquals(Set.of("hidden-A", "orphan-A"), new java.util.HashSet<>(provenanceRoleValues(unrestricted, 1, "id")));
@@ -229,7 +274,7 @@ public class SequenceSecurityIT extends ESRestTestCase {
                         (FROM sequence-alias-b,sequence-alias-excluded | WHERE phase=="B")
                         | EVAL broad_secret = %s | KEEP payload, broad_secret, sequence_provenance | LIMIT 10
                         """.formatted(primary, broadSecret);
-                    Map<String, Object> result = retentionQuery(user, query);
+                    Map<String, Object> result = sequenceQuery(user, query);
                     assertProvenancePair(result);
                     List<?> row = requireType(List.class, requireType(List.class, result.get("values")).getFirst());
                     assertEquals(primary == 1 ? "visible-A" : "visible-B", row.get(0));
@@ -240,7 +285,7 @@ public class SequenceSecurityIT extends ESRestTestCase {
                     "FROM sequence-security-events | KEEP payload | LIMIT 10",
                     retentionStages(2, false) + " | KEEP payload | LIMIT 10"
                 )) {
-                    ResponseException denied = expectThrows(ResponseException.class, () -> retentionQuery(user, query));
+                    ResponseException denied = expectThrows(ResponseException.class, () -> sequenceQuery(user, query));
                     assertEquals(HttpStatus.SC_BAD_REQUEST, denied.getResponse().getStatusLine().getStatusCode());
                     String error = EntityUtils.toString(denied.getResponse().getEntity());
                     assertThat(error, containsString("verification_exception"));
@@ -265,7 +310,7 @@ public class SequenceSecurityIT extends ESRestTestCase {
             """.formatted(primary, stageEdit, stageEdit);
     }
 
-    private Map<String, Object> retentionQuery(String user, String query) throws IOException {
+    private Map<String, Object> sequenceQuery(String user, String query) throws IOException {
         Request request = new Request("POST", "_query");
         request.addParameter("drop_null_columns", "false");
         request.setOptions(runAsUserOptions(user));
@@ -287,7 +332,7 @@ public class SequenceSecurityIT extends ESRestTestCase {
     }
 
     private void assertRetentionFieldDenied(String user, String query) {
-        ResponseException denied = expectThrows(ResponseException.class, () -> retentionQuery(user, query));
+        ResponseException denied = expectThrows(ResponseException.class, () -> sequenceQuery(user, query));
         assertEquals(HttpStatus.SC_BAD_REQUEST, denied.getResponse().getStatusLine().getStatusCode());
         try {
             String reason = EntityUtils.toString(denied.getResponse().getEntity());
@@ -299,7 +344,7 @@ public class SequenceSecurityIT extends ESRestTestCase {
     }
 
     private Map<?, ?> ordinaryRetentionSource(String user, String index, String id) throws IOException {
-        Map<String, Object> result = retentionQuery(
+        Map<String, Object> result = sequenceQuery(
             user,
             "FROM " + index + " METADATA _id, _source | WHERE _id == \"" + id + "\" | KEEP _source | LIMIT 10"
         );
@@ -387,7 +432,7 @@ public class SequenceSecurityIT extends ESRestTestCase {
         assertFalse(firstSource.containsKey("secret"));
         assertFalse(firstSource.containsKey("tenant"));
         for (int primary : List.of(1, 2)) {
-            Map<String, Object> result = retentionQuery("sequence_dls_fls", """
+            Map<String, Object> result = sequenceQuery("sequence_dls_fls", """
                 SEQUENCE BY key WITHIN 30s PRIMARY %s
                 (FROM sequence-security-events METADATA _id,_index,_source | WHERE phase=="A" | KEEP key,_id,_index,_source),
                 (FROM sequence-security-events METADATA _id,_index,_source | WHERE phase=="B" | KEEP key,_id,_index,_source)
@@ -427,7 +472,7 @@ public class SequenceSecurityIT extends ESRestTestCase {
                 (FROM sequence-security-events METADATA _id, _index, _source | WHERE phase=="A"),
                 (FROM sequence-security-events METADATA _id, _index, _source | WHERE phase=="B")
                 """.formatted(primary);
-            Map<String, Object> columns = retentionQuery("sequence_dls_fls", stages + " | KEEP key,_source,sequence_provenance | LIMIT 10");
+            Map<String, Object> columns = sequenceQuery("sequence_dls_fls", stages + " | KEEP key,_source,sequence_provenance | LIMIT 10");
             assertProvenancePair(columns);
             assertEquals(List.of(primary == 1 ? firstSource : secondSource), ordinaryColumnValues(columns, "_source"));
             assertEquals("shared", requireType(List.class, requireType(List.class, columns.get("values")).getFirst()).getFirst());
@@ -498,7 +543,7 @@ public class SequenceSecurityIT extends ESRestTestCase {
                 assertEquals("secret-B", secondSource.get("secret"));
                 assertEquals("allowed", secondSource.get("tenant"));
                 for (int primary : List.of(1, 2)) {
-                    Map<String, Object> result = retentionQuery(user, """
+                    Map<String, Object> result = sequenceQuery(user, """
                         SEQUENCE BY key WITHIN 30s PRIMARY %s
                         (FROM sequence-alias-a METADATA _id,_index,_source | KEEP key,_id,_index,_source),
                         (FROM sequence-alias-b METADATA _id,_index,_source | KEEP key,_id,_index,_source)
@@ -542,11 +587,11 @@ public class SequenceSecurityIT extends ESRestTestCase {
             assertEquals(9007199254740993L, firstSource.get("number"));
             assertEquals(
                 List.of(List.of("visible-A")),
-                retentionQuery(user, "FROM " + first + " METADATA _id | WHERE phase==\"A\" | KEEP _id | SORT _id | LIMIT 10").get("values")
+                sequenceQuery(user, "FROM " + first + " METADATA _id | WHERE phase==\"A\" | KEEP _id | SORT _id | LIMIT 10").get("values")
             );
             assertEquals(
                 List.of(List.of("orphan-B"), List.of("visible-B")),
-                retentionQuery(user, "FROM " + second + " METADATA _id | WHERE phase==\"B\" | KEEP _id | SORT _id | LIMIT 10").get("values")
+                sequenceQuery(user, "FROM " + second + " METADATA _id | WHERE phase==\"B\" | KEEP _id | SORT _id | LIMIT 10").get("values")
             );
             String stages = """
                 SEQUENCE BY key WITHIN 30s PRIMARY %s
@@ -567,9 +612,9 @@ public class SequenceSecurityIT extends ESRestTestCase {
                     row.subList(0, 5)
                 );
                 assertEquals(List.of(selected), ordinaryColumnValues(result, "_source"));
-                assertDirectSequenceProfile(result, 2, 2, 1);
+                assertDirectSequenceProfile(result, 0, 0, 1);
             }
-            Map<String, Object> unrestricted = retentionQuery("test-admin", stages.formatted(1, first, second, 2, 2));
+            Map<String, Object> unrestricted = sequenceQuery("test-admin", stages.formatted(1, first, second, 2, 2));
             assertEquals(Set.of("hidden-A", "orphan-A"), new java.util.HashSet<>(provenanceRoleValues(unrestricted, 1, "id")));
             for (Object source : ordinaryColumnValues(unrestricted, "_source")) {
                 assertNotNull(requireType(Map.class, source).get("secret"));
@@ -594,7 +639,7 @@ public class SequenceSecurityIT extends ESRestTestCase {
             restricted.get("values")
         );
         assertDirectSequenceProfile(restricted, 0, 0, 1);
-        Map<String, Object> ordinary = retentionQuery("sequence_dls_fls", """
+        Map<String, Object> ordinary = sequenceQuery("sequence_dls_fls", """
             FROM sequence-security-events METADATA _id
             | KEEP _id | SORT _id | LIMIT 10
             """);
@@ -613,7 +658,7 @@ public class SequenceSecurityIT extends ESRestTestCase {
             (FROM sequence-security-events METADATA _id | WHERE phase=="B" | EVAL _id=secret | KEEP key,_id)
             | EVAL other_id=MEMBER(2,_id) | KEEP _id,other_id | LIMIT 10
             """;
-        Map<String, Object> allowed = retentionQuery("test-admin", forbidden);
+        Map<String, Object> allowed = sequenceQuery("test-admin", forbidden);
         assertEquals(2, requireType(List.class, allowed.get("values")).size());
         assertRetentionFieldDenied("sequence_dls_fls", forbidden);
     }
@@ -885,19 +930,19 @@ public class SequenceSecurityIT extends ESRestTestCase {
         assertEquals(first.keySet(), second.keySet());
         setSequenceSecurityAliasesEmpty();
         try {
-            Map<String, Object> ordinary = retentionQuery(user, """
+            Map<String, Object> ordinary = sequenceQuery(user, """
                 FROM sequence-alias-a,sequence-alias-b | KEEP key,payload | LIMIT 10
                 """);
             assertEquals(List.of(), ordinary.get("values"));
             for (int primary : List.of(1, 2)) {
-                assertEmptyAliasSequence(retentionQuery(user, emptyAliasSequenceQuery(primary)));
+                assertEmptyAliasSequence(sequenceQuery(user, emptyAliasSequenceQuery(primary)));
             }
             assertSequenceSearchReadDenied(user, "sequence-security-events");
         } finally {
             createSequenceSecurityAliases();
         }
         for (int primary : List.of(1, 2)) {
-            Map<String, Object> recovered = retentionQuery(
+            Map<String, Object> recovered = sequenceQuery(
                 user,
                 emptyAliasSequenceQuery(primary).replace("other_payload | LIMIT", "other_payload,sequence_provenance | LIMIT")
             );
@@ -928,7 +973,7 @@ public class SequenceSecurityIT extends ESRestTestCase {
             try {
                 setSequenceSecurityAliasesEmpty();
                 String query = emptyAliasSequenceQuery(1);
-                assertEmptyAliasSequence(retentionQuery(user, query));
+                assertEmptyAliasSequence(sequenceQuery(user, query));
                 role.setJsonEntity("""
                     {"indices":[{"names":["sequence-alias-a","sequence-alias-b"],
                       "privileges":["view_index_metadata"]}]}
@@ -940,7 +985,7 @@ public class SequenceSecurityIT extends ESRestTestCase {
                 Map<?, ?> fields = requireType(Map.class, entityAsMap(assertOK(client().performRequest(fieldCaps))).get("fields"));
                 assertTrue("field discovery must remain authorized", fields.containsKey("key"));
                 assertBusy(() -> assertSequenceSearchReadDenied(user, "sequence-alias-a"));
-                ResponseException denied = expectThrows(ResponseException.class, () -> retentionQuery(user, query));
+                ResponseException denied = expectThrows(ResponseException.class, () -> sequenceQuery(user, query));
                 assertEquals(HttpStatus.SC_FORBIDDEN, denied.getResponse().getStatusLine().getStatusCode());
                 assertThat(EntityUtils.toString(denied.getResponse().getEntity()), containsString("indices:data/read/"));
 
@@ -948,7 +993,7 @@ public class SequenceSecurityIT extends ESRestTestCase {
                 assertOK(adminClient().performRequest(role));
                 assertBusy(() -> {
                     try {
-                        assertEmptyAliasSequence(retentionQuery(user, query));
+                        assertEmptyAliasSequence(sequenceQuery(user, query));
                     } catch (ResponseException failure) {
                         if (failure.getResponse().getStatusLine().getStatusCode() == HttpStatus.SC_FORBIDDEN) {
                             assertThat(EntityUtils.toString(failure.getResponse().getEntity()), containsString("indices:data/read/"));
@@ -963,7 +1008,7 @@ public class SequenceSecurityIT extends ESRestTestCase {
                 assertEquals(Set.of("@timestamp", "key", "phase", "payload", "number"), first.keySet());
                 assertEquals(first.keySet(), second.keySet());
                 assertProvenancePair(
-                    retentionQuery(user, query.replace("other_payload | LIMIT", "other_payload,sequence_provenance | LIMIT"))
+                    sequenceQuery(user, query.replace("other_payload | LIMIT", "other_payload,sequence_provenance | LIMIT"))
                 );
             } finally {
                 try {
@@ -1004,18 +1049,18 @@ public class SequenceSecurityIT extends ESRestTestCase {
                     sequenceSecurityRoutingShard("test-admin", index, routes.get(1)),
                     sequenceSecurityRoutingShard(user, "sequence-pit-routed-b", null)
                 );
-                Map<String, Object> duplicateIds = retentionQuery("test-admin", """
+                Map<String, Object> duplicateIds = sequenceQuery("test-admin", """
                     FROM sequence-security-routed-events METADATA _id
                     | WHERE _id=="visible-A" | KEEP _id,payload | SORT payload | LIMIT 10
                     """);
                 assertEquals(List.of(List.of("visible-A", "routed-away-A"), List.of("visible-A", "visible-A")), duplicateIds.get("values"));
-                assertEquals(List.of(List.of("visible-A")), retentionQuery(user, """
+                assertEquals(List.of(List.of("visible-A")), sequenceQuery(user, """
                     FROM sequence-pit-routed-a | KEEP payload | LIMIT 10
                     """).get("values"));
-                assertEquals(List.of(List.of("visible-B")), retentionQuery(user, """
+                assertEquals(List.of(List.of("visible-B")), sequenceQuery(user, """
                     FROM sequence-pit-routed-b | KEEP payload | LIMIT 10
                     """).get("values"));
-                Map<String, Object> broad = retentionQuery(user, """
+                Map<String, Object> broad = sequenceQuery(user, """
                     FROM sequence-pit-routed-excluded | KEEP payload | SORT payload | LIMIT 10
                     """);
                 assertEquals(
@@ -1055,7 +1100,7 @@ public class SequenceSecurityIT extends ESRestTestCase {
                         List.of("routed", primary == 1 ? "visible-A" : "visible-B", primary == 1 ? "visible-B" : "visible-A", "secret-B"),
                         row.subList(0, 4)
                     );
-                    assertDirectSequenceProfile(result, 2, 2, 1);
+                    assertDirectSequenceProfile(result, 0, 0, 1);
                     Map<String, Object> ids = profiledRetentionQuery(user, """
                         SEQUENCE BY key WITHIN 30s PRIMARY %s
                         (FROM sequence-pit-routed-*,-sequence-pit-routed-b,-sequence-pit-routed-excluded
@@ -1256,7 +1301,7 @@ public class SequenceSecurityIT extends ESRestTestCase {
         createSequenceSecurityEvents(false);
     }
 
-    /** A role naming only the data stream must read matched originals from all of its backing indices. */
+    /** A role naming only the data stream must read matched events from all of its backing indices. */
     public void testSequenceDataStreamNameGrantsAcrossRollover() throws Exception {
         assertSequenceDataStreamNameGrants(false);
     }
@@ -1292,7 +1337,7 @@ public class SequenceSecurityIT extends ESRestTestCase {
                     assertEquals(List.of(stream), requireType(Map.class, grants.getFirst()).get("names"));
 
                     if (filtered) {
-                        Map<String, Object> admin = retentionQuery("test-admin", sequenceDataStreamStages(stream, 1) + """
+                        Map<String, Object> admin = sequenceQuery("test-admin", sequenceDataStreamStages(stream, 1) + """
                             | EVAL end_payload=MEMBER(2,payload) | KEEP key,payload,end_payload | SORT key | LIMIT 10
                             """);
                         assertEquals(
@@ -1307,7 +1352,7 @@ public class SequenceSecurityIT extends ESRestTestCase {
                     for (int primary : List.of(1, 2)) {
                         int other = primary == 1 ? 2 : 1;
                         String stages = sequenceDataStreamStages(stream, primary);
-                        Map<String, Object> result = retentionQuery(user, stages + """
+                        Map<String, Object> result = sequenceQuery(user, stages + """
                             | EVAL other_payload=MEMBER(%s,payload), other_id=MEMBER(%s,_id), other_index=MEMBER(%s,_index)
                             | KEEP key,payload,_id,_index,other_payload,other_id,other_index | SORT key | LIMIT 10
                             """.formatted(other, other, other));
@@ -1319,19 +1364,19 @@ public class SequenceSecurityIT extends ESRestTestCase {
                             result.get("values")
                         );
 
-                        Map<String, Object> originals = retentionQuery(
+                        Map<String, Object> sourceResult = sequenceQuery(
                             user,
                             stages + " | KEEP key,_source,sequence_provenance | SORT key | LIMIT 10"
                         );
-                        List<?> retainedRows = requireType(List.class, originals.get("values"));
+                        List<?> sourceRows = requireType(List.class, sourceResult.get("values"));
                         assertEquals(
                             List.of("new", "old"),
-                            retainedRows.stream().map(row -> requireType(List.class, row).getFirst()).toList()
+                            sourceRows.stream().map(row -> requireType(List.class, row).getFirst()).toList()
                         );
-                        assertEquals(List.of("shared-start", "shared-start"), provenanceRoleValues(originals, 1, "id"));
-                        assertEquals(List.of("shared-end", "shared-end"), provenanceRoleValues(originals, 2, "id"));
-                        assertEquals(List.of(backings.get(1), backings.get(0)), provenanceRoleValues(originals, 1, "index"));
-                        assertEquals(List.of(backings.get(2), backings.get(1)), provenanceRoleValues(originals, 2, "index"));
+                        assertEquals(List.of("shared-start", "shared-start"), provenanceRoleValues(sourceResult, 1, "id"));
+                        assertEquals(List.of("shared-end", "shared-end"), provenanceRoleValues(sourceResult, 2, "id"));
+                        assertEquals(List.of(backings.get(1), backings.get(0)), provenanceRoleValues(sourceResult, 1, "index"));
+                        assertEquals(List.of(backings.get(2), backings.get(1)), provenanceRoleValues(sourceResult, 2, "index"));
                         assertEquals(
                             primary == 1
                                 ? List.of(
@@ -1342,7 +1387,7 @@ public class SequenceSecurityIT extends ESRestTestCase {
                                     sequenceDataStreamSource("new", "B", "new-B", "allowed", 11_000, filtered),
                                     sequenceDataStreamSource("old", "B", "old-B", "allowed", 1_000, filtered)
                                 ),
-                            ordinaryColumnValues(originals, "_source")
+                            ordinaryColumnValues(sourceResult, "_source")
                         );
                         if (filtered) {
                             assertRetentionFieldDenied(
@@ -1354,7 +1399,7 @@ public class SequenceSecurityIT extends ESRestTestCase {
                     // Backing-index access is inherited from a data-stream grant. An unrelated existing index is the denial control.
                     assertOK(adminClient().performRequest(new Request("GET", deniedIndex + "/_search")));
                     assertSequenceSearchReadDenied(user, deniedIndex);
-                    ResponseException denied = expectThrows(ResponseException.class, () -> retentionQuery(user, """
+                    ResponseException denied = expectThrows(ResponseException.class, () -> sequenceQuery(user, """
                         SEQUENCE BY key WITHIN 30s PRIMARY 1
                         (FROM %s | WHERE phase=="A"), (FROM %s | WHERE phase=="B")
                         | KEEP payload | LIMIT 10

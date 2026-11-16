@@ -1,5 +1,5 @@
 // Tie-free pairs at exactly maxspan survive; OUTSIDE exceeds it by one millisecond.
-// The same fixture runs with date and date_nanos mappings. Retained evidence has separate consumer ITs.
+// The same fixture runs with date and date_nanos mappings.
 
 primaryFirstMemberPayload
 required_capability: sequence_command

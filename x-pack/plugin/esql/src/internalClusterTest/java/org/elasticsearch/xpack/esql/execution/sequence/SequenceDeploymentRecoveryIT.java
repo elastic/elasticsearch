@@ -12,10 +12,7 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.NoShardAvailableActionException;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilterChain;
@@ -25,36 +22,23 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.ResponseListener;
-import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.EngineFactory;
-import org.elasticsearch.index.engine.ReadOnlyEngine;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.translog.TranslogStats;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.plugins.ActionPlugin;
-import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.internal.ShardSearchContextId;
-import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.action.AbstractSequenceIntegTestCase;
@@ -70,15 +54,11 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -88,14 +68,14 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 
-/** Real transport and HTTP boundaries after the selected documents have entered the sequence snapshot. */
+/** Real HTTP error boundaries when a live mapping changes before a candidate read. */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2)
 public class SequenceDeploymentRecoveryIT extends AbstractSequenceIntegTestCase {
     private static final TimeValue TIMEOUT = TimeValue.timeValueSeconds(45);
     private static final Instant BASE = Instant.parse("2026-11-13T00:00:00Z");
     private final List<String> ownedIndices = new ArrayList<>();
 
-    /** The fixture must select a real read-only engine, rather than a mock engine or merely a write block. */
+    /** Use real engines for the shard-side mapped-value loading boundary. */
     @Override
     protected boolean addMockInternalEngine() {
         return false;
@@ -113,8 +93,7 @@ public class SequenceDeploymentRecoveryIT extends AbstractSequenceIntegTestCase 
         assertTrue(plugins.removeIf(EsqlPlugin.class::isAssignableFrom));
         plugins.add(SequenceFailureIT.SequenceBlockFactoryPlugin.class);
         plugins.add(InternalExchangePlugin.class);
-        plugins.add(MockTransportService.TestPlugin.class);
-        plugins.add(ReadOnlyFixturePlugin.class);
+        plugins.add(CandidateGatePlugin.class);
         return plugins;
     }
 
@@ -134,109 +113,6 @@ public class SequenceDeploymentRecoveryIT extends AbstractSequenceIntegTestCase 
             .build();
     }
 
-    /** Relocation between selection and payload dispatch must reconstruct the identical read-only searcher after reader loss. */
-    public void testReadOnlyPitRecoversAfterRelocationAndReaderLoss() throws Exception {
-        assertRelocationAndReaderLoss(true);
-    }
-
-    /** A write block alone does not make an ordinary engine's PIT recoverable after its original reader is lost. */
-    public void testWriteBlockedOrdinaryEnginePitFailsAfterRelocationAndReaderLoss() throws Exception {
-        assertRelocationAndReaderLoss(false);
-    }
-
-    private void assertRelocationAndReaderLoss(boolean readOnly) throws Exception {
-        String[] nodes = dataNodes();
-        Fixture fixture = createFixture(readOnly ? "sequence-deploy-readonly" : "sequence-deploy-ordinary", nodes);
-        for (String index : List.of(fixture.first, fixture.second)) {
-            assertEquals(0, flush(index).getFailedShards());
-            assertAcked(indicesAdmin().prepareClose(index));
-            assertAcked(
-                indicesAdmin().prepareUpdateSettings(index)
-                    .setSettings(Settings.builder().put("index.blocks.write", true).put(ReadOnlyFixturePlugin.READ_ONLY.getKey(), readOnly))
-            );
-            assertAcked(indicesAdmin().prepareOpen(index));
-        }
-        ensureGreen(fixture.first, fixture.second);
-        String initialSearcher = assertSearcher(fixture.first, nodes[0], readOnly);
-        assertSearcher(fixture.second, nodes[1], readOnly);
-        assertResult(fixture, client(nodes[0]).execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query(fixture))).actionGet(TIMEOUT));
-        assertResourcesReleased();
-
-        ActionFuture<EsqlQueryResponse> future = null;
-        try (var gate = new PayloadGate(fixture.first)) {
-            future = client(nodes[0]).execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query(fixture)));
-            gate.awaitStarted(future);
-            assertNotNull(gate.readerId);
-            assertEquals(readOnly, gate.readerId.isRetryable());
-            assertEquals(initialSearcher, gate.readerId.getSearcherId());
-            assertEquals(nodes[0], gate.firstNode);
-
-            assertAcked(
-                indicesAdmin().prepareUpdateSettings(fixture.first)
-                    .setSettings(Settings.builder().put("index.routing.allocation.require._name", nodes[1]))
-            );
-            ensureGreen(fixture.first, fixture.second);
-            assertBusy(() -> {
-                String primary = clusterService().state()
-                    .nodes()
-                    .get(clusterService().state().routingTable().index(fixture.first).shard(0).primaryShard().currentNodeId())
-                    .getName();
-                assertEquals(nodes[1], primary);
-                var former = internalCluster().getInstance(IndicesService.class, nodes[0]).indexService(resolveIndex(fixture.first));
-                assertTrue("the old node must no longer own the relocated shard", former == null || former.getShardOrNull(0) == null);
-            });
-            assertEquals(initialSearcher, assertSearcher(fixture.first, nodes[1], readOnly));
-
-            // Relocation intentionally permits the original PIT reader to remain open. Explicitly lose that
-            // exact reader so a success cannot be explained by continuing to read the old node's snapshot.
-            SearchService formerReaders = internalCluster().getInstance(SearchService.class, nodes[0]);
-            int retained = formerReaders.getActiveContexts();
-            assertEquals("the original PIT reader must exist before the test explicitly evicts it", 1, retained);
-            assertTrue("the exact original PIT reader must be explicitly freed", formerReaders.freeReaderContext(gate.readerId));
-            assertEquals(0, formerReaders.getActiveContexts());
-            logger.info("SEQUENCE relocation fixture read_only={} old_readers_before_eviction={}", readOnly, retained);
-            gate.release();
-            if (readOnly) {
-                EsqlQueryResponse response = future.actionGet(TIMEOUT);
-                future = null;
-                assertResult(fixture, response);
-                assertTrue(
-                    "a replacement-node search must use the identical retryable searcher",
-                    gate.attempts.stream()
-                        .anyMatch(a -> a.node.equals(nodes[1]) && a.readerId != null && a.readerId.sameSearcherIdsAs(initialSearcher))
-                );
-            } else {
-                var pending = future;
-                SearchPhaseExecutionException failure = expectThrows(SearchPhaseExecutionException.class, () -> pending.actionGet(TIMEOUT));
-                future = null;
-                // A nonretryable PIT keeps its old routing; search aggregation reports the unavailable original shard.
-                assertEquals("query", failure.getPhaseName());
-                assertEquals(1, failure.shardFailures().length);
-                var shardFailure = failure.shardFailures()[0];
-                assertTrue(shardFailure.getCause() instanceof NoShardAvailableActionException);
-                assertEquals(fixture.first, shardFailure.shard().getShardId().getIndexName());
-                assertEquals(0, shardFailure.shard().getShardId().id());
-                assertEquals(
-                    internalCluster().getInstance(ClusterService.class, nodes[0]).localNode().getId(),
-                    shardFailure.shard().getNodeId()
-                );
-                assertTrue(
-                    "a nonretryable PIT must not dispatch payload to the replacement node",
-                    gate.attempts.stream().noneMatch(attempt -> attempt.node.equals(nodes[1]))
-                );
-                logger.info(
-                    "SEQUENCE nonretryable relocation failed with {} for {}",
-                    shardFailure.getCause().getClass(),
-                    shardFailure.shard()
-                );
-            }
-        } finally {
-            drain(future);
-        }
-        assertResourcesReleased();
-        assertResult(fixture, client(nodes[1]).execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query(fixture))).actionGet(TIMEOUT));
-    }
-
     /** A shard-side producer mismatch is fatal even when the caller permits partial results. */
     public void testMappedIntegralAliasTypeChangeReturnsHttpBadRequestWithPartialResults() throws Exception {
         assertMappedTypeHttpFailure(true);
@@ -253,7 +129,7 @@ public class SequenceDeploymentRecoveryIT extends AbstractSequenceIntegTestCase 
         assertResourcesReleased();
         var future = new PlainActionFuture<Response>();
         Cancellable cancellable = null;
-        try (var gate = new PayloadGate(fixture.first)) {
+        try (var gate = new CandidateGate(fixture.first)) {
             Request request = new Request("POST", "/_query");
             request.addParameter("allow_partial_results", Boolean.toString(partial));
             request.addParameter("error_trace", "true");
@@ -342,7 +218,7 @@ public class SequenceDeploymentRecoveryIT extends AbstractSequenceIntegTestCase 
         assertResult(fixture, client().execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query(fixture))).actionGet(TIMEOUT));
     }
 
-    /** A demanded textual alias cannot silently stringify a numeric producer after selection. */
+    /** A demanded textual alias cannot silently stringify a numeric producer during the first read. */
     public void testMappedTextAliasTypeChangeReturnsHttpBadRequestWithPartialResults() throws Exception {
         assertMappedTextHttpFailure(true);
     }
@@ -363,7 +239,7 @@ public class SequenceDeploymentRecoveryIT extends AbstractSequenceIntegTestCase 
         assertResourcesReleased();
         var future = new PlainActionFuture<Response>();
         Cancellable cancellable = null;
-        try (var gate = new PayloadGate(fixture.first)) {
+        try (var gate = new CandidateGate(fixture.first)) {
             Request request = new Request("POST", "/_query");
             request.addParameter("allow_partial_results", Boolean.toString(partial));
             request.addParameter("error_trace", "true");
@@ -380,7 +256,7 @@ public class SequenceDeploymentRecoveryIT extends AbstractSequenceIntegTestCase 
                 }
             });
             gate.awaitStarted(future);
-            assertFalse("payload reads cannot return successful partial shards", gate.allowPartialSearchResults);
+            assertFalse("candidate reads cannot return successful partial shards", gate.allowPartialSearchResults);
             assertTrue(
                 "the frozen demand must be textual before its live alias changes",
                 gate.source.ext()
@@ -505,7 +381,7 @@ public class SequenceDeploymentRecoveryIT extends AbstractSequenceIntegTestCase 
             """.formatted(fixture.first, fixture.second);
     }
 
-    /** The selected identities, old ordinary values and explicitly requested source survive replay and relocation. */
+    /** Selected identities, ordinary values and explicitly requested source survive the first read. */
     private void assertResult(Fixture fixture, EsqlQueryResponse response) throws Exception {
         assertResult(fixture, response, 7L);
     }
@@ -537,26 +413,6 @@ public class SequenceDeploymentRecoveryIT extends AbstractSequenceIntegTestCase 
         return nodes;
     }
 
-    private String assertSearcher(String index, String node, boolean readOnly) {
-        IndexShard shard = internalCluster().getInstance(IndicesService.class, node).indexServiceSafe(resolveIndex(index)).getShard(0);
-        ReadOnlyFixturePlugin plugin = internalCluster().getInstance(PluginsService.class, node)
-            .filterPlugins(ReadOnlyFixturePlugin.class)
-            .findFirst()
-            .orElseThrow();
-        try (Engine.SearcherSupplier searcher = shard.acquireExternalSearcherSupplier(SplitShardCountSummary.IRRELEVANT)) {
-            if (readOnly) {
-                ReadOnlyEngine engine = plugin.engines.get(index);
-                assertNotNull("the plugin must have constructed an actual ReadOnlyEngine", engine);
-                assertNotNull(searcher.getSearcherId());
-                assertEquals(engine.getCommitId(), searcher.getSearcherId());
-            } else {
-                assertNull(plugin.engines.get(index));
-                assertNull("write-blocked ordinary engines do not publish a retryable searcher ID", searcher.getSearcherId());
-            }
-            return searcher.getSearcherId();
-        }
-    }
-
     private void setValueAlias(String index, String target) {
         assertAcked(
             indicesAdmin().preparePutMapping(index)
@@ -581,18 +437,12 @@ public class SequenceDeploymentRecoveryIT extends AbstractSequenceIntegTestCase 
         ensureBlocksReleased();
     }
 
-    /** Preserve leak evidence before deleting indices, and release fixture-owned engine references afterwards. */
+    /** Preserve leak evidence before deleting fixture-owned indices. */
     @After
     public void releaseFixtures() throws Exception {
         try {
             assertResourcesReleased();
         } finally {
-            for (String node : internalCluster().getNodeNames()) {
-                MockTransportService.getInstance(node).clearAllRules();
-                internalCluster().getInstance(PluginsService.class, node)
-                    .filterPlugins(ReadOnlyFixturePlugin.class)
-                    .forEach(plugin -> plugin.engines.clear());
-            }
             for (String index : ownedIndices) {
                 if (indexExists(index)) {
                     assertAcked(indicesAdmin().prepareDelete(index));
@@ -602,26 +452,10 @@ public class SequenceDeploymentRecoveryIT extends AbstractSequenceIntegTestCase 
         }
     }
 
-    private static void drain(ActionFuture<EsqlQueryResponse> future) {
-        if (future != null) {
-            try {
-                future.actionGet(TIMEOUT).close();
-            } catch (Exception failure) {
-                assertTrue("the gated query must terminate before cleanup returns", future.isDone());
-            }
-        }
-    }
-
     private record Fixture(String first, String second, Map<String, Object> firstSource) {}
 
-    /** Selects a real read-only engine only for explicitly closed/reopened test indices. */
-    public static class ReadOnlyFixturePlugin extends Plugin implements EnginePlugin, ActionPlugin {
-        static final Setting<Boolean> READ_ONLY = Setting.boolSetting(
-            "index.sequence_deployment.read_only_engine",
-            false,
-            Setting.Property.IndexScope
-        );
-        private final Map<String, ReadOnlyEngine> engines = new ConcurrentHashMap<>();
+    /** Parks a candidate search while preserving its real handler and request ownership. */
+    public static class CandidateGatePlugin extends Plugin implements ActionPlugin {
         private volatile ThreadPool threadPool;
 
         @Override
@@ -646,7 +480,7 @@ public class SequenceDeploymentRecoveryIT extends AbstractSequenceIntegTestCase 
                     ActionListener<Response> listener,
                     ActionFilterChain<Request, Response> chain
                 ) {
-                    PayloadGate gate = PayloadGate.ACTIVE.get();
+                    CandidateGate gate = CandidateGate.ACTIVE.get();
                     if (gate == null
                         || action.equals(TransportSearchAction.NAME) == false
                         || request instanceof SearchRequest == false
@@ -656,8 +490,11 @@ public class SequenceDeploymentRecoveryIT extends AbstractSequenceIntegTestCase 
                     }
                     request.mustIncRef();
                     var terminal = ActionListener.notifyOnce(ActionListener.runAfter(listener, () -> {
-                        request.decRef();
-                        gate.handled.countDown();
+                        try {
+                            request.decRef();
+                        } finally {
+                            gate.handled.countDown();
+                        }
                     }));
                     try {
                         Supplier<ThreadContext.StoredContext> context = threadPool.getThreadContext().newRestorableContext(true);
@@ -674,80 +511,43 @@ public class SequenceDeploymentRecoveryIT extends AbstractSequenceIntegTestCase 
                 }
             });
         }
-
-        @Override
-        public List<Setting<?>> getSettings() {
-            return List.of(READ_ONLY);
-        }
-
-        @Override
-        public Optional<EngineFactory> getEngineFactory(IndexSettings settings) {
-            if (READ_ONLY.get(settings.getSettings()) == false) {
-                return Optional.empty();
-            }
-            return Optional.of(config -> {
-                var engine = new ReadOnlyEngine(
-                    config,
-                    null,
-                    config.getTranslogConfig().hasTranslog() ? null : new TranslogStats(0, 0, 0, 0, 0),
-                    true,
-                    Function.identity(),
-                    true,
-                    true
-                );
-                engines.put(settings.getIndex().getName(), engine);
-                return engine;
-            });
-        }
     }
 
-    /** Parks payload dispatch before routing; actual candidate and replacement-shard requests remain observable. */
-    private final class PayloadGate implements AutoCloseable {
-        private static final AtomicReference<PayloadGate> ACTIVE = new AtomicReference<>();
+    /** Parks the first-stage candidate request before shard loading. */
+    private final class CandidateGate implements AutoCloseable {
+        private static final AtomicReference<CandidateGate> ACTIVE = new AtomicReference<>();
         private final CountDownLatch started = new CountDownLatch(1);
         private final CountDownLatch handled = new CountDownLatch(1);
         private final AtomicBoolean claimed = new AtomicBoolean();
-        private final List<Attempt> attempts = new CopyOnWriteArrayList<>();
         private final String index;
         private volatile boolean closed;
-        private volatile ShardSearchContextId readerId;
-        private volatile String firstNode;
         private volatile SearchSourceBuilder source;
         private boolean allowPartialSearchResults;
         private Runnable continuation;
 
-        private PayloadGate(String index) {
+        private CandidateGate(String index) {
             this.index = index;
             assertTrue("only one query owns the deployment gate", ACTIVE.compareAndSet(null, this));
-            for (String node : internalCluster().getNodeNames()) {
-                MockTransportService transport = MockTransportService.getInstance(node);
-                transport.<ShardSearchRequest>addRequestHandlingBehavior(
-                    SearchTransportService.QUERY_ACTION_NAME,
-                    (handler, request, channel, task) -> {
-                        if (request.shardId().getIndexName().equals(index)) {
-                            if (readerId == null && request.readerId() != null) {
-                                readerId = request.readerId();
-                                firstNode = node;
-                            }
-                            if (request.source() != null
-                                && request.source().fetchSource() != null
-                                && request.source().fetchSource().fetchSource()) {
-                                attempts.add(new Attempt(node, request.readerId()));
-                            }
-                        }
-                        handler.messageReceived(request, channel, task);
-                    }
-                );
-            }
         }
 
-        private boolean claim(SearchRequest request) {
-            boolean payload = request.getPointInTimeAuthorizationScope() != null
+        private synchronized boolean claim(SearchRequest request) {
+            SearchSourceBuilder candidate = request.source();
+            boolean firstStage = request.getPointInTimeAuthorizationScope() != null
                 && Arrays.asList(request.getPointInTimeAuthorizationScope().indices()).contains(index)
-                && request.source() != null
-                && request.source().fetchSource() != null
-                && request.source().fetchSource().fetchSource();
-            if (closed || payload == false || claimed.compareAndSet(false, true) == false) {
+                && candidate != null
+                && candidate.sorts() != null
+                && candidate.sorts().size() == 2
+                && candidate.sorts().getFirst() instanceof FieldSortBuilder first
+                && first.getFieldName().equals("@timestamp")
+                && candidate.sorts().get(1) instanceof FieldSortBuilder second
+                && second.getFieldName().equals("_shard_doc")
+                && candidate.ext()
+                    .stream()
+                    .filter(SequenceDocValuesSearchExt.class::isInstance)
+                    .map(SequenceDocValuesSearchExt.class::cast)
+                    .flatMap(ext -> ext.fields().stream())
+                    .anyMatch(field -> field.field.equals("value"));
+            if (closed || firstStage == false || claimed.compareAndSet(false, true) == false) {
                 return false;
             }
             source = request.source().shallowCopy();
@@ -775,9 +575,9 @@ public class SequenceDeploymentRecoveryIT extends AbstractSequenceIntegTestCase 
             while (started.await(50, TimeUnit.MILLISECONDS) == false) {
                 if (future.isDone()) {
                     future.actionGet(TIMEOUT);
-                    fail("query completed before reaching its payload gate");
+                    fail("query completed before reaching its candidate gate");
                 }
-                assertTrue("payload gate was not reached", System.nanoTime() - deadline < 0);
+                assertTrue("candidate gate was not reached", System.nanoTime() - deadline < 0);
             }
         }
 
@@ -794,17 +594,15 @@ public class SequenceDeploymentRecoveryIT extends AbstractSequenceIntegTestCase 
 
         @Override
         public void close() {
-            closed = true;
+            synchronized (this) {
+                closed = true;
+            }
             ACTIVE.compareAndSet(this, null);
             release();
-            for (String node : internalCluster().getNodeNames()) {
-                MockTransportService.getInstance(node).clearAllRules();
-            }
             if (claimed.get()) {
                 safeAwait(handled, TIMEOUT);
             }
         }
     }
 
-    private record Attempt(String node, ShardSearchContextId readerId) {}
 }

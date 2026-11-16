@@ -59,6 +59,36 @@ public class SequenceQueryOutputParserTests extends ESTestCase {
         );
     }
 
+    /** The prototype reserves ECS 9.5.0 field-set names independently of the indices or fields in the query. */
+    public void testEcsFieldSetStageNamesAreRejected() {
+        for (String fieldSet : List.of(
+            "process",
+            "file",
+            "host",
+            "user",
+            "network",
+            "base",
+            "as",
+            "code_signature",
+            "data_stream",
+            "entity_reference",
+            "gen_ai",
+            "os",
+            "risk",
+            "tracing",
+            "x509"
+        )) {
+            rejected(
+                NAMED_BASE.replace("AS start", "AS " + fieldSet),
+                "stage name [" + fieldSet + "] is an ECS field set name; name the stage for what the event does instead"
+            );
+        }
+        rejected(NAMED_BASE.replace("PRIMARY finish", "PRIMARY host").replace("AS finish", "AS host"), "is an ECS field set name");
+        assertNotNull(TEST_PARSER.createStatement(BASE + " | EVAL earlier=MEMBER(1,process.name)"));
+        assertNotNull(TEST_PARSER.createStatement(NAMED_BASE.replace("AS start", "AS Process") + " | EVAL x=MEMBER(Process,process.name)"));
+        assertNotNull(TEST_PARSER.createStatement(NAMED_BASE.replace("AS start", "AS label") + " | EVAL x=MEMBER(label,label)"));
+    }
+
     /** A malformed stage declaration must be diagnosed before semantic checks use its supposed label. */
     public void testStageAliasKeywordPrecedesLabelledStageDiagnostics() {
         for (String query : List.of(
@@ -245,7 +275,18 @@ public class SequenceQueryOutputParserTests extends ESTestCase {
 
     /** The retired ending is recognized solely to guide authors to the smaller output surface. */
     public void testReturnMatchesIsRemoved() {
-        rejected(BASE + " | RETURN MATCHES", "use the ordinary sequence provenance column or MEMBER(stage, field)");
+        rejected(BASE + " | RETURN MATCHES", "use the ordinary [sequence_provenance] column or MEMBER(stage, field)");
+    }
+
+    /** Lookup joins follow the output's left spine; multi-branch FORK remains outside this prototype. */
+    public void testLookupJoinAfterSequenceAndForkBoundary() {
+        assertNotNull(TEST_PARSER.createStatement(BASE + " | LOOKUP JOIN supporting ON key | KEEP key"));
+        assertNotNull(
+            TEST_PARSER.createStatement(
+                BASE + " | LOOKUP JOIN supporting ON key | LOOKUP JOIN other ON key | EVAL earlier=MEMBER(1,key) | KEEP key,earlier"
+            )
+        );
+        rejected(BASE + " | FORK (KEEP key) (KEEP key)", "Command [Fork] is outside the sequence output prototype");
     }
 
     private static void rejectedLetBody(String body) {

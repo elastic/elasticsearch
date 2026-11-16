@@ -82,6 +82,16 @@ public class PlannerSettings {
         Setting.Property.Dynamic
     );
 
+    /** Source-owned SEQUENCE state, buffers and pages are bounded independently of other pipeline operators. */
+    public static final Setting<ByteSizeValue> SEQUENCE_MAX_MEMORY = Setting.memorySizeSetting(
+        "esql.sequence.max_memory",
+        settings -> ByteSizeValue.ofBytes(
+            Math.min((long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.02), ByteSizeValue.ofMb(100).getBytes())
+        ).getStringRep(),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public static final Setting<Boolean> REDUCTION_LATE_MATERIALIZATION = Setting.boolSetting(
         "esql.reduction_late_materialization",
         false,
@@ -384,6 +394,7 @@ public class PlannerSettings {
             VALUES_LOADING_JUMBO_SIZE,
             LUCENE_TOPN_LIMIT,
             INTERMEDIATE_LOCAL_RELATION_MAX_SIZE,
+            SEQUENCE_MAX_MEMORY,
             REDUCTION_LATE_MATERIALIZATION,
             PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD,
             PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD,

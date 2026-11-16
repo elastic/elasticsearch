@@ -28,39 +28,34 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Validates sequence source repeatability before a shard rewrites or executes its candidate/replay query. A PIT
- * freezes document visibility, not runtime scripts. Keeping the wrapper through match-none rewrites also validates
- * zero-hit inputs. Callers supply exactly the fields this read requires, including the raw timestamp for candidate
- * selection and replay, so identity-only hydration does not evaluate an otherwise undemanded timestamp.
+ * Stops a stage query from rewriting against another source's shared-PIT shard. Timestamp bounds and field
+ * predicates may be invalid for an unrelated index mapping, even when an index filter would return no hits.
  */
-public final class SequenceRepeatabilityQueryBuilder extends AbstractQueryBuilder<SequenceRepeatabilityQueryBuilder> {
-    public static final TransportVersion ESQL_SEQUENCE_REPEATABLE_INPUT = TransportVersion.fromName("esql_sequence_repeatable_input");
-    public static final String NAME = "esql_sequence_repeatable_input";
+public final class SequenceSourceQueryBuilder extends AbstractQueryBuilder<SequenceSourceQueryBuilder> {
+    public static final TransportVersion ESQL_SEQUENCE_R6_SOURCE_SCOPE = TransportVersion.fromName("esql_sequence_r6_source_scope");
+    public static final String NAME = "esql_sequence_source_scope";
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         QueryBuilder.class,
         NAME,
-        SequenceRepeatabilityQueryBuilder::new
+        SequenceSourceQueryBuilder::new
     );
 
     private final QueryBuilder query;
-    private final List<String> fields;
     private final List<String> indices;
 
     /**
      * Retains the source's physical indices so unrelated shared-PIT slots stay empty before delegate rewriting.
      * Even a clause that ultimately matches nothing can otherwise parse timestamp bounds against a foreign mapping.
      */
-    public SequenceRepeatabilityQueryBuilder(QueryBuilder query, List<String> fields, List<String> indices) {
+    public SequenceSourceQueryBuilder(QueryBuilder query, List<String> indices) {
         this.query = Objects.requireNonNull(query);
-        this.fields = List.copyOf(fields);
         this.indices = List.copyOf(indices);
     }
 
-    /** Restores the complete guard only on peers that implement the same fail-closed source contract. */
-    public SequenceRepeatabilityQueryBuilder(StreamInput in) throws IOException {
+    /** Restores source isolation only on peers that understand this internal query. */
+    public SequenceSourceQueryBuilder(StreamInput in) throws IOException {
         super(checkSupported(in));
         query = in.readNamedWriteable(QueryBuilder.class);
-        fields = in.readStringCollectionAsList();
         indices = in.readStringCollectionAsList();
     }
 
@@ -70,33 +65,32 @@ public final class SequenceRepeatabilityQueryBuilder extends AbstractQueryBuilde
     }
 
     private static void checkSupported(TransportVersion version) {
-        if (version.supports(ESQL_SEQUENCE_REPEATABLE_INPUT) == false) {
-            throw new IllegalArgumentException(
-                "SEQUENCE repeatable source evaluation is not supported by transport version [" + version + "]"
-            );
+        if (version.supports(ESQL_SEQUENCE_R6_SOURCE_SCOPE) == false) {
+            throw new IllegalArgumentException("SEQUENCE source isolation is not supported by transport version [" + version + "]");
         }
     }
 
     /** Public Query DSL cannot create this compiler-owned validation boundary. */
-    public static SequenceRepeatabilityQueryBuilder fromXContent(XContentParser parser) {
+    public static SequenceSourceQueryBuilder fromXContent(XContentParser parser) {
         throw new XContentParseException(parser.getTokenLocation(), "[" + NAME + "] is reserved for internal ES|QL searches");
     }
 
     @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext context) {
-        // The shard must install the repeatability guard before any delegate rewrite can
-        // remove an unsupported dependency or resolve an external lookup. In particular, do not unwrap match-none.
-        return this;
+    protected QueryBuilder doRewrite(QueryRewriteContext context) throws IOException {
+        var index = context.getFullyQualifiedIndex();
+        if (index != null && indices.contains(index.getName()) == false) {
+            return new MatchNoneQueryBuilder("PIT slot is outside this SEQUENCE source");
+        }
+        // Coordinator/own-shard rewrites retain ordinary async fetches such as terms lookup. A known foreign
+        // shard must never inspect the delegate's field mappings or register one of its async actions.
+        QueryBuilder rewritten = query.rewrite(context);
+        return rewritten == query ? this : new SequenceSourceQueryBuilder(rewritten, indices);
     }
 
     @Override
     protected Query doToQuery(SearchExecutionContext context, MaxClauseCountQueryVisitor visitor) throws IOException {
         if (indices.contains(context.index().getName()) == false) {
             return new MatchNoneQueryBuilder("PIT slot is outside this SEQUENCE source").toQuery(context, visitor);
-        }
-        context.requireRepeatableEvaluation();
-        for (String field : fields) {
-            context.getFieldType(field);
         }
         return Rewriteable.rewrite(query, context, true).toQuery(context, visitor);
     }
@@ -105,7 +99,6 @@ public final class SequenceRepeatabilityQueryBuilder extends AbstractQueryBuilde
     protected void doWriteTo(StreamOutput out) throws IOException {
         checkSupported(out.getTransportVersion());
         out.writeNamedWriteable(query);
-        out.writeStringCollection(fields);
         out.writeStringCollection(indices);
     }
 
@@ -113,7 +106,6 @@ public final class SequenceRepeatabilityQueryBuilder extends AbstractQueryBuilde
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         builder.field("query", query, params);
-        builder.stringListField("fields", fields);
         builder.stringListField("indices", indices);
         boostAndQueryNameToXContent(builder);
         builder.endObject();
@@ -126,16 +118,16 @@ public final class SequenceRepeatabilityQueryBuilder extends AbstractQueryBuilde
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return ESQL_SEQUENCE_REPEATABLE_INPUT;
+        return ESQL_SEQUENCE_R6_SOURCE_SCOPE;
     }
 
     @Override
-    protected boolean doEquals(SequenceRepeatabilityQueryBuilder other) {
-        return query.equals(other.query) && fields.equals(other.fields) && indices.equals(other.indices);
+    protected boolean doEquals(SequenceSourceQueryBuilder other) {
+        return query.equals(other.query) && indices.equals(other.indices);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(query, fields, indices);
+        return Objects.hash(query, indices);
     }
 }

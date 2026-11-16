@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.DataSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.SequenceExec;
 
 /**
  * Transforms a physical plan for EXPLAIN mode by replacing data source nodes
@@ -31,8 +32,8 @@ public final class ExplainPlanTransformer {
      */
     public static PhysicalPlan replaceDataSourcesWithEmpty(PhysicalPlan plan) {
         return plan.transformUp(PhysicalPlan.class, p -> {
-            if (p instanceof DataSourceExec dse) {
-                return new LocalSourceExec(dse.source(), dse.output(), EmptyLocalSupplier.EMPTY);
+            if (p instanceof DataSourceExec || p instanceof SequenceExec) {
+                return new LocalSourceExec(p.source(), p.output(), EmptyLocalSupplier.EMPTY);
             }
             return p;
         });

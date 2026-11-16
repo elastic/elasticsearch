@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.ingest.IngestPipelineTestUtils;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
@@ -71,19 +73,19 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
             "SET time_zone = \"Europe/Paris\"; ROW k = \"only_k\", l = null::long, dt = TO_DATETIME(\"2026-01-15T12:34:56.789Z\")",
             1
         );
-        refresh(DESTINATION);
-        assertResponse(
-            prepareSearch(DESTINATION),
-            response -> assertThat(
-                Arrays.stream(response.getHits().getHits()).map(SearchHit::getSourceAsMap).toList(),
-                equalTo(List.of(Map.of("k", "only_k", "dt", "2026-01-15T12:34:56.789Z")))
-            )
-        );
+        assertSources(DESTINATION, List.of(Map.of("k", "only_k", "dt", "2026-01-15T12:34:56.789Z")));
     }
 
     public void testInlineStats() {
         assertInto("ROW k = [\"a\", \"b\"] | MV_EXPAND k | INLINE STATS l = COUNT(*)", 2);
         assertReadBack("KEEP k, l | SORT k", List.of(List.of("a", 2L), List.of("b", 2L)));
+    }
+
+    public void testDateMathDestination() {
+        String dateMathDest = "<dest-into-{now/d}>";
+        String resolvedDest = IndexNameExpressionResolver.resolveDateMathExpression(dateMathDest);
+        assertAcked(indicesAdmin().prepareCreate(resolvedDest).setMapping("{\"properties\":{\"k\":{\"type\":\"keyword\"}}}"));
+        assertIntoTarget("ROW k = \"x\"", dateMathDest, 1);
     }
 
     public void testZeroRows() {
@@ -100,20 +102,16 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * When the destination index has an ingest pipeline, {@code INTO} must fall back to the inline XContent
-     * path so the pipeline runs. The test verifies that no "bulk with pre-built source batches cannot run
-     * ingest pipelines" error is thrown and that the pipeline-added field appears in the indexed document.
+     * When the destination has an ingest pipeline, {@code INTO} falls back to inline XContent so the
+     * pipeline runs. The pipeline-added field must appear in the indexed document.
      */
     public void testIngestPipelineFallback() {
-        assumeTrue("INTO is only enabled in snapshot builds", EsqlCapabilities.Cap.INTO_COMMAND.isEnabled());
         String pipeline = "into-add-field-pipeline";
         String pipelineDest = "dest-into-with-pipeline";
 
-        // Create a simple ingest pipeline that adds a field.
-        org.elasticsearch.ingest.IngestPipelineTestUtils.putJsonPipeline(client(), pipeline, """
+        IngestPipelineTestUtils.putJsonPipeline(client(), pipeline, """
             {"processors": [{"set": {"field": "pipeline_ran", "value": true}}]}""");
 
-        // Create the destination with the pipeline as default_pipeline.
         assertAcked(indicesAdmin().prepareCreate(pipelineDest).setSettings(Map.of("index.default_pipeline", pipeline)).setMapping("""
             {
               "dynamic": "strict",
@@ -123,17 +121,15 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
               }
             }"""));
 
-        // INTO must succeed without throwing "pre-built source batches cannot run ingest pipelines".
         assertIntoTarget("ROW k = \"pipelined\"", pipelineDest, 1);
+        assertSources(pipelineDest, List.of(Map.of("k", "pipelined", "pipeline_ran", true)));
+    }
 
-        // The pipeline_ran field must be present in the indexed source.
-        refresh(pipelineDest);
+    private void assertSources(String index, List<Map<String, Object>> expected) {
+        refresh(index);
         assertResponse(
-            prepareSearch(pipelineDest),
-            response -> assertThat(
-                Arrays.stream(response.getHits().getHits()).map(SearchHit::getSourceAsMap).toList(),
-                equalTo(List.of(Map.of("k", "pipelined", "pipeline_ran", true)))
-            )
+            prepareSearch(index),
+            r -> assertThat(Arrays.stream(r.getHits().getHits()).map(SearchHit::getSourceAsMap).toList(), equalTo(expected))
         );
     }
 

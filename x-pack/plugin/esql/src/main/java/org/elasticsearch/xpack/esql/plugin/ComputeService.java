@@ -11,12 +11,15 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
+import org.elasticsearch.action.bulk.ShardBatchIndexer;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.RemoteException;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -247,7 +250,7 @@ public class ComputeService {
     private final AtomicReference<MatcherWatchdog> grokMatcherWatchdog = new AtomicReference<>();
     /** Which nodes of the cluster state may be given external splits right now; see {@link #externalWorkers()}. */
     private final ExternalWorkerReadiness externalWorkerReadiness;
-    private final org.elasticsearch.action.bulk.BatchIndexingEnabled batchIndexingEnabled;
+    private final BatchIndexingEnabled batchIndexingEnabled;
 
     @SuppressWarnings("this-escape")
     public ComputeService(
@@ -282,7 +285,7 @@ public class ComputeService {
         this.ipLocationService = transportActionServices.ipLocationService();
         this.clusterService = transportActionServices.clusterService();
         this.projectResolver = transportActionServices.projectResolver();
-        this.batchIndexingEnabled = new org.elasticsearch.action.bulk.BatchIndexingEnabled(this.clusterService.getClusterSettings());
+        this.batchIndexingEnabled = new BatchIndexingEnabled(this.clusterService.getClusterSettings());
         this.clusterService.getClusterSettings()
             .initializeAndWatch(
                 GROK_WATCHDOG_MAX_EXECUTION_TIME,
@@ -313,40 +316,6 @@ public class ComputeService {
     /** The minimum transport version of the nodes that may read the splits planned here. */
     private TransportVersion minTransportVersion() {
         return clusterService.state().getMinTransportVersion();
-    }
-
-    /**
-     * Returns {@code true} when the pre-built ESCF batch path may be used for the given destination:
-     * batch indexing is enabled cluster-wide, the destination has no ingest pipeline, and the destination
-     * does not declare custom routing paths.
-     */
-    private boolean computeUsePreBuiltBatch(String destination) {
-        if (org.elasticsearch.action.bulk.ShardBatchIndexer.isBatchIndexingSupported(batchIndexingEnabled, clusterService) == false) {
-            return false;
-        }
-        String resolved = org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.resolveDateMathExpression(destination);
-        org.elasticsearch.cluster.metadata.ProjectMetadata project = projectResolver.getProjectMetadata(clusterService.state());
-
-        // Check whether the destination (existing or via templates) has an ingest pipeline configured.
-        org.elasticsearch.action.index.IndexRequest probe = new org.elasticsearch.action.index.IndexRequest(resolved);
-        org.elasticsearch.ingest.IngestService.Pipelines pipelines = org.elasticsearch.ingest.IngestService.resolvePipelines(
-            probe,
-            probe,
-            project,
-            System.currentTimeMillis()
-        );
-        org.elasticsearch.ingest.IngestService.setPipelineOnRequest(probe, pipelines);
-        if (org.elasticsearch.ingest.IngestService.hasPipeline(probe)) {
-            return false;
-        }
-
-        // Check whether the existing destination index has custom routing paths.
-        org.elasticsearch.cluster.metadata.IndexMetadata indexMeta = project.index(resolved);
-        if (indexMeta != null && indexMeta.getRoutingPaths().isEmpty() == false) {
-            return false;
-        }
-
-        return true;
     }
 
     PlannerSettings.Holder plannerSettings() {
@@ -1245,12 +1214,13 @@ public class ComputeService {
             EsqlPlugin.externalBlobStorePool()
         );
         if (physicalPlan instanceof IntoExec into) {
-            boolean usePreBuiltBatch = computeUsePreBuiltBatch(into.destination());
+            String target = IndexNameExpressionResolver.resolveDateMathExpression(into.destination());
             IntoPageWriter.Factory sink = IntoPageWriter.Factory.createFactory(
                 client,
-                into.destination(),
+                target,
                 into.child().output(),
-                usePreBuiltBatch
+                ShardBatchIndexer.isBatchIndexingSupported(batchIndexingEnabled, clusterService)
+                    && IntoPageWriter.Factory.canUsePreBuiltBatch(projectResolver.getProjectMetadata(clusterService.state()), target)
             );
             physicalPlan = OutputExec.withFactory(into.source(), into.child(), sink);
             listener = listener.delegateFailureAndWrap((l, result) -> {

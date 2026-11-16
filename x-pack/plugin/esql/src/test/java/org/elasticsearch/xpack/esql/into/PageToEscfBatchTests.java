@@ -7,208 +7,252 @@
 
 package org.elasticsearch.xpack.esql.into;
 
+import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.index.IndexSource;
+import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
+import org.elasticsearch.compute.data.FloatBlock;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
+import org.junit.Before;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.hasSize;
 
 public class PageToEscfBatchTests extends ComputeTestCase {
+    private MockBigArrays bigArrays;
 
-    /** Materializes each row of a batch to a JSON map for assertion. */
+    @Before
+    public void setUpRecycler() {
+        bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), ByteSizeValue.ofGb(1));
+    }
+
+    private List<Map<String, Object>> rows(List<DataType> types, Block... blocks) throws IOException {
+        Page page = new Page(blocks);
+        List<String> names = new ArrayList<>(types.size());
+        for (int i = 0; i < types.size(); i++) {
+            names.add("c" + i);
+        }
+        try (EscfBatch batch = PageToEscfBatch.convert(page, names, types, bigArrays.bytesRefRecycler(), null).batch()) {
+            return toMaps(batch);
+        } finally {
+            page.releaseBlocks();
+        }
+    }
+
     private static List<Map<String, Object>> toMaps(EscfBatch batch) throws IOException {
-        List<Map<String, Object>> rows = new ArrayList<>();
+        List<Map<String, Object>> result = new ArrayList<>();
         for (int row = 0; row < batch.docCount(); row++) {
             IndexSource src = new IndexSource();
             src.setSourceRow(batch, row, XContentType.JSON);
             src.ensureInlineSource();
-            rows.add(XContentHelper.convertToMap(src.bytes(), false, XContentType.JSON).v2());
+            result.add(XContentHelper.convertToMap(src.bytes(), false, XContentType.JSON).v2());
         }
-        return rows;
+        return result;
     }
 
-    public void testLongColumn() throws IOException {
+    public void testLong() throws IOException {
         try (LongBlock.Builder b = blockFactory().newLongBlockBuilder(2)) {
             b.appendLong(10_000_000_000L);
             b.appendLong(-10_000_000_000L);
-            try (Page page = new Page(b.build())) {
-                try (EscfBatch batch = PageToEscfBatch.convert(page, List.of("n"), List.of(DataType.LONG))) {
-                    List<Map<String, Object>> rows = toMaps(batch);
-                    assertThat(((Number) rows.get(0).get("n")).longValue(), equalTo(10_000_000_000L));
-                    assertThat(((Number) rows.get(1).get("n")).longValue(), equalTo(-10_000_000_000L));
-                }
-            }
+            assertThat(
+                rows(List.of(DataType.LONG), b.build()),
+                equalTo(List.of(Map.of("c0", 10_000_000_000L), Map.of("c0", -10_000_000_000L)))
+            );
         }
     }
 
-    public void testDoubleColumn() throws IOException {
+    public void testInteger() throws IOException {
+        try (IntBlock.Builder b = blockFactory().newIntBlockBuilder(2)) {
+            b.appendInt(42);
+            b.appendInt(-1);
+            assertThat(rows(List.of(DataType.INTEGER), b.build()), equalTo(List.of(Map.of("c0", 42), Map.of("c0", -1))));
+        }
+    }
+
+    public void testDouble() throws IOException {
         try (DoubleBlock.Builder b = blockFactory().newDoubleBlockBuilder(2)) {
             b.appendDouble(1.5);
             b.appendDouble(-3.14);
-            try (Page page = new Page(b.build())) {
-                try (EscfBatch batch = PageToEscfBatch.convert(page, List.of("d"), List.of(DataType.DOUBLE))) {
-                    List<Map<String, Object>> rows = toMaps(batch);
-                    assertThat(rows.get(0).get("d"), equalTo(1.5));
-                    assertThat(rows.get(1).get("d"), equalTo(-3.14));
-                }
-            }
+            assertThat(rows(List.of(DataType.DOUBLE), b.build()), equalTo(List.of(Map.of("c0", 1.5), Map.of("c0", -3.14))));
         }
     }
 
-    public void testBooleanColumn() throws IOException {
-        try (BooleanBlock.Builder b = blockFactory().newBooleanBlockBuilder(3)) {
-            b.appendBoolean(true);
-            b.appendBoolean(false);
+    public void testMultiValuedLong() throws IOException {
+        try (LongBlock.Builder b = blockFactory().newLongBlockBuilder(3)) {
+            b.beginPositionEntry().appendLong(10_000_000_000L).appendLong(20_000_000_000L).endPositionEntry();
+            b.appendLong(30_000_000_000L);
             b.appendNull();
-            try (Page page = new Page(b.build())) {
-                try (EscfBatch batch = PageToEscfBatch.convert(page, List.of("flag"), List.of(DataType.BOOLEAN))) {
-                    List<Map<String, Object>> rows = toMaps(batch);
-                    assertThat(rows.get(0).get("flag"), equalTo(true));
-                    assertThat(rows.get(1).get("flag"), equalTo(false));
-                    assertThat(rows.get(2), not(hasKey("flag")));
-                }
-            }
+            assertThat(
+                rows(List.of(DataType.LONG), b.build()),
+                equalTo(List.of(Map.of("c0", List.of(10_000_000_000L, 20_000_000_000L)), Map.of("c0", List.of(30_000_000_000L)), Map.of()))
+            );
         }
     }
 
-    public void testMultiValuedBooleanColumn() throws IOException {
-        try (BooleanBlock.Builder b = blockFactory().newBooleanBlockBuilder(4)) {
-            b.beginPositionEntry();
+    public void testMultiValuedDouble() throws IOException {
+        try (DoubleBlock.Builder b = blockFactory().newDoubleBlockBuilder(2)) {
+            b.beginPositionEntry().appendDouble(1.1).appendDouble(2.2).endPositionEntry();
+            b.appendDouble(3.3);
+            assertThat(
+                rows(List.of(DataType.DOUBLE), b.build()),
+                equalTo(List.of(Map.of("c0", List.of(1.1, 2.2)), Map.of("c0", List.of(3.3))))
+            );
+        }
+    }
+
+    public void testBoolean() throws IOException {
+        try (BooleanBlock.Builder b = blockFactory().newBooleanBlockBuilder(2)) {
             b.appendBoolean(true);
             b.appendBoolean(false);
-            b.endPositionEntry();
-            b.appendBoolean(true);
-            try (Page page = new Page(b.build())) {
-                try (EscfBatch batch = PageToEscfBatch.convert(page, List.of("flags"), List.of(DataType.BOOLEAN))) {
-                    List<Map<String, Object>> rows = toMaps(batch);
-                    assertThat(rows.get(0).get("flags"), equalTo(List.of(true, false)));
-                    assertThat(rows.get(1).get("flags"), equalTo(true));
-                }
-            }
+            assertThat(rows(List.of(DataType.BOOLEAN), b.build()), equalTo(List.of(Map.of("c0", true), Map.of("c0", false))));
         }
     }
 
-    public void testKeywordColumn() throws IOException {
+    public void testMultiValuedBoolean() throws IOException {
+        try (BooleanBlock.Builder b = blockFactory().newBooleanBlockBuilder(2)) {
+            b.beginPositionEntry().appendBoolean(true).appendBoolean(false).endPositionEntry();
+            b.appendBoolean(true);
+            assertThat(
+                rows(List.of(DataType.BOOLEAN), b.build()),
+                equalTo(List.of(Map.of("c0", List.of(true, false)), Map.of("c0", true)))
+            );
+        }
+    }
+
+    public void testKeyword() throws IOException {
         try (BytesRefBlock.Builder b = blockFactory().newBytesRefBlockBuilder(2)) {
             b.appendBytesRef(new BytesRef("hello"));
             b.appendNull();
-            try (Page page = new Page(b.build())) {
-                try (EscfBatch batch = PageToEscfBatch.convert(page, List.of("kw"), List.of(DataType.KEYWORD))) {
-                    List<Map<String, Object>> rows = toMaps(batch);
-                    assertThat(rows.get(0).get("kw"), equalTo("hello"));
-                    assertThat(rows.get(1), not(hasKey("kw")));
-                }
-            }
+            assertThat(rows(List.of(DataType.KEYWORD), b.build()), equalTo(List.of(Map.of("c0", "hello"), Map.of())));
         }
     }
 
     public void testMultiValuedKeyword() throws IOException {
-        try (BytesRefBlock.Builder b = blockFactory().newBytesRefBlockBuilder(4)) {
-            b.beginPositionEntry();
-            b.appendBytesRef(new BytesRef("a"));
-            b.appendBytesRef(new BytesRef("b"));
-            b.endPositionEntry();
+        try (BytesRefBlock.Builder b = blockFactory().newBytesRefBlockBuilder(2)) {
+            b.beginPositionEntry().appendBytesRef(new BytesRef("a")).appendBytesRef(new BytesRef("b")).endPositionEntry();
             b.appendBytesRef(new BytesRef("c"));
-            try (Page page = new Page(b.build())) {
-                try (EscfBatch batch = PageToEscfBatch.convert(page, List.of("tags"), List.of(DataType.KEYWORD))) {
-                    List<Map<String, Object>> rows = toMaps(batch);
-                    assertThat(rows.get(0).get("tags"), equalTo(List.of("a", "b")));
-                    assertThat(rows.get(1).get("tags"), equalTo("c"));
-                }
-            }
+            assertThat(
+                rows(List.of(DataType.KEYWORD), b.build()),
+                equalTo(List.of(Map.of("c0", List.of("a", "b")), Map.of("c0", List.of("c"))))
+            );
         }
     }
 
-    public void testDatetimeColumnUsesUtc() throws IOException {
+    public void testDatetimeUsesUtc() throws IOException {
         try (LongBlock.Builder b = blockFactory().newLongBlockBuilder(1)) {
             b.appendLong(1_750_000_000_000L);
-            try (Page page = new Page(b.build())) {
-                try (EscfBatch batch = PageToEscfBatch.convert(page, List.of("dt"), List.of(DataType.DATETIME))) {
-                    List<Map<String, Object>> rows = toMaps(batch);
-                    assertThat(rows.get(0).get("dt"), equalTo("2025-06-15T15:06:40.000Z"));
-                }
-            }
+            assertThat(rows(List.of(DataType.DATETIME), b.build()), equalTo(List.of(Map.of("c0", "2025-06-15T15:06:40.000Z"))));
         }
     }
 
-    public void testAllNullColumnOmitted() throws IOException {
-        try (
-            LongBlock.Builder longB = blockFactory().newLongBlockBuilder(2);
-            LongBlock.Builder nullB = blockFactory().newLongBlockBuilder(2)
-        ) {
-            longB.appendLong(5_000_000_000L);
-            longB.appendLong(6_000_000_000L);
-            nullB.appendNull();
-            nullB.appendNull();
-            try (Page page = new Page(longB.build(), nullB.build())) {
-                try (EscfBatch batch = PageToEscfBatch.convert(page, List.of("present", "absent"), List.of(DataType.LONG, DataType.LONG))) {
-                    assertThat(batch.columnCount(), equalTo(1));
-                    List<Map<String, Object>> rows = toMaps(batch);
-                    assertThat(((Number) rows.get(0).get("present")).longValue(), equalTo(5_000_000_000L));
-                    assertThat(rows.get(0), not(hasKey("absent")));
-                }
-            }
-        }
-    }
-
-    public void testNullTypeColumnOmitted() throws IOException {
+    public void testDateNanos() throws IOException {
         try (LongBlock.Builder b = blockFactory().newLongBlockBuilder(1)) {
-            b.appendLong(7_000_000_000L);
-            try (Page page = new Page(b.build(), blockFactory().newConstantNullBlock(1))) {
-                try (EscfBatch batch = PageToEscfBatch.convert(page, List.of("v", "n"), List.of(DataType.LONG, DataType.NULL))) {
-                    assertThat(batch.columnCount(), equalTo(1));
-                    List<Map<String, Object>> rows = toMaps(batch);
-                    assertThat(((Number) rows.get(0).get("v")).longValue(), equalTo(7_000_000_000L));
-                    assertThat(rows.get(0), not(hasKey("n")));
-                }
-            }
+            b.appendLong(1_000_000_001L);
+            assertThat(rows(List.of(DataType.DATE_NANOS), b.build()), equalTo(List.of(Map.of("c0", "1970-01-01T00:00:01.000000001Z"))));
+        }
+    }
+
+    public void testIp() throws IOException {
+        BytesRef ipBytes = new BytesRef(InetAddressPoint.encode(InetAddresses.forString("192.168.1.1")));
+        try (BytesRefBlock.Builder b = blockFactory().newBytesRefBlockBuilder(1)) {
+            b.appendBytesRef(ipBytes);
+            assertThat(rows(List.of(DataType.IP), b.build()), equalTo(List.of(Map.of("c0", "192.168.1.1"))));
         }
     }
 
     public void testUnsignedLongBelowLongMax() throws IOException {
-        // unsigned long = 42, stored as twos-complement encoded long
-        long encoded = org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned(java.math.BigInteger.valueOf(42L));
+        long encoded = NumericUtils.asLongUnsigned(BigInteger.valueOf(42L));
         try (LongBlock.Builder b = blockFactory().newLongBlockBuilder(1)) {
             b.appendLong(encoded);
-            try (Page page = new Page(b.build())) {
-                try (EscfBatch batch = PageToEscfBatch.convert(page, List.of("ul"), List.of(DataType.UNSIGNED_LONG))) {
-                    List<Map<String, Object>> rows = toMaps(batch);
-                    assertThat(rows.get(0).get("ul"), equalTo("42"));
-                }
-            }
+            assertThat(rows(List.of(DataType.UNSIGNED_LONG), b.build()), equalTo(List.of(Map.of("c0", 42))));
         }
     }
 
-    public void testSchemaRegistersOnlyNonNullColumns() throws IOException {
-        try (
-            LongBlock.Builder aB = blockFactory().newLongBlockBuilder(1);
-            LongBlock.Builder nullB = blockFactory().newLongBlockBuilder(1)
-        ) {
-            aB.appendLong(8_000_000_000L);
-            nullB.appendNull();
-            try (Page page = new Page(aB.build(), nullB.build())) {
-                try (EscfBatch batch = PageToEscfBatch.convert(page, List.of("a", "b"), List.of(DataType.LONG, DataType.LONG))) {
-                    assertThat(batch.columnCount(), equalTo(1));
-                    assertThat(batch.schema().leafCount(), equalTo(1));
-                    assertThat(batch.schema().getLeafName(0), equalTo("a"));
-                }
-            }
+    public void testUnsignedLongAboveLongMax() throws IOException {
+        BigInteger big = BigInteger.TWO.pow(63).add(BigInteger.ONE);
+        long encoded = NumericUtils.asLongUnsigned(big);
+        try (LongBlock.Builder b = blockFactory().newLongBlockBuilder(1)) {
+            b.appendLong(encoded);
+            assertThat(rows(List.of(DataType.UNSIGNED_LONG), b.build()), equalTo(List.of(Map.of("c0", big.toString()))));
         }
+    }
+
+    public void testDenseVectorPreservesShortestDecimal() throws IOException {
+        try (FloatBlock.Builder b = blockFactory().newFloatBlockBuilder(1)) {
+            b.appendFloat(1.1f);
+            List<Map<String, Object>> maps = rows(List.of(DataType.DENSE_VECTOR), b.build());
+            assertThat(maps, hasSize(1));
+            assertThat(maps.getFirst().get("c0"), equalTo(1.1));
+        }
+    }
+
+    public void testDoubleRangeRendersAsString() throws IOException {
+        try (DoubleRangeBlockBuilder b = blockFactory().newDoubleRangeBlockBuilder(1)) {
+            b.appendDoubleRange(1.0, 2.0);
+            List<Map<String, Object>> maps = rows(List.of(DataType.DOUBLE_RANGE), b.build());
+            assertThat(maps, equalTo(List.of(Map.of("c0", "1.0..2.0"))));
+        }
+    }
+
+    public void testAllNullColumnsOmitted() throws IOException {
+        try (
+            LongBlock.Builder aB = blockFactory().newLongBlockBuilder(2);
+            LongBlock.Builder nullB = blockFactory().newLongBlockBuilder(2)
+        ) {
+            aB.appendLong(5_000_000_000L);
+            aB.appendLong(6_000_000_000L);
+            nullB.appendNull();
+            nullB.appendNull();
+            assertThat(
+                rows(List.of(DataType.LONG, DataType.LONG), aB.build(), nullB.build()),
+                equalTo(List.of(Map.of("c0", 5_000_000_000L), Map.of("c0", 6_000_000_000L)))
+            );
+        }
+        try (LongBlock.Builder b = blockFactory().newLongBlockBuilder(1)) {
+            b.appendLong(7_000_000_000L);
+            assertThat(
+                rows(List.of(DataType.LONG, DataType.NULL), b.build(), blockFactory().newConstantNullBlock(1)),
+                equalTo(List.of(Map.of("c0", 7_000_000_000L)))
+            );
+        }
+    }
+
+    public void testNullInterleaved() throws IOException {
+        try (LongBlock.Builder b = blockFactory().newLongBlockBuilder(3)) {
+            b.appendLong(10_000_000_000L);
+            b.appendNull();
+            b.beginPositionEntry().appendLong(20_000_000_000L).appendLong(30_000_000_000L).endPositionEntry();
+            assertThat(
+                rows(List.of(DataType.LONG), b.build()),
+                equalTo(List.of(Map.of("c0", List.of(10_000_000_000L)), Map.of(), Map.of("c0", List.of(20_000_000_000L, 30_000_000_000L))))
+            );
+        }
+    }
+
+    public void testEmptyPage() throws IOException {
+        assertThat(rows(List.of(DataType.LONG), blockFactory().newConstantNullBlock(0)), equalTo(List.of()));
     }
 }

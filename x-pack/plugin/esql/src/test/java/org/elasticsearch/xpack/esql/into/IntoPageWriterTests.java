@@ -21,9 +21,13 @@ import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -38,6 +42,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -45,6 +50,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -74,6 +80,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
     private CapturingClient client;
     private BlockFactory blockFactory;
     private DriverContext driverContext;
+    private boolean usePreBuiltBatch;
     private IntoPageWriter.Factory sink;
     private IntoPageWriter writer;
 
@@ -82,8 +89,9 @@ public class IntoPageWriterTests extends ComputeTestCase {
         threadPool = new TestThreadPool(getTestName());
         client = new CapturingClient(threadPool);
         blockFactory = blockFactory();
-        driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory, null);
-        sink = IntoPageWriter.Factory.createFactory(client, DESTINATION, COLUMNS);
+        driverContext = new DriverContext(mockBigArrays(), blockFactory, null);
+        usePreBuiltBatch = randomBoolean();
+        sink = IntoPageWriter.Factory.createFactory(client, DESTINATION, COLUMNS, usePreBuiltBatch);
         writer = sink.create(driverContext);
     }
 
@@ -148,7 +156,17 @@ public class IntoPageWriterTests extends ComputeTestCase {
         }
     }
 
-    public void testPageToSourceConversion() {
+    private static List<Map<String, Object>> sources(BulkRequest bulk) throws IOException {
+        List<Map<String, Object>> sources = new ArrayList<>();
+        for (DocWriteRequest<?> request : bulk.requests()) {
+            IndexRequest index = (IndexRequest) request;
+            index.indexSource().ensureInlineSource();
+            sources.add(XContentHelper.convertToMap(index.indexSource().bytes(), false, XContentType.JSON).v2());
+        }
+        return sources;
+    }
+
+    public void testPageToSourceConversion() throws IOException {
         try (
             BytesRefBlock.Builder host = blockFactory.newBytesRefBlockBuilder(2);
             LongBlock.Builder ts = blockFactory.newLongBlockBuilder(2)
@@ -165,11 +183,65 @@ public class IntoPageWriterTests extends ComputeTestCase {
         assertThat(requests.stream().map(DocWriteRequest::opType).toList(), everyItem(equalTo(DocWriteRequest.OpType.CREATE)));
         assertThat(requests.stream().map(DocWriteRequest::index).toList(), everyItem(equalTo(DESTINATION)));
         assertThat(
-            requests.stream().map(request -> ((IndexRequest) request).sourceAsMap()).toList(),
+            sources(client.bulks.getFirst()),
             equalTo(
                 List.of(Map.of("host", List.of("h1", "h2"), "ts", "2025-06-15T15:06:40.000Z"), Map.of("ts", "1970-01-01T00:00:00.000Z"))
             )
         );
+    }
+
+    public void testEscfBatchProperties() throws IOException {
+        IntoPageWriter.Factory escfSink = IntoPageWriter.Factory.createFactory(client, DESTINATION, COLUMNS, true);
+        IntoPageWriter escfWriter = escfSink.create(new DriverContext(mockBigArrays(), blockFactory, null));
+        try (
+            BytesRefBlock.Builder host = blockFactory.newBytesRefBlockBuilder(2);
+            LongBlock.Builder ts = blockFactory.newLongBlockBuilder(2)
+        ) {
+            host.beginPositionEntry().appendBytesRef(new BytesRef("h1")).appendBytesRef(new BytesRef("h2")).endPositionEntry();
+            ts.appendLong(1_750_000_000_000L);
+            host.appendNull();
+            ts.appendLong(0L);
+            escfWriter.consume(new Page(host.build(), ts.build()));
+        }
+
+        assertThat(client.bulks, hasSize(1));
+        BulkRequest bulk = client.bulks.getFirst();
+        assertTrue(bulk.hasPreBuiltBatches());
+        assertThat(bulk.requests().stream().map(r -> ((IndexRequest) r).indexSource().rowIndex()).toList(), equalTo(List.of(0, 1)));
+        assertThat(
+            sources(bulk),
+            equalTo(
+                List.of(Map.of("host", List.of("h1", "h2"), "ts", "2025-06-15T15:06:40.000Z"), Map.of("ts", "1970-01-01T00:00:00.000Z"))
+            )
+        );
+        client.answer(Outcome.CREATED, Outcome.CREATED);
+        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+    }
+
+    public void testEscfBatchBytesIncludeRecyclerOverhead() {
+        BlockFactory limited = blockFactory();
+        DriverContext escfContext = new DriverContext(mockBigArrays(), limited, null);
+        IntoPageWriter.Factory escfSink = IntoPageWriter.Factory.createFactory(client, DESTINATION, COLUMNS, true);
+        IntoPageWriter escfWriter = escfSink.create(escfContext);
+        escfWriter.consume(page("h1"));
+        long charged = escfContext.breaker().getUsed();
+        long twoPageMin = 2L * escfContext.bigArrays().bytesRefRecycler().pageSize();
+        assertThat(charged, greaterThanOrEqualTo(twoPageMin));
+        client.answer(Outcome.CREATED);
+        assertThat(escfContext.breaker().getUsed(), equalTo(0L));
+    }
+
+    public void testEscfPerColumnBreakerTripReleasesColumns() {
+        // The first column (host, 1 string value) charges ~pageSize + a few bytes.
+        // Setting the limit to pageSize + 100 allows the first column but not the second (ts, long),
+        // which also needs pageSize. The catch must release the first column's bytes.
+        long pageSize = driverContext.bigArrays().bytesRefRecycler().pageSize();
+        BlockFactory limited = blockFactory(ByteSizeValue.ofBytes(pageSize + 100));
+        IntoPageWriter.Factory escfSink = IntoPageWriter.Factory.createFactory(client, DESTINATION, COLUMNS, true);
+        IntoPageWriter escfWriter = escfSink.create(new DriverContext(mockBigArrays(), limited, null));
+        expectThrows(CircuitBreakingException.class, () -> escfWriter.consume(page("h1")));
+        assertThat(limited.breaker().getUsed(), equalTo(0L));
+        assertThat(client.bulks, empty());
     }
 
     public void testBackpressureAtInFlightByteLimit() {
@@ -193,14 +265,17 @@ public class IntoPageWriterTests extends ComputeTestCase {
 
     public void testSourceBytesChargedUntilBulkSettles() {
         writer.consume(page("h1", "h2"));
-        long sourceBytes = client.bulks.getFirst()
-            .requests()
-            .stream()
-            .mapToLong(request -> ((IndexRequest) request).indexSource().byteLength())
-            .sum();
+        long charged = driverContext.breaker().getUsed();
+        assertThat(charged, greaterThan(0L));
 
-        assertThat(sourceBytes, greaterThan(0L));
-        assertThat(driverContext.breaker().getUsed(), equalTo(sourceBytes));
+        if (usePreBuiltBatch == false) {
+            long sourceBytes = client.bulks.getFirst()
+                .requests()
+                .stream()
+                .mapToLong(r -> ((IndexRequest) r).indexSource().byteLength())
+                .sum();
+            assertThat(charged, equalTo(sourceBytes));
+        }
 
         client.answer(Outcome.CREATED, Outcome.CREATED);
         assertThat(driverContext.breaker().getUsed(), equalTo(0L));
@@ -213,7 +288,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
         assertThat(oneRow, greaterThan(0L));
 
         BlockFactory limited = blockFactory(ByteSizeValue.ofBytes(oneRow));
-        IntoPageWriter limitedWriter = sink.create(new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, limited, null));
+        IntoPageWriter limitedWriter = sink.create(new DriverContext(mockBigArrays(), limited, null));
         expectThrows(CircuitBreakingException.class, () -> limitedWriter.consume(page("h1", "h2")));
         assertThat(client.bulks, empty());
         assertThat(limited.breaker().getUsed(), equalTo(0L));
@@ -221,7 +296,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
 
     public void testCrankyBreakerReleasesAndStatsMatchWrittenRows() {
         BlockFactory crankyFactory = crankyBlockFactory();
-        IntoPageWriter crankyWriter = sink.create(new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, crankyFactory, null));
+        IntoPageWriter crankyWriter = sink.create(new DriverContext(mockBigArrays(), crankyFactory, null));
         int written = 0;
         boolean tripped = false;
         for (int i = 0; i < 1000; i++) {
@@ -292,70 +367,25 @@ public class IntoPageWriterTests extends ComputeTestCase {
         assertThat(sink.stats(), equalTo(new IntoStats(0, 0)));
     }
 
-    // --- ESCF pre-built batch tests ---
+    public void testTwoWritersAreIndependent() {
+        IntoPageWriter writerB = sink.create(driverContext);
 
-    public void testEscfPreBuiltBatchProperties() {
-        IntoPageWriter.Factory escfSink = IntoPageWriter.Factory.createFactory(client, DESTINATION, COLUMNS, true);
-        IntoPageWriter escfWriter = escfSink.create(driverContext);
-
-        try (
-            BytesRefBlock.Builder host = blockFactory.newBytesRefBlockBuilder(2);
-            LongBlock.Builder ts = blockFactory.newLongBlockBuilder(2)
-        ) {
-            host.beginPositionEntry().appendBytesRef(new BytesRef("h1")).appendBytesRef(new BytesRef("h2")).endPositionEntry();
-            ts.appendLong(1_750_000_000_000L);
-            host.appendNull();
-            ts.appendLong(0L);
-            escfWriter.consume(new Page(host.build(), ts.build()));
+        for (int i = 0; i < 3; i++) {
+            writer.consume(widePage());
         }
+        // writer A is blocked; writer B has its own independent counter and is not blocked.
+        assertFalse(writer.isBlocked().listener().isDone());
+        assertThat(writerB.isBlocked(), equalTo(Operator.NOT_BLOCKED));
 
-        assertThat(client.bulks, hasSize(1));
-        BulkRequest bulk = client.bulks.getFirst();
-        assertThat(bulk.hasPreBuiltBatches(), equalTo(true));
-        assertThat(bulk.numberOfActions(), equalTo(2));
-
-        List<DocWriteRequest<?>> requests = bulk.requests();
-        assertThat(requests.stream().map(DocWriteRequest::opType).toList(), everyItem(equalTo(DocWriteRequest.OpType.CREATE)));
-        assertThat(requests.stream().map(DocWriteRequest::index).toList(), everyItem(equalTo(DESTINATION)));
-        // With a pre-built batch, the inline source bytes are empty; row data lives in the batch.
-        requests.forEach(r -> assertThat(((IndexRequest) r).indexSource().byteLength(), equalTo(0)));
-
-        // Breaker is charged until the bulk settles.
-        assertThat(driverContext.breaker().getUsed(), greaterThan(0L));
-        client.answer(Outcome.CREATED, Outcome.CREATED);
-        assertThat(driverContext.breaker().getUsed(), equalTo(0L));
-    }
-
-    public void testEscfBytesChargedUntilBulkSettles() {
-        IntoPageWriter.Factory escfSink = IntoPageWriter.Factory.createFactory(client, DESTINATION, COLUMNS, true);
-        IntoPageWriter escfWriter = escfSink.create(driverContext);
-
-        escfWriter.consume(page("h1", "h2"));
-        assertThat(driverContext.breaker().getUsed(), greaterThan(0L));
-
-        client.answer(Outcome.CREATED, Outcome.CREATED);
-        assertThat(driverContext.breaker().getUsed(), equalTo(0L));
-    }
-
-    public void testEscfCircuitBreakerTripReleasesReservedBatch() {
-        IntoPageWriter.Factory escfSink = IntoPageWriter.Factory.createFactory(client, DESTINATION, COLUMNS, true);
-
-        // Measure how many bytes the ESCF path charges for a single-row page.
-        IntoPageWriter escfWriter = escfSink.create(driverContext);
-        escfWriter.consume(page("h1"));
-        long oneRowBatchBytes = driverContext.breaker().getUsed();
         client.answer(Outcome.CREATED);
-        assertThat(oneRowBatchBytes, greaterThan(0L));
-
-        // A breaker limited to one row's batch bytes trips when processing two rows (larger batch).
-        BlockFactory limited = blockFactory(ByteSizeValue.ofBytes(oneRowBatchBytes));
-        IntoPageWriter limitedWriter = escfSink.create(new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, limited, null));
-        expectThrows(CircuitBreakingException.class, () -> limitedWriter.consume(page("h1", "h2")));
-        assertThat(client.bulks, empty());
-        assertThat(limited.breaker().getUsed(), equalTo(0L));
+        client.answer(Outcome.CREATED);
+        client.answer(Outcome.CREATED);
+        assertThat(driverContext.breaker().getUsed(), equalTo(0L));
     }
 
-    // --- helpers ---
+    private static BigArrays mockBigArrays() {
+        return new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), ByteSizeValue.ofGb(1));
+    }
 
     private Page page(String... hosts) {
         try (BytesRefBlock.Builder host = blockFactory.newBytesRefBlockBuilder(hosts.length)) {

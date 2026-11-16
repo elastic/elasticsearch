@@ -193,7 +193,6 @@ import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.logical.MergeBranchAlignment;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
-import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
@@ -209,6 +208,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetadata;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ViewSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
@@ -313,7 +313,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 new ResolveViewShadow(),
                 new ResolveDatasetShadow(),
                 new StripDatasetShadowRelations(),
-                // Freezes _class/_name into literal Evals while every Subquery/NamedSubquery wrapper is still exactly as
+                // Freezes _class/_name into literal Evals while every Subquery/ViewSubquery wrapper is still exactly as
                 // the parser and ViewResolver left it — BEFORE compaction below may lift or merge branches. Compaction
                 // then needs no metadata-driven flags: a branch topped by a frozen Eval is no longer a bare relation, so
                 // the merges that would lose identity are blocked by plan structure alone.
@@ -686,7 +686,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * must be resolved ({@link ResolveDatasetShadow}) or stripped ({@link StripDatasetShadowRelations}) before this rule runs, so the
      * nested-union flattening below never lifts an unresolved shadow into an outer level. Strips remaining unresolved view shadows,
      * flattens nested {@code BranchPlan} structures when the flat width is within {@link AnalyzerContext#maxBranchCount()}, and
-     * unwraps remaining {@code NamedSubquery} wrappers. See {@link ViewCompaction} for the rationale behind splitting compaction
+     * unwraps remaining {@code ViewSubquery} wrappers. See {@link ViewCompaction} for the rationale behind splitting compaction
      * across the analyzer boundary.
      */
     private static class ViewCompactionPostIndexResolution extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
@@ -749,7 +749,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             for (Map.Entry<String, LogicalPlan> entry : vua.namedSubqueries().entrySet()) {
                 LogicalPlan branch = entry.getValue();
                 LogicalPlan answered = switch (branch) {
-                    case NamedSubquery view -> withRelationColumns(view, relationColumns, src, RelationClass.VIEW, view.name());
+                    case ViewSubquery view -> withRelationColumns(view, relationColumns, src, RelationClass.VIEW, view.name());
                     case Subquery subquery -> withRelationColumns(subquery, relationColumns, src, RelationClass.SUBQUERY, null);
                     default -> {
                         BranchIdentity identity = vua.branchIdentity(entry.getKey());
@@ -767,7 +767,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         /** Answers a lone (non-union) {@code FROM} target. A lone subquery's wrapper is consumed here, not left for compaction. */
         private static LogicalPlan answerLone(LogicalPlan child, List<NamedExpression> relationColumns, Source src) {
             return switch (child) {
-                case NamedSubquery view -> withRelationColumns(view, relationColumns, src, RelationClass.VIEW, view.name());
+                case ViewSubquery view -> withRelationColumns(view, relationColumns, src, RelationClass.VIEW, view.name());
                 case Subquery subquery -> withRelationColumns(subquery.child(), relationColumns, src, RelationClass.SUBQUERY, null);
                 case LogicalPlan relation -> relation;
             };
@@ -798,7 +798,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
-            return plan.transformDown(NamedSubquery.class, UnaryPlan::child);
+            return plan.transformDown(ViewSubquery.class, UnaryPlan::child);
         }
     }
 

@@ -18,15 +18,15 @@ import java.util.Objects;
  * Unlike plain {@link Subquery}, the name participates in {@link #equals} and {@link #hashCode},
  * which allows {@code Node.transformDown} to distinguish a newly-tagged subquery from its
  * untagged predecessor. After view resolution, a post-processing pass converts
- * {@link UnionAll} nodes containing {@code NamedSubquery} children into {@link BranchPlan}.
+ * {@link UnionAll} nodes containing {@code ViewSubquery} children into {@link BranchPlan}.
  * <p>
  * This class should only be used during query re-writing and not survive in the final query plan.
  * If we decide to keep named subqueries as a feature later, we should add serialization support.
  */
-public class NamedSubquery extends Subquery {
+public class ViewSubquery extends Subquery {
     private final String name;
 
-    public NamedSubquery(Source source, LogicalPlan subqueryPlan, String name) {
+    public ViewSubquery(Source source, LogicalPlan subqueryPlan, String name) {
         super(source, subqueryPlan);
         this.name = Objects.requireNonNull(name);
     }
@@ -36,13 +36,13 @@ public class NamedSubquery extends Subquery {
     }
 
     @Override
-    protected NodeInfo<NamedSubquery> info() {
-        return NodeInfo.create(this, NamedSubquery::new, child(), name);
+    protected NodeInfo<ViewSubquery> info() {
+        return NodeInfo.create(this, ViewSubquery::new, child(), name);
     }
 
     @Override
     public UnaryPlan replaceChild(LogicalPlan newChild) {
-        return new NamedSubquery(source(), newChild, name);
+        return new ViewSubquery(source(), newChild, name);
     }
 
     @Override
@@ -58,7 +58,7 @@ public class NamedSubquery extends Subquery {
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        NamedSubquery other = (NamedSubquery) obj;
+        ViewSubquery other = (ViewSubquery) obj;
         return Objects.equals(name, other.name) && Objects.equals(child(), other.child());
     }
 

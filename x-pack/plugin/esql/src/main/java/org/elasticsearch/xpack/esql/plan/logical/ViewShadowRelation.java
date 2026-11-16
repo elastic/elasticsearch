@@ -51,7 +51,7 @@ import java.util.Objects;
  *       provides real data.</li>
  *   <li>{@code ViewCompactionPostIndexResolution} runs after {@code ResolveViewShadow}: any
  *       still-unresolved shadow is stripped, then nested {@link BranchPlan}s are flattened
- *       and remaining {@code NamedSubquery} wrappers unwrapped.
+ *       and remaining {@code ViewSubquery} wrappers unwrapped.
  *       Sibling {@code EsRelation}s stay separate (a {@code UnionAll}/{@link BranchPlan}
  *       of {@code EsRelation}s) rather than being merged via a third combined field-caps call.</li>
  * </ol>

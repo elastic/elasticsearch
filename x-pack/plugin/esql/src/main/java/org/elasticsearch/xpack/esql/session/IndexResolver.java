@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.esql.core.type.IndexAnalyzerGroup;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedTsField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.NestedScopeField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedSingleTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.SupportedVersion;
@@ -664,6 +665,14 @@ public class IndexResolver {
             fields.put(name, field);
         }
 
+        EsField nestedNamespace = NestedScopeField.namespace(indexResponses);
+        if (nestedNamespace != null) {
+            if (rootFields.containsKey(NestedScopeField.NAMESPACE)) {
+                throw new VerificationException("field [{}] conflicts with the nested scope", NestedScopeField.NAMESPACE);
+            }
+            rootFields.put(NestedScopeField.NAMESPACE, nestedNamespace);
+        }
+
         boolean allEmpty = true;
         Map<String, IndexProperties> indexProperties = Maps.newMapWithExpectedSize(indexResponses.size());
         Map<String, List<String>> concreteIndices = Maps.newHashMapWithExpectedSize(8);
@@ -725,6 +734,10 @@ public class IndexResolver {
             for (IndexFieldCapabilities fc : response.get().values()) {
                 if (fc.isMetadatafield()) {
                     // ESQL builds the metadata fields if they are asked for without using the resolution.
+                    continue;
+                }
+                // Nested fields are visible only through the private scope attached above, never as ordinary columns.
+                if (NestedScopeField.pathFor(fc.name(), response.get()) != null) {
                     continue;
                 }
                 if (isNew) {
@@ -1105,7 +1118,9 @@ public class IndexResolver {
     ) {
         FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
         request.indices(Strings.commaDelimitedListToStringArray(index));
-        request.fields(fieldNames.toArray(String[]::new));
+        // The marker is not a field. It asks for nested fields so NESTED_EXPAND can read them from a private schema.
+        boolean nestedScope = fieldNames.contains(NestedScopeField.REQUEST_MARKER);
+        request.fields(fieldNames.stream().filter(name -> name.equals(NestedScopeField.REQUEST_MARKER) == false).toArray(String[]::new));
         request.includeUnmapped(true);
         request.indexFilter(requestFilter);
         request.returnLocalAll(false);
@@ -1113,7 +1128,12 @@ public class IndexResolver {
         // also because this way security doesn't throw authorization exceptions but rather honors ignore_unavailable
         request.indicesOptions(options);
         // we ignore the nested data type fields starting with https://github.com/elastic/elasticsearch/pull/111495
-        if (includeAllDimensions) {
+        // unless this query expands them, in which case they are kept out of ordinary resolution separately
+        if (nestedScope) {
+            if (includeAllDimensions) {
+                request.filters("+dimension");
+            }
+        } else if (includeAllDimensions) {
             request.filters("-nested", "+dimension");
         } else {
             request.filters("-nested");

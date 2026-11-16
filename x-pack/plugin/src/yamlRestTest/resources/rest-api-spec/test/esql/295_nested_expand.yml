@@ -1,0 +1,82 @@
+setup:
+  - requires:
+      test_runner_features: [capabilities, allowed_warnings_regex]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [nested_expand]
+      reason: "NESTED_EXPAND is snapshot-only"
+  - do:
+      indices.create:
+        index: nested_expand
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              id:
+                type: keyword
+              items:
+                type: nested
+                properties:
+                  sku:
+                    type: keyword
+                  qty:
+                    type: long
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "nested_expand", "_id": "1" } }
+          - { "id": "1", "items": [ { "sku": "a", "qty": 1 }, { "sku": "b", "qty": 2 } ] }
+          - { "index": { "_index": "nested_expand", "_id": "2" } }
+          - { "id": "2", "items": [] }
+
+---
+"Fan out one row per nested object, keeping a null row for an empty parent":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_expand | NESTED_EXPAND items | KEEP id, items.sku, items.qty | SORT id, items.sku'
+  - match: { columns.0.name: "id" }
+  - match: { columns.1.name: "items.sku" }
+  - match: { columns.2.name: "items.qty" }
+  - length: { values: 3 }
+  - match: { values.0: ["1", "a", 1] }
+  - match: { values.1: ["1", "b", 2] }
+  - match: { values.2: ["2", null, null] }
+
+---
+"A query without NESTED_EXPAND does not expose nested fields":
+  - do:
+      catch: /Unknown column \[items.sku\]/
+      esql.query:
+        body:
+          query: 'FROM nested_expand | KEEP id, items.sku'
+
+---
+"NESTED_EXPAND of an unknown field reports the unknown column":
+  - do:
+      catch: /Unknown column \[missing\]/
+      esql.query:
+        body:
+          query: 'FROM nested_expand | NESTED_EXPAND missing'
+
+---
+"NESTED_EXPAND of a non-nested field fails":
+  - do:
+      catch: /requires a mapped nested field, not \[id\]/
+      esql.query:
+        body:
+          query: 'FROM nested_expand | NESTED_EXPAND id'
+
+---
+"NESTED_EXPAND cannot follow a coordinator pipeline breaker":
+  - do:
+      catch: /must run on the data nodes/
+      esql.query:
+        body:
+          query: 'FROM nested_expand | LIMIT 1 | NESTED_EXPAND items'

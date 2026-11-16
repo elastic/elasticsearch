@@ -4894,6 +4894,12 @@ public class EsqlCapabilities {
          */
         INTO_COMMAND(Build.current().isSnapshot()),
 
+        /**
+         * {@code NESTED_EXPAND} turns one parent row into one row per object of a mapped nested field.
+         * Snapshot-only until the command is advertised.
+         */
+        NESTED_EXPAND(Build.current().isSnapshot()),
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

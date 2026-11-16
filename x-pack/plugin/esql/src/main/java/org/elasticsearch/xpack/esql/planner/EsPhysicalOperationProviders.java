@@ -55,6 +55,7 @@ import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.UnmappedFields;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
+import org.elasticsearch.index.mapper.blockloader.Warnings;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
@@ -895,8 +896,54 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
 
         /** Whether this shard reads the field {@code name} as the key of a {@code flattened} field, a {@code keyword}. */
-        boolean readsKey(String name) {
+        public boolean readsKey(String name) {
             return ctx instanceof EsqlSearchExecutionContext esql && esql.readsKey(name);
+        }
+
+        /**
+         * Loads the {@code _source} of a hidden child document of a nested field: the object it was indexed from, taken from the
+         * parent's {@code _source}. Child documents store no {@code _source}, so a child field without doc values reads it from
+         * here. Takes the whole parent source, as a filter could drop objects and shift the others.
+         */
+        public SourceLoader newNestedChildSourceLoader() {
+            return ctx.getMappingLookup().newNestedChildSourceLoader(ctx.getNestedDocuments());
+        }
+
+        /**
+         * Whether each document's {@code _source} was filtered by the mapping's {@code includes} or {@code excludes} as it was
+         * stored. Filtering drops the objects of a nested field that it empties, so the stored {@code _source} no longer tells
+         * which of a parent's objects each child document was indexed from.
+         */
+        public boolean storesFilteredSource() {
+            MappingLookup lookup = ctx.getMappingLookup();
+            SourceFieldMapper source = lookup.getMapping().getMetadataMapperByClass(SourceFieldMapper.class);
+            return lookup.isSourceEnabled() && lookup.isSourceSynthetic() == false && source != null && source.isComplete() == false;
+        }
+
+        /**
+         * Loads a field under a nested object from the hidden child documents.
+         */
+        public BlockLoader nestedChildBlockLoader(
+            String name,
+            Warnings warnings,
+            ByteSizeValue blockLoaderSizeOrdinals,
+            ByteSizeValue blockLoaderSizeScript
+        ) {
+            MappedFieldType fieldType = fieldType(name);
+            if (fieldType == null) {
+                return ConstantNull.INSTANCE;
+            }
+            BlockLoader loader = fieldType.blockLoader(
+                new EsqlBlockLoaderContext(
+                    ctx,
+                    MappedFieldType.FieldExtractPreference.NONE,
+                    null,
+                    warnings,
+                    blockLoaderSizeOrdinals,
+                    blockLoaderSizeScript
+                )
+            );
+            return loader == null ? ConstantNull.INSTANCE : loader;
         }
 
         @Override

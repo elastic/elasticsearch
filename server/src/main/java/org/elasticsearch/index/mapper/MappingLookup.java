@@ -736,6 +736,16 @@ public final class MappingLookup {
         return filter == null ? SourceLoader.FROM_STORED_SOURCE : new SourceLoader.Stored(filter);
     }
 
+    /**
+     * Loads a hidden child document of a nested field from the parent's {@code _source}. Search's
+     * {@link #newSourceLoader} is unchanged: a child document stores no {@code _source} of its own, and a filter on the
+     * parent source could drop objects and shift the others, so only nested-child readers use this.
+     */
+    public SourceLoader newNestedChildSourceLoader(NestedDocuments nestedDocuments) {
+        SourceLoader parentLoader = newSourceLoader(null, SourceFieldMetrics.NOOP, null);
+        return nestedLookup == NestedLookup.EMPTY ? parentLoader : new NestedChildSourceLoader(parentLoader, nestedDocuments);
+    }
+
     private SourceFilter removeExcludedSyntheticVectorFields(@Nullable SourceFilter filter) {
         if (filter == null || filter.getExcludes().length == 0) {
             return filter;

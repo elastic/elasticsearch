@@ -41,6 +41,7 @@ import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.compute.lucene.query.SharedSortBound;
 import org.elasticsearch.compute.lucene.query.TimeSeriesSourceOperator;
 import org.elasticsearch.compute.lucene.read.FieldPresenceOperator;
+import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.ChangePointOperator;
 import org.elasticsearch.compute.operator.ColumnExtractOperator;
 import org.elasticsearch.compute.operator.ColumnLoadOperator;
@@ -177,6 +178,8 @@ import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedChildren;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedExpandOperator;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
@@ -224,6 +227,7 @@ import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MMRExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
+import org.elasticsearch.xpack.esql.plan.physical.NestedExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PackDimsExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -258,6 +262,7 @@ import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -501,6 +506,8 @@ public class LocalExecutionPlanner {
             return planLimit(limit, context);
         } else if (node instanceof MvExpandExec mvExpand) {
             return planMvExpand(mvExpand, context);
+        } else if (node instanceof NestedExpandExec nestedExpand) {
+            return planNestedExpand(nestedExpand, context);
         } else if (node instanceof TimeSeriesCollapseExec tsCollapse) {
             return planTimeSeriesCollapse(tsCollapse, context);
         } else if (node instanceof HighlightExec highlight) {
@@ -2865,6 +2872,34 @@ public class LocalExecutionPlanner {
             new MvExpandOperator.Factory(source.layout.get(mvExpandExec.target().id()).channel(), blockSize),
             layout.build()
         );
+    }
+
+    private PhysicalOperation planNestedExpand(NestedExpandExec expand, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(expand.child(), context);
+        int docChannel = -1;
+        for (Attribute attribute : expand.child().output()) {
+            if (EsQueryExec.isDocAttribute(attribute)) {
+                docChannel = source.layout.get(attribute.id()).channel();
+                break;
+            }
+        }
+        if (docChannel < 0) {
+            throw new IllegalStateException("NESTED_EXPAND requires [_doc]");
+        }
+        Layout.Builder layout = source.layout.builder();
+        layout.append(expand.expanded());
+        List<DataType> types = expand.expanded().stream().map(Attribute::dataType).toList();
+        NestedChildren.Factory children = types.isEmpty()
+            ? null
+            : NestedChildren.factory(
+                context.shardContexts,
+                expand.path(),
+                expand.paths(),
+                types,
+                Collections.nCopies(types.size(), (ValuesSourceReaderOperator.ConverterFactory) null),
+                context.plannerSettings
+            );
+        return source.with(new NestedExpandOperator.Factory(docChannel, children, expand.path(), types), layout.build());
     }
 
     private PhysicalOperation planTimeSeriesCollapse(TimeSeriesCollapseExec collapse, LocalExecutionPlannerContext context) {

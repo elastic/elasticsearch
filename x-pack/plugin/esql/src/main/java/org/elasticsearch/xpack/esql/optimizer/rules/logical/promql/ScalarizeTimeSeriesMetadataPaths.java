@@ -534,11 +534,6 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
                     continue;
                 }
                 Source at = out.source();
-                for (int j = 0; j < branches.size(); j++) {
-                    if (promoted.containsKey(branches.get(j))) {
-                        materialize(branches.get(j), parts.evals.get(j));
-                    }
-                }
                 // The union's container is without a label only where every branch's is. A branch without a container
                 // returns one holding its promoted labels, as the other branches' containers hold theirs.
                 var outGone = new TreeSet<String>();
@@ -803,19 +798,24 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
         }
 
         /**
-         * A label container is not evaluated: what names it above names its parts. A label read by name is evaluated once, here,
-         * where its container is defined.
+         * Each part of a label container is evaluated once, here, where the container is defined: what names the container above
+         * names its parts. A container that is an attribute already is not evaluated again.
          */
         private LogicalPlan rewriteEval(Eval eval) {
             var fields = new ArrayList<Alias>();
             for (Alias field : eval.fields()) {
-                if (isContainer(field)) {
-                    define(field.id(), field.child());
-                    promoted.get(field.id())
-                        .replaceAll((name, value) -> need(field.id()).contains(name) ? attribute(value, name, fields) : value);
-                } else {
+                if (isContainer(field) == false) {
                     fields.add((Alias) scalar(field));
+                    continue;
                 }
+                define(field.id(), field.child());
+                Expression container = timeseries.get(field.id());
+                if (container != null && container instanceof Attribute == false) {
+                    Alias evaluated = new Alias(field.source(), field.name(), container, field.id());
+                    fields.add(evaluated);
+                    timeseries.put(field.id(), evaluated.toAttribute());
+                }
+                promoted.get(field.id()).replaceAll((name, value) -> attribute(value, name, fields));
             }
             if (fields.equals(eval.fields())) {
                 return eval;
@@ -827,7 +827,6 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
          * A projection keeps the parts of the containers it projects.
          */
         private LogicalPlan rewriteProject(Project project) {
-            var evals = new ArrayList<Alias>();
             var projections = new ArrayList<NamedExpression>();
             for (NamedExpression projection : project.projections()) {
                 if (isContainer(projection) == false) {
@@ -836,7 +835,6 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
                 }
                 NameId id = record(projection.toAttribute());
                 dropCopies(id);
-                materialize(id, evals);
                 if (timeseries.containsKey(id)) {
                     addIfAbsent(projections, (Attribute) timeseries.get(id));
                 }
@@ -854,8 +852,7 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
                     return projected.toAttribute();
                 });
             }
-            LogicalPlan child = evaluate(project.child(), evals);
-            return new Project(project.source(), child, projections);
+            return new Project(project.source(), project.child(), projections);
         }
 
         /**
@@ -946,7 +943,6 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
         }
 
         private LogicalPlan rewriteTopNBy(TopNBy topNBy) {
-            var evals = new ArrayList<Alias>();
             var labels = new ArrayList<Attribute>();
             var groupings = new ArrayList<Expression>();
             for (Expression grouping : topNBy.groupings()) {
@@ -955,7 +951,6 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
                     continue;
                 }
                 NameId id = record(grouping);
-                materialize(id, evals);
                 if (timeseries.containsKey(id)) {
                     groupings.add(timeseries.get(id));
                 }
@@ -966,15 +961,13 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
                     }
                 });
             }
-            LogicalPlan child = evaluate(topNBy.child(), evals);
-            return new TopNBy(topNBy.source(), pack(child, labels, groupings), topNBy.order(), topNBy.limitPerGroup(), groupings);
+            return new TopNBy(topNBy.source(), pack(topNBy.child(), labels, groupings), topNBy.order(), topNBy.limitPerGroup(), groupings);
         }
 
         /**
          * The pack of the parts of its label containers: the container that is left, and each label it does not hold.
          */
         private LogicalPlan rewritePackDims(PackDims pack) {
-            var evals = new ArrayList<Alias>();
             var dims = new ArrayList<Attribute>();
             for (Attribute dim : pack.dims()) {
                 if (isContainer(dim) == false) {
@@ -982,7 +975,6 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
                     continue;
                 }
                 NameId id = record(dim);
-                materialize(id, evals);
                 if (timeseries.containsKey(id)) {
                     dims.add((Attribute) timeseries.get(id));
                 }
@@ -992,7 +984,7 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
                     }
                 });
             }
-            return new PackDims(pack.source(), evaluate(pack.child(), evals), dims, pack.packed());
+            return new PackDims(pack.source(), pack.child(), dims, pack.packed());
         }
 
         private boolean isContainer(NamedExpression named) {

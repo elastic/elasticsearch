@@ -384,6 +384,7 @@ public class IndexEngine extends InternalEngine {
                 }
             }
         }
+        // found already means min <= max today. The extra check keeps a future bug from failing the commit.
         if (found && minTimestampValue <= maxTimestampValue) {
             if (timestampFieldMappedType.resolution() == DateFieldMapper.Resolution.MILLISECONDS) {
                 return new StatelessCompoundCommit.TimestampFieldValueRange(minTimestampValue, maxTimestampValue);

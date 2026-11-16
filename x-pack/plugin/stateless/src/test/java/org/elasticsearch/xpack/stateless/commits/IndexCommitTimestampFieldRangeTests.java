@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless.commits;
 
+import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
@@ -35,8 +36,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.codec.ElasticsearchStoredFieldsFormat;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
-import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -371,11 +372,23 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
     }
 
     public void testTimestampRangeIgnoresSegmentWithGhostTimestampField() throws Exception {
-        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), "logsdb").build();
-        MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+        IndexMode indexMode = randomFrom(IndexMode.TIME_SERIES, IndexMode.LOGSDB);
+        Settings.Builder settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName());
+        if (indexMode == IndexMode.TIME_SERIES) {
+            // Same time_series setup as getDocumentMapper
+            settings.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "uid").put(IndexSettings.SYNTHETIC_ID.getKey(), false);
+        }
+        MapperService mapperService = createMapperService(settings.build(), mapping(b -> {}));
         DocumentMapper mapper = mapperService.documentMapper();
         IndexWriterConfig indexWriterConfig = new IndexWriterConfig().setCodec(
-            new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_SPEED, mapperService, BigArrays.NON_RECYCLING_INSTANCE, null)
+            new PerFieldMapperCodec(
+                Lucene104Codec.Mode.BEST_SPEED,
+                ElasticsearchStoredFieldsFormat.Mode.LUCENE,
+                ElasticsearchStoredFieldsFormat.Mode.LUCENE,
+                mapperService,
+                BigArrays.NON_RECYCLING_INSTANCE,
+                null
+            )
         );
         indexWriterConfig.setUseCompoundFile(false);
         try (Directory directory = newDirectory()) {
@@ -383,9 +396,11 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
                 Document survivor = new Document();
                 survivor.add(new StringField("keepalive", "1", Field.Store.NO));
                 indexWriter.addDocument(survivor);
-                indexWriter.addDocument(mapper.parse(source("d1", b -> b.field("@timestamp", 12345L), null)).rootDoc());
+                String docId = indexMode == IndexMode.TIME_SERIES ? TimeSeriesRoutingHashFieldMapper.encode(1) : "d1";
+                ParsedDocument doc = mapper.parse(source(docId, b -> b.field("@timestamp", 12345L), null));
+                indexWriter.addDocument(doc.rootDoc());
                 indexWriter.commit();
-                indexWriter.deleteDocuments(new Term(IdFieldMapper.NAME, Uid.encodeId("d1")));
+                indexWriter.deleteDocuments(new Term(IdFieldMapper.NAME, Uid.encodeId(doc.id())));
                 indexWriter.forceMerge(1);
                 indexWriter.commit();
             }

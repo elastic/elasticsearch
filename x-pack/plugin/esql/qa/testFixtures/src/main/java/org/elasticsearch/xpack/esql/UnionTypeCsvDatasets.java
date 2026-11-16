@@ -98,7 +98,7 @@ final class UnionTypeCsvDatasets {
             );
             case AGGREGATE_METRIC_DOUBLE -> simple(
                 type,
-                "\"type\": \"aggregate_metric_double\", \"metrics\": [\"min\", \"max\", \"sum\", \"value_count\"]",
+                "\"type\": \"aggregate_metric_double\", \"metrics\": [\"min\", \"max\", \"sum\", \"value_count\"], \"default_metric\": \"max\"",
                 "aggregate_metric_double",
                 "{\"min\":-302.5\\,\"max\":702.3\\,\"sum\":200.0\\,\"value_count\":25}"
             );

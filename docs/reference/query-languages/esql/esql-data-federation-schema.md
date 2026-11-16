@@ -30,7 +30,7 @@ The following table shows where each [supported file format](esql-data-federatio
 | CSV and TSV without a header row | Sampled rows | `col0`, `col1`, and so on, by position. The [`column_prefix`](esql-data-federation-dataset-settings.md#csv-column-prefix) setting controls the prefix. |
 | NDJSON | Sampled rows | JSON keys. Nested objects use dotted names, such as `user.id`. |
 
-Parquet metadata can also contain column statistics and bloom filters that let queries skip irrelevant data. For text formats, use `schema_sample_size` for [CSV and TSV](esql-data-federation-dataset-settings.md#csv-schema-sample-size) or [NDJSON](esql-data-federation-dataset-settings.md#ndjson-schema-sample-size) to control how many rows or lines are sampled. Sampling also stops after 32 MiB of decoded bytes, so a file of wide rows cannot pull an unbounded prefix onto the coordinating node. If the first record is larger than that cap, the query fails; declare a schema.
+Parquet metadata can also contain column statistics and bloom filters that let queries skip irrelevant data. For text formats, use `schema_sample_size` for [CSV and TSV](esql-data-federation-dataset-settings.md#csv-schema-sample-size) or [NDJSON](esql-data-federation-dataset-settings.md#ndjson-schema-sample-size) to control how many rows or lines are sampled. Sampling also stops after 32 MiB of decoded bytes, so files with very wide rows can't load an unlimited amount of data onto the coordinating node. If the first record is larger than that limit, the query fails. In that case, declare a schema.
 
 ### How the sample is shared across files [shared-schema-sample]
 ```{applies_to}

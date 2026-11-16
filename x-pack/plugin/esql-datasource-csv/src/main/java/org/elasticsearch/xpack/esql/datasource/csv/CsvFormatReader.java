@@ -26,6 +26,7 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -2083,10 +2084,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
     /**
      * Variant that additionally records the file-relative byte offset of each sampled row (split
      * start byte added by the caller) and stops once {@code maxSampleBytes} of the source have been
-     * consumed. Used by the data-path sampling sites so the prefetched rows can replay with their
-     * original {@code _rowPosition} value attached. {@code recordReader} must be the source reader
-     * feeding {@code csvIterator}; pass {@code null} to skip offset capture and the byte budget
-     * (the 5-arg overload used by unit tests).
+     * consumed. The first sampled record is still fully read; if that record itself is larger than
+     * {@code maxSampleBytes}, sampling refuses so a declared schema is required — matching NDJSON.
+     * Used by the data-path sampling sites so the prefetched rows can replay with their original
+     * {@code _rowPosition} value attached. {@code recordReader} must be the source reader feeding
+     * {@code csvIterator}; pass {@code null} to skip offset capture and the byte budget (the 5-arg
+     * overload used by unit tests).
      */
     static SchemaSample collectSampleRows(
         Iterator<List<?>> csvIterator,
@@ -2118,6 +2121,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 if (recordReader != null && sampleRows.isEmpty() == false && recordReader.bytesRead() >= maxSampleBytes) {
                     break;
                 }
+                int sampledBefore = sampleRows.size();
                 try {
                     if (csvIterator.hasNext() == false) {
                         break;
@@ -2185,6 +2189,16 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         // check below converts it to an ExternalClientException.
                         break;
                     }
+                }
+                // Outside the row-parse catch: an oversized first record is a sample-budget
+                // refusal, not a skippable malformed row. CSV still fully reads that record
+                // (truncating it would look like FAIL_FAST malformed data).
+                if (recordReader != null && sampledBefore == 0 && sampleRows.size() == 1) {
+                    Check.clientError(
+                        recordReader.lastRecordBytes() <= maxSampleBytes,
+                        "schema inference reached the decoded-byte sample limit [{}] before reading a complete record; declare a schema",
+                        ByteSizeValue.ofBytes(maxSampleBytes)
+                    );
                 }
             }
             if (sampleRows.isEmpty() && capturedErrors != null) {

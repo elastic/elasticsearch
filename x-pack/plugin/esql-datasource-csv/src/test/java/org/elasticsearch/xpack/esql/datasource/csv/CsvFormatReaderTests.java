@@ -3879,6 +3879,19 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
+     * A first data record wider than the decoded-byte sample cap is still fully read (CSV cannot
+     * truncate mid-record without FAIL_FAST treating it as malformed), then refused so a declared
+     * schema is required — matching NDJSON and the documented contract.
+     */
+    public void testSchemaSampleBytesRefusesWhenFirstRecordExceedsBudget() throws IOException {
+        String csv = "id,blob\n1," + "x".repeat(200) + "\n";
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withSchemaSampleBytes(50);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> reader.metadata(createStorageObject(csv)));
+        assertThat(e.getMessage(), containsString("decoded-byte sample limit"));
+        assertThat(e.getMessage(), containsString("declare a schema"));
+    }
+
+    /**
      * A sample shared by several files takes an even share of the configured rows from each, never fewer than the
      * floor, and keeps the harvest fingerprint: the data node reads with the unshared configuration, so its statistics
      * must still match the entry planning seeds from this read.

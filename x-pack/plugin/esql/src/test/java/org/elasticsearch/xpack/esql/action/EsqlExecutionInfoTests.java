@@ -16,6 +16,7 @@ import org.elasticsearch.transport.RemoteClusterService;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class EsqlExecutionInfoTests extends ESTestCase {
 
@@ -65,6 +66,17 @@ public class EsqlExecutionInfoTests extends ESTestCase {
             return builder.build();
         });
         assertTrue(info.hasMetadataToReport());
+    }
+
+    public void testStopHookRegisteredAfterMarkAsStoppedFiresImmediately() {
+        EsqlExecutionInfo info = createEsqlExecutionInfo(false);
+        AtomicBoolean fired = new AtomicBoolean();
+        info.markAsStopped();
+        info.addStopHook(() -> {
+            fired.set(true);
+            return true;
+        });
+        assertTrue("a hook registered after STOP must run immediately, not wait for a second broadcast", fired.get());
     }
 
     public void testPlanningBytesAreNotSerialized() throws IOException {

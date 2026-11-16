@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -446,6 +447,9 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
 
         Object tag = points.get(0);
         Source source = roundTo.source();
+        // A multivalued field has no bucket: ROUND_TO is null for it, with a warning. The range queries never match it, but the
+        // queries that only check that the field exists, or that it does not, must tell it apart from a single value.
+        boolean singleValued = field instanceof FieldAttribute fa && ctx.searchStats().isSingleValue(fa.fieldName());
         Queries.Clause clause = queryExec.hasScoring() ? Queries.Clause.MUST : Queries.Clause.FILTER;
         if (points.size() == 1) {
             // A single rounding point covers every document that has a value: the rounding points are
@@ -455,8 +459,8 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
             // Tagging the main query directly would stamp the rounding point onto documents whose field
             // is null, turning e.g. top(date_trunc(1 month, @timestamp), ...) of an all-null group into
             // the bucket value.
-            queries.add(existsBucket(source, field, tag, queryExec, pushdownPredicates, clause));
-            queries.add(nullBucket(source, field, queryExec, pushdownPredicates, clause));
+            queries.add(existsBucket(source, field, tag, singleValued, queryExec, pushdownPredicates, clause));
+            queries.add(nullBucket(source, field, singleValued, queryExec, pushdownPredicates, clause));
         } else {
             Object lower = null;
             Object upper = null;
@@ -471,7 +475,7 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
             // build the last/gte bucket
             queries.add(rangeBucket(source, field, dataType, lower, null, lower, zoneId, queryExec, pushdownPredicates, clause));
             // build null bucket
-            queries.add(nullBucket(source, field, queryExec, pushdownPredicates, clause));
+            queries.add(nullBucket(source, field, singleValued, queryExec, pushdownPredicates, clause));
         }
         return queries;
     }
@@ -519,32 +523,47 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
     }
 
     /**
-     * The bucket for the documents that have a value for the rounded field. Used when there is a
+     * The bucket for the documents that have a single value for the rounded field. Used when there is a
      * single rounding point, where no range filter is needed: every existing value rounds to it.
      */
     private static EsQueryExec.QueryBuilderAndTags existsBucket(
         Source source,
         Expression field,
         Object tag,
+        boolean singleValued,
         EsQueryExec queryExec,
         LucenePushdownPredicates pushdownPredicates,
         Queries.Clause clause
     ) {
-        IsNotNull isNotNull = new IsNotNull(source, field);
-        return buildCombinedQueryAndTags(queryExec, pushdownPredicates, isNotNull, clause, List.of(tag));
+        Query exists = TRANSLATOR_HANDLER.asQuery(pushdownPredicates, new IsNotNull(source, field));
+        if (singleValued == false) {
+            exists = new SingleValueQuery(exists, ((FieldAttribute) field).fieldName().string(), false);
+        }
+        return buildCombinedQueryAndTags(queryExec, exists, clause, List.of(tag));
     }
 
+    /**
+     * The bucket for the documents that have no bucket: the ones without a value for the rounded field and,
+     * unless the field is known to be single valued, the ones with many values.
+     */
     private static EsQueryExec.QueryBuilderAndTags nullBucket(
         Source source,
         Expression field,
+        boolean singleValued,
         EsQueryExec queryExec,
         LucenePushdownPredicates pushdownPredicates,
         Queries.Clause clause
     ) {
-        IsNull isNull = new IsNull(source, field);
+        Query isNull;
+        if (singleValued) {
+            isNull = TRANSLATOR_HANDLER.asQuery(pushdownPredicates, new IsNull(source, field));
+        } else {
+            Query exists = TRANSLATOR_HANDLER.asQuery(pushdownPredicates, new IsNotNull(source, field));
+            isNull = new NotQuery(source, new SingleValueQuery(exists, ((FieldAttribute) field).fieldName().string(), false));
+        }
         List<Object> nullTags = new ArrayList<>(1);
         nullTags.add(null);
-        return buildCombinedQueryAndTags(queryExec, pushdownPredicates, isNull, clause, nullTags);
+        return buildCombinedQueryAndTags(queryExec, isNull, clause, nullTags);
     }
 
     private static EsQueryExec.QueryBuilderAndTags rangeBucket(
@@ -560,17 +579,15 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
         Queries.Clause clause
     ) {
         Expression range = createRangeExpression(source, field, dataType, lower, upper, zoneId);
-        return buildCombinedQueryAndTags(queryExec, pushdownPredicates, range, clause, List.of(tag));
+        return buildCombinedQueryAndTags(queryExec, TRANSLATOR_HANDLER.asQuery(pushdownPredicates, range), clause, List.of(tag));
     }
 
     private static EsQueryExec.QueryBuilderAndTags buildCombinedQueryAndTags(
         EsQueryExec queryExec,
-        LucenePushdownPredicates pushdownPredicates,
-        Expression expression,
+        Query queryDSL,
         Queries.Clause clause,
         List<Object> tags
     ) {
-        Query queryDSL = TRANSLATOR_HANDLER.asQuery(pushdownPredicates, expression);
         QueryBuilder mainQuery = queryExec.query();
         QueryBuilder newQuery = queryDSL.toQueryBuilder();
         QueryBuilder combinedQuery = Queries.combine(clause, mainQuery != null ? List.of(mainQuery, newQuery) : List.of(newQuery));

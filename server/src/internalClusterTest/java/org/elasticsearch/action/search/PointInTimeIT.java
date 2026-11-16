@@ -70,6 +70,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
@@ -132,8 +133,8 @@ public class PointInTimeIT extends ESIntegTestCase {
                 SearchPhaseExecutionException.class,
                 prepareSearch().setAllowPartialSearchResults(randomBoolean()).setPointInTime(new PointInTimeBuilder(forged))
             );
-            assertThat(failure.shardFailures().length, equalTo(1));
-            Throwable cause = ExceptionsHelper.unwrapCause(failure.shardFailures()[0].getCause());
+            assertThat(failure.shardFailures(), hasSize(1));
+            Throwable cause = ExceptionsHelper.unwrapCause(failure.shardFailures().getFirst().getCause());
             assertThat(cause, instanceOf(IllegalArgumentException.class));
             assertThat(cause.getMessage(), equalTo("search context id is not valid"));
             assertThat(failure.toString(), not(containsString(index2)));

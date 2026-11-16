@@ -12,7 +12,9 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefVector;
@@ -148,6 +150,92 @@ public final class DimsPacker {
         }
     }
 
+    static BytesRefVector packDoubleValues(DriverContext driverContext, DoubleBlock raw) {
+        int positionCount = raw.getPositionCount();
+        try (
+            var builder = driverContext.blockFactory().newBytesRefVectorBuilder(estimateForBytesBuilder(positionCount));
+            var work = new BreakingBytesRefBuilder(driverContext.breaker(), "pack_dims", 32)
+        ) {
+            for (int p = 0; p < positionCount; p++) {
+                work.clear();
+                int valueCount = raw.getValueCount(p);
+                ENCODER.encodeInt(valueCount, work);
+                int first = raw.getFirstValueIndex(p);
+                for (int i = first; i < first + valueCount; i++) {
+                    ENCODER.encodeDouble(raw.getDouble(i), work);
+                }
+                builder.appendBytesRef(work.bytesRefView());
+            }
+            return builder.build();
+        }
+    }
+
+    static DoubleBlock unpackDoubleValues(DriverContext driverContext, BytesRefVector encoded) {
+        int positionCount = encoded.getPositionCount();
+        try (var builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+            BytesRef inScratch = new BytesRef();
+            for (int p = 0; p < positionCount; p++) {
+                BytesRef row = encoded.getBytesRef(p, inScratch);
+                int valueCount = ENCODER.decodeInt(row);
+                if (valueCount == 0) {
+                    builder.appendNull();
+                } else if (valueCount == 1) {
+                    builder.appendDouble(ENCODER.decodeDouble(row));
+                } else {
+                    builder.beginPositionEntry();
+                    for (int v = 0; v < valueCount; v++) {
+                        builder.appendDouble(ENCODER.decodeDouble(row));
+                    }
+                    builder.endPositionEntry();
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    static BytesRefVector packFloatValues(DriverContext driverContext, FloatBlock raw) {
+        int positionCount = raw.getPositionCount();
+        try (
+            var builder = driverContext.blockFactory().newBytesRefVectorBuilder(estimateForBytesBuilder(positionCount));
+            var work = new BreakingBytesRefBuilder(driverContext.breaker(), "pack_dims", 32)
+        ) {
+            for (int p = 0; p < positionCount; p++) {
+                work.clear();
+                int valueCount = raw.getValueCount(p);
+                ENCODER.encodeInt(valueCount, work);
+                int first = raw.getFirstValueIndex(p);
+                for (int i = first; i < first + valueCount; i++) {
+                    ENCODER.encodeFloat(raw.getFloat(i), work);
+                }
+                builder.appendBytesRef(work.bytesRefView());
+            }
+            return builder.build();
+        }
+    }
+
+    static FloatBlock unpackFloatValues(DriverContext driverContext, BytesRefVector encoded) {
+        int positionCount = encoded.getPositionCount();
+        try (var builder = driverContext.blockFactory().newFloatBlockBuilder(positionCount)) {
+            BytesRef inScratch = new BytesRef();
+            for (int p = 0; p < positionCount; p++) {
+                BytesRef row = encoded.getBytesRef(p, inScratch);
+                int valueCount = ENCODER.decodeInt(row);
+                if (valueCount == 0) {
+                    builder.appendNull();
+                } else if (valueCount == 1) {
+                    builder.appendFloat(ENCODER.decodeFloat(row));
+                } else {
+                    builder.beginPositionEntry();
+                    for (int v = 0; v < valueCount; v++) {
+                        builder.appendFloat(ENCODER.decodeFloat(row));
+                    }
+                    builder.endPositionEntry();
+                }
+            }
+            return builder.build();
+        }
+    }
+
     static BytesRefVector packIntValues(DriverContext driverContext, IntBlock raw) {
         int positionCount = raw.getPositionCount();
         try (
@@ -260,6 +348,8 @@ public final class DimsPacker {
                         switch (block.elementType()) {
                             case BYTES_REF -> ENCODER.encodeBytesRef(((BytesRefBlock) block).getBytesRef(index, scratch), work);
                             case LONG -> ENCODER.encodeLong(((LongBlock) block).getLong(index), work);
+                            case DOUBLE -> ENCODER.encodeDouble(((DoubleBlock) block).getDouble(index), work);
+                            case FLOAT -> ENCODER.encodeFloat(((FloatBlock) block).getFloat(index), work);
                             case INT -> ENCODER.encodeInt(((IntBlock) block).getInt(index), work);
                             case BOOLEAN -> ENCODER.encodeBoolean(((BooleanBlock) block).getBoolean(index), work);
                             default -> throw new IllegalStateException("unsupported element type [" + block.elementType() + "]");
@@ -308,6 +398,8 @@ public final class DimsPacker {
         switch (type) {
             case BYTES_REF -> ((BytesRefBlock.Builder) builder).appendBytesRef(ENCODER.decodeBytesRef(row, scratch));
             case LONG -> ((LongBlock.Builder) builder).appendLong(ENCODER.decodeLong(row));
+            case DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble(ENCODER.decodeDouble(row));
+            case FLOAT -> ((FloatBlock.Builder) builder).appendFloat(ENCODER.decodeFloat(row));
             case INT -> ((IntBlock.Builder) builder).appendInt(ENCODER.decodeInt(row));
             case BOOLEAN -> ((BooleanBlock.Builder) builder).appendBoolean(ENCODER.decodeBoolean(row));
             default -> throw new IllegalStateException("unsupported element type [" + type + "]");
@@ -320,6 +412,8 @@ public final class DimsPacker {
             case NULL -> packNulls(driverContext, block.getPositionCount());
             case BYTES_REF -> packBytesValues(driverContext, (BytesRefBlock) block);
             case LONG -> packLongValues(driverContext, (LongBlock) block);
+            case DOUBLE -> packDoubleValues(driverContext, (DoubleBlock) block);
+            case FLOAT -> packFloatValues(driverContext, (FloatBlock) block);
             case INT -> packIntValues(driverContext, (IntBlock) block);
             case BOOLEAN -> packBooleanValues(driverContext, (BooleanBlock) block);
             default -> throw new IllegalStateException("unsupported element type [" + elementType + "]");
@@ -331,6 +425,8 @@ public final class DimsPacker {
             case NULL -> driverContext.blockFactory().newConstantNullBlock(input.getPositionCount());
             case BYTES_REF -> unpackBytesValues(driverContext, input);
             case LONG -> unpackLongValues(driverContext, input);
+            case DOUBLE -> unpackDoubleValues(driverContext, input);
+            case FLOAT -> unpackFloatValues(driverContext, input);
             case INT -> unpackIntValues(driverContext, input);
             case BOOLEAN -> unpackBooleanValues(driverContext, input);
             default -> throw new IllegalStateException("unsupported element type [" + elementType + "]");

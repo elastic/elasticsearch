@@ -24,4 +24,10 @@ public interface BatchMappingShardContext {
     long getOperationPrimaryTerm();
 
     long getRelativeTimeInNanos();
+
+    /**
+     * Called once per chunk after the metadata mappers ran and before its columns are frozen, so that the engine's
+     * {@code DocumentSizeReporter} can see the metered sizes and attach a column; a context without an engine reports nothing.
+     */
+    default void onBatchParsingCompleted(BatchMappingContext context) {}
 }

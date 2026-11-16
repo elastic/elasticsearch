@@ -23,6 +23,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.index.Index;
@@ -102,10 +103,12 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
     @Before
     public void setThreadPool() {
         int numThreads = randomBoolean() ? 1 : between(2, 16);
+        var settings = Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "TransportActionTests").build();
         threadPool = new ThreadPool(
-            Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "TransportActionTests").build(),
+            new ThreadContext(settings),
+            settings,
             MeterRegistry.NOOP,
-            (settings, allocatedProcessors) -> Map.of(),
+            (s, allocatedProcessors) -> Map.of(),
             new FixedExecutorBuilder(Settings.EMPTY, ThreadPool.Names.SEARCH, numThreads, 1024, "", EsExecutors.TaskTrackingConfig.DEFAULT)
         );
         executor = threadPool.executor(ThreadPool.Names.SEARCH);

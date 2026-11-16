@@ -3,7 +3,7 @@
 ## Parameters
 
 `field`
-:   field to clamp.
+:   Expression to clamp. If `null`, the function returns `null`.
 
 `max`
 :   The max value to clamp data into.

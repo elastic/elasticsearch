@@ -187,7 +187,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             EMPTY_CONTEXT_PROVIDER,
             new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
             Map.of(),
-            false
+            false,
+            null
         ).addListener(ActionTestUtils.assertNoFailureListener(iter -> {
             result.set(iter);
             latch.countDown();
@@ -240,7 +241,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             EMPTY_CONTEXT_PROVIDER,
             new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
             Map.of(),
-            randomBoolean()
+            randomBoolean(),
+            null
         );
         listener.addListener(ActionTestUtils.assertNoFailureListener(result::set));
         assertNotNull("phase should complete synchronously for empty shard iterators", result.get());
@@ -266,7 +268,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             true
         );
 
-        final var e = executeWithMissingShard(restoring, restoring.state(), true);
+        final var e = executeWithMissingShard(restoring, restoring.state());
 
         assertThat(ExceptionsHelper.unwrapCausesAndSuppressed(e, t -> t instanceof ShardRestoringException).isPresent(), equalTo(true));
         assertThat(e.status(), equalTo(RestStatus.FORBIDDEN));
@@ -291,11 +293,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             false
         );
 
-        for (var e : List.of(
-            executeWithMissingShard(restoring, null, true),
-            executeWithMissingShard(restoring, null, false),
-            executeWithMissingShard(notReporting, notReporting.state(), true)
-        )) {
+        for (var e : List.of(executeWithMissingShard(restoring, null), executeWithMissingShard(notReporting, notReporting.state()))) {
             assertThat(
                 ExceptionsHelper.unwrapCausesAndSuppressed(e, t -> t instanceof ShardRestoringException).isPresent(),
                 equalTo(false)
@@ -307,14 +305,9 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
     /**
      * Runs the phase over one shard that has no copy to search, with partial results disallowed, and returns how it rejects the search.
      *
-     * @param clusterState    the cluster state to pass, or {@code null}
-     * @param useStateOverload whether to call the {@code execute} that takes the cluster state, or the original one that does not
+     * @param clusterState the cluster state to pass, or {@code null}
      */
-    private SearchPhaseExecutionException executeWithMissingShard(
-        RestoringShardTestState.Restoring restoring,
-        ClusterState clusterState,
-        boolean useStateOverload
-    ) {
+    private SearchPhaseExecutionException executeWithMissingShard(RestoringShardTestState.Restoring restoring, ClusterState clusterState) {
         final var timeProvider = new TransportSearchAction.SearchTimeProvider(0, System.nanoTime(), System::nanoTime);
         final var shardIterators = List.of(
             new SearchShardIterator(
@@ -330,45 +323,24 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         final var searchRequest = new SearchRequest().allowPartialSearchResults(false);
         final Executor executor = threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION);
         final Map<String, AliasFilter> aliasFilter = Map.of(restoring.shardId().getIndex().getUUID(), AliasFilter.EMPTY);
-        final SubscribableListener<CanMatchPreFilterSearchPhase.CanMatchResult> listener;
-        if (useStateOverload) {
-            listener = CanMatchPreFilterSearchPhase.execute(
-                logger,
-                searchTransportService,
-                (alias, node) -> null,
-                aliasFilter,
-                Collections.emptyMap(),
-                executor,
-                searchRequest,
-                shardIterators,
-                timeProvider,
-                null,
-                false,
-                EMPTY_CONTEXT_PROVIDER,
-                metrics,
-                Map.of(),
-                false,
-                clusterState
-            );
-        } else {
-            listener = CanMatchPreFilterSearchPhase.execute(
-                logger,
-                searchTransportService,
-                (alias, node) -> null,
-                aliasFilter,
-                Collections.emptyMap(),
-                executor,
-                searchRequest,
-                shardIterators,
-                timeProvider,
-                null,
-                false,
-                EMPTY_CONTEXT_PROVIDER,
-                metrics,
-                Map.of(),
-                false
-            );
-        }
+        final SubscribableListener<CanMatchPreFilterSearchPhase.CanMatchResult> listener = CanMatchPreFilterSearchPhase.execute(
+            logger,
+            searchTransportService,
+            (alias, node) -> null,
+            aliasFilter,
+            Collections.emptyMap(),
+            executor,
+            searchRequest,
+            shardIterators,
+            timeProvider,
+            null,
+            false,
+            EMPTY_CONTEXT_PROVIDER,
+            metrics,
+            Map.of(),
+            false,
+            clusterState
+        );
         return safeAwaitFailure(
             SearchPhaseExecutionException.class,
             CanMatchPreFilterSearchPhase.CanMatchResult.class,
@@ -439,7 +411,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             EMPTY_CONTEXT_PROVIDER,
             new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
             Map.of(),
-            true
+            true,
+            null
         ).addListener(ActionTestUtils.assertNoFailureListener(iter -> {
             result.set(iter);
             latch.countDown();
@@ -530,7 +503,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             EMPTY_CONTEXT_PROVIDER,
             new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
             Map.of(),
-            false
+            false,
+            null
         ).addListener(ActionTestUtils.assertNoFailureListener(iter -> {
             result.set(iter);
             latch.countDown();
@@ -637,7 +611,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 EMPTY_CONTEXT_PROVIDER,
                 new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
                 Map.of(),
-                false
+                false,
+                null
             ).addListener(ActionTestUtils.assertNoFailureListener(iter -> {
                 result.set(iter);
                 latch.countDown();
@@ -745,7 +720,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 EMPTY_CONTEXT_PROVIDER,
                 new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
                 Map.of(),
-                false
+                false,
+                null
             ).addListener(ActionTestUtils.assertNoFailureListener(iter -> {
                 result.set(iter);
                 latch.countDown();
@@ -1736,7 +1712,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 contextProvider,
                 new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
                 Map.of(),
-                false
+                false,
+                null
             ),
             requests
         );

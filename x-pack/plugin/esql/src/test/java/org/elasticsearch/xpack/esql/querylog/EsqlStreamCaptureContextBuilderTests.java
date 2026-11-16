@@ -35,7 +35,7 @@ public class EsqlStreamCaptureContextBuilderTests extends ESTestCase {
         // overallTook() returns null because markEndQuery was never called.
         assertNull("precondition: overallTook must be null", executionInfo.overallTook());
 
-        PageStreamPublisher publisher = new PageStreamPublisher(10);
+        PageStreamPublisher publisher = new PageStreamPublisher();
         Result result = makeResult(executionInfo);
 
         EsqlStreamCaptureContextBuilder builder = new EsqlStreamCaptureContextBuilder(
@@ -56,7 +56,7 @@ public class EsqlStreamCaptureContextBuilderTests extends ESTestCase {
     public void testBuildWithNullResultDegradesGracefully() {
         EsqlExecutionInfo executionInfo = makeExecutionInfoWithTook();
 
-        PageStreamPublisher publisher = new PageStreamPublisher(10);
+        PageStreamPublisher publisher = new PageStreamPublisher();
 
         EsqlStreamCaptureContextBuilder builder = new EsqlStreamCaptureContextBuilder(
             task(),
@@ -78,7 +78,7 @@ public class EsqlStreamCaptureContextBuilderTests extends ESTestCase {
 
     public void testBuildWithExceptionProducesFailureContext() {
         EsqlQueryRequest request = syncEsqlQueryRequest("FROM test | LIMIT 1");
-        PageStreamPublisher publisher = new PageStreamPublisher(10);
+        PageStreamPublisher publisher = new PageStreamPublisher();
 
         EsqlStreamCaptureContextBuilder builder = new EsqlStreamCaptureContextBuilder(
             task(),
@@ -98,7 +98,7 @@ public class EsqlStreamCaptureContextBuilderTests extends ESTestCase {
 
     public void testBuildSuccessProducesStreamingContext() {
         EsqlExecutionInfo executionInfo = makeExecutionInfoWithTook();
-        PageStreamPublisher publisher = new PageStreamPublisher(10);
+        PageStreamPublisher publisher = new PageStreamPublisher();
         Result result = makeResult(executionInfo);
 
         EsqlStreamCaptureContextBuilder builder = new EsqlStreamCaptureContextBuilder(

@@ -106,6 +106,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
         );
         DataNodeRequest request = new DataNodeRequest(
             sessionId,
+            new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
             randomConfiguration(query, randomTables()),
             randomAlphaOfLength(10),
             shards,
@@ -209,6 +210,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
 
         DataNodeRequest request = new DataNodeRequest(
             "load-all-session",
+            new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
             configuration,
             "",
             List.of(new DataNodeRequest.Shard(new ShardId("test", "n/a", 0), SplitShardCountSummary.fromInt(0))),
@@ -242,6 +244,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
     @Override
     protected DataNodeRequest mutateInstance(DataNodeRequest in) throws IOException {
         var sessionId = in.sessionId();
+        var queryId = in.queryId();
         var configuration = in.configuration();
         var clusterAlias = in.clusterAlias();
         var shards = in.shards();
@@ -255,7 +258,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
         var requiredClusterStateVersion = in.requiredClusterStateVersion();
         TaskId parentTask = in.getParentTask();
 
-        switch (between(0, 11)) {
+        switch (between(0, 12)) {
             case 0 -> sessionId = randomValueOtherThan(sessionId, () -> randomAlphaOfLength(20));
             case 1 -> configuration = randomValueOtherThan(configuration, () -> randomConfiguration());
             case 2 -> shards = randomValueOtherThan(
@@ -305,11 +308,16 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
             }
             case 10 -> singleNodeOptimizations = singleNodeOptimizations == false;
             case 11 -> requiredClusterStateVersion = randomValueOtherThan(requiredClusterStateVersion, ESTestCase::randomNonNegativeLong);
+            case 12 -> queryId = new TaskId(
+                randomValueOtherThan(queryId.getNodeId(), () -> randomAlphaOfLength(10)),
+                randomNonNegativeLong()
+            );
             default -> throw new AssertionError("invalid value");
         }
 
         var request = new DataNodeRequest(
             sessionId,
+            queryId,
             configuration,
             clusterAlias,
             shards,

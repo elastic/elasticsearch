@@ -110,6 +110,29 @@ hires        | computed       | null
 gender       | mapped         | attribute
 ;
 
+describeUnitsThroughAggregationsAndArithmetic
+required_capability: describe_command
+skip_flattened_rewrite: describe_sees_rewritten_field_as_computed
+
+TS k8s
+| STATS bytes_rate = SUM(RATE(network.total_bytes_in)), out_rate = SUM(RATE(network.total_bytes_out)), rx = MAX(MAX_OVER_TIME(network.eth0.rx)), cost = SUM(INCREASE(network.total_cost)) BY cluster
+| EVAL kib_rate = bytes_rate / 1024, bits_rate = bytes_rate * 8, cost_per_packet = cost / rx, in_per_out = bytes_rate / out_rate
+| DESCRIBE
+| KEEP name, origin, unit
+;
+
+name:keyword    | origin:keyword | unit:keyword
+bytes_rate      | computed       | bytes/s
+out_rate        | computed       | bytes/s
+rx              | computed       | packets
+cost            | computed       | usd
+cluster         | mapped         | null
+kib_rate        | computed       | KiB/s
+bits_rate       | computed       | bits/s
+cost_per_packet | computed       | usd/packets
+in_per_out      | computed       | 1
+;
+
 describeUnitsThroughRename
 required_capability: describe_command
 
@@ -123,6 +146,20 @@ FROM k8s
 name:keyword     | field:keyword          | origin:keyword | unit:keyword
 total            | network.total_bytes_in | renamed        | bytes
 network.bytes_in | network.bytes_in       | mapped         | null
+;
+
+describeUnitsThroughBucket
+required_capability: describe_command
+
+FROM k8s
+| STATS c = COUNT(*) BY b = BUCKET(network.eth0.rx, 100)
+| DESCRIBE
+| KEEP name, origin, unit
+;
+
+name:keyword | origin:keyword | unit:keyword
+c            | computed       | 1
+b            | computed       | packets
 ;
 
 describeStatsAfterTs

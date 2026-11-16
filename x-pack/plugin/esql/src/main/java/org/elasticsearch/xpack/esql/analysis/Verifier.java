@@ -712,7 +712,10 @@ public class Verifier {
                 failures.add(fail(ts, "PROMQL is not supported with unmapped_fields=\"{}\"", resolution.settingValue()));
                 promqlReported = true;
             }
-            checkFlattenedSubFieldLoad(plan, failures, resolution);
+            // Where a name under a flattened field is its key, each shard reads that key
+            if (context.configuration().flattenedKeys(context.minimumVersion()) == false) {
+                checkFlattenedSubFieldLoad(plan, failures, resolution);
+            }
         }
         for (LogicalPlan child : plan.children()) {
             promqlReported = checkLoadRestrictions(child, resolution, context, failures, promqlReported);

@@ -689,6 +689,16 @@ public final class IncreaseExponentialHistogramGroupingAggregatorFunction extend
         GroupingAggregatorEvaluationContext ctx
     ) {
         flushRawBuffers();
+        for (int p = 0; p < selected.getPositionCount(); p++) {
+            int group = selected.getInt(p);
+            var state = group < reducedStates.size() ? reducedStates.get(group) : null;
+            if (state != null && state.samples > 1) {
+                state.combineIntervals();
+            }
+        }
+        if (ctx instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
+            tsContext.computeAdjacentGroupIds();
+        }
         return (blocks, offset, selectedInPage) -> evaluateFinal(blocks, offset, selectedInPage, ctx);
     }
 
@@ -703,17 +713,6 @@ public final class IncreaseExponentialHistogramGroupingAggregatorFunction extend
             for (int p = 0; p < positionCount; p++) {
                 int group = selectedInPage.getInt(p);
                 var state = group < reducedStates.size() ? reducedStates.get(group) : null;
-                if (state != null && state.samples > 1) {
-                    state.combineIntervals();
-                }
-            }
-            if (ctx instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
-                tsContext.computeAdjacentGroupIds();
-            }
-            for (int p = 0; p < positionCount; p++) {
-                int group = selectedInPage.getInt(p);
-                var state = group < reducedStates.size() ? reducedStates.get(group) : null;
-
                 final ExponentialHistogram rate;
                 if (state == null || state.samples == 0) {
                     rate = null;

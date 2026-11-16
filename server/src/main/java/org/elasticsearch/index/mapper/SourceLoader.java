@@ -204,11 +204,6 @@ public interface SourceLoader {
                 TimeValue duration = TimeValue.timeValueMillis(metrics.getRelativeTimeSupplier().getAsLong() - startTime);
                 metrics.recordSyntheticSourceLoadLatency(duration);
             }
-
-            @Override
-            public long sourceBytesHeld(Source source) {
-                return leaf.sourceBytesHeld(source);
-            }
         }
 
         private static class SyntheticLeaf implements Leaf {

@@ -1,3 +1,17 @@
+floating_point_dimensions
+required_capability: ts_command_v0
+required_capability: pack_double_float_dimensions
+
+TS metric_floating_point_dims
+| STATS max_tx = MAX(MAX_OVER_TIME(network.eth0.tx)) BY double_dim, float_dim
+| SORT double_dim NULLS FIRST;
+
+max_tx:integer | double_dim:double | float_dim:double
+58             | null              | null
+48             | -3.5              | -4.25
+81             | 1.25              | 2.5
+;
+
 timeseriesWithoutAggs
 required_capability: ts_command_v0
 TS k8s | sort @timestamp DESC, cluster, pod | keep @timestamp,cluster,pod,network.bytes_in,network.cost | limit 5;

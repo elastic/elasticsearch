@@ -156,8 +156,9 @@ public final class EsqlDataSourceMixedClusterTestSupport {
      * rejects it and fails to start, so the federation gate, the local-disk allowlist and the loopback endpoint allowlist
      * are set per node rather than cluster-wide. Any node can coordinate a query and federation has to agree across the
      * cluster, so every node that knows the setting gets it; a build that predates it registers federation unconditionally
-     * and has it on without one. The endpoint allowlist shipped in 9.6.0 together with the check that enforces it, so a
-     * node that knows the key also rejects the plain-http fixture unless it is set.
+     * and has it on without one. The endpoint allowlist is registered from 9.5.6, ahead of the check that enforces it, so
+     * every node from that version accepts the key and one that also carries the check rejects the plain-http fixture
+     * unless it is set.
      */
     private static void configureNode(LocalNodeSpecBuilder node, Version version, boolean detached, Supplier<String> localAllowedPath) {
         if (detached == false && version.onOrAfter(Version.V_9_5_0)) {
@@ -166,7 +167,7 @@ public final class EsqlDataSourceMixedClusterTestSupport {
         if (detached == false && localAllowedPath != null && version.onOrAfter(Version.V_9_5_0)) {
             node.setting(localAllowedPathsSetting(version), localAllowedPath);
         }
-        if (detached == false && version.onOrAfter(Version.V_9_6_0)) {
+        if (detached == false && version.onOrAfter(Version.V_9_5_6)) {
             node.setting(S3FixtureUtils.ALLOWED_ENDPOINT_HOSTS_SETTING, S3FixtureUtils.LOOPBACK_ENDPOINT_HOSTS);
         }
     }

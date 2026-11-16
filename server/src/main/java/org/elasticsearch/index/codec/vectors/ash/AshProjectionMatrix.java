@@ -58,9 +58,10 @@ public final class AshProjectionMatrix {
      * @param wT          the transposed projection matrix in row-major order, length originalDim*nDims
      * @param originalDim number of rows (original vector dimensionality)
      * @param nDims       number of columns (projected dimensionality)
-     * @param learned     {@code true} if W was learned via PCA + Procrustes; {@code false} if it is a
-     *                    random orthonormal projection (e.g. a transient flush segment). A random
-     *                    matrix must not be inherited/warm-started at merge time — merge should learn
+     * @param learned     {@code true} if W was learned via PCA + rotation from at least twice as many
+     *                    vectors as projected dimensions; {@code false} if it is a random orthonormal
+     *                    projection, or was learned from fewer vectors (e.g. a small flush segment). Such
+     *                    a matrix must not be inherited/warm-started at merge time — merge should learn
      *                    a full W instead.
      */
     public AshProjectionMatrix(float[] wT, int originalDim, int nDims, boolean learned) {
@@ -74,7 +75,8 @@ public final class AshProjectionMatrix {
     }
 
     /**
-     * Returns whether W was learned (PCA + Procrustes) rather than a random orthonormal projection.
+     * Returns whether W was learned (PCA + rotation) from enough vectors to be inherited at merge time, rather than being
+     * a random orthonormal projection or learned from too few vectors.
      */
     public boolean isLearned() {
         return learned;

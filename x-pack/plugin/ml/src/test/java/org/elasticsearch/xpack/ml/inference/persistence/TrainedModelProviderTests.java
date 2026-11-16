@@ -6,7 +6,10 @@
  */
 package org.elasticsearch.xpack.ml.inference.persistence;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -33,8 +36,11 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.ShardRestoringException;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -66,6 +72,7 @@ import java.util.List;
 import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizerTests.TEST_CASED_VOCAB;
 import static org.hamcrest.Matchers.containsString;
@@ -77,6 +84,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -697,9 +705,65 @@ public class TrainedModelProviderTests extends ESTestCase {
     }
 
     /**
-     * Verifies that getInferenceStats does not retry on non-transient per-item failures.
+     * Verifies that getInferenceStats does not retry on non-transient per-item failures, and that a client error keeps its 4xx status.
      */
     public void testGetInferenceStatsDoesNotRetryOnNonTransientException() {
+        var itemFailure = new IllegalArgumentException("bad request");
+
+        Exception e = getInferenceStatsFailure(itemFailure);
+
+        assertThat(e, instanceOf(ElasticsearchStatusException.class));
+        assertThat(e.getCause(), sameInstance(itemFailure));
+        assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.BAD_REQUEST));
+    }
+
+    /**
+     * A client closing the HTTP channel cancels the stats task. That must surface as the cancellation's 4xx status, not as a 500 that
+     * trips the suppressed-rest-error alert, and must not be logged as a warning.
+     */
+    public void testGetInferenceStatsCancelledReturnsClientStatus() {
+        var itemFailure = new TaskCancelledException("parent task was cancelled [http channel closed]");
+        var failure = new AtomicReference<Exception>();
+
+        MockLog.assertThatLogger(
+            () -> failure.set(getInferenceStatsFailure(itemFailure)),
+            TrainedModelProvider.class,
+            new MockLog.UnseenEventExpectation("no warning", TrainedModelProvider.class.getCanonicalName(), Level.WARN, "*")
+        );
+
+        assertThat(failure.get(), instanceOf(ElasticsearchStatusException.class));
+        assertThat(failure.get().getCause(), sameInstance(itemFailure));
+        assertThat(ExceptionsHelper.status(failure.get()), equalTo(RestStatus.BAD_REQUEST));
+    }
+
+    /**
+     * A genuine server-side per-item failure still surfaces as a 5xx and is logged as a warning.
+     */
+    public void testGetInferenceStatsServerFailureStays5xx() {
+        var itemFailure = new ElasticsearchException("boom");
+        var failure = new AtomicReference<Exception>();
+
+        MockLog.assertThatLogger(
+            () -> failure.set(getInferenceStatsFailure(itemFailure)),
+            TrainedModelProvider.class,
+            new MockLog.SeenEventExpectation(
+                "warning",
+                TrainedModelProvider.class.getCanonicalName(),
+                Level.WARN,
+                "[model-1] search failed for models"
+            )
+        );
+
+        assertThat(failure.get(), instanceOf(ElasticsearchStatusException.class));
+        assertThat(failure.get().getCause(), sameInstance(itemFailure));
+        assertThat(ExceptionsHelper.status(failure.get()), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
+    }
+
+    /**
+     * Runs getInferenceStats against a client whose multi-search always fails its single item with {@code itemFailure}, asserts that
+     * the multi-search is not retried, and returns the failure delivered to the caller.
+     */
+    private Exception getInferenceStatsFailure(Exception itemFailure) {
         try (
             var threadPool = createThreadPool(
                 new ScalingExecutorBuilder(MachineLearning.UTILITY_THREAD_POOL_NAME, 0, 1, TimeValue.timeValueMinutes(10), false)
@@ -718,8 +782,7 @@ public class TrainedModelProviderTests extends ESTestCase {
                         listener.onResponse((Response) new ClusterHealthResponse());
                     } else if (request instanceof MultiSearchRequest) {
                         multiSearchCallCount.incrementAndGet();
-                        var items = new MultiSearchResponse.Item[] {
-                            new MultiSearchResponse.Item(null, new IllegalArgumentException("bad request")) };
+                        var items = new MultiSearchResponse.Item[] { new MultiSearchResponse.Item(null, itemFailure) };
                         var msResponse = new MultiSearchResponse(items, 0L);
                         try {
                             listener.onResponse((Response) msResponse);
@@ -734,8 +797,9 @@ public class TrainedModelProviderTests extends ESTestCase {
             var future = new PlainActionFuture<List<InferenceStats>>();
             provider.getInferenceStats(new String[] { "model-1" }, null, future);
 
-            expectThrows(Exception.class, () -> future.actionGet(10, TimeUnit.SECONDS));
+            Exception e = expectThrows(Exception.class, () -> future.actionGet(10, TimeUnit.SECONDS));
             assertThat(multiSearchCallCount.get(), equalTo(1));
+            return e;
         }
     }
 

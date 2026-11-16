@@ -403,7 +403,6 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         queryParser.setLenient(lenient);
         queryParser.setZeroTermsQuery(zeroTermsQuery);
         queryParser.setAutoGenerateSynonymsPhraseQuery(autoGenerateSynonymsPhraseQuery);
-        queryParser.setMinimumShouldMatch(minimumShouldMatch);
 
         Query query = queryParser.parse(MatchQueryParser.Type.BOOLEAN, fieldName, value);
         return Queries.maybeApplyMinimumShouldMatch(query, minimumShouldMatch);

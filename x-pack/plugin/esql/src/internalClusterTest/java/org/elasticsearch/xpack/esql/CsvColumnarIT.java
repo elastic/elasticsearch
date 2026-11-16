@@ -9,9 +9,11 @@ package org.elasticsearch.xpack.esql;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -554,7 +556,13 @@ public class CsvColumnarIT extends CsvIT {
      * {@code CsvLogsdbColumnarIT}) may override to choose a different mode.
      */
     protected static Settings modeSettings() {
-        return Settings.builder().put(INDEX_MODE_SETTING, "columnar").build();
+        Settings.Builder settings = Settings.builder().put(INDEX_MODE_SETTING, "columnar");
+        if (BatchIndexingEnabled.FEATURE_FLAG.isEnabled()) {
+            // TODO: remove once ESCF preserves the original text of floating point numbers
+            // (https://github.com/elastic/elasticsearch/issues/163401).
+            settings.put(IndexSettings.BATCH_INDEXING.getKey(), false);
+        }
+        return settings.build();
     }
 
     private static final String INDEX_MODE_SETTING = "index.mode";
@@ -568,7 +576,7 @@ public class CsvColumnarIT extends CsvIT {
     private static final String STANDARD_INDEX_MODE = "standard";
 
     /**
-     * Installs the columnar index-load strategy.
+     * Installs the columnar differential test strategy.
      *
      * <p>Runs after {@link CsvIT#setupCluster()} (JUnit guarantees the superclass
      * {@code @BeforeClass} runs first) and replaces the identity strategy with one that creates
@@ -581,7 +589,7 @@ public class CsvColumnarIT extends CsvIT {
      */
     @BeforeClass
     public static void installColumnarStrategy() {
-        indexLoadStrategy = new ColumnarStrategy(modeSettings());
+        differentialTestStrategy = new ColumnarStrategy(modeSettings());
     }
 
     @AfterClass
@@ -624,7 +632,7 @@ public class CsvColumnarIT extends CsvIT {
     // -----------------------------------------------------------------------------------------
 
     /**
-     * {@link CsvIT.IndexLoadStrategy} that creates each dataset in columnar index mode.
+     * {@link CsvIT.DifferentialTestStrategy} that creates each dataset in columnar index mode.
      *
      * <p>The strategy:
      * <ul>
@@ -640,7 +648,7 @@ public class CsvColumnarIT extends CsvIT {
      *   <li>Honours the {@code skip_columnar:} preamble directive to silence individual tests.</li>
      * </ul>
      */
-    static final class ColumnarStrategy implements IndexLoadStrategy {
+    static final class ColumnarStrategy implements DifferentialTestStrategy {
 
         private final Settings extraSettings;
 
@@ -720,11 +728,7 @@ public class CsvColumnarIT extends CsvIT {
          * rather than being masked.
          */
         @Override
-        public CsvTestUtils.ExpectedResults transformExpectedResults(
-            String testId,
-            CsvTestCase testCase,
-            CsvTestUtils.ExpectedResults expected
-        ) {
+        public CsvTestUtils.TestResults transformExpectedResults(String testId, CsvTestCase testCase, CsvTestUtils.TestResults expected) {
             int modeIdx = expected.columnNames().indexOf(INDEX_MODE_COLUMN);
             if (modeIdx < 0) {
                 return expected;
@@ -749,7 +753,7 @@ public class CsvColumnarIT extends CsvIT {
             if (anyChanged == false) {
                 return expected;
             }
-            return new CsvTestUtils.ExpectedResults(expected.columnNames(), expected.columnTypes(), newValues);
+            return new CsvTestUtils.TestResults(expected.columnNames(), expected.columnTypes(), newValues);
         }
 
         /**

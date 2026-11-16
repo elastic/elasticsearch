@@ -64,7 +64,7 @@ static inline int32_t doti4_inner_avx512(const int8_t* query, const int8_t* doc,
     return _mm512_reduce_add_epi32(_mm512_add_epi32(acc_high, acc_low));
 }
 
-EXPORT int32_t vec_doti4_2(const int8_t* query, const int8_t* doc, int32_t packed_len) {
+EXPORT int32_t vec_doti4_2(const int8_t* doc, const int8_t* query, int32_t packed_len) {
     return doti4_inner_avx512(query, doc, packed_len);
 }
 
@@ -179,8 +179,9 @@ EXPORT void vec_doti4_bulk_masked_2(
     int32_t count,
     f32_t* results
 ) {
+    const int32_t block_mask = clamp_mask(mask, count);
     doti4_bulk_impl_avx512<int8_t, masked_mapper, 4, masked_output>(
-        docs, query, packed_len, pitch, &mask, __builtin_popcount((uint32_t)mask), results);
+        docs, query, packed_len, pitch, &block_mask, __builtin_popcount((uint32_t)block_mask), results);
 }
 
 EXPORT void vec_doti4_bulk_sparse_2(

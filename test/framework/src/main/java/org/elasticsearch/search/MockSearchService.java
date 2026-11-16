@@ -29,7 +29,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.CancellableTask;
-import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -147,8 +147,8 @@ public class MockSearchService extends SearchService {
         FetchPhase fetchPhase,
         CircuitBreakerService circuitBreakerService,
         ExecutorSelector executorSelector,
-        Tracer tracer,
-        OnlinePrewarmingService onlinePrewarmingService
+        OnlinePrewarmingService onlinePrewarmingService,
+        TaskManager taskManager
     ) {
         super(
             clusterService,
@@ -159,8 +159,8 @@ public class MockSearchService extends SearchService {
             fetchPhase,
             circuitBreakerService,
             executorSelector,
-            tracer,
-            onlinePrewarmingService
+            onlinePrewarmingService,
+            taskManager
         );
     }
 
@@ -228,6 +228,20 @@ public class MockSearchService extends SearchService {
             throw e;
         }
         searchContext.addReleasable(() -> onRemoveContext.accept(searchContext.readerContext()));
+        return searchContext;
+    }
+
+    @Override
+    public SearchContext createSearchContext(ReaderContext readerContext, ShardSearchRequest request, TimeValue timeout)
+        throws IOException {
+        SearchContext searchContext = super.createSearchContext(readerContext, request, timeout);
+        try {
+            onCreateSearchContext.accept(searchContext);
+        } catch (Exception e) {
+            searchContext.close();
+            throw e;
+        }
+        // the reader context is registered, so its removal is reported when it is freed, not when this search context closes
         return searchContext;
     }
 

@@ -29,6 +29,7 @@ import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.BlobVersionMismatchException;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.blobstore.RetryingInputStream;
@@ -1561,14 +1562,15 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             container.writeBlob(randomPurpose(), key, new BytesArray(updatedValue), false);
 
             // Read the rest of the stream, it should throw because the contents changed
-            String message = assertThrows(NoSuchFileException.class, () -> readFully(inputStream)).getMessage();
+            var exception = assertThrows(BlobVersionMismatchException.class, () -> readFully(inputStream));
             assertThat(
-                message,
+                exception.getMessage(),
+                matchesRegex("blob \\[" + container.path().buildAsString() + key + "] version \\[\\S+] is no longer available: .*")
+            );
+            assertThat(
+                exception.getCause().getMessage(),
                 matchesRegex(
-                    "Blob object \\["
-                        + container.path().buildAsString()
-                        + key
-                        + "] with ETag \\[\\S+] unavailable on resume: At least one of the pre-conditions you specified did not hold "
+                    "At least one of the pre-conditions you specified did not hold "
                         + "\\(Service: S3, Status Code: 412, Request ID: test-request-id\\) \\(SDK Attempt Count: 1\\)"
                 )
             );

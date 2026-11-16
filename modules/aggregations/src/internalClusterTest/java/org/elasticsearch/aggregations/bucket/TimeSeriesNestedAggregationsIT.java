@@ -33,14 +33,23 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.common.util.CollectionUtils.appendToCopy;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 
 public class TimeSeriesNestedAggregationsIT extends AggregationIntegTestCase {
+
+    /** The tests here create {@link TimeSeriesAggregationBuilder}s, which emit the deprecation warning. */
+    @Override
+    protected List<String> filteredWarnings() {
+        return appendToCopy(super.filteredWarnings(), TimeSeriesAggregationBuilder.DEPRECATION_MESSAGE);
+    }
+
     private static int numberOfDimensions;
     private static int numberOfDocuments;
 

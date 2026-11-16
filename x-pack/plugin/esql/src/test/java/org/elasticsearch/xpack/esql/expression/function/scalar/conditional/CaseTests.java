@@ -42,8 +42,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
 
     private static final List<DataType> RETURN_TYPES = Arrays.stream(DataType.values())
         .filter(t -> t.supportedVersion().supportedLocally())
-        .filter(DataType::isRepresentable)
-        .filter(t -> t != DataType.DOC_DATA_TYPE)
+        .filter(DataType::isRepresentableInExpression)
         .filter(t -> t != DataType.TSID_DATA_TYPE)
         .filter(t -> t != DataType.DATE_RANGE || EsqlCapabilities.Cap.CASE_DATE_RANGE.isEnabled())
         .toList();

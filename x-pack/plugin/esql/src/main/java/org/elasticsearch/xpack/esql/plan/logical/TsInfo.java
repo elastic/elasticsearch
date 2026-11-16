@@ -6,9 +6,11 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -48,15 +50,24 @@ public class TsInfo extends UnaryPlan implements TelemetryAware, PostAnalysisVer
         "dimensions"
     );
 
+    private static final TransportVersion ESQL_TS_INFO_LIMIT = TransportVersion.fromName("esql_ts_info_limit");
+
     private final List<Attribute> attributes;
+    @Nullable
+    private final Integer limit;
 
     public TsInfo(Source source, LogicalPlan child) {
-        this(source, child, buildAttributes(source));
+        this(source, child, (Integer) null);
     }
 
-    private TsInfo(Source source, LogicalPlan child, List<Attribute> attributes) {
+    public TsInfo(Source source, LogicalPlan child, @Nullable Integer limit) {
+        this(source, child, buildAttributes(source), limit);
+    }
+
+    private TsInfo(Source source, LogicalPlan child, List<Attribute> attributes, @Nullable Integer limit) {
         super(source, child);
         this.attributes = attributes;
+        this.limit = limit;
     }
 
     @Override
@@ -65,13 +76,20 @@ public class TsInfo extends UnaryPlan implements TelemetryAware, PostAnalysisVer
     }
 
     private TsInfo(StreamInput in) throws IOException {
-        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(LogicalPlan.class));
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(LogicalPlan.class),
+            in.getTransportVersion().supports(ESQL_TS_INFO_LIMIT) ? in.readOptionalVInt() : null
+        );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(child());
+        if (out.getTransportVersion().supports(ESQL_TS_INFO_LIMIT)) {
+            out.writeOptionalVInt(limit);
+        }
     }
 
     @Override
@@ -81,12 +99,21 @@ public class TsInfo extends UnaryPlan implements TelemetryAware, PostAnalysisVer
 
     @Override
     protected NodeInfo<TsInfo> info() {
-        return NodeInfo.create(this, TsInfo::new, child());
+        return NodeInfo.create(this, TsInfo::new, child(), limit);
     }
 
     @Override
     public TsInfo replaceChild(LogicalPlan newChild) {
-        return new TsInfo(source(), newChild, attributes);
+        return new TsInfo(source(), newChild, attributes, limit);
+    }
+
+    @Nullable
+    public Integer limit() {
+        return limit;
+    }
+
+    public TsInfo withLimit(@Nullable Integer newLimit) {
+        return new TsInfo(source(), child(), attributes, newLimit);
     }
 
     @Override
@@ -111,7 +138,7 @@ public class TsInfo extends UnaryPlan implements TelemetryAware, PostAnalysisVer
 
     @Override
     public int hashCode() {
-        return Objects.hash(child());
+        return Objects.hash(child(), limit);
     }
 
     @Override
@@ -124,7 +151,7 @@ public class TsInfo extends UnaryPlan implements TelemetryAware, PostAnalysisVer
         }
 
         TsInfo other = (TsInfo) obj;
-        return Objects.equals(child(), other.child());
+        return Objects.equals(child(), other.child()) && Objects.equals(limit, other.limit);
     }
 
     @Override

@@ -93,6 +93,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.both;
@@ -242,6 +243,9 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
     private Directory directory = newDirectory();
     private IndexReader reader;
 
+    /** The shard context of the last factory {@link #simple} built. */
+    private MockShardContext shardContext;
+
     public LuceneSourceOperatorTests(TestCase testCase, boolean scoring) {
         this.testCase = testCase;
         this.scoring = scoring;
@@ -270,7 +274,8 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
             throw new RuntimeException(e);
         }
 
-        ShardContext ctx = new MockShardContext(reader, 0);
+        MockShardContext ctx = new MockShardContext(reader, 0);
+        shardContext = ctx;
         Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction = c -> testCase.queryAndExtra();
         int maxPageSize = between(10, Math.max(10, numDocs));
         int taskConcurrency = randomIntBetween(1, 4);
@@ -393,6 +398,8 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
             testCase.numResults(numDocs)
         );
         assertThat(receivedRows.get(), equalTo(Math.min(limit, testCase.numResults(numDocs))));
+        // stopping at the limit leaves slices nobody read, and they count as read once the drivers are done
+        assertThat(shardContext.unfinishedSlices(), equalTo(0));
     }
 
     public void testEmpty() {
@@ -991,6 +998,10 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
             // Shard with no docs may still see minimal load from query rewrite, but should be <= others
             assertThat(loadLarge, greaterThan(0d));
             assertThat(loadLarge, greaterThanOrEqualTo(load0));
+
+            // each shard counts the rows its source emitted
+            assertThat(((MockShardContext) shardContexts.get(0)).rowsEmitted(), equalTo(0L));
+            assertThat(((MockShardContext) shardContexts.get(1)).rowsEmitted(), equalTo(totalPositions));
         } finally {
             IOUtils.close(r0, rLarge, dir0, dirLarge);
         }
@@ -1016,6 +1027,8 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
         private final int index;
         private final ContextIndexSearcher searcher;
         private final ShardSearchStats shardSearchStats;
+        private final AtomicInteger unfinishedSlices = new AtomicInteger();
+        private final AtomicLong rowsEmitted = new AtomicLong();
 
         private static final int MIN_DOCS_PER_SLICE = 50_000;
         private static final int MAX_SLICES_NUMBER = 10;
@@ -1056,6 +1069,18 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
                 new SearchStatsSettings(new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
             );
             this.searcher = searcher;
+        }
+
+        @Override
+        public void addUnfinishedSlices(int delta) {
+            unfinishedSlices.addAndGet(delta);
+        }
+
+        /**
+         * The slices of this shard still to read or being read.
+         */
+        public int unfinishedSlices() {
+            return unfinishedSlices.get();
         }
 
         @Override
@@ -1104,6 +1129,15 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
         @Override
         public ShardSearchStats stats() {
             return shardSearchStats;
+        }
+
+        @Override
+        public void addRowsEmitted(long rows) {
+            rowsEmitted.addAndGet(rows);
+        }
+
+        public long rowsEmitted() {
+            return rowsEmitted.get();
         }
 
         public void incRef() {}

@@ -9,6 +9,10 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.LowerCaseFilter;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.Term;
@@ -581,6 +585,38 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                 .build()
         );
         assertThat(query, equalTo(expectedQuery));
+    }
+
+    public void testAnalyzedPrefixQueryIsNormalizedWhenTokenStreamFails() throws Exception {
+        Analyzer failingAnalyzer = new Analyzer() {
+            @Override
+            protected TokenStreamComponents createComponents(String fieldName) {
+                Tokenizer tokenizer = new Tokenizer() {
+                    @Override
+                    public boolean incrementToken() {
+                        return false;
+                    }
+
+                    @Override
+                    public void reset() throws IOException {
+                        super.reset();
+                        throw new IOException("boom");
+                    }
+                };
+                return new TokenStreamComponents(tokenizer);
+            }
+
+            @Override
+            protected TokenStream normalize(String fieldName, TokenStream in) {
+                return new LowerCaseFilter(in);
+            }
+        };
+        QueryStringQueryParser queryParser = new QueryStringQueryParser(createSearchExecutionContext(), TEXT_FIELD_NAME);
+        queryParser.setAnalyzeWildcard(true);
+        queryParser.setForceAnalyzer(failingAnalyzer);
+        Query query = queryParser.parse("FOO*");
+        assertThat(query, instanceOf(PrefixQuery.class));
+        assertThat(((PrefixQuery) query).getPrefix(), equalTo(new Term(TEXT_FIELD_NAME, "foo")));
     }
 
     public void testToQueryWilcardQueryWithSynonyms() throws Exception {
@@ -1587,5 +1623,21 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             }
         });
         return found;
+    }
+
+    /**
+     * A long term on a date field fails in the date parser, which cuts it in the error.
+     */
+    public void testToQueryLongIllegalDateIsTruncatedInShardFailure() {
+        // Much longer than the stack trace the reason holds
+        String value = "x".repeat(100_000);
+        SearchExecutionContext context = createSearchExecutionContext();
+        QueryShardException e = expectThrows(
+            QueryShardException.class,
+            () -> context.toQuery(queryStringQuery(value).defaultField(DATE_FIELD_NAME))
+        );
+        assertThat(e.getMessage(), containsString("failed to parse date field [xxx"));
+        // Without the truncation the reason holds the value five times
+        assertThat(new ShardSearchFailure(e).reason().length(), lessThan(value.length()));
     }
 }

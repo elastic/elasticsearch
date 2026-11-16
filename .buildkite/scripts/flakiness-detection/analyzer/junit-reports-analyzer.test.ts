@@ -26,6 +26,16 @@ describe("classifyFailure", () => {
     expect(classifyFailure({ type: "java.lang.Exception", message: "Suite timeout exceeded (>= 3600000 msec)." })).toBe("suite-timeout");
   });
 
+  test("classifies Lucene temp-dir exhaustion as 'temp-dir-exhausted'", () => {
+    expect(
+      classifyFailure({
+        type: "java.lang.RuntimeException",
+        message:
+          "Failed to get a temporary name too many times, check your temp directory and consider manually cleaning it: /tmp/x",
+      })
+    ).toBe("temp-dir-exhausted");
+  });
+
   test("classifies other Exception entries as 'error'", () => {
     expect(classifyFailure({ type: "java.lang.RuntimeException", message: "kaboom" })).toBe("error");
   });
@@ -341,6 +351,35 @@ ${cases}
     expect(report.totals.realFailures).toBe(0);
     expect(report.totals.suiteTimeoutMarkers).toBe(2);
     expect(report.totals.successfulCases).toBe(1);
+  });
+
+  test("treats temp-dir exhaustion as informational, not a real failure", async () => {
+    const message =
+      "Failed to get a temporary name too many times, check your temp directory and consider manually cleaning it: " +
+      "/tmp/org.example.BarTests_A6B473A9B17A00AA-001";
+    const root = await mkTmpReports([
+      {
+        path: "server/build/test-results/test/TEST-org.example.BarTests.xml",
+        body: `<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="org.example.BarTests" tests="3" failures="2" errors="0">
+  <testcase classname="org.example.BarTests" name="testBaz {seed=[A6B473A9B17A00AA:1]}"/>
+  <testcase classname="org.example.BarTests" name="testBaz {seed=[A6B473A9B17A00AA:2]}">
+    <failure type="java.lang.RuntimeException" message="${message}"/>
+  </testcase>
+  <testcase classname="org.example.BarTests" name="testBaz {seed=[A6B473A9B17A00AA:3]}">
+    <failure type="java.lang.RuntimeException" message="${message}"/>
+  </testcase>
+</testsuite>`,
+      },
+    ]);
+    const report = await analyzeReports([root]);
+    expect(report.totals.realFailures).toBe(0);
+    expect(report.totals.tempDirExhaustedMarkers).toBe(2);
+    expect(report.totals.successfulCases).toBe(1);
+    expect(report.totals.iterations).toBe(3);
+    expect(report.batches[0].tempDirExhaustedMarkers).toBe(2);
+    expect(report.perTest[0].failures).toBe(0);
+    expect(report.tempDirExhaustedClasses).toEqual(["org.example.BarTests"]);
   });
 });
 

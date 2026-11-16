@@ -168,7 +168,7 @@ public class VectorScorerInt4BulkOperationBenchmark {
         while (v < numVectorsToScore) {
             for (int i = 0; i < bulkSize && v < numVectorsToScore; i++, v++) {
                 MemorySegment vec = dataset.asSlice((long) ids[v] * packedLen, packedLen);
-                scores[i] = VEC_LIBRARY.dotProductI4(query, vec, packedLen);
+                scores[i] = VEC_LIBRARY.dotProductI4(vec, query, packedLen);
             }
         }
         return scores;
@@ -181,7 +181,7 @@ public class VectorScorerInt4BulkOperationBenchmark {
         while (v < numVectorsToScore) {
             for (int i = 0; i < bulkSize && v < numVectorsToScore; i++, v++) {
                 MemorySegment vec = dataset.asSlice((long) ordinals[v] * packedLen, packedLen);
-                scores[i] = VEC_LIBRARY.dotProductI4(query, vec, packedLen);
+                scores[i] = VEC_LIBRARY.dotProductI4(vec, query, packedLen);
             }
         }
         return scores;
@@ -233,7 +233,7 @@ public class VectorScorerInt4BulkOperationBenchmark {
             for (int m = masks[b]; m != 0; m = BulkMask.deselectFirst(m)) {
                 int slot = BulkMask.first(m);
                 MemorySegment vec = dataset.asSlice((long) (b * Integer.SIZE + slot) * packedLen, packedLen);
-                scores[slot] = VEC_LIBRARY.dotProductI4(query, vec, packedLen);
+                scores[slot] = VEC_LIBRARY.dotProductI4(vec, query, packedLen);
             }
         }
         return scores;

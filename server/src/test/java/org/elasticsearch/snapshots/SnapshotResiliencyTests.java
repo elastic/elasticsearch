@@ -318,7 +318,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
             // Only disconnect master if we have more than a single master and can simulate a failover
             final boolean disconnectedMaster = randomBoolean() && masterNodes > 1;
             if (disconnectedMaster) {
-                scheduleNow(this::disconnectOrRestartMasterNode);
+                scheduleNow(this::disruptMasterNode);
+            } else if (masterNodes == 1 && testClusterNodes.canUsurpCurrentMaster() && randomBoolean()) {
+                scheduleNow(() -> testClusterNodes.usurpCurrentMaster(testClusterNodes.randomMasterNodeSafe()));
             }
             if (disconnectedMaster || randomBoolean()) {
                 scheduleSoon(() -> testClusterNodes.clearNetworkDisruptions());
@@ -365,6 +367,107 @@ public class SnapshotResiliencyTests extends ESTestCase {
         }
     }
 
+    public void testCloneAbortedByDifferentMaster() {
+        setupTestCluster(randomFrom(3, 5), randomIntBetween(1, 3), ignored -> TransportService.NOOP_TRANSPORT_INTERCEPTOR, false);
+
+        final var repoName = "repo";
+        final var index = randomIndexName();
+        final var sourceSnapshotName = randomSnapshotName();
+
+        // Observe the cluster state from a node which is never master, so that the observation is unaffected by failovers.
+        final var observerNode = testClusterNodes.randomDataNodeSafe();
+        final var observerClusterService = observerNode.clusterService();
+        final var client = observerNode.client();
+
+        final var setupListener = SubscribableListener
+            // Create the repo and index
+            .<CreateIndexResponse>newForked(l -> createRepoAndIndex(repoName, index, randomIntBetween(1, 5)).addListener(l))
+
+            // Take a full snapshot for use as the source for the clones
+            .<Void>andThen(
+                l -> client.admin()
+                    .cluster()
+                    .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, sourceSnapshotName)
+                    .setWaitForCompletion(true)
+                    .execute(l.map(ignored -> null))
+            );
+        deterministicTaskQueue.runAllRunnableTasks();
+        assertTrue(setupListener.isDone());
+        safeAwait(setupListener); // shouldn't throw
+
+        assumeTrue("canUsurpCurrentMaster", testClusterNodes.canUsurpCurrentMaster()); // after setup to satisfy @After checks
+
+        final var originalMaster = testClusterNodes.nodes()
+            .values()
+            .stream()
+            .filter(n -> n.clusterService().state().nodes().isLocalNodeElectedMaster())
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("expected an elected master"));
+        final var newMaster = randomValueOtherThan(originalMaster, testClusterNodes::randomMasterNodeSafe);
+
+        final var cloneName = randomIdentifier("clone-");
+
+        final var cloneAndAbortFinishedListener = SubscribableListener
+            // Start a clone and wait until its shards are assigned
+            .<Void>newForked(l -> {
+                client.admin()
+                    .cluster()
+                    .prepareCloneSnapshot(TEST_REQUEST_TIMEOUT, repoName, sourceSnapshotName, cloneName)
+                    .setIndices(index)
+                    .execute(ActionListener.noop());
+
+                ClusterServiceUtils.addTemporaryStateListener(
+                    observerClusterService,
+                    cs -> SnapshotsInProgress.get(cs)
+                        .asStream()
+                        .anyMatch(
+                            e -> e.isClone()
+                                && e.snapshot().getSnapshotId().getName().equals(cloneName)
+                                && e.shardSnapshotStatusByRepoShardId()
+                                    .values()
+                                    .stream()
+                                    .anyMatch(status -> status.state() == SnapshotsInProgress.ShardState.INIT)
+                        )
+                ).addListener(l);
+            })
+
+            // Trigger a master failover and concurrently abort the clone; and wait for it to go
+            .<Void>andThen(l -> {
+                testClusterNodes.usurpCurrentMaster(newMaster);
+
+                client.admin()
+                    .cluster()
+                    .prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, repoName, cloneName)
+                    // The delete may legitimately fail, so ignore the result
+                    .execute(ActionListener.noop());
+
+                ClusterServiceUtils.addTemporaryStateListener(
+                    observerClusterService,
+                    cs -> SnapshotsInProgress.get(cs).isEmpty() && SnapshotDeletionsInProgress.get(cs).getEntries().isEmpty()
+                ).addListener(l);
+            });
+
+        runAllRunnableTasksAndElectMaster();
+        assertTrue(cloneAndAbortFinishedListener.isDone());
+        safeAwait(cloneAndAbortFinishedListener); // shouldn't throw
+
+        testClusterNodes.usurpCurrentMaster(originalMaster);
+        runAllRunnableTasksAndElectMaster();
+
+        // No shard clone should have been left permanently blocked by the aborted one
+        final var finalCloneListener = SubscribableListener.<Void>newForked(
+            l -> client.admin()
+                .cluster()
+                .prepareCloneSnapshot(TEST_REQUEST_TIMEOUT, repoName, sourceSnapshotName, randomIdentifier("final-clone-"))
+                .setIndices(index)
+                .execute(l.map(ignored -> null))
+        );
+
+        deterministicTaskQueue.runAllRunnableTasks();
+        assertTrue(finalCloneListener.isDone());
+        safeAwait(finalCloneListener); // shouldn't throw
+    }
+
     public void testSnapshotDeleteWithMasterFailover() {
         final int dataNodes = randomIntBetween(2, 10);
         final int masterNodes = randomFrom(3, 5);
@@ -390,7 +493,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         final AtomicBoolean snapshotDeleteResponded = new AtomicBoolean(false);
         continueOrDie(createSnapshotResponseStepListener, createSnapshotResponse -> {
-            scheduleNow(this::disconnectOrRestartMasterNode);
+            scheduleNow(this::disruptMasterNode);
             testClusterNodes.randomDataNodeSafe()
                 .client()
                 .admin()
@@ -2003,9 +2106,37 @@ public class SnapshotResiliencyTests extends ESTestCase {
         }
     }
 
-    protected void disconnectOrRestartMasterNode() {
+    /// Runs all runnable tasks. If the resulting state has no elected master then also triggers and completes an immediate election.
+    /// Useful after calling [TestClusterNodes.TestClusterNode#usurpCurrentMaster] to handle cases where the failover attempt failed.
+    private void runAllRunnableTasksAndElectMaster() {
+        deterministicTaskQueue.runAllRunnableTasks();
+        if (hasElectedMaster() == false) {
+            final var newMaster = testClusterNodes.nodes()
+                .values()
+                .stream()
+                .filter(n -> n.node().isMasterNode())
+                .max(
+                    // pick the freshest version in the freshest term
+                    Comparator.<TestClusterNodes.TestClusterNode>comparingLong(n -> n.coordinator().getLastAcceptedState().term())
+                        .thenComparingLong(n -> n.coordinator().getLastAcceptedState().version())
+                )
+                .orElseThrow();
+            logger.info("no elected master after running all runnable tasks, usurping with [{}]", newMaster.node());
+            testClusterNodes.usurpCurrentMaster(newMaster);
+            deterministicTaskQueue.runAllRunnableTasks();
+            assertTrue("expected an elected master after usurping with the freshest node", hasElectedMaster());
+        }
+    }
+
+    private boolean hasElectedMaster() {
+        return testClusterNodes.nodes().values().stream().anyMatch(n -> n.clusterService().state().nodes().isLocalNodeElectedMaster());
+    }
+
+    protected void disruptMasterNode() {
         testClusterNodes.randomMasterNode().ifPresent(masterNode -> {
-            if (randomBoolean()) {
+            if (testClusterNodes.canUsurpCurrentMaster() && randomBoolean()) {
+                testClusterNodes.usurpCurrentMaster(masterNode);
+            } else if (randomBoolean()) {
                 testClusterNodes.disconnectNode(masterNode);
             } else {
                 masterNode.restart();

@@ -83,6 +83,10 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  * thread shares one warm field name cache, so the cost of a bulk fanning out across indices with
  * differing mappings is not exercised.
  *
+ * <p><strong>Shapes.</strong> {@code analytics} is {@link AnalyticsDocs}: wide, flat documents whose field count,
+ * string mix, integer widths and escape density were measured on real web-analytics data, so it exercises
+ * the escaped-string path as well as the plain ones. {@code small_sparse} and {@code otel_nested} are hand-written.
+ *
  * <p><strong>Running.</strong> Defaults cover two document shapes; {@code otel_nested} and other
  * parameters are available via {@code -p}.
  * <pre>{@code
@@ -96,11 +100,11 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  *
  * # All shapes, single bulk size:
  * ./gradlew :libs:simdjson:benchmark --args "SimdJsonParserBenchmark \
- *   -p shape=clickbench_flat,otel_nested,small_sparse -p docCount=1000"
+ *   -p shape=analytics,otel_nested,small_sparse -p docCount=1000"
  *
  * # Index fan-out, which is what prices the shared field name table:
  * ../gradlew run --args "org.elasticsearch.benchmark.xcontent.SimdJsonParserBenchmark \
- *   -p mappingCount=1,5,20 -p docCount=1000 -p shape=clickbench_flat"
+ *   -p mappingCount=1,5,20 -p docCount=1000 -p shape=analytics"
  * }</pre>
  */
 @Fork(value = 1, jvmArgsAppend = { "--add-modules=jdk.incubator.vector" })
@@ -145,7 +149,7 @@ public class SimdJsonParserBenchmark {
      * Document shape. {@code otel_nested} is omitted by default to keep the parameter matrix small;
      * pass it explicitly with {@code -p shape=...}.
      */
-    @Param({ "clickbench_flat", "small_sparse" })
+    @Param({ "analytics", "small_sparse" })
     private String shape;
 
     private static final Recycler<BytesRef> RECYCLER = new BytesRefRecycler(new PageCacheRecycler(Settings.EMPTY));
@@ -282,161 +286,11 @@ public class SimdJsonParserBenchmark {
 
     private static String generateDoc(Random random, String shape, int docIndex) {
         return switch (shape) {
-            case "clickbench_flat" -> generateClickBenchFlat(random);
+            case "analytics" -> AnalyticsDocs.generate(random);
             case "otel_nested" -> generateOtelNested(random);
             case "small_sparse" -> generateSmallSparse(random, docIndex);
             default -> throw new IllegalArgumentException("unknown shape: " + shape);
         };
-    }
-
-    private static String generateClickBenchFlat(Random random) {
-        return String.format(
-            Locale.ROOT,
-            """
-                {
-                  "WatchID": %d, "JavaEnable": %d, "Title": "%s",
-                  "GoodEvent": %d, "EventTime": %d, "EventDate": %d,
-                  "CounterID": %d, "ClientIP": %d, "ClientIP6": "%s",
-                  "RegionID": %d, "UserID": %d,
-                  "CounterClass": %d, "OS": %d, "UserAgent": %d,
-                  "URL": "https://example.com/%s", "Referer": "https://ref.example.com/%s",
-                  "URLDomain": "example.com", "RefererDomain": "ref.example.com",
-                  "Refresh": %d, "IsRobot": %d, "RefererCategories": %d,
-                  "URLCategories": %d, "URLRegions": %d, "RefererRegions": %d,
-                  "ResolutionWidth": %d, "ResolutionHeight": %d, "ResolutionDepth": %d,
-                  "FlashMajor": %d, "FlashMinor": %d, "FlashMinor2": "%d",
-                  "NetMajor": %d, "NetMinor": %d, "UserAgentMajor": %d,
-                  "UserAgentMinor": %d, "CookieEnable": %d, "JavascriptEnable": %d,
-                  "IsMobile": %d, "MobilePhone": %d, "MobilePhoneModel": "%s",
-                  "Params": "", "IPNetworkID": %d,
-                  "TraficSourceID": %d, "SearchEngineID": %d,
-                  "SearchPhrase": "%s",
-                  "AdvEngineID": %d, "IsArtifical": %d, "WindowClientWidth": %d,
-                  "WindowClientHeight": %d, "ClientTimeZone": %d,
-                  "ClientEventTime": %d, "SilverlightVersion1": %d, "SilverlightVersion2": %d,
-                  "SilverlightVersion3": %d, "SilverlightVersion4": %d,
-                  "PageCharset": "UTF-8", "CodeVersion": %d, "IsLink": %d,
-                  "IsDownload": %d, "IsNotBounce": %d, "FUniqID": %d,
-                  "HID": %d, "IsOldCounter": %d, "IsEvent": %d,
-                  "IsParameter": %d, "DontCountHits": %d, "WithHash": %d,
-                  "HitColor": "W", "UTCEventTime": %d,
-                  "Age": %d, "Sex": %d, "Income": %d,
-                  "Interests": %d, "Robotness": %d, "GeneralInterests": %d,
-                  "RemoteIP": %d, "RemoteIP6": "%s",
-                  "WindowName": %d, "OpenerName": %d, "HistoryLength": %d,
-                  "BrowserLanguage": "en", "BrowserCountry": "US",
-                  "SocialNetwork": "", "SocialAction": "", "HTTPError": %d,
-                  "SendTiming": %d, "DNSTiming": %d, "ConnectTiming": %d,
-                  "ResponseStartTiming": %d, "ResponseEndTiming": %d,
-                  "FetchTiming": %d, "RedirectTiming": %d, "DOMInteractiveTiming": %d,
-                  "ContentLoadTiming": %d, "OnLoadTiming": %d,
-                  "RequestNum": %d, "RequestTry": %d,
-                  "NetErrorCode": %d, "SocialShareNetwork": "", "SocialSharePage": "",
-                  "ParamPrice": %d, "ParamOrderID": "", "ParamCurrency": "USD",
-                  "ParamCurrencyID": %d,
-                  "GoalsReached": %d, "OpenstatServiceName": "", "OpenstatCampaignID": "",
-                  "OpenstatAdID": "", "OpenstatSourceID": "",
-                  "UTMSource": "", "UTMMedium": "", "UTMCampaign": "", "UTMContent": "", "UTMTerm": "",
-                  "FromTag": "", "HasGCLID": %d, "RefererHash": %d, "URLHash": %d,
-                  "CLID": %d, "YCLID": %d, "ShareService": "", "ShareURL": "", "ShareTitle": ""
-                }""",
-            random.nextLong(),
-            random.nextInt(2),
-            randomWord(random),
-            random.nextInt(2),
-            random.nextLong(),
-            random.nextInt(19000),
-            random.nextInt(100000),
-            (long) (random.nextDouble() * 4_294_967_295L),
-            "::1",
-            random.nextInt(200000),
-            random.nextLong(),
-            random.nextInt(10),
-            random.nextInt(255),
-            random.nextInt(255),
-            randomWord(random),
-            randomWord(random),
-            random.nextInt(2),
-            random.nextInt(2),
-            random.nextInt(1000),
-            random.nextInt(1000),
-            random.nextInt(100000),
-            random.nextInt(100000),
-            random.nextInt(3840),
-            random.nextInt(2160),
-            random.nextInt(32),
-            random.nextInt(33),
-            random.nextInt(10),
-            random.nextInt(10),
-            random.nextInt(10),
-            random.nextInt(10),
-            random.nextInt(100),
-            random.nextInt(100),
-            random.nextInt(2),
-            random.nextInt(2),
-            random.nextInt(2),
-            random.nextInt(2),
-            randomWord(random),
-            random.nextInt(1000000),
-            random.nextInt(30),
-            random.nextInt(100),
-            randomWord(random),
-            random.nextInt(10),
-            random.nextInt(2),
-            random.nextInt(3840),
-            random.nextInt(2160),
-            random.nextInt(720),
-            random.nextLong(),
-            random.nextInt(4),
-            random.nextInt(4),
-            random.nextInt(4000),
-            random.nextInt(10000),
-            random.nextInt(1000000),
-            random.nextInt(2),
-            random.nextInt(2),
-            random.nextInt(2),
-            random.nextLong(),
-            random.nextInt(1000000),
-            random.nextInt(2),
-            random.nextInt(2),
-            random.nextInt(2),
-            random.nextInt(2),
-            random.nextInt(2),
-            random.nextLong(),
-            random.nextInt(90),
-            random.nextInt(2),
-            random.nextInt(5),
-            random.nextInt(10000),
-            random.nextInt(10),
-            random.nextInt(1000),
-            (long) (random.nextDouble() * 4_294_967_295L),
-            "::1",
-            random.nextInt(1000),
-            random.nextInt(1000),
-            random.nextInt(100),
-            random.nextInt(1000),
-            random.nextInt(100000),
-            random.nextInt(100000),
-            random.nextInt(100000),
-            random.nextInt(100000),
-            random.nextInt(100000),
-            random.nextInt(100000),
-            random.nextInt(100000),
-            random.nextInt(100),
-            random.nextInt(10),
-            random.nextInt(10),
-            random.nextLong(),
-            random.nextInt(1000),
-            random.nextInt(10),
-            random.nextInt(2),
-            random.nextLong(),
-            random.nextLong(),
-            random.nextInt(100),
-            random.nextLong(),
-            random.nextLong(),
-            random.nextInt(100),
-            random.nextLong()
-        );
     }
 
     private static String generateOtelNested(Random random) {

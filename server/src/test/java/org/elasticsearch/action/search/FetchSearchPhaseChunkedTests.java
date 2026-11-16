@@ -55,7 +55,7 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
-import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.transport.MockTransport;
@@ -953,8 +953,8 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
                 new FetchPhase(Collections.emptyList()),
                 newLimitedBreakerService(ByteSizeValue.ofMb(10)),
                 EmptySystemIndices.INSTANCE.getExecutorSelector(),
-                Tracer.NOOP,
-                OnlinePrewarmingService.NOOP
+                OnlinePrewarmingService.NOOP,
+                new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet())
             );
             this.chunkedEnabled = chunkedEnabled;
         }

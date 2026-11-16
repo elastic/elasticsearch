@@ -231,6 +231,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
         MultiSearchRequest.readMultiLineFormat(
             xContent,
             request.contentParserConfig(),
+            request::trackContentParser,
             data,
             consumer,
             indices,

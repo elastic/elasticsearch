@@ -55,7 +55,7 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.AbstractWarmingTask;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type;
@@ -695,7 +695,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                                     assertEquals(vbccs.get(1).getPrimaryTermAndGeneration(), virtualBccTermAndGen);
                                     int finalLength = Math.min(length, Math.toIntExact(vbccs.get(1).getTotalSizeInBytes() - offset));
                                     var bytesStreamOutput = new BytesStreamOutput(finalLength);
-                                    threadPool.executor(StatelessPlugin.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL)
+                                    threadPool.executor(StatelessThreadPools.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL)
                                         .execute(() -> {
                                             ActionListener.run(listener, l -> {
                                                 vbccs.get(1).getBytesByRange(offset, finalLength, bytesStreamOutput);
@@ -2815,29 +2815,29 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
     }
 
     public void testAbstractWarmingTaskComparison() {
-        var typesOtherThanMergeAndBCCPrewarm = Arrays.stream(Type.values()).collect(Collectors.toSet());
-        typesOtherThanMergeAndBCCPrewarm.remove(Type.INDEXING_MERGE);
-        typesOtherThanMergeAndBCCPrewarm.remove(Type.INDEXING_BCC_HEADER_PREWARM);
+        var highPriorityTypes = Set.of(Type.INDEXING_BCC_HEADER_PREWARM, Type.INDEXING_EARLY, Type.INDEXING);
+        var normalPriorityTypes = Arrays.stream(Type.values()).collect(Collectors.toSet());
+        normalPriorityTypes.remove(Type.INDEXING_MERGE);
+        normalPriorityTypes.removeAll(highPriorityTypes);
 
         var queue = new PriorityQueue<MyTask>();
 
-        var task1 = new MyTask(randomFrom(typesOtherThanMergeAndBCCPrewarm), 500);
+        var task1 = new MyTask(randomFrom(normalPriorityTypes), 500);
         queue.add(task1);
-        var task2 = new MyTask(randomFrom(typesOtherThanMergeAndBCCPrewarm), randomLongBetween(0, 499));
+        var task2 = new MyTask(randomFrom(normalPriorityTypes), randomLongBetween(0, 499));
         queue.add(task2);
-        var task3 = new MyTask(randomFrom(typesOtherThanMergeAndBCCPrewarm), randomLongBetween(501, Long.MAX_VALUE));
+        var task3 = new MyTask(randomFrom(normalPriorityTypes), randomLongBetween(501, Long.MAX_VALUE));
         queue.add(task3);
         var task4 = new MyTask(Type.INDEXING_MERGE, randomLongBetween(1, Long.MAX_VALUE));
         queue.add(task4);
         var task5 = new MyTask(Type.INDEXING_MERGE, 0);
         queue.add(task5);
         // We don't explicitly handle overflow in position.
-        var task6 = new MyTask(randomFrom(typesOtherThanMergeAndBCCPrewarm), randomLongBetween(Long.MIN_VALUE, -1));
+        var task6 = new MyTask(randomFrom(normalPriorityTypes), randomLongBetween(Long.MIN_VALUE, -1));
         queue.add(task6);
-        // BCC header prewarming sorts before everything else, even with a larger position.
-        var task7 = new MyTask(Type.INDEXING_BCC_HEADER_PREWARM, randomLongBetween(1, Long.MAX_VALUE));
+        var task7 = new MyTask(randomFrom(highPriorityTypes), randomLongBetween(1, Long.MAX_VALUE));
         queue.add(task7);
-        var task8 = new MyTask(Type.INDEXING_BCC_HEADER_PREWARM, 0);
+        var task8 = new MyTask(randomFrom(highPriorityTypes), 0);
         queue.add(task8);
 
         assertEquals(
@@ -3064,7 +3064,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             var segmentCommitInfo = new SegmentCommitInfo(info, 0, 0, -1L, -1L, -1L, new byte[16]);
 
             var threadPoolBlocker = new CountDownLatch(1);
-            fakeNode.threadPool.executor(StatelessPlugin.PREWARM_THREAD_POOL).submit(() -> safeAwait(threadPoolBlocker));
+            fakeNode.threadPool.executor(StatelessThreadPools.PREWARM_THREAD_POOL).submit(() -> safeAwait(threadPoolBlocker));
 
             var mergeWarmFuture = new PlainActionFuture<Void>();
             warmingService.warmCacheMerge(
@@ -3164,7 +3164,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
 
             @Override
             public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
-                if (StatelessPlugin.PREWARM_THREAD_POOL.equals(EsExecutors.executorName(Thread.currentThread()))) {
+                if (StatelessThreadPools.PREWARM_THREAD_POOL.equals(EsExecutors.executorName(Thread.currentThread()))) {
                     throw failure;
                 }
                 return super.readBlob(purpose, blobName, position, length);
@@ -3210,8 +3210,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSizeInBytes))
                     .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSizeInBytes));
                 if (singleShardReadThread) {
-                    settings.put(StatelessPlugin.SHARD_READ_THREAD_POOL_SETTING + ".core", 1)
-                        .put(StatelessPlugin.SHARD_READ_THREAD_POOL_SETTING + ".max", 1);
+                    settings.put(StatelessThreadPools.SHARD_READ_THREAD_POOL_SETTING + ".core", 1)
+                        .put(StatelessThreadPools.SHARD_READ_THREAD_POOL_SETTING + ".max", 1);
                 }
                 return settings.build();
             }
@@ -3229,7 +3229,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
     private static CountDownLatch blockShardReadPool(FakeStatelessNode fakeNode) {
         final var shardReadBlocked = new CountDownLatch(1);
         final var releaseShardRead = new CountDownLatch(1);
-        fakeNode.threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL).execute(() -> {
+        fakeNode.threadPool.executor(StatelessThreadPools.SHARD_READ_THREAD_POOL).execute(() -> {
             shardReadBlocked.countDown();
             safeAwait(releaseShardRead);
         });
@@ -3261,11 +3261,11 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
 
     private static long queuedShardReadTasks(ThreadPool threadPool) {
         for (var stats : threadPool.stats()) {
-            if (StatelessPlugin.SHARD_READ_THREAD_POOL.equals(stats.name())) {
+            if (StatelessThreadPools.SHARD_READ_THREAD_POOL.equals(stats.name())) {
                 return stats.queue();
             }
         }
-        throw new AssertionError("no stats for " + StatelessPlugin.SHARD_READ_THREAD_POOL);
+        throw new AssertionError("no stats for " + StatelessThreadPools.SHARD_READ_THREAD_POOL);
     }
 
     private static boolean causedBy(Throwable throwable, Throwable cause) {
@@ -3297,11 +3297,11 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
 
     private static long completedShardReadTasks(ThreadPool threadPool) {
         for (var stats : threadPool.stats()) {
-            if (StatelessPlugin.SHARD_READ_THREAD_POOL.equals(stats.name())) {
+            if (StatelessThreadPools.SHARD_READ_THREAD_POOL.equals(stats.name())) {
                 return stats.completed();
             }
         }
-        throw new AssertionError("no stats for " + StatelessPlugin.SHARD_READ_THREAD_POOL);
+        throw new AssertionError("no stats for " + StatelessThreadPools.SHARD_READ_THREAD_POOL);
     }
 
     private static BatchedCompoundCommit uploadBccs(FakeStatelessNode fakeNode, long primaryTerm, int bccCount) throws IOException {

@@ -62,10 +62,10 @@ public class SingleValueQueryWarningsTests extends ESTestCase {
         );
     }
 
-    public void testRegisterWithoutBindingThrows() {
+    public void testRegisterWithoutBindingIsDropped() {
         QueryWarnings bridge = QueryWarnings.EMIT;
         SingleValueMatchQuery query = newQuery(bridge, "field", "boom");
-        expectThrows(IllegalStateException.class, () -> bridge.registerException(query, IllegalArgumentException.class, "boom"));
+        bridge.registerException(query, IllegalArgumentException.class, "boom");
     }
 
     public void testRegisterForUnknownQueryThrows() {

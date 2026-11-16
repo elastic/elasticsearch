@@ -450,6 +450,9 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
             final int maxClauseCount = 100;
             IndexSearcher.setMaxClauseCount(maxClauseCount);
             addQueryFieldMappings();
+            SearchExecutionContext searchExecutionContext = indexService.newSearchExecutionContext(0, 0, null, () -> {
+                throw new UnsupportedOperationException();
+            }, null, emptyMap(), null, null);
 
             MemoryIndex memoryIndex = new MemoryIndex(false);
             StringBuilder text = new StringBuilder();
@@ -460,7 +463,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
             memoryIndex.addField(new LongPoint("field2", 10L), new WhitespaceAnalyzer());
             IndexReader indexReader = memoryIndex.createSearcher().getIndexReader();
 
-            Tuple<BooleanQuery, Boolean> t = fieldType.createCandidateQuery(indexReader);
+            Tuple<BooleanQuery, Boolean> t = fieldType.createCandidateQuery(indexReader, searchExecutionContext);
             assertTrue(t.v2());
             assertEquals(2, t.v1().clauses().size());
             assertThat(t.v1().clauses().get(0).query(), instanceOf(CoveringQuery.class));
@@ -469,7 +472,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
             // Now push it over the edge, so that it falls back using TermInSetQuery
             memoryIndex.addField("field2", "value", new WhitespaceAnalyzer());
             indexReader = memoryIndex.createSearcher().getIndexReader();
-            t = fieldType.createCandidateQuery(indexReader);
+            t = fieldType.createCandidateQuery(indexReader, searchExecutionContext);
             assertFalse(t.v2());
             assertEquals(3, t.v1().clauses().size());
             TermInSetQuery terms = (TermInSetQuery) t.v1().clauses().get(0).query();

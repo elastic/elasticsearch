@@ -28,6 +28,10 @@ public abstract class AbstractRepositoryAnalysisRestTestCase extends ESRestTestC
         return true;
     }
 
+    protected boolean checkDeprecations(Settings repositorySettings) {
+        return true;
+    }
+
     public void testRepositoryAnalysis() throws Exception {
         final String repositoryType = repositoryType();
         final Settings repositorySettings = repositorySettings();
@@ -55,6 +59,9 @@ public abstract class AbstractRepositoryAnalysisRestTestCase extends ESRestTestC
         request.addParameter("seed", Long.toString(randomLong()));
         if (checkOverwriteProtection() == false) {
             request.addParameter("check_overwrite_protection", "false");
+        }
+        if (checkDeprecations(repositorySettings) == false) {
+            request.addParameter("check_deprecations", "false");
         }
         request.setOptions(
             RequestOptions.DEFAULT.toBuilder()

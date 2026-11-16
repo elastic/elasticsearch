@@ -47,6 +47,7 @@ import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataMappingService;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
@@ -138,7 +139,6 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.BoostProfileEnabled;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -396,6 +396,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_INTERVAL,
         ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_QUIET_TIME,
         ClusterService.USER_DEFINED_METADATA,
+        MetadataMappingService.PUT_MAPPING_DYNAMIC_MAPPINGS_BATCHING_ENABLED_SETTING,
         MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
         MasterService.MASTER_SERVICE_STARVATION_LOGGING_THRESHOLD_SETTING,
         MasterService.MASTER_SERVICE_EXECUTION_HISTORY_SIZE_SETTING,
@@ -595,7 +596,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
         SearchService.FETCH_PHASE_MAX_IN_FLIGHT_CHUNKS,
         SearchService.FETCH_PHASE_CHUNKED_TARGET_CHUNK_BYTES,
         SearchService.MEMORY_ACCOUNTING_BUFFER_SIZE,
-        BoostProfileEnabled.BOOST_PROFILE_ENABLED_SETTING,
         ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING,
         ThreadPool.LATE_TIME_INTERVAL_WARN_THRESHOLD_SETTING,
         ThreadPool.SLOW_SCHEDULER_TASK_WARN_THRESHOLD_SETTING,
@@ -633,6 +633,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         HandshakingTransportAddressConnector.PROBE_HANDSHAKE_TIMEOUT_SETTING,
         SnapshotsService.MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING,
         SnapshotsService.SNAPSHOT_MONOTONIC_END_TIME_SETTING,
+        SnapshotsService.ENCRYPTED_DATA_REQUIRED_SETTING,
         RepositoriesService.DEFAULT_REPOSITORY_SETTING,
         RestoreService.REFRESH_REPO_UUID_ON_RESTORE_SETTING,
         FsHealthService.ENABLED_SETTING,

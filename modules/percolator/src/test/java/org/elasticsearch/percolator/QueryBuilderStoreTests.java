@@ -22,6 +22,7 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.search.SharedAutomaton;
 import org.elasticsearch.common.lucene.search.SharedAutomatonQuery;
@@ -49,6 +50,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RegexpQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.script.field.BinaryDocValuesField;
 import org.elasticsearch.search.SearchModule;
@@ -58,6 +60,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -155,6 +158,56 @@ public class QueryBuilderStoreTests extends ESTestCase {
                 }
             } finally {
                 searchExecutionContext.releaseQueryConstructionMemory();
+            }
+        }
+    }
+
+    public void testPerDocumentTermsQueryChargesDecodedTerms() throws IOException {
+        String fieldName = "keyword_field";
+        List<String> terms = new ArrayList<>();
+        for (int i = 0; i < 5_000; i++) {
+            terms.add("term_" + i);
+        }
+        QueryBuilder[] queryBuilders = new QueryBuilder[] { new TermsQueryBuilder(fieldName, terms) };
+
+        try (Directory directory = newDirectory()) {
+            PercolatorTestSetup setup = setupPercolatorTest(directory, fieldName, queryBuilders);
+            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                LeafReaderContext leafContext = indexReader.leaves().get(0);
+
+                // a builder parsed on this node charges only its TermInSetQuery
+                CircuitBreaker probe = newLimitedBreaker(ByteSizeValue.ofMb(100));
+                SearchExecutionContext probeContext = new SearchExecutionContext(setup.baseContext(), probe);
+                long probeBaseline = probe.getUsed();
+                long termInSetQueryBytes;
+                try {
+                    queryBuilders[0].toQuery(probeContext);
+                    termInSetQueryBytes = probe.getUsed() - probeBaseline;
+                } finally {
+                    probeContext.releaseQueryConstructionMemory();
+                }
+
+                // the stored terms are decoded per document, and only their decoded size (about 49 bytes per term, so about
+                // 240 KB here) can push the charge past this 16 KB margin
+                CircuitBreaker small = newLimitedBreaker(ByteSizeValue.ofBytes(termInSetQueryBytes + ByteSizeValue.ofKb(16).getBytes()));
+                long smallBaseline = small.getUsed();
+                CheckedFunction<Integer, Query, IOException> trippingQueries = PercolateQueryBuilder.createStore(
+                    setup.fieldMapper().fieldType(),
+                    false,
+                    new SearchExecutionContext(setup.baseContext(), small)
+                ).getQueries(leafContext);
+                expectThrows(CircuitBreakingException.class, () -> trippingQueries.apply(0));
+                assertThat(small.getUsed(), equalTo(smallBaseline));
+
+                CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(100));
+                long baselineUsed = breaker.getUsed();
+                CheckedFunction<Integer, Query, IOException> queries = PercolateQueryBuilder.createStore(
+                    setup.fieldMapper().fieldType(),
+                    false,
+                    new SearchExecutionContext(setup.baseContext(), breaker)
+                ).getQueries(leafContext);
+                assertNotNull(queries.apply(0));
+                assertThat(breaker.getUsed(), equalTo(baselineUsed));
             }
         }
     }

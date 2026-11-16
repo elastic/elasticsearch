@@ -157,7 +157,7 @@ public final class QueryFailureTelemetry {
             case MALFORMED_DATA -> DataSourceUsageAccumulator.ERROR_TYPE_FORMAT;
             case LOCAL_CAPACITY, SCHEMA_TOO_WIDE -> DataSourceUsageAccumulator.ERROR_TYPE_RESOURCE_LIMIT;
             case METADATA_UNAVAILABLE, LISTING_FAILED -> DataSourceUsageAccumulator.ERROR_TYPE_DISCOVERY;
-            case CLIENT_BUG -> DataSourceUsageAccumulator.ERROR_TYPE_OTHER;
+            case CLIENT_BUG, WORKER_NOT_READY -> DataSourceUsageAccumulator.ERROR_TYPE_OTHER;
         };
     }
 }

@@ -138,6 +138,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
@@ -152,6 +153,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
+import org.elasticsearch.xpack.esql.plan.physical.IntoExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
@@ -228,12 +230,19 @@ public class EsqlSession {
             INTERMEDIATE
         }
 
+        /**
+         * @param maxResultSize limit on the result pages of an {@code INTERMEDIATE} plan that becomes a local relation, or
+         *                      {@code null} for no limit. The run should fail as soon as the pages exceed it, instead of
+         *                      reading its whole input first. A runner that ignores it still fails the query, because the session
+         *                      checks the complete result against the same limit.
+         */
         void run(
             Role role,
             PhysicalPlan plan,
             Configuration configuration,
             FoldContext foldContext,
             PlanTimeProfile planTimeProfile,
+            @Nullable ByteSizeValue maxResultSize,
             ActionListener<Result> listener
         );
 
@@ -301,6 +310,9 @@ public class EsqlSession {
      * transport threads.
      */
     private volatile ExplainContext explainContext;
+    // Destination index name when the query ends with INTO; null for all other queries.
+    @Nullable
+    private volatile String intoDestination;
     private final ProjectMetadata projectMetadata;
 
     /**
@@ -506,6 +518,11 @@ public class EsqlSession {
             // The traversal-based command telemetry only sees the unwrapped query, so count the
             // EXPLAIN command itself here.
             planTelemetry.command(explain);
+        }
+        if (parsedPlan instanceof Into into) {
+            intoDestination = into.destination();
+            planTelemetry.command(into);
+            parsedPlan = into.child();
         }
         parsingProfile.stop();
 
@@ -899,7 +916,15 @@ public class EsqlSession {
             : listener;
 
         PlanRunner executionRunner = explainContext != null
-            ? (role, plan, cfg, foldCtx, profile, l) -> planRunner.run(PlanRunner.Role.INTERMEDIATE, plan, cfg, foldCtx, profile, l)
+            ? (role, plan, cfg, foldCtx, profile, maxResultSize, l) -> planRunner.run(
+                PlanRunner.Role.INTERMEDIATE,
+                plan,
+                cfg,
+                foldCtx,
+                profile,
+                maxResultSize,
+                l
+            )
             : planRunner;
 
         // Always use the same execution path - executeSubPlans handles both simple queries and those with subplans
@@ -1152,7 +1177,12 @@ public class EsqlSession {
     ) {
         var blocks = BlockUtils.fromList(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, values);
         PhysicalPlan resultPlan = new LocalSourceExec(Source.EMPTY, Explain.OUTPUT_ATTRIBUTES, LocalSupplier.of(new Page(blocks)));
-        planRunner.run(PlanRunner.Role.OUTPUT, resultPlan, configuration, foldContext, planTimeProfile, listener);
+        planRunner.run(PlanRunner.Role.OUTPUT, resultPlan, configuration, foldContext, planTimeProfile, null, listener);
+    }
+
+    private PhysicalPlan withInto(PhysicalPlan physicalPlan) {
+        String destination = intoDestination;
+        return destination == null ? physicalPlan : new IntoExec(physicalPlan.source(), physicalPlan, destination);
     }
 
     private void executeSubPlans(
@@ -1202,10 +1232,11 @@ public class EsqlSession {
             // into ExternalSourceCacheService before delivering Result.
             runner.run(
                 PlanRunner.Role.OUTPUT,
-                physicalPlan,
+                withInto(physicalPlan),
                 configuration,
                 foldContext,
                 planTimeProfile,
+                null,
                 listener.delegateFailureAndWrap((next, result) -> {
                     Map<String, PinnedColumns> pinnedReads = new HashMap<>();
                     collectPinnedReads(optimizedPlan, pinnedReads);
@@ -1383,13 +1414,15 @@ public class EsqlSession {
      * @param subPlan     first subplan that needs to be executed
      * @param newMainPlan callback to build the new main plan based on the subplan results
      * @param cleanup     callback to release any resources hold by the subplan results
+     * @param maxResultSize limit enforced while the subplan runs, or {@code null} if its result does not become a local relation
      */
     private record SubPlanAndCallback(
         LogicalPlan subPlan,
         java.util.function.Function<Result, LogicalPlan> newMainPlan,
         Runnable cleanup,
         boolean isSubqueryJoinSubPlan,
-        boolean isApproximationCalibration
+        boolean isApproximationCalibration,
+        @Nullable ByteSizeValue maxResultSize
     ) {};
 
     private SubPlanAndCallback firstSubPlan(
@@ -1424,7 +1457,7 @@ public class EsqlSession {
                         blockFactory,
                         localRelationPage
                     );
-                }, () -> releaseLocalRelationBlocks(localRelationPage), true, false);
+                }, () -> releaseLocalRelationBlocks(localRelationPage), true, false, plannerSettings.intermediateLocalRelationMaxSize());
             }
         } else if (firstJoin instanceof HashJoin) {
             HashJoin.LogicalPlanTuple subPlans = HashJoin.firstSubPlan(mainPlan, subPlansResults);
@@ -1435,7 +1468,7 @@ public class EsqlSession {
                     localRelationPage.set(resultWrapper.supplier().get());
                     subPlansResults.add(resultWrapper);
                     return HashJoin.newMainPlan(mainPlan, subPlans, resultWrapper);
-                }, () -> releaseLocalRelationBlocks(localRelationPage), true, false);
+                }, () -> releaseLocalRelationBlocks(localRelationPage), true, false, plannerSettings.intermediateLocalRelationMaxSize());
             }
         } else if (firstJoin instanceof InlineJoin) {
             InlineJoin.LogicalPlanTuple subPlans = InlineJoin.firstSubPlan(mainPlan, subPlansResults);
@@ -1446,7 +1479,7 @@ public class EsqlSession {
                     localRelationPage.set(resultWrapper.supplier().get());
                     subPlansResults.add(resultWrapper);
                     return InlineJoin.newMainPlan(mainPlan, subPlans, resultWrapper);
-                }, () -> releaseLocalRelationBlocks(localRelationPage), false, false);
+                }, () -> releaseLocalRelationBlocks(localRelationPage), false, false, plannerSettings.intermediateLocalRelationMaxSize());
             }
         }
 
@@ -1462,7 +1495,8 @@ public class EsqlSession {
                     result -> approximation.get().newMainPlan(mainPlan, result),
                     () -> {},
                     false,
-                    true
+                    true,
+                    null
                 );
             }
         }
@@ -1545,6 +1579,7 @@ public class EsqlSession {
             configuration,
             foldContext,
             planTimeProfile,
+            subPlan.maxResultSize(),
             listener.delegateFailureAndWrap((next, result) -> {
                 // Approximation subplans (to get the sample probability) may approximate internally to estimate
                 // the result count. This does not affect whether the final result is approximate or not.
@@ -1576,10 +1611,11 @@ public class EsqlSession {
                         }
                         runner.run(
                             PlanRunner.Role.OUTPUT,
-                            newPhysicalPlan,
+                            withInto(newPhysicalPlan),
                             configuration,
                             foldContext,
                             planTimeProfile,
+                            null,
                             releasingNext.delegateFailureAndWrap((finalListener, finalResult) -> {
                                 completionInfoAccumulator.accumulate(finalResult.completionInfo());
                                 DriverCompletionInfo merged = completionInfoAccumulator.finish();
@@ -2011,7 +2047,8 @@ public class EsqlSession {
         }
         Set<String> fieldNames = new HashSet<>(result.fieldNames());
         fieldNames.addAll(referenced.fieldNames());
-        return new PreAnalysisResult(fieldNames, result.wildcardJoinIndices());
+        Set<String> parentPaths = FieldNameUtils.onlyParentPaths(result.parentPaths(), new HashSet<>(referenced.fieldNames()));
+        return new PreAnalysisResult(fieldNames, parentPaths, result.wildcardJoinIndices());
     }
 
     private void resolveIndicesAndAnalyze(
@@ -2042,7 +2079,9 @@ public class EsqlSession {
                 configuration,
                 executionInfo,
                 trackedUnmappedFieldIndices,
-                configuration.flattenedKeys() ? FieldNameUtils.namedFields(parsed) : null,
+                configuration.flattenedKeys()
+                    ? new IndexResolver.NamedFields(FieldNameUtils.namedFields(parsed), result.parentPaths())
+                    : null,
                 result,
                 requestFilter,
                 viewInternalIndexPatterns(parsed),
@@ -2774,7 +2813,7 @@ public class EsqlSession {
         Configuration configuration,
         EsqlExecutionInfo executionInfo,
         boolean trackUnmappedFieldIndices,
-        @Nullable Set<String> namedFields,
+        @Nullable IndexResolver.NamedFields namedFields,
         PreAnalysisResult result,
         QueryBuilder requestFilter,
         Set<IndexPattern> viewInternalPatterns,
@@ -2883,7 +2922,7 @@ public class EsqlSession {
         PreAnalyzer.PreAnalysis preAnalysis,
         EsqlExecutionInfo executionInfo,
         boolean trackUnmappedFieldIndices,
-        @Nullable Set<String> namedFields,
+        @Nullable IndexResolver.NamedFields namedFields,
         PreAnalysisResult result,
         QueryBuilder requestFilter,
         ActionListener<PreAnalysisResult> listener
@@ -3026,7 +3065,7 @@ public class EsqlSession {
         PreAnalyzer.PreAnalysis preAnalysis,
         EsqlExecutionInfo executionInfo,
         boolean trackUnmappedFieldIndices,
-        @Nullable Set<String> namedFields,
+        @Nullable IndexResolver.NamedFields namedFields,
         PreAnalysisResult result,
         QueryBuilder requestFilter,
         ActionListener<PreAnalysisResult> listener
@@ -3066,7 +3105,7 @@ public class EsqlSession {
         PreAnalyzer.PreAnalysis preAnalysis,
         EsqlExecutionInfo executionInfo,
         boolean trackUnmappedFieldIndices,
-        @Nullable Set<String> namedFields,
+        @Nullable IndexResolver.NamedFields namedFields,
         PreAnalysisResult result,
         QueryBuilder requestFilter,
         @Nullable Consumer<TargetProjects> routingInfoCapture,
@@ -3339,6 +3378,8 @@ public class EsqlSession {
             );
         }
         plan.setAnalyzed();
+        // TODO: when intoDestination != null, validate its mapping in projectMetadata (including column/field type
+        // mismatches against plan.output()) after authorizing write privileges during pre-analysis.
         List<IndexResolution> semanticSources = new ArrayList<>(indexResolutions);
         semanticSources.addAll(r.lookupIndices().values());
         Map<NameId, FieldSemantics> semantics = ColumnSemantics.collect(plan, semanticSources);
@@ -3419,6 +3460,8 @@ public class EsqlSession {
 
     public record PreAnalysisResult(
         Set<String> fieldNames,
+        // the names in fieldNames that field caps is asked for only to find the flattened fields above the names the query uses
+        Set<String> parentPaths,
         Set<String> wildcardJoinIndices,
         Map<IndexPattern, IndexResolution> indexResolution,
         // the exemplar data streams of the time series relations, resolved for SET exemplars=true; null when there are none
@@ -3438,8 +3481,13 @@ public class EsqlSession {
     ) {
 
         public PreAnalysisResult(Set<String> fieldNames, Set<String> wildcardJoinIndices) {
+            this(fieldNames, Set.of(), wildcardJoinIndices);
+        }
+
+        public PreAnalysisResult(Set<String> fieldNames, Set<String> parentPaths, Set<String> wildcardJoinIndices) {
             this(
                 fieldNames,
+                parentPaths,
                 wildcardJoinIndices,
                 new HashMap<>(),
                 null,
@@ -3472,6 +3520,7 @@ public class EsqlSession {
         PreAnalysisResult withExemplarsResolution(IndexResolution exemplarsResolution) {
             return new PreAnalysisResult(
                 fieldNames,
+                parentPaths,
                 wildcardJoinIndices,
                 indexResolution,
                 exemplarsResolution,
@@ -3489,6 +3538,7 @@ public class EsqlSession {
         PreAnalysisResult withEnrichResolution(EnrichResolution enrichResolution) {
             return new PreAnalysisResult(
                 fieldNames,
+                parentPaths,
                 wildcardJoinIndices,
                 indexResolution,
                 exemplarsResolution,
@@ -3506,6 +3556,7 @@ public class EsqlSession {
         PreAnalysisResult withInferenceResolution(InferenceResolution inferenceResolution) {
             return new PreAnalysisResult(
                 fieldNames,
+                parentPaths,
                 wildcardJoinIndices,
                 indexResolution,
                 exemplarsResolution,
@@ -3523,6 +3574,7 @@ public class EsqlSession {
         PreAnalysisResult withExternalSourceResolution(ExternalSourceResolution externalSourceResolution) {
             return new PreAnalysisResult(
                 fieldNames,
+                parentPaths,
                 wildcardJoinIndices,
                 indexResolution,
                 exemplarsResolution,
@@ -3546,6 +3598,7 @@ public class EsqlSession {
             }
             return new PreAnalysisResult(
                 fieldNames,
+                parentPaths,
                 wildcardJoinIndices,
                 indexResolution,
                 exemplarsResolution,
@@ -3563,6 +3616,7 @@ public class EsqlSession {
         PreAnalysisResult withIndexViewOrigins(IndexViewOrigins indexViewOrigins) {
             return new PreAnalysisResult(
                 fieldNames,
+                parentPaths,
                 wildcardJoinIndices,
                 indexResolution,
                 exemplarsResolution,

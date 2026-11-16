@@ -12,6 +12,7 @@ package org.elasticsearch.threadpool;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.concurrent.CountDownLatch;
@@ -35,7 +36,12 @@ public class FixedThreadPoolTests extends ESThreadPoolTestCase {
             .put("thread_pool." + threadPoolName + ".queue_size", queueSize)
             .build();
         try {
-            threadPool = new ThreadPool(nodeSettings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
+            threadPool = new ThreadPool(
+                new ThreadContext(nodeSettings),
+                nodeSettings,
+                MeterRegistry.NOOP,
+                new DefaultBuiltInExecutorBuilders()
+            );
 
             // these tasks will consume the thread pool causing further
             // submissions to queue

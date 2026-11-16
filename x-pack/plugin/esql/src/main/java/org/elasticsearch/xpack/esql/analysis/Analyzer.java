@@ -85,7 +85,6 @@ import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedSingleTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
-import org.elasticsearch.xpack.esql.core.type.UnmappedEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -229,6 +228,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
+import org.elasticsearch.xpack.esql.plan.logical.promql.CountValuesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.MetadataManipulationFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels;
@@ -1465,71 +1465,84 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private LogicalPlan resolvePromql(PromqlCommand promql, List<Attribute> childrenOutput) {
             LogicalPlan promqlPlan = promql.promqlPlan();
-            List<MetadataManipulationFunction> relabels = promqlPlan.collect(MetadataManipulationFunction.class);
+            List<Attribute> derived = derivedLabels(promqlPlan);
 
             // References against the stored labels (childrenOutput): a vector selector always matches on the labels as they
             // are stored, regardless of any relabeling applied downstream.
             Function<UnresolvedAttribute, Expression> storedScope = ua -> ResolveRefs.maybeResolveAttribute(ua, childrenOutput, log);
 
-            if (relabels.isEmpty()) {
+            if (derived.isEmpty()) {
                 return promql.withPromqlPlan(promqlPlan.transformExpressionsDown(UnresolvedAttribute.class, storedScope))
                     .transformExpressionsOnly(UnresolvedAttribute.class, storedScope);
             }
 
-            // A label_replace/label_join derives a destination label that overwrites (shadows) any stored label of the same
-            // name (a dimension or __name__). Shadowing is positional: a reference sees a derived destination only when the
-            // relabel deriving it lies within the vector the reference consumes - i.e. strictly below the reference's node.
-            // So each node resolves against the stored labels shadowed by the destinations of the relabels in its own child
-            // subtree(s): a selector's matchers, and any reference below a relabel, bind to the stored label, while an
-            // enclosing by(dst) binds to the derived destination. When several relabels on one path derive the same label the
-            // outermost (last-applied) one wins, so same-named destinations are collapsed keeping the shallowest - which also
-            // keeps an enclosing by(dst) from seeing two same-named attributes. childrenOutput is a fresh per-call list, so
-            // this is local to this command.
+            // A label_replace/label_join destination or a count_values value label is a derived label that overwrites
+            // (shadows) any stored label of the same name (a dimension or __name__). Shadowing is positional: a reference sees
+            // a derived label only when the node deriving it lies within the vector the reference consumes - i.e. strictly
+            // below the reference's node. So each node resolves against the stored labels shadowed by the labels derived in
+            // its own child subtree(s): a selector's matchers, and any reference below a deriving node, bind to the stored
+            // label, while an enclosing by(dst) binds to the derived label. When several nodes on one path derive the same
+            // label the outermost (last-applied) one wins, so same-named derived labels are collapsed keeping the shallowest -
+            // which also keeps an enclosing by(dst) from seeing two same-named attributes. childrenOutput is a fresh per-call
+            // list, so this is local to this command.
             LogicalPlan resolvedPlan = promqlPlan.transformDown(node -> {
                 if (node instanceof Selector) {
                     return node.transformExpressionsOnly(UnresolvedAttribute.class, storedScope);
                 }
-                List<Attribute> scope = shadowedResolutionScope(childrenOutput, activeDestinations(node));
+                List<Attribute> scope = shadowedResolutionScope(childrenOutput, activeDerivedLabels(node));
                 return node.transformExpressionsOnly(UnresolvedAttribute.class, ua -> ResolveRefs.maybeResolveAttribute(ua, scope, log));
             });
 
-            // The command's own output contract sees the full derived label set: every destination, same nearest-wins collapse.
-            List<Attribute> outputScope = shadowedResolutionScope(childrenOutput, collapseByName(relabels));
+            // The command's own output contract sees the full derived label set: every derived label, same nearest-wins collapse.
+            List<Attribute> outputScope = shadowedResolutionScope(childrenOutput, collapseByName(derived));
             return promql.withPromqlPlan(resolvedPlan)
                 .transformExpressionsOnly(UnresolvedAttribute.class, ua -> ResolveRefs.maybeResolveAttribute(ua, outputScope, log));
         }
 
         /**
-         * The relabel destinations visible to {@code node}'s own expressions: the destinations derived within the vector the
-         * node consumes - the {@link MetadataManipulationFunction}s in its child subtree(s) - collapsed by label name keeping
-         * the shallowest (outermost, last-applied) match, so a destination derived more than once on a path resolves to the
-         * one that wins in PromQL.
+         * The derived labels visible to {@code node}'s own expressions: the labels derived within the vector the node
+         * consumes - in its child subtree(s) - collapsed by label name keeping the shallowest (outermost, last-applied)
+         * match, so a label derived more than once on a path resolves to the one that wins in PromQL.
          */
-        private static List<Attribute> activeDestinations(LogicalPlan node) {
-            List<MetadataManipulationFunction> relabels = new ArrayList<>();
+        private static List<Attribute> activeDerivedLabels(LogicalPlan node) {
+            List<Attribute> derived = new ArrayList<>();
             for (LogicalPlan child : node.children()) {
-                relabels.addAll(child.collect(MetadataManipulationFunction.class));
+                derived.addAll(derivedLabels(child));
             }
-            return collapseByName(relabels);
+            return collapseByName(derived);
         }
 
         /**
-         * The relabels' destination attributes, collapsed to one per label name keeping the first. The input is in pre-order
-         * (ancestors before descendants), so "first" is the shallowest/outermost relabel - PromQL's "last relabel wins" when a
-         * destination is derived more than once on a path.
+         * The labels derived in {@code plan} - relabel destinations and {@code count_values} value labels - in pre-order
+         * (ancestors before descendants).
          */
-        private static List<Attribute> collapseByName(List<MetadataManipulationFunction> relabels) {
-            List<Attribute> destinations = new ArrayList<>(relabels.size());
+        private static List<Attribute> derivedLabels(LogicalPlan plan) {
+            List<Attribute> derived = new ArrayList<>();
+            plan.forEachDown(node -> {
+                if (node instanceof MetadataManipulationFunction relabel) {
+                    derived.add(relabel.destination());
+                } else if (node instanceof CountValuesAggregate countValues) {
+                    derived.add(countValues.valueLabel());
+                }
+            });
+            return derived;
+        }
+
+        /**
+         * The derived labels collapsed to one per label name keeping the first. The input is in pre-order (ancestors before
+         * descendants), so "first" is the shallowest/outermost one - in PromQL the last-applied derivation wins when a label
+         * is derived more than once on a path.
+         */
+        private static List<Attribute> collapseByName(List<Attribute> derived) {
+            List<Attribute> collapsed = new ArrayList<>(derived.size());
             Set<String> seen = new HashSet<>();
-            for (MetadataManipulationFunction relabel : relabels) {
-                Attribute destination = relabel.destination();
-                // A destination is minted as a bare ReferenceAttribute named after the label (no passthrough prefix), so its
-                // attribute name is already the canonical label name used for shadowing.
-                if (seen.add(destination.name())) {
-                    destinations.add(destination);
+            for (Attribute label : derived) {
+                // Keyed like shadowedResolutionScope, so `labels.x` and a bare `x` name the same label.
+                if (seen.add(PromqlLabels.labelName(label))) {
+                    collapsed.add(label);
                 }
             }
-            return destinations;
+            return collapsed;
         }
 
         /**
@@ -2441,10 +2454,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             );
         }
 
-        private static @Nullable FieldAttribute mappedSiblingField(Attribute attr) {
-            return attr instanceof FieldAttribute fa
-                && fa instanceof UnsupportedAttribute == false
-                && fa.field() instanceof UnmappedEsField == false ? fa : null;
+        /**
+         * Whether the column {@code attr} of a merge, which some branch has and another lacks, can be one that the other branch has in
+         * its own {@code _source}: it has a type, which is the one that every branch that has it agrees on, and it is not metadata or
+         * something the analyzer made, neither of which is in {@code _source}.
+         */
+        private static boolean siblingColumnMayBeInSource(Attribute attr) {
+            return attr instanceof UnsupportedAttribute == false
+                && attr instanceof MetadataAttribute == false
+                && MetadataAttribute.isSupported(attr.name()) == false
+                && attr.synthetic() == false
+                && attr.dataType() != NULL
+                && attr.dataType() != UNSUPPORTED;
         }
 
         /**
@@ -2535,9 +2556,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * Either adds what the relation needs to {@code toLoad} (and, to convert it, an alias to {@code aliases}) and returns
          * {@code true}, or leaves the branch contributing nulls and returns {@code false}.
          * <ul>
-         *   <li>A {@code LOAD_ALL} extra: a sibling mapped the column and this branch never named it, so the keyword read from
-         *   {@code _source} is cast to the sibling's type when a cast exists, and otherwise null-filled with a warning. A field this
-         *   branch already named stays a keyword and conflicts further down, same as load.</li>
+         *   <li>A {@code LOAD_ALL} sibling column: a sibling branch of a union or a {@code FORK} has the column, with the same type in
+         *   every branch that has it, and this branch does not, so the keyword read from {@code _source} is cast to that type when a
+         *   cast exists, and otherwise null-filled with a warning. How the sibling got the column (a mapping, an {@code EVAL}, a
+         *   {@code RENAME}, a union or {@code FORK} nested in it) makes no difference, and neither does the order of the branches. A
+         *   column with no single type, such as one that the siblings disagree on, is not loaded. A field this branch already named
+         *   stays a keyword and conflicts further down, same as load.</li>
          *   <li>A field materialized in a sibling branch is materialized here too (rather than null-filled), unless this branch
          *   cannot surface it: loaded from {@code _source} under {@code LOAD}/{@code LOAD_ALL}, null-typed under nullify. This keeps
          *   the branches' source relations symmetric. Matched by name so a sibling's generating command (EVAL/MV_EXPAND/...)
@@ -2563,13 +2587,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             UnmappedResolution unmappedResolution = context.unmappedResolution();
             LogicalPlan branch = mergePlan.children().get(branchIndex);
-            FieldAttribute mapped = mappedSiblingField(attr);
-            if (mapped != null
-                && mergePlan instanceof UnionAll
+            if ((mergePlan instanceof UnionAll || mergePlan instanceof Fork)
                 && unmappedResolution.loadsAllUnmappedFields()
+                && siblingColumnMayBeInSource(attr)
+                && context.fieldCapsAsksFor(attr.name())
                 && branchCanSurfaceLoadedField(branch, attr.name())) {
+                // A sibling has the column, and has it with one type in every branch that does (otherwise the merged column is
+                // unsupported). The branch does not, so read it from its own _source and cast it to that type. What the sibling does
+                // to get the column (a mapping, an EVAL, a RENAME, a nested union or FORK) makes no difference. Only a column the field
+                // caps requests ask for: a branch that lacks one that was not asked for may well map it, with another type, and the
+                // query does not read the column then (see AnalyzerContext#fieldCapsAsksFor).
                 FieldAttribute loaded = unmappedKeyword(attr);
-                AbstractConvertFunction cast = EsqlDataTypeConverter.castFromKeyword(mapped.dataType(), loaded, context.configuration());
+                AbstractConvertFunction cast = EsqlDataTypeConverter.castFromKeyword(attr.dataType(), loaded, context.configuration());
                 if (cast != null) {
                     toLoad.add(loaded);
                     if (cast.isNoop() == false) {
@@ -2577,7 +2606,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     }
                 } else {
                     // The branch contributes nulls to the column, as for any column it lacks; warn that it could not be loaded.
-                    context.subqueryNonLoadableNullFills().add(mapped.name());
+                    context.subqueryNonLoadableNullFills().add(attr.name());
                 }
                 return true;
             }

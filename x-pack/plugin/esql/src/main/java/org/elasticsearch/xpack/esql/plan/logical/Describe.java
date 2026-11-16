@@ -149,10 +149,14 @@ public class Describe extends UnaryPlan implements TelemetryAware {
         if (column instanceof FieldAttribute) {
             return field == null ? "unmapped" : "mapped";
         }
+        // A column of a merge of branches is not the field itself, but keeps its name unless it was renamed.
         if (datasetColumn != null) {
-            return datasetColumn.id().equals(column.id()) ? "dataset" : "renamed";
+            return datasetColumn.name().equals(column.name()) ? "dataset" : "renamed";
         }
-        return field == null ? "computed" : "renamed";
+        if (field == null) {
+            return "computed";
+        }
+        return field.field().equals(column.name()) ? "mapped" : "renamed";
     }
 
     private static boolean isMetadata(Attribute column) {

@@ -265,23 +265,26 @@ public class RowInTableLookupOperatorTests extends OperatorTestCase {
             safeAwait(breaker.paused);
 
             List<Page> input = new ArrayList<>();
-            while (waiter.needsInput()) {
-                Page page = keysPage(10_000);
-                input.add(BlockTestUtils.deepCopyOf(page, TestBlockFactory.getNonBreakingInstance()));
-                waiter.addInput(page);
-                assertNull(waiter.getOutput());
-                if (waiter.needsInput()) {
-                    assertTrue("below the limit the driver keeps moving pages", waiter.isBlocked().listener().isDone());
+            SubscribableListener<Void> blocked;
+            try {
+                while (waiter.needsInput()) {
+                    Page page = keysPage(10_000);
+                    input.add(BlockTestUtils.deepCopyOf(page, TestBlockFactory.getNonBreakingInstance()));
+                    waiter.addInput(page);
+                    assertNull(waiter.getOutput());
+                    if (waiter.needsInput()) {
+                        assertTrue("below the limit the driver keeps moving pages", waiter.isBlocked().listener().isDone());
+                    }
                 }
+                assertThat(input.size(), greaterThan(1));
+                blocked = waiter.isBlocked().listener();
+                assertFalse("holding the limit, it waits for the build", blocked.isDone());
+                assertThat("the driver loop asks again and gets the same listener", waiter.isBlocked().listener(), sameInstance(blocked));
+            } finally {
+                breaker.resume.countDown();
+                safeJoin(build);
             }
-            assertThat(input.size(), greaterThan(1));
-            SubscribableListener<Void> blocked = waiter.isBlocked().listener();
-            assertFalse("holding the limit, it waits for the build", blocked.isDone());
-            assertThat("the driver loop asks again and gets the same listener", waiter.isBlocked().listener(), sameInstance(blocked));
-
-            breaker.resume.countDown();
-            safeJoin(build);
-            assertTrue(waiter.isBlocked().listener().isDone());
+            assertTrue("the build wakes the waiting operator", blocked.isDone());
             waiter.finish();
             List<Page> results = new ArrayList<>();
             while (waiter.isFinished() == false) {
@@ -305,6 +308,73 @@ public class RowInTableLookupOperatorTests extends OperatorTestCase {
     }
 
     /**
+     * The source returns no page on every other call without blocking, as a selective Lucene scan does. An iteration
+     * that moves no page puts the driver to sleep on any blocked operator, so the lookup must stay unblocked below
+     * its limit for the driver to keep scanning during the build.
+     */
+    public void testUnblockedSourceKeepsScanningDuringBuild() {
+        PausingBreaker breaker = new PausingBreaker(-1);
+        BlockFactory blockFactory = trackingBlockFactory(breaker);
+        Operator.OperatorFactory factory = simple();
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        int pages = between(2, 5);
+        List<Page> input = new ArrayList<>();
+        List<Page> results = new ArrayList<>();
+        try (Operator builder = factory.get(driverContext)) {
+            Thread build = new Thread(() -> builder.addInput(keysPage(1)));
+            build.start();
+            safeAwait(breaker.paused);
+
+            PlainActionFuture<Void> future = new PlainActionFuture<>();
+            try {
+                DriverContext scanningContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+                SourceOperator source = new SourceOperator() {
+                    private int calls;
+
+                    @Override
+                    public void finish() {}
+
+                    @Override
+                    public boolean isFinished() {
+                        return input.size() == pages;
+                    }
+
+                    @Override
+                    public Page getOutput() {
+                        if (calls++ % 2 == 1) {
+                            return null;
+                        }
+                        Page page = keysPage(10);
+                        input.add(BlockTestUtils.deepCopyOf(page, TestBlockFactory.getNonBreakingInstance()));
+                        return page;
+                    }
+
+                    @Override
+                    public void close() {}
+                };
+                Driver driver = TestDriverFactory.create(
+                    scanningContext,
+                    source,
+                    List.of(factory.get(scanningContext)),
+                    new PageConsumerOperator(results::add)
+                );
+                Driver.start(new ThreadContext(Settings.EMPTY), EsExecutors.DIRECT_EXECUTOR_SERVICE, driver, 10_000, future);
+                assertThat(driver.status().status(), equalTo(DriverStatus.Status.ASYNC));
+                assertThat("the driver scanned the whole source during the build", input.size(), equalTo(pages));
+                assertThat(results, empty());
+            } finally {
+                breaker.resume.countDown();
+                safeJoin(build);
+            }
+            future.actionGet(TimeValue.timeValueSeconds(10));
+            assertSimpleOutput(input, results);
+        } finally {
+            Releasables.close(() -> results.forEach(Page::releaseBlocks));
+        }
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    /**
      * A failed build wakes the drivers waiting on it rather than leaving them blocked. Each then fails on its own
      * thread, with the builder's failure, when it asks for output, and releases the input it held.
      */
@@ -321,15 +391,17 @@ public class RowInTableLookupOperatorTests extends OperatorTestCase {
             build.start();
             safeAwait(breaker.paused);
 
-            waiter.addInput(keysPage(10));
-            waiter.finish();
-            SubscribableListener<Void> blocked = waiter.isBlocked().listener();
-            assertFalse(blocked.isDone());
-
-            breaker.resume.countDown();
-            safeJoin(build);
+            SubscribableListener<Void> blocked;
+            try {
+                waiter.addInput(keysPage(10));
+                waiter.finish();
+                blocked = waiter.isBlocked().listener();
+                assertFalse(blocked.isDone());
+            } finally {
+                breaker.resume.countDown();
+                safeJoin(build);
+            }
             safeAwait(blocked);
-            assertTrue(waiter.isBlocked().listener().isDone());
             assertThat(expectThrows(CircuitBreakingException.class, waiter::getOutput), sameInstance(builderFailure.get()));
         }
         assertThat(breaker.getUsed(), equalTo(0L));
@@ -366,6 +438,7 @@ public class RowInTableLookupOperatorTests extends OperatorTestCase {
 
             List<Page> input = new ArrayList<>();
             List<Page> results = new ArrayList<>();
+            SubscribableListener<Void> blocked;
             try {
                 DriverContext stoppedContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
                 List<Page> stoppedOutput = new ArrayList<>();
@@ -388,14 +461,15 @@ public class RowInTableLookupOperatorTests extends OperatorTestCase {
                 stop.accept(stopped, sink);
                 assertStopped.accept(future);
                 assertThat(stoppedOutput, empty());
-                assertFalse(other.isBlocked().listener().isDone());
+                blocked = other.isBlocked().listener();
+                assertFalse(blocked.isDone());
                 assertThat(other.toString(), containsString("unbuilt"));
             } finally {
                 breaker.resume.countDown();
                 safeJoin(build);
             }
 
-            assertTrue(other.isBlocked().listener().isDone());
+            assertTrue("the build wakes the waiting operator", blocked.isDone());
             while (other.isFinished() == false) {
                 Page out = other.getOutput();
                 if (out != null) {
@@ -498,6 +572,10 @@ public class RowInTableLookupOperatorTests extends OperatorTestCase {
         }
     }
 
+    /**
+     * A block factory whose blocks and {@link BigArrays} both charge {@code breaker}, so the tests can pause and check every
+     * reservation of a table build.
+     */
     private static BlockFactory trackingBlockFactory(TrackingCircuitBreaker breaker) {
         CircuitBreakerService service = new CircuitBreakerService() {
             @Override

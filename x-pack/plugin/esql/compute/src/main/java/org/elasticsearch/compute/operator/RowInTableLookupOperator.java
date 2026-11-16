@@ -29,10 +29,10 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Looks up each row of an input {@link Page} in a pre-built table and appends
+ * Looks up each row of an input {@link Page} in a table of keys and appends
  * the matching row index as a new {@link IntBlock}.
  * <p>
- *     The table is supplied at construction time as an array of {@link Key}s,
+ *     The keys are supplied at construction time as an array of {@link Key}s,
  *     each holding one key column. Input pages may have more columns than just
  *     the key columns; {@code blockMapping} selects which blocks in the input
  *     correspond to each key, in order.
@@ -82,16 +82,17 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *     all drivers. Every operator it creates probes one shared table, so the
  *     factory's blocks are never released by this operator. The first operator
  *     to receive input builds that table on its own driver thread. Until it is
- *     built the other operators hold up to {@link #MAX_PENDING_BYTES} of input,
- *     so their drivers keep scanning and loading keys during the build instead
- *     of idling, and then block until the table is ready.
+ *     built the other operators take input until they hold
+ *     {@link #MAX_PENDING_BYTES}, so their drivers keep scanning and loading
+ *     keys during the build instead of idling, and then wait for the table.
  * </p>
  */
 public class RowInTableLookupOperator implements Operator {
     /**
      * Bytes of input one operator holds while another driver builds the shared table. A few pages are enough
      * to keep the upstream operators busy for the length of a build without holding much of the input. The
-     * held pages are already charged to the breaker, so this bounds how long they stay alive, not their cost.
+     * held pages are already charged to the breaker, so this bounds how much input waits on the build, not its
+     * accounting. The operator stops taking input once it reaches the limit, so the last page can go past it.
      */
     static final long MAX_PENDING_BYTES = ByteSizeValue.ofMb(1).getBytes();
 
@@ -142,9 +143,9 @@ public class RowInTableLookupOperator implements Operator {
         @Override
         public Operator get(DriverContext driverContext) {
             /*
-             * Build with the query-wide parent factory rather than this driver's: the table outlives any single
-             * driver and is released from whichever driver closes last, so it must not be charged to a
-             * driver-local breaker.
+             * Build with the node-wide parent factory, which charges the request breaker, rather than this driver's:
+             * the table outlives any single driver and is released from whichever driver closes last, so it must not
+             * be charged to a driver-local breaker.
              */
             SharedLookup shared = acquire(driverContext.blockFactory().parent());
             return new RowInTableLookupOperator(driverContext.blockFactory(), keyNames(keys), shared, blockMapping);
@@ -167,10 +168,12 @@ public class RowInTableLookupOperator implements Operator {
     }
 
     /**
-     * A table and the count of operators using it. The first operator to receive input builds it and the others wait
-     * on {@link #built}. Building on a driver thread rather than a separate task ties the build to the query's
-     * lifetime, so the key blocks it reads cannot be released under it. The table is closed when the last operator
-     * releases it, which cannot happen mid-build because the building operator holds a reference.
+     * A table and the count of operators using it. The first operator to receive input builds it. The others wait on
+     * listeners of their own, completed by {@link #built} once the build ends, which it always does: the claiming
+     * thread runs the build to completion and completes {@link #built} on every path. Building on a driver thread
+     * rather than a separate task ties the build to the query's lifetime, so the key blocks it reads cannot be
+     * released under it. The table is closed when the last operator releases it, which cannot happen mid-build
+     * because the building operator holds a reference.
      */
     private static final class SharedLookup extends AbstractRefCounted {
         private final BlockFactory blockFactory;
@@ -216,7 +219,7 @@ public class RowInTableLookupOperator implements Operator {
             built.onFailure(e);
         }
 
-        boolean isBuilt() {
+        boolean isBuildDone() {
             return built.isDone();
         }
 
@@ -224,7 +227,7 @@ public class RowInTableLookupOperator implements Operator {
          * The built table. Rethrows the build failure, if any, so every operator fails the way the builder did.
          */
         RowInTableLookup table() {
-            assert isBuilt() : "table is not built yet";
+            assert isBuildDone() : "table is not built yet";
             if (failure != null) {
                 throw failure instanceof RuntimeException re ? re : new IllegalStateException(failure);
             }
@@ -233,7 +236,7 @@ public class RowInTableLookupOperator implements Operator {
 
         @Override
         public String toString() {
-            if (isBuilt() == false) {
+            if (isBuildDone() == false) {
                 return "unbuilt";
             }
             return failure == null ? table.toString() : "failed";
@@ -331,7 +334,7 @@ public class RowInTableLookupOperator implements Operator {
         if (finished) {
             return false;
         }
-        if (shared.isBuilt() == false) {
+        if (shared.isBuildDone() == false) {
             return pendingBytes < MAX_PENDING_BYTES;
         }
         return pending.isEmpty() && mapping.needsInput();
@@ -339,7 +342,7 @@ public class RowInTableLookupOperator implements Operator {
 
     @Override
     public void addInput(Page page) {
-        if (shared.isBuilt() == false) {
+        if (shared.isBuildDone() == false) {
             try {
                 shared.buildIfUnclaimed();
             } catch (Exception e) {
@@ -347,7 +350,7 @@ public class RowInTableLookupOperator implements Operator {
                 throw e;
             }
         }
-        if (shared.isBuilt() && pending.isEmpty()) {
+        if (shared.isBuildDone() && pending.isEmpty()) {
             mapping.addInput(page);
             return;
         }
@@ -359,7 +362,7 @@ public class RowInTableLookupOperator implements Operator {
      * Moves held input into the mapping once the table is built, and finishes the mapping once nothing is held.
      */
     private void drainPending() {
-        if (shared.isBuilt() == false) {
+        if (shared.isBuildDone() == false) {
             return;
         }
         while (pending.isEmpty() == false && mapping.needsInput()) {
@@ -393,13 +396,15 @@ public class RowInTableLookupOperator implements Operator {
 
     @Override
     public boolean canProduceMoreDataWithoutExtraInput() {
-        return shared.isBuilt() && (pending.isEmpty() == false || mapping.canProduceMoreDataWithoutExtraInput());
+        return pending.isEmpty() == false || mapping.canProduceMoreDataWithoutExtraInput();
     }
 
     /**
-     * Blocked while another driver builds the table and this one can't hold more input: either the held input
-     * reached {@link #MAX_PENDING_BYTES} or no more input is coming. Below the limit it stays unblocked, so the
-     * driver keeps moving pages through the upstream operators.
+     * Blocked while another driver builds the table and this one can't take more input: it holds
+     * {@link #MAX_PENDING_BYTES} or no more input is coming. Below the limit it stays unblocked. When no page moves,
+     * the driver waits for one of the operators that report blocked, so reporting the wait earlier would stop a
+     * source that returns no page without blocking, as a selective Lucene scan does, from scanning during the build.
+     * The cost is that a driver whose upstream is blocked wakes when the upstream does, not when the build ends.
      * <p>
      *     Each operator waits on a listener of its own rather than on {@link SharedLookup#built}: a driver completes
      *     the listener it waits on when it is cancelled or finishes early, which must not mark the shared table as
@@ -409,18 +414,15 @@ public class RowInTableLookupOperator implements Operator {
      */
     @Override
     public IsBlockedResult isBlocked() {
-        if (shared.isBuilt() || pending.isEmpty()) {
+        if (shared.isBuildDone() || pending.isEmpty() || needsInput()) {
             return NOT_BLOCKED;
         }
-        if (finished || pendingBytes >= MAX_PENDING_BYTES) {
-            if (waiting == null || waiting.isDone()) {
-                SubscribableListener<Void> listener = new SubscribableListener<>();
-                shared.built.addListener(ActionListener.running(() -> listener.onResponse(null)));
-                waiting = listener;
-            }
-            return new IsBlockedResult(waiting, "row in table lookup build");
+        if (waiting == null || waiting.isDone()) {
+            SubscribableListener<Void> listener = new SubscribableListener<>();
+            shared.built.addListener(ActionListener.running(() -> listener.onResponse(null)));
+            waiting = listener;
         }
-        return NOT_BLOCKED;
+        return new IsBlockedResult(waiting, "row in table lookup build");
     }
 
     @Override

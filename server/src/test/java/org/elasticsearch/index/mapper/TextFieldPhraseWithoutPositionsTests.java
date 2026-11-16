@@ -24,12 +24,14 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.ScoreMode;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.LowercaseNormalizer;
@@ -163,6 +165,7 @@ public class TextFieldPhraseWithoutPositionsTests extends MapperServiceTestCase 
         );
         assertRefuses(
             createMapperService(
+                randomVersionBeforeDocValuesNoOp(),
                 Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build(),
                 mapping(
                     b -> b.startObject("body").field("type", "text").field("index_options", "docs").field("doc_values", false).endObject()
@@ -175,6 +178,7 @@ public class TextFieldPhraseWithoutPositionsTests extends MapperServiceTestCase 
     public void testParentWithANormalizerIsNotRead() throws IOException {
         assertRefuses(
             createMapperService(
+                randomVersionBeforeDocValuesNoOp(),
                 Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build(),
                 mapping(
                     b -> b.startObject("host")
@@ -222,7 +226,7 @@ public class TextFieldPhraseWithoutPositionsTests extends MapperServiceTestCase 
             final float best = searcher.search(query, 1).scoreDocs[0].score;
             // ScoreMode in this file is the join one, so the search one is named in full.
             final Weight weight = searcher.createWeight(query, org.apache.lucene.search.ScoreMode.COMPLETE, 1f);
-            for (LeafReaderContext leaf : reader.leaves()) {
+            for (LeafReaderContext leaf : searcher.getTopReaderContext().leaves()) {
                 final ScorerSupplier supplier = weight.scorerSupplier(leaf);
                 if (supplier != null) {
                     final Scorer scorer = supplier.get(Long.MAX_VALUE);
@@ -266,6 +270,8 @@ public class TextFieldPhraseWithoutPositionsTests extends MapperServiceTestCase 
 
     private void assertMultiFieldMatches(String options, boolean ownDocValues) throws IOException {
         final MapperService mapper = createMapperService(
+            // Without own doc values the multi-field must really have none, so pin before doc_values became a no-op in columnar.
+            ownDocValues ? IndexVersion.current() : randomVersionBeforeDocValuesNoOp(),
             Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build(),
             mapping(
                 b -> b.startObject("host")
@@ -406,11 +412,7 @@ public class TextFieldPhraseWithoutPositionsTests extends MapperServiceTestCase 
     /** What {@code query} matches over an index of {@code docs}. */
     private List<Integer> matching(MapperService mapperService, List<Object> docs, QueryBuilder query) throws IOException {
         final List<Integer> hits = new ArrayList<>();
-        withLuceneIndex(mapperService, iw -> {
-            for (Object doc : docs) {
-                iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field("body", doc))).rootDoc());
-            }
-        }, reader -> {
+        withLuceneIndex(mapperService, iw -> addInOrder(mapperService, iw, docs), reader -> {
             final SearchExecutionContext context = createSearchExecutionContext(mapperService);
             final IndexSearcher searcher = newSearcher(reader);
             for (var hit : searcher.search(query.toQuery(context), 10).scoreDocs) {
@@ -428,11 +430,7 @@ public class TextFieldPhraseWithoutPositionsTests extends MapperServiceTestCase 
     /** What each of {@code queries} matches, over one index built from {@link #DOCS}. */
     private List<List<Integer>> matching(MapperService mapperService, List<QueryBuilder> queries) throws IOException {
         final List<List<Integer>> perQuery = new ArrayList<>();
-        withLuceneIndex(mapperService, iw -> {
-            for (Object doc : DOCS) {
-                iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field("body", doc))).rootDoc());
-            }
-        }, reader -> {
+        withLuceneIndex(mapperService, iw -> addInOrder(mapperService, iw, DOCS), reader -> {
             final SearchExecutionContext context = createSearchExecutionContext(mapperService);
             final IndexSearcher searcher = newSearcher(reader);
             for (QueryBuilder query : queries) {
@@ -445,5 +443,13 @@ public class TextFieldPhraseWithoutPositionsTests extends MapperServiceTestCase 
             }
         });
         return perQuery;
+    }
+
+    private void addInOrder(MapperService mapperService, RandomIndexWriter iw, List<Object> docs) throws IOException {
+        final List<LuceneDocument> block = new ArrayList<>();
+        for (Object doc : docs) {
+            block.add(mapperService.documentMapper().parse(source(b -> b.field("body", doc))).rootDoc());
+        }
+        iw.addDocuments(block);
     }
 }

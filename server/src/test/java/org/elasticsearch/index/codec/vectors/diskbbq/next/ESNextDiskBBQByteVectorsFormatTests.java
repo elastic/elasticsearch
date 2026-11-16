@@ -15,11 +15,13 @@ import org.apache.lucene.document.KnnByteVectorField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.KnnCollector;
@@ -36,13 +38,20 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.codec.vectors.BaseByteKnnVectorsFormatTestCase;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibration;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibrationProfile;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
+import org.elasticsearch.index.codec.vectors.diskbbq.calibrate.CalibrationUtils;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION;
 import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.MAX_CENTROIDS_PER_PARENT_CLUSTER;
@@ -52,6 +61,7 @@ import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVe
 import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.MIN_PRECONDITIONING_BLOCK_DIMS;
 import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.MIN_VECTORS_PER_CLUSTER;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
@@ -108,6 +118,81 @@ public class ESNextDiskBBQByteVectorsFormatTests extends BaseByteKnnVectorsForma
             }
         }
         return TestUtil.alwaysKnnVectorsFormat(format);
+    }
+
+    /**
+     * A force merge of a byte field with auto-calibration enabled must sample the byte vectors (widened to float)
+     * and calibrate, rather than fail reading them as float vectors.
+     */
+    public void testAutoCalibrationOnByteMerge() throws IOException {
+        int dimensions = 32;
+        int numDocs = IvfAutoCalibration.MIN_VECTORS_FOR_CALIBRATION + random().nextInt(500);
+        VectorSimilarityFunction similarity = Arrays.stream(VectorSimilarityFunction.values())
+            .filter(v -> v != VectorSimilarityFunction.COSINE)
+            .toList()
+            .get(random().nextInt(VectorSimilarityFunction.values().length - 1));
+        IvfMergeConfigResolver calibrating = IvfAutoCalibration.mergeConfigResolver(
+            MIN_VECTORS_PER_CLUSTER * 4,
+            IvfAutoCalibrationProfile.QUALITY
+        );
+        AtomicInteger resolverCalls = new AtomicInteger();
+        // wraps the real resolver to assert on the merge inputs it sees, which are not otherwise observable from the test
+        IvfMergeConfigResolver verifying = (fieldInfo, mergeState, codecDefault) -> {
+            resolverCalls.incrementAndGet();
+            assertThat(fieldInfo.getVectorEncoding(), equalTo(VectorEncoding.BYTE));
+            assertThat(CalibrationUtils.countMergedVectors(fieldInfo, mergeState), equalTo(numDocs));
+            FloatVectorValues sampled = CalibrationUtils.buildSampled(fieldInfo, mergeState, numDocs);
+            assertTrue(sampled.size() > 0);
+            assertThat(sampled.dimension(), equalTo(dimensions));
+            // a copy reads independently of the original, which reuses one scratch buffer across reads
+            FloatVectorValues sampledCopy = sampled.copy();
+            float[] live = sampled.vectorValue(0);
+            float[] expected = live.clone();
+            sampledCopy.vectorValue(1);
+            assertArrayEquals(expected, live, 0f);
+            for (int i = 0; i < sampled.size(); i++) {
+                for (float v : sampled.vectorValue(i)) {
+                    assertEquals("byte value widened exactly", v, (byte) v, 0.0);
+                }
+            }
+            return calibrating.resolve(fieldInfo, mergeState, codecDefault);
+        };
+        ESNextDiskBBQVectorsFormat autoCalibrateFormat = new ESNextDiskBBQVectorsFormat(
+            QuantEncoding.ONE_BIT_4BIT_QUERY,
+            MIN_VECTORS_PER_CLUSTER * 4,
+            MIN_CENTROIDS_PER_PARENT_CLUSTER,
+            DenseVectorFieldMapper.ElementType.BYTE,
+            false,
+            null,
+            1,
+            false,
+            DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+            MIN_VECTORS_PER_CLUSTER * 4,
+            null,
+            IvfFlushConfigSource.empty(),
+            verifying,
+            false
+        );
+        IndexWriterConfig iwc = new IndexWriterConfig();
+        iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(autoCalibrateFormat));
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, iwc)) {
+            for (int i = 0; i < numDocs; i++) {
+                Document doc = new Document();
+                doc.add(new KnnByteVectorField("vector", randomByteVector(dimensions), similarity));
+                w.addDocument(doc);
+                if (i % 3_000 == 2_999) {
+                    w.commit();
+                }
+            }
+            w.commit();
+            // a bounded force merge always recalibrates instead of reusing the inputs' metadata
+            w.forceMerge(1);
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                assertThat(reader.leaves().size(), equalTo(1));
+                assertThat(reader.numDocs(), equalTo(numDocs));
+            }
+        }
+        assertThat(resolverCalls.get(), greaterThan(0));
     }
 
     /**

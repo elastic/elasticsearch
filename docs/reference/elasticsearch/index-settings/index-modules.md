@@ -48,8 +48,8 @@ $$$index-number-of-routing-shards$$$
 $$$index-codec$$$ `index.codec` {applies_to}`serverless: all`
 :   The `default` value compresses stored data with LZ4 compression, but this can be set to `best_compression` which uses [ZSTD](https://en.wikipedia.org/wiki/Zstd) for a higher compression ratio, at the expense of slower stored fields read performance. If you are updating the compression type, the new one will be applied after segments are merged. Segment merging can be forced using [force merge](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-forcemerge). Experiments with indexing log datasets have shown that `best_compression` gives up to ~28% lower storage usage and similar indexing throughput (sometimes a bit slower or faster depending on other used options) compared to `default` while affecting get by id latencies between ~10% and ~33%. The higher get by id latencies is not a concern for many use cases like logging or metrics, since these don’t really rely on get by id functionality (Get APIs or searching by _id).
 
-$$$index-mode-setting$$$ `index.mode` {applies_to}`serverless: all`
-:   The `index.mode` setting is used to control settings applied in specific domains like ingestion of time series data or logs. Different mutually exclusive modes exist, which are used to apply settings or default values controlling indexing of documents, sorting and other parameters whose value affects indexing or query performance. For example:
+$$$index-mode-setting$$$ `index.mode` {applies_to}`serverless: ga`
+:   Controls settings applied in specific domains like ingestion of time series data or logs. Different mutually exclusive modes exist, which are used to apply settings or default values controlling indexing of documents, sorting, and other parameters whose values affect indexing or query performance. For example:
 
       ```console
       PUT my-index-000001
@@ -64,14 +64,34 @@ $$$index-mode-setting$$$ `index.mode` {applies_to}`serverless: all`
       1. This index uses the `standard` index mode
 
     The `index.mode` setting supports the following values:
-       - `null`:   Default value (same as `standard`). {applies_to}`vectordb: unavailable`
-       -  `standard`:   Standard indexing with default settings. {applies_to}`vectordb: unavailable`
-       -  `lookup`: Index that can be used for [LOOKUP JOIN](/reference/query-languages/esql/esql-lookup-join.md) in ES|QL. Limited to 1 shard. {applies_to}`vectordb: unavailable`
-       - `time_series`:   *(data streams only)* Index mode optimized for storage of metrics. For more information, see [Time series index settings](time-series.md). {applies_to}`vectordb: unavailable`
-       - `logsdb`: Index mode optimized for [logs](docs-content://manage-data/data-store/data-streams/logs-data-stream.md). {applies_to}`vectordb: unavailable`
-       - `vectordb_document` {applies_to}`stack: ga 9.5` {applies_to}`serverless: ga`: Index mode optimized for vector search use cases. Applies settings and defaults tuned for indexing, merging, and searching dense vector data. For details, see [Index modes for vector search](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-index-modes).
-       - `columnar`: {applies_to}`stack: preview 9.5+` {applies_to}`elasticsearch: preview` {applies_to}`observability: preview` {applies_to}`security: preview` {applies_to}`vectordb: unavailable` Index mode that turns {{es}} into a full analytical and search columnar store. Fields are stored once as doc values with no inverted index or BKD tree by default. For more information, refer to [Columnar index mode](/reference/elasticsearch/columnar/index.md).
-       - `logsdb_columnar`: {applies_to}`stack: preview 9.5+` {applies_to}`elasticsearch: preview` {applies_to}`observability: preview` {applies_to}`security: preview` {applies_to}`vectordb: unavailable` Columnar index mode with logging-oriented defaults, including a default `@timestamp` mapping. For more information, refer to [Columnar index mode](/reference/elasticsearch/columnar/index.md).
+
+    `standard` {applies_to}`vectordb: unavailable`
+    :   Provides standard indexing with default settings. An index uses this default unless an index template sets another mode or it's a `logs-*-*` data stream as described for the `logsdb` value.
+
+    `columnar` {applies_to}`stack: preview 9.5+` {applies_to}`elasticsearch: preview` {applies_to}`observability: preview` {applies_to}`security: preview` {applies_to}`vectordb: unavailable`
+    :   Turns {{es}} into a full analytical and search columnar store. Fields are stored once as doc values. Refer to [Columnar index mode](/reference/elasticsearch/columnar/index.md).
+
+    `logsdb` {applies_to}`vectordb: unavailable`
+    :   Optimizes for [logs](docs-content://manage-data/data-store/data-streams/logs-data-stream.md). Data streams whose names match `logs-*-*` use this mode when [LogsDB is enabled](docs-content://manage-data/data-store/data-streams/logs-data-stream.md#logsdb-availability) and neither the create request nor a template sets `index.mode`.
+
+    `logsdb_columnar` {applies_to}`stack: preview 9.5+` {applies_to}`elasticsearch: preview` {applies_to}`observability: preview` {applies_to}`security: preview` {applies_to}`vectordb: unavailable`
+    :   Combines the logging-oriented defaults of `logsdb` with [columnar storage](/reference/elasticsearch/columnar/index.md).
+
+    `time_series` {applies_to}`vectordb: unavailable`
+    :   Optimizes for the storage of metrics. It is applicable only to data streams. Refer to [Time series index settings](time-series.md).
+
+    `vectordb_document` {applies_to}`stack: ga 9.5` {applies_to}`serverless: ga`
+    :   Optimizes for vector search use cases. Applies settings and defaults tuned for indexing, merging, and searching dense vector data. Refer to [Index modes for vector search](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-index-modes).
+    :   {applies_to}`vectordb: ga` On [{{es}} {{vectordb}}](docs-content://solutions/vector-database.md) projects, new indices use this mode when the request omits `index.mode`. Other modes are rejected.
+
+    `vectordb_columnar` {applies_to}`stack: preview 9.6+` {applies_to}`elasticsearch: preview` {applies_to}`observability: preview` {applies_to}`security: preview` {applies_to}`vectordb: unavailable`
+    :   Combines the vector search defaults of `vectordb_document` index mode with [columnar storage](/reference/elasticsearch/columnar/index.md), while keeping `dense_vector` and `text` fields indexed for search. Refer to [Index modes for vector search](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-vectordb-columnar-mode).
+
+    `lookup` {applies_to}`vectordb: unavailable`
+    :   Configures indices that can be used for [LOOKUP JOIN](/reference/query-languages/esql/esql-lookup-join.md) in {{esql}}. Limited to 1 shard.
+
+    `null` {applies_to}`vectordb: unavailable`
+    :   Same value as `standard`.
 
 $$$routing-partition-size$$$ `index.routing_partition_size`
 :   The number of shards a custom routing value can go to. Defaults to 1 and can only be set at index creation time. This value must be less than `index.number_of_shards` unless the value is also 1. For more details about how this setting is used, refer to [](/reference/elasticsearch/mapping-reference/mapping-routing-field.md#routing-index-partition).
@@ -165,7 +185,7 @@ $$$index-refresh-interval-setting$$$
 
     The value defaults to `1s` in {{stack}} and `5s` in {{serverless-short}}. In {{serverless-short}}, `5s` is also the minimum value that can be set.
 
-    In both cases, the setting can be set to `-1` to disable refresh.
+    In both cases, the setting can be set to `-1` to disable periodic refresh operations. This does not fully prevent indexed documents becoming visible to search, because there are mechanisms within {{es}} which perform refresh operations other than the periodic refresh.
 
 $$$index-max-result-window$$$
 
@@ -297,6 +317,9 @@ $$$index-esql-stored-fields-sequential-proportion$$$
 
 $$$index-dense-vector-hnsw-early-termination$$$ `index.dense_vector.hnsw_early_termination` {applies_to}`stack: ga 9.2` {applies_to}`serverless: all`
 :   Whether to apply _patience_ based early termination strategy to knn queries over HNSW graphs (see [paper](https://cs.uwaterloo.ca/~jimmylin/publications/Teofili_Lin_ECIR2025.pdf)). This is only applicable to `dense_vector` fields with `hnsw`, `int8_hnsw`, `int4_hnsw` and `bbq_hnsw` index types. Defaults to `true` for indexes created with {{es}} 9.3, `false` for indexes created with older versions.
+
+$$$index-dense-vector-post-filter-selectivity-threshold$$$ `index.dense_vector.post_filter_selectivity_threshold` {applies_to}`stack: ga 9.6` {applies_to}`serverless: ga`
+:   Controls when a filtered approximate kNN search applies its filter after the vector search instead of during it. For each shard, {{es}} estimates the fraction of vectors that match the filter. If that fraction is greater than or equal to this setting, the search runs without the filter, gathers extra candidates to make up for the ones the filter is expected to remove, and then applies the filter. Otherwise, {{es}} applies the filter during the search. Accepts values from `0.0` to `1.0`. Lower values post-filter more selective filters, and `1.0` turns post-filtering off. Defaults to `0.7`. Applies to `dense_vector` fields. For details, refer to [Filter approximate kNN results](docs-content://solutions/search/vector/knn/filtered-knn-search.md#filtering-behavior-and-performance).
 
 $$$index-use_time_series_doc_values_format$$$ `index.use_time_series_doc_values_format` {applies_to}`stack: ga 9.3`
 :   Indicates whether the time series doc values format should be used. Defaults to `true` if `index.mode` is `time_series` or `logsdb`, otherwise `false`.

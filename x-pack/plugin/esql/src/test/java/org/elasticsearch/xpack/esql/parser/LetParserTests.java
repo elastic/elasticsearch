@@ -8,20 +8,31 @@
 package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.analysis.LetResolver;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.MultiColumnInSubquery;
+import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.LetBinding;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.util.List;
 
@@ -171,6 +182,154 @@ public class LetParserTests extends AbstractStatementParserTests {
     }
 
     // -----------------------------------------------------------------------
+    // FORK scope: a LET binding body is a FORK scope of its own, like the main query
+    // -----------------------------------------------------------------------
+
+    public void testMultipleForksInLetBindingRejected() {
+        assumeLet();
+        for (String query : new String[] { """
+            LET q = (FROM a | FORK (WHERE x > 0) (WHERE x < 0) | FORK (WHERE y > 0) (WHERE y < 0));
+            FROM q
+            """, """
+            LET q = (FROM a | FORK (FORK (WHERE x > 0) (WHERE x < 0)) (WHERE y > 0));
+            FROM q
+            """, """
+            LET q = (FROM a);
+            LET r = (FROM q | FORK (WHERE x > 0) (WHERE x < 0) | FORK (WHERE y > 0) (WHERE y < 0));
+            FROM r
+            """ }) {
+            expectThrows(
+                VerificationException.class,
+                containsString("Only a single FORK command is supported, but found multiple"),
+                () -> statement(query)
+            );
+        }
+    }
+
+    public void testMultipleForksInQueryReadingLetBindingRejected() {
+        assumeLet();
+        for (String query : new String[] { """
+            LET q = (FROM a);
+            FROM q
+            | FORK (WHERE x > 0) (WHERE x < 0)
+            | FORK (WHERE y > 0) (WHERE y < 0)
+            """, """
+            LET q = (FROM a);
+            FROM q
+            | FORK (WHERE x > 0) (WHERE x < 0)
+            | WHERE z > 0
+            | FORK (WHERE y > 0) (WHERE y < 0)
+            """, """
+            LET q = (FROM a);
+            FROM b
+            | WHERE x IN (FROM q | FORK (WHERE x > 0) (WHERE x < 0) | FORK (WHERE y > 0) (WHERE y < 0))
+            """ }) {
+            expectThrows(
+                VerificationException.class,
+                containsString("Only a single FORK command is supported, but found multiple"),
+                () -> statement(query)
+            );
+        }
+    }
+
+    /**
+     * A FORK in a binding and a FORK in the main query that reads it are different FORK scopes.
+     *
+     * LET q = Fork[[]]                              main query: Fork[[]]
+     *         |_Eval[[fork1[KEYWORD] AS _fork#3]]               |_Eval[[fork1[KEYWORD] AS _fork#8]]
+     *         | \_Filter[?x &gt; 0[INTEGER]]                   | \_Filter[?y &gt; 0[INTEGER]]
+     *         |   \_UnresolvedRelation[a]                      |   \_UnresolvedRelation[q]
+     *         \_Eval[[fork2[KEYWORD] AS _fork#3]]                \_Eval[[fork2[KEYWORD] AS _fork#8]]
+     *           ...                                                 ...
+     */
+    public void testForkInLetBindingAndInQueryReadingIt() {
+        assumeLet();
+        EsqlStatement stmt = statement("""
+            LET q = (FROM a | FORK (WHERE x > 0) (WHERE x < 0));
+            FROM q
+            | FORK (WHERE y > 0) (WHERE y < 0)
+            """);
+        assertThat(stmt.letBindings().size(), is(1));
+        assertThat(stmt.letBindings().get(0).name(), is("q"));
+        assertForkOverRelation(as(stmt.letBindings().get(0).plan(), Fork.class), "a");
+        assertForkOverRelation(as(stmt.plan(), Fork.class), "q");
+    }
+
+    /** Each binding body is a FORK scope, so a binding with a FORK can read a binding with a FORK. */
+    public void testForkInChainedLetBindings() {
+        assumeLet();
+        EsqlStatement stmt = statement("""
+            LET q = (FROM a | FORK (WHERE x > 0) (WHERE x < 0));
+            LET r = (FROM q | FORK (WHERE y > 0) (WHERE y < 0));
+            FROM r
+            """);
+        assertThat(stmt.letBindings().size(), is(2));
+        assertThat(stmt.letBindings().get(0).name(), is("q"));
+        assertForkOverRelation(as(stmt.letBindings().get(0).plan(), Fork.class), "a");
+        assertThat(stmt.letBindings().get(1).name(), is("r"));
+        assertForkOverRelation(as(stmt.letBindings().get(1).plan(), Fork.class), "q");
+        // The main plan is an UnresolvedRelation (not yet substituted - that happens in LetResolver)
+        UnresolvedRelation ur = as(stmt.plan(), UnresolvedRelation.class);
+        assertThat(ur.indexPattern().indexPattern(), is("r"));
+    }
+
+    /** A binding read together with an index is one relation in the parsed plan; the FORK after it is still a separate scope. */
+    public void testForkInLetBindingAndInQueryReadingItWithAnIndex() {
+        assumeLet();
+        EsqlStatement stmt = statement("""
+            LET q = (FROM a | FORK (WHERE x > 0) (WHERE x < 0));
+            FROM q, b
+            | FORK (WHERE y > 0) (WHERE y < 0)
+            """);
+        assertThat(stmt.letBindings().size(), is(1));
+        assertThat(stmt.letBindings().get(0).name(), is("q"));
+        assertForkOverRelation(as(stmt.letBindings().get(0).plan(), Fork.class), "a");
+        assertForkOverRelation(as(stmt.plan(), Fork.class), "q,b");
+    }
+
+    /**
+     * A FORK in a binding, and a FORK in an IN subquery that reads the binding. The IN subquery is a FORK scope of its own.
+     *
+     * Filter[InSubquery[?x, Fork[[]]]]
+     * |                    |_Eval[[fork1[KEYWORD] AS _fork#8]]
+     * |                    | \_Filter[?y &gt; 0[INTEGER]]
+     * |                    |   \_UnresolvedRelation[q]
+     * |                    \_Eval[[fork2[KEYWORD] AS _fork#8]]
+     * |                      ...
+     * \_UnresolvedRelation[b]
+     */
+    public void testForkInLetBindingAndInInSubqueryReadingIt() {
+        assumeLet();
+        EsqlStatement stmt = statement("""
+            LET q = (FROM a | FORK (WHERE x > 0) (WHERE x < 0));
+            FROM b
+            | WHERE x IN (FROM q | FORK (WHERE y > 0) (WHERE y < 0))
+            """);
+        assertThat(stmt.letBindings().size(), is(1));
+        assertThat(stmt.letBindings().get(0).name(), is("q"));
+        assertForkOverRelation(as(stmt.letBindings().get(0).plan(), Fork.class), "a");
+
+        Filter filter = as(stmt.plan(), Filter.class);
+        InSubquery inSubquery = as(filter.condition(), InSubquery.class);
+        assertThat(as(inSubquery.value(), UnresolvedAttribute.class).name(), is("x"));
+        assertForkOverRelation(as(inSubquery.subquery(), Fork.class), "q");
+        UnresolvedRelation main = as(filter.child(), UnresolvedRelation.class);
+        assertThat(main.indexPattern().indexPattern(), is("b"));
+    }
+
+    /** Each branch of the FORK is {@code Eval[_fork] -> Filter -> UnresolvedRelation} of the given index pattern. */
+    private static void assertForkOverRelation(Fork fork, String indexPattern) {
+        assertThat(fork.children().size(), is(2));
+        for (LogicalPlan branch : fork.children()) {
+            Eval eval = as(branch, Eval.class);
+            assertThat(as(eval.fields().get(0), Alias.class).name(), is("_fork"));
+            Filter filter = as(eval.child(), Filter.class);
+            UnresolvedRelation relation = as(filter.child(), UnresolvedRelation.class);
+            assertThat(relation.indexPattern().indexPattern(), is(indexPattern));
+        }
+    }
+
+    // -----------------------------------------------------------------------
     // IN operand forms — a LET name is referenced through an explicit FROM subquery,
     // so it parses to an InSubquery / MultiColumnInSubquery over an UnresolvedRelation
     // carrying the binding name.
@@ -264,10 +423,36 @@ public class LetParserTests extends AbstractStatementParserTests {
             "LET x = (FROM a | LIMIT 1); FROM x",
             new QueryParams(),
             new org.elasticsearch.xpack.esql.inference.InferenceSettings(org.elasticsearch.common.settings.Settings.EMPTY),
-            "my_view"
+            "my_view",
+            QueryPragmas.EMPTY,
+            EsqlFlags.DEFAULTS
         );
         assertThat(stmt.letBindings().size(), is(1));
         assertThat(stmt.letBindings().get(0).name(), is("x"));
+    }
+
+    /** A view body goes through parseView and then LetResolver, the two steps the session applies to it. */
+    public void testChainedForkBindingsInViewBodyRejected() {
+        assumeLet();
+        var parser = new EsqlParser(new EsqlConfig(EsqlTestUtils.TEST_FUNCTION_REGISTRY));
+        StringBuilder query = new StringBuilder("LET f0 = (FROM a | FORK (WHERE x > 0) (WHERE x < 0));");
+        for (int i = 1; i < 40; i++) {
+            query.append("LET f").append(i).append(" = (FROM f").append(i - 1).append(" | FORK (WHERE x > 0) (WHERE x < 0));");
+        }
+        query.append("FROM f39");
+        var stmt = parser.parseView(
+            query.toString(),
+            new QueryParams(),
+            new InferenceSettings(Settings.EMPTY),
+            "my_view",
+            QueryPragmas.EMPTY,
+            EsqlFlags.DEFAULTS
+        );
+        expectThrows(
+            VerificationException.class,
+            containsString("ES|QL query exceeded the maximum of [500] plan nodes allowed after expanding views, subqueries and FORKs"),
+            () -> LetResolver.resolve(stmt.plan(), stmt.letBindings(), ViewResolver.DEFAULT_MAX_PLAN_NODES_COUNT)
+        );
     }
 
     // -----------------------------------------------------------------------

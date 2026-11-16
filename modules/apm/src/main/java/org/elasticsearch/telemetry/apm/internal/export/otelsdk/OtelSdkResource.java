@@ -61,9 +61,10 @@ final class OtelSdkResource {
     }
 
     static Resource get(Settings settings, UnaryOperator<String> getenv) {
+        // Legacy telemetry.agent.* settings are honored as defaults; telemetry.resource.* overrides them.
         ResourceBuilder builder = Resource.builder()
-            .put("service.name", "self-managed-elasticsearch") // other deployment types should override via
-                                                               // telemetry.resource.service.name
+            // other deployment types should override via telemetry.resource.service.name
+            .put("service.name", settings.get("telemetry.agent.service_name", "self-managed-elasticsearch"))
             .put("service.version", Build.current().version())
             .put("process.runtime.name", "Java")
             .put("process.runtime.version", System.getProperty("java.version"))
@@ -75,7 +76,7 @@ final class OtelSdkResource {
             // TODO change the settings emitted by the controller so it doesn't mention agent.
             .put("deployment.environment", settings.get("telemetry.agent.environment", "dev"));
 
-        String nodeName = settings.get("node.name");
+        String nodeName = settings.get("telemetry.agent.service_node_name", settings.get("node.name"));
         if (nodeName != null) {
             builder.put("service.instance.id", nodeName);
         }
@@ -84,7 +85,7 @@ final class OtelSdkResource {
         putIfPresent(builder, "k8s.node.name", getenv.apply("KUBERNETES_NODE_NAME"));
         putIfPresent(builder, "k8s.pod.name", getenv.apply("KUBERNETES_POD_NAME"));
         putIfPresent(builder, "k8s.pod.uid", getenv.apply("KUBERNETES_POD_UID"));
-        putIfPresent(builder, "host.name", getenv.apply("HOSTNAME"));
+        putIfPresent(builder, "host.name", settings.get("telemetry.agent.hostname", getenv.apply("HOSTNAME")));
         putIfPresent(builder, "container.id", containerId());
         putIfPresent(builder, "process.executable.path", ProcessHandle.current().info().command().orElse(null));
 
@@ -93,6 +94,8 @@ final class OtelSdkResource {
             builder.put(AttributeKey.stringArrayKey("host.ip"), hostIps);
         }
 
+        Settings globalLabels = settings.getByPrefix("telemetry.agent.global_labels.");
+        globalLabels.keySet().forEach(label -> builder.put(label, globalLabels.get(label)));
         OtelSdkSettings.TELEMETRY_RESOURCE_ATTRIBUTES.getAsMap(settings).forEach(builder::put);
         return Resource.getDefault().merge(builder.build());
     }

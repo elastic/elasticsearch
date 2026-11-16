@@ -27,7 +27,6 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.junit.Assume.assumeTrue;
 
 /**
  * Runs one behavior duel pair: the same corpus is indexed, with the same write and merge plan, into a baseline
@@ -42,8 +41,7 @@ import static org.junit.Assume.assumeTrue;
  * recorded across an index's started shard leaves are exactly its {@link DuelIndexConfig#expectedDocValuesFormatName()},
  * so a misconfigured contender cannot silently duel two identical layouts and pass without testing anything. A
  * layout that requests the ColumNAR selector guard also asserts the production selector routes the fields to
- * ColumNAR, and the pair is skipped when the {@code columnar_codec} feature flag is disabled; a contender that
- * does not request the guard is unaffected by that flag.
+ * ColumNAR.
  *
  * <p>The baseline is also validated against an identically built copy of itself before it is compared to the
  * contender. A baseline-versus-baseline failure means the duel itself is not yet trustworthy, so it fails the
@@ -106,15 +104,6 @@ public final class BehaviorDuelHarness {
         final DuelIndexConfig contender,
         final List<DuelField> fields
     ) {
-        // Only a ColumNAR-backed contender depends on the feature flag; a future codec that does not request the
-        // selector guard must not be skipped by it.
-        if (contender.enforcesColumnarSelectorGuard()) {
-            assumeTrue(
-                "columnar_codec feature flag must be enabled",
-                ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled()
-            );
-        }
-
         final List<DuelDoc> docs = scenario.documents();
         final boolean corpusHasValues = docs.stream().anyMatch(doc -> doc.nonNullValues().isEmpty() == false);
         final DuelIndexConfig reference = baseline.withIndexName(baseline.indexName() + "_ref");
@@ -312,8 +301,8 @@ public final class BehaviorDuelHarness {
             + config.layoutLabel()
             + "] mode ["
             + indexSettings.getMode()
-            + "] index.columnar_codec.enabled ["
-            + indexSettings.getSettings().getAsBoolean(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), false)
+            + "] index version created ["
+            + indexSettings.getIndexVersionCreated()
             + "] useColumnarCodec ["
             + usesColumnar
             + "] expected format ["

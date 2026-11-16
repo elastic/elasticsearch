@@ -68,6 +68,23 @@ public record IndexViewOrigins(Map<String, Set<List<String>>> chainsByPattern) {
         return pattern.startsWith("-") || pattern.contains(":-");
     }
 
+    /**
+     * Whether {@code pattern} appears in the body of {@code viewName} itself, rather than only in views nested inside it. A
+     * pattern recorded under several chains counts if any of them ends at {@code viewName}.
+     */
+    public boolean readDirectlyBy(String pattern, String viewName) {
+        Set<List<String>> chains = chainsByPattern.get(pattern);
+        if (chains == null) {
+            return false;
+        }
+        for (List<String> chain : chains) {
+            if (chain.getLast().equals(viewName)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static String describeChains(Set<List<String>> chains) {
         List<String> rendered = chains.stream().map(chain -> "[" + String.join(" -> ", chain) + "]").sorted().toList();
         return (rendered.size() == 1 ? "referenced by view " : "referenced by views ") + String.join(", ", rendered);

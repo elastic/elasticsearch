@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.elastic.action;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.inference.common.InferencePreferences;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
+import org.elasticsearch.xpack.inference.external.http.sender.DecisionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentExtractionInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
@@ -23,14 +24,18 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceUnifiedChatCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
+import org.elasticsearch.xpack.inference.services.elastic.decision.ElasticInferenceServiceDecisionModel;
+import org.elasticsearch.xpack.inference.services.elastic.decision.ElasticInferenceServiceDecisionResponseHandler;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elastic.documentextraction.ElasticInferenceServiceDocumentExtractionModel;
+import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceDecisionRequest;
 import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceDenseEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceDocumentExtractionRequest;
 import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceRerankRequest;
 import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceSparseEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceUnifiedChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModel;
+import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceDecisionResponseEntity;
 import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceDenseEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceDocumentExtractionResponseEntity;
 import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceRerankResponseEntity;
@@ -230,6 +235,46 @@ record ModelStrategyFactory(ServiceComponents serviceComponents) {
         }
     };
 
+    private static final String DECISION_REQUEST_DESCRIPTION = Strings.format("%s decision", ELASTIC_INFERENCE_SERVICE_IDENTIFIER);
+
+    private static final ResponseHandler DECISION_HANDLER = new ElasticInferenceServiceDecisionResponseHandler(
+        DECISION_REQUEST_DESCRIPTION,
+        (request, response) -> ElasticInferenceServiceDecisionResponseEntity.fromResponse(response)
+    );
+
+    private static final Strategy<ElasticInferenceServiceDecisionModel> DECISION_STRATEGY = new Strategy<>() {
+        @Override
+        public RequestManager createRequestManager(
+            ElasticInferenceServiceDecisionModel model,
+            ServiceComponents serviceComponents,
+            TraceContext traceContext,
+            InferencePreferences preferences,
+            CCMAuthenticationApplierFactory.AuthApplier authApplier
+        ) {
+            var metadata = extractRequestMetadataFromThreadContext(serviceComponents.threadPool().getThreadContext());
+            return new GenericRequestManager<>(
+                serviceComponents.threadPool(),
+                model,
+                DECISION_HANDLER,
+                (decisionInput) -> new ElasticInferenceServiceDecisionRequest(
+                    decisionInput.getInput(),
+                    decisionInput.getQuestions(),
+                    model,
+                    traceContext,
+                    metadata,
+                    preferences,
+                    authApplier
+                ),
+                DecisionInput.class
+            );
+        }
+
+        @Override
+        public String requestDescription() {
+            return DECISION_REQUEST_DESCRIPTION;
+        }
+    };
+
     private static final ResponseHandler COMPLETIONS_HANDLER = new ElasticInferenceServiceCompletionResponseHandler();
 
     private static final Strategy<ElasticInferenceServiceCompletionModel> COMPLETIONS_STRATEGY = new Strategy<>() {
@@ -307,6 +352,7 @@ record ModelStrategyFactory(ServiceComponents serviceComponents) {
             case ElasticInferenceServiceSparseEmbeddingsModel ignored -> (Strategy<T>) SPARSE_EMBEDDINGS_STRATEGY;
             case ElasticInferenceServiceRerankModel ignored -> (Strategy<T>) RERANK_STRATEGY;
             case ElasticInferenceServiceDenseEmbeddingsModel ignored -> (Strategy<T>) EMBEDDING_STRATEGY;
+            case ElasticInferenceServiceDecisionModel ignored -> (Strategy<T>) DECISION_STRATEGY;
             case ElasticInferenceServiceDocumentExtractionModel ignored -> (Strategy<T>) DOCUMENT_EXTRACTION_STRATEGY;
             case ElasticInferenceServiceCompletionModel completionModel -> {
                 var taskType = completionModel.getTaskType();

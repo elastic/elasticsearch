@@ -13,6 +13,8 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
+import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.CheckedSupplier;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -99,6 +101,9 @@ public class DriverContext {
      */
     private final List<BooleanSupplier> stopHooks = new CopyOnWriteArrayList<>();
 
+    /** Thread CPU time this driver used on any thread: in {@link Driver#run} and in {@link #meteredCpu(CheckedSupplier)}. */
+    private final CpuTracker cpuTracker;
+
     public DriverContext(BigArrays bigArrays, BlockFactory blockFactory, @Nullable LocalCircuitBreaker.SizeSettings localBreakerSettings) {
         this(bigArrays, blockFactory, localBreakerSettings, null, WarningsMode.COLLECT);
     }
@@ -119,6 +124,18 @@ public class DriverContext {
         @Nullable String description,
         WarningsMode warningsMode
     ) {
+        this(bigArrays, blockFactory, localBreakerSettings, description, warningsMode, new CpuTracker());
+    }
+
+    /** Visible for testing, so tests can measure with a {@link CpuTracker} that reads a fake CPU clock. */
+    DriverContext(
+        BigArrays bigArrays,
+        BlockFactory blockFactory,
+        @Nullable LocalCircuitBreaker.SizeSettings localBreakerSettings,
+        @Nullable String description,
+        WarningsMode warningsMode,
+        CpuTracker cpuTracker
+    ) {
         Objects.requireNonNull(bigArrays);
         Objects.requireNonNull(blockFactory);
         this.bigArrays = bigArrays;
@@ -126,6 +143,7 @@ public class DriverContext {
         this.localBreakerSettings = localBreakerSettings == null ? LocalCircuitBreaker.SizeSettings.DEFAULT_SETTINGS : localBreakerSettings;
         this.driverDescription = description;
         this.warningsMode = warningsMode;
+        this.cpuTracker = Objects.requireNonNull(cpuTracker);
     }
 
     public BigArrays bigArrays() {
@@ -268,7 +286,12 @@ public class DriverContext {
         asyncActions.addInstance();
     }
 
+    /**
+     * Removing the last async action can let the driver publish its final status, so this first adds what the calling
+     * thread's open {@link #meteredCpu(CheckedSupplier)} measurement has used so far.
+     */
     public void removeAsyncAction() {
+        cpuTracker.checkpoint();
         asyncActions.removeInstance();
     }
 
@@ -277,6 +300,43 @@ public class DriverContext {
      */
     public boolean hasPendingAsyncActions() {
         return asyncActions.instances.get() > 1;
+    }
+
+    /**
+     * Runs {@code work} on the current thread and adds the thread CPU time it uses to {@link #cpuNanos()}, which the
+     * driver reports as {@link DriverStatus#cpuNanos()} at its next status update. For work an operator runs on a thread
+     * other than the driver's, such as a background worker.
+     * <p>
+     * Hand off to another thread that can let the driver finish only after {@code work} returns. The driver publishes
+     * its final status once the async actions are done, and CPU time added after that is not counted. Removing an async
+     * action inside {@code work} is safe, see {@link #removeAsyncAction()}.
+     * <p>
+     * Measures nothing when the current thread's innermost open measurement already belongs to this driver, such as
+     * inside {@link Driver#run}. Otherwise pauses the innermost open measurement, such as another driver's, until
+     * {@code work} returns. See {@link CpuTracker}.
+     */
+    public <T, E extends Exception> T meteredCpu(CheckedSupplier<T, E> work) throws E {
+        return cpuTracker.meteredCpu(work);
+    }
+
+    /** {@link #meteredCpu(CheckedSupplier)} for work that returns nothing. */
+    public <E extends Exception> void meteredCpu(CheckedRunnable<E> work) throws E {
+        meteredCpu(() -> {
+            work.run();
+            return null;
+        });
+    }
+
+    /**
+     * Thread CPU time this driver has used on any thread, counting each measurement up to when it was closed or last
+     * {@link CpuTracker#checkpoint() checkpointed}. {@link Driver} reports it as {@link DriverStatus#cpuNanos()}.
+     */
+    public long cpuNanos() {
+        return cpuTracker.cpuNanos();
+    }
+
+    CpuTracker cpuTracker() {
+        return cpuTracker;
     }
 
     /**

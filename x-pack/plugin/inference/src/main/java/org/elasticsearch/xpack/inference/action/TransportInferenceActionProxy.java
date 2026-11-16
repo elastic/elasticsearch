@@ -23,6 +23,7 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.core.inference.action.DecisionAction;
 import org.elasticsearch.xpack.core.inference.action.DocumentExtractionAction;
 import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
@@ -67,6 +68,7 @@ public class TransportInferenceActionProxy extends HandledTransportAction<Infere
                     case CHAT_COMPLETION -> sendUnifiedCompletionRequest(request, l);
                     case EMBEDDING -> sendEmbeddingRequest(request, l);
                     case RERANK -> sendRerankRequest(request, l);
+                    case DECISION -> sendDecisionRequest(request, l);
                     case DOCUMENT_EXTRACTION -> sendDocumentExtractionRequest(request, l);
                     default -> sendInferenceActionRequest(request, l);
                 }
@@ -78,6 +80,7 @@ public class TransportInferenceActionProxy extends HandledTransportAction<Infere
                 case CHAT_COMPLETION -> sendUnifiedCompletionRequest(request, listener);
                 case EMBEDDING -> sendEmbeddingRequest(request, listener);
                 case RERANK -> sendRerankRequest(request, listener);
+                case DECISION -> sendDecisionRequest(request, listener);
                 case DOCUMENT_EXTRACTION -> sendDocumentExtractionRequest(request, listener);
                 default -> sendInferenceActionRequest(request, listener);
             }
@@ -140,6 +143,21 @@ public class TransportInferenceActionProxy extends HandledTransportAction<Infere
         }
 
         execute(RerankAction.INSTANCE, rerankRequest, listener);
+    }
+
+    private void sendDecisionRequest(InferenceActionProxy.Request request, ActionListener<InferenceAction.Response> listener)
+        throws IOException {
+        DecisionAction.Request decisionRequest;
+        try (var parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, request.getContent(), request.getContentType())) {
+            decisionRequest = DecisionAction.Request.parseRequest(
+                request.getInferenceEntityId(),
+                request.getTimeout(),
+                request.getContext(),
+                parser
+            );
+        }
+
+        execute(DecisionAction.INSTANCE, decisionRequest, listener);
     }
 
     private void sendDocumentExtractionRequest(InferenceActionProxy.Request request, ActionListener<InferenceAction.Response> listener)

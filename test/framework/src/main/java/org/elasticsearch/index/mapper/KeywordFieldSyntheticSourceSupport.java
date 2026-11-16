@@ -204,12 +204,10 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
         if (docValues.enabled() == false) {
             b.field("doc_values", false);
         } else if (docValues.multiValue() == false) {
-            b.startObject("doc_values");
             b.field("multi_value", false);
             if (docValues.onFailure() == FieldMapper.DocValuesParameter.Values.OnFailure.IGNORE) {
                 b.field("on_failure", "ignore");
             }
-            b.endObject();
         } else {
             b.field("doc_values", true);
         }

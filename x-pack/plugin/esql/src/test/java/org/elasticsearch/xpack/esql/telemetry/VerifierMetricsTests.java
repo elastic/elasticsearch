@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.analysis.LetResolver;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
+import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.util.List;
 import java.util.Map;
@@ -294,7 +295,7 @@ public class VerifierMetricsTests extends ESTestCase {
                       , (from employees | stats min = min(salary) by languages)
             | where min > 0 and max < 100000
             """);
-        assertMetrics(c, Map.of(EVAL, 1L, STATS, 1L, WHERE, 1L, FROM, 1L, SUBQUERY, 1L), Map.of("max", 1L, "min", 1L));
+        assertMetrics(c, Map.of(STATS, 1L, WHERE, 1L, FROM, 1L, SUBQUERY, 1L), Map.of("max", 1L, "min", 1L));
     }
 
     public void testPromql() {
@@ -470,7 +471,7 @@ public class VerifierMetricsTests extends ESTestCase {
         if (metrics != null && statement.letBindings().isEmpty() == false) {
             metrics.inc(LET);
         }
-        var parsed = LetResolver.resolve(statement.plan(), statement.letBindings());
+        var parsed = LetResolver.resolve(statement.plan(), statement.letBindings(), ViewResolver.DEFAULT_MAX_PLAN_NODES_COUNT);
         if (metrics != null && InSubqueryResolver.hasInSubquery(parsed)) {
             metrics.inc(IN_SUBQUERY);
         }

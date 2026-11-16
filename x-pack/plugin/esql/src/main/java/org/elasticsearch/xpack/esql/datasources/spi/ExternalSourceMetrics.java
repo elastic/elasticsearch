@@ -250,7 +250,12 @@ public final class ExternalSourceMetrics {
      */
     public static final String CPU_COMPONENT_ATTRIBUTE = "es_datasource_cpu_component";
 
-    /** Real per-thread CPU time spent by drivers executing the query (via {@code ThreadMXBean}). */
+    /**
+     * Real per-thread CPU time (via {@code ThreadMXBean}) spent by drivers executing the query, plus the CPU time
+     * operators meter on other threads for their driver, such as parallel aggregation workers and the connector producer
+     * threads of {@code AsyncConnectorSourceOperatorFactory}. File-based format-reader producer threads are reported
+     * under {@link #CPU_COMPONENT_READ}.
+     */
     public static final String CPU_COMPONENT_EXECUTION = "execution";
 
     /** Real per-thread CPU time spent by format-reader producer threads (via {@code ThreadMXBean}). */
@@ -870,10 +875,9 @@ public final class ExternalSourceMetrics {
      * Clamps negative values to zero. Skips zero-valued components to avoid noise.
      * <p>
      * The components match those of the Serverless billing formula; exact alignment with the billing
-     * signal may drift as the formula evolves. {@code execution} is the driver run-loop time
-     * ({@code System.nanoTime} while the driver is scheduled). {@code read}, {@code splitDiscovery} and
-     * {@code planning} are real per-thread CPU time (via {@code ThreadCpuTimer}); {@code planning} comes from
-     * {@code EsqlQueryProfile#planningCpuNanos}, which only covers the work metered by {@code PlanningCpuTracker}.
+     * signal may drift as the formula evolves. All components are real per-thread CPU time (via
+     * {@code ThreadCpuTimer}); see {@link #CPU_COMPONENT_EXECUTION} for what {@code execution} covers. {@code planning}
+     * comes from {@code EsqlQueryProfile#planningCpuNanos}, which only covers the work metered by {@code PlanningCpuTracker}.
      * <p>
      * Best-effort (self-guarded).
      */

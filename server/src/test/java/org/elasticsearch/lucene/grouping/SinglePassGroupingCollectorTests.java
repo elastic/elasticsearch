@@ -61,6 +61,10 @@ import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
 
+/**
+ * Field collapsing is single-slice in production, so these tests use a sequential
+ * searcher and inspect one collector's {@link SinglePassGroupingCollector#getTopGroups}.
+ */
 public class SinglePassGroupingCollectorTests extends ESTestCase {
     private static class SegmentSearcher extends IndexSearcher {
         private final LeafReaderContextPartition[] ctx;
@@ -118,7 +122,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
         List<T> valueList = new ArrayList<>(values);
         Collections.sort(valueList);
         final IndexReader reader = w.getReader();
-        final IndexSearcher searcher = newSearcher(reader);
+        final IndexSearcher searcher = newSearcher(reader, true, true, false);
         final SortField collapseField = dvProducers.sortField(multivalued);
         final SortField sort1 = new SortField("sort1", SortField.Type.INT);
         final SortField sort2 = new SortField("sort2", SortField.Type.LONG);
@@ -150,7 +154,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
 
         TopFieldCollectorManager topFieldCollectorManager = new TopFieldCollectorManager(sort, totalHits, Integer.MAX_VALUE);
         Query query = Queries.ALL_DOCS_INSTANCE;
-        searcher.search(query, collapsingCollector);
+        searcher.search(query, singleThreadedCollectorManager(collapsingCollector));
         TopFieldDocs topDocs = searcher.search(query, topFieldCollectorManager);
         TopFieldGroups collapseTopFieldDocs = collapsingCollector.getTopGroups(0);
         assertEquals(collapseField.getField(), collapseTopFieldDocs.field);
@@ -391,7 +395,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
         w.addDocument(doc);
         w.commit();
         final IndexReader reader = w.getReader();
-        final IndexSearcher searcher = newSearcher(reader);
+        final IndexSearcher searcher = newSearcher(reader, true, true, false);
 
         MappedFieldType fieldType = new MockFieldMapper.FakeFieldType("group");
 
@@ -405,7 +409,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
             10,
             null
         );
-        searcher.search(Queries.ALL_DOCS_INSTANCE, collapsingCollector);
+        searcher.search(Queries.ALL_DOCS_INSTANCE, singleThreadedCollectorManager(collapsingCollector));
         TopFieldGroups collapseTopFieldDocs = collapsingCollector.getTopGroups(0);
         assertEquals(4, collapseTopFieldDocs.scoreDocs.length);
         assertEquals(4, collapseTopFieldDocs.groupValues.length);
@@ -437,7 +441,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
         w.addDocument(doc);
         w.commit();
         final IndexReader reader = w.getReader();
-        final IndexSearcher searcher = newSearcher(reader);
+        final IndexSearcher searcher = newSearcher(reader, true, true, false);
 
         MappedFieldType fieldType = new MockFieldMapper.FakeFieldType("group");
 
@@ -451,7 +455,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
             10,
             null
         );
-        searcher.search(Queries.ALL_DOCS_INSTANCE, collapsingCollector);
+        searcher.search(Queries.ALL_DOCS_INSTANCE, singleThreadedCollectorManager(collapsingCollector));
         TopFieldGroups collapseTopFieldDocs = collapsingCollector.getTopGroups(0);
         assertEquals(4, collapseTopFieldDocs.scoreDocs.length);
         assertEquals(4, collapseTopFieldDocs.groupValues.length);
@@ -475,7 +479,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
             w.addDocument(doc);
         }
         final IndexReader reader = w.getReader();
-        final IndexSearcher searcher = newSearcher(reader);
+        final IndexSearcher searcher = newSearcher(reader, true, true, false);
 
         final MappedFieldType fieldType = new MockFieldMapper.FakeFieldType("group");
         final Sort sort = new Sort(new SortedNumericSortField("sort", SortField.Type.LONG));
@@ -488,7 +492,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
             10,
             null
         );
-        searcher.search(Queries.ALL_DOCS_INSTANCE, collapsingCollector);
+        searcher.search(Queries.ALL_DOCS_INSTANCE, singleThreadedCollectorManager(collapsingCollector));
         final TopFieldGroups collapseTopFieldDocs = collapsingCollector.getTopGroups(0);
         assertEquals(3, collapseTopFieldDocs.groupValues.length);
         assertEquals(new BytesRef("a"), collapseTopFieldDocs.groupValues[0]);
@@ -507,7 +511,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
         doc.add(new SortedNumericDocValuesField("sort", 0));
         w.addDocument(doc);
         final IndexReader reader = w.getReader();
-        final IndexSearcher searcher = newSearcher(reader);
+        final IndexSearcher searcher = newSearcher(reader, true, true, false);
 
         final MappedFieldType fieldType = new MockFieldMapper.FakeFieldType("group");
         final Sort sort = new Sort(new SortedNumericSortField("sort", SortField.Type.LONG));
@@ -522,7 +526,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
         );
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> searcher.search(Queries.ALL_DOCS_INSTANCE, collapsingCollector)
+            () -> searcher.search(Queries.ALL_DOCS_INSTANCE, singleThreadedCollectorManager(collapsingCollector))
         );
         assertEquals("failed to extract doc:0, the grouping field must be single valued", e.getMessage());
         w.close();
@@ -541,7 +545,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
             w.addDocument(doc);
         }
         final IndexReader reader = w.getReader();
-        final IndexSearcher searcher = newSearcher(reader);
+        final IndexSearcher searcher = newSearcher(reader, true, true, false);
 
         final MappedFieldType fieldType = new MockFieldMapper.FakeFieldType("group");
         final Sort sort = new Sort(new SortedNumericSortField("sort", SortField.Type.LONG));
@@ -554,7 +558,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
             10,
             null
         );
-        searcher.search(Queries.ALL_DOCS_INSTANCE, collapsingCollector);
+        searcher.search(Queries.ALL_DOCS_INSTANCE, singleThreadedCollectorManager(collapsingCollector));
         final TopFieldGroups collapseTopFieldDocs = collapsingCollector.getTopGroups(0);
         assertEquals(3, collapseTopFieldDocs.groupValues.length);
         assertEquals(new BytesRef("a"), collapseTopFieldDocs.groupValues[0]);
@@ -590,7 +594,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
         assertEquals(3, reader.leaves().size());
         assertNull(reader.leaves().get(1).reader().getFieldInfos().fieldInfo("group"));
 
-        final IndexSearcher searcher = newSearcher(reader);
+        final IndexSearcher searcher = newSearcher(reader, true, true, false);
         final MappedFieldType fieldType = new MockFieldMapper.FakeFieldType("group");
         final Sort sort = new Sort(new SortedNumericSortField("sort", SortField.Type.LONG));
 
@@ -602,7 +606,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
             10,
             null
         );
-        searcher.search(Queries.ALL_DOCS_INSTANCE, collapsingCollector);
+        searcher.search(Queries.ALL_DOCS_INSTANCE, singleThreadedCollectorManager(collapsingCollector));
         final TopFieldGroups collapseTopFieldDocs = collapsingCollector.getTopGroups(0);
         assertEquals(3, collapseTopFieldDocs.groupValues.length);
         assertEquals(new BytesRef("host-a"), collapseTopFieldDocs.groupValues[0]);
@@ -621,7 +625,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
         doc.add(new SortedNumericDocValuesField("sort", 0));
         w.addDocument(doc);
         final IndexReader reader = w.getReader();
-        final IndexSearcher searcher = newSearcher(reader);
+        final IndexSearcher searcher = newSearcher(reader, true, true, false);
 
         final MappedFieldType fieldType = new MockFieldMapper.FakeFieldType("group");
         final Sort sort = new Sort(new SortedNumericSortField("sort", SortField.Type.LONG));
@@ -636,7 +640,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
         );
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> searcher.search(Queries.ALL_DOCS_INSTANCE, collapsingCollector)
+            () -> searcher.search(Queries.ALL_DOCS_INSTANCE, singleThreadedCollectorManager(collapsingCollector))
         );
         assertEquals("field `group` has binary doc values but its mapping does not name their format", e.getMessage());
         w.close();
@@ -661,10 +665,10 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
             writeNonSingletonSortedSet(dir);
             try (IndexReader reader = DirectoryReader.open(dir)) {
                 assertNull(DocValues.unwrapSingleton(DocValues.getSortedSet(reader.leaves().get(0).reader(), "group")));
-                final IndexSearcher searcher = newSearcher(reader);
+                final IndexSearcher searcher = newSearcher(reader, true, true, false);
                 final IllegalArgumentException e = expectThrows(
                     IllegalArgumentException.class,
-                    () -> searcher.search(Queries.ALL_DOCS_INSTANCE, sortedSetCollector())
+                    () -> searcher.search(Queries.ALL_DOCS_INSTANCE, singleThreadedCollectorManager(sortedSetCollector()))
                 );
                 assertThat(e.getMessage(), containsString("the grouping field must be single valued"));
             }
@@ -675,9 +679,9 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
         try (Directory dir = newDirectory()) {
             writeNonSingletonSortedSet(dir);
             try (IndexReader reader = DirectoryReader.open(dir)) {
-                final IndexSearcher searcher = newSearcher(reader);
+                final IndexSearcher searcher = newSearcher(reader, true, true, false);
                 final SinglePassGroupingCollector<?> collector = sortedSetCollector();
-                searcher.search(SortedNumericDocValuesField.newSlowRangeQuery("sort", 0, 1), collector);
+                searcher.search(SortedNumericDocValuesField.newSlowRangeQuery("sort", 0, 1), singleThreadedCollectorManager(collector));
                 final TopFieldGroups groups = collector.getTopGroups(0);
                 assertEquals(2, groups.groupValues.length);
                 assertEquals(new BytesRef("host-a"), groups.groupValues[0]);
@@ -729,7 +733,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
                 }
             }
             try (IndexReader reader = DirectoryReader.open(dir)) {
-                final IndexSearcher searcher = newSearcher(reader);
+                final IndexSearcher searcher = newSearcher(reader, true, true, false);
                 final SinglePassGroupingCollector<?> collapsingCollector = SinglePassGroupingCollector.createKeyword(
                     "group",
                     new MockFieldMapper.FakeFieldType("group"),
@@ -740,7 +744,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
                     10,
                     null
                 );
-                searcher.search(Queries.ALL_DOCS_INSTANCE, collapsingCollector);
+                searcher.search(Queries.ALL_DOCS_INSTANCE, singleThreadedCollectorManager(collapsingCollector));
                 assertEquals(groupField == null ? 1 : 2, collapsingCollector.getTopGroups(0).groupValues.length);
             }
         }

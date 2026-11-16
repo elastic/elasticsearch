@@ -16,6 +16,8 @@ import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.stream.Collectors;
 
 /**
  * Base class for tests that build large automatons on a {@code wildcard} field. Each subclass provides its own {@code @ClassRule}
@@ -27,7 +29,7 @@ import java.io.IOException;
 public abstract class WildcardFieldHeapPressureTestCase extends HeapPressureTestCase {
 
     private static final String INDEX = "wildcard-heap-pressure";
-    private static final int SHARDS = 5;
+    protected static final int SHARDS = 5;
     // Set this to true to disable the circuit breaker and validate that the OOM actually happens instead of being caught by the breaker.
     private static final boolean VALIDATE_OOM = false;
 
@@ -54,8 +56,8 @@ public abstract class WildcardFieldHeapPressureTestCase extends HeapPressureTest
         .build();
 
     @Override
-    protected String getTestRestCluster() {
-        return cluster.getHttpAddresses();
+    protected ElasticsearchCluster cluster() {
+        return cluster;
     }
 
     @Before
@@ -84,33 +86,35 @@ public abstract class WildcardFieldHeapPressureTestCase extends HeapPressureTest
     }
 
     /**
-     * A wildcard search that also filters on the pausable field {@code p}. The automaton is built with the query, and the script only
-     * runs later, when documents are scored, so while the field is blocked every such request keeps its automaton alive and parks a
-     * search thread.
+     * A search with one wildcard clause per pattern that also filters on the pausable field {@code p}. The automatons are built with
+     * the query, and the script only runs later, when documents are scored, so while the field is blocked every such request keeps its
+     * automatons alive and parks a search thread.
      */
-    protected static Request pausableWildcardSearch(String pattern) {
-        return pausableSearch(Strings.format("""
-            {"wildcard": {"w": {"value": "%s"}}}""", pattern));
-    }
-
-    private static Request pausableSearch(String mustClause) {
+    protected static Request pausableWildcardSearch(String... patterns) {
+        // The query on the pausable field comes first, so that it is built before the wildcard queries, where the admission gate can hold
+        // it.
         return search(Strings.format("""
             {
               "size": 0,
               "query": {
                 "bool": {
-                  "must": [%s],
-                  "filter": [{"term": {"p": 1}}]
+                  "must": [{"term": {"p": 1}}, %s]
                 }
               }
             }
-            """, mustClause));
+            """, wildcardClauses(patterns)));
     }
 
-    protected static Request wildcardSearch(String pattern) {
+    /** A search with one wildcard clause per pattern, all of which have to match. */
+    protected static Request wildcardSearch(String... patterns) {
         return search(Strings.format("""
-            {"size": 0, "query": {"wildcard": {"w": {"value": "%s"}}}}
-            """, pattern));
+            {"size": 0, "query": {"bool": {"must": [%s]}}}
+            """, wildcardClauses(patterns)));
+    }
+
+    private static String wildcardClauses(String... patterns) {
+        return Arrays.stream(patterns).map(pattern -> Strings.format("""
+            {"wildcard": {"w": {"value": "%s"}}}""", pattern)).collect(Collectors.joining(","));
     }
 
     protected static Request regexpSearch(String pattern, int maxDeterminizedStates) {

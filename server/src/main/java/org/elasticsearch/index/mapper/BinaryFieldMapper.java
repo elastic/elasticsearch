@@ -60,7 +60,7 @@ public class BinaryFieldMapper extends FieldMapper {
 
     public static class Builder extends FieldMapper.Builder {
 
-        private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
+        private final Parameter<Boolean> stored = Parameter.storeParam(false);
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final boolean isSyntheticSourceEnabled;
@@ -93,14 +93,13 @@ public class BinaryFieldMapper extends FieldMapper {
                 indexSettings == null
                     ? nonColumnarDefault
                     : DocValuesParameter.defaultValues(indexSettings, nonColumnarDefault, DocValuesParameter.Values.Cardinality.HIGH),
-                m -> toType(m).docValues,
-                indexSettings != null && indexSettings.getMode().isStrictColumnar()
+                indexSettings
             );
         }
 
         @Override
         public Parameter<?>[] getParameters() {
-            return new Parameter<?>[] { meta, stored, docValues };
+            return new Parameter<?>[] { meta, stored, docValues, docValues.multiValue(), docValues.nullability(), docValues.onFailure() };
         }
 
         public BinaryFieldMapper.Builder docValues(boolean hasDocValues) {
@@ -244,9 +243,6 @@ public class BinaryFieldMapper extends FieldMapper {
     private final boolean stored;
     private final DocValuesParameter.Values docValues;
     private final boolean hasDocValues;
-    private final boolean isSyntheticSourceEnabled;
-    @Nullable
-    private final IndexSettings indexSettings;
     /**
      * Whether the values are left out of the {@code columnar_stored} {@code _source} and patched back from doc values on read: only
      * for the ColumNAR layouts, which keep array order and duplicates, and not under {@code on_failure: ignore}, whose set-aside
@@ -265,8 +261,6 @@ public class BinaryFieldMapper extends FieldMapper {
         this.stored = builder.stored.getValue();
         this.docValues = builder.docValues.getValue();
         this.hasDocValues = docValues.enabled();
-        this.isSyntheticSourceEnabled = builder.isSyntheticSourceEnabled;
-        this.indexSettings = builder.indexSettings;
         this.patchedIntoSource = sourceColumnarStored
             && hasDocValues
             && mappedFieldType.columnarFormat() != null
@@ -389,11 +383,6 @@ public class BinaryFieldMapper extends FieldMapper {
             // no doc values
             context.addToFieldNames(fieldType().name());
         }
-    }
-
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new BinaryFieldMapper.Builder(leafName(), indexSettings, isSyntheticSourceEnabled).init(this);
     }
 
     @Override

@@ -57,7 +57,7 @@ public final class SyntheticColumns {
          * channel null-splice this slot, so a never-null declaration would license
          * null-aware optimizer rules to mis-fold against those sources.
          */
-        ROW_POSITION(ColumnExtractor.ROW_POSITION_COLUMN, DataType.LONG, Nullability.UNKNOWN);
+        ROW_POSITION(ColumnExtractor.ROW_POSITION_COLUMN, DataType.LONG, Nullability.TRUE);
 
         private final String columnName;
         private final DataType dataType;

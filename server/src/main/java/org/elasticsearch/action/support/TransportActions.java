@@ -18,6 +18,7 @@ import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.query.SearchTimeoutException;
+import org.elasticsearch.snapshots.ShardRestoringException;
 
 public class TransportActions {
 
@@ -28,7 +29,8 @@ public class TransportActions {
             || actual instanceof IllegalIndexShardStateException
             || actual instanceof NoShardAvailableActionException
             || actual instanceof UnavailableShardsException
-            || actual instanceof AlreadyClosedException);
+            || actual instanceof AlreadyClosedException
+            || actual instanceof ShardRestoringException);
     }
 
     /**

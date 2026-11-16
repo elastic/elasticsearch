@@ -35,6 +35,7 @@ import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.putIndex;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.randomIndexVersionValue;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.reclaimableRefreshRamBytes;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.refreshingBytes;
+import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.safeGenerationForGets;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.versionLookupSize;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -335,6 +336,38 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
         assertFalse(isUnsafeForGets(map));
     }
 
+    public void testSafeGenerationForGets() {
+        AtomicLong currentGeneration = new AtomicLong(0);
+        AtomicLong preCommitGeneration = new AtomicLong(0);
+        var archive = new StatelessLiveVersionMapArchive(preCommitGeneration::get);
+        var map = newLiveVersionMap(archive);
+        // Nothing unsafe: no generation needed
+        assertThat(safeGenerationForGets(map, currentGeneration.get()), equalTo(-1L));
+        maybePutIndex(map, "1", newIndexVersionValue(randomOperationLocation(), 1, 1, 1));
+        // The unsafe operation is only in the current map, so no committed generation can cover it
+        assertThat(safeGenerationForGets(map, currentGeneration.get()), equalTo(-1L));
+        flush(map, currentGeneration, preCommitGeneration);
+        assertTrue(isUnsafeForGets(map));
+        var minSafeGeneration = archive.getMinSafeGeneration();
+        assertThat(minSafeGeneration, equalTo(preCommitGeneration.get() + 1));
+        // The commit covering minSafeGeneration does not exist yet
+        assertThat(safeGenerationForGets(map, currentGeneration.get()), equalTo(-1L));
+        flush(map, currentGeneration, preCommitGeneration);
+        assertThat(safeGenerationForGets(map, currentGeneration.get()), equalTo(minSafeGeneration));
+        // A new unsafe operation in the current map overrides the archive's answer
+        maybePutIndex(map, "2", newIndexVersionValue(randomOperationLocation(), 1, 2, 1));
+        assertThat(safeGenerationForGets(map, currentGeneration.get()), equalTo(-1L));
+        refresh(map);
+        assertThat(archive.getMinSafeGeneration(), equalTo(preCommitGeneration.get() + 1));
+        assertThat(safeGenerationForGets(map, currentGeneration.get()), equalTo(-1L));
+        flush(map, currentGeneration, preCommitGeneration);
+        assertThat(safeGenerationForGets(map, currentGeneration.get()), equalTo(archive.getMinSafeGeneration()));
+        // Once the unpromotable shards have seen the covering commit, no generation is needed anymore
+        archive.afterUnpromotablesRefreshed(currentGeneration.get());
+        assertFalse(isUnsafeForGets(map));
+        assertThat(safeGenerationForGets(map, currentGeneration.get()), equalTo(-1L));
+    }
+
     public void testArchiveMemoryUsed() throws InterruptedException {
         AtomicLong currentGeneration = new AtomicLong(0);
         AtomicLong preCommitGeneration = new AtomicLong(0);
@@ -424,8 +457,7 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
         var archive = new StatelessLiveVersionMapArchive(preCommitGeneration::get);
         var map = newLiveVersionMap(archive);
         long emptyMapActualMemUsed = RamUsageTester.ramUsed(map);
-        IntStream.range(10000, randomIntBetween(10001, 100000))
-            .forEach(i -> { putIndex(map, randomIdentifier(), randomIndexVersionValue()); });
+        IntStream.range(0, randomIntBetween(10000, 100000)).forEach(i -> { putIndex(map, randomIdentifier(), randomIndexVersionValue()); });
         var preRefreshActualMemUsed = RamUsageTester.ramUsed(map);
         var preRefreshCalculatedMemUsed = map.ramBytesUsed();
         // The thresholds used here are based on the ones used in {@link LiveVersionMapTests#testRamBytesUsed()}

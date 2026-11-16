@@ -61,7 +61,11 @@ public class Dedup extends UnaryPlan implements SurrogateLogicalPlan, TelemetryA
         Literal one = new Literal(source(), 1, DataType.INTEGER);
         List<Expression> groupings = new ArrayList<>();
         for (Attribute attr : child().output()) {
-            if (attr.dataType() == DataType.DOC_DATA_TYPE || attr instanceof UnsupportedAttribute || attr.synthetic()) {
+            // The query never names the column LOAD_ALL adds, so it is not a key; a _unmapped_fields the query names is an ordinary one.
+            if (attr.dataType() == DataType.DOC_DATA_TYPE
+                || attr instanceof UnsupportedAttribute
+                || attr.synthetic()
+                || attr instanceof UnmappedFieldsAttribute) {
                 continue;
             }
             groupings.add(attr);

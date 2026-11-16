@@ -13,72 +13,74 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskSettings;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.inference.services.SettingsScope.TASK_SETTINGS;
 
 /**
  * Task settings for the Elastic Inference Service {@code document_extraction} task type. They can be stored on the inference endpoint
  * and overridden per request through the {@code task_settings} field of the document extraction request body, where the request value
  * wins (see {@link #of(ElasticInferenceServiceDocumentExtractionTaskSettings, ElasticInferenceServiceDocumentExtractionTaskSettings)}).
- * The resolved settings are forwarded to the Elastic Inference Service as-is, which maps them onto the options of the underlying
- * provider (Jina Reader):
+ * The resolved settings are forwarded to the Elastic Inference Service as-is:
  * <pre>
  * {
  *   "output_format": "markdown",
- *   "css": {
- *     "extract_only": [".main-content", "#post-body"],
- *     "remove": ["nav", "footer"]
+ *   "parameters": {
+ *     "preset": "ocr",
+ *     "page": 2
  *   }
  * }</pre>
- * {@code css.extract_only} corresponds to Jina Reader's {@code X-Target-Selector} and {@code css.remove} to {@code X-Remove-Selector}.
- * Both only take effect on inputs that Jina Reader renders as HTML; the accepted values are validated by the Elastic Inference Service.
+ * {@code parameters} is a free-form object of extraction options. Elasticsearch only validates that it is an object: the Elastic
+ * Inference Service owns the set of accepted parameters, so it can add, tune or remove them without a change here.
  */
 public class ElasticInferenceServiceDocumentExtractionTaskSettings implements TaskSettings {
 
     public static final String NAME = "elastic_inference_service_document_extraction_task_settings";
     public static final String OUTPUT_FORMAT = "output_format";
-    public static final String CSS = "css";
+    public static final String PARAMETERS = "parameters";
 
     private static final TransportVersion INFERENCE_API_EIS_DOCUMENT_EXTRACTION_ADDED = TransportVersion.fromName(
         "inference_api_eis_document_extraction_added"
     );
+    /**
+     * Adds {@code parameters} and drops the {@code css} settings that earlier versions serialized.
+     */
+    private static final TransportVersion INFERENCE_API_EIS_DOCUMENT_EXTRACTION_PARAMETERS = TransportVersion.fromName(
+        "inference_api_eis_document_extraction_parameters"
+    );
 
     public static final ElasticInferenceServiceDocumentExtractionTaskSettings EMPTY_SETTINGS =
-        new ElasticInferenceServiceDocumentExtractionTaskSettings(null, CssSettings.EMPTY);
+        new ElasticInferenceServiceDocumentExtractionTaskSettings(null, Map.of());
 
     private static final ObjectParser<Builder, Void> REQUEST_PARSER = createParser(false);
     private static final ObjectParser<Builder, Void> PERSISTENT_PARSER = createParser(true);
 
     private static ObjectParser<Builder, Void> createParser(boolean ignoreUnknownFields) {
-        var cssParser = CssSettings.createParser(ignoreUnknownFields);
         var parser = new ObjectParser<Builder, Void>(TASK_SETTINGS.toString(), ignoreUnknownFields, Builder::new);
         parser.declareString(Builder::setOutputFormat, new ParseField(OUTPUT_FORMAT));
-        parser.declareObject(Builder::setCss, (p, c) -> cssParser.apply(p, null), new ParseField(CSS));
+        // Parsed as a plain map rather than through a parser so that its content is never validated here, also not in the request
+        // context: the accepted parameters are defined by the Elastic Inference Service
+        parser.declareField(Builder::setParameters, (p, c) -> p.mapOrdered(), new ParseField(PARAMETERS), ObjectParser.ValueType.OBJECT);
         return parser;
     }
 
     /**
-     * Parses task settings from a raw config map. Unknown fields, including the ones nested inside {@code css}, are rejected for
-     * {@link ConfigurationParseContext#REQUEST} and ignored for {@link ConfigurationParseContext#PERSISTENT}, so settings persisted by
-     * a newer version can still be read. A null or empty map produces {@link #EMPTY_SETTINGS}.
+     * Parses task settings from a raw config map. Unknown fields are rejected for {@link ConfigurationParseContext#REQUEST} and ignored
+     * for {@link ConfigurationParseContext#PERSISTENT}, so settings persisted by a newer version can still be read. A null or empty map
+     * produces {@link #EMPTY_SETTINGS}.
      */
     public static ElasticInferenceServiceDocumentExtractionTaskSettings fromMap(
         @Nullable Map<String, Object> map,
@@ -98,33 +100,38 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettings implements Ta
 
     /**
      * Merges stored and request task settings: a field set in {@code requestSettings} overrides the stored value, otherwise the stored
-     * value is kept. The merge is per field, so a request can override {@code css.extract_only} while keeping the stored
-     * {@code css.remove}.
+     * value is kept. {@code parameters} are merged per key, so a request can override one parameter while keeping the other stored ones.
      */
     public static ElasticInferenceServiceDocumentExtractionTaskSettings of(
         ElasticInferenceServiceDocumentExtractionTaskSettings originalSettings,
         ElasticInferenceServiceDocumentExtractionTaskSettings requestSettings
     ) {
+        var parameters = new LinkedHashMap<>(originalSettings.parameters);
+        parameters.putAll(requestSettings.parameters);
         return new ElasticInferenceServiceDocumentExtractionTaskSettings(
             requestSettings.outputFormat != null ? requestSettings.outputFormat : originalSettings.outputFormat,
-            CssSettings.of(originalSettings.css, requestSettings.css)
+            parameters
         );
     }
 
     private final String outputFormat;
-    private final CssSettings css;
+    private final Map<String, Object> parameters;
 
     public ElasticInferenceServiceDocumentExtractionTaskSettings(StreamInput in) throws IOException {
-        this(in.readOptionalString(), new CssSettings(in));
+        this.outputFormat = in.readOptionalString();
+        this.parameters = in.readGenericMap();
     }
 
     public ElasticInferenceServiceDocumentExtractionTaskSettings(@Nullable String outputFormat) {
-        this(outputFormat, CssSettings.EMPTY);
+        this(outputFormat, Map.of());
     }
 
-    public ElasticInferenceServiceDocumentExtractionTaskSettings(@Nullable String outputFormat, CssSettings css) {
+    /**
+     * @param parameters free-form extraction options; an empty map means none are set
+     */
+    public ElasticInferenceServiceDocumentExtractionTaskSettings(@Nullable String outputFormat, Map<String, Object> parameters) {
         this.outputFormat = outputFormat;
-        this.css = Objects.requireNonNull(css);
+        this.parameters = Objects.requireNonNull(parameters);
     }
 
     @Nullable
@@ -132,13 +139,13 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettings implements Ta
         return outputFormat;
     }
 
-    public CssSettings css() {
-        return css;
+    public Map<String, Object> parameters() {
+        return parameters;
     }
 
     @Override
     public boolean isEmpty() {
-        return Strings.isNullOrEmpty(outputFormat) && css.isEmpty();
+        return Strings.isNullOrEmpty(outputFormat) && parameters.isEmpty();
     }
 
     @Override
@@ -153,13 +160,13 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettings implements Ta
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return INFERENCE_API_EIS_DOCUMENT_EXTRACTION_ADDED;
+        return INFERENCE_API_EIS_DOCUMENT_EXTRACTION_PARAMETERS;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(outputFormat);
-        css.writeTo(out);
+        out.writeGenericMap(parameters);
     }
 
     @Override
@@ -179,8 +186,8 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettings implements Ta
         if (Strings.isNullOrEmpty(outputFormat) == false) {
             builder.field(OUTPUT_FORMAT, outputFormat);
         }
-        if (css.isEmpty() == false) {
-            builder.field(CSS, css);
+        if (parameters.isEmpty() == false) {
+            builder.field(PARAMETERS, parameters);
         }
         return builder;
     }
@@ -190,83 +197,24 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettings implements Ta
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ElasticInferenceServiceDocumentExtractionTaskSettings that = (ElasticInferenceServiceDocumentExtractionTaskSettings) o;
-        return Objects.equals(outputFormat, that.outputFormat) && Objects.equals(css, that.css);
+        return Objects.equals(outputFormat, that.outputFormat) && Objects.equals(parameters, that.parameters);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(outputFormat, css);
-    }
-
-    /**
-     * CSS selector based content shaping. {@code extractOnly} restricts extraction to the elements matching the selectors (Jina
-     * Reader's {@code X-Target-Selector}), {@code remove} drops the matching elements before extraction ({@code X-Remove-Selector}).
-     * A null list means "not set", so it does not override a stored value when merging.
-     */
-    public record CssSettings(@Nullable List<String> extractOnly, @Nullable List<String> remove) implements ToXContentObject, Writeable {
-
-        public static final String EXTRACT_ONLY = "extract_only";
-        public static final String REMOVE = "remove";
-
-        public static final CssSettings EMPTY = new CssSettings(null, null);
-
-        @SuppressWarnings("unchecked")
-        private static ConstructingObjectParser<CssSettings, Void> createParser(boolean ignoreUnknownFields) {
-            var parser = new ConstructingObjectParser<CssSettings, Void>(
-                CSS,
-                ignoreUnknownFields,
-                args -> new CssSettings((List<String>) args[0], (List<String>) args[1])
-            );
-            parser.declareStringArray(optionalConstructorArg(), new ParseField(EXTRACT_ONLY));
-            parser.declareStringArray(optionalConstructorArg(), new ParseField(REMOVE));
-            return parser;
-        }
-
-        static CssSettings of(CssSettings original, CssSettings request) {
-            return new CssSettings(
-                request.extractOnly != null ? request.extractOnly : original.extractOnly,
-                request.remove != null ? request.remove : original.remove
-            );
-        }
-
-        public CssSettings(StreamInput in) throws IOException {
-            this(in.readOptionalStringCollectionAsList(), in.readOptionalStringCollectionAsList());
-        }
-
-        public boolean isEmpty() {
-            return extractOnly == null && remove == null;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalStringCollection(extractOnly);
-            out.writeOptionalStringCollection(remove);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            if (extractOnly != null) {
-                builder.stringListField(EXTRACT_ONLY, extractOnly);
-            }
-            if (remove != null) {
-                builder.stringListField(REMOVE, remove);
-            }
-            builder.endObject();
-            return builder;
-        }
+        return Objects.hash(outputFormat, parameters);
     }
 
     private static class Builder {
         private String outputFormat;
-        private CssSettings css = CssSettings.EMPTY;
+        private Map<String, Object> parameters = Map.of();
 
         private void setOutputFormat(String outputFormat) {
             this.outputFormat = outputFormat;
         }
 
-        private void setCss(CssSettings css) {
-            this.css = css;
+        private void setParameters(Map<String, Object> parameters) {
+            this.parameters = parameters;
         }
 
         private ElasticInferenceServiceDocumentExtractionTaskSettings build() {
@@ -275,7 +223,7 @@ public class ElasticInferenceServiceDocumentExtractionTaskSettings implements Ta
                 validationException.addValidationError(ServiceUtils.mustBeNonEmptyString(OUTPUT_FORMAT, TASK_SETTINGS));
                 throw validationException;
             }
-            return new ElasticInferenceServiceDocumentExtractionTaskSettings(outputFormat, css);
+            return new ElasticInferenceServiceDocumentExtractionTaskSettings(outputFormat, parameters);
         }
     }
 }

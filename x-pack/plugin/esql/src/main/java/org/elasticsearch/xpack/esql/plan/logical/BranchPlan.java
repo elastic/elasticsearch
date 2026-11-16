@@ -157,6 +157,14 @@ public class BranchPlan extends UnionAll {
         return isViewBranch(branchKeys.get(childIndex));
     }
 
+    /**
+     * The {@link BranchIdentity} of the child at {@code childIndex} in {@link #children()}, positionally like
+     * {@link #isViewBranch(int)}.
+     */
+    public BranchIdentity branchIdentity(int childIndex) {
+        return branchIdentity(branchKeys.get(childIndex));
+    }
+
     private LinkedHashMap<String, LogicalPlan> asSubqueryMap(List<LogicalPlan> children) {
         if (children.size() != namedSubqueries.size()) {
             throw new IllegalArgumentException(
@@ -234,7 +242,7 @@ public class BranchPlan extends UnionAll {
             return true;
         }
         // Delegate the children/output part to UnionAll: output arity is resolution state (compaction builds this node
-        // with an empty output for resolveMergePlan to fill in) and LOAD_ALL alignment rewrites the output without
+        // with an empty output for resolveMergePlan to fill in) and LOAD_ALL's _unmapped_fields rewrites the output without
         // changing children; ignoring the output here would make transformUp discard both rewrites. super.equals also
         // rejects nulls and other classes via getClass().
         if (super.equals(o) == false) {

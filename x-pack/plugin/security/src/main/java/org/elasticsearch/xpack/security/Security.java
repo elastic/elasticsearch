@@ -240,6 +240,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.permission.SimpleRole;
 import org.elasticsearch.xpack.core.security.authz.privilege.ImplicitPrivilegesProvider;
+import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.support.Automatons;
@@ -376,6 +377,7 @@ import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.RoleProviders;
 import org.elasticsearch.xpack.security.ingest.SetSecurityUserProcessor;
+import org.elasticsearch.xpack.security.metric.IndexPrivilegesCacheMetrics;
 import org.elasticsearch.xpack.security.operator.DefaultOperatorOnlyRegistry;
 import org.elasticsearch.xpack.security.operator.FileOperatorUsersStore;
 import org.elasticsearch.xpack.security.operator.OperatorOnlyRegistry;
@@ -693,6 +695,7 @@ public class Security extends Plugin
         if (enabled) {
             runStartupChecks(settings);
             Automatons.updateConfiguration(settings);
+            IndexPrivilege.updateConfiguration(settings);
         } else {
             ensureNoRemoteClusterCredentialsOnDisabledSecurity(settings);
             this.bootstrapChecks.set(Collections.emptyList());
@@ -1122,6 +1125,7 @@ public class Security extends Plugin
             featureService
         );
         components.add(apiKeyService);
+        components.add(new IndexPrivilegesCacheMetrics(telemetryProvider.getMeterRegistry()));
 
         final RoleProviders roleProviders = new RoleProviders(
             reservedRolesStore,
@@ -1227,7 +1231,7 @@ public class Security extends Plugin
         Set<RequestInterceptor> requestInterceptors = Sets.newHashSet(
             new ResizeRequestInterceptor(threadPool, auditTrailService, dlsFlsEnabled.get()),
             new IndicesAliasesRequestInterceptor(threadPool.getThreadContext(), auditTrailService, dlsFlsEnabled.get()),
-            new DatasetDatasourceRequestInterceptor()
+            new DatasetDatasourceRequestInterceptor(threadPool.getThreadContext(), auditTrailService)
         );
 
         if (dlsFlsEnabled.get()) {
@@ -1768,6 +1772,7 @@ public class Security extends Plugin
         AuthenticationService.addSettings(settingsList);
         AuthorizationService.addSettings(settingsList);
         Automatons.addSettings(settingsList);
+        settingsList.add(IndexPrivilege.CACHE_SIZE_SETTING);
         settingsList.addAll(CompositeRolesStore.getSettings());
         settingsList.addAll(DocumentSubsetBitsetCache.getSettings());
         settingsList.add(FieldPermissionsCache.CACHE_SIZE_SETTING);

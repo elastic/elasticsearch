@@ -114,7 +114,7 @@ public class MatrixMultiplyBenchmark {
     /** C = A @ B, A is (m x k), B is (k x n), C is (m x n). */
     @Benchmark
     public void matrixMultiply(Blackhole bh) {
-        impl.matrixMultiply(a, bMul, m, k, n, result, tasks);
+        impl.matrixMultiply(a, 0, bMul, 0, m, k, n, result, 0, tasks);
         bh.consume(result);
     }
 

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.session;
 
 import org.apache.lucene.index.CorruptIndexException;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
@@ -15,11 +16,13 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.NoSeedNodeLeftException;
@@ -42,6 +45,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -212,7 +216,10 @@ public class EsqlCCSUtilsTests extends ESTestCase {
 
         // skip_unavailable=false cluster is unavailable, throws Exception
         {
-            EsqlExecutionInfo executionInfo = createEsqlExecutionInfo(true);
+            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(
+                clusterAlias -> Objects.equals(clusterAlias, REMOTE1_ALIAS),
+                EsqlExecutionInfo.IncludeExecutionMetadata.CCS_ONLY
+            );
             executionInfo.swapCluster(
                 LOCAL_CLUSTER_ALIAS,
                 (k, v) -> createEsqlExecutionInfoCluster(LOCAL_CLUSTER_ALIAS, "logs*", false, EsqlExecutionInfo.Cluster.Status.RUNNING)
@@ -585,6 +592,37 @@ public class EsqlCCSUtilsTests extends ESTestCase {
         }
     }
 
+    public void testNoMatchingIndicesPrefersFieldCapsFailureOverAnotherResolutionsEmptyFailures() {
+        for (boolean failureFirst : List.of(true, false)) {
+            EsqlExecutionInfo executionInfo = createEsqlExecutionInfo(true);
+            executionInfo.swapCluster(
+                REMOTE1_ALIAS,
+                (k, v) -> createEsqlExecutionInfoCluster(REMOTE1_ALIAS, "*", true, EsqlExecutionInfo.Cluster.Status.RUNNING)
+            );
+            EsIndex localOnly = EsIndexGenerator.esIndex("logs*", randomMapping(), Map.of("logs-a", IndexMode.STANDARD));
+            IndexResolution withoutFailure = IndexResolution.valid(localOnly, localOnly.concreteQualifiedIndices(), Map.of());
+            EsIndex remotePattern = EsIndexGenerator.esIndex("*:logs*", randomMapping(), Map.of("logs-a", IndexMode.STANDARD));
+            var failure = new FieldCapabilitiesFailure(new String[] { "*:logs*" }, new NoSeedNodeLeftException("unable to connect"));
+            IndexResolution withFailure = IndexResolution.valid(
+                remotePattern,
+                remotePattern.concreteQualifiedIndices(),
+                Map.of(REMOTE1_ALIAS, List.of(failure))
+            );
+            List<IndexResolution> resolutions = failureFirst ? List.of(withFailure, withoutFailure) : List.of(withoutFailure, withFailure);
+            EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(
+                executionInfo,
+                resolutions,
+                Set.of(),
+                IndexViewOrigins.EMPTY,
+                false
+            );
+            EsqlExecutionInfo.Cluster remote1Cluster = executionInfo.getCluster(REMOTE1_ALIAS);
+            assertThat(remote1Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+            assertThat(remote1Cluster.getFailures(), hasSize(1));
+            assertThat(remote1Cluster.getFailures().getFirst().reason(), containsString("unable to connect"));
+        }
+    }
+
     public void testDetermineUnavailableRemoteClusters() {
         // two clusters, both "remote unavailable" type exceptions
         {
@@ -886,12 +924,29 @@ public class EsqlCCSUtilsTests extends ESTestCase {
         }
     }
 
+    public void testCanAllowPartial() {
+        assertTrue(EsqlCCSUtils.canAllowPartial(new RuntimeException("boom")));
+        assertFalse(EsqlCCSUtils.canAllowPartial(new IndexNotFoundException("idx")));
+        assertFalse(EsqlCCSUtils.canAllowPartial(new ElasticsearchSecurityException("nope")));
+        assertFalse(EsqlCCSUtils.canAllowPartial(new TaskCancelledException("by user request")));
+        assertFalse(EsqlCCSUtils.canAllowPartial(new RemoteTransportException("remote", new TaskCancelledException("by user request"))));
+    }
+
     public void testConcreteIndexRequested() {
         assertThat(EsqlCCSUtils.concreteIndexRequested("logs*"), equalTo(false));
         assertThat(EsqlCCSUtils.concreteIndexRequested("mylogs1,mylogs2,logs*"), equalTo(true));
         assertThat(EsqlCCSUtils.concreteIndexRequested("x*,logs"), equalTo(true));
         assertThat(EsqlCCSUtils.concreteIndexRequested("logs,metrics"), equalTo(true));
         assertThat(EsqlCCSUtils.concreteIndexRequested("*"), equalTo(false));
+    }
+
+    public void testConcreteIndexRequestedWithEmptySegments() {
+        // empty segments must not cause StringIndexOutOfBoundsException
+        assertThat(EsqlCCSUtils.concreteIndexRequested(",logs*"), equalTo(false));
+        assertThat(EsqlCCSUtils.concreteIndexRequested("logs*,,metrics*"), equalTo(false));
+        assertThat(EsqlCCSUtils.concreteIndexRequested(",logs"), equalTo(true));
+        assertThat(EsqlCCSUtils.concreteIndexRequested("logs*,,metrics"), equalTo(true));
+        assertThat(EsqlCCSUtils.concreteIndexRequested(","), equalTo(false));
     }
 
     public void testInitCrossClusterState() {

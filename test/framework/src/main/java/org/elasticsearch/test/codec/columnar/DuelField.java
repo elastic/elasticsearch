@@ -49,7 +49,7 @@ public record DuelField(String name, String type, boolean indexed, List<Behavior
             builder.field("index", false);
         }
         if (multiValue == false) {
-            builder.startObject("doc_values").field("multi_value", false).endObject();
+            builder.field("multi_value", false);
         }
         builder.endObject();
     }

@@ -4,19 +4,18 @@ setup:
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes, flattened_unmapped_fields ]
+          capabilities: [ columnar_index_modes, dynamic_flattened ]
       reason: "columnar index modes and the flattened _unmapped sink are required"
 
-  # Empty mapping: every field in a document is unmapped and therefore absorbed into the sink. The empty properties block matters: an index
-  # created without any mappings has no mapping source for the sink to be injected into, so its first document would be dynamically mapped.
+  # Empty mapping with root dynamic: flattened, so every field in a document is unmapped and therefore absorbed into the sink.
   - do:
       indices.create:
         index: test
         body:
           settings:
             index.mode: columnar
-            index.mapping.flattened_unmapped_fields.enabled: true
           mappings:
+            dynamic: flattened
             properties: {}
 
   # Same index with one concrete field, for the tests that need a mapped field alongside the absorbed ones. A single shard so that a fetch-phase
@@ -28,8 +27,8 @@ setup:
           settings:
             index.number_of_shards: 1
             index.mode: columnar
-            index.mapping.flattened_unmapped_fields.enabled: true
           mappings:
+            dynamic: flattened
             properties:
               mapped:
                 type: long
@@ -51,7 +50,105 @@ setup:
   - do:
       indices.get_mapping:
         index: test
-  - match: { test.mappings: {} }
+  - match: { test.mappings: { dynamic: flattened } }
+
+---
+"the sink absorbs nothing without dynamic flattened":
+  # Every new strict columnar index has the sink, but with dynamic unset unmapped fields are mapped as usual.
+  - do:
+      indices.create:
+        index: test_unset
+        body:
+          settings:
+            index.mode: columnar
+
+  - do:
+      index:
+        index: test_unset
+        id: "1"
+        refresh: true
+        body:
+          bare: "bare-value"
+
+  - do:
+      indices.get_mapping:
+        index: test_unset
+  - is_true: test_unset.mappings.properties.bare
+  - is_false: test_unset.mappings.dynamic
+
+  - do:
+      search:
+        index: test_unset
+        body: { query: { term: { bare: "bare-value" } } }
+  - match: { hits.total.value: 1 }
+
+---
+"dynamic flattened is rejected outside strict columnar index modes":
+  - do:
+      catch: /dynamic \[flattened\] is only supported in strict columnar mode/
+      indices.create:
+        index: test_standard
+        body:
+          mappings:
+            dynamic: flattened
+
+  # A component template is validated with its own settings only, so without a strict columnar index.mode it is rejected when saved.
+  - do:
+      catch: /dynamic \[flattened\] is only supported in strict columnar mode/
+      cluster.put_component_template:
+        name: dynamic-flattened-component
+        body:
+          template:
+            mappings:
+              dynamic: flattened
+
+---
+"an index template carries dynamic flattened to the indices it creates":
+  # An index template is validated with its settings and mappings together, so it may set dynamic: flattened next to a strict columnar
+  # index.mode, and an index created from it absorbs.
+  - do:
+      indices.put_index_template:
+        name: dynamic-flattened-template
+        body:
+          index_patterns: [ "dynamic-flattened-*" ]
+          template:
+            settings:
+              index.mode: columnar
+            mappings:
+              dynamic: flattened
+
+  - do:
+      indices.create:
+        index: dynamic-flattened-1
+
+  - do:
+      index:
+        index: dynamic-flattened-1
+        id: "1"
+        refresh: true
+        body:
+          bare: "bare-value"
+
+  - do:
+      indices.get_mapping:
+        index: dynamic-flattened-1
+  - match: { dynamic-flattened-1.mappings: { dynamic: flattened } }
+
+---
+"a template mapping a field named _unmapped is rejected for strict columnar indices":
+  - do:
+      catch: /Field \[_unmapped\] is defined more than once/
+      indices.put_index_template:
+        name: unmapped-field-template
+        body:
+          index_patterns: [ "unmapped-field-*" ]
+          template:
+            settings:
+              index.mode: columnar
+            mappings:
+              properties:
+                _unmapped:
+                  type: keyword
 
 ---
 "absorbed names stay unmapped in _search":
@@ -127,6 +224,111 @@ setup:
   - match: { hits.total.value: 0 }
 
 ---
+"include_unmapped reaches absorbed fields under their own paths":
+  # include_unmapped walks _source, which renders absorbed fields at their original dotted paths, so they arrive as ordinary unmapped
+  # fields rather than under the sink.
+  - do:
+      index:
+        index: test_mapped
+        id: "1"
+        refresh: true
+        body:
+          mapped: 42
+          bare: "bare-value"
+          nums: [ 3, 1, 1 ]
+          outer:
+            inner:
+              leaf: "leaf-value"
+
+  - do:
+      search:
+        index: test_mapped
+        body:
+          query: { match_all: {} }
+          fields:
+            - field: "*"
+              include_unmapped: true
+
+  # Mapped fields still arrive through the ordinary path, with their real type.
+  - match: { hits.hits.0.fields.mapped: [ 42 ] }
+
+  # Absorbed leaves arrive one entry per leaf under their own paths, never under the sink.
+  - match: { hits.hits.0.fields.bare: [ "bare-value" ] }
+  - match: { hits.hits.0.fields.outer\.inner\.leaf: [ "leaf-value" ] }
+  - is_false: hits.hits.0.fields._unmapped
+  - is_false: hits.hits.0.fields._unmapped\.bare
+
+  # Absorbed values are strings even where the document held numbers, since the sink stores keywords. Array order and duplicates survive,
+  # which is the document-order encoding strict columnar uses rather than the sorted-unique doc values a lossy flattened field would give.
+  - match: { hits.hits.0.fields.nums: [ "3", "1", "1" ] }
+
+---
+"synthetic _source renders absorbed fields under their own paths":
+  # Absorbed fields come back as if they had never been absorbed: flat dotted paths at the root (the shape subobjects: false gives mapped
+  # fields too), no _unmapped object, and values as strings since the sink stores keywords.
+  - do:
+      index:
+        index: test_mapped
+        id: "1"
+        refresh: true
+        body:
+          mapped: 42
+          bare: "bare-value"
+          num: 7
+          outer:
+            inner:
+              leaf: "leaf-value"
+
+  - do:
+      get:
+        index: test_mapped
+        id: "1"
+  - match: { _source: { bare: "bare-value", mapped: 42, num: "7", outer.inner.leaf: "leaf-value" } }
+
+  # Source filtering applies to each absorbed field's own path, not to the sink's name.
+  - do:
+      get:
+        index: test_mapped
+        id: "1"
+        _source_includes: bare
+  - match: { _source: { bare: "bare-value" } }
+
+---
+"synthetic _source renders absorbed fields inside nested objects":
+  # Each nested element is its own Lucene document and keeps the fields absorbed inside it, so they render inside the element they came
+  # from, relative to it, even in an element that holds nothing mapped.
+  - do:
+      indices.create:
+        index: test_nested
+        body:
+          settings:
+            index.mode: columnar
+          mappings:
+            dynamic: flattened
+            properties:
+              n:
+                type: nested
+                properties:
+                  k:
+                    type: keyword
+  - do:
+      index:
+        index: test_nested
+        id: "1"
+        refresh: true
+        body:
+          top: "top-value"
+          n:
+            - { k: "k-value", u: "u1" }
+            - { u: "u2" }
+
+  - do:
+      get:
+        index: test_nested
+        id: "1"
+  - match: { _source: { n: [ { k: "k-value", u: "u1" }, { u: "u2" } ], top: "top-value" } }
+
+---
 "exists on a mapped object still matches its mapped leaves":
   # exists on an object name retries as name.* when the exact name resolves to nothing. On a sink index that behavior must be unchanged: a
   # scalar absorbed at the mapped object's own path (possible in columnar mode, where subobjects is always false) stays unmapped and never
@@ -137,8 +339,8 @@ setup:
         body:
           settings:
             index.mode: columnar
-            index.mapping.flattened_unmapped_fields.enabled: true
           mappings:
+            dynamic: flattened
             properties:
               obj:
                 properties:

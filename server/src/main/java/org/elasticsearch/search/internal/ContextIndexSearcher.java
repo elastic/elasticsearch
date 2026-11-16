@@ -362,9 +362,21 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         final Weight weight = chargingExecutionMemory(query, query.createWeight(this, scoreMode, boost));
         final QueryCache queryCache = getQueryCache();
         if (scoreMode.needsScores() == false && queryCache != null) {
-            return queryCache.doCache(weight, getQueryCachingPolicy());
+            return queryCache.doCache(chargingCachePopulation(weight), getQueryCachingPolicy());
         }
         return weight;
+    }
+
+    /**
+     * Wraps {@code weight} so that the query cache, when it decides to build an entry for a leaf, reserves the entry's heap on
+     * the request circuit breaker and leaves the leaf uncached if the breaker refuses. See {@link QueryCacheBreakerWeight}.
+     */
+    private Weight chargingCachePopulation(Weight weight) {
+        if (executionAccounting.breaker() == null) {
+            return weight;
+        }
+        executionAccounting.ensureCreated();
+        return new QueryCacheBreakerWeight(this, weight);
     }
 
     /** Wraps {@code weight} so that the memory {@code query} allocates to score a leaf is charged to the request circuit breaker. */
@@ -385,7 +397,15 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         return weight;
     }
 
-    void chargeLeaf(LeafReaderContext ctx, long bytes, String label) {
+    /**
+     * Reserves {@code bytes} of execution memory on the request circuit breaker under {@code label}, attributed to
+     * {@code ctx}'s leaf (or to the {@link LeafExecutionScope} bound to the calling thread, if any). The memory is
+     * released when {@link #searchLeaf} finishes collecting the leaf, when the owning scope is dropped, or at the
+     * latest when this searcher closes. May trip the breaker; in that case nothing is recorded. No-op when no
+     * circuit breaker is configured (see {@link #setCircuitBreaker}), so callers that need accounting without one
+     * must use their own fallback.
+     */
+    public void chargeLeaf(LeafReaderContext ctx, long bytes, String label) {
         executionAccounting.charge(ctx, bytes, label);
     }
 
@@ -504,6 +524,17 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             sum += lr.reader().maxDoc();
         }
         return sum;
+    }
+
+    /**
+     * Not supported.
+     *
+     * @deprecated Use {@link #search(Query, CollectorManager)} instead.
+     */
+    @Deprecated
+    @Override
+    public final void search(Query query, Collector collector) {
+        throw new UnsupportedOperationException("use search(Query, CollectorManager) instead");
     }
 
     @Override

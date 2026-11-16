@@ -29,6 +29,7 @@ DLS is available by default when using the following Elastic connectors:
 
 * [Confluence](/reference/search-connectors/es-connectors-confluence.md)
 * [Dropbox](/reference/search-connectors/es-connectors-dropbox.md)
+* [Exchange Server](/reference/search-connectors/es-connectors-exchange-server.md)
 * [Jira](/reference/search-connectors/es-connectors-jira.md) (including Jira Data Center)
 * [GitHub](/reference/search-connectors/es-connectors-github.md)
 * [Gmail](/reference/search-connectors/es-connectors-gmail.md)

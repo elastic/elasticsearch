@@ -4,7 +4,7 @@ steps:
     key: lucene-build
     if: build.env("LUCENE_BUILD_ID") == null || build.env("LUCENE_BUILD_ID") == ""
     build:
-      branch: "${LUCENE_BRANCH:-branch_10x}"
+      branch: "${LUCENE_BRANCH:-branch_10_6}"
       env:
         JDK_VERSION: "${LUCENE_JDK_VERSION:-21}"
   - wait

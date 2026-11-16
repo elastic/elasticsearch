@@ -12,6 +12,7 @@ import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.lucene.store.IndexInputUtils;
 import org.elasticsearch.lucene.store.SegmentBufferScratch;
 import org.elasticsearch.simdvec.BBQEncoding;
+import org.elasticsearch.simdvec.ScoringQuery;
 import org.elasticsearch.simdvec.SimdVecLibrary;
 
 import java.io.IOException;
@@ -39,7 +40,7 @@ public final class NativeBBQDotProduct extends BBQDotProduct {
     }
 
     /**
-     * The query and score arrays are wrapped as heap segments, which native calls only accept
+     * The score array is wrapped as a heap segment, which native calls only accept
      * from JDK 22 onwards.
      */
     public static boolean supports(IndexInput in) {
@@ -60,24 +61,13 @@ public final class NativeBBQDotProduct extends BBQDotProduct {
         return new NativeBBQDotProduct(in, bbqEncoding, planeBytes(nDims));
     }
 
-    // Heap segments wrapping the caller's arrays. The caller reuses the same query and scores arrays
-    // across a whole posting list, so the wrappers are cached against array identity.
-    private byte[] cachedQueryArray;
-    private MemorySegment cachedQuerySegment;
+    private final ScoringQuery.OffHeapCopy queryCopy = new ScoringQuery.OffHeapCopy();
     private float[] cachedScoresArray;
     private MemorySegment cachedScoresSegment;
     private final SegmentBufferScratch scoresScratch = new SegmentBufferScratch();
 
     private NativeBBQDotProduct(IndexInput in, BBQEncoding bbqEncoding, int planeBytes) {
         super(in, bbqEncoding, planeBytes);
-    }
-
-    private MemorySegment querySegment(byte[] query) {
-        if (query != cachedQueryArray) {
-            cachedQueryArray = query;
-            cachedQuerySegment = MemorySegment.ofArray(query);
-        }
-        return cachedQuerySegment;
     }
 
     private MemorySegment scoresSegment(float[] scores) {
@@ -89,9 +79,9 @@ public final class NativeBBQDotProduct extends BBQDotProduct {
     }
 
     @Override
-    public long dotProduct(byte[] query) throws IOException {
-        assert query.length == queryBytes : "query length " + query.length + " != " + queryBytes;
-        MemorySegment querySegment = querySegment(query);
+    public long dotProduct(ScoringQuery query) throws IOException {
+        assert query.bytes().length == queryBytes : "query length " + query.bytes().length + " != " + queryBytes;
+        MemorySegment querySegment = queryCopy.segmentFor(query);
         return IndexInputUtils.withSlice(in, docBytes, scratch, dataSegment -> switch (encoding.toSwitchValue()) {
             case D1Q1 -> DISTANCE_FUNCS.dotProductD1Q1(dataSegment, querySegment, docBytes);
             case D1Q4 -> DISTANCE_FUNCS.dotProductD1Q4(dataSegment, querySegment, docBytes);
@@ -103,9 +93,9 @@ public final class NativeBBQDotProduct extends BBQDotProduct {
     }
 
     @Override
-    public void dotProductBulk(byte[] query, int count, float[] scores) throws IOException {
-        assert query.length == queryBytes : "query length " + query.length + " != " + queryBytes;
-        MemorySegment querySegment = querySegment(query);
+    public void dotProductBulk(ScoringQuery query, int count, float[] scores) throws IOException {
+        assert query.bytes().length == queryBytes : "query length " + query.bytes().length + " != " + queryBytes;
+        MemorySegment querySegment = queryCopy.segmentFor(query);
         MemorySegment scoresSegment = scoresSegment(scores);
         IndexInputUtils.withVoidSlice(in, (long) docBytes * count, scratch, dataSegment -> {
             switch (encoding.toSwitchValue()) {
@@ -120,64 +110,60 @@ public final class NativeBBQDotProduct extends BBQDotProduct {
     }
 
     @Override
-    public void dotProductBulkOffsets(byte[] query, int[] offsets, int offsetsCount, float[] scores, int count) throws IOException {
-        assert query.length == queryBytes : "query length " + query.length + " != " + queryBytes;
-        MemorySegment querySegment = querySegment(query);
-        MemorySegment scoresSegment = scoresScratch.apply(offsetsCount * Float.BYTES);
-        MemorySegment offsetsSegment = MemorySegment.ofArray(offsets);
+    public void dotProductBulkMasked(ScoringQuery query, int mask, float[] scores, int count) throws IOException {
+        assert query.bytes().length == queryBytes : "query length " + query.bytes().length + " != " + queryBytes;
+        MemorySegment querySegment = queryCopy.segmentFor(query);
+        MemorySegment scoresSegment = scoresScratch.apply(count * Float.BYTES);
         IndexInputUtils.withVoidSlice(in, (long) docBytes * count, scratch, dataSegment -> {
             switch (encoding.toSwitchValue()) {
-                case D1Q1 -> DISTANCE_FUNCS.dotProductD1Q1BulkWithOffsets(
+                case D1Q1 -> DISTANCE_FUNCS.dotProductD1Q1BulkMasked(
                     dataSegment,
                     querySegment,
                     docBytes,
                     docBytes,
-                    offsetsSegment,
-                    offsetsCount,
+                    mask,
+                    count,
                     scoresSegment
                 );
-                case D1Q4 -> DISTANCE_FUNCS.dotProductD1Q4BulkWithOffsets(
+                case D1Q4 -> DISTANCE_FUNCS.dotProductD1Q4BulkMasked(
                     dataSegment,
                     querySegment,
                     docBytes,
                     docBytes,
-                    offsetsSegment,
-                    offsetsCount,
+                    mask,
+                    count,
                     scoresSegment
                 );
-                case D2Q2 -> DISTANCE_FUNCS.dotProductD2Q2BulkWithOffsets(
+                case D2Q2 -> DISTANCE_FUNCS.dotProductD2Q2BulkMasked(
                     dataSegment,
                     querySegment,
                     docBytes,
                     docBytes,
-                    offsetsSegment,
-                    offsetsCount,
+                    mask,
+                    count,
                     scoresSegment
                 );
-                case D2Q4 -> DISTANCE_FUNCS.dotProductD2Q4BulkWithOffsets(
+                case D2Q4 -> DISTANCE_FUNCS.dotProductD2Q4BulkMasked(
                     dataSegment,
                     querySegment,
                     docBytes,
                     docBytes,
-                    offsetsSegment,
-                    offsetsCount,
+                    mask,
+                    count,
                     scoresSegment
                 );
-                case D4Q4 -> DISTANCE_FUNCS.dotProductD4Q4BulkWithOffsets(
+                case D4Q4 -> DISTANCE_FUNCS.dotProductD4Q4BulkMasked(
                     dataSegment,
                     querySegment,
                     docBytes,
                     docBytes,
-                    offsetsSegment,
-                    offsetsCount,
+                    mask,
+                    count,
                     scoresSegment
                 );
                 default -> throw new AssertionError("Unsupported encoding: " + encoding);
             }
         });
-        // The native methods put their scores all at the start of the segment, so place each one at its offset in scores
-        for (int i = 0; i < offsetsCount; i++) {
-            scores[offsets[i]] = scoresSegment.getAtIndex(ValueLayout.JAVA_FLOAT, i);
-        }
+        MemorySegment.copy(scoresSegment, ValueLayout.JAVA_FLOAT, 0L, scores, 0, count);
     }
 }

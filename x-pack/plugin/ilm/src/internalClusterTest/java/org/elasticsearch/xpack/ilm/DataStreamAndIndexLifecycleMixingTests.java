@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ilm;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
+import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -16,6 +17,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction.Response.ManagedBy;
+import org.elasticsearch.action.datastreams.UpdateDataStreamSettingsAction;
 import org.elasticsearch.action.datastreams.lifecycle.ExplainDataStreamLifecycleAction;
 import org.elasticsearch.action.datastreams.lifecycle.ExplainIndexDataStreamLifecycle;
 import org.elasticsearch.action.datastreams.lifecycle.PutDataStreamLifecycleAction;
@@ -27,6 +29,7 @@ import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
@@ -48,10 +51,12 @@ import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
+import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 import org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep;
 import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -100,6 +105,11 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
         policy = "policy-" + randomAlphaOfLength(5);
         dataStreamName = "datastream-" + randomAlphaOfLengthBetween(10, 15).toLowerCase(Locale.ROOT);
         indexTemplateName = "indextemplate-" + randomAlphaOfLengthBetween(10, 15).toLowerCase(Locale.ROOT);
+    }
+
+    @After
+    public void resetPreferIlmDefault() {
+        updateClusterSettings(Settings.builder().putNull(PreferIlmSettingProvider.ENABLED_SETTING.getKey()));
     }
 
     public void testIndexTemplateSwapsILMForDataStreamLifecycle() throws Exception {
@@ -952,6 +962,98 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
         waitForDataStreamBackingIndices(dataStreamName, 3);
     }
 
+    /**
+     * A time series data stream on the unmodified, pre-installed {@code metrics} policy gets {@code prefer_ilm: false} by default, so
+     * it is managed by the data stream lifecycle. After the default is switched off, a rollover creates a backing index that is
+     * managed by ILM, and updating the data stream settings brings the whole data stream under ILM.
+     */
+    public void testRevertingManagingMetricsByDlm() throws Exception {
+        // The test cluster does not install the stack template registry, so we install the "metrics" policy the way it would be: a
+        // first version policy that has only a hot phase with a rollover action.
+        RolloverAction rolloverIlmAction = new RolloverAction(
+            RolloverConditions.newBuilder()
+                .addMaxIndexAgeCondition(TimeValue.timeValueDays(30))
+                .addMaxPrimaryShardSizeCondition(ByteSizeValue.ofGb(50))
+                .build()
+        );
+        Phase hotPhase = new Phase("hot", TimeValue.ZERO, Map.of(rolloverIlmAction.getWriteableName(), rolloverIlmAction));
+        LifecyclePolicy metricsPolicy = new LifecyclePolicy(
+            TimeseriesLifecycleType.INSTANCE,
+            "metrics",
+            Map.of("hot", hotPhase),
+            Map.of("managed", true)
+        );
+        assertAcked(
+            client().execute(ILMActions.PUT, new PutLifecycleRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, metricsPolicy)).get()
+        );
+
+        putComposableIndexTemplate(
+            indexTemplateName,
+            """
+                {
+                  "properties": {
+                    "@timestamp": { "type": "date" },
+                    "host": { "type": "keyword", "time_series_dimension": true }
+                  }
+                }
+                """,
+            List.of(dataStreamName + "*"),
+            Settings.builder().put(IndexSettings.MODE.getKey(), "time_series").put(LifecycleSettings.LIFECYCLE_NAME, "metrics").build(),
+            null,
+            DataStreamLifecycle.Template.DATA_DEFAULT
+        );
+        assertAcked(
+            client().execute(
+                CreateDataStreamAction.INSTANCE,
+                new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, dataStreamName)
+            ).get()
+        );
+
+        // the first backing index prefers the data stream lifecycle because of the default
+        Index firstGenerationIndex = getBackingIndices(dataStreamName, 1).get(0);
+        GetDataStreamAction.Response.DataStreamInfo dataStreamInfo = getDataStreamInfo(dataStreamName);
+        assertThat(dataStreamInfo.getIndexSettingsValues().get(firstGenerationIndex).preferIlm(), is(false));
+        assertThat(dataStreamInfo.getIndexSettingsValues().get(firstGenerationIndex).managedBy(), is(ManagedBy.LIFECYCLE));
+
+        // we turn off the default and roll over, so the new backing index falls back to the regular default, prefer_ilm: true
+        updateClusterSettings(Settings.builder().put(PreferIlmSettingProvider.ENABLED_SETTING.getKey(), false));
+        assertAcked(
+            client().execute(
+                org.elasticsearch.action.admin.indices.rollover.RolloverAction.INSTANCE,
+                new RolloverRequest(dataStreamName, null)
+            ).get()
+        );
+
+        List<Index> backingIndices = getBackingIndices(dataStreamName, 2);
+        Index secondGenerationIndex = backingIndices.get(1);
+        dataStreamInfo = getDataStreamInfo(dataStreamName);
+        assertThat(dataStreamInfo.getIndexSettingsValues().get(firstGenerationIndex).preferIlm(), is(false));
+        assertThat(dataStreamInfo.getIndexSettingsValues().get(firstGenerationIndex).managedBy(), is(ManagedBy.LIFECYCLE));
+        assertThat(dataStreamInfo.getIndexSettingsValues().get(secondGenerationIndex).preferIlm(), is(true));
+        assertThat(dataStreamInfo.getIndexSettingsValues().get(secondGenerationIndex).managedBy(), is(ManagedBy.ILM));
+
+        // we update the data stream settings so all the backing indices prefer ILM
+        UpdateDataStreamSettingsAction.Response updateResponse = client().execute(
+            UpdateDataStreamSettingsAction.INSTANCE,
+            new UpdateDataStreamSettingsAction.Request(
+                Settings.builder().put(IndexSettings.PREFER_ILM, true).build(),
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT
+            ).indices(dataStreamName)
+        ).actionGet();
+        assertThat(updateResponse.getDataStreamSettingsResponses().size(), equalTo(1));
+        assertThat(updateResponse.getDataStreamSettingsResponses().get(0).dataStreamSucceeded(), is(true));
+        assertThat(updateResponse.getDataStreamSettingsResponses().get(0).indicesSettingsResult().indexSettingErrors().size(), is(0));
+
+        assertBusy(() -> {
+            GetDataStreamAction.Response.DataStreamInfo info = getDataStreamInfo(dataStreamName);
+            for (Index index : List.of(firstGenerationIndex, secondGenerationIndex)) {
+                assertThat(info.getIndexSettingsValues().get(index).preferIlm(), is(true));
+                assertThat(info.getIndexSettingsValues().get(index).managedBy(), is(ManagedBy.ILM));
+            }
+        });
+    }
+
     private ManagedBy nextGenerationManagedBy() {
         GetDataStreamAction.Response response = client().execute(
             GetDataStreamAction.INSTANCE,
@@ -1004,6 +1106,21 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
                 .source(String.format(Locale.ROOT, "{\"@timestamp\":\"%s\",\"host\":\"host-1\"}", timestamp), XContentType.JSON)
         ).actionGet();
         indicesAdmin().refresh(new RefreshRequest(dataStreamName)).actionGet();
+    }
+
+    private static List<Index> getBackingIndices(String dataStream, int expectedCount) {
+        List<Index> indices = getDataStreamInfo(dataStream).getDataStream().getIndices();
+        assertThat(indices.size(), equalTo(expectedCount));
+        return indices;
+    }
+
+    private static GetDataStreamAction.Response.DataStreamInfo getDataStreamInfo(String dataStream) {
+        GetDataStreamAction.Response response = client().execute(
+            GetDataStreamAction.INSTANCE,
+            new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStream })
+        ).actionGet();
+        assertThat(response.getDataStreams().size(), equalTo(1));
+        return response.getDataStreams().get(0);
     }
 
     static void indexDocs(String dataStream, int numDocs) {

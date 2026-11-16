@@ -20,9 +20,12 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
@@ -37,15 +40,16 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRa
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLess;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLike;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPSeriesWeightedSum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvRLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvUnion;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvZip;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.JsonString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.util.Delay;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
+import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.hamcrest.Matcher;
 
@@ -90,7 +94,6 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         Coalesce.class, // COALESCE(NULL, 1) = 1
         IsNotNull.class, // NULL IS NOT NULL = false
         IsNull.class, // NULL IS NULL = true
-        JsonString.class, // JSON_STRING("key", NULL) = {"key":null};
 
         // Multivalue functions that treat NULL is an empty set.
         MvContains.class, // MV_CONTAINS([1, 2], NULL) = false
@@ -105,7 +108,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         MvZip.class, // MV_ZIP(NULL, ["a"], ",") = ["a"]
 
         // Special empty/null handling functions
-        MvPSeriesWeightedSum.class, // MV_PSERIES_WEIGHTED_SUM(NULL, 2) = 0.0
+        JsonString.class, // JSON_STRING("key", NULL) = {"key":null};
 
         // Non-evaluatable grouping functions
         Categorize.class,
@@ -113,6 +116,9 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
 
         // Explicitly null-tolerant evaluator: @Evaluator(allNullsIsNull = false).
         FilterUnsupportedTemporality.class,
+
+        // Debug function whose only argument is a constant: DELAY(1 millisecond) = true
+        Delay.class,
 
         // Sampling offset is always defined: null keys hash like any other identity.
         org.elasticsearch.xpack.esql.expression.promql.function.HashOffset.class
@@ -293,6 +299,18 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
     }
 
     /**
+     * Confirms the test case resolves before any evaluator-based test uses it. {@link #buildFieldExpression} builds
+     * the expression from column references, the same way a real query calls this function. Without this check, a
+     * test case with the wrong declared types would not fail here. It would only fail later, when another test
+     * tries to build an evaluator from the unresolved expression. That failure would be confusing and would not
+     * point at the real problem.
+     */
+    public final void testTypeResolved() {
+        Expression expression = buildFieldExpression(testCase);
+        assertTrue(expression.typeResolved().message(), expression.typeResolved().resolved());
+    }
+
+    /**
      * Evaluates a {@link Block} of values, all copied from the input pattern,
      * using the {@link CrankyCircuitBreakerService} which fails randomly.
      * <p>
@@ -394,7 +412,12 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         }
     }
 
-    private int evaluateInManyThreadsCountMax() {
+    /**
+     * Upper bound on the number of times each thread in {@link #testEvaluateInManyThreads} evaluates the test case.
+     * Override to lower it for functions whose single evaluation is expensive, so the test stays within the suite timeout.
+     * Must be at least 100.
+     */
+    protected int evaluateInManyThreadsCountMax() {
         for (TestCaseSupplier.TypedData dt : testCase.getData()) {
             if (dt.type() == DataType.EXPONENTIAL_HISTOGRAM) {
                 return 500;
@@ -463,6 +486,26 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
     }
 
     public void testFold() {
+        Expression expression = buildFoldableLiteralExpression();
+        Row row = new Row(Source.EMPTY, List.of(new Alias(Source.EMPTY, "unused_name", expression)));
+        Row folded = (Row) new FoldNull().apply(row, unboundLogicalOptimizerContext());
+        assertFold(folded.fields().getFirst().child());
+    }
+
+    /**
+     * {@code FoldNull} doesn't always replace an expression with null arguments before it's folded: it may not see
+     * them as null (a {@code CASE} without a match, {@code 1/0}...), and optimizer rules may fold an expression
+     * directly once its references are replaced by literals. So {@link AnyNullIsNull} expressions must fold to
+     * {@code null} by themselves too. Other expressions may evaluate, and warn about, arguments {@code FoldNull} removed.
+     */
+    public void testFoldAnyNullIsNullWithoutFoldNull() {
+        Expression expression = buildFoldableLiteralExpression();
+        assumeTrue("Function is not marked " + AnyNullIsNull.class.getSimpleName(), expression instanceof AnyNullIsNull);
+        assumeTrue("No null argument", expression.children().stream().anyMatch(Expressions::isGuaranteedNull));
+        assertFold(expression);
+    }
+
+    private Expression buildFoldableLiteralExpression() {
         Expression expression = buildLiteralExpression(testCase);
         assertFalse("expected resolved", expression.typeResolved().unresolved());
         if (expression instanceof SurrogateExpression s) {
@@ -471,11 +514,14 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
                 expression = surrogate;
             }
         }
-        Expression nullOptimized = new FoldNull().rule(expression, unboundLogicalOptimizerContext());
-        assertThat(nullOptimized.dataType(), equalTo(testCase.expectedType()));
-        assertTrue(nullOptimized.foldable());
+        return expression;
+    }
+
+    private void assertFold(Expression expression) {
+        assertThat(expression.dataType(), equalTo(testCase.expectedType()));
+        assertTrue(expression.foldable());
         if (testCase.foldingExceptionClass() == null) {
-            Object result = nullOptimized.fold(FoldContext.small());
+            Object result = expression.fold(FoldContext.small());
             // Decode unsigned longs into BigIntegers
             if (testCase.expectedType() == DataType.UNSIGNED_LONG && result != null) {
                 if (result instanceof List<?> l) {
@@ -495,7 +541,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
                 assertWarnings(testCase.getExpectedWarnings());
             }
         } else {
-            Throwable t = expectThrows(testCase.foldingExceptionClass(), () -> nullOptimized.fold(FoldContext.small()));
+            Throwable t = expectThrows(testCase.foldingExceptionClass(), () -> expression.fold(FoldContext.small()));
             assertThat(t.getMessage(), equalTo(testCase.foldingExceptionMessage()));
         }
     }

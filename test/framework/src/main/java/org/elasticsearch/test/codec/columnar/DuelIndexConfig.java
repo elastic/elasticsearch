@@ -13,6 +13,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 /**
  * Describes one doc-values layout in a duel: the index mode and settings that select it, the expected
@@ -42,12 +44,19 @@ public final class DuelIndexConfig {
         this.enforceColumnarSelectorGuard = enforceColumnarSelectorGuard;
     }
 
+    /**
+     * A strict columnar index created just before {@link IndexVersions#COLUMNAR_CODEC_NO_FEATURE_FLAG}, the last version whose
+     * columnar indices write doc values with ES819 rather than the ColumNAR codec.
+     */
     public static DuelIndexConfig es819(final String indexName, final IndexMode mode) {
         return new DuelIndexConfig(
             indexName,
             "es819/" + mode.getName(),
             baseSettings(mode).put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true)
-                .put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), false)
+                .put(
+                    IndexMetadata.SETTING_VERSION_CREATED,
+                    IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_CODEC_NO_FEATURE_FLAG)
+                )
                 .build(),
             "ES8193TSDB",
             false
@@ -58,9 +67,7 @@ public final class DuelIndexConfig {
         return new DuelIndexConfig(
             indexName,
             "columnar/" + mode.getName(),
-            baseSettings(mode).put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true)
-                .put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), true)
-                .build(),
+            baseSettings(mode).put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true).build(),
             "ColumNAR",
             true
         );
@@ -102,8 +109,8 @@ public final class DuelIndexConfig {
 
     /**
      * @return whether the duel must assert {@link org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector}
-     *         engages for this layout. Only a ColumNAR-backed layout requests the guard, so the feature-flag
-     *         assumption and the selector assertion apply to it and not to other codecs.
+     *         engages for this layout. Only a ColumNAR-backed layout requests the guard, so the selector assertion
+     *         applies to it and not to other codecs.
      */
     public boolean enforcesColumnarSelectorGuard() {
         return enforceColumnarSelectorGuard;

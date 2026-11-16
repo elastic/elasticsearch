@@ -156,6 +156,7 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
+import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 import org.elasticsearch.xpack.versionfield.Version;
 import org.hamcrest.Matcher;
 import org.hamcrest.collection.IsIterableContainingInAnyOrder;
@@ -222,6 +223,7 @@ import static org.elasticsearch.test.ESTestCase.randomLong;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
 import static org.elasticsearch.test.ESTestCase.randomMillisUpToYear9999;
 import static org.elasticsearch.test.ESTestCase.randomShort;
+import static org.elasticsearch.test.ESTestCase.randomUnicodeOfLength;
 import static org.elasticsearch.test.ESTestCase.randomZone;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
@@ -648,11 +650,23 @@ public final class EsqlTestUtils {
         IndexNameExpressionResolver iner,
         boolean wildcardsMatchDatasets
     ) {
+        return rewriteDatasetsUnsecured(parsed, projectMetadata, iner, wildcardsMatchDatasets, Map.of());
+    }
+
+    /** Like {@link #rewriteDatasetsUnsecured(LogicalPlan, ProjectMetadata, IndexNameExpressionResolver, boolean)}, with per-view SETs. */
+    public static LogicalPlan rewriteDatasetsUnsecured(
+        LogicalPlan parsed,
+        ProjectMetadata projectMetadata,
+        IndexNameExpressionResolver iner,
+        boolean wildcardsMatchDatasets,
+        Map<String, ViewQuerySettings> viewSettings
+    ) {
         return DatasetRewriter.rewriteUnsecured(
             parsed,
             projectMetadata,
             iner,
             wildcardsMatchDatasets,
+            viewSettings,
             QueryPragmas.EMPTY,
             EsqlFlags.DEFAULTS
         );
@@ -1405,6 +1419,15 @@ public final class EsqlTestUtils {
             }
             case FLATTENED -> FlattenedCases.RANDOM.get();
             case TSID_DATA_TYPE -> randomTsId().toBytesRef();
+            case TIME_SERIES_METADATA_DATA_TYPE -> {
+                try {
+                    yield BytesReference.bytes(
+                        JsonXContent.contentBuilder().startObject().field(randomAlphaOfLength(3), randomUnicodeOfLength(10)).endObject()
+                    ).toBytesRef();
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
             case HISTOGRAM -> randomHistogram();
             case DENSE_VECTOR -> Arrays.asList(randomArray(10, 10, i -> new Float[10], ESTestCase::randomFloat));
             case EXPONENTIAL_HISTOGRAM -> EsqlTestUtils.randomExponentialHistogram();

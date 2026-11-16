@@ -137,6 +137,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         }
         templateSettings.put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean());
         templateSettings.put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), randomBoolean());
+        randomBatchIndexing(templateSettings);
         if (randomBoolean()) {
             templateSettings.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
         }
@@ -398,6 +399,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             var templateSettings = Settings.builder().put("index.mode", "time_series").put("index.routing_path", "metricset");
             templateSettings.put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean());
             templateSettings.put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), randomBoolean());
+            randomBatchIndexing(templateSettings);
             if (randomBoolean()) {
                 templateSettings.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
             }
@@ -604,6 +606,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         var templateSettings = Settings.builder().put("index.mode", "time_series");
         templateSettings.put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean());
         templateSettings.put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), randomBoolean());
+        randomBatchIndexing(templateSettings);
         if (randomBoolean()) {
             templateSettings.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
         }
@@ -665,6 +668,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             .put("index.dimensions_tsid_strategy_enabled", indexDimensionsTsidStrategyEnabled)
             .put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean())
             .put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), randomBoolean());
+        randomBatchIndexing(templateSettings);
         if (randomBoolean()) {
             templateSettings.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
         }
@@ -751,6 +755,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         var templateSettings = Settings.builder().put("index.mode", "time_series");
         templateSettings.put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean());
         templateSettings.put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), randomBoolean());
+        randomBatchIndexing(templateSettings);
         if (randomBoolean()) {
             templateSettings.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
         }
@@ -819,6 +824,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         var templateSettings = Settings.builder().put("index.mode", "time_series");
         templateSettings.put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean());
         templateSettings.put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), randomBoolean());
+        randomBatchIndexing(templateSettings);
         if (randomBoolean()) {
             templateSettings.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
         }

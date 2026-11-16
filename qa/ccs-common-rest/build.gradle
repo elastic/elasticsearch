@@ -29,6 +29,9 @@ dependencies {
   clusterModules project(':modules:legacy-geo')
   clusterModules project(':x-pack:plugin:eql')
   clusterModules project(':x-pack:plugin:sql')
+  // x-pack-eql and x-pack-sql extend x-pack-ql (-> mapper-version); stage that chain so the cluster can load them.
+  clusterModules project(':x-pack:plugin:ql')
+  clusterModules project(':x-pack:plugin:mapper-version')
 }
 
 tasks.named("yamlRestTest") {

@@ -14,11 +14,13 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.logging.LogManager;
@@ -74,6 +76,9 @@ import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.esql.view.ViewCompaction;
+import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
+import org.elasticsearch.xpack.esql.view.ViewResolver;
+import org.junit.AfterClass;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.runner.notification.Failure;
 import org.junit.runner.notification.RunListener;
@@ -107,7 +112,6 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.rewriteDatasetsUnsecured;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
@@ -161,9 +165,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         }
         this.goldenMode = goldenMode;
         try {
-            String path = PathUtils.get(getClass().getResource(".").toURI()).toAbsolutePath().normalize().toString();
-            var inSrc = path.replace('\\', '/').replaceFirst("build/classes/java/test", "src/test/resources");
-            baseFile = PathUtils.get(Strings.format("%s/golden_tests/%s/", inSrc, getClass().getSimpleName()));
+            baseFile = goldenRoot(getClass());
             List<Path> sources = new ArrayList<>();
             for (Class<?> c = getClass(); c != GoldenTestCase.class; c = c.getSuperclass()) {
                 var classDir = PathUtils.get(c.getResource(".").toURI()).toAbsolutePath().normalize().toString();
@@ -175,6 +177,37 @@ public abstract class GoldenTestCase extends ESTestCase {
             throw new RuntimeException(e);
         }
 
+    }
+
+    /** {@code src/test/resources/<package>/golden_tests/<SimpleName>/}, found from where the class was compiled to. */
+    private static Path goldenRoot(Class<?> testClass) throws URISyntaxException {
+        String path = PathUtils.get(testClass.getResource(".").toURI()).toAbsolutePath().normalize().toString();
+        var inSrc = path.replace('\\', '/').replaceFirst("build/classes/java/test", "src/test/resources");
+        return PathUtils.get(Strings.format("%s/golden_tests/%s/", inSrc, testClass.getSimpleName()));
+    }
+
+    /** A renamed or deleted test leaves its directory behind: the runner only ever looks at the directory of the test it is running. */
+    @AfterClass
+    public static void noStaleTestDirectories() throws IOException, URISyntaxException {
+        Class<?> testClass = getTestClass();
+        Path root = goldenRoot(testClass);
+        List<Path> stale = GoldenGc.staleTestDirectories(root, testClass);
+        if (stale.isEmpty()) {
+            return;
+        }
+        String message = Strings.format(
+            "golden directories %s under [%s] name no test method of [%s]: a test was renamed or removed. "
+                + "Delete them, or run [%s] to do it. See GoldenTestsReadme.MD.",
+            stale.stream().map(dir -> dir.getFileName().toString()).toList(),
+            root,
+            testClass.getSimpleName(),
+            GC_TASK
+        );
+        if (GoldenGc.fixMode() == false) {
+            fail(message);
+        }
+        IOUtils.rm(stale.toArray(Path[]::new));
+        logger.info("repaired: {}", message);
     }
 
     protected void runGoldenTest(String esqlQuery, EnumSet<Stage> stages, String... nestedPath) {
@@ -228,6 +261,8 @@ public abstract class GoldenTestCase extends ESTestCase {
         private ExternalSourceResolution externalSourceResolution = ExternalSourceResolution.EMPTY;
         private QueryBuilder requestFilter;
         private Map<String, String> views = Map.of();
+        private boolean singleConcreteIndex;
+        private EsqlFlags flags = EsqlFlags.withFetchPhase(EsqlFlags.FetchPhaseMode.DISABLED);
 
         private TestBuilder(
             String esqlQuery,
@@ -261,6 +296,11 @@ public abstract class GoldenTestCase extends ESTestCase {
 
         public EnumSet<Stage> stages() {
             return stages;
+        }
+
+        public TestBuilder flags(EsqlFlags flags) {
+            this.flags = flags;
+            return this;
         }
 
         public TestBuilder searchStats(SearchStats searchStats) {
@@ -385,6 +425,11 @@ public abstract class GoldenTestCase extends ESTestCase {
 
         public TestBuilder views(Map<String, String> views) {
             this.views = views;
+            return this;
+        }
+
+        public TestBuilder singleConcreteIndex() {
+            this.singleConcreteIndex = true;
             return this;
         }
 
@@ -591,7 +636,9 @@ public abstract class GoldenTestCase extends ESTestCase {
                 datasetMetadata,
                 externalSourceResolution,
                 requestFilter,
-                views
+                views,
+                singleConcreteIndex,
+                flags
             );
         }
 
@@ -739,7 +786,9 @@ public abstract class GoldenTestCase extends ESTestCase {
         ProjectMetadata datasetMetadata,
         ExternalSourceResolution externalSourceResolution,
         QueryBuilder requestFilter,
-        Map<String, String> views
+        Map<String, String> views,
+        boolean singleConcreteIndex,
+        EsqlFlags flags
     ) {
 
         private List<Tuple<Stage, TestResult>> doTests() throws IOException {
@@ -749,8 +798,13 @@ public abstract class GoldenTestCase extends ESTestCase {
             // indices are discovered and verifier checks (e.g. unbounded SORT inside an IN subquery) fire.
             // When the query references views, register them and run the iterative view/IN-subquery resolution; otherwise
             // resolve IN subqueries only.
-            LogicalPlan planAfterLet = LetResolver.resolve(statement.plan(), statement.letBindings());
+            LogicalPlan planAfterLet = LetResolver.resolve(
+                statement.plan(),
+                statement.letBindings(),
+                ViewResolver.DEFAULT_MAX_PLAN_NODES_COUNT
+            );
             LogicalPlan parsedPlan;
+            Map<String, ViewQuerySettings> viewSettings = Map.of();
             if (views.isEmpty()) {
                 parsedPlan = InSubqueryResolver.resolve(planAfterLet);
             } else {
@@ -760,6 +814,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                     .wildcardsMatchDatasets(statement.setting(WILDCARDS_MATCH_DATASETS));
                 views.forEach(viewAnalyzer::addView);
                 parsedPlan = viewAnalyzer.resolveViewsAndInSubqueries(planAfterLet);
+                viewSettings = viewAnalyzer.viewSettings();
             }
             // Then turn FROM <dataset> targets into UnresolvedExternalRelation, exactly as EsqlSession does. A
             // null datasetMetadata (the default) makes this a no-op, so plain golden tests are unaffected; when a
@@ -775,7 +830,8 @@ public abstract class GoldenTestCase extends ESTestCase {
                 parsedPlan,
                 datasetMetadata,
                 TestIndexNameExpressionResolver.newInstance(),
-                statement.setting(WILDCARDS_MATCH_DATASETS)
+                statement.setting(WILDCARDS_MATCH_DATASETS),
+                viewSettings
             );
             String[] queryPathParts = new String[nestedPath.length + 2];
             queryPathParts[0] = testName;
@@ -796,10 +852,14 @@ public abstract class GoldenTestCase extends ESTestCase {
                 .minimumTransportVersion(transportVersion)
                 .externalSourceResolution(externalSourceResolution)
                 .unmappedResolution(unmappedResolution)
-                .wildcardsMatchDatasets(statement.setting(WILDCARDS_MATCH_DATASETS));
+                .wildcardsMatchDatasets(statement.setting(WILDCARDS_MATCH_DATASETS))
+                .viewSettings(viewSettings);
             boolean trackUnmappedFieldIndices = unmappedResolution.loadsUnmappedFields();
             loadIndexResolution(testDatasets(parsedPlan), trackUnmappedFieldIndices).forEach(
-                (pattern, resolution) -> testAnalyzer.addIndex(pattern.indexPattern(), resolution)
+                (pattern, resolution) -> testAnalyzer.addIndex(
+                    pattern.indexPattern(),
+                    singleConcreteIndex ? singleIndex(resolution) : resolution
+                )
             );
             Analyzer analyzer = testAnalyzer.buildAnalyzer();
             List<Tuple<Stage, TestResult>> result = new ArrayList<>();
@@ -815,7 +875,7 @@ public abstract class GoldenTestCase extends ESTestCase {
             if (stages.equals(EnumSet.of(Stage.ANALYSIS))) {
                 return result;
             }
-            var optimizerContext = logicalOptimizerContext(configuration, FoldContext.small(), transportVersion);
+            var optimizerContext = new LogicalOptimizerContext(configuration, FoldContext.small(), transportVersion, flags);
             var optimizer = optimizerFactory != null
                 ? optimizerFactory.apply(optimizerContext)
                 : new LogicalPlanOptimizer(optimizerContext);
@@ -1362,7 +1422,7 @@ public abstract class GoldenTestCase extends ESTestCase {
             .stream()
             .collect(Collectors.toMap(CsvTestsDataLoader.TestDataset::indexName, ds -> {
                 IndexMode m = indexModeOf(ds);
-                return new IndexProperties(m, 0);
+                return new IndexProperties(m, 0, 0);
             }));
         List<MappingPerIndex> mappings = datasets.datasets()
             .stream()
@@ -1370,6 +1430,24 @@ public abstract class GoldenTestCase extends ESTestCase {
             .toList();
         var mergedMappings = mergeMappings(mappings, trackUnmappedFieldIndices);
         return IndexResolution.valid(new EsIndex(datasets.indexPattern(), mergedMappings.mapping, indexModes, Map.of(), Map.of()));
+    }
+
+    private static IndexResolution singleIndex(IndexResolution resolution) {
+        EsIndex index = resolution.get();
+        Map<String, IndexProperties> indexProperties = new HashMap<>();
+        index.indexProperties()
+            .forEach(
+                (key, v) -> indexProperties.put(key, new IndexProperties(v.indexMode(), v.numberOfShards(), IndexVersion.current().id()))
+            );
+        return IndexResolution.valid(
+            new EsIndex(
+                index.name(),
+                index.mapping(),
+                indexProperties,
+                index.originalIndices(),
+                Map.of("", List.copyOf(indexProperties.keySet()))
+            )
+        );
     }
 
     /**

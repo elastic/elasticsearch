@@ -11,6 +11,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSparseEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModelTests;
+import org.elasticsearch.xpack.inference.services.elastic.decision.ElasticInferenceServiceDecisionModelTests;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModelTests;
 
@@ -73,5 +74,13 @@ public class ModelStrategyFactoryTests extends ESTestCase {
         var strategy = ModelStrategyFactory.getStrategy(model);
 
         assertThat(strategy.requestDescription(), is("Elastic Inference Service dense embeddings"));
+    }
+
+    public void testGetStrategy_DecisionModel() {
+        var model = ElasticInferenceServiceDecisionModelTests.createModel(URL, MODEL_ID);
+
+        var strategy = ModelStrategyFactory.getStrategy(model);
+
+        assertThat(strategy.requestDescription(), is("Elastic Inference Service decision"));
     }
 }

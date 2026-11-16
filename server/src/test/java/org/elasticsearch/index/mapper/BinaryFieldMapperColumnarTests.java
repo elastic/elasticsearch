@@ -21,15 +21,15 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.PerFieldFormatSupplier;
-import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -52,11 +52,6 @@ public class BinaryFieldMapperColumnarTests extends MapperServiceTestCase {
 
     private static final String A = base64("first");
     private static final String B = base64("second");
-
-    @Before
-    public void requireTheCodec() {
-        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
-    }
 
     public void testWrittenAsAPayloadColumn() throws IOException {
         final MapperService mapperService = createMapperService(settings(randomSourceMode()), binaryMapping(null));
@@ -89,13 +84,16 @@ public class BinaryFieldMapperColumnarTests extends MapperServiceTestCase {
         assertThat(e.getCause().getMessage(), containsString("multi_value=false"));
     }
 
-    /** The codec off, a columnar index keeps the layout binary fields always had, and {@code columnar_stored} patches nothing in. */
+    /**
+     * The codec off, a columnar index keeps the layout binary fields always had, and {@code columnar_stored} patches nothing in. Every
+     * columnar index created from {@link IndexVersions#COLUMNAR_CODEC_NO_FEATURE_FLAG} uses the codec, so this one is created just before.
+     */
     public void testWithoutTheCodecKeepsTheCustomLayout() throws IOException {
-        final Settings settings = Settings.builder()
-            .put(settings(SourceFieldMapper.Mode.COLUMNAR_STORED))
-            .put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), false)
-            .build();
-        final MapperService mapperService = createMapperService(settings, binaryMapping(null));
+        final MapperService mapperService = createMapperService(
+            IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_CODEC_NO_FEATURE_FLAG),
+            settings(SourceFieldMapper.Mode.COLUMNAR_STORED),
+            binaryMapping(null)
+        );
         final BinaryFieldMapper mapper = (BinaryFieldMapper) mapperService.mappingLookup().getMapper("bin");
         assertThat(mapper.fieldType().columnarFormat(), nullValue());
         assertThat(mapper.columnarStringOptions(), nullValue());
@@ -128,7 +126,7 @@ public class BinaryFieldMapperColumnarTests extends MapperServiceTestCase {
         for (SourceFieldMapper.Mode mode : List.of(SourceFieldMapper.Mode.SYNTHETIC, SourceFieldMapper.Mode.COLUMNAR_STORED)) {
             final MapperService mapperService = createMapperService(settings(mode), mapping(b -> {
                 b.startObject("bin").field("type", "binary");
-                b.startObject("doc_values").field("multi_value", false).field("on_failure", "ignore").endObject();
+                b.field("multi_value", false).field("on_failure", "ignore");
                 b.endObject();
                 b.startObject("kwd").field("type", "keyword").endObject();
             }));
@@ -203,7 +201,6 @@ public class BinaryFieldMapperColumnarTests extends MapperServiceTestCase {
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
             .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
             .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), sourceMode.toString())
-            .put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), true)
             .build();
     }
 
@@ -212,7 +209,7 @@ public class BinaryFieldMapperColumnarTests extends MapperServiceTestCase {
         return mapping(b -> {
             b.startObject("bin").field("type", "binary");
             if (multiValue != null) {
-                b.startObject("doc_values").field("multi_value", multiValue).endObject();
+                b.field("multi_value", multiValue);
             }
             b.endObject();
             b.startObject("kwd").field("type", "keyword").endObject();

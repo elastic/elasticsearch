@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.logsdb;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.rest.ObjectPath;
 
@@ -19,6 +20,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -146,6 +148,10 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgrade
             String newBackingIndex = backingIndices.getLast();
             var newIndexSettings = (Map<?, ?>) getIndexSettings(newBackingIndex, true).get(newBackingIndex);
             assertThat(((Map<?, ?>) newIndexSettings.get("settings")).get("index.mode"), equalTo(indexMode));
+            if (columnarEnabled) {
+                // the files of a compound segment aren't listed in the segment stats, so the codec's own files couldn't be seen
+                updateIndexSettings(newBackingIndex, Settings.builder().put("index.compound_format", false));
+            }
 
             String indexedInto = bulkIndex(
                 dataStreamName,
@@ -168,6 +174,9 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgrade
 
             verify(newBackingIndex, DOCS_PER_BULK_INDEX);
             verify(dataStreamName, docCount[0]);
+            if (columnarEnabled) {
+                assertWrittenByColumnarCodec(newBackingIndex);
+            }
         }
     }
 
@@ -195,6 +204,20 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgrade
             """.replace("$target", target));
         var queryResponse = entityAsMap(client().performRequest(queryRequest));
         assertThat(ObjectPath.evaluate(queryResponse, "values.0.0"), equalTo(expectedDocCount));
+    }
+
+    /**
+     * Asserts the ColumNAR codec wrote doc values for {@code index}, read off the extensions of its segment files rather than off the
+     * index mode, which a strict columnar index has whichever codec writes it. The files of a compound segment are not listed, so the
+     * index has to be written with {@code index.compound_format} off.
+     */
+    static void assertWrittenByColumnarCodec(String index) throws IOException {
+        var statsRequest = new Request("GET", "/" + index + "/_stats/segments");
+        statsRequest.addParameter("include_segment_file_sizes", "true");
+        var stats = entityAsMap(client().performRequest(statsRequest));
+        // the request names one index, so the totals are its own, and its name, which holds dots, can't break the path
+        Map<String, Object> fileSizes = ObjectPath.evaluate(stats, "_all.primaries.segments.file_sizes");
+        assertThat("segment files of [" + index + "]", fileSizes.keySet(), hasItems("cnd", "cnm"));
     }
 
     static void assertDataStream(String dataStreamName, String templateId) throws IOException {

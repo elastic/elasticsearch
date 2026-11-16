@@ -25,6 +25,8 @@
 limit_ratio(0.5, http_requests_total)
 ```
 
-**Differences from Prometheus**
+:::{note}
+**Differences from {{prom}}**
 
-Series are kept by hashing the series identity rather than the Prometheus label serialization, so the kept subset has the same statistical properties but is generally a different subset than the one Prometheus keeps. `by` is a membership no-op as in Prometheus. A `without` grouping clause is not yet supported.
+`without(...)`, such as `limit_ratio without (instance) (0.5, x)`, isn't supported yet. Series are kept by hashing the series identity rather than the {{prom}} label serialization, so the kept subset has the same statistical properties but is generally a different subset than the one {{prom}} keeps. `by` is a membership no-op as in {{prom}}.
+:::

@@ -10,7 +10,6 @@
 package org.elasticsearch.index.codec.columnar;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -23,121 +22,33 @@ import java.util.List;
 
 public class ColumnarDocValuesFormatSelectorTests extends ESTestCase {
 
-    public void testColumnarCodecSettingIsRegisteredWhenFlagEnabled() {
-        assumeTrue("columnar_codec feature flag must be enabled", columnarFeatureFlagEnabled());
-        assertNotNull(
-            "index.columnar_codec.enabled must be a registered index setting",
-            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.get(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey())
-        );
-    }
-
-    public void testColumnarCodecSettingIsNotRegisteredWhenFlagDisabled() {
-        assumeFalse("columnar_codec feature flag must be disabled", columnarFeatureFlagEnabled());
-        assertNull(
-            "index.columnar_codec.enabled must not be registered when the columnar_codec feature flag is disabled",
-            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.get(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey())
-        );
-    }
-
-    public void testUsesColumnarForStrictColumnarModesWhenEnabled() {
-        assumeTrue("columnar_codec feature flag must be enabled", columnarFeatureFlagEnabled());
+    public void testUsesColumnarForStrictColumnarModes() {
         for (IndexMode mode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
-            assertTrue(
-                "mode=" + mode,
-                ColumnarDocValuesFormatSelector.useColumnarCodec(indexSettings(mode, randomEligibleVersion(), true))
-            );
+            assertTrue("mode=" + mode, ColumnarDocValuesFormatSelector.useColumnarCodec(indexSettings(mode, randomEligibleVersion())));
         }
     }
 
     public void testNotUsedForNonStrictColumnarModes() {
-        assumeTrue("columnar_codec feature flag must be enabled", columnarFeatureFlagEnabled());
         for (IndexMode mode : List.of(IndexMode.STANDARD, IndexMode.TIME_SERIES, IndexMode.LOGSDB)) {
-            assertFalse(
-                "mode=" + mode,
-                ColumnarDocValuesFormatSelector.useColumnarCodec(indexSettings(mode, IndexVersion.current(), true))
-            );
+            assertFalse("mode=" + mode, ColumnarDocValuesFormatSelector.useColumnarCodec(indexSettings(mode, IndexVersion.current())));
         }
-    }
-
-    public void testSettingDisabledNeverSelects() {
-        assumeTrue("columnar_codec feature flag must be enabled", columnarFeatureFlagEnabled());
-        assertFalse(ColumnarDocValuesFormatSelector.useColumnarCodec(indexSettings(IndexMode.COLUMNAR, randomEligibleVersion(), false)));
     }
 
     public void testVersionBoundary() {
-        assumeTrue("columnar_codec feature flag must be enabled", columnarFeatureFlagEnabled());
-        final IndexVersion justBefore = IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG);
-        assertFalse(ColumnarDocValuesFormatSelector.useColumnarCodec(indexSettings(IndexMode.COLUMNAR, justBefore, true)));
+        final IndexVersion justBefore = IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_CODEC_NO_FEATURE_FLAG);
+        assertFalse(ColumnarDocValuesFormatSelector.useColumnarCodec(indexSettings(IndexMode.COLUMNAR, justBefore)));
         assertTrue(
             ColumnarDocValuesFormatSelector.useColumnarCodec(
-                indexSettings(IndexMode.COLUMNAR, IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG, true)
+                indexSettings(IndexMode.COLUMNAR, IndexVersions.COLUMNAR_CODEC_NO_FEATURE_FLAG)
             )
         );
-    }
-
-    public void testFlagDisabledNeverSelects() {
-        assumeFalse("columnar_codec feature flag must be disabled", columnarFeatureFlagEnabled());
-        assertFalse(ColumnarDocValuesFormatSelector.useColumnarCodec(indexSettings(IndexMode.COLUMNAR, randomEligibleVersion(), true)));
-    }
-
-    /**
-     * Indices created at or after {@link IndexVersions#COLUMNAR_CODEC_ENABLED_BY_DEFAULT_FF} default to
-     * {@code index.columnar_codec.enabled=true}, so they select the ColumNAR codec without an explicit opt-in.
-     */
-    public void testDefaultEnabledForIndicesAtOrAfterVersionGate() {
-        assumeTrue("columnar_codec feature flag must be enabled", columnarFeatureFlagEnabled());
-        assertTrue(
-            ColumnarDocValuesFormatSelector.useColumnarCodec(
-                indexSettingsWithDefaultCodecEnabled(IndexMode.COLUMNAR, IndexVersions.COLUMNAR_CODEC_ENABLED_BY_DEFAULT_FF)
-            )
-        );
-    }
-
-    /**
-     * Indices created before {@link IndexVersions#COLUMNAR_CODEC_ENABLED_BY_DEFAULT_FF} default to
-     * {@code index.columnar_codec.enabled=false} to preserve BWC with segments written before the codec
-     * was the default. The codec is still functional for those indices via an explicit opt-in.
-     */
-    public void testDefaultDisabledForIndicesBeforeVersionGate() {
-        assumeTrue("columnar_codec feature flag must be enabled", columnarFeatureFlagEnabled());
-        // COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG < COLUMNAR_CODEC_ENABLED_BY_DEFAULT_FF, so this version
-        // satisfies the codec's minimum-version gate but predates the default-enabled gate.
-        assertFalse(
-            ColumnarDocValuesFormatSelector.useColumnarCodec(
-                indexSettingsWithDefaultCodecEnabled(IndexMode.COLUMNAR, IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG)
-            )
-        );
-    }
-
-    private static boolean columnarFeatureFlagEnabled() {
-        return ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled();
     }
 
     private static IndexVersion randomEligibleVersion() {
-        return IndexVersionUtils.randomVersionBetween(IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG, IndexVersion.current());
+        return IndexVersionUtils.randomVersionBetween(IndexVersions.COLUMNAR_CODEC_NO_FEATURE_FLAG, IndexVersion.current());
     }
 
-    private static IndexSettings indexSettings(final IndexMode mode, final IndexVersion version, boolean columnarEnabled) {
-        final Settings.Builder builder = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, version)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
-        if (mode != IndexMode.STANDARD) {
-            builder.put("index.mode", mode.getName());
-        }
-        if (mode == IndexMode.TIME_SERIES) {
-            builder.put("index.routing_path", "dimension");
-        }
-        builder.put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), columnarEnabled);
-        final IndexMetadata metadata = IndexMetadata.builder("test").settings(builder).build();
-        return new IndexSettings(metadata, Settings.EMPTY);
-    }
-
-    /**
-     * Builds index settings without explicitly setting {@link IndexSettings#COLUMNAR_CODEC_ENABLED_SETTING},
-     * so tests can exercise the version-gated default value.
-     */
-    private static IndexSettings indexSettingsWithDefaultCodecEnabled(final IndexMode mode, final IndexVersion version) {
+    private static IndexSettings indexSettings(final IndexMode mode, final IndexVersion version) {
         final Settings.Builder builder = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, version)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)

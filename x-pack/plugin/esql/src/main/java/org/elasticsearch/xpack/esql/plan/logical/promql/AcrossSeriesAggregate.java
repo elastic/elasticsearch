@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry.PromqlContext;
@@ -53,7 +54,7 @@ import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema
  * These functions reduce the number of time series by aggregating values across series
  * that share the same grouping labels (or all series if no grouping is specified).
  */
-public final class AcrossSeriesAggregate extends PromqlFunctionCall {
+public sealed class AcrossSeriesAggregate extends PromqlFunctionCall permits CountValuesAggregate {
 
     public enum Grouping {
         BY,
@@ -201,8 +202,14 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
         var promqlCtx = new PromqlContext(context.time(), AggregateFunction.NO_WINDOW, ir.step(), context.configuration());
         Expression function = buildEsqlFunction(ir.value(), promqlCtx);
         // A raw operand collapses once, with the operator's function fused into the per-series aggregate; a table regroups.
-        return ir.kind().afterInitialAggregation
+        IntermediateResult result = ir.kind().afterInitialAggregation
             ? context.regroup(ir, schema, grouping() == WITHOUT, function)
             : context.collapse(ir, schema, function);
+        // A count is at least 1 for an element. A group none of whose series has a value - every series of an operator
+        // left without a partner, say - is no element in Prometheus, not a count of 0.
+        if (function instanceof Count) {
+            result = context.eval(result, TranslationContext.zeroCountAsNull(result.valueColumn()));
+        }
+        return result;
     }
 }

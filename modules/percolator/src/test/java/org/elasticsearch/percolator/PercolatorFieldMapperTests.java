@@ -131,7 +131,9 @@ import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -448,6 +450,9 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
             final int maxClauseCount = 100;
             IndexSearcher.setMaxClauseCount(maxClauseCount);
             addQueryFieldMappings();
+            SearchExecutionContext searchExecutionContext = indexService.newSearchExecutionContext(0, 0, null, () -> {
+                throw new UnsupportedOperationException();
+            }, null, emptyMap(), null, null);
 
             MemoryIndex memoryIndex = new MemoryIndex(false);
             StringBuilder text = new StringBuilder();
@@ -458,7 +463,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
             memoryIndex.addField(new LongPoint("field2", 10L), new WhitespaceAnalyzer());
             IndexReader indexReader = memoryIndex.createSearcher().getIndexReader();
 
-            Tuple<BooleanQuery, Boolean> t = fieldType.createCandidateQuery(indexReader);
+            Tuple<BooleanQuery, Boolean> t = fieldType.createCandidateQuery(indexReader, searchExecutionContext);
             assertTrue(t.v2());
             assertEquals(2, t.v1().clauses().size());
             assertThat(t.v1().clauses().get(0).query(), instanceOf(CoveringQuery.class));
@@ -467,7 +472,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
             // Now push it over the edge, so that it falls back using TermInSetQuery
             memoryIndex.addField("field2", "value", new WhitespaceAnalyzer());
             indexReader = memoryIndex.createSearcher().getIndexReader();
-            t = fieldType.createCandidateQuery(indexReader);
+            t = fieldType.createCandidateQuery(indexReader, searchExecutionContext);
             assertFalse(t.v2());
             assertEquals(3, t.v1().clauses().size());
             TermInSetQuery terms = (TermInSetQuery) t.v1().clauses().get(0).query();
@@ -1173,6 +1178,27 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(values.get(4), equalTo("field\0value5"));
         msm = doc.rootDoc().getFields(fieldType.minimumShouldMatchField.name()).get(0).numericValue().intValue();
         assertThat(msm, equalTo(1));
+    }
+
+    public void testMetadataExtraction() throws Exception {
+        addQueryFieldMappings();
+        QueryBuilder queryBuilder = termQuery("_index", "test");
+        ParsedDocument doc = mapperService.documentMapper()
+            .parse(
+                new SourceToParse(
+                    "1",
+                    BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field(fieldName, queryBuilder).endObject()),
+                    XContentType.JSON
+                )
+            );
+
+        assertThat(doc.rootDoc().getFields(fieldType.extractionResultField.name()), hasSize(2));
+        assertThat(
+            doc.rootDoc().getFields(fieldType.extractionResultField.name()).stream().map(IndexableField::stringValue).toList(),
+            containsInAnyOrder(EXTRACTION_FAILED, EXTRACTION_COMPLETE)
+        );
+        assertThat(doc.rootDoc().getFields(fieldType.queryTermsField.name()), empty());
+        assertThat(doc.rootDoc().getFields(fieldType.queryBuilderField.name()), hasSize(1));
     }
 
     private static byte[] subByteArray(byte[] source, int offset, int length) {

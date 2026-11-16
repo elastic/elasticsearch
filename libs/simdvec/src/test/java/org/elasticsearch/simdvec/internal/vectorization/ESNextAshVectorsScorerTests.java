@@ -21,6 +21,8 @@ import org.apache.lucene.store.NIOFSDirectory;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.simdvec.AshScorer;
 import org.elasticsearch.simdvec.BaseVectorizationTests;
+import org.elasticsearch.simdvec.BulkMask;
+import org.elasticsearch.simdvec.ScoringQuery;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectoryFactory;
 
 import java.io.IOException;
@@ -133,20 +135,20 @@ public class ESNextAshVectorsScorerTests extends BaseVectorizationTests {
                 if (queryBitsPerDim > 0) {
                     // Integer path: compare scalar, Panama, and native
                     IndexInput scalarSlice = in.slice("scalar", 0, dataLength);
-                    AshScorer<byte[]> scalarScorer = defaultProvider().getVectorScorerFactory()
+                    AshScorer<ScoringQuery> scalarScorer = defaultProvider().getVectorScorerFactory()
                         .newESNextAshIntegerVectorsScorer(scalarSlice, nDims, bitsPerDim, queryBitsPerDim);
                     IndexInput panamaInput = in.clone();
-                    AshScorer<byte[]> panamaScorer = panamaProvider().getVectorScorerFactory()
+                    AshScorer<ScoringQuery> panamaScorer = panamaProvider().getVectorScorerFactory()
                         .newESNextAshIntegerVectorsScorer(panamaInput, nDims, bitsPerDim, queryBitsPerDim);
                     IndexInput nativeInput = in.clone();
-                    AshScorer<byte[]> nativeScorer = nativeProvider().getVectorScorerFactory()
+                    AshScorer<ScoringQuery> nativeScorer = nativeProvider().getVectorScorerFactory()
                         .newESNextAshIntegerVectorsScorer(nativeInput, nDims, bitsPerDim, queryBitsPerDim);
 
                     for (int offset = 0; offset < numVectors; offset += BULK_SIZE) {
                         int blockSize = Math.min(BULK_SIZE, numVectors - offset);
-                        scalarScorer.scoreBulk(queryQuantized, blockSize, scalarScores);
-                        panamaScorer.scoreBulk(queryQuantized, blockSize, panamaScores);
-                        nativeScorer.scoreBulk(queryQuantized, blockSize, nativeScores);
+                        scalarScorer.scoreBulk(new ScoringQuery(queryQuantized), blockSize, scalarScores);
+                        panamaScorer.scoreBulk(new ScoringQuery(queryQuantized), blockSize, panamaScores);
+                        nativeScorer.scoreBulk(new ScoringQuery(queryQuantized), blockSize, nativeScores);
                         assertScoresMatch("scalar vs panama", scalarScores, panamaScores, blockSize, offset);
                         assertScoresMatch("scalar vs native", scalarScores, nativeScores, blockSize, offset);
                     }
@@ -180,7 +182,7 @@ public class ESNextAshVectorsScorerTests extends BaseVectorizationTests {
      * Tests that scoring a filtered subset of a block gives the same scores, at the same positions, as scoring
      * the whole block, and still consumes the block in full.
      */
-    public void testScoreBulkOffsets() throws Exception {
+    public void testScoreBulkMasked() throws Exception {
         int nDims = randomIntBetween(2, 512);
         // deliberately not a multiple of BULK_SIZE, so the final block is a tail
         int numVectors = BULK_SIZE * randomIntBetween(1, 3) + randomIntBetween(1, BULK_SIZE - 1);
@@ -194,7 +196,7 @@ public class ESNextAshVectorsScorerTests extends BaseVectorizationTests {
         byte[] queryQuantized = queryBitsPerDim > 0 ? randomByteArrayOfLength(queryBitsPerDim * planeBytes) : null;
 
         try (Directory dir = newParametrizedDirectory()) {
-            try (IndexOutput out = dir.createOutput("test_ash_offsets.bin", IOContext.DEFAULT)) {
+            try (IndexOutput out = dir.createOutput("test_ash_masked.bin", IOContext.DEFAULT)) {
                 for (int i = 0; i < numVectors; i++) {
                     out.writeBytes(randomByteArrayOfLength(packedCodeBytes), 0, packedCodeBytes);
                 }
@@ -202,28 +204,28 @@ public class ESNextAshVectorsScorerTests extends BaseVectorizationTests {
             }
 
             long dataLength = (long) packedCodeBytes * numVectors;
-            try (IndexInput in = dir.openInput("test_ash_offsets.bin", IOContext.DEFAULT)) {
+            try (IndexInput in = dir.openInput("test_ash_masked.bin", IOContext.DEFAULT)) {
                 for (var provider : List.of(defaultProvider(), panamaProvider(), nativeProvider())) {
                     var factory = provider.getVectorScorerFactory();
                     IndexInput bulkInput = in.clone();
-                    IndexInput offsetsInput = in.clone();
+                    IndexInput maskedInput = in.clone();
                     if (queryBitsPerDim > 0) {
-                        assertOffsetsMatchBulk(
+                        assertMaskedMatchBulk(
                             factory.newESNextAshIntegerVectorsScorer(bulkInput, nDims, bitsPerDim, queryBitsPerDim),
-                            factory.newESNextAshIntegerVectorsScorer(offsetsInput, nDims, bitsPerDim, queryBitsPerDim),
-                            queryQuantized,
+                            factory.newESNextAshIntegerVectorsScorer(maskedInput, nDims, bitsPerDim, queryBitsPerDim),
+                            new ScoringQuery(queryQuantized),
                             numVectors
                         );
                     } else {
-                        assertOffsetsMatchBulk(
+                        assertMaskedMatchBulk(
                             factory.newESNextAshFloatVectorsScorer(bulkInput, nDims, bitsPerDim),
-                            factory.newESNextAshFloatVectorsScorer(offsetsInput, nDims, bitsPerDim),
+                            factory.newESNextAshFloatVectorsScorer(maskedInput, nDims, bitsPerDim),
                             queryTransformed,
                             numVectors
                         );
                     }
                     assertEquals("scoreBulk did not consume the input " + describe(), dataLength, bulkInput.getFilePointer());
-                    assertEquals("scoreBulkOffsets did not consume the input " + describe(), dataLength, offsetsInput.getFilePointer());
+                    assertEquals("scoreBulkMasked did not consume the input " + describe(), dataLength, maskedInput.getFilePointer());
                 }
             }
         }
@@ -234,40 +236,38 @@ public class ESNextAshVectorsScorerTests extends BaseVectorizationTests {
      * asked for. Comparing against the whole-block run rather than across tiers is what pins down that the score
      * landing at index {@code i} is the score of vector {@code i}.
      */
-    private <T> void assertOffsetsMatchBulk(AshScorer<T> bulkScorer, AshScorer<T> offsetsScorer, T query, int numVectors)
-        throws IOException {
-        int[] offsets = new int[BULK_SIZE];
+    private <T> void assertMaskedMatchBulk(AshScorer<T> bulkScorer, AshScorer<T> maskedScorer, T query, int numVectors) throws IOException {
         float[] bulkScores = new float[BULK_SIZE];
-        float[] offsetsScores = new float[BULK_SIZE];
+        float[] maskedScores = new float[BULK_SIZE];
 
         for (int base = 0; base < numVectors; base += BULK_SIZE) {
             int blockSize = Math.min(BULK_SIZE, numVectors - base);
-            int offsetsCount = randomOffsets(offsets, blockSize);
+            int mask = randomMask(blockSize);
 
             bulkScorer.scoreBulk(query, blockSize, bulkScores);
-            Arrays.fill(offsetsScores, Float.NaN);
-            offsetsScorer.scoreBulkOffsets(query, offsets, offsetsCount, offsetsScores, blockSize);
+            Arrays.fill(maskedScores, Float.NaN);
+            maskedScorer.scoreBulkMasked(query, mask, maskedScores, blockSize);
 
-            // entries not listed in the offsets are unspecified, so only the requested ones are compared
-            for (int k = 0; k < offsetsCount; k++) {
-                int j = offsets[k];
-                assertEquals("vector " + (base + j) + " " + describe(), bulkScores[j], offsetsScores[j], 1e-3f);
+            // entries not selected by the mask are unspecified, so only the selected ones are compared
+            for (int m = mask; m != 0; m = BulkMask.deselectFirst(m)) {
+                int j = BulkMask.first(m);
+                assertEquals("vector " + (base + j) + " " + describe(), bulkScores[j], maskedScores[j], 1e-3f);
             }
         }
     }
 
-    /** Random ascending, non-empty subset of {@code [0, blockSize)}; callers skip the whole block rather than pass an empty set */
-    private int randomOffsets(int[] offsets, int blockSize) {
-        int count = 0;
+    /** Random non-empty selection within {@code [0, blockSize)}; callers skip the whole block rather than pass an empty mask */
+    private int randomMask(int blockSize) {
+        int mask = 0;
         for (int j = 0; j < blockSize; j++) {
             if (randomBoolean()) {
-                offsets[count++] = j;
+                mask = BulkMask.select(mask, j);
             }
         }
-        if (count == 0) {
-            offsets[count++] = randomIntBetween(0, blockSize - 1);
+        if (mask == 0) {
+            mask = BulkMask.select(mask, randomIntBetween(0, blockSize - 1));
         }
-        return count;
+        return mask;
     }
 
     /**
@@ -301,16 +301,16 @@ public class ESNextAshVectorsScorerTests extends BaseVectorizationTests {
                 try (IndexInput in = dir.openInput("test_ash_single.bin", IOContext.DEFAULT)) {
                     if (queryBitsPerDim > 0) {
                         IndexInput singleInput = in.clone();
-                        AshScorer<byte[]> singleScorer = provider.getVectorScorerFactory()
+                        AshScorer<ScoringQuery> singleScorer = provider.getVectorScorerFactory()
                             .newESNextAshIntegerVectorsScorer(singleInput, nDims, bitsPerDim, queryBitsPerDim);
 
                         IndexInput bulkInput = in.clone();
-                        AshScorer<byte[]> bulkScorer = provider.getVectorScorerFactory()
+                        AshScorer<ScoringQuery> bulkScorer = provider.getVectorScorerFactory()
                             .newESNextAshIntegerVectorsScorer(bulkInput, nDims, bitsPerDim, queryBitsPerDim);
 
-                        float singleScore = singleScorer.score(queryQuantized);
+                        float singleScore = singleScorer.score(new ScoringQuery(queryQuantized));
                         float[] bulkScores = new float[1];
-                        bulkScorer.scoreBulk(queryQuantized, 1, bulkScores);
+                        bulkScorer.scoreBulk(new ScoringQuery(queryQuantized), 1, bulkScores);
                         assertEquals("Single vs bulk mismatch", singleScore, bulkScores[0], 0f);
                     } else {
                         IndexInput singleInput = in.clone();

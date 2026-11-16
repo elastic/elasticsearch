@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
@@ -50,7 +51,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
         RecoverySource.EmptyStoreRecoverySource.INSTANCE,
         new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "index created"),
         ShardRouting.Role.DEFAULT,
-        ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
+        RecoveryPriority.UNASSIGNED_NEW_PRIMARY
     );
     private final ClusterSettings clusterSettings = createBuiltInClusterSettings();
     private final NodeShutdownAllocationDecider decider = new NodeShutdownAllocationDecider();

@@ -54,7 +54,7 @@ public class Queries {
                 }
             }
             // at least two entries, start copying
-            else {
+            else if (query.equals(firstQuery) == false) {
                 // lazy init the root bool
                 if (bool == null) {
                     bool = combine(clause, boolQuery(), firstQuery);

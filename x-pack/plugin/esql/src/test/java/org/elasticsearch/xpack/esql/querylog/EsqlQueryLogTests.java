@@ -15,6 +15,8 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.MockAppender;
+import org.elasticsearch.common.logging.activity.ActivityLogWriter;
+import org.elasticsearch.common.logging.activity.QueryLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
@@ -37,13 +39,17 @@ import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.session.Versioned;
+import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.time.ZoneId;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_PREFIX;
@@ -53,7 +59,9 @@ import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_Q
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_TOOK_MILLIS;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_TOOK_MILLIS_SUFFIX;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_TOOK_SUFFIX;
+import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_VIEW_SETTINGS;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -66,6 +74,13 @@ public class EsqlQueryLogTests extends ESTestCase {
         .withOverride(QuerySettings.PROJECT_ROUTING, "_alias:_origin")
         .withOverride(QuerySettings.UNMAPPED_FIELDS, UnmappedResolution.NULLIFY)
         .withOverride(QuerySettings.TIME_ZONE, ZoneId.of("Europe/Paris"));
+    /** One view with a SET and one without, both logged apart from the caller's settings. */
+    private static final Map<String, ViewQuerySettings> VIEW_SETTINGS = Map.of(
+        "nullifying_view",
+        new ViewQuerySettings(UnmappedResolution.NULLIFY, true, false, Set.of("unmapped_fields", "wildcards_match_views")),
+        "plain_view",
+        ViewQuerySettings.DEFAULTS
+    );
 
     private static ClusterSettings settings = new ClusterSettings(
         Settings.builder()
@@ -133,11 +148,38 @@ public class EsqlQueryLogTests extends ESTestCase {
         assertThat(msg.get(ELASTICSEARCH_QUERYLOG_SETTINGS_PREFIX + ".unmapped_fields"), is("NULLIFY"));
     }
 
+    private static Map<String, ViewQuerySettings> randomViewSettings() {
+        return randomFrom(VIEW_SETTINGS, Map.of(), Map.of("plain_view", ViewQuerySettings.DEFAULTS));
+    }
+
+    private static void assertViewSettingsLogged(ESLogMessage msg, Map<String, ViewQuerySettings> viewSettings) {
+        if (viewSettings.isEmpty()) {
+            assertThat(msg.getData(), not(hasKey(ELASTICSEARCH_QUERYLOG_VIEW_SETTINGS)));
+            return;
+        }
+        // every resolved view, with what its definition SETs and the default for the rest
+        Map<String, Map<String, String>> expected = new HashMap<>();
+        expected.put(
+            "plain_view",
+            Map.of("unmapped_fields", "DEFAULT", "wildcards_match_views", "false", "wildcards_match_datasets", "false")
+        );
+        if (viewSettings.containsKey("nullifying_view")) {
+            expected.put(
+                "nullifying_view",
+                Map.of("unmapped_fields", "NULLIFY", "wildcards_match_views", "true", "wildcards_match_datasets", "false")
+            );
+        }
+        assertThat(msg.getData().get(ELASTICSEARCH_QUERYLOG_VIEW_SETTINGS), equalTo(expected));
+        // the caller's settings fields are untouched by the views' own
+        assertThat(msg.get(ELASTICSEARCH_QUERYLOG_SETTINGS_PREFIX + ".unmapped_fields"), is("NULLIFY"));
+    }
+
     public void testPrioritiesOnSuccess() {
         EsqlQueryLog queryLog = new EsqlQueryLog(settings, mockLogFieldProvider());
         assertWarnings(EsqlQueryLog.DEPRECATION_MESSAGE);
         String query = "from " + randomAlphaOfLength(10);
         Configuration configuration = configurationWith(RESOLVED_SETTINGS);
+        Map<String, ViewQuerySettings> viewSettings = randomViewSettings();
 
         long[] actualTook = {
             randomLongBetween(10_000_000, 20_000_000),
@@ -153,7 +195,8 @@ public class EsqlQueryLogTests extends ESTestCase {
                     new Result(List.of(), List.of(), null, configuration, DriverCompletionInfo.EMPTY, warnQuery, null),
                     TransportVersion.current()
                 ),
-                query
+                query,
+                viewSettings
             );
             if (expectedLevel[i] != null) {
                 assertThat(appender.lastEvent(), is(not(nullValue())));
@@ -179,6 +222,7 @@ public class EsqlQueryLogTests extends ESTestCase {
                 }
                 assertThat(msg.get(ELASTICSEARCH_QUERYLOG_QUERY), is(query));
                 assertResolvedSettingsLogged(msg);
+                assertViewSettingsLogged(msg, viewSettings);
                 assertThat(appender.getLastEventAndReset().getLevel(), equalTo(expectedLevel[i]));
             } else {
                 assertThat(appender.lastEvent(), is(nullValue()));
@@ -203,8 +247,9 @@ public class EsqlQueryLogTests extends ESTestCase {
 
         String validationError = randomAlphaOfLength(10);
         ValidationException ex = new ValidationException().addValidationError(validationError);
+        Map<String, ViewQuerySettings> viewSettings = randomViewSettings();
         for (int i = 0; i < actualTook.length; i++) {
-            queryLog.onQueryFailure(query, RESOLVED_SETTINGS, ex, actualTook[i]);
+            queryLog.onQueryFailure(query, RESOLVED_SETTINGS, viewSettings, ex, actualTook[i]);
             if (expectedLevel[i] != null) {
                 assertThat(appender.lastEvent(), is(not(nullValue())));
                 var msg = (ESLogMessage) appender.lastMessage();
@@ -215,6 +260,7 @@ public class EsqlQueryLogTests extends ESTestCase {
                 assertThat(tookMillis, is(tookMillisExpected));
                 assertThat(msg.get(ELASTICSEARCH_QUERYLOG_QUERY), is(query));
                 assertResolvedSettingsLogged(msg);
+                assertViewSettingsLogged(msg, viewSettings);
                 assertThat(appender.getLastEventAndReset().getLevel(), equalTo(expectedLevel[i]));
             } else {
                 assertThat(appender.lastEvent(), is(nullValue()));
@@ -266,4 +312,15 @@ public class EsqlQueryLogTests extends ESTestCase {
         return new TimeSpan(startNanos / 1_000_000, startNanos, stopNanos / 1_000_000, stopNanos);
     }
 
+    public void testSinkDescriptionNamesTheProducer() {
+        var clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        var queryLogger = new QueryLogger<>(
+            clusterSettings,
+            new EsqlLogProducer(),
+            name -> ActivityLogWriter.NOOP,
+            context -> new ActionLoggingFields(context) {}
+        );
+
+        assertThat(queryLogger.toString(), equalTo("query_log/EsqlLogProducer"));
+    }
 }

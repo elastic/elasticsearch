@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.stats;
 
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.DoubleField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FloatField;
@@ -27,14 +28,21 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.LowercaseNormalizer;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
 import org.junit.After;
 import org.junit.Before;
 
@@ -44,6 +52,8 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateNanosToLong;
@@ -1247,5 +1257,97 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
         IOUtils.close(readers);
         IOUtils.close(mapperServices);
         IOUtils.close(directory);
+    }
+
+    /** A shard can query a field from its doc values, as the type it holds the field. */
+    public void testShardQueriesDocValues() throws IOException {
+        SearchExecutionContext mapped = statsContext("""
+            { "doc": { "properties": { "kw": { "type": "keyword" }, "n": { "type": "long" } } } }""");
+        assertTrue(isQueryable(mapped, "kw", DataType.KEYWORD));
+        assertTrue(isQueryable(mapped, "n", DataType.LONG));
+        assertFalse(isQueryable(mapped, "n", DataType.KEYWORD));
+    }
+
+    /**
+     * A field without doc values cannot be queried as ES|QL reads it, as a filter checks from its doc values that a document holds a
+     * single value. The shard matches every document instead, and the filter checks the values it reads.
+     */
+    public void testShardCannotQueryWithoutDocValues() throws IOException {
+        SearchExecutionContext withoutDocValues = statsContext("""
+            { "doc": { "properties": { "kw": { "type": "keyword", "doc_values": false } } } }""");
+        assertFalse(isQueryable(withoutDocValues, "kw", DataType.KEYWORD));
+    }
+
+    /** A shard that cannot hold a field can query it, as nothing matches. */
+    public void testShardThatCannotHoldTheFieldCanQueryIt() throws IOException {
+        SearchExecutionContext without = statsContext("""
+            { "doc": { "properties": { "other": { "type": "keyword" } } } }""");
+        assertTrue(isQueryable(without, "kw", DataType.KEYWORD));
+    }
+
+    /** A sub-field of a nested object is a field ES|QL does not read, but a query on it could match the copy in the root document. */
+    public void testShardCannotQueryNestedSubfield() throws IOException {
+        SearchExecutionContext nested = statsContext("""
+            { "doc": { "properties": { "item": { "type": "nested", "include_in_root": true,
+              "properties": { "value": { "type": "keyword" } } } } } }""");
+        assertFalse(isQueryable(nested, "item.value", DataType.KEYWORD));
+    }
+
+    /**
+     * A field the plan reads that a shard does not map can be queried as the key of a flattened field. Read from {@code _source}, it
+     * cannot: the shard checks the values it reads.
+     */
+    public void testShardQueriesTheFieldsItResolves() throws IOException {
+        SearchExecutionContext unmapped = statsContext("""
+            { "doc": { "dynamic": false, "properties": { "other": { "type": "keyword" } } } }""");
+        assertFalse(isQueryable(new EsqlSearchExecutionContext(unmapped, QueryWarnings.EMIT, Set.of("kw")), "kw", DataType.KEYWORD));
+
+        SearchExecutionContext flattened = statsContext("""
+            { "doc": { "properties": { "attrs": { "type": "flattened" } } } }""");
+        assertTrue(
+            isQueryable(new EsqlSearchExecutionContext(flattened, QueryWarnings.EMIT, Set.of("attrs.bar")), "attrs.bar", DataType.KEYWORD)
+        );
+        assertFalse("a key the plan does not read is not a field ES|QL reads", isQueryable(flattened, "attrs.bar", DataType.KEYWORD));
+    }
+
+    /** A {@code keyword} with a normalizer cannot run a query that compares the values as read. */
+    public void testNormalizedKeywordDoesNotCompareValuesAsRead() throws IOException {
+        SearchExecutionContext normalized = statsContext("""
+            { "doc": { "properties": { "kw": { "type": "keyword", "normalizer": "lowercase" } } } }""");
+        assertTrue(SearchContextStats.isQueryable(normalized, "kw", DataType.KEYWORD, false));
+        assertFalse(SearchContextStats.isQueryable(normalized, "kw", DataType.KEYWORD, true));
+    }
+
+    /** The shards of a node can query a field when each of them can and at least one holds the field. */
+    public void testNodeQueriesWhenEveryShardCan() throws IOException {
+        SearchExecutionContext mapped = statsContext("""
+            { "doc": { "properties": { "kw": { "type": "keyword" } } } }""");
+        SearchExecutionContext without = statsContext("""
+            { "doc": { "properties": { "other": { "type": "keyword" } } } }""");
+        SearchExecutionContext withoutDocValues = statsContext("""
+            { "doc": { "properties": { "kw": { "type": "keyword", "doc_values": false } } } }""");
+        FieldAttribute.FieldName kw = new FieldAttribute.FieldName("kw");
+        assertTrue(SearchContextStats.from(List.of(mapped, without)).isQueryable(kw, DataType.KEYWORD, false));
+        assertFalse(SearchContextStats.from(List.of(mapped, withoutDocValues)).isQueryable(kw, DataType.KEYWORD, false));
+        assertFalse(SearchContextStats.from(List.of(without)).isQueryable(kw, DataType.KEYWORD, false));
+    }
+
+    private static boolean isQueryable(SearchExecutionContext context, String field, DataType type) {
+        return SearchContextStats.isQueryable(context, field, type, false);
+    }
+
+    /** The default analyzer, and a {@code lowercase} normalizer for the keywords that normalize their values. */
+    @Override
+    protected IndexAnalyzers createIndexAnalyzers(IndexSettings indexSettings) {
+        return IndexAnalyzers.of(
+            Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
+            Map.of("lowercase", new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer()))
+        );
+    }
+
+    private SearchExecutionContext statsContext(String mapping) throws IOException {
+        MapperService mapperService = createMapperService(mapping);
+        mapperServices.add(mapperService);
+        return createSearchExecutionContext(mapperService);
     }
 }

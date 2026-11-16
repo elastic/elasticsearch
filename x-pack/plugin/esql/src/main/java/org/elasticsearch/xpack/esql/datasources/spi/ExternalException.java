@@ -115,6 +115,14 @@ public abstract class ExternalException extends QlException {
                     ? "Unexpected internal failure reading external source"
                     : "Unexpected internal failure reading external source: " + detailCode;
             }
+        },
+        /** A node has not yet applied the cluster state the query needs, so it cannot serve the external reads; retryable. */
+        WORKER_NOT_READY {
+            @Override
+            public String render(String objectName, String detailCode, String remedy) {
+                String base = "Node not ready to serve external data";
+                return detailCode.isEmpty() ? base : base + " (" + detailCode + ")";
+            }
         };
 
         /** Message naming the object, with {@code {}} standing for its name; {@code null} if {@link #render} is overridden. */
@@ -219,6 +227,28 @@ public abstract class ExternalException extends QlException {
         this.detailCode = detailCode != null ? detailCode : "";
         this.remedy = remedy != null ? remedy : "";
         recordConditionMetadata();
+    }
+
+    /**
+     * Structured constructor for a condition that names no object, such as {@link Condition#WORKER_NOT_READY}: the
+     * message is {@code condition.render("", detailCode, remedy)} and {@link #objectName()} is empty.
+     */
+    @SuppressWarnings("this-escape") // addMetadata only fills a map owned by ElasticsearchException; see recordConditionMetadata
+    protected ExternalException(Condition condition, String detailCode, String remedy, Throwable cause) {
+        super(condition.render("", detailCode, remedy), cause);
+        this.condition = condition;
+        this.objectName = "";
+        this.detailCode = detailCode != null ? detailCode : "";
+        this.remedy = remedy != null ? remedy : "";
+        recordConditionMetadata();
+    }
+
+    /**
+     * Structured constructor for a condition that names no object, without a cause.
+     * See {@link #ExternalException(Condition, String, String, Throwable)}.
+     */
+    protected ExternalException(Condition condition, String detailCode, String remedy) {
+        this(condition, detailCode, remedy, null);
     }
 
     /**
@@ -334,6 +364,15 @@ public abstract class ExternalException extends QlException {
             }
         }
         return false;
+    }
+
+    /**
+     * Whether this failure means a cached listing or file-metadata entry no longer describes the store: the object
+     * was rewritten ({@link Condition#OBJECT_CHANGED}) or deleted ({@link Condition#OBJECT_NOT_FOUND}). Callers drop
+     * the entries they used and, when the query has not yet run, resolve or discover once more.
+     */
+    public static boolean isStaleCachedObject(Throwable failure) {
+        return hasCondition(failure, Condition.OBJECT_CHANGED) || hasCondition(failure, Condition.OBJECT_NOT_FOUND);
     }
 
     private String baseMessage() {

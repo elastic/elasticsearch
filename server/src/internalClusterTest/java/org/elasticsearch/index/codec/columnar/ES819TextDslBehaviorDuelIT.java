@@ -32,9 +32,9 @@ import java.util.Random;
 import java.util.Set;
 
 /**
- * DSL behavior duel of {@code text} and {@code match_only_text} fields in a columnar-mode index with the ColumNAR
- * codec disabled (the ES819 tsdb doc-values format) against a ColumNAR contender. Both indices use the same strict
- * columnar index mode and differ only in the codec setting, so the duel isolates the codec substitution as the
+ * DSL behavior duel of {@code text} and {@code match_only_text} fields in a columnar-mode index created just before
+ * the ColumNAR codec (the ES819 tsdb doc-values format) against a ColumNAR contender. Both indices use the same strict
+ * columnar index mode and differ only in the doc-values format, so the duel isolates the codec substitution as the
  * single variable. Each scenario runs in {@code columnar} and in {@code logsdb_columnar}, and each index pair maps
  * both types with the default {@code index} and with {@code index: false}. A text field is searched by the tokens of
  * its analyzed value either way, so all four fields run the same checks, once on the unmerged segments and again
@@ -51,6 +51,12 @@ public class ES819TextDslBehaviorDuelIT extends ESIntegTestCase {
     private static final String TEXT_UNINDEXED = "text_unindexed";
     private static final String MATCH_ONLY_TEXT_INDEXED = "mot_indexed";
     private static final String MATCH_ONLY_TEXT_UNINDEXED = "mot_unindexed";
+
+    @Override
+    protected boolean forbidPrivateIndexSettings() {
+        // Need to set IndexVersion of baseline ES819 index.
+        return false;
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

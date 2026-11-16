@@ -65,7 +65,7 @@ public class TransportPauseFieldAction extends TransportNodesAction<
 
     @Override
     protected NodeRequest newNodeRequest(Request request) {
-        return new NodeRequest(request.block);
+        return new NodeRequest(request.mode);
     }
 
     @Override
@@ -75,39 +75,53 @@ public class TransportPauseFieldAction extends TransportNodesAction<
 
     @Override
     protected NodeResponse nodeOperation(NodeRequest request, Task task) {
-        if (request.block) {
-            PausableField.blockExecution();
-        } else {
-            PausableField.unblockExecution();
+        switch (request.mode) {
+            case BLOCK -> PausableField.blockExecution();
+            case STOP -> PausableField.stop();
+            case ADMIT -> PausableField.admit();
+            case UNBLOCK -> PausableField.unblock();
+            case STATUS -> {
+            }
         }
-        return new NodeResponse(transportService.getLocalNode());
+        return new NodeResponse(transportService.getLocalNode(), PausableField.parkedCount(), PausableField.gatedCount());
+    }
+
+    /**
+     * What a request does on each node. Every mode reports the number of threads blocked on the latch and waiting at the admission gate.
+     */
+    public enum Mode {
+        BLOCK,
+        STOP,
+        ADMIT,
+        UNBLOCK,
+        STATUS
     }
 
     public static class Request extends BaseNodesRequest {
-        private final boolean block;
+        private final Mode mode;
 
-        public Request(boolean block) {
+        public Request(Mode mode) {
             super(Strings.EMPTY_ARRAY);
-            this.block = block;
+            this.mode = mode;
         }
     }
 
     public static class NodeRequest extends AbstractTransportRequest {
-        private final boolean block;
+        private final Mode mode;
 
-        NodeRequest(boolean block) {
-            this.block = block;
+        NodeRequest(Mode mode) {
+            this.mode = mode;
         }
 
         NodeRequest(StreamInput in) throws IOException {
             super(in);
-            this.block = in.readBoolean();
+            this.mode = in.readEnum(Mode.class);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeBoolean(block);
+            out.writeEnum(mode);
         }
     }
 
@@ -128,16 +142,40 @@ public class TransportPauseFieldAction extends TransportNodesAction<
     }
 
     public static class NodeResponse extends BaseNodeResponse {
-        protected NodeResponse(DiscoveryNode node) {
+        private final int parked;
+        private final int gated;
+
+        protected NodeResponse(DiscoveryNode node, int parked, int gated) {
             super(node);
+            this.parked = parked;
+            this.gated = gated;
         }
 
         protected NodeResponse(StreamInput in) throws IOException {
             super(in);
+            this.parked = in.readVInt();
+            this.gated = in.readVInt();
         }
 
         protected NodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
             super(in, node);
+            this.parked = in.readVInt();
+            this.gated = in.readVInt();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeVInt(parked);
+            out.writeVInt(gated);
+        }
+
+        public int parked() {
+            return parked;
+        }
+
+        public int gated() {
+            return gated;
         }
     }
 }

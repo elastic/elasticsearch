@@ -64,7 +64,7 @@ public abstract sealed class Int8VectorScorer extends RandomVectorScorer.Abstrac
         assert queryVector.length == values.dimension();
         this.dimensions = values.dimension();
         this.vectorByteSize = values.getVectorByteLength();
-        this.query = MemorySegment.ofArray(queryVector);
+        this.query = MemorySegmentUtils.nativeCopyOf(queryVector);
         this.scratch = new FixedSizeSegmentScratch(vectorByteSize);
     }
 
@@ -123,7 +123,7 @@ public abstract sealed class Int8VectorScorer extends RandomVectorScorer.Abstrac
                 input,
                 vectorByteSize,
                 scratch,
-                seg -> normalize(DISTANCE_FUNCS.dotProductI8(query, seg, dimensions))
+                seg -> normalize(DISTANCE_FUNCS.dotProductI8(seg, query, dimensions))
             );
         }
 
@@ -158,7 +158,7 @@ public abstract sealed class Int8VectorScorer extends RandomVectorScorer.Abstrac
             long byteOffset = (long) node * vectorByteSize;
             input.seek(byteOffset);
             return IndexInputUtils.withFloatSlice(input, vectorByteSize, scratch, seg -> {
-                float cos = DISTANCE_FUNCS.cosineI8(query, seg, dimensions);
+                float cos = DISTANCE_FUNCS.cosineI8(seg, query, dimensions);
                 return normalize(cos);
             });
         }
@@ -190,7 +190,7 @@ public abstract sealed class Int8VectorScorer extends RandomVectorScorer.Abstrac
             long byteOffset = (long) node * vectorByteSize;
             input.seek(byteOffset);
             return IndexInputUtils.withFloatSlice(input, vectorByteSize, scratch, seg -> {
-                float sqDist = DISTANCE_FUNCS.squareDistanceI8(query, seg, dimensions);
+                float sqDist = DISTANCE_FUNCS.squareDistanceI8(seg, query, dimensions);
                 return VectorUtil.normalizeDistanceToUnitInterval(sqDist);
             });
         }
@@ -222,7 +222,7 @@ public abstract sealed class Int8VectorScorer extends RandomVectorScorer.Abstrac
             long byteOffset = (long) node * vectorByteSize;
             input.seek(byteOffset);
             return IndexInputUtils.withFloatSlice(input, vectorByteSize, scratch, seg -> {
-                float dp = DISTANCE_FUNCS.dotProductI8(query, seg, dimensions);
+                float dp = DISTANCE_FUNCS.dotProductI8(seg, query, dimensions);
                 return VectorUtil.scaleMaxInnerProductScore(dp);
             });
         }

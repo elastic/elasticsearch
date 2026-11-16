@@ -66,6 +66,21 @@ public class TestDocumentParserContext extends DocumentParserContext {
         this(mappingLookup, source, null, settings, IndexVersion.current());
     }
 
+    /**
+     * Creates a context over a real {@link MappingParserContext}, such as a {@link MapperService}'s, for tests that need the type
+     * parsers it has.
+     */
+    public TestDocumentParserContext(MappingParserContext mappingParserContext, MappingLookup mappingLookup) {
+        super(
+            mappingLookup,
+            mappingParserContext,
+            null,
+            mappingLookup.getMapping().getRoot(),
+            ObjectMapper.Dynamic.getRootDynamic(mappingLookup)
+        );
+        this.parser = null;
+    }
+
     private TestDocumentParserContext(
         MappingLookup mappingLookup,
         SourceToParse source,

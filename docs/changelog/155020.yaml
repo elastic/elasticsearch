@@ -2,5 +2,5 @@ area: ES|QL
 issues:
  - 154413
 pr: 155020
-summary: Unmapped_fields=LOAD_ALL POC/MVP
+summary: 'Add the preview setting `unmapped_fields="LOAD_ALL"`'
 type: feature

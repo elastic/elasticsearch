@@ -29,12 +29,14 @@ import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.BlobVersionMismatchException;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.blobstore.RetryingInputStream;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
@@ -82,6 +84,7 @@ import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -135,10 +138,12 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     private S3Service service;
     private volatile boolean shouldErrorOnDns;
     private RecordingMeterRegistry recordingMeterRegistry;
+    private boolean legacyContentMd5;
 
     @Before
     public void initializeS3Service() throws Exception {
         shouldErrorOnDns = false;
+        legacyContentMd5 = false;
         service = new S3Service(
             Mockito.mock(Environment.class),
             ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool()),
@@ -252,6 +257,9 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         final var repositorySettings = Settings.builder()
             .put(S3Repository.CLIENT_NAME.getKey(), clientName)
             .put(S3Repository.GET_REGISTER_RETRY_DELAY.getKey(), TimeValue.ZERO);
+        if (legacyContentMd5) {
+            repositorySettings.put("legacy_content_md5", true);
+        }
         if (maxBulkDeletes != null) {
             repositorySettings.put(S3Repository.DELETION_BATCH_SIZE_SETTING.getKey(), maxBulkDeletes);
         }
@@ -951,6 +959,59 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         assertThat(handler.numberOfSuccessfulDeletes.get(), equalTo(expectedNumberOfBatches));
     }
 
+    public void testDeleteObjectsOmitsContentMd5ByDefault() throws IOException {
+        final var deleteRequest = sendDeleteRequest(false);
+        assertNull(deleteRequest.contentMd5());
+    }
+
+    public void testDeleteObjectsSendsContentMd5WithLegacyContentMd5() throws IOException {
+        final var deleteRequest = sendDeleteRequest(true);
+        final var expectedMd5 = Base64.getEncoder()
+            .encodeToString(MessageDigests.digest(new BytesArray(deleteRequest.body()), MessageDigests.md5()));
+        assertEquals(expectedMd5, deleteRequest.contentMd5());
+    }
+
+    /**
+     * A multi-object delete request as received by the HTTP server.
+     *
+     * @param contentMd5 the value of the {@code Content-MD5} request header, or {@code null} if it was absent
+     * @param body       the request body
+     */
+    private record RecordedDeleteRequest(String contentMd5, byte[] body) {}
+
+    /**
+     * Deletes a single blob using a client with the given {@code legacy_content_md5} setting and returns the one multi-object delete
+     * request that the server received.
+     */
+    private RecordedDeleteRequest sendDeleteRequest(boolean enableLegacyContentMd5) throws IOException {
+        legacyContentMd5 = enableLegacyContentMd5;
+        final var recordedRequests = new ArrayList<RecordedDeleteRequest>();
+
+        @SuppressForbidden(reason = "use a http server")
+        class RecordingDeleteHandler implements HttpHandler {
+            @Override
+            public void handle(HttpExchange exchange) throws IOException {
+                assertTrue(isMultiDeleteRequest(exchange));
+                recordedRequests.add(
+                    new RecordedDeleteRequest(
+                        exchange.getRequestHeaders().getFirst("Content-MD5"),
+                        exchange.getRequestBody().readAllBytes()
+                    )
+                );
+                final byte[] response = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><DeleteResult/>".getBytes(StandardCharsets.UTF_8);
+                exchange.sendResponseHeaders(HttpStatus.SC_OK, response.length);
+                exchange.getResponseBody().write(response);
+                exchange.close();
+            }
+        }
+        httpServer.createContext("/", new RecordingDeleteHandler());
+
+        final BlobContainer blobContainer = blobContainerBuilder().maxRetries(0).disableChunkedEncoding(true).build();
+        blobContainer.deleteBlobsIgnoringIfNotExists(randomPurpose(), List.of(randomIdentifier()).iterator());
+        assertThat(recordedRequests, hasSize(1));
+        return recordedRequests.get(0);
+    }
+
     public void testSnapshotDeletesAbortRetriesWhenThreadIsInterrupted() {
         final BlobContainer blobContainer = blobContainerBuilder()
             // disable AWS-client retries
@@ -1501,14 +1562,15 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             container.writeBlob(randomPurpose(), key, new BytesArray(updatedValue), false);
 
             // Read the rest of the stream, it should throw because the contents changed
-            String message = assertThrows(NoSuchFileException.class, () -> readFully(inputStream)).getMessage();
+            var exception = assertThrows(BlobVersionMismatchException.class, () -> readFully(inputStream));
             assertThat(
-                message,
+                exception.getMessage(),
+                matchesRegex("blob \\[" + container.path().buildAsString() + key + "] version \\[\\S+] is no longer available: .*")
+            );
+            assertThat(
+                exception.getCause().getMessage(),
                 matchesRegex(
-                    "Blob object \\["
-                        + container.path().buildAsString()
-                        + key
-                        + "] with ETag \\[\\S+] unavailable on resume: At least one of the pre-conditions you specified did not hold "
+                    "At least one of the pre-conditions you specified did not hold "
                         + "\\(Service: S3, Status Code: 412, Request ID: test-request-id\\) \\(SDK Attempt Count: 1\\)"
                 )
             );

@@ -20,6 +20,7 @@ import java.util.Map;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
@@ -254,9 +255,14 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
                 containsString("Unknown index [missing] referenced by view [unresolvable]"),
                 () -> run(syncEsqlQueryRequest("FROM missing, unresolvable")).close()
             );
+            // "FROM missing" is compacted into the outer pattern and keeps query order. "FROM missing | KEEP f1" stays a separate
+            // pattern, and separate patterns are registered in pattern-text order.
             expectThrows(
                 VerificationException.class,
-                containsString("Unknown index [other-missing,missing] ([missing] referenced by view [unresolvable])"),
+                anyOf(
+                    containsString("Unknown index [other-missing,missing] ([missing] referenced by view [unresolvable])"),
+                    containsString("Unknown index [missing,other-missing] ([missing] referenced by view [unresolvable])")
+                ),
                 () -> run(syncEsqlQueryRequest("FROM other-missing, unresolvable")).close()
             );
             expectThrows(

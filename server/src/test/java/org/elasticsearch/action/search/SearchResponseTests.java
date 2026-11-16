@@ -61,7 +61,6 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -107,7 +106,7 @@ public class SearchResponseTests extends ESTestCase {
             1,
             0,
             0,
-            ShardSearchFailure.EMPTY_ARRAY,
+            List.of(),
             SearchResponse.Clusters.EMPTY,
             null,
             null,
@@ -194,7 +193,7 @@ public class SearchResponseTests extends ESTestCase {
                     successfulShards,
                     skippedShards,
                     tookInMillis,
-                    shardSearchFailures,
+                    List.of(shardSearchFailures),
                     clusters
                 );
             } finally {
@@ -207,7 +206,7 @@ public class SearchResponseTests extends ESTestCase {
                 successfulShards,
                 skippedShards,
                 tookInMillis,
-                shardSearchFailures,
+                List.of(shardSearchFailures),
                 clusters
             );
         }
@@ -224,7 +223,7 @@ public class SearchResponseTests extends ESTestCase {
         if (randomBoolean()) {
             return randomSimpleClusters();
         } else {
-            return createCCSClusterObject(3, 2, true, 2, 1, 0, 0, new ShardSearchFailure[0]);
+            return createCCSClusterObject(3, 2, true, 2, 1, 0, 0, List.of());
         }
     }
 
@@ -251,7 +250,7 @@ public class SearchResponseTests extends ESTestCase {
         int skippedClusters,
         int partialClusters,
         int failedClusters,
-        ShardSearchFailure[] failures
+        List<ShardSearchFailure> failures
     ) {
         assert successfulClusters + skippedClusters <= totalClusters : "successful + skipped > totalClusters";
         assert totalClusters == remoteClusters || totalClusters - remoteClusters == 1
@@ -280,7 +279,6 @@ public class SearchResponseTests extends ESTestCase {
             int successfulShards;
             int skippedShards;
             int failedShards;
-            List<ShardSearchFailure> failureList = Arrays.asList(failures);
             TimeValue took = new TimeValue(1000L);
             if (successful > 0) {
                 failedShards = 0;
@@ -318,7 +316,7 @@ public class SearchResponseTests extends ESTestCase {
             if (status.equals(SearchResponse.Cluster.Status.SUCCESSFUL)) {
                 finalFailureList = Collections.emptyList();
             } else {
-                finalFailureList = failureList.subList(0, Math.min(failedShards, failureList.size()));
+                finalFailureList = failures.subList(0, Math.min(failedShards, failures.size()));
             }
             clusters.swapCluster(
                 cluster.getClusterAlias(),
@@ -561,16 +559,7 @@ public class SearchResponseTests extends ESTestCase {
                 2,
                 0,
                 ShardSearchFailure.EMPTY_ARRAY,
-                createCCSClusterObject(
-                    4,
-                    3,
-                    true,
-                    1,
-                    1,
-                    1,
-                    1,
-                    new ShardSearchFailure[] { new ShardSearchFailure(new IllegalStateException("corrupt index")) }
-                )
+                createCCSClusterObject(4, 3, true, 1, 1, 1, 1, List.of(new ShardSearchFailure(new IllegalStateException("corrupt index"))))
             );
             try {
                 String expectedString = XContentHelper.stripWhitespace("""
@@ -692,23 +681,26 @@ public class SearchResponseTests extends ESTestCase {
         }
         // Test that shard failures are de-duplicated in ToXContent when the index name and exception message match
         {
-            ShardSearchFailure[] shardFailures = new ShardSearchFailure[SHARDS_PER_CLUSTER];
+            List<ShardSearchFailure> shardFailures = new ArrayList<>(SHARDS_PER_CLUSTER);
             // This is somewhat unrealistic, since createCCSClusterObject() has all clusters use the same array of shard failures, so the
             // cluster alias in the failures will not match the cluster alias of the cluster the failure appears in. For the purposes of
             // this test, this is acceptable, since we only care about checking that the similar failures are not duplicated
             int finalShardId = SHARDS_PER_CLUSTER - 1;
             for (int i = 0; i < finalShardId; i++) {
-                shardFailures[i] = new ShardSearchFailure(
-                    new IllegalStateException("corrupt index"),
-                    new SearchShardTarget("nodeId0", new ShardId("foo", UUID.randomUUID().toString(), i), "cluster_1")
+                shardFailures.add(
+                    new ShardSearchFailure(
+                        new IllegalStateException("corrupt index"),
+                        new SearchShardTarget("nodeId0", new ShardId("foo", UUID.randomUUID().toString(), i), "cluster_1")
+                    )
                 );
             }
             // Set the final failure to be different to make sure that it is still included
-            shardFailures[finalShardId] = new ShardSearchFailure(
-                new NullPointerException("NPE"),
-                new SearchShardTarget("nodeId0", new ShardId("foo", UUID.randomUUID().toString(), finalShardId), "cluster_1")
+            shardFailures.add(
+                new ShardSearchFailure(
+                    new NullPointerException("NPE"),
+                    new SearchShardTarget("nodeId0", new ShardId("foo", UUID.randomUUID().toString(), finalShardId), "cluster_1")
+                )
             );
-            ;
             SearchResponse response = new SearchResponse(
                 sHits,
                 null,
@@ -906,7 +898,7 @@ public class SearchResponseTests extends ESTestCase {
             1,
             0,
             0,
-            ShardSearchFailure.EMPTY_ARRAY,
+            List.of(),
             SearchResponse.Clusters.EMPTY,
             null,
             null,
@@ -1089,15 +1081,7 @@ public class SearchResponseTests extends ESTestCase {
     }
 
     public void testToXContentEmptyClusters() throws IOException {
-        SearchResponse searchResponse = SearchResponseUtils.emptyWithTotalHits(
-            null,
-            1,
-            1,
-            0,
-            1,
-            ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
-        );
+        SearchResponse searchResponse = SearchResponseUtils.emptyWithTotalHits(null, 1, 1, 0, 1, List.of(), SearchResponse.Clusters.EMPTY);
         try {
             SearchResponse deserialized = copyWriteable(
                 searchResponse,

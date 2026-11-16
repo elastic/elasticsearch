@@ -382,7 +382,7 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testLargePageSplitsAcrossChunks() throws IOException {
         final int rowCount = 50;
-        Subscribed s = subscribe(simpleColumns(), null, rowCount);
+        Subscribed s = subscribe(simpleColumns(), null);
 
         final int valueLength = 300;
         Page page = buildLargePage(rowCount, valueLength);
@@ -415,7 +415,7 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
 
     public void testReleaseAfterPartialEncodeThrows() throws IOException {
         final int rowCount = 50;
-        Subscribed s = subscribe(simpleColumns(), null, rowCount);
+        Subscribed s = subscribe(simpleColumns(), null);
 
         Page page = buildLargePage(rowCount, 300);
         ChunkedRestResponseBodyPart pagePart = sendFirstPage(s, page);
@@ -431,7 +431,7 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
     }
 
     public void testSubscribeBeforeSendResponseClosesEventLoopRace() throws IOException {
-        PageStreamPublisher publisher = new PageStreamPublisher(1);
+        PageStreamPublisher publisher = new PageStreamPublisher();
         PageStreamPublisher.Producer producer = publisher.registerProducer();
         EarlyGetNextPartChannel channel = new EarlyGetNextPartChannel();
         EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel, new ThreadContext(Settings.EMPTY));
@@ -453,7 +453,7 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
     }
 
     public void testFailedFirstSendMustNotLeaveTheProducerBlocked() {
-        PageStreamPublisher publisher = new PageStreamPublisher(1);
+        PageStreamPublisher publisher = new PageStreamPublisher();
         PageStreamPublisher.Producer producer = publisher.registerProducer();
         ThrowingOkChannel channel = new ThrowingOkChannel();
         EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel, new ThreadContext(Settings.EMPTY));
@@ -530,15 +530,11 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
     }
 
     private Subscribed subscribe(List<ColumnInfoImpl> columns, boolean[] nullColumns) {
-        return subscribe(columns, nullColumns, 1);
+        return subscribe(columns, nullColumns, ZoneOffset.UTC);
     }
 
-    private Subscribed subscribe(List<ColumnInfoImpl> columns, boolean[] nullColumns, int pageSize) {
-        return subscribe(columns, nullColumns, pageSize, ZoneOffset.UTC);
-    }
-
-    private Subscribed subscribe(List<ColumnInfoImpl> columns, boolean[] nullColumns, int pageSize, ZoneId zoneId) {
-        PageStreamPublisher publisher = new PageStreamPublisher(pageSize);
+    private Subscribed subscribe(List<ColumnInfoImpl> columns, boolean[] nullColumns, ZoneId zoneId) {
+        PageStreamPublisher publisher = new PageStreamPublisher();
         PageStreamPublisher.Producer producer = publisher.registerProducer();
         FakeRestChannel channel = new FakeRestChannel(new FakeRestRequest(), true);
         EsqlStreamResponseListener listener = new EsqlStreamResponseListener(channel, new ThreadContext(Settings.EMPTY));
@@ -681,7 +677,7 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         long epochMillis = 1748649600123L; // 2025-05-31T00:00:00.123Z
         List<ColumnInfoImpl> columns = List.of(new ColumnInfoImpl("ts", DataType.DATETIME, null));
         ZoneId paris = ZoneId.of("Europe/Paris");
-        Subscribed s = subscribe(columns, null, 1, paris);
+        Subscribed s = subscribe(columns, null, paris);
 
         LongBlock longBlock = blockFactory.newLongArrayVector(new long[] { epochMillis }, 1).asBlock();
         Page page = new Page(longBlock);
@@ -698,7 +694,7 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         long epochNanos = 1748649600123456789L; // 2025-05-31T00:00:00.123456789Z
         List<ColumnInfoImpl> columns = List.of(new ColumnInfoImpl("ts", DataType.DATE_NANOS, null));
         ZoneId paris = ZoneId.of("Europe/Paris");
-        Subscribed s = subscribe(columns, null, 1, paris);
+        Subscribed s = subscribe(columns, null, paris);
 
         LongBlock longBlock = blockFactory.newLongArrayVector(new long[] { epochNanos }, 1).asBlock();
         Page page = new Page(longBlock);

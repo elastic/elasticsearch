@@ -26,7 +26,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * @see BlockFactory#newChildFactory(LocalCircuitBreaker)
  * @see Block#allowPassingToDifferentDriver()
  */
-public final class LocalCircuitBreaker implements CircuitBreaker, Releasable {
+public final class LocalCircuitBreaker implements DelegatingCircuitBreaker, Releasable {
     private final CircuitBreaker breaker;
     private final long overReservedBytes;
     private final long maxOverReservedBytes;
@@ -95,6 +95,7 @@ public final class LocalCircuitBreaker implements CircuitBreaker, Releasable {
         }
     }
 
+    @Override
     public CircuitBreaker parentBreaker() {
         return breaker;
     }

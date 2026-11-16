@@ -32,6 +32,8 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.compute.operator.ComputeExecutor;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
+import org.elasticsearch.compute.spill.QueryScope;
+import org.elasticsearch.compute.spill.QueryScopeRegistry;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -157,7 +159,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         CrossProjectModeDecider crossProjectModeDecider,
         QueryMetricsListener metricsCollector,
         FederationLicense federationLicense,
-        ExternalWorkerReadiness externalWorkerReadiness
+        ExternalWorkerReadiness externalWorkerReadiness,
+        QueryScopeRegistry queryScopes
     ) {
         // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
         super(EsqlQueryAction.NAME, transportService, actionFilters, EsqlQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -238,7 +241,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             ipLocationService,
             blockFactoryProvider,
             new PlannerSettings.Holder(clusterService),
-            crossProjectModeDecider
+            crossProjectModeDecider,
+            queryScopes
         );
 
         var dataSourceModule = planExecutor.dataSourceModule();
@@ -407,6 +411,27 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         TransportVersion localMinimumVersion = clusterService.state().getMinTransportVersion();
         EsqlFlags flags = computeService.createFlags();
         String sessionId = getOrCreateSessionID(task);
+        // The response lease: taken before any compute of the query and handed to the response, so that the scope outlives
+        // the result's delivery and the result pages are released against a live account when the response closes.
+        final QueryScope.Lease responseLease = computeService.queryScopes().acquire(ComputeService.rootOf(sessionId));
+        try {
+            innerExecute(task, request, listener, localMinimumVersion, flags, sessionId, responseLease);
+        } catch (RuntimeException e) {
+            // a throw before any listener was reached: nothing else releases the lease
+            Releasables.close(responseLease);
+            throw e;
+        }
+    }
+
+    private void innerExecute(
+        Task task,
+        EsqlQueryRequest request,
+        ActionListener<EsqlQueryResponse> listener,
+        TransportVersion localMinimumVersion,
+        EsqlFlags flags,
+        String sessionId,
+        @Nullable QueryScope.Lease responseLease
+    ) {
         // async-query uses EsqlQueryTask, so pull the EsqlExecutionInfo out of the task
         // sync query uses CancellableTask which does not have EsqlExecutionInfo, so create one
         EsqlExecutionInfo executionInfo = getOrCreateExecutionInfo(task, request);
@@ -415,6 +440,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                 sessionId,
                 (CancellableTask) task,
                 flags,
+                role,
                 plan,
                 configuration,
                 foldCtx,
@@ -451,6 +477,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                     collectMetrics(result.inner());
                 }
                 var response = toResponse(task, request, request.profile(), result);
+                if (responseLease != null) {
+                    response.releaseOnClose(responseLease);
+                }
                 assert response.isAsync() == request.async() : "The response must be async if the request was async";
 
                 if (response.isAsync()) {
@@ -465,6 +494,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
                 listener.onResponse(response);
             }, ex -> {
+                Releasables.close(responseLease);
                 if (request.analyzeOnly() == false) {
                     recordCCSTelemetry(task, executionInfo, request, ex);
                 }
@@ -621,7 +651,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     /** Releases the pages here because the caller's {@link ActionListener#wrap} swallows the throw before any release path sees it. */
     static void failIfCancelled(Task task, Result result) {
         if (task instanceof CancellableTask cancellableTask && cancellableTask.isCancelled()) {
-            Releasables.closeExpectNoException(result.pages());
+            result.releasePages();
             throw new TaskCancelledException(cancellableTask.getReasonCancelled());
         }
     }
@@ -668,7 +698,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             String asyncExecutionId = asyncTask.getExecutionId().getEncoded();
             return new EsqlQueryResponse(
                 columns,
-                result.pages(),
+                result.toResultPages(),
                 result.completionInfo().documentsFound(),
                 result.completionInfo().valuesLoaded(),
                 result.completionInfo().rowsEmitted(),
@@ -691,7 +721,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         }
         return new EsqlQueryResponse(
             columns,
-            result.pages(),
+            result.toResultPages(),
             result.completionInfo().documentsFound(),
             result.completionInfo().valuesLoaded(),
             result.completionInfo().rowsEmitted(),

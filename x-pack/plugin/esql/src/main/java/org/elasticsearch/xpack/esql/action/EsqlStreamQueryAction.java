@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 
 import java.time.ZoneId;
 import java.util.List;
@@ -44,5 +46,20 @@ public class EsqlStreamQueryAction extends ActionType<ActionResponse.Empty> {
      * fields are signalled through {@link EsqlStreamQueryRequest#resultStreamListener()} rather than
      * through the transport action's own response path.
      */
-    public record ResultStream(List<ColumnInfoImpl> columns, PageStreamPublisher publisher, boolean[] nullColumns, ZoneId zoneId) {}
+    /**
+     * @param streamHold what the REST listener releases once the channel is done with the stream's body: the query's
+     *                   scope stays open until then, so the last pages are released against a live account; null when
+     *                   the query has no scope on the coordinator
+     */
+    public record ResultStream(
+        List<ColumnInfoImpl> columns,
+        PageStreamPublisher publisher,
+        boolean[] nullColumns,
+        ZoneId zoneId,
+        @Nullable Releasable streamHold
+    ) {
+        public ResultStream(List<ColumnInfoImpl> columns, PageStreamPublisher publisher, boolean[] nullColumns, ZoneId zoneId) {
+            this(columns, publisher, nullColumns, zoneId, null);
+        }
+    }
 }

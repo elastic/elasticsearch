@@ -10,6 +10,7 @@ package org.elasticsearch.compute.test;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -18,6 +19,7 @@ import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.spill.spi.SpillStore;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.MapMatcher;
@@ -34,6 +36,7 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
 
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
@@ -248,6 +251,21 @@ public abstract class AnyOperatorTestCase extends ComputeTestCase {
     protected final DriverContext crankyDriverContext() {
         BlockFactory blockFactory = crankyBlockFactory();
         return registerDriverContext(new DriverContext(blockFactory.bigArrays(), blockFactory, null));
+    }
+
+    @Override
+    protected final DriverContext spillingDriverContext(
+        ByteSizeValue budget,
+        long minSpillBytes,
+        SpillStore store,
+        Executor codecExecutor
+    ) {
+        return registerDriverContext(super.spillingDriverContext(budget, minSpillBytes, store, codecExecutor));
+    }
+
+    @Override
+    protected final DriverContext spillingDriverContext(DriverContext sibling) {
+        return registerDriverContext(super.spillingDriverContext(sibling));
     }
 
     private DriverContext registerDriverContext(DriverContext driverContext) {

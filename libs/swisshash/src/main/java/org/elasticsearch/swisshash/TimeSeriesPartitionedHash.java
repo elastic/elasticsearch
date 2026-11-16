@@ -12,6 +12,7 @@ package org.elasticsearch.swisshash;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -136,6 +137,12 @@ public final class TimeSeriesPartitionedHash implements PartitionedHashTable {
         final int[] keyCounts = new int[NUM_PARTITIONS];
         final int[][] ordinalKeys = new int[NUM_PARTITIONS][];
         final long[][] timestampKeys = new long[NUM_PARTITIONS][];
+
+        @Override
+        public void writePartition(int partition, StreamOutput out) {
+            // the first version does not spill time series aggregations
+            throw new UnsupportedOperationException("time series keys have no partition codec");
+        }
 
         Keys(CircuitBreaker breaker, int estimateKeysPerPartition) {
             final int capacity = ArrayUtil.oversize(estimateKeysPerPartition, Long.BYTES);

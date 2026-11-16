@@ -18,7 +18,7 @@ import org.elasticsearch.compute.ann.IntermediateState;
         @IntermediateState(name = "failed", type = "BOOLEAN") },
     warnExceptions = ArithmeticException.class
 )
-@GroupingAggregator
+@GroupingAggregator(boundedState = true)
 class SumLongAggregator {
 
     public static long init() {

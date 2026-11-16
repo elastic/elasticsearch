@@ -10,6 +10,8 @@ package org.elasticsearch.compute.aggregation;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
@@ -26,6 +28,7 @@ $endif$
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 
+import java.io.IOException;
 import java.util.Arrays;
 
 import static org.elasticsearch.common.util.PartitionedHashTable.NUM_PARTITIONS;
@@ -355,9 +358,45 @@ $endif$
             seen = trackSeen ? new boolean[NUM_PARTITIONS][partitionSize] : null;
         }
 
+        /**
+         * One partition read back from {@link #writePartition}; the other partitions are empty. {@code breaker} has
+         * been charged what {@link #releaseAll} returns for this shape.
+         */
+        private $Type$PartitionedState(int partition, $type$[] partitionValues, boolean[] partitionSeen) {
+            long seenBytes = partitionSeen != null ? bytesUsedByPagesArray(NUM_PARTITIONS) : 0;
+            baseBytes = BASE_RAM_USAGE + bytesUsedByPagesArray(NUM_PARTITIONS) + seenBytes;
+            values = new $type$[NUM_PARTITIONS][];
+            values[partition] = partitionValues;
+            seen = partitionSeen != null ? new boolean[NUM_PARTITIONS][] : null;
+            if (seen != null) {
+                seen[partition] = partitionSeen;
+            }
+        }
+
+        static long bytesForPartition(int count, boolean trackSeen) {
+            return BASE_RAM_USAGE + bytesUsedByPagesArray(NUM_PARTITIONS) + (trackSeen ? bytesUsedByPagesArray(NUM_PARTITIONS) : 0)
+                + bytesUsedByPartitionPage(count) + (trackSeen ? bytesUsedBySeenPage(count) : 0);
+        }
+
         @Override
         public boolean hasAllValues(int partition) {
             return seen == null;
+        }
+
+        @Override
+        public void writePartition(int partition, int count, StreamOutput out) throws IOException {
+            final $type$[] partitionValues = values[partition];
+            final boolean[] partitionSeen = seen == null ? null : seen[partition];
+            out.writeBoolean(partitionSeen != null);
+            out.writeVInt(count);
+            for (int i = 0; i < count; i++) {
+                out.write$Type$(partitionValues[i]);
+            }
+            if (partitionSeen != null) {
+                for (int i = 0; i < count; i++) {
+                    out.writeBoolean(partitionSeen[i]);
+                }
+            }
         }
 
         @Override
@@ -479,6 +518,37 @@ $endif$
 
     GroupingAggregatorFunction.PartitionSplitter createPartitioningSplitter(CircuitBreaker breaker) {
         return new $Type$PartitionSplitter(breaker);
+    }
+
+    /**
+     * Reads one partition written by {@link $Type$PartitionedState#writePartition}, charged to {@code breaker}.
+     */
+    GroupingAggregatorFunction.PartitionedState readPartition(StreamInput in, int partition, CircuitBreaker breaker) throws IOException {
+        final boolean trackSeen = in.readBoolean();
+        final int count = in.readVInt();
+        final long bytes = $Type$PartitionedState.bytesForPartition(count, trackSeen);
+        breaker.addEstimateBytesAndMaybeBreak(bytes, $Type$PartitionedState.LABEL);
+        boolean success = false;
+        try {
+            final $type$[] partitionValues = new $type$[count];
+            for (int i = 0; i < count; i++) {
+                partitionValues[i] = in.read$Type$();
+            }
+            boolean[] partitionSeen = null;
+            if (trackSeen) {
+                partitionSeen = new boolean[count];
+                for (int i = 0; i < count; i++) {
+                    partitionSeen[i] = in.readBoolean();
+                }
+            }
+            GroupingAggregatorFunction.PartitionedState result = new $Type$PartitionedState(partition, partitionValues, partitionSeen);
+            success = true;
+            return result;
+        } finally {
+            if (success == false) {
+                breaker.addWithoutBreaking(-bytes);
+            }
+        }
     }
 
     $type$[] partitionValues(GroupingAggregatorFunction.PartitionedState source, int partition) {

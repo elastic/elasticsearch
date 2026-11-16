@@ -125,7 +125,7 @@ final class DoubleBlockHash extends BlockHash {
         return ReleasableIterator.single(lookup(vector));
     }
 
-    private IntBlock lookup(DoubleVector vector) {
+    IntBlock lookup(DoubleVector vector) {
         int positions = vector.getPositionCount();
         try (var builder = blockFactory.newIntBlockBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
@@ -141,7 +141,7 @@ final class DoubleBlockHash extends BlockHash {
         }
     }
 
-    private IntBlock lookup(DoubleBlock block) {
+    IntBlock lookup(DoubleBlock block) {
         return new MultivalueDedupeDouble(block).hashLookup(blockFactory, hash);
     }
 

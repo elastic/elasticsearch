@@ -298,6 +298,57 @@ public final class DocVector extends AbstractVector implements Vector {
     }
 
     /**
+     * Writes an attached vector for a reader on this node: the shard slots as they are and no origins, so the rows must
+     * not leave the node. The pair of {@link #readLocal}, for pages spilled and read back within one compute, whose
+     * shard contexts outlive the run. Wire format: the duplicates flag, then the shards, the segments and the docs; the
+     * segment ordering is not carried, the reader computes it when it is asked.
+     */
+    public void writeLocal(StreamOutput out) throws IOException {
+        if (origins != null) {
+            throw new IllegalStateException("DocVector is detached");
+        }
+        out.writeBoolean(mayContainDuplicates);
+        shards.writeTo(out);
+        segments.writeTo(out);
+        docs.writeTo(out);
+    }
+
+    /**
+     * Reads a vector written by {@link #writeLocal}, which takes a reference on each shard its rows name, as the vector
+     * that was written held one.
+     *
+     * @param refCounteds the shard references of the node, the ones the written vector was built over
+     */
+    public static DocVector readLocal(BlockFactory blockFactory, StreamInput in, IndexedByShardId<? extends RefCounted> refCounteds)
+        throws IOException {
+        boolean mayContainDuplicates = in.readBoolean();
+        IntVector shards = null;
+        IntVector segments = null;
+        IntVector docs = null;
+        DocVector result = null;
+        try {
+            shards = IntVector.readFrom(blockFactory, in);
+            segments = IntVector.readFrom(blockFactory, in);
+            docs = IntVector.readFrom(blockFactory, in);
+            Config config = config().mayContainDuplicates(mayContainDuplicates);
+            result = new DocVector(refCounteds, shards, segments, docs, config);
+            return result;
+        } finally {
+            if (result == null) {
+                Releasables.closeExpectNoException(shards, segments, docs);
+            }
+        }
+    }
+
+    /**
+     * The shard references this vector was built over: what a vector read back on this node from {@link #writeLocal}
+     * takes its references from.
+     */
+    public IndexedByShardId<? extends RefCounted> refCounteds() {
+        return refCounteds;
+    }
+
+    /**
      * Reads a vector written by {@link #writeTo}.
      */
     public static DocVector readFrom(BlockFactory blockFactory, StreamInput in) throws IOException {

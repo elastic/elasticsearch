@@ -31,8 +31,15 @@ class TopNQueue extends PriorityQueue<TopNRow> implements Accountable, Releasabl
      * Track memory usage in the breaker then build the {@link TopNQueue}.
      */
     static TopNQueue build(CircuitBreaker breaker, int topCount) {
-        breaker.addEstimateBytesAndMaybeBreak(sizeOf(topCount), "esql engine topn");
-        return new TopNQueue(breaker, topCount);
+        long bytes = sizeOf(topCount);
+        breaker.addEstimateBytesAndMaybeBreak(bytes, "esql engine topn");
+        try {
+            return new TopNQueue(breaker, topCount);
+        } catch (RuntimeException e) {
+            // a count the queue cannot hold, as one past the largest array: the charge goes back with the failure
+            breaker.addWithoutBreaking(-bytes);
+            throw e;
+        }
     }
 
     private TopNQueue(CircuitBreaker breaker, int topCount) {

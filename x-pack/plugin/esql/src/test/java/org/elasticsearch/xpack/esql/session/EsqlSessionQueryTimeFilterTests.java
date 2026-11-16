@@ -35,6 +35,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
+import org.elasticsearch.compute.spill.QueryScopeRegistry;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -541,7 +542,8 @@ public class EsqlSessionQueryTimeFilterTests extends ESTestCase {
             IpLocationService.NOOP,
             new BlockFactoryProvider(PlannerUtils.NON_BREAKING_BLOCK_FACTORY),
             new PlannerSettings.Holder(clusterService),
-            CrossProjectModeDecider.NOOP
+            CrossProjectModeDecider.NOOP,
+            new QueryScopeRegistry((queryId, onClosing) -> null)
         );
     }
 }

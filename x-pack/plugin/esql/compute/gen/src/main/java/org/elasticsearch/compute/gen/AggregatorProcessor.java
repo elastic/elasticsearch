@@ -106,6 +106,7 @@ public class AggregatorProcessor implements Processor {
                 }
                 boolean processNulls = aggClass.getAnnotation(GroupingAggregator.class).processNulls();
                 boolean supportsPartitioning = aggClass.getAnnotation(GroupingAggregator.class).supportsPartitioning();
+                boolean boundedState = aggClass.getAnnotation(GroupingAggregator.class).boundedState();
                 groupingAggregatorImplementer = new GroupingAggregatorImplementer(
                     env.getElementUtils(),
                     env.getTypeUtils(),
@@ -113,7 +114,8 @@ public class AggregatorProcessor implements Processor {
                     intermediateState,
                     warnExceptionsTypes,
                     processNulls,
-                    supportsPartitioning
+                    supportsPartitioning,
+                    boundedState
                 );
                 write(aggClass, "grouping aggregator", groupingAggregatorImplementer.sourceFile(), env);
             }

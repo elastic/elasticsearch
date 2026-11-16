@@ -460,6 +460,11 @@ public final class LastLongByTimestampGroupingAggregatorFunction implements Grou
   }
 
   @Override
+  public boolean freezeEligible() {
+    return true;
+  }
+
+  @Override
   public String toString() {
     StringBuilder sb = new StringBuilder();
     sb.append(getClass().getSimpleName()).append("[");

@@ -39,7 +39,8 @@ import org.elasticsearch.core.Releasables;
         @IntermediateState(name = "seen", type = "BOOLEAN") }
 )
 @GroupingAggregator(
-    { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "$TYPE$_BLOCK") }
+    value = { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "$TYPE$_BLOCK") },
+    boundedState = true
 )
 public class $Occurrence$$Type$ByTimestampAggregator {
     public static String describe() {

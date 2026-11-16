@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -26,6 +27,7 @@ import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
+import org.elasticsearch.compute.test.spill.MemorySpillStore;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -39,12 +41,18 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -86,6 +94,125 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
         }
         assertSimpleOutput(origInput, results);
         assertDriverContext(driverContext);
+    }
+
+    /**
+     * Whether the operator {@link #simpleWithMode} builds may freeze its groups under a query budget: the two tests
+     * below then run the stages that consume intermediate pages under one and check the result and that a freeze
+     * happened. An operator that is not eligible, by its functions or its hash, is skipped by the tests themselves.
+     */
+    protected boolean supportsFreeze() {
+        return false;
+    }
+
+    public final void testInitialFinalWithSpilling() throws Exception {
+        assumeTrue("the operator does not freeze", supportsFreeze());
+        runWithSpilling(false);
+    }
+
+    public final void testInitialIntermediateFinalWithSpilling() throws Exception {
+        assumeTrue("the operator does not freeze", supportsFreeze());
+        runWithSpilling(true);
+    }
+
+    /**
+     * Runs the chain under a budget every page crosses, with an own-state minimum of zero half the time, so that the
+     * stage freezes before its first page and every row goes to a run, and otherwise one the first page's groups
+     * reach, so that the frozen set holds them and rows of other groups go to the runs, of which the input may make
+     * none. The result must be the one of a run that fits, and a stage must have frozen. The initial stage runs one
+     * driver per input page, as a data node's drivers do, so that the stage that freezes sees many partial pages
+     * rather than the one a single chain would hand it.
+     */
+    private void runWithSpilling(boolean intermediate) throws Exception {
+        MemorySpillStore store = new MemorySpillStore(
+            MemorySpillStore.Completion.INLINE,
+            null,
+            Long.MAX_VALUE,
+            "test.spill",
+            new Random(randomLong())
+        );
+        DriverContext driverContext = spillingDriverContext(
+            ByteSizeValue.ofKb(between(1, 16)),
+            0,
+            store,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(1_000, 100_000)));
+        List<Page> origInput = BlockTestUtils.deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
+        List<Page> partials = new ArrayList<>();
+        List<Page> results = new ArrayList<>();
+        DriverProfile profile;
+        try {
+            Operator last = simpleWithMode(AggregatorMode.FINAL).get(driverContext);
+            if (last instanceof HashAggregationOperator hash && hash.freezeEligible() == false) {
+                Releasables.close(last);
+                Releasables.close(Releasables.wrap(() -> Iterators.map(input.iterator(), p -> p::releaseBlocks)));
+                assumeTrue("the final operator is not eligible to freeze", false);
+            }
+            for (Page page : input) {
+                DriverContext initialContext = spillingDriverContext(driverContext);
+                try (
+                    Driver d = TestDriverFactory.create(
+                        initialContext,
+                        new CannedSourceOperator(List.of(page).iterator()),
+                        List.of(simpleWithMode(AggregatorMode.INITIAL).get(initialContext)),
+                        new TestResultPageSinkOperator(partials::add)
+                    )
+                ) {
+                    new TestDriverRunner().run(d);
+                }
+            }
+            // the own-state minimum: zero, so that the freeze comes before the first partial page, or one the first
+            // page's groups reach, the smallest group set the input makes holding five groups of over a hundred bytes,
+            // which needs a second partial page for the freeze to come at all
+            long minSpillBytes = partials.size() > 1 && randomBoolean() ? between(1, 100) : 0;
+            driverContext.queryScope().setMinSpillBytes(minSpillBytes);
+            List<Operator> operators = new ArrayList<>();
+            if (intermediate) {
+                operators.add(simpleWithMode(AggregatorMode.INTERMEDIATE).get(driverContext));
+            }
+            operators.add(last);
+            try (
+                Driver d = TestDriverFactory.create(
+                    driverContext,
+                    new CannedSourceOperator(partials.iterator()),
+                    operators,
+                    new TestResultPageSinkOperator(results::add)
+                )
+            ) {
+                new TestDriverRunner().run(d);
+                profile = d.profile();
+            }
+            assertSimpleOutput(origInput, results);
+            List<HashAggregationOperator.FreezeStatus> freezes = new ArrayList<>();
+            for (OperatorStatus status : profile.operators()) {
+                if (status.status() instanceof HashAggregationOperator.Status hashStatus) {
+                    for (Operator.Status.ExtraStatus extra : hashStatus.extraFields()) {
+                        if (extra instanceof HashAggregationOperator.FreezeStatus freeze) {
+                            freezes.add(freeze);
+                        }
+                    }
+                }
+            }
+            assertThat("a stage froze: " + profile.operators(), freezes, not(empty()));
+            for (HashAggregationOperator.FreezeStatus freeze : freezes) {
+                assertThat(freeze.spill().spillRuns(), greaterThan(0));
+                if (minSpillBytes == 0) {
+                    assertThat("froze before its first page", freeze.groupsFrozen(), equalTo(0L));
+                    assertThat("every row went to a run", freeze.rowsSpilled(), greaterThan(0L));
+                } else {
+                    assertThat("froze on the first page's groups", freeze.groupsFrozen(), greaterThan(0L));
+                }
+            }
+            assertDriverContext(driverContext);
+        } finally {
+            Releasables.close(Releasables.wrap(() -> Iterators.map(results.iterator(), p -> p::releaseBlocks)));
+            Releasables.close(Releasables.wrap(() -> Iterators.map(origInput.iterator(), p -> p::releaseBlocks)));
+            closeSpillingScopes();
+            PlainActionFuture<Void> shutdown = new PlainActionFuture<>();
+            store.shutdown(shutdown);
+            shutdown.get(30, TimeUnit.SECONDS);
+        }
     }
 
     public final void testManyInitialFinal() {

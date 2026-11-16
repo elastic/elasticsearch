@@ -35,19 +35,25 @@ public class PartitionedAggregationBlock implements Block {
 
     final AbstractRefCounted refs;
     final int numKeys;
+    private final long ramBytesUsed;
     private Releasable attachedReleasable = null;
 
+    /**
+     * @param ramBytesUsed what the keys and states hold, as the split that produced them charged it
+     */
     @SuppressWarnings("this-escape")
     public PartitionedAggregationBlock(
         BlockFactory blockFactory,
         int numKeys,
         PartitionedHashTable.PartitionedHashKeys keys,
-        GroupingAggregatorFunction.PartitionedState[] aggs
+        GroupingAggregatorFunction.PartitionedState[] aggs,
+        long ramBytesUsed
     ) {
         this.blockFactory = blockFactory;
         this.numKeys = numKeys;
         this.keys = keys;
         this.aggs = aggs;
+        this.ramBytesUsed = ramBytesUsed;
         this.refs = AbstractRefCounted.of(() -> {
             final CircuitBreaker breaker = this.blockFactory.breaker();
             var currentKeys = this.keys;
@@ -216,8 +222,7 @@ public class PartitionedAggregationBlock implements Block {
 
     @Override
     public long ramBytesUsed() {
-        // TODO: expose ramBytesUsed from keys and aggs then return the total here
-        return 1;
+        return ramBytesUsed;
     }
 
     @Override

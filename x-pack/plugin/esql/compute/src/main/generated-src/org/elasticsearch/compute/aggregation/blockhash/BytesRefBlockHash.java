@@ -35,7 +35,10 @@ import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeInt;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.swisshash.BytesRefSwissHash;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.PartitionedHashTable;
+import java.io.IOException;
 import java.util.BitSet;
 // end generated imports
 
@@ -296,7 +299,7 @@ final class BytesRefBlockHash extends PartitionedBlockHash {
         return true;
     }
 
-    private IntBlock lookup(BytesRefVector vector) {
+    IntBlock lookup(BytesRefVector vector) {
         BytesRef scratch = new BytesRef();
         int positions = vector.getPositionCount();
         try (var builder = blockFactory.newIntBlockBuilder(positions)) {
@@ -313,7 +316,7 @@ final class BytesRefBlockHash extends PartitionedBlockHash {
         }
     }
 
-    private IntBlock lookup(BytesRefBlock block) {
+    IntBlock lookup(BytesRefBlock block) {
         return new MultivalueDedupeBytesRef(block).hashLookup(blockFactory, hash);
     }
 
@@ -384,6 +387,11 @@ final class BytesRefBlockHash extends PartitionedBlockHash {
         public void releaseAll(CircuitBreaker breaker) {
             delegate.releaseAll(breaker);
         }
+
+        @Override
+        public void writePartition(int partition, StreamOutput out) throws IOException {
+            delegate.writePartition(partition, out);
+        }
     }
 
     @Override
@@ -438,6 +446,20 @@ final class BytesRefBlockHash extends PartitionedBlockHash {
             return appendOnly;
         }
         throw new UnsupportedOperationException(getClass().getSimpleName() + " doesn't support partitioning");
+    }
+
+    @Override
+    public void writePartitionKeys(PartitionedHashTable.PartitionedHashKeys keys, int partition, StreamOutput out) throws IOException {
+        PartitionedHashKeysWithSeenNull withSeenNull = (PartitionedHashKeysWithSeenNull) keys;
+        out.writeBoolean(withSeenNull.seenNull());
+        withSeenNull.delegate().writePartition(partition, out);
+    }
+
+    @Override
+    public PartitionedHashTable.PartitionedHashKeys readPartitionKeys(StreamInput in, int partition, CircuitBreaker breaker)
+        throws IOException {
+        boolean seenNull = in.readBoolean();
+        return new PartitionedHashKeysWithSeenNull(BytesRefSwissHash.readPartitionKeys(in, partition, breaker), seenNull);
     }
 
     @Override

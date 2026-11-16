@@ -39,7 +39,8 @@ import org.elasticsearch.core.Releasables;
         @IntermediateState(name = "seen", type = "BOOLEAN") }
 )
 @GroupingAggregator(
-    { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "DOUBLE_BLOCK") }
+    value = { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "DOUBLE_BLOCK") },
+    boundedState = true
 )
 public class LastDoubleByTimestampAggregator {
     public static String describe() {

@@ -13,6 +13,8 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
+import org.elasticsearch.compute.spill.QueryBreaker;
+import org.elasticsearch.compute.spill.QueryScope;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.CheckedSupplier;
 import org.elasticsearch.core.Nullable;
@@ -104,6 +106,9 @@ public class DriverContext {
     /** Thread CPU time this driver used on any thread: in {@link Driver#run} and in {@link #meteredCpu(CheckedSupplier)}. */
     private final CpuTracker cpuTracker;
 
+    @Nullable
+    private final QueryScope queryScope;
+
     public DriverContext(BigArrays bigArrays, BlockFactory blockFactory, @Nullable LocalCircuitBreaker.SizeSettings localBreakerSettings) {
         this(bigArrays, blockFactory, localBreakerSettings, null, WarningsMode.COLLECT);
     }
@@ -115,6 +120,20 @@ public class DriverContext {
         String description
     ) {
         this(bigArrays, blockFactory, localBreakerSettings, description, WarningsMode.COLLECT);
+    }
+
+    /**
+     * A context for a driver of a query that has a {@link QueryScope} on this node; {@code blockFactory} and
+     * {@code bigArrays} are then the ones of the driver's allocation in that scope.
+     */
+    public DriverContext(
+        BigArrays bigArrays,
+        BlockFactory blockFactory,
+        @Nullable LocalCircuitBreaker.SizeSettings localBreakerSettings,
+        @Nullable String description,
+        @Nullable QueryScope queryScope
+    ) {
+        this(bigArrays, blockFactory, localBreakerSettings, description, WarningsMode.COLLECT, new CpuTracker(), queryScope);
     }
 
     DriverContext(
@@ -136,6 +155,18 @@ public class DriverContext {
         WarningsMode warningsMode,
         CpuTracker cpuTracker
     ) {
+        this(bigArrays, blockFactory, localBreakerSettings, description, warningsMode, cpuTracker, null);
+    }
+
+    DriverContext(
+        BigArrays bigArrays,
+        BlockFactory blockFactory,
+        @Nullable LocalCircuitBreaker.SizeSettings localBreakerSettings,
+        @Nullable String description,
+        WarningsMode warningsMode,
+        CpuTracker cpuTracker,
+        @Nullable QueryScope queryScope
+    ) {
         Objects.requireNonNull(bigArrays);
         Objects.requireNonNull(blockFactory);
         this.bigArrays = bigArrays;
@@ -144,6 +175,7 @@ public class DriverContext {
         this.driverDescription = description;
         this.warningsMode = warningsMode;
         this.cpuTracker = Objects.requireNonNull(cpuTracker);
+        this.queryScope = queryScope;
     }
 
     public BigArrays bigArrays() {
@@ -165,14 +197,40 @@ public class DriverContext {
         return blockFactory;
     }
 
+    /**
+     * A factory for a worker of this driver. Its local breaker sits where the driver's does, on the driver's view of the
+     * query breaker when the query has one, and it takes the driver's {@link BigArrays}, so that a worker's blocks and
+     * arrays consume the driver's reservation; without a query scope this is the node's breaker and arrays, as before.
+     */
     public BlockFactory createChildBlockFactory() {
         BlockFactory parent = blockFactory.parent();
+        CircuitBreaker base = blockFactory.breaker() instanceof LocalCircuitBreaker local ? local.parentBreaker() : parent.breaker();
         final var childBreaker = new LocalCircuitBreaker(
-            parent.breaker(),
+            base,
             localBreakerSettings.overReservedBytes(),
             localBreakerSettings.maxOverReservedBytes()
         );
-        return parent.newChildFactory(childBreaker);
+        return parent.newChildFactory(childBreaker, bigArrays);
+    }
+
+    /**
+     * The query's scope on this node, with its budget, its root account and its spilled data; null when spilling is off
+     * for the query, in which case operators take their pre-feature paths.
+     */
+    @Nullable
+    public QueryScope queryScope() {
+        return queryScope;
+    }
+
+    /**
+     * The driver's view of the query breaker, which carries its reservation credit, so that an operator can reserve
+     * before a page and have the page's allocations consume the reservation; null without a query scope.
+     */
+    @Nullable
+    public QueryBreaker.View queryView() {
+        return blockFactory.breaker() instanceof LocalCircuitBreaker local && local.parentBreaker() instanceof QueryBreaker.View view
+            ? view
+            : null;
     }
 
     public void releaseChildBlockFactory(BlockFactory childFactory) {

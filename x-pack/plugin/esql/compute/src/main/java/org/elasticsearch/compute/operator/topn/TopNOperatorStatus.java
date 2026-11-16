@@ -15,7 +15,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.ProfileSchema;
+import org.elasticsearch.compute.spill.SpillStatus;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -27,23 +29,23 @@ public class TopNOperatorStatus implements Operator.Status {
         "topn",
         TopNOperatorStatus::new
     );
-    public static final ProfileSchema<TopNOperatorStatus> PROFILE_SCHEMA = ProfileSchema.of(
-        TopNOperatorStatus.class,
-        (builder, status, params) -> status.writeProfile(builder)
-    )
-        .required("receive_nanos", ProfileSchema.integer())
-        .optional("receive_time", ProfileSchema.string())
-        .required("emit_nanos", ProfileSchema.integer())
-        .optional("emit_time", ProfileSchema.string())
-        .required("occupied_rows", ProfileSchema.integer())
-        .required("ram_bytes_used", ProfileSchema.integer())
-        .required("ram_used", ProfileSchema.string())
-        .required("pages_received", ProfileSchema.integer())
-        .required("pages_emitted", ProfileSchema.integer())
-        .required("rows_received", ProfileSchema.integer())
-        .required("rows_emitted", ProfileSchema.integer())
-        .optional("min_competitive_updates", ProfileSchema.integer())
-        .build();
+    public static final ProfileSchema<TopNOperatorStatus> PROFILE_SCHEMA = SpillStatus.addTo(
+        ProfileSchema.of(TopNOperatorStatus.class, (builder, status, params) -> status.writeProfile(builder))
+            .required("receive_nanos", ProfileSchema.integer())
+            .optional("receive_time", ProfileSchema.string())
+            .required("emit_nanos", ProfileSchema.integer())
+            .optional("emit_time", ProfileSchema.string())
+            .required("occupied_rows", ProfileSchema.integer())
+            .required("ram_bytes_used", ProfileSchema.integer())
+            .required("ram_used", ProfileSchema.string())
+            .required("pages_received", ProfileSchema.integer())
+            .required("pages_emitted", ProfileSchema.integer())
+            .required("rows_received", ProfileSchema.integer())
+            .required("rows_emitted", ProfileSchema.integer())
+            .optional("min_competitive_updates", ProfileSchema.integer())
+            .optional("rows_spilled", ProfileSchema.integer())
+            .optional("compactions", ProfileSchema.integer())
+    ).build();
 
     private static final TransportVersion ESQL_TOPN_TIMINGS = TransportVersion.fromName("esql_topn_timings");
     private static final TransportVersion ESQL_TOPN_MIN_COMPETITIVE_UPDATES = TransportVersion.fromName(
@@ -59,6 +61,10 @@ public class TopNOperatorStatus implements Operator.Status {
     private final long rowsReceived;
     private final long rowsEmitted;
     private final Integer minCompetitiveUpdates;
+    /** Rows whose values went to the value store, the compactions of it and the shared spill counters. */
+    private final long rowsSpilled;
+    private final int compactions;
+    private final SpillStatus spill;
 
     public TopNOperatorStatus(
         long receiveNanos,
@@ -71,6 +77,41 @@ public class TopNOperatorStatus implements Operator.Status {
         long rowsEmitted,
         Integer minCompetitiveUpdateCount
     ) {
+        this(
+            receiveNanos,
+            emitNanos,
+            occupiedRows,
+            ramBytesUsed,
+            pagesReceived,
+            pagesEmitted,
+            rowsReceived,
+            rowsEmitted,
+            minCompetitiveUpdateCount,
+            0,
+            0,
+            SpillStatus.NONE
+        );
+    }
+
+    /**
+     * @param rowsSpilled rows whose values went to the value store
+     * @param compactions rewrites of the store's live values into a fresh segment
+     * @param spill the store's counters, {@link SpillStatus#NONE} when nothing went to it
+     */
+    public TopNOperatorStatus(
+        long receiveNanos,
+        long emitNanos,
+        int occupiedRows,
+        long ramBytesUsed,
+        int pagesReceived,
+        int pagesEmitted,
+        long rowsReceived,
+        long rowsEmitted,
+        Integer minCompetitiveUpdateCount,
+        long rowsSpilled,
+        int compactions,
+        SpillStatus spill
+    ) {
         this.receiveNanos = receiveNanos;
         this.emitNanos = emitNanos;
         this.occupiedRows = occupiedRows;
@@ -80,6 +121,9 @@ public class TopNOperatorStatus implements Operator.Status {
         this.rowsReceived = rowsReceived;
         this.rowsEmitted = rowsEmitted;
         this.minCompetitiveUpdates = minCompetitiveUpdateCount;
+        this.rowsSpilled = rowsSpilled;
+        this.compactions = compactions;
+        this.spill = spill;
     }
 
     TopNOperatorStatus(StreamInput in) throws IOException {
@@ -98,6 +142,15 @@ public class TopNOperatorStatus implements Operator.Status {
         this.rowsReceived = in.readVLong();
         this.rowsEmitted = in.readVLong();
         this.minCompetitiveUpdates = in.getTransportVersion().supports(ESQL_TOPN_MIN_COMPETITIVE_UPDATES) ? in.readOptionalVInt() : null;
+        if (in.getTransportVersion().supports(SpillStatus.ESQL_SPILL_STATUS)) {
+            this.rowsSpilled = in.readVLong();
+            this.compactions = in.readVInt();
+            this.spill = SpillStatus.readFrom(in);
+        } else {
+            this.rowsSpilled = 0;
+            this.compactions = 0;
+            this.spill = SpillStatus.NONE;
+        }
     }
 
     @Override
@@ -116,6 +169,11 @@ public class TopNOperatorStatus implements Operator.Status {
         out.writeVLong(rowsEmitted);
         if (out.getTransportVersion().supports(ESQL_TOPN_MIN_COMPETITIVE_UPDATES)) {
             out.writeOptionalVInt(minCompetitiveUpdates);
+        }
+        if (out.getTransportVersion().supports(SpillStatus.ESQL_SPILL_STATUS)) {
+            out.writeVLong(rowsSpilled);
+            out.writeVInt(compactions);
+            spill.writeTo(out);
         }
     }
 
@@ -160,6 +218,18 @@ public class TopNOperatorStatus implements Operator.Status {
         return minCompetitiveUpdates;
     }
 
+    public long rowsSpilled() {
+        return rowsSpilled;
+    }
+
+    public int compactions() {
+        return compactions;
+    }
+
+    public SpillStatus spill() {
+        return spill;
+    }
+
     private XContentBuilder writeProfile(XContentBuilder builder) throws IOException {
         builder.startObject();
         builder.field("receive_nanos", receiveNanos);
@@ -179,6 +249,11 @@ public class TopNOperatorStatus implements Operator.Status {
         builder.field("rows_emitted", rowsEmitted);
         if (minCompetitiveUpdates != null) {
             builder.field("min_competitive_updates", minCompetitiveUpdates);
+        }
+        if (rowsSpilled > 0 || compactions > 0 || spill.isNone() == false) {
+            builder.field("rows_spilled", rowsSpilled);
+            builder.field("compactions", compactions);
+            spill.toXContent(builder, ToXContent.EMPTY_PARAMS);
         }
         return builder.endObject();
     }
@@ -202,7 +277,10 @@ public class TopNOperatorStatus implements Operator.Status {
             && pagesEmitted == that.pagesEmitted
             && rowsReceived == that.rowsReceived
             && rowsEmitted == that.rowsEmitted
-            && Objects.equals(minCompetitiveUpdates, that.minCompetitiveUpdates);
+            && Objects.equals(minCompetitiveUpdates, that.minCompetitiveUpdates)
+            && rowsSpilled == that.rowsSpilled
+            && compactions == that.compactions
+            && spill.equals(that.spill);
     }
 
     @Override
@@ -216,7 +294,10 @@ public class TopNOperatorStatus implements Operator.Status {
             pagesEmitted,
             rowsReceived,
             rowsEmitted,
-            minCompetitiveUpdates
+            minCompetitiveUpdates,
+            rowsSpilled,
+            compactions,
+            spill
         );
     }
 

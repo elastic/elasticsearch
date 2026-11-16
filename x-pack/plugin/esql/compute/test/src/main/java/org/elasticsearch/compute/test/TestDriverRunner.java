@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.test;
 
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Randomness;
@@ -32,6 +33,8 @@ import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadInfo;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -169,7 +172,11 @@ public class TestDriverRunner {
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         try {
             driverRunner.runToCompletion(drivers, future);
-            future.actionGet(timeout);
+            try {
+                future.actionGet(timeout);
+            } catch (ElasticsearchTimeoutException e) {
+                throw new AssertionError(timeoutReport(drivers, timeout), e);
+            }
         } finally {
             terminate(threadPool);
         }
@@ -187,6 +194,34 @@ public class TestDriverRunner {
                 }
             }
         }
+    }
+
+    /**
+     * What the drivers that did not complete in time were doing, for the failure's message: each driver still running,
+     * with its operators' statuses and its sleeps and their reasons, and the stacks of the pools' threads, so that a
+     * hang seen once leaves evidence behind.
+     */
+    private static String timeoutReport(List<Driver> drivers, TimeValue timeout) {
+        StringBuilder report = new StringBuilder("drivers did not complete within [").append(timeout).append("]");
+        for (Driver driver : drivers) {
+            try {
+                DriverStatus status = driver.status();
+                if (status.status() != DriverStatus.Status.DONE) {
+                    report.append("\n  driver: ").append(Strings.toString(status, false, false));
+                }
+            } catch (RuntimeException e) {
+                report.append("\n  driver: status unavailable: ").append(e);
+            }
+        }
+        for (ThreadInfo thread : ManagementFactory.getThreadMXBean().dumpAllThreads(false, false)) {
+            if (thread.getThreadName().contains("[esql")) {
+                report.append("\n  thread [").append(thread.getThreadName()).append("] ").append(thread.getThreadState());
+                for (StackTraceElement frame : thread.getStackTrace()) {
+                    report.append("\n    at ").append(frame);
+                }
+            }
+        }
+        return report.toString();
     }
 
     /**

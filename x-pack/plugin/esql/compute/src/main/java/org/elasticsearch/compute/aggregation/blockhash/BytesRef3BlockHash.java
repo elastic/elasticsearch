@@ -23,6 +23,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
+import java.util.Arrays;
 import java.util.Locale;
 
 /**
@@ -142,7 +143,55 @@ final class BytesRef3BlockHash extends BlockHash {
 
     @Override
     public ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize) {
-        throw new UnsupportedOperationException("TODO");
+        BytesRefBlock b1 = page.getBlock(channel1);
+        BytesRefBlock b2 = page.getBlock(channel2);
+        BytesRefBlock b3 = page.getBlock(channel3);
+        // TODO honor targetBlockSize and chunk the pages if requested.
+        try (IntBlock k1 = hash1.lookup(b1); IntBlock k2 = hash2.lookup(b2); IntBlock k3 = hash3.lookup(b3)) {
+            return ReleasableIterator.single(lookup(k1, k2, k3));
+        }
+    }
+
+    /**
+     * Combines the per-key lookups the way {@link AddWork} combines the per-key ids: a position whose combinations
+     * are all absent is null, one with several present combinations holds them all.
+     */
+    private IntBlock lookup(IntBlock k1, IntBlock k2, IntBlock k3) {
+        int positionCount = k1.getPositionCount();
+        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(positionCount)) {
+            int[] found = new int[4];
+            for (int i = 0; i < positionCount; i++) {
+                if (k1.isNull(i) || k2.isNull(i) || k3.isNull(i)) {
+                    builder.appendNull();
+                    continue;
+                }
+                int v1 = k1.getValueCount(i);
+                int v2 = k2.getValueCount(i);
+                int v3 = k3.getValueCount(i);
+                int first1 = k1.getFirstValueIndex(i);
+                int first2 = k2.getFirstValueIndex(i);
+                int first3 = k3.getFirstValueIndex(i);
+                int foundCount = 0;
+                for (int i1 = 0; i1 < v1; i1++) {
+                    int key1 = k1.getInt(first1 + i1);
+                    for (int i2 = 0; i2 < v2; i2++) {
+                        int key2 = k2.getInt(first2 + i2);
+                        for (int i3 = 0; i3 < v3; i3++) {
+                            long ord = finalHash.find(key1, key2, k3.getInt(first3 + i3));
+                            if (ord < 0) {
+                                continue;
+                            }
+                            if (foundCount == found.length) {
+                                found = Arrays.copyOf(found, found.length * 2);
+                            }
+                            found[foundCount++] = Math.toIntExact(hashOrdToGroup(ord));
+                        }
+                    }
+                }
+                BytesRef2BlockHash.appendFound(builder, found, foundCount);
+            }
+            return builder.build();
+        }
     }
 
     @Override

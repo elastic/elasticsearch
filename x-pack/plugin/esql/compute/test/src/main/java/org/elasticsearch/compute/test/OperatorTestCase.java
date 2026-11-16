@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.BigArray;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.aggregation.blockhash.HashImplFactory;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -25,18 +26,22 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.spill.MemorySpillStore;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.test.BreakerTestUtil;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Random;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * Base tests for {@link Operator}s that are not {@link SourceOperator} or {@link SinkOperator}.
@@ -144,6 +149,91 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
             blockFactory.ensureAllBlocksAreReleased();
             assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
         }
+    }
+
+    /**
+     * Operators that spill opt in: {@link #testSimpleWithSpilling} then runs {@link #simple} under a budget small enough
+     * for the large input to spill and compares the output with a run that had nothing to spill to.
+     */
+    protected boolean supportsSpilling() {
+        return false;
+    }
+
+    /**
+     * True when spilling may change the order of the output, which is then compared as a multiset.
+     */
+    protected boolean spillChangesOutputOrder() {
+        return false;
+    }
+
+    /**
+     * The budget {@link #testSimpleWithSpilling} runs under: small enough for {@link #largeInputSize} to spill.
+     */
+    protected ByteSizeValue spillBudgetForSimple() {
+        return ByteSizeValue.ofKb(64);
+    }
+
+    /**
+     * The equivalence of a spilling run: {@link #simple} over the large input under {@link #spillBudgetForSimple}, with
+     * an in-memory store that completes inline, must produce what the same operator produces with nothing to spill
+     * to, in order unless {@link #spillChangesOutputOrder}, and it must have spilled.
+     */
+    public final void testSimpleWithSpilling() {
+        assumeTrue("the operator does not spill", supportsSpilling());
+        DriverContext inputFactoryContext = driverContext();
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(inputFactoryContext.blockFactory(), largeInputSize()));
+        List<Page> origInput = BlockTestUtils.deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
+
+        DriverContext residentContext = driverContext();
+        List<Page> residentInput = CannedSourceOperator.deepCopyOf(residentContext.blockFactory(), input);
+        List<Page> resident = new TestDriverRunner().builder(residentContext).input(residentInput).run(simple().get(residentContext));
+
+        // the store's own random: its reads complete on whichever thread drives the operator
+        MemorySpillStore store = new MemorySpillStore(
+            MemorySpillStore.Completion.INLINE,
+            null,
+            Long.MAX_VALUE,
+            "test.spill",
+            new Random(randomLong())
+        );
+        DriverContext spillingContext = spillingDriverContext(spillBudgetForSimple(), 0, store, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        List<Page> results;
+        try {
+            var operator = simple().get(spillingContext);
+            results = new TestDriverRunner().builder(spillingContext).input(input).run(operator);
+            assertThat("the run spilled", store.operationsAccepted(), greaterThan(0));
+            assertSimpleOutput(origInput, results);
+            assertOperatorStatus(operator, origInput, results);
+        } finally {
+            Releasables.closeExpectNoException(Releasables.wrap(() -> Iterators.map(origInput.iterator(), p -> p::releaseBlocks)));
+        }
+        try {
+            assertThat(rows(results, spillChangesOutputOrder()), equalTo(rows(resident, spillChangesOutputOrder())));
+        } finally {
+            Releasables.closeExpectNoException(Releasables.wrap(() -> Iterators.map(results.iterator(), p -> p::releaseBlocks)));
+            Releasables.closeExpectNoException(Releasables.wrap(() -> Iterators.map(resident.iterator(), p -> p::releaseBlocks)));
+        }
+        assertThat(spillingContext.breaker().getUsed(), equalTo(0L));
+    }
+
+    /**
+     * The rows of {@code pages}, each as one string of its values, sorted when the order does not matter.
+     */
+    protected static List<String> rows(List<Page> pages, boolean sorted) {
+        List<String> rows = new ArrayList<>();
+        for (Page page : pages) {
+            for (int p = 0; p < page.getPositionCount(); p++) {
+                StringBuilder row = new StringBuilder();
+                for (int b = 0; b < page.getBlockCount(); b++) {
+                    row.append(BlockTestUtils.valuesAtPositions(page.getBlock(b), p, p + 1)).append('|');
+                }
+                rows.add(row.toString());
+            }
+        }
+        if (sorted) {
+            Collections.sort(rows);
+        }
+        return rows;
     }
 
     /**

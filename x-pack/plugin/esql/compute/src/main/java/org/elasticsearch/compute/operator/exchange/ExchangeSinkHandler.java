@@ -12,6 +12,9 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.IsBlockedResult;
+import org.elasticsearch.compute.spill.QueryScope;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasables;
 
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -41,13 +44,37 @@ public final class ExchangeSinkHandler {
     private final LongSupplier nowInMillis;
     private final AtomicLong lastUpdatedInMillis;
     private final BlockFactory blockFactory;
+    @Nullable
+    private final QueryScope.Lease scopeLease;
 
     public ExchangeSinkHandler(BlockFactory blockFactory, int maxBufferSize, LongSupplier nowInMillis) {
+        this(blockFactory, maxBufferSize, nowInMillis, null);
+    }
+
+    /**
+     * @param scopeLease the query scope this sink keeps alive, released by {@link #releaseScope()} when the exchange
+     *                   service drops the handler; every response polled from the buffer takes a lease of its own, so a
+     *                   page in flight to the transport keeps the scope after the handler is gone
+     */
+    public ExchangeSinkHandler(
+        BlockFactory blockFactory,
+        int maxBufferSize,
+        LongSupplier nowInMillis,
+        @Nullable QueryScope.Lease scopeLease
+    ) {
         this.blockFactory = blockFactory;
         this.buffer = new ExchangeBuffer(maxBufferSize);
         this.completionFuture = SubscribableListener.newForked(buffer::addCompletionListener);
         this.nowInMillis = nowInMillis;
         this.lastUpdatedInMillis = new AtomicLong(nowInMillis.getAsLong());
+        this.scopeLease = scopeLease;
+    }
+
+    /**
+     * Releases the handler's own lease on the query scope; responses already handed out keep theirs.
+     */
+    public void releaseScope() {
+        Releasables.close(scopeLease);
     }
 
     private class ExchangeSinkImpl implements ExchangeSink {
@@ -152,7 +179,12 @@ public final class ExchangeSinkHandler {
                 if (listener == null) {
                     continue;
                 }
-                response = new ExchangeResponse(blockFactory, buffer.pollPage(), buffer.isFinished());
+                response = new ExchangeResponse(
+                    blockFactory,
+                    buffer.pollPage(),
+                    buffer.isFinished(),
+                    scopeLease == null ? null : scopeLease.scope().tryAcquire()
+                );
             } finally {
                 promised.release();
             }

@@ -15,6 +15,7 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
@@ -27,17 +28,29 @@ public final class ExchangeResponse extends TransportResponse implements Releasa
     private boolean pageTaken;
     private final BlockFactory blockFactory;
     private long reservedBytes = 0;
+    @Nullable
+    private final Releasable onClose;
 
     public ExchangeResponse(BlockFactory blockFactory, Page page, boolean finished) {
+        this(blockFactory, page, finished, null);
+    }
+
+    /**
+     * @param onClose released with the response's last reference, after its page and serialization reservation went
+     *                back: the lease that keeps the query's scope alive while this page is in flight to the transport
+     */
+    public ExchangeResponse(BlockFactory blockFactory, Page page, boolean finished, @Nullable Releasable onClose) {
         this.blockFactory = blockFactory;
         this.page = page;
         this.finished = finished;
+        this.onClose = onClose;
     }
 
     public ExchangeResponse(BlockStreamInput in) throws IOException {
         this.blockFactory = in.blockFactory();
         this.page = in.readOptionalWriteable(Page::new);
         this.finished = in.readBoolean();
+        this.onClose = null;
     }
 
     @Override
@@ -119,9 +132,13 @@ public final class ExchangeResponse extends TransportResponse implements Releasa
     }
 
     private void closeInternal() {
-        blockFactory.breaker().addWithoutBreaking(-reservedBytes);
-        if (pageTaken == false && page != null) {
-            page.releaseBlocks();
+        try {
+            blockFactory.breaker().addWithoutBreaking(-reservedBytes);
+            if (pageTaken == false && page != null) {
+                page.releaseBlocks();
+            }
+        } finally {
+            Releasables.close(onClose);
         }
     }
 }

@@ -32,7 +32,10 @@ import org.elasticsearch.core.Releasables;
  * This class is generated. Edit `X-AnyValueAggregator.java.st` instead.
  */
 @Aggregator({ @IntermediateState(name = "observed", type = "BOOLEAN"), @IntermediateState(name = "values", type = "INT_BLOCK") })
-@GroupingAggregator({ @IntermediateState(name = "observed", type = "BOOLEAN"), @IntermediateState(name = "values", type = "INT_BLOCK") })
+@GroupingAggregator(
+    value = { @IntermediateState(name = "observed", type = "BOOLEAN"), @IntermediateState(name = "values", type = "INT_BLOCK") },
+    boundedState = true
+)
 public class AnyIntAggregator {
     public static String describe() {
         return "any_int_aggregator";

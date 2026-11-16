@@ -11,11 +11,17 @@ package org.elasticsearch.swisshash;
 
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.PartitionedHashTable;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.util.Arrays;
+
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Base class for {@link PartitionedHashTable} tests
@@ -47,6 +53,29 @@ public abstract class PartitionedHashTestCase extends ESTestCase {
             if (success == false) {
                 partitionSum.releaseAll(breaker);
             }
+        }
+    }
+
+    /**
+     * Writes one partition of {@code keys} with {@link PartitionedHashTable.PartitionedHashKeys#writePartition} and reads
+     * it back through {@code reader}, which wraps the hash's {@code readPartitionKeys}: the single-partition copy a
+     * restore from a spilled slice produces. The whole encoding must be consumed.
+     */
+    static PartitionedHashTable.PartitionedHashKeys roundTrip(
+        PartitionedHashTable.PartitionedHashKeys keys,
+        int partition,
+        CheckedFunction<StreamInput, PartitionedHashTable.PartitionedHashKeys, IOException> reader
+    ) {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            keys.writePartition(partition, out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                PartitionedHashTable.PartitionedHashKeys read = reader.apply(in);
+                assertThat("partition [" + partition + "] encoding not fully consumed", in.available(), equalTo(0));
+                assertThat(read.keysInPartition(partition), equalTo(keys.keysInPartition(partition)));
+                return read;
+            }
+        } catch (IOException e) {
+            throw new AssertionError(e);
         }
     }
 

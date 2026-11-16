@@ -9,6 +9,8 @@ package org.elasticsearch.compute.aggregation.blockhash;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
@@ -32,6 +34,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.swisshash.BytesRefSwissHash;
 import org.elasticsearch.swisshash.LongLongSwissHash;
 
+import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
@@ -529,6 +532,11 @@ public final class LongBytesRefBlockHash extends PartitionedBlockHash {
         public void releaseAll(CircuitBreaker breaker) {
             delegate.releaseAll(breaker);
         }
+
+        @Override
+        public void writePartition(int partition, StreamOutput out) throws IOException {
+            delegate.writePartition(partition, out);
+        }
     }
 
     @Override
@@ -563,6 +571,19 @@ public final class LongBytesRefBlockHash extends PartitionedBlockHash {
         PartitionedHashKeysWithSeenNull withSeenNull = (PartitionedHashKeysWithSeenNull) keys;
         seenNulls |= withSeenNull.seenNull;
         return packedKeysHash.combinePartition(withSeenNull.delegate, partitionIndex, resultIds);
+    }
+
+    @Override
+    public void writePartitionKeys(PartitionedHashKeys keys, int partition, StreamOutput out) throws IOException {
+        PartitionedHashKeysWithSeenNull withSeenNull = (PartitionedHashKeysWithSeenNull) keys;
+        out.writeBoolean(withSeenNull.seenNull);
+        withSeenNull.delegate.writePartition(partition, out);
+    }
+
+    @Override
+    public PartitionedHashKeys readPartitionKeys(StreamInput in, int partition, CircuitBreaker breaker) throws IOException {
+        boolean seenNull = in.readBoolean();
+        return new PartitionedHashKeysWithSeenNull(BytesRefSwissHash.readPartitionKeys(in, partition, breaker), seenNull);
     }
 
     private static final VarHandle LONG_HANDLE = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.nativeOrder());

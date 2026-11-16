@@ -310,6 +310,12 @@ public class CountApproximateGroupingAggregatorFunction implements GroupingAggre
     }
 
     @Override
+    public boolean freezeEligible() {
+        // one double per group
+        return true;
+    }
+
+    @Override
     public void close() {
         state.close();
     }

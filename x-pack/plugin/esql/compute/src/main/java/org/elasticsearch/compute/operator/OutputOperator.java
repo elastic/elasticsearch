@@ -7,9 +7,19 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.spill.SpillStatus;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -18,6 +28,137 @@ import java.util.function.Function;
  * i.e. the names of the rows that are outputted.
  */
 public class OutputOperator extends SinkOperator {
+
+    /**
+     * A page consumer that may write pages out rather than keep them, and says how much it did, for the operator's
+     * status. Its blocked state is the {@link PageConsumer}'s, which the operator forwards: a consumer that writes
+     * pages out tells the driver, and through the exchange the data nodes, to wait rather than hand it more. It has
+     * to reach the operator as a {@link PageConsumer}, through {@link PageConsumer.Factory}: one handed over as a
+     * plain {@link Consumer} is wrapped, and the wrapper neither blocks nor reports.
+     */
+    public interface SpillingPageConsumer extends PageConsumer {
+        /** Rows the consumer wrote out rather than kept. */
+        long rowsSpilled();
+
+        /** The consumer's spill counters. */
+        SpillStatus spillStatus();
+    }
+
+    /**
+     * The sink's status, given for a consumer that may write pages out: the pages and rows received, and what the
+     * consumer wrote out, counted as every spilling operator counts.
+     */
+    public static class Status implements Operator.Status {
+        public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+            Operator.Status.class,
+            "output",
+            Status::new
+        );
+        public static final ProfileSchema<Status> PROFILE_SCHEMA = SpillStatus.addTo(
+            ProfileSchema.of(Status.class, (builder, status, params) -> status.writeProfile(builder))
+                .required("pages_received", ProfileSchema.integer())
+                .required("rows_received", ProfileSchema.integer())
+                .optional("rows_spilled", ProfileSchema.integer())
+        ).build();
+
+        private final int pagesReceived;
+        private final long rowsReceived;
+        private final long rowsSpilled;
+        private final SpillStatus spill;
+
+        /**
+         * @param rowsSpilled rows the consumer wrote to its run rather than kept in memory
+         * @param spill the consumer's spill counters
+         */
+        public Status(int pagesReceived, long rowsReceived, long rowsSpilled, SpillStatus spill) {
+            this.pagesReceived = pagesReceived;
+            this.rowsReceived = rowsReceived;
+            this.rowsSpilled = rowsSpilled;
+            this.spill = spill;
+        }
+
+        Status(StreamInput in) throws IOException {
+            pagesReceived = in.readVInt();
+            rowsReceived = in.readVLong();
+            rowsSpilled = in.readVLong();
+            spill = SpillStatus.readFrom(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(pagesReceived);
+            out.writeVLong(rowsReceived);
+            out.writeVLong(rowsSpilled);
+            spill.writeTo(out);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return ENTRY.name;
+        }
+
+        public int pagesReceived() {
+            return pagesReceived;
+        }
+
+        public long rowsReceived() {
+            return rowsReceived;
+        }
+
+        public long rowsSpilled() {
+            return rowsSpilled;
+        }
+
+        public SpillStatus spill() {
+            return spill;
+        }
+
+        private XContentBuilder writeProfile(XContentBuilder builder) throws IOException {
+            builder.startObject();
+            builder.field("pages_received", pagesReceived);
+            builder.field("rows_received", rowsReceived);
+            // present by value: a consumer that kept everything in memory writes none of these
+            if (rowsSpilled > 0 || spill.isNone() == false) {
+                builder.field("rows_spilled", rowsSpilled);
+                spill.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            }
+            return builder.endObject();
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return PROFILE_SCHEMA.write(builder, this, params);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Status status = (Status) o;
+            return pagesReceived == status.pagesReceived
+                && rowsReceived == status.rowsReceived
+                && rowsSpilled == status.rowsSpilled
+                && spill.equals(status.spill);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(pagesReceived, rowsReceived, rowsSpilled, spill);
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this);
+        }
+
+        /**
+         * The status exists since the spill feature's version: a node before it gets none, as the sink had none.
+         */
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return SpillStatus.ESQL_SPILL_STATUS;
+        }
+    }
 
     /**
      * Interface for DriverContext implementations that provide a collectedPages list.
@@ -34,6 +175,8 @@ public class OutputOperator extends SinkOperator {
     private final List<String> columns;
     private final PageConsumer pageConsumer;
     private final Function<Page, Page> mapper;
+    private int pagesReceived;
+    private long rowsReceived;
 
     public record OutputOperatorFactory(List<String> columns, Function<Page, Page> mapper, PageConsumer.Factory pageConsumerFactory)
         implements
@@ -100,7 +243,21 @@ public class OutputOperator extends SinkOperator {
 
     @Override
     protected void doAddInput(Page page) {
+        pagesReceived++;
+        rowsReceived += page.getPositionCount();
         pageConsumer.consume(mapper.apply(page));
+    }
+
+    /**
+     * A status for a consumer that may write pages out, the result collector; the plain list consumer reports none,
+     * as before, so a profile changes only where spilling may happen.
+     */
+    @Override
+    public Status status() {
+        if (pageConsumer instanceof SpillingPageConsumer spilling) {
+            return new Status(pagesReceived, rowsReceived, spilling.rowsSpilled(), spilling.spillStatus());
+        }
+        return null;
     }
 
     @Override

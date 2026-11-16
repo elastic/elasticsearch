@@ -17,9 +17,16 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.compute.aggregation.GroupingAggregator;
+import org.elasticsearch.compute.aggregation.blockhash.PartitionedBlockHash;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.PartitionedAggregationBlock;
 import org.elasticsearch.compute.operator.exchange.ExchangeBuffer;
+import org.elasticsearch.compute.spill.QueryScope;
+import org.elasticsearch.compute.spill.SliceRunReader;
+import org.elasticsearch.compute.spill.SpillCompletion;
+import org.elasticsearch.compute.spill.SpillStatus;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -57,14 +64,17 @@ import java.util.concurrent.locks.ReentrantLock;
  * this at the cost of buffering more memory. The emit phase now can dump the entire partition
  * to the exchange instead checking the capacity for every emit.
  *
- * <p>The same partitioning can support spilling large aggregations to disk without sorting keys,
- * reusing the two-phase flow above. In the first phase, once the registry exceeds the memory budget,
- * split partitions are written to disk instead of being kept in memory. In the second phase, a worker
- * claiming a partition loads its spilled slices, merges them with the in-memory ones, and emits as
- * usual. Only the slices of the partitions being merged need to be in memory, so peak memory is
- * bounded by those partitions rather than by the whole aggregation. Spilled slices are append-only
- * writes and sequential reads, and only the partitioned keys and aggregation states need
- * serializing; the split and combine steps stay the same.
+ * <p>The same partitioning spills large aggregations to disk without sorting keys, reusing the
+ * two-phase flow above, when the driver's query has a {@link QueryScope} that spills and every key
+ * and state family of the aggregation has a partition codec. In the first phase, once the registry
+ * holds the own-state minimum and the query crosses its budget, a split generation is written to a
+ * slice run instead of being kept in memory, received partitioned blocks are admitted by the same
+ * rule as they arrive, and the workers' split threshold rises to a share of the budget. In the
+ * second phase, a worker claiming a partition restores its spilled slices a bounded number at a
+ * time, combines them with the resident ones one generation at a time, and emits as usual; a
+ * restore that has not landed parks the worker, which the landing reschedules. Only the slices of
+ * the partitions being merged are in memory, so peak memory is bounded by those partitions rather
+ * than by the whole aggregation.
  */
 public final class ParallelHashAggregationOperator implements Operator {
     public static final int PAGE_PER_WORKER = 10;
@@ -80,15 +90,22 @@ public final class ParallelHashAggregationOperator implements Operator {
     private final AtomicInteger scheduledOrRunningWorkers = new AtomicInteger();
 
     private final ExchangeBuffer in;
+    private final int inputCapacity;
     private int lastPendingPages = 0;
     private boolean finishCalled = false;
-    private final List<PartitionedAggregationBlock> partitionedAggregationBlocks;
 
     private final AtomicInteger pendingSplits;
+    /** Set once every worker's last split and every generation's write are done: nothing is admitted after it. */
+    private final AtomicBoolean phaseTwo = new AtomicBoolean();
     private final SubscribableListener<Void> splitsDone = new SubscribableListener<>();
 
     private final ExchangeBuffer out;
     private IsBlockedResult blocked = NOT_BLOCKED;
+    /**
+     * Completed and replaced whenever a parked worker could move again, a restore landed or a task was rejected, so
+     * that the driver, which then helps inline, never sleeps on output a rejected worker will not produce.
+     */
+    private SubscribableListener<Void> progress = new SubscribableListener<>();
 
     private final PartitionedHashAggregations partitions;
     private final FailureCollector failureCollector = new FailureCollector();
@@ -112,12 +129,13 @@ public final class ParallelHashAggregationOperator implements Operator {
         this.pagesPerWorker = Math.max(1, config.pagesPerWorker());
         this.driverContext = mainDriverContext;
         this.executor = config.executor();
-        this.in = new ExchangeBuffer(numWorkers * pagesPerWorker);
+        this.inputCapacity = numWorkers * pagesPerWorker;
+        this.in = new ExchangeBuffer(inputCapacity);
         this.out = new ExchangeBuffer(numWorkers * pagesPerWorker);
         this.partitionKeysThreshold = config.partitionKeysThreshold();
         this.workers = new Worker[numWorkers];
         this.workerStatuses = new AtomicReferenceArray<>(numWorkers + 1);
-        this.partitions = new PartitionedHashAggregations(mainDriverContext.blockFactory().parent().breaker());
+        this.partitions = newRegistry(mainDriverContext, operator, numWorkers);
         this.pendingSplits = new AtomicInteger(numWorkers);
         boolean success = false;
         try {
@@ -134,9 +152,14 @@ public final class ParallelHashAggregationOperator implements Operator {
             for (int w = 0; w < numWorkers; w++) {
                 workers[w] = new Worker(w, operator.spawnWorker());
             }
-            this.partitionedBlocksReceived += operator.partitionedAggregationBlocks.size();
-            this.partitionedAggregationBlocks = new ArrayList<>(operator.partitionedAggregationBlocks);
-            operator.partitionedAggregationBlocks.clear();
+            try {
+                for (PartitionedAggregationBlock block : operator.partitionedAggregationBlocks) {
+                    admitReceived(block);
+                }
+            } finally {
+                Releasables.close(operator.partitionedAggregationBlocks);
+                operator.partitionedAggregationBlocks.clear();
+            }
             success = true;
         } finally {
             if (success == false) {
@@ -146,9 +169,86 @@ public final class ParallelHashAggregationOperator implements Operator {
         }
     }
 
+    /**
+     * The registry, spilling when the query's scope does and every key and state family has a partition codec: a
+     * time series hash or an aggregator without one keeps the whole aggregation resident.
+     */
+    private PartitionedHashAggregations newRegistry(DriverContext mainDriverContext, HashAggregationOperator operator, int numWorkers) {
+        var globalBreaker = mainDriverContext.blockFactory().parent().breaker();
+        QueryScope scope = mainDriverContext.queryScope();
+        boolean codecs = operator.blockHash instanceof PartitionedBlockHash hash
+            && hash.supportsPartitionCodec()
+            && operator.aggregators.stream().map(GroupingAggregator::aggregatorFunction).allMatch(f -> f.supportsPartitionCodec());
+        if (scope == null || scope.spillEnabled() == false || codecs == false) {
+            return new PartitionedHashAggregations(globalBreaker);
+        }
+        HashAggregationOperator decoder = operator.spawnWorker();
+        try {
+            var registry = new PartitionedHashAggregations(globalBreaker, scope, mainDriverContext, decoder, numWorkers, new Events());
+            decoder = null;
+            return registry;
+        } finally {
+            if (decoder != null) {
+                decoder.close();
+            }
+        }
+    }
+
+    /**
+     * What the registry's writes and restores report, from codec and I/O threads.
+     */
+    private final class Events implements PartitionedHashAggregations.Events {
+        @Override
+        public void generationPublished() {
+            maybeStartPhaseTwo();
+            if (phaseTwo.get() == false) {
+                // a parked worker resumes with the input the write's slot held back
+                for (Worker worker : workers) {
+                    scheduleWorker(worker);
+                }
+            }
+        }
+
+        @Override
+        public void restoreLanded() {
+            signalProgress();
+        }
+
+        @Override
+        public void failed(Exception e) {
+            if (operatorClosed) {
+                return;
+            }
+            failureCollector.unwrapAndCollect(e);
+            in.finish(true);
+            out.finish(true);
+            splitsDone.onResponse(null);
+        }
+    }
+
+    /**
+     * Admits a received partitioned block to the registry as it arrives; while its write is pending the operator takes
+     * no input and the driver waits on it.
+     */
+    private void admitReceived(PartitionedAggregationBlock block) {
+        partitionedBlocksReceived++;
+        partitions.addPartitionedBlock(block);
+        if (partitions.pendingReceivedWrites() > 0) {
+            blocked = new IsBlockedResult(partitions.receivedWritesIdle(), "spilling a received partition");
+        }
+    }
+
     @Override
     public boolean needsInput() {
-        // can accept input anytime
+        if (partitions.pendingReceivedWrites() > 0) {
+            // a received partition is being written out; the driver waits on it through admitReceived's blocked result
+            return false;
+        }
+        if (partitions.writesBacklogged() && in.size() >= inputCapacity) {
+            // the workers are parked on a backlogged write and the input is full: wait for either to move
+            blocked = anyOf(in.waitForWriting(), partitions.nextWriteDone(), "waiting for a spilled generation's write");
+            return false;
+        }
         return true;
     }
 
@@ -160,10 +260,12 @@ public final class ParallelHashAggregationOperator implements Operator {
             throw ExceptionsHelper.convertToRuntime(failureCollector.getFailure());
         }
         if (page.getBlockCount() == 1 && page.getBlock(0) instanceof PartitionedAggregationBlock pb) {
-            partitionedBlocksReceived++;
-            pb.mustIncRef();
-            partitionedAggregationBlocks.add(pb);
-            page.close();
+            // the registry takes the block's keys and states; the page's close lets the emptied block go
+            try {
+                admitReceived(pb);
+            } finally {
+                page.close();
+            }
             return;
         }
         page.allowPassingToDifferentDriver();
@@ -205,7 +307,8 @@ public final class ParallelHashAggregationOperator implements Operator {
             if (worker.tryLock()) {
                 try {
                     Page page;
-                    while (in.size() >= halfCurrentSize && (page = in.pollPage()) != null) {
+                    // a backlogged write parks this thread's share too, as it parks the workers
+                    while (in.size() >= halfCurrentSize && partitions.writesBacklogged() == false && (page = in.pollPage()) != null) {
                         addInputInlineRows += page.getPositionCount();
                         worker.processOnePage(page);
                     }
@@ -225,26 +328,36 @@ public final class ParallelHashAggregationOperator implements Operator {
         if (hasFailure() || finishCalled) {
             return;
         }
-        try {
-            partitions.addPartitionedBlocks(partitionedAggregationBlocks);
-        } finally {
-            Releasables.close(partitionedAggregationBlocks);
-            partitionedAggregationBlocks.clear();
-        }
         finishCalled = true;
         in.finish(false);
         for (Worker worker : workers) {
             scheduleWorker(worker);
         }
+        helpPhaseOne();
+        finishNanos = System.nanoTime() - nanoStart;
+    }
+
+    /**
+     * The driver thread's share of the end of phase one: drains and splits what the pool has not, unless the writes
+     * are backlogged, and sets what the driver waits on: the next write when backlogged, the splits otherwise. Called
+     * again from {@link #getOutput()} while phase two has not started, so that a rejecting pool does not stall it.
+     */
+    private void helpPhaseOne() {
+        SubscribableListener<Void> progressBefore;
+        synchronized (this) {
+            progressBefore = progress;
+        }
         for (Worker worker : workers) {
             if (worker.tryLock()) {
                 try {
-                    if (worker.splitLastInput == false) {
+                    if (worker.splitLastInput == false && partitions.writesBacklogged() == false) {
                         Page page;
-                        while ((page = in.pollPage()) != null) {
+                        while (partitions.writesBacklogged() == false && (page = in.pollPage()) != null) {
                             worker.processOnePage(page);
                         }
-                        worker.splitLastInput();
+                        if (partitions.writesBacklogged() == false) {
+                            worker.splitLastInput();
+                        }
                     }
                 } finally {
                     worker.unlock();
@@ -253,8 +366,10 @@ public final class ParallelHashAggregationOperator implements Operator {
                 scheduleWorker(worker);
             }
         }
-        blocked = new IsBlockedResult(splitsDone, "Waiting for splits");
-        finishNanos = System.nanoTime() - nanoStart;
+        // either way the driver also wakes on progress: a worker's task the pool rejected is for this thread to finish
+        blocked = partitions.writesBacklogged()
+            ? anyOf(new IsBlockedResult(partitions.nextWriteDone(), "waiting for a spilled generation's write"), progressBefore)
+            : anyOf(new IsBlockedResult(splitsDone, "Waiting for splits"), progressBefore);
     }
 
     @Override
@@ -275,7 +390,10 @@ public final class ParallelHashAggregationOperator implements Operator {
         if (failureCollector.hasFailure()) {
             throw ExceptionsHelper.convertToRuntime(failureCollector.getFailure());
         }
-        if (pendingSplits.get() > 0) {
+        if (phaseTwo.get() == false) {
+            if (finishCalled) {
+                helpPhaseOne();
+            }
             return null;
         }
         Page page = out.pollPage();
@@ -286,31 +404,95 @@ public final class ParallelHashAggregationOperator implements Operator {
         return out.pollPage();
     }
 
+    /**
+     * The driver's share of phase two: every worker it can lock is moved, one that waits on a slice is left to the
+     * landing and the pool, and the first partition emitted ends the pass. With nothing emitted the driver waits for
+     * output or for progress signalled since the pass began, so that a slice landing or a task rejected during the
+     * pass is not missed; the pool may reject a parked worker's task, and this thread is then the one to move it.
+     */
     private void tryEmitOnePartitionInline() {
         final long startNanos = System.nanoTime();
+        SubscribableListener<Void> progressBefore;
+        synchronized (this) {
+            progressBefore = progress;
+        }
         boolean emitted = false;
         for (Worker worker : workers) {
-            if (worker.tryLock()) {
-                try {
-                    int p = partitions.claimPartition();
-                    if (p != PartitionedHashAggregations.NO_MORE_PARTITION) {
-                        inlineEmitRows += worker.emitOnePartition(p);
-                        emitted = true;
-                    }
-                } finally {
-                    worker.unlock();
-                }
-                if (partitions.hasUncombinedPartitions()) {
-                    scheduleWorker(worker);
-                }
-                break;
+            if (worker.tryLock() == false) {
+                continue;
             }
+            Worker.Step step;
+            try {
+                step = worker.advance();
+            } finally {
+                worker.unlock();
+            }
+            if (step == null) {
+                continue;
+            }
+            if (step.waitFor() != null) {
+                scheduleWorker(worker);
+                continue;
+            }
+            inlineEmitRows += step.rows();
+            emitted = true;
+            if (partitions.hasUncombinedPartitions()) {
+                scheduleWorker(worker);
+            }
+            break;
         }
         if (emitted == false) {
-            blocked = out.waitForReading();
+            blocked = waitForOutputOrProgress(progressBefore);
         }
         inlineEmitCount++;
         inlineEmitNanos += (System.nanoTime() - startNanos);
+    }
+
+    private void signalProgress() {
+        SubscribableListener<Void> signalled;
+        synchronized (this) {
+            signalled = progress;
+            progress = new SubscribableListener<>();
+        }
+        signalled.onResponse(null);
+    }
+
+    /**
+     * Output, or {@code progress} as it stood when the caller started looking: done already when something was
+     * signalled meanwhile, so that the driver looks again rather than sleeping past it.
+     */
+    private IsBlockedResult waitForOutputOrProgress(SubscribableListener<Void> progress) {
+        return anyOf(out.waitForReading(), progress);
+    }
+
+    /**
+     * Whichever completes first: the result, or the signal.
+     */
+    private static IsBlockedResult anyOf(IsBlockedResult result, SubscribableListener<Void> signal) {
+        return anyOf(result, signal, result.reason());
+    }
+
+    private static IsBlockedResult anyOf(IsBlockedResult result, SubscribableListener<Void> signal, String reason) {
+        if (result.listener().isDone() || signal.isDone()) {
+            return NOT_BLOCKED;
+        }
+        SubscribableListener<Void> either = new SubscribableListener<>();
+        result.listener().addListener(ActionListener.running(() -> either.onResponse(null)));
+        signal.addListener(ActionListener.running(() -> either.onResponse(null)));
+        return new IsBlockedResult(either, reason);
+    }
+
+    /**
+     * Phase two starts once every worker's last split is admitted and every generation's write is published; both
+     * counters are checked after either reaches zero, so the last of the two starts it.
+     */
+    private void maybeStartPhaseTwo() {
+        if (pendingSplits.get() == 0 && partitions.pendingWrites() == 0 && phaseTwo.compareAndSet(false, true)) {
+            splitsDone.onResponse(null);
+            for (Worker worker : workers) {
+                scheduleWorker(worker);
+            }
+        }
     }
 
     @Override
@@ -326,8 +508,6 @@ public final class ParallelHashAggregationOperator implements Operator {
             out.finish(true);
             releaseWorkers();
             partitions.close();
-            Releasables.close(partitionedAggregationBlocks);
-            partitionedAggregationBlocks.clear();
         }
     }
 
@@ -343,8 +523,9 @@ public final class ParallelHashAggregationOperator implements Operator {
         }
     }
 
-    private boolean scheduleWorker(Worker worker) {
-        if (worker.scheduled.compareAndSet(false, true)) {
+    private boolean scheduleWorker(@Nullable Worker worker) {
+        // a generation published while the constructor's initial split runs sees no workers yet
+        if (worker != null && worker.scheduled.compareAndSet(false, true)) {
             scheduledOrRunningWorkers.incrementAndGet();
             executor.execute(new WorkerTask(worker));
             return true;
@@ -364,11 +545,10 @@ public final class ParallelHashAggregationOperator implements Operator {
         @Override
         protected void doRun() {
             worker.scheduled.set(false);
-            final int pending = pendingSplits.get();
-            if (pending > 0) {
+            if (phaseTwo.get() == false) {
                 processInputPages();
             }
-            if (pending == 0 || pendingSplits.get() == 0) {
+            if (phaseTwo.get()) {
                 emitPartitions();
             }
         }
@@ -379,15 +559,16 @@ public final class ParallelHashAggregationOperator implements Operator {
                     return;
                 }
                 try {
-                    if (worker.splitLastInput) {
+                    if (worker.splitLastInput || partitions.writesBacklogged()) {
+                        // a backlogged write parks the worker; the write's completion reschedules it
                         return;
                     }
                     driverContext.meteredCpu(() -> {
                         Page p;
-                        while ((p = in.pollPage()) != null) {
+                        while (partitions.writesBacklogged() == false && (p = in.pollPage()) != null) {
                             worker.processOnePage(p);
                         }
-                        if (in.isFinished()) {
+                        if (in.isFinished() && partitions.writesBacklogged() == false) {
                             worker.splitLastInput();
                         }
                         worker.updateStatus();
@@ -405,24 +586,31 @@ public final class ParallelHashAggregationOperator implements Operator {
 
         private void emitPartitions() {
             while (operatorClosed == false && hasFailure() == false) {
-                SubscribableListener<Void> outListener = out.waitForWriting().listener();
-                if (outListener.isDone() == false) {
-                    outListener.addListener(ActionListener.running(() -> scheduleWorker(worker)));
-                    return;
-                }
                 if (worker.tryLock() == false) {
                     return;
                 }
+                Worker.Step step;
                 try {
-                    final int p = partitions.claimPartition();
-                    if (p == PartitionedHashAggregations.NO_MORE_PARTITION) {
-                        return;
+                    if (worker.emitter.inProgress() == false) {
+                        SubscribableListener<Void> outListener = out.waitForWriting().listener();
+                        if (outListener.isDone() == false) {
+                            outListener.addListener(ActionListener.running(() -> scheduleWorker(worker)));
+                            return;
+                        }
                     }
                     // TODO: we should check for every page
-                    driverContext.meteredCpu(() -> worker.emitOnePartition(p));
+                    step = driverContext.<Worker.Step, RuntimeException>meteredCpu(worker::advance);
                 } finally {
                     // Outside the measurement, as in processInputPages.
                     worker.unlock();
+                }
+                if (step == null) {
+                    return;
+                }
+                if (step.waitFor() != null) {
+                    // the restore in flight reschedules this worker when it lands
+                    step.waitFor().listener().addListener(ActionListener.running(() -> scheduleWorker(worker)));
+                    return;
                 }
             }
         }
@@ -440,6 +628,7 @@ public final class ParallelHashAggregationOperator implements Operator {
         public void onRejection(Exception e) {
             // ignore rejection - handle by the driver thread, but we should stop schedule
             worker.scheduled.set(false);
+            signalProgress();
         }
 
         @Override
@@ -488,6 +677,10 @@ public final class ParallelHashAggregationOperator implements Operator {
                     }
                 }
             }
+            if (partitions.spilling()) {
+                // generations grow with the budget once they go to disk, which bounds their count and metadata
+                op.raisePartitioningMemoryThreshold(partitions.spillSplitThreshold());
+            }
             op.addInput(page);
             if (op.partitioningThresholdReached()) {
                 split();
@@ -510,34 +703,51 @@ public final class ParallelHashAggregationOperator implements Operator {
             splitLastInput = true;
             split();
             if (pendingSplits.decrementAndGet() == 0) {
-                splitsDone.onResponse(null);
-                for (Worker worker : workers) {
-                    scheduleWorker(worker);
-                }
+                maybeStartPhaseTwo();
             }
         }
 
-        long emitOnePartition(int p) {
+        /**
+         * The outcome of one {@link #advance()}: the rows emitted, or the restore the partition waits on.
+         */
+        record Step(long rows, @Nullable IsBlockedResult waitFor) {}
+
+        /**
+         * One step of phase two, under the worker's lock: claims a partition when none is in progress, combines the
+         * generations whose slices are at hand and emits the partition once every generation is combined. Returns null
+         * when no partition is left to claim.
+         */
+        @Nullable
+        Step advance() {
+            if (emitter.inProgress() == false) {
+                int p = partitions.claimPartition();
+                if (p == PartitionedHashAggregations.NO_MORE_PARTITION) {
+                    return null;
+                }
+                emitter.begin(p);
+            }
+            SpillCompletion<SliceRunReader.Slice> pending = emitter.advance();
+            if (pending != null) {
+                return new Step(0, pending.blocked("restoring a spilled partition"));
+            }
             // TODO: we should respect the exchange buffer for every output page not partition level
             long rows = 0;
-            if (emitter.combine(p)) {
-                long startNanos = System.nanoTime();
-                op.emit();
-                Page page;
-                while ((page = op.getOutput()) != null) {
-                    rows += page.getPositionCount();
-                    page.allowPassingToDifferentDriver();
-                    out.addPage(page);
-                }
-                rowsEmitted += rows;
-                emitNanos += (System.nanoTime() - startNanos);
-                emitCount++;
-                updateStatus();
+            long startNanos = System.nanoTime();
+            op.emit();
+            Page page;
+            while ((page = op.getOutput()) != null) {
+                rows += page.getPositionCount();
+                page.allowPassingToDifferentDriver();
+                out.addPage(page);
             }
+            rowsEmitted += rows;
+            emitNanos += (System.nanoTime() - startNanos);
+            emitCount++;
+            updateStatus();
             if (partitions.completePartition()) {
                 out.finish(false);
             }
-            return rows;
+            return new Step(rows, null);
         }
 
         void updateStatus() {
@@ -568,6 +778,11 @@ public final class ParallelHashAggregationOperator implements Operator {
         }
 
         boolean tryLock() {
+            if (lock.isHeldByCurrentThread()) {
+                // a task run inline by its own thread, which a direct executor does, would nest inside the frame that
+                // holds the lock; that frame carries on with the worker's state, so the nested task has nothing to do
+                return false;
+            }
             if (lock.tryLock()) {
                 if (closed) {
                     lock.unlock();
@@ -635,7 +850,8 @@ public final class ParallelHashAggregationOperator implements Operator {
             inlineEmitCount,
             inlineEmitRows,
             inlineEmitNanos,
-            workerTasks
+            workerTasks,
+            partitions.spillStatus()
         );
         return new HashAggregationOperator.Status(
             hashNanos,
@@ -657,9 +873,8 @@ public final class ParallelHashAggregationOperator implements Operator {
             "parallel_hashagg_extra_fields",
             PartitioningStatus::new
         );
-        private static final ProfileSchema<PartitioningStatus> PARTITIONING_SCHEMA = ProfileSchema.of(
-            PartitioningStatus.class,
-            (builder, status, params) -> builder
+        private static final ProfileSchema<PartitioningStatus> PARTITIONING_SCHEMA = SpillStatus.addTo(
+            ProfileSchema.of(PartitioningStatus.class, (builder, status, params) -> builder)
         )
             .required("add_input_nanos", ProfileSchema.integer())
             .optional("add_input_time", ProfileSchema.string())
@@ -703,6 +918,8 @@ public final class ParallelHashAggregationOperator implements Operator {
         private final long inlineEmitRows;
         private final long inlineEmitNanos;
         private final long workerTasks;
+        /** The spill counters of the registry: generations written as runs, their bytes, slices read back. */
+        private final SpillStatus spill;
 
         public PartitioningStatus(
             long addInputNanos,
@@ -716,7 +933,8 @@ public final class ParallelHashAggregationOperator implements Operator {
             long inlineEmitCount,
             long inlineEmitRows,
             long inlineEmitNanos,
-            long workerTasks
+            long workerTasks,
+            SpillStatus spill
         ) {
             this.addInputNanos = addInputNanos;
             this.addInputInlineCount = addInputInlineCount;
@@ -730,6 +948,7 @@ public final class ParallelHashAggregationOperator implements Operator {
             this.inlineEmitRows = inlineEmitRows;
             this.inlineEmitNanos = inlineEmitNanos;
             this.workerTasks = workerTasks;
+            this.spill = spill;
         }
 
         PartitioningStatus(StreamInput in) throws IOException {
@@ -745,7 +964,8 @@ public final class ParallelHashAggregationOperator implements Operator {
                 in.readVLong(),
                 in.readVLong(),
                 in.readVLong(),
-                in.readVLong()
+                in.readVLong(),
+                SpillStatus.readFrom(in)
             );
         }
 
@@ -765,10 +985,15 @@ public final class ParallelHashAggregationOperator implements Operator {
             out.writeVLong(inlineEmitRows);
             out.writeVLong(inlineEmitNanos);
             out.writeVLong(workerTasks);
+            spill.writeTo(out);
         }
 
         public int partitionedBlocksReceived() {
             return partitionedBlocksReceived;
+        }
+
+        public SpillStatus spill() {
+            return spill;
         }
 
         @Override
@@ -810,6 +1035,7 @@ public final class ParallelHashAggregationOperator implements Operator {
                 builder.field("inline_emit_time", TimeValue.timeValueNanos(inlineEmitNanos));
             }
             builder.field("worker_tasks", workerTasks);
+            spill.toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
         }
 
@@ -833,7 +1059,8 @@ public final class ParallelHashAggregationOperator implements Operator {
                 && inlineEmitCount == other.inlineEmitCount
                 && inlineEmitRows == other.inlineEmitRows
                 && inlineEmitNanos == other.inlineEmitNanos
-                && workerTasks == other.workerTasks;
+                && workerTasks == other.workerTasks
+                && spill.equals(other.spill);
         }
 
         @Override
@@ -850,7 +1077,8 @@ public final class ParallelHashAggregationOperator implements Operator {
                 inlineEmitCount,
                 inlineEmitRows,
                 inlineEmitNanos,
-                workerTasks
+                workerTasks,
+                spill
             );
         }
     }

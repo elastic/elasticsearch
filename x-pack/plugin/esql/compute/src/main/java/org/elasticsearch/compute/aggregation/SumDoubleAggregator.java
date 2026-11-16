@@ -10,6 +10,8 @@ package org.elasticsearch.compute.aggregation;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.PartitionedHashTable;
@@ -24,6 +26,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 
+import java.io.IOException;
 import java.util.Arrays;
 
 @Aggregator(
@@ -78,6 +81,38 @@ class SumDoubleAggregator {
     public static void combineIntermediate(GroupingSumState current, int groupId, double inValue, double inDelta, boolean seen) {
         if (seen) {
             current.add(inValue, inDelta, groupId);
+        }
+    }
+
+    /**
+     * Reads one partition written by the partitioned state's {@code writePartition}, charged to {@code breaker}.
+     */
+    public static GroupingAggregatorFunction.PartitionedState readPartition(StreamInput in, int partition, CircuitBreaker breaker)
+        throws IOException {
+        final boolean trackSeen = in.readBoolean();
+        final int count = in.readVInt();
+        final long bytes = GroupingSumState.PartitionedSumState.bytesForPartition(count, trackSeen);
+        breaker.addEstimateBytesAndMaybeBreak(bytes, "SumDoubleAggregator#partition");
+        boolean success = false;
+        try {
+            final double[] data = new double[count * 2];
+            for (int i = 0; i < data.length; i++) {
+                data[i] = in.readDouble();
+            }
+            boolean[] partitionSeen = null;
+            if (trackSeen) {
+                partitionSeen = new boolean[count];
+                for (int i = 0; i < count; i++) {
+                    partitionSeen[i] = in.readBoolean();
+                }
+            }
+            GroupingAggregatorFunction.PartitionedState result = new GroupingSumState.PartitionedSumState(partition, data, partitionSeen);
+            success = true;
+            return result;
+        } finally {
+            if (success == false) {
+                breaker.addWithoutBreaking(-bytes);
+            }
         }
     }
 
@@ -263,6 +298,47 @@ class SumDoubleAggregator {
             private final double[][] data;
             private final boolean[][] seen;
             private final long baseBytes;
+
+            /**
+             * One partition read back from {@link #writePartition}; the other partitions are empty. {@code breaker}
+             * has been charged what {@link #releaseAll} returns for this shape.
+             */
+            private PartitionedSumState(int partition, double[] partitionData, boolean[] partitionSeen) {
+                this.data = new double[PartitionedHashTable.NUM_PARTITIONS][];
+                this.data[partition] = partitionData;
+                this.seen = partitionSeen != null ? new boolean[PartitionedHashTable.NUM_PARTITIONS][] : null;
+                if (seen != null) {
+                    seen[partition] = partitionSeen;
+                }
+                this.baseBytes = baseBytes(partitionSeen != null);
+            }
+
+            private static long baseBytes(boolean trackSeen) {
+                return RamUsageEstimator.shallowSizeOf(PartitionedSumState.class) + arrayBytes(
+                    PartitionedHashTable.NUM_PARTITIONS,
+                    RamUsageEstimator.NUM_BYTES_OBJECT_REF
+                ) + (trackSeen ? arrayBytes(PartitionedHashTable.NUM_PARTITIONS, RamUsageEstimator.NUM_BYTES_OBJECT_REF) : 0);
+            }
+
+            static long bytesForPartition(int count, boolean trackSeen) {
+                return baseBytes(trackSeen) + partitionBytes(count, trackSeen);
+            }
+
+            @Override
+            public void writePartition(int partition, int count, StreamOutput out) throws IOException {
+                final double[] partitionData = data[partition];
+                final boolean[] partitionSeen = seen == null ? null : seen[partition];
+                out.writeBoolean(partitionSeen != null);
+                out.writeVInt(count);
+                for (int i = 0; i < count * 2; i++) {
+                    out.writeDouble(partitionData[i]);
+                }
+                if (partitionSeen != null) {
+                    for (int i = 0; i < count; i++) {
+                        out.writeBoolean(partitionSeen[i]);
+                    }
+                }
+            }
 
             private PartitionedSumState(CircuitBreaker breaker, int partitionSize, boolean trackSeen) {
                 this.data = new double[PartitionedHashTable.NUM_PARTITIONS][];

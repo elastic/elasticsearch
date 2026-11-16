@@ -71,6 +71,20 @@ public abstract class BlockArrowFormatter {
         return block.mayHaveMultivaluedFields();
     }
 
+    /**
+     * The decision of {@link #isMultivalued(String, Block)} for a column whose blocks can't be asked, because its
+     * pages are in a run: taken from what the blocks answered as the pages were collected. A formatter that overrides
+     * one of the two overrides the other, so that a result is encoded, or rejected, the same wherever its pages are.
+     *
+     * @param columnName the column name, for error messages
+     * @param mayHaveMultivalued whether any block of the column {@link Block#mayHaveMultivaluedFields may have}
+     *                           multivalued positions
+     * @param doesHaveMultivalued whether any block of the column {@link Block#doesHaveMultivaluedFields does have} one
+     */
+    public boolean isMultivalued(String columnName, boolean mayHaveMultivalued, boolean doesHaveMultivalued) {
+        return mayHaveMultivalued;
+    }
+
     // Block.nullValuesCount was more efficient but was removed in https://github.com/elastic/elasticsearch/pull/108916
     protected int nullValuesCount(Block block) {
         if (block.mayHaveNulls() == false) {
@@ -798,7 +812,12 @@ public abstract class BlockArrowFormatter {
         @Override
         public boolean isMultivalued(String columnName, Block block) {
             // mayHaveMultivaluedFields() can report false positives, which must not reject valid summaries.
-            if (block.doesHaveMultivaluedFields()) {
+            return isMultivalued(columnName, true, block.doesHaveMultivaluedFields());
+        }
+
+        @Override
+        public boolean isMultivalued(String columnName, boolean mayHaveMultivalued, boolean doesHaveMultivalued) {
+            if (doesHaveMultivalued) {
                 throw new IllegalArgumentException(
                     "Column ["
                         + columnName

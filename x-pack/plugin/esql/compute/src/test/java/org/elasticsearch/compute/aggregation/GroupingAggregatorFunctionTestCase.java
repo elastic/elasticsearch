@@ -145,6 +145,12 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
     }
 
     @Override
+    protected boolean supportsFreeze() {
+        // every grouping function runs the freeze variants; the ineligible ones skip themselves
+        return true;
+    }
+
+    @Override
     protected final Matcher<String> expectedDescriptionOfSimple() {
         return equalTo("HashAggregationOperator[mode = <not-needed>, aggs = " + expectedDescriptionOfAggregator() + "]");
     }
@@ -842,6 +848,12 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                     @Override
                     public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
                         delegate.selectedMayContainUnseenGroups(seenGroupIds);
+                    }
+
+                    @Override
+                    public boolean freezeEligible() {
+                        // the state is the delegate's, chunked input does not change what it holds per group
+                        return delegate.freezeEligible();
                     }
 
                     @Override

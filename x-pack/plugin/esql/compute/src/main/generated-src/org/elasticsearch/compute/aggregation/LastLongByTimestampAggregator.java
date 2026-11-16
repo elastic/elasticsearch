@@ -39,7 +39,8 @@ import org.elasticsearch.core.Releasables;
         @IntermediateState(name = "seen", type = "BOOLEAN") }
 )
 @GroupingAggregator(
-    { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "LONG_BLOCK") }
+    value = { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "LONG_BLOCK") },
+    boundedState = true
 )
 public class LastLongByTimestampAggregator {
     public static String describe() {

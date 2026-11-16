@@ -21,6 +21,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.mvdedupe.LongLongBlockAdd;
+import org.elasticsearch.compute.operator.mvdedupe.LongLongBlockLookup;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
@@ -75,7 +76,30 @@ final class LongLongBlockHash extends BlockHash {
 
     @Override
     public ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize) {
-        throw new UnsupportedOperationException("TODO");
+        LongBlock block1 = page.getBlock(channel1);
+        LongBlock block2 = page.getBlock(channel2);
+        LongVector vector1 = block1.asVector();
+        LongVector vector2 = block2.asVector();
+        // TODO honor targetBlockSize and chunk the pages if requested.
+        if (vector1 != null && vector2 != null) {
+            return ReleasableIterator.single(lookup(vector1, vector2));
+        }
+        return ReleasableIterator.single(new LongLongBlockLookup(blockFactory, hash, block1, block2).lookup());
+    }
+
+    private IntBlock lookup(LongVector vector1, LongVector vector2) {
+        int positions = vector1.getPositionCount();
+        try (var builder = blockFactory.newIntBlockBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                long found = hash.find(vector1.getLong(i), vector2.getLong(i));
+                if (found < 0) {
+                    builder.appendNull();
+                } else {
+                    builder.appendInt(Math.toIntExact(hashOrdToGroup(found)));
+                }
+            }
+            return builder.build();
+        }
     }
 
     @Override

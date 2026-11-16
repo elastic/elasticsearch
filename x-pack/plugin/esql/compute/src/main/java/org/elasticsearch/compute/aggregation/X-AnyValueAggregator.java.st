@@ -50,10 +50,14 @@ import org.elasticsearch.core.Releasables;
 @Aggregator({ @IntermediateState(name = "observed", type = "BOOLEAN"), @IntermediateState(name = "values", type = "$v_TYPE$_BLOCK") })
 $if(v_boolean || v_BytesRef)$
 @GroupingAggregator(
-    { @IntermediateState(name = "observed", type = "BOOLEAN"), @IntermediateState(name = "values", type = "$v_TYPE$_BLOCK") }
+    value = { @IntermediateState(name = "observed", type = "BOOLEAN"), @IntermediateState(name = "values", type = "$v_TYPE$_BLOCK") },
+    boundedState = true
 )
 $else$
-@GroupingAggregator({ @IntermediateState(name = "observed", type = "BOOLEAN"), @IntermediateState(name = "values", type = "$v_TYPE$_BLOCK") })
+@GroupingAggregator(
+    value = { @IntermediateState(name = "observed", type = "BOOLEAN"), @IntermediateState(name = "values", type = "$v_TYPE$_BLOCK") },
+    boundedState = true
+)
 $endif$
 public class Any$v_Type$Aggregator {
     public static String describe() {

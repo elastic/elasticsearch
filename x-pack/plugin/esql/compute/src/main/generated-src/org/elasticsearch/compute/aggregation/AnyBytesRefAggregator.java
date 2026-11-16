@@ -36,7 +36,8 @@ import org.elasticsearch.core.Releasables;
  */
 @Aggregator({ @IntermediateState(name = "observed", type = "BOOLEAN"), @IntermediateState(name = "values", type = "BYTES_REF_BLOCK") })
 @GroupingAggregator(
-    { @IntermediateState(name = "observed", type = "BOOLEAN"), @IntermediateState(name = "values", type = "BYTES_REF_BLOCK") }
+    value = { @IntermediateState(name = "observed", type = "BOOLEAN"), @IntermediateState(name = "values", type = "BYTES_REF_BLOCK") },
+    boundedState = true
 )
 public class AnyBytesRefAggregator {
     public static String describe() {

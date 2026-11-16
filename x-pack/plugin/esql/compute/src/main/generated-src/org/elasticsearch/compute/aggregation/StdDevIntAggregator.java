@@ -25,7 +25,7 @@ import org.elasticsearch.compute.operator.DriverContext;
         @IntermediateState(name = "m2", type = "DOUBLE"),
         @IntermediateState(name = "count", type = "LONG") }
 )
-@GroupingAggregator
+@GroupingAggregator(boundedState = true)
 public class StdDevIntAggregator {
 
     public static VarianceStates.SingleState initSingle(boolean stdDev, boolean allowNonFinite) {

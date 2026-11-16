@@ -23,6 +23,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
+import java.util.Arrays;
 import java.util.Locale;
 
 /**
@@ -133,7 +134,63 @@ final class BytesRef2BlockHash extends BlockHash {
 
     @Override
     public ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize) {
-        throw new UnsupportedOperationException("TODO");
+        BytesRefBlock b1 = page.getBlock(channel1);
+        BytesRefBlock b2 = page.getBlock(channel2);
+        // TODO honor targetBlockSize and chunk the pages if requested.
+        try (IntBlock k1 = hash1.lookup(b1); IntBlock k2 = hash2.lookup(b2)) {
+            return ReleasableIterator.single(lookup(k1, k2));
+        }
+    }
+
+    /**
+     * Combines the per-key lookups the way {@link AddWork} combines the per-key ids: a position whose combinations
+     * are all absent is null, one with several present combinations holds them all.
+     */
+    private IntBlock lookup(IntBlock k1, IntBlock k2) {
+        int positionCount = k1.getPositionCount();
+        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(positionCount)) {
+            int[] found = new int[4];
+            for (int i = 0; i < positionCount; i++) {
+                if (k1.isNull(i) || k2.isNull(i)) {
+                    builder.appendNull();
+                    continue;
+                }
+                int v1 = k1.getValueCount(i);
+                int v2 = k2.getValueCount(i);
+                int first1 = k1.getFirstValueIndex(i);
+                int first2 = k2.getFirstValueIndex(i);
+                int foundCount = 0;
+                for (int i1 = 0; i1 < v1; i1++) {
+                    int key1 = k1.getInt(first1 + i1);
+                    for (int i2 = 0; i2 < v2; i2++) {
+                        long ord = finalHash.find((long) k2.getInt(first2 + i2) << 32 | key1);
+                        if (ord < 0) {
+                            continue;
+                        }
+                        if (foundCount == found.length) {
+                            found = Arrays.copyOf(found, found.length * 2);
+                        }
+                        found[foundCount++] = Math.toIntExact(hashOrdToGroup(ord));
+                    }
+                }
+                appendFound(builder, found, foundCount);
+            }
+            return builder.build();
+        }
+    }
+
+    static void appendFound(IntBlock.Builder builder, int[] found, int foundCount) {
+        switch (foundCount) {
+            case 0 -> builder.appendNull();
+            case 1 -> builder.appendInt(found[0]);
+            default -> {
+                builder.beginPositionEntry();
+                for (int i = 0; i < foundCount; i++) {
+                    builder.appendInt(found[i]);
+                }
+                builder.endPositionEntry();
+            }
+        }
     }
 
     @Override

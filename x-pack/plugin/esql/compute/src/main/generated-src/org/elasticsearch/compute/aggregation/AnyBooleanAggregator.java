@@ -33,7 +33,8 @@ import org.elasticsearch.core.Releasables;
  */
 @Aggregator({ @IntermediateState(name = "observed", type = "BOOLEAN"), @IntermediateState(name = "values", type = "BOOLEAN_BLOCK") })
 @GroupingAggregator(
-    { @IntermediateState(name = "observed", type = "BOOLEAN"), @IntermediateState(name = "values", type = "BOOLEAN_BLOCK") }
+    value = { @IntermediateState(name = "observed", type = "BOOLEAN"), @IntermediateState(name = "values", type = "BOOLEAN_BLOCK") },
+    boundedState = true
 )
 public class AnyBooleanAggregator {
     public static String describe() {

@@ -19,7 +19,7 @@ import org.elasticsearch.compute.ann.IntermediateState;
  * ordered values. Emptiness is still reported as {@code null} via the generated {@code seen} tracking.
  */
 @Aggregator({ @IntermediateState(name = "max", type = "DOUBLE"), @IntermediateState(name = "seen", type = "BOOLEAN") })
-@GroupingAggregator
+@GroupingAggregator(boundedState = true)
 class MaxNonFiniteDoubleAggregator {
 
     public static double init() {

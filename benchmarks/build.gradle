@@ -51,6 +51,8 @@ dependencies {
   api(project(':x-pack:plugin:core'))
   api(project(':x-pack:plugin:esql'))
   api(project(':x-pack:plugin:esql:compute'))
+  // the in-memory spill store of the compute test fixtures, for the spill benchmarks
+  api(project(':x-pack:plugin:esql:compute:test'))
   api(project(':x-pack:plugin:esql:qa:testFixtures'))
   api(project(':x-pack:plugin:esql-datasource-csv'))
   api(project(':x-pack:plugin:esql-datasource-gzip'))

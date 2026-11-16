@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.datasources.DataSourceCounters;
 import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceUsageAccumulator;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
+import org.elasticsearch.xpack.esql.spill.SpillStats;
 
 import java.io.IOException;
 import java.util.List;
@@ -38,6 +39,7 @@ public class TransportEsqlStatsAction extends TransportNodesAction<
 
     // the plan executor holds the metrics
     private final PlanExecutor planExecutor;
+    private final SpillStats spillStats;
 
     @Inject
     public TransportEsqlStatsAction(
@@ -45,7 +47,8 @@ public class TransportEsqlStatsAction extends TransportNodesAction<
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        PlanExecutor planExecutor
+        PlanExecutor planExecutor,
+        SpillStats spillStats
     ) {
         super(
             EsqlStatsAction.NAME,
@@ -56,6 +59,7 @@ public class TransportEsqlStatsAction extends TransportNodesAction<
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.planExecutor = planExecutor;
+        this.spillStats = spillStats;
     }
 
     @Override
@@ -94,6 +98,7 @@ public class TransportEsqlStatsAction extends TransportNodesAction<
         if (module != null) {
             module.populateAdmissionStats(counters);
         }
+        spillStats.populate(counters);
         statsResponse.setStats(counters);
         return statsResponse;
     }

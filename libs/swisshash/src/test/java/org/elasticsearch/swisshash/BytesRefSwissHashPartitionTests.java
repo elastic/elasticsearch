@@ -42,51 +42,64 @@ public class BytesRefSwissHashPartitionTests extends PartitionedHashTestCase {
     }
 
     public void testPartitionFlat() {
-        var recycler = new BytesRefSwissHashTests.TestRecycler();
-        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(200)).withCircuitBreaking();
-        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         runPartitionTest(
-            recycler,
-            bigArrays,
-            breaker,
             BytesRefSwissHash.FlatBytesRefPartitionedHashKeys.class,
             BytesRefSwissHash.PAGED_PARTITION_THRESHOLD_BYTES,
+            false,
             false
         );
-        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testPartitionFlatCodec() {
+        runPartitionTest(
+            BytesRefSwissHash.FlatBytesRefPartitionedHashKeys.class,
+            BytesRefSwissHash.PAGED_PARTITION_THRESHOLD_BYTES,
+            false,
+            true
+        );
     }
 
     public void testPartitionFlatFixedLength() {
-        var recycler = new BytesRefSwissHashTests.TestRecycler();
-        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(200)).withCircuitBreaking();
-        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         runPartitionTest(
-            recycler,
-            bigArrays,
-            breaker,
             BytesRefSwissHash.FlatBytesRefPartitionedHashKeys.class,
             BytesRefSwissHash.PAGED_PARTITION_THRESHOLD_BYTES,
+            true,
+            false
+        );
+    }
+
+    public void testPartitionFlatFixedLengthCodec() {
+        runPartitionTest(
+            BytesRefSwissHash.FlatBytesRefPartitionedHashKeys.class,
+            BytesRefSwissHash.PAGED_PARTITION_THRESHOLD_BYTES,
+            true,
             true
         );
-        assertThat(breaker.getUsed(), equalTo(0L));
     }
 
     public void testPartitionPaged() {
+        runPartitionTest(BytesRefSwissHash.PagedBytesRefPartitionedHashKeys.class, 0L, false, false);
+    }
+
+    /**
+     * A paged partition reads back flat: the restore of a spilled slice holds one partition, not a page per key.
+     */
+    public void testPartitionPagedCodec() {
+        runPartitionTest(BytesRefSwissHash.PagedBytesRefPartitionedHashKeys.class, 0L, false, true);
+    }
+
+    /**
+     * @param codec whether every partition goes through its codec before the combine, as a restored slice does
+     */
+    private void runPartitionTest(
+        Class<? extends BytesRefSwissHash.BytesRefPartitionedHashKeys> expectedType,
+        long pagedPartitionBytesThreshold,
+        boolean fixedLength,
+        boolean codec
+    ) {
         var recycler = new BytesRefSwissHashTests.TestRecycler();
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(300)).withCircuitBreaking();
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        runPartitionTest(recycler, bigArrays, breaker, BytesRefSwissHash.PagedBytesRefPartitionedHashKeys.class, 0L, false);
-        assertThat(breaker.getUsed(), equalTo(0L));
-    }
-
-    private void runPartitionTest(
-        BytesRefSwissHashTests.TestRecycler recycler,
-        BigArrays bigArrays,
-        CircuitBreaker breaker,
-        Class<? extends BytesRefSwissHash.BytesRefPartitionedHashKeys> expectedType,
-        long pagedPartitionBytesThreshold,
-        boolean fixedLength
-    ) {
         final int keyLength = fixedLength ? randomIntBetween(1, 32) : -1;
         final int partitionSize = randomIntBetween(128, 10 * 1024);
         var hash1 = new BytesRefSwissHash(recycler, breaker, bigArrays, pagedPartitionBytesThreshold);
@@ -133,18 +146,26 @@ public class BytesRefSwissHashPartitionTests extends PartitionedHashTestCase {
             hash1 = null;
             agg1.close();
             agg1 = null;
-            var results2 = combinePartitions(breaker, hash2, agg2, gens);
+            var results2 = combinePartitions(breaker, hash2, agg2, gens, codec);
             assertThat(result1, equalTo(results2));
         } finally {
             Releasables.close(hash1, hash2, agg1, agg2);
             gens.forEach(g -> g.release(breaker));
         }
+        assertThat(breaker.getUsed(), equalTo(0L));
     }
 
-    Map<BytesRef, Long> combinePartitions(CircuitBreaker breaker, BytesRefSwissHash hash, SumAgg agg, List<PartitionedKeyAndAggs> gens) {
+    Map<BytesRef, Long> combinePartitions(
+        CircuitBreaker breaker,
+        BytesRefSwissHash hash,
+        SumAgg agg,
+        List<PartitionedKeyAndAggs> gens,
+        boolean codec
+    ) {
         int[] mergedIds = null;
         Map<BytesRef, Long> results = new HashMap<>();
         for (int partition = 0; partition < PartitionedHashTable.NUM_PARTITIONS; partition++) {
+            final int p = partition;
             hash.clear();
             agg.clear();
             int totalKeys = 0;
@@ -157,8 +178,18 @@ public class BytesRefSwissHashPartitionTests extends PartitionedHashTestCase {
                 if (mergedIds == null || mergedIds.length < numKeys) {
                     mergedIds = new int[ArrayUtil.oversize(numKeys, Integer.BYTES)];
                 }
-                boolean appendOnly = hash.combinePartition(gen.keys(), partition, mergedIds);
-                gen.keys().releasePartition(breaker, partition);
+                PartitionedHashTable.PartitionedHashKeys keys = gen.keys();
+                if (codec) {
+                    keys = roundTrip(keys, partition, in -> BytesRefSwissHash.readPartitionKeys(in, p, breaker));
+                    assertThat(keys, instanceOf(BytesRefSwissHash.FlatBytesRefPartitionedHashKeys.class));
+                    gen.keys().releasePartition(breaker, partition);
+                }
+                boolean appendOnly = hash.combinePartition(keys, partition, mergedIds);
+                if (codec) {
+                    keys.releaseAll(breaker);
+                } else {
+                    keys.releasePartition(breaker, partition);
+                }
                 agg.combinePartition(gen.aggs(), partition, mergedIds, numKeys, appendOnly);
                 gen.aggs().releasePartition(breaker, partition);
             }

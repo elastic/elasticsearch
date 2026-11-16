@@ -1,0 +1,10 @@
+# The spill directory: the default sub-directory under each data path, or the configured path. Never the data root
+# itself, and the configured path is static, since a path setting is resolved when the node starts.
+ALL-UNNAMED:
+  - files:
+      - relative_path: "esql_spill"
+        relative_to: data
+        mode: read_write
+      - path_setting: esql.spill.disk.path
+        basedir_if_relative: data
+        mode: read_write

@@ -154,6 +154,17 @@ public final class BytesRefHash extends AbstractHash implements Accountable, Byt
         return find(key, key.hashCode());
     }
 
+    @Override
+    public long find(PagedBytesCursor key) {
+        final long slot = slot(rehash(key.hashCode()), mask);
+        for (long index = slot;; index = nextSlot(index, mask)) {
+            final long id = id(index);
+            if (id == -1L || key.equals(bytesRefs.get(id, spareCursor))) {
+                return id;
+            }
+        }
+    }
+
     private long set(BytesRef key, int code, long id) {
         assert rehash(key.hashCode()) == code;
         assert size < maxSize;

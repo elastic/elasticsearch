@@ -143,13 +143,34 @@ public class DriverTests extends ESTestCase {
             TimeValue.timeValueNanos(randomLongBetween(1, tickTime * 10))
         );
         AtomicLong charged = new AtomicLong();
-        driver.loadTarget((nanos, finishNanos) -> charged.addAndGet(nanos));
+        driver.loadTarget((nanos, cpuNanos, finishNanos) -> charged.addAndGet(nanos));
 
         driver.run(TimeValue.timeValueSeconds(Long.MAX_VALUE), Integer.MAX_VALUE, new NowSupplier(startNanos, 0, tickTime));
 
         assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE));
         assertThat(driver.status().driverNanos(), greaterThan(0L));
         assertThat(charged.get(), equalTo(driver.status().driverNanos()));
+    }
+
+    /**
+     * A source that reads several shards counts the rows it emitted from each, and shares the time between them by those rows.
+     */
+    public void testSourceCountsTheRowsOfEachShard() {
+        var first = new LuceneSourceOperatorTests.MockShardContext((IndexReader) null, 0);
+        var second = new LuceneSourceOperatorTests.MockShardContext((IndexReader) null, 1);
+        var empty = new LuceneSourceOperatorTests.MockShardContext((IndexReader) null, 2);
+        SourceOperator source = new CannedSourceOperator(List.<Page>of().iterator()) {
+            @Override
+            protected List<ShardLoad> shardLoadDelta(long now) {
+                return List.of(new ShardLoad(first, 0, 3), new ShardLoad(second, 0, 1), new ShardLoad(empty, 0, 0));
+            }
+        };
+        assertTrue(source.reportSearchLoad(400, System.nanoTime()));
+        assertThat(first.rowsEmitted(), equalTo(3L));
+        assertThat(second.rowsEmitted(), equalTo(1L));
+        assertThat(empty.rowsEmitted(), equalTo(0L));
+        assertThat(first.stats().totalSearchLoadNanos(), equalTo(300L));
+        assertThat(second.stats().totalSearchLoadNanos(), equalTo(100L));
     }
 
     /**
@@ -182,7 +203,7 @@ public class DriverTests extends ESTestCase {
             () -> {}
         );
         AtomicLong charged = new AtomicLong();
-        driver.loadTarget((nanos, finishNanos) -> charged.addAndGet(nanos));
+        driver.loadTarget((nanos, cpuNanos, finishNanos) -> charged.addAndGet(nanos));
 
         driver.run(TimeValue.timeValueSeconds(Long.MAX_VALUE), Integer.MAX_VALUE, new NowSupplier(startNanos, 0, tickTime));
 

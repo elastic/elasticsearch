@@ -39,7 +39,7 @@ public class WildcardLikeListErrorTests extends ErrorsForCasesWithoutExamplesTes
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return RLikeTests.buildRLike(logger, source, args);
+        return WildcardLikeListTests.buildWildcardLikeList(source, args);
     }
 
     @Override

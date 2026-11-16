@@ -433,17 +433,7 @@ public abstract class LuceneOperator extends SourceOperator {
 
     static final class ScorerPool {
         record Key(LeafReaderContext leafContext, Weight weight) {
-            @Override
-            public boolean equals(Object o) {
-                if (o == null || getClass() != o.getClass()) return false;
-                Key key = (Key) o;
-                return leafContext == key.leafContext && weight == key.weight;
-            }
 
-            @Override
-            public int hashCode() {
-                return System.identityHashCode(leafContext) * 31 + System.identityHashCode(weight);
-            }
         }
 
         final boolean reuseScorers;

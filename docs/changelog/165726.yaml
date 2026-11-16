@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 165726
-summary: Use DOC partitioning for costly filters on busy scans
+summary: Use DOC partitioning for point range filters on narrow rows, with a query setting for wide rows
 type: enhancement

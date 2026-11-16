@@ -1610,7 +1610,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 threadPool.getThreadContext(),
                 ActionListener.noop(),
                 listener -> {
-                    handleRecoveryFailure(shardRouting, failureStrategy, primaryTerm, e, state, inFlightTicket);
+                    handleRecoveryFailure(shardRouting, failureStrategy, primaryTerm, e, inFlightTicket);
                     listener.onResponse(null);
                 }
             );
@@ -1623,7 +1623,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         FailureStrategy failureStrategy,
         long primaryTerm,
         Exception failure,
-        RecoveryState recoveryState,
         PendingAllocationState.InFlight inFlightTicket
     ) {
         final ShardAllocationKey key = ShardAllocationKey.fromRouting(shardRouting);
@@ -1668,7 +1667,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             );
 
             if (finalStrategy == FailureStrategy.RETRY) {
-                final int bumpedLocalRetries = recoveryState.getLocalRetries() + 1;
+                final int bumpedLocalRetries = inFlightTicket.localRecoveryRetries() + 1;
                 final Type type = shardRouting.recoverySource().getType();
                 logger.warn(
                     () -> format("%s retrying %s recovery locally after failure, local retry [%d]", key, type, bumpedLocalRetries),

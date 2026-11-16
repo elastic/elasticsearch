@@ -448,7 +448,6 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         final var key = IndicesClusterStateService.ShardAllocationKey.fromRouting(shardRouting);
         final var inFlightTicket = indicesCSSvc.pendingAllocationStates.get(key);
         assertThat(inFlightTicket, instanceOf(IndicesClusterStateService.PendingAllocationState.InFlight.class));
-        final var recoveryState = indicesCSSvc.indicesService.getShardOrNull(shardId).recoveryState();
 
         // check that failing an unrelated allocation does not remove the shard, even when presented
         // with this allocation's own live ticket: reinitializeReplicaShard's allocation id means the
@@ -458,7 +457,6 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             FAIL_SILENT,
             primaryTerm,
             new Exception("dummy"),
-            recoveryState,
             (IndicesClusterStateService.PendingAllocationState.InFlight) inFlightTicket
         );
         assertNotNull(indicesCSSvc.indicesService.getShardOrNull(shardId));
@@ -468,7 +466,6 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             FAIL_SILENT,
             primaryTerm,
             new Exception("dummy"),
-            recoveryState,
             (IndicesClusterStateService.PendingAllocationState.InFlight) inFlightTicket
         );
         assertNull(indicesCSSvc.indicesService.getShardOrNull(shardId));
@@ -507,13 +504,11 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         assertThat(inFlightTicket, instanceOf(IndicesClusterStateService.PendingAllocationState.InFlight.class));
 
         final long primaryTerm = localState.metadata().getProject().index(index).primaryTerm(shardId.id());
-        final var recoveryState = indicesCSSvc.indicesService.getShardOrNull(shardId).recoveryState();
         indicesCSSvc.handleRecoveryFailure(
             shardRouting,
             RETRY,
             primaryTerm,
             new Exception("dummy"),
-            recoveryState,
             (IndicesClusterStateService.PendingAllocationState.InFlight) inFlightTicket
         );
 

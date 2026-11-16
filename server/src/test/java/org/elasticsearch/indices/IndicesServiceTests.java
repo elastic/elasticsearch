@@ -431,25 +431,25 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         Map<ShardId, Long> totals = new HashMap<>();
         TaskLoadAttribution.Target target = indicesService.searchLoad(List.of(first, second, missing), id -> totals.getOrDefault(id, 0L));
 
-        target.charge(100, System.nanoTime());
+        target.charge(100, 100, System.nanoTime());
         assertSearchLoad(indexService, 50, 50);
-        target.charge(100, System.nanoTime());
+        target.charge(100, 100, System.nanoTime());
         assertSearchLoad(indexService, 100, 100);
 
         // the totals are read when the task completes
         totals.put(first, 3L);
         totals.put(second, 1L);
         totals.put(missing, 10L);
-        target.charge(100, System.nanoTime());
+        target.charge(100, 100, System.nanoTime());
         assertSearchLoad(indexService, 175, 125);
 
         // only the second shard returned more results
         totals.put(second, 5L);
-        target.charge(100, System.nanoTime());
+        target.charge(100, 100, System.nanoTime());
         assertSearchLoad(indexService, 175, 225);
 
         // no shard returned more results, as for the rest of the previous task
-        target.charge(80, System.nanoTime());
+        target.charge(80, 80, System.nanoTime());
         assertSearchLoad(indexService, 175, 305);
     }
 

@@ -666,18 +666,12 @@ public class RestController implements HttpServerTransport.Dispatcher {
             && FORM_URLENCODED_MEDIA_TYPE.equals(request.getParsedContentType().mediaTypeWithoutParameters());
     }
 
-    private boolean handleNoHandlerFound(
-        ThreadContext threadContext,
-        String rawPath,
-        RestRequest.Method method,
-        String uri,
-        RestChannel channel
-    ) {
+    private boolean handleNoHandlerFound(String rawPath, RestRequest.Method method, String uri, RestChannel channel) {
         // Get the map of matching handlers for a request, for the full set of HTTP methods.
         final Set<RestRequest.Method> validMethodSet = getValidHandlerMethodSet(rawPath);
         if (validMethodSet.contains(method) == false) {
             if (method == RestRequest.Method.OPTIONS) {
-                startInstrumentation(threadContext, channel);
+                startInstrumentation(channel);
                 handleOptionsRequest(channel, validMethodSet);
                 return true;
             }
@@ -685,7 +679,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 // If an alternative handler for an explicit path is registered to a
                 // different HTTP method than the one supplied - return a 405 Method
                 // Not Allowed error.
-                startInstrumentation(threadContext, channel);
+                startInstrumentation(channel);
                 handleUnsupportedHttpMethod(uri, method, channel, validMethodSet, null);
                 return true;
             }
@@ -693,12 +687,12 @@ public class RestController implements HttpServerTransport.Dispatcher {
         return false;
     }
 
-    private void startInstrumentation(ThreadContext threadContext, RestChannel channel) {
-        startInstrumentation(threadContext, channel, null);
+    private void startInstrumentation(RestChannel channel) {
+        startInstrumentation(channel, null);
     }
 
-    private void startInstrumentation(ThreadContext threadContext, RestChannel channel, @Nullable String restPath) {
-        this.instrumentation.start(threadContext, channel.request(), restPath);
+    private void startInstrumentation(RestChannel channel, @Nullable String restPath) {
+        this.instrumentation.start(channel.request(), restPath);
     }
 
     private void recordInstrumentationException(RestChannel channel, Throwable e) {
@@ -720,7 +714,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         try {
             validateErrorTrace(request, channel);
         } catch (IllegalArgumentException e) {
-            startInstrumentation(threadContext, channel);
+            startInstrumentation(channel);
             channel.sendResponse(RestResponse.createSimpleErrorResponse(channel, BAD_REQUEST, e.getMessage()));
             recordRequestMetric(BAD_REQUEST, requestsCounter);
             return;
@@ -745,24 +739,24 @@ public class RestController implements HttpServerTransport.Dispatcher {
                     handler = handlers.getHandler(requestMethod, restApiVersion);
                 }
                 if (handler == null) {
-                    if (handleNoHandlerFound(threadContext, rawPath, requestMethod, uri, channel)) {
+                    if (handleNoHandlerFound(rawPath, requestMethod, uri, channel)) {
                         return;
                     }
                 } else {
-                    startInstrumentation(threadContext, channel, handlers.getPath());
+                    startInstrumentation(channel, handlers.getPath());
                     var decoratedChannel = new MeteringRestChannelDecorator(channel, requestsCounter, handler.getConcreteRestHandler());
                     maybeAggregateAndDispatchRequest(request, decoratedChannel, handler, handlers, threadContext);
                     return;
                 }
             }
         } catch (final IllegalArgumentException e) {
-            startInstrumentation(threadContext, channel);
+            startInstrumentation(channel);
             recordInstrumentationException(channel, e);
             handleUnsupportedHttpMethod(uri, null, channel, getValidHandlerMethodSet(rawPath), e);
             return;
         }
         // If request has not been handled, fallback to a bad request error.
-        startInstrumentation(threadContext, channel);
+        startInstrumentation(channel);
         handleBadRequest(uri, requestMethod, channel);
     }
 

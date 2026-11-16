@@ -105,7 +105,7 @@ public class SearchContextIdTests extends ESTestCase {
             queryResults.asList(),
             aliasFilters,
             version,
-            shardSearchFailures.values().toArray(ShardSearchFailure[]::new)
+            List.copyOf(shardSearchFailures.values())
         );
         final SearchContextId context = SearchContextId.decode(namedWriteableRegistry, id);
         assertThat(context.shards().keySet(), hasSize(3));
@@ -160,12 +160,7 @@ public class SearchContextIdTests extends ESTestCase {
 
     public void testDecodingWithUnknownTransportIdThrows() {
         TransportVersion unknownTransportVersion = TransportVersionUtils.getNextVersion(TransportVersion.current(), true);
-        BytesReference id = SearchContextId.encode(
-            Collections.emptyMap(),
-            Collections.emptyMap(),
-            unknownTransportVersion,
-            ShardSearchFailure.EMPTY_ARRAY
-        );
+        BytesReference id = SearchContextId.encode(Collections.emptyMap(), Collections.emptyMap(), unknownTransportVersion, List.of());
 
         NamedWriteableRegistry registry = new NamedWriteableRegistry(Collections.emptyList());
 
@@ -198,7 +193,7 @@ public class SearchContextIdTests extends ESTestCase {
                 Collections.emptyMap(),
                 Collections.emptyMap(),
                 TransportVersion.current(),
-                ShardSearchFailure.EMPTY_ARRAY
+                List.of()
             );
             id.writeTo(output);
             output.writeBoolean(true);
@@ -211,12 +206,7 @@ public class SearchContextIdTests extends ESTestCase {
 
     public void testDecodeIndicesWithUnknownTransportVersionThrows() {
         TransportVersion unknownTransportVersion = TransportVersionUtils.getNextVersion(TransportVersion.current(), true);
-        BytesReference id = SearchContextId.encode(
-            Collections.emptyMap(),
-            Collections.emptyMap(),
-            unknownTransportVersion,
-            ShardSearchFailure.EMPTY_ARRAY
-        );
+        BytesReference id = SearchContextId.encode(Collections.emptyMap(), Collections.emptyMap(), unknownTransportVersion, List.of());
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SearchContextId.decodeIndices(id));
         assertThat(e.getMessage(), equalTo("unknown transport version [" + unknownTransportVersion.id() + "] reading search context id"));
@@ -278,11 +268,11 @@ public class SearchContextIdTests extends ESTestCase {
         List<SearchPhaseResult> queryResults = TransportSearchHelperTests.generateQueryResults().asList();
         TransportVersion version = TransportVersion.current();
 
-        BytesReference validId = SearchContextId.encode(queryResults, randomAliasFilters(), version, ShardSearchFailure.EMPTY_ARRAY);
+        BytesReference validId = SearchContextId.encode(queryResults, randomAliasFilters(), version, List.of());
         SearchContextId.decode(registry, validId);
 
         // the shards section ends right before the alias filter map, whose size marker is a single byte when empty
-        int shardsSectionEnd = SearchContextId.encode(queryResults, Map.of(), version, ShardSearchFailure.EMPTY_ARRAY).length() - 1;
+        int shardsSectionEnd = SearchContextId.encode(queryResults, Map.of(), version, List.of()).length() - 1;
 
         byte[] validBytes = BytesReference.toBytes(validId);
         // truncate bytes at random position, so due to randomization we will fail at every position over time
@@ -305,7 +295,7 @@ public class SearchContextIdTests extends ESTestCase {
             TransportSearchHelperTests.generateQueryResults().asList(),
             randomAliasFilters(),
             version,
-            ShardSearchFailure.EMPTY_ARRAY
+            List.of()
         );
         SearchContextId.decode(registry, validId);
         byte[] validBytes = BytesReference.toBytes(validId);

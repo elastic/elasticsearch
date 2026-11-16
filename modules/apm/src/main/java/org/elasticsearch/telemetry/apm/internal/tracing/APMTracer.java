@@ -326,7 +326,6 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         }
 
         final ThreadContext.StoredContext storedContext = threadContext.newStoredContextPreservingResponseHeaders();
-        // if tracing is disabled, any trace-related info is dropped from the thread context
         updateThreadContext(services, context != null ? context : Context.root());
         return storedContext;
     }

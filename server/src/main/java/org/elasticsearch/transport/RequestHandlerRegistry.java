@@ -76,7 +76,7 @@ public class RequestHandlerRegistry<Request extends TransportRequest> implements
     public void processMessageReceived(Request request, TransportChannel channel) throws Exception {
         final Task task = taskManager.register("transport", action, request);
         Releasable unregisterTask = () -> taskManager.unregister(task);
-        try {
+        try (var ignored = taskManager.tracer().storeSpanInThreadContext(task)) {
             if (channel instanceof TcpTransportChannel tcpTransportChannel && task instanceof CancellableTask cancellableTask) {
                 final TcpChannel tcpChannel = tcpTransportChannel.getChannel();
                 final Releasable stopTracking = taskManager.startTrackingCancellableChannelTask(tcpChannel, cancellableTask);

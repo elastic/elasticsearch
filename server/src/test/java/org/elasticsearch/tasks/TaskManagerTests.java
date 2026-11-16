@@ -28,6 +28,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.telemetry.tracing.Traceable;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -55,6 +56,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Phaser;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.empty;
@@ -62,6 +65,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
@@ -544,6 +548,63 @@ public class TaskManagerTests extends ESTestCase {
 
         taskManager.register("type", "action", makeTaskRequest(false, 456), true);
         verify(taskManager, times(1)).startTrace(any());
+    }
+
+    public void testRegisterAndExecuteRunsTheActionWithTheSpanOfTheTaskInTheThreadContext() {
+        final Tracer tracer = mock(Tracer.class);
+        when(tracer.storeSpanInThreadContext(any())).thenAnswer(invocation -> {
+            final ThreadContext threadContext1 = threadPool.getThreadContext();
+            final ThreadContext.StoredContext restore = threadContext1.newStoredContextPreservingResponseHeaders();
+            threadContext1.putTransientAllowOverwrite("test.current_span_id", ((Traceable) invocation.getArgument(0)).getSpanId());
+            return restore;
+        });
+
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), tracer);
+        final ThreadContext threadContext = threadPool.getThreadContext();
+        final AtomicReference<String> seenByTheAction = new AtomicReference<>();
+        final AtomicReference<Task> taskOfTheAction = new AtomicReference<>();
+
+        final Task task = registerAndExecute(taskManager, actionTask -> {
+            taskOfTheAction.set(actionTask);
+            seenByTheAction.set(threadContext.getTransient("test.current_span_id"));
+        }, new ActionResponse() {
+            @Override
+            public void writeTo(StreamOutput out) {}
+        });
+
+        assertThat(taskOfTheAction.get(), sameInstance(task));
+        assertThat(seenByTheAction.get(), equalTo(task.getSpanId()));
+    }
+
+    private Task registerAndExecute(TaskManager taskManager, Consumer<Task> action, ActionResponse response) {
+        return taskManager.registerAndExecute(
+            "testType",
+            new TransportAction<ActionRequest, ActionResponse>(
+                "actionName",
+                ActionFilters.EMPTY,
+                taskManager,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
+            ) {
+                @Override
+                protected void doExecute(Task task, ActionRequest request, ActionListener<ActionResponse> listener) {
+                    action.accept(task);
+                    listener.onResponse(response);
+                }
+            },
+            new ActionRequest() {
+                @Override
+                public ActionRequestValidationException validate() {
+                    return null;
+                }
+
+                @Override
+                public TaskId getParentTask() {
+                    return TaskId.EMPTY_TASK_ID;
+                }
+            },
+            null,
+            ActionTestUtils.assertNoFailureListener(r -> {})
+        );
     }
 
     static class CancellableRequest extends AbstractTransportRequest {

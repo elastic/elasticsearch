@@ -208,6 +208,11 @@ public class TaskManager implements ClusterStateApplier {
         }
     }
 
+    // FIXME: remove in next PR
+    public Tracer tracer() {
+        return tracer;
+    }
+
     public <Request extends ActionRequest, Response extends ActionResponse> Task registerAndExecute(
         String type,
         TransportAction<Request, Response> action,
@@ -230,37 +235,41 @@ public class TaskManager implements ClusterStateApplier {
                 Releasables.close(unregisterChildNode);
                 throw e;
             }
-            action.execute(task, request, new ActionListener<>() {
-                @Override
-                public void onResponse(Response response) {
-                    try {
-                        release();
-                    } finally {
-                        taskListener.onResponse(response);
-                    }
-                }
 
-                @Override
-                public void onFailure(Exception e) {
-                    try {
-                        if (request.getParentTask().isSet()) {
-                            cancelChildLocal(request.getParentTask(), request.getRequestId(), e.toString());
+            // the action is run with the task span in thread context
+            try (var ignored2 = tracer.storeSpanInThreadContext(task)) {
+                action.execute(task, request, new ActionListener<>() {
+                    @Override
+                    public void onResponse(Response response) {
+                        try {
+                            release();
+                        } finally {
+                            taskListener.onResponse(response);
                         }
-                        release();
-                    } finally {
-                        taskListener.onFailure(e);
                     }
-                }
 
-                @Override
-                public String toString() {
-                    return this.getClass().getName() + "{" + taskListener + "}{" + task + "}";
-                }
+                    @Override
+                    public void onFailure(Exception e) {
+                        try {
+                            if (request.getParentTask().isSet()) {
+                                cancelChildLocal(request.getParentTask(), request.getRequestId(), e.toString());
+                            }
+                            release();
+                        } finally {
+                            taskListener.onFailure(e);
+                        }
+                    }
 
-                private void release() {
-                    Releasables.close(unregisterChildNode, () -> unregister(task));
-                }
-            });
+                    @Override
+                    public String toString() {
+                        return this.getClass().getName() + "{" + taskListener + "}{" + task + "}";
+                    }
+
+                    private void release() {
+                        Releasables.close(unregisterChildNode, () -> unregister(task));
+                    }
+                });
+            }
             return task;
         }
     }

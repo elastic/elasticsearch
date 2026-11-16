@@ -163,21 +163,18 @@ public class PrimaryReplicaSyncer {
     ) {
         ResyncRequest request = new ResyncRequest(shardId, primaryAllocationId);
         final TaskManager taskManager = transportService.getTaskManager();
-
-        try (var ignored = transportService.getThreadPool().getThreadContext().newStoredContextPreservingResponseHeaders()) {
-            doResync(
-                shardId,
-                primaryAllocationId,
-                primaryTerm,
-                snapshot,
-                startingSeqNo,
-                maxSeqNo,
-                maxSeenAutoIdTimestamp,
-                listener,
-                request,
-                taskManager
-            );
-        }
+        doResync(
+            shardId,
+            primaryAllocationId,
+            primaryTerm,
+            snapshot,
+            startingSeqNo,
+            maxSeqNo,
+            maxSeenAutoIdTimestamp,
+            listener,
+            request,
+            taskManager
+        );
     }
 
     private void doResync(
@@ -208,7 +205,7 @@ public class PrimaryReplicaSyncer {
                 listener.onFailure(e);
             }
         };
-        try {
+        try (var ignored = taskManager.tracer().storeSpanInThreadContext(resyncTask)) {
             new SnapshotSender(
                 syncAction,
                 resyncTask,

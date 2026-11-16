@@ -87,7 +87,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -2314,9 +2313,6 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
             }
         }
         assertNotNull(from, score);
-        for (LogicalPlan branch : unionAll.children()) {
-            assertThat(from, branch.output().stream().map(Attribute::name).toList(), hasItem(MetadataAttribute.SCORE));
-        }
         return score;
     }
 

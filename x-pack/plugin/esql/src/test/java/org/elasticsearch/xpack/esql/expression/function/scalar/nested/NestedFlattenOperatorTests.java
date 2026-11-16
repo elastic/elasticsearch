@@ -12,6 +12,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -33,6 +34,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -57,7 +59,33 @@ public class NestedFlattenOperatorTests extends NestedIndexOperatorTestCase {
 
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
-        return new NestedFlattenOperator.Factory(new IndexedByShardIdFromSingleton<>(shard), 0, LEAVES);
+        PlannerSettings settings = randomBoolean()
+            ? PlannerSettings.DEFAULTS
+            : PlannerSettings.DEFAULTS.valuesLoadingJumboSize(ByteSizeValue.ofBytes(between(1, 512)));
+        return new NestedFlattenOperator.Factory(new IndexedByShardIdFromSingleton<>(shard), 0, LEAVES, settings);
+    }
+
+    /**
+     * The children load with the settings of the query. Under a jumbo size of one byte the reader loads each child in a page
+     * of its own, and the parent still gets the values of all of them.
+     */
+    public void testChildrenSplitByJumboSize() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        Page page = parents(blockFactory, 3, 1).appendBlocks(
+            new Block[] { blockFactory.newConstantNullBlock(1), blockFactory.newConstantNullBlock(1) }
+        );
+        PlannerSettings settings = PlannerSettings.DEFAULTS.valuesLoadingJumboSize(ByteSizeValue.ofBytes(1));
+        var factory = new NestedFlattenOperator.Factory(new IndexedByShardIdFromSingleton<>(shard), 0, LEAVES, settings);
+        try (Operator operator = factory.get(driverContext())) {
+            operator.addInput(page);
+            Page result = operator.getOutput();
+            try {
+                assertThat(prices(result.getBlock(1), 0), equalTo(List.of(30L, 31L, 32L)));
+                assertThat(notes(result.getBlock(2), 0), equalTo(List.of("n0", "n1", "n2")));
+            } finally {
+                result.releaseBlocks();
+            }
+        }
     }
 
     @Override
@@ -127,7 +155,7 @@ public class NestedFlattenOperatorTests extends NestedIndexOperatorTestCase {
                 page = new Page(docs.build(), prices.build(), notes.build());
             }
             var shards = new IndexedByShardIdFromList<EsPhysicalOperationProviders.ShardContext>(List.of(shard, other.shard));
-            try (Operator operator = new NestedFlattenOperator.Factory(shards, 0, LEAVES).get(driverContext())) {
+            try (Operator operator = new NestedFlattenOperator.Factory(shards, 0, LEAVES, PlannerSettings.DEFAULTS).get(driverContext())) {
                 operator.addInput(page);
                 Page result = operator.getOutput();
                 try {
@@ -172,7 +200,7 @@ public class NestedFlattenOperatorTests extends NestedIndexOperatorTestCase {
         Page page = parents(blockFactory, 2, 1).appendBlocks(
             new Block[] { blockFactory.newConstantNullBlock(1), blockFactory.newConstantNullBlock(1) }
         );
-        try (Operator operator = new NestedFlattenOperator.Factory(shards, 0, LEAVES).get(driverContext())) {
+        try (Operator operator = new NestedFlattenOperator.Factory(shards, 0, LEAVES, PlannerSettings.DEFAULTS).get(driverContext())) {
             operator.addInput(page);
             Page result = operator.getOutput();
             try {
@@ -215,7 +243,14 @@ public class NestedFlattenOperatorTests extends NestedIndexOperatorTestCase {
         BlockFactory blockFactory = context.blockFactory();
         Page page = parents(blockFactory, 2, 1).appendBlocks(new Block[] { blockFactory.newConstantNullBlock(1) });
         var leaves = List.of(new NestedFlattenOperator.Leaf("items.price", 1, DataType.LONG, true));
-        try (Operator operator = new NestedFlattenOperator.Factory(new IndexedByShardIdFromSingleton<>(shard), 0, leaves).get(context)) {
+        try (
+            Operator operator = new NestedFlattenOperator.Factory(
+                new IndexedByShardIdFromSingleton<>(shard),
+                0,
+                leaves,
+                PlannerSettings.DEFAULTS
+            ).get(context)
+        ) {
             operator.addInput(page);
             Page result = operator.getOutput();
             try {
@@ -240,7 +275,7 @@ public class NestedFlattenOperatorTests extends NestedIndexOperatorTestCase {
                 page = new Page(docs.build(), blockFactory.newConstantLongBlockWith(5, 1), blockFactory.newConstantNullBlock(1));
             }
             var shards = new IndexedByShardIdFromSingleton<EsPhysicalOperationProviders.ShardContext>(other.shard);
-            try (Operator operator = new NestedFlattenOperator.Factory(shards, 0, LEAVES).get(driverContext())) {
+            try (Operator operator = new NestedFlattenOperator.Factory(shards, 0, LEAVES, PlannerSettings.DEFAULTS).get(driverContext())) {
                 operator.addInput(page);
                 Page result = operator.getOutput();
                 try {

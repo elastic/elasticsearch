@@ -550,7 +550,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 var leaves = nestedLeaves(shardContext.context, request.extractFields, i -> i + 2);
                 if (leaves.isEmpty() == false) {
                     var shards = new IndexedByShardIdFromSingleton<>(shardContext.context);
-                    Operator nestedFlatten = new NestedFlattenOperator.Factory(shards, 0, leaves).get(driverContext);
+                    Operator nestedFlatten = new NestedFlattenOperator.Factory(shards, 0, leaves, plannerSettings).get(driverContext);
                     releasables.add(nestedFlatten);
                     operators.add(nestedFlatten);
                 }

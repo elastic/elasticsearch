@@ -1446,3 +1446,58 @@ a field read from a filtered _source is null under a nested object:
     - [fs_incl_object, null, k3, [3, 5]]
     - [fs_off_nested, null, null, [3, 5]]
     - [fs_off_object, null, null, [3, 5]]
+
+---
+a geo_point under a nested object agrees with the same field under a plain object:
+# Only a child's point is in the polygon, so a filter pushed to Lucene would miss its parent. The plain object's shard may load
+# its points from doc values, and both shards' points go into one centroid.
+- do:
+    indices.create:
+      index: geo_nested
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          properties:
+            items:
+              type: nested
+              properties:
+                location:
+                  type: geo_point
+- do:
+    indices.create:
+      index: geo_object
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          properties:
+            items:
+              properties:
+                location:
+                  type: geo_point
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: geo_nested
+      - items:
+        - { location: "POINT (0 0)" }
+        - { location: "POINT (2 4)" }
+      - index:
+          _index: geo_object
+      - items:
+          location: "POINT (4 2)"
+- do:
+    esql.query:
+      body:
+        query: 'FROM geo_* METADATA _index | WHERE ST_INTERSECTS(items.location, TO_GEOSHAPE("POLYGON ((-1 -1, 1 -1, 1 1, -1 1, -1 -1))")) | KEEP _index | LIMIT 10'
+- match: { values: [[geo_nested]] }
+- do:
+    esql.query:
+      body:
+        query: "FROM geo_* | STATS c = ST_CENTROID_AGG(items.location), n = COUNT(*) | EVAL x = ROUND(ST_X(c), 3), y = ROUND(ST_Y(c), 3) | KEEP x, y, n | LIMIT 10"
+- match: { values: [[2.0, 2.0, 2]] }

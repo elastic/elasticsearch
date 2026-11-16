@@ -302,7 +302,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         boolean knowsEveryShard = ComputeService.REDUCE_DESCRIPTION.equals(context.description()) == false;
         List<NestedFlattenOperator.Leaf> leaves = nestedLeaves(fieldExtractExec, extracted, knowsEveryShard);
         if (leaves.isEmpty() == false) {
-            operation = operation.with(new NestedFlattenOperator.Factory(shardContexts, docChannel, leaves), extracted);
+            operation = operation.with(new NestedFlattenOperator.Factory(shardContexts, docChannel, leaves, plannerSettings), extracted);
         }
         return operation;
     }
@@ -328,8 +328,13 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 continue;
             }
             String name = getFieldName(attr);
-            // A union type or a fused function is converted as it is loaded, which the child values are not
-            boolean converted = field instanceof UnionTypeEsField || field instanceof FunctionEsField;
+            // A union type or a fused function is converted as it is loaded, and a preference such as spatial doc values or
+            // bounds loads another representation; the child values are neither
+            boolean converted = field instanceof UnionTypeEsField
+                || field instanceof FunctionEsField
+                || PlannerUtils.toElementType(attr.dataType(), fieldExtractExec.fieldExtractPreference(attr)) != PlannerUtils.toElementType(
+                    attr.dataType()
+                );
             if (knowsEveryShard) {
                 boolean nested = false;
                 for (ShardContext shard : shardContexts.iterable()) {

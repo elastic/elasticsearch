@@ -373,6 +373,56 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
         }
     }
 
+    /**
+     * A geo_point the plan loads from doc values arrives as encoded longs, which the child values are not, so it is null on
+     * the shards that nest it rather than holding values of another representation.
+     */
+    public void testNestedLeafLoadedFromSpatialDocValuesIsNotRead() throws IOException {
+        assumeTrue("fields under a nested object are columns only in snapshot builds", NestedLeaves.ENABLED);
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
+            createMapperService(
+                mapping(
+                    b -> b.startObject("item")
+                        .field("type", "nested")
+                        .startObject("properties")
+                        .startObject("location")
+                        .field("type", "geo_point")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+            ),
+            null
+        );
+        EsPhysicalOperationProviders provider = new EsPhysicalOperationProviders(
+            FoldContext.small(),
+            TEST_CFG,
+            new IndexedByShardIdFromSingleton<>(
+                new EsPhysicalOperationProviders.DefaultShardContext(0, new NoOpReleasable(), searchExecutionContext, AliasFilter.EMPTY)
+            ),
+            null,
+            PlannerSettings.DEFAULTS,
+            () -> 0L,
+            QueryWarnings.EMIT
+        );
+        EsField location = new EsField(
+            "item.location",
+            DataType.GEO_POINT,
+            Map.of(),
+            true,
+            false,
+            EsField.TimeSeriesFieldType.NONE,
+            false,
+            false,
+            true
+        );
+        for (boolean docValues : new boolean[] { false, true }) {
+            List<NestedFlattenOperator.Leaf> leaves = nestedLeaves(provider, location, docValues, true);
+            assertThat(leaves, hasSize(1));
+            assertThat(leaves.getFirst().converted(), equalTo(docValues));
+        }
+    }
+
     private static List<NestedFlattenOperator.Leaf> nestedLeaves(
         EsPhysicalOperationProviders provider,
         boolean underNested,
@@ -389,7 +439,16 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             false,
             underNested
         );
-        FieldAttribute attr = new FieldAttribute(Source.EMPTY, "item.note", note);
+        return nestedLeaves(provider, note, false, knowsEveryShard);
+    }
+
+    private static List<NestedFlattenOperator.Leaf> nestedLeaves(
+        EsPhysicalOperationProviders provider,
+        EsField field,
+        boolean docValues,
+        boolean knowsEveryShard
+    ) {
+        FieldAttribute attr = new FieldAttribute(Source.EMPTY, field.getName(), field);
         EsQueryExec queryExec = new EsQueryExec(
             Source.EMPTY,
             "test",
@@ -406,6 +465,9 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             List.of(attr),
             MappedFieldType.FieldExtractPreference.NONE
         );
+        if (docValues) {
+            fieldExtractExec = fieldExtractExec.withDocValuesAttributes(Set.of(attr));
+        }
         return provider.nestedLeaves(fieldExtractExec, new Layout.Builder().append(attr).build(), knowsEveryShard);
     }
 

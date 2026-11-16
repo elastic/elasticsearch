@@ -474,9 +474,12 @@ public class LookupExecutionPlanner {
                     attributesToExtract,
                     i -> layout.get(attributesToExtract.get(i).id()).channel()
                 );
-                return new NestedFlattenOperator.Factory(new IndexedByShardIdFromSingleton<>(esShardContext), docChannel, leaves).get(
-                    driverContext
-                );
+                return new NestedFlattenOperator.Factory(
+                    new IndexedByShardIdFromSingleton<>(esShardContext),
+                    docChannel,
+                    leaves,
+                    plannerSettings
+                ).get(driverContext);
             }
 
             @Override

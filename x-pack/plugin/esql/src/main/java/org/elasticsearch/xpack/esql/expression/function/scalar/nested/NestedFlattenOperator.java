@@ -28,6 +28,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.util.ArrayList;
@@ -55,9 +56,12 @@ public final class NestedFlattenOperator extends AbstractPageMappingOperator {
         }
     }
 
-    public record Factory(IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> shards, int docChannel, List<Leaf> leaves)
-        implements
-            Operator.OperatorFactory {
+    public record Factory(
+        IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> shards,
+        int docChannel,
+        List<Leaf> leaves,
+        PlannerSettings settings
+    ) implements Operator.OperatorFactory {
         @Override
         public Operator get(DriverContext context) {
             return new NestedFlattenOperator(context, this);
@@ -198,7 +202,7 @@ public final class NestedFlattenOperator extends AbstractPageMappingOperator {
                 paths.add(leaf.name().substring(group.path().length() + 1));
                 types.add(leaf.type());
             }
-            reader = NestedChildren.factory(factory.shards(), group.path(), paths, types).get(context);
+            reader = NestedChildren.factory(factory.shards(), group.path(), paths, types, factory.settings()).get(context);
             readers.put(group, reader);
         }
         return reader;

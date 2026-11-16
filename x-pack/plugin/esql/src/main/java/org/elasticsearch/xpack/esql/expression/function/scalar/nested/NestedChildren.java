@@ -12,7 +12,6 @@ import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.IntVector;
@@ -70,13 +69,14 @@ public final class NestedChildren implements Releasable {
      * values reads the child's object from the parent's {@code _source}, as a top-level field reads its document's. A shard
      * that does not map {@code path} as nested gives its parents no children, and one that does not map a field gives nulls
      * for it. Each shard is only looked at once a page of its parents is read: a driver may get the factory after the
-     * shards of other drivers are released.
+     * shards of other drivers are released. The children load with the same {@code settings} as their parents.
      */
     public static Factory factory(
         IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> shardContexts,
         String path,
         List<String> paths,
-        List<DataType> types
+        List<DataType> types,
+        PlannerSettings settings
     ) {
         List<String> fields = paths.stream().map(p -> path + "." + p).toList();
         IndexedByShardId<Shard> shards = shardContexts.map(shard -> {
@@ -94,7 +94,6 @@ public final class NestedChildren implements Releasable {
                 context.bitsetFilter(nested.nestedTypeFilter())
             );
         });
-        PlannerSettings settings = PlannerSettings.DEFAULTS;
         List<ValuesSourceReaderOperator.FieldInfo> infos = new ArrayList<>(fields.size());
         for (int f = 0; f < fields.size(); f++) {
             String name = fields.get(f);
@@ -134,9 +133,9 @@ public final class NestedChildren implements Releasable {
         );
         return new Factory(
             shards,
-            // Pages are bounded by PAGE_SIZE already.
+            // A page of PAGE_SIZE children can still hold more bytes than a page may, so the reader splits it like any other
             new ValuesSourceReaderOperator.Factory(
-                ByteSizeValue.ofBytes(Long.MAX_VALUE),
+                settings.valuesLoadingJumboSize(),
                 infos,
                 readers,
                 true,

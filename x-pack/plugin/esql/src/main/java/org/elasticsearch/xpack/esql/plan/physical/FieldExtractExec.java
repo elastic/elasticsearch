@@ -225,14 +225,17 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     public List<Attribute> output() {
-        if (lazyOutput == null) {
+        List<Attribute> output = lazyOutput;
+        if (output == null) {
+            // Fill a local and publish it once: this field is shared by every thread that holds the plan.
             List<Attribute> childOutput = child().output();
-            lazyOutput = new ArrayList<>(childOutput.size() + attributesToExtract.size());
-            lazyOutput.addAll(childOutput);
-            lazyOutput.addAll(attributesToExtract);
+            output = new ArrayList<>(childOutput.size() + attributesToExtract.size());
+            output.addAll(childOutput);
+            output.addAll(attributesToExtract);
+            lazyOutput = output;
         }
 
-        return lazyOutput;
+        return output;
     }
 
     @Override

@@ -586,14 +586,17 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
     }
 
     private float[] queryAsFloats() {
-        if (cachedQuery == null) {
+        float[] query = cachedQuery;
+        if (query == null) {
+            // Fill a local and publish it once: this field is shared by every thread that holds the plan.
             List<Number> queryFolded = queryAsObject();
-            cachedQuery = new float[queryFolded.size()];
+            query = new float[queryFolded.size()];
             for (int i = 0; i < queryFolded.size(); i++) {
-                cachedQuery[i] = queryFolded.get(i).floatValue();
+                query[i] = queryFolded.get(i).floatValue();
             }
+            cachedQuery = query;
         }
-        return cachedQuery;
+        return query;
     }
 
     public Expression withFilters(List<Expression> filterExpressions) {

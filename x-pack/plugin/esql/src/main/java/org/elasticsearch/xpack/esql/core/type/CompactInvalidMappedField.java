@@ -89,18 +89,21 @@ public final class CompactInvalidMappedField extends TypeConflictedField {
 
     @Override
     public Map<String, Set<String>> getTypesToIndices() {
-        if (lazyTypesToIndices == null) {
-            lazyTypesToIndices = new TreeMap<>();
+        Map<String, Set<String>> result = lazyTypesToIndices;
+        if (result == null) {
+            // Fill a local and publish it once: this field is shared by every thread that holds the plan.
+            result = new TreeMap<>();
             for (Map.Entry<DataType, TruncatedIndices> entry : typesToIndices.entrySet()) {
                 TruncatedIndices indices = entry.getValue();
-                Set<String> result = indices.dropped == 0 ? indices.kept : new LinkedHashSet<>(indices.kept);
-                if (result != indices.kept) {
-                    result.add("...");
+                Set<String> names = indices.dropped == 0 ? indices.kept : new LinkedHashSet<>(indices.kept);
+                if (names != indices.kept) {
+                    names.add("...");
                 }
-                lazyTypesToIndices.put(entry.getKey().typeName(), result);
+                result.put(entry.getKey().typeName(), names);
             }
+            lazyTypesToIndices = result;
         }
-        return lazyTypesToIndices;
+        return result;
     }
 
     @Override

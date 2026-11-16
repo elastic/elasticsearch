@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -889,7 +890,10 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
         assertThat(Expressions.names(aggs), contains("a", "b", "mc"));
         var searchScore = Expressions.attribute(aliased(aggs.get(0), Max.class).field()).id();
         assertThat(Expressions.attribute(aliased(aggs.get(1), Max.class).field()).id(), not(searchScore));
-        as(agg.child(), InlineJoin.class);
+        var join = as(agg.child(), InlineJoin.class);
+        var project = as(join.left(), Project.class);
+        var projectInput = project.child().outputSet();
+        assertTrue(project.projections().stream().anyMatch(p -> p instanceof Alias alias && projectInput.contains(alias.toAttribute())));
     }
 
     /**
@@ -911,5 +915,27 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
         var rerankScore = as(agg.child(), Rerank.class).scoreAttribute().id();
         assertThat(Expressions.attribute(aliased(aggs.get(0), Max.class).field()).id(), not(rerankScore));
         assertThat(Expressions.attribute(aliased(aggs.get(1), Max.class).field()).id(), is(rerankScore));
+    }
+
+    /**
+     * {@code s2} is computed, so it is not folded into the aggregate before {@code DeduplicateAggs} runs, and {@code x} is used,
+     * so the {@code DISSECT} is not pruned: {@code s2} only resolves by walking through the {@code DISSECT}.
+     */
+    public void testAliasBelowDissectDeduplicates() {
+        var plan = plan("""
+            from test
+            | eval s2 = salary * 2
+            | dissect first_name "%{x}"
+            | stats a = min(s2), b = min(salary * 2), c = count(x)
+            """);
+
+        var project = as(plan, Project.class);
+        var projections = project.projections();
+        assertThat(Expressions.names(projections), contains("a", "b", "c"));
+        assertThat(Expressions.name(aliased(projections.get(1), ReferenceAttribute.class)), is("a"));
+        var limit = as(project.child(), Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.aggregates()), contains("a", "c"));
+        assertTrue(agg.child().anyMatch(Dissect.class::isInstance));
     }
 }

@@ -200,10 +200,12 @@ public class ReplaceAggregateAggExpressionWithEval extends OptimizerRules.Optimi
     }
 
     /**
-     * Returns the input whose rows pass through {@code plan} with the same values, or {@code null} if there is none. A join's
-     * right-hand side never qualifies, since it is null-filled on unmatched rows or, for {@code INLINE STATS}, computed per group,
-     * and neither does the left-hand side of a {@code RIGHT} or {@code FULL} join. Neither does the input of a plan that writes
-     * new values under one of its input's attributes, see {@link #writesUnderInputAttribute}.
+     * Returns the input whose rows pass through {@code plan} with the same values, or {@code null} if there is none. A join keeps
+     * the values of its left-hand side even when it is not {@link DocPreserving}, such as {@code LOOKUP JOIN}: it may duplicate or
+     * drop left rows, but does not change their values. Its right-hand side never qualifies, since it is null-filled on unmatched
+     * rows or, for {@code INLINE STATS}, computed per group, and neither does the left-hand side of a {@code RIGHT} or {@code FULL}
+     * join. Neither does the input of a plan that writes new values under one of its input's attributes, see
+     * {@link #writesUnderInputAttribute}.
      */
     private static LogicalPlan passThroughInput(LogicalPlan plan) {
         if (plan instanceof Join join) {

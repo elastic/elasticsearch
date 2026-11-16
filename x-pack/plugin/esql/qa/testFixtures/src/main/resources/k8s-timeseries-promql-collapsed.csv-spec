@@ -114,6 +114,8 @@ clients:double        | step:datetime                                           
 stats_after_collapse_over_equal_values
 required_capability: promql_command_v0
 required_capability: ts_collapse
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_tstep_bucket_rounding
 required_capability: fix_deduplicate_aggs_over_aggregate_outputs
 PROMQL index=k8s step=10m start="2024-05-10T00:00:00.000Z" end="2024-05-10T00:20:00.000Z" v=(vector(1))
 | TS_COLLAPSE

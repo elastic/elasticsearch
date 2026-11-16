@@ -71,7 +71,7 @@ PUT /example
 
 ### Doc values [geoshape-doc-values]
 
-When `doc_values` is enabled, each geoshape is also stored on disk as a tree of the triangles in its triangular mesh, encoded at the same precision as the index. Aggregations such as [`geo_bounds`](/reference/aggregations/search-aggregations-metrics-geobounds-aggregation.md), [`geo_centroid`](/reference/aggregations/search-aggregations-metrics-geocentroid-aggregation.md), and the geo grid aggregations read these doc values instead of the `_source`.
+When `doc_values` is enabled, each `geo_shape` value is also stored on disk as a tree of the triangles in its triangular mesh, encoded at the same precision as the index. Aggregations such as [`geo_bounds`](/reference/aggregations/search-aggregations-metrics-geobounds-aggregation.md), [`geo_centroid`](/reference/aggregations/search-aggregations-metrics-geocentroid-aggregation.md), and the geo grid aggregations read these doc values instead of the `_source`.
 
 ### Input Structure [input-structure]
 

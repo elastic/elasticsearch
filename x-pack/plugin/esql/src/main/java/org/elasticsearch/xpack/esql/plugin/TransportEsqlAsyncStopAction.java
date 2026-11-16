@@ -134,6 +134,10 @@ public class TransportEsqlAsyncStopAction extends HandledTransportAction<AsyncSt
             // reads). Either condition is a hard signal that we truncated live dataflow; without it the task can be
             // in the async-store persistence window with a fully complete result, in which case flagging {@code
             // is_partial=true} would be a lie.
+            //
+            // A STOP that arrives before any exchange or hook exists (parse / field_caps / split discovery) also
+            // leaves both signals false. Compute observes {@code execInfo.isStopped()} and completes empty via
+            // {@code ComputeService.completeIfStopped}, which is what marks that response partial.
             final boolean cutLiveWork = Boolean.TRUE.equals(interrupted) || stopHookCutSomething;
             if (cutLiveWork && esqlExecutionInfo != null) {
                 esqlExecutionInfo.markPartial();

@@ -517,9 +517,12 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
      * reconciled types -- the same by-name comparison {@code ColumnMapping.alignToQuery} casts on at read
      * time. Falls back to the coordinator-only {@link #schemaMap()} when no split carries a read schema (the
      * zero-split multi-file read; also what a data node sees when an older coordinator sent splits without a
-     * read schema -- its {@code schemaMap} is empty, so nothing is held back, as before). A column a file lacks
-     * altogether is null-filled, not cast, and is not reported. Declared types and {@code first_file_wins} pins
-     * put the planner type on the read schema and coerce inside the reader, so they never show up here.
+     * read schema -- its {@code schemaMap} is empty, so nothing is held back, as before). When only some splits
+     * carry a read schema, an unstamped file's types are unknown on this node (the coordinator stamps from the
+     * same {@code schemaMap} entry it lacks), so it might be cast and every candidate in {@link #output()} is reported.
+     * A column a file lacks altogether is null-filled, not cast, and is not reported. Declared types and
+     * {@code first_file_wins} pins put the planner type on the read schema and coerce inside the reader, so they
+     * never show up here.
      */
     public Set<String> reconciliationCastColumnNames(Set<String> candidates) {
         if (candidates.isEmpty() || (splits.isEmpty() && schemaMap.isEmpty())) {
@@ -535,26 +538,41 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             return Set.of();
         }
         Set<String> cast = new HashSet<>();
-        if (collectCastColumnsFromSplits(splits, queryTypes, cast) == false) {
+        ReadSchemaStamps stamps = new ReadSchemaStamps();
+        collectCastColumnsFromSplits(splits, queryTypes, cast, stamps);
+        if (stamps.stamped == false) {
             for (SchemaReconciliation.FileSchemaInfo info : schemaMap.values()) {
                 collectCastColumns(info.fileSchema().attributes(), queryTypes, cast);
             }
+        } else if (stamps.unstamped) {
+            return Set.copyOf(queryTypes.keySet());
         }
         return cast;
     }
 
-    /** Walks the splits, through any {@link CoalescedSplit}; returns whether any {@link FileSplit} carried a read schema. */
-    private static boolean collectCastColumnsFromSplits(List<ExternalSplit> splits, Map<String, DataType> queryTypes, Set<String> cast) {
-        boolean sawReadSchema = false;
+    /** Whether any split leaf walked carried a read schema, and whether any lacked one. */
+    private static final class ReadSchemaStamps {
+        private boolean stamped;
+        private boolean unstamped;
+    }
+
+    /** Walks the splits, through any (possibly nested) {@link CoalescedSplit}, recording on {@code stamps} what it saw. */
+    private static void collectCastColumnsFromSplits(
+        List<ExternalSplit> splits,
+        Map<String, DataType> queryTypes,
+        Set<String> cast,
+        ReadSchemaStamps stamps
+    ) {
         for (ExternalSplit split : splits) {
             if (split instanceof CoalescedSplit coalesced) {
-                sawReadSchema |= collectCastColumnsFromSplits(coalesced.children(), queryTypes, cast);
+                collectCastColumnsFromSplits(coalesced.children(), queryTypes, cast, stamps);
             } else if (split instanceof FileSplit fileSplit && fileSplit.readSchema() != null) {
-                sawReadSchema = true;
+                stamps.stamped = true;
                 collectCastColumns(fileSplit.readSchema(), queryTypes, cast);
+            } else {
+                stamps.unstamped = true;
             }
         }
-        return sawReadSchema;
     }
 
     private static void collectCastColumns(List<Attribute> fileSchema, Map<String, DataType> queryTypes, Set<String> cast) {

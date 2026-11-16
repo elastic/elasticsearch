@@ -255,6 +255,62 @@ public class PushFiltersToSourceTests extends ESTestCase {
         assertEquals(like, ((FilterExec) result).condition());
     }
 
+    /**
+     * Only some splits carry a read schema: the unstamped file's types are unknown on this node, so it might store
+     * {@code c} at another type and the conjunct must be re-checked, even though every stamped file matches the query.
+     */
+    public void testKeepsLikeWhenSomeSplitLacksReadSchema() {
+        FieldAttribute c = fieldAttr("c", DataType.KEYWORD);
+        Expression like = likeOn(c, "1*");
+        ExternalSourceExec source = parquetSourceWithSplits(
+            List.of(c),
+            splitReading("s.parquet", c.name(), DataType.KEYWORD),
+            unstampedSplit("unknown.parquet")
+        );
+        FilterExec filterExec = new FilterExec(SRC, source, like);
+
+        PhysicalPlan result = applyRule(filterExec, registry(true));
+
+        assertThat(result, instanceOf(FilterExec.class));
+        FilterExec kept = (FilterExec) result;
+        assertEquals(like, kept.condition());
+        assertEquals(List.of(like), ((ExternalSourceExec) kept.child()).pushedExpressions());
+    }
+
+    /**
+     * No split carries a read schema (an older coordinator) and the data node's {@code schemaMap} is empty: nothing is
+     * known to be cast, so the YES conjunct drops the FilterExec, as before.
+     */
+    public void testDropsFilterExecWhenNoSplitCarriesReadSchema() {
+        FieldAttribute c = fieldAttr("c", DataType.KEYWORD);
+        ExternalSourceExec source = parquetSourceWithSplits(List.of(c), unstampedSplit("a.parquet"), unstampedSplit("b.parquet"));
+        FilterExec filterExec = new FilterExec(SRC, source, likeOn(c, "1*"));
+
+        PhysicalPlan result = applyRule(filterExec, registry(true));
+
+        assertThat(result, instanceOf(ExternalSourceExec.class));
+        assertNotNull(((ExternalSourceExec) result).pushedFilter());
+    }
+
+    /** The widened file's read schema must be found through nested {@code CoalescedSplit}s too. */
+    public void testKeepsLikeOnWidenedColumnInsideNestedCoalescedSplit() {
+        FieldAttribute c = fieldAttr("c", DataType.KEYWORD);
+        Expression like = likeOn(c, "1*");
+        ExternalSplit nested = new CoalescedSplit(
+            "parquet",
+            List.of(
+                splitReading("s.parquet", c.name(), DataType.KEYWORD),
+                new CoalescedSplit("parquet", List.of(splitReading("n.parquet", c.name(), DataType.LONG)))
+            )
+        );
+        FilterExec filterExec = new FilterExec(SRC, parquetSourceWithSplits(List.of(c), nested), like);
+
+        PhysicalPlan result = applyRule(filterExec, registry(true));
+
+        assertThat(result, instanceOf(FilterExec.class));
+        assertEquals(like, ((FilterExec) result).condition());
+    }
+
     private static Expression likeOn(FieldAttribute field, String pattern) {
         return new WildcardLike(SRC, field, new WildcardPattern(pattern), false);
     }
@@ -272,6 +328,11 @@ public class PushFiltersToSourceTests extends ESTestCase {
             null,
             List.of(fieldAttr(column, type))
         );
+    }
+
+    /** A whole-file split stamped with no read schema, as an older coordinator (or a file with no schema entry) sends. */
+    private static FileSplit unstampedSplit(String fileName) {
+        return new FileSplit("parquet", StoragePath.of("file:///data/" + fileName), 0, 1, "parquet", Map.of(), Map.of());
     }
 
     private static ExternalSourceExec parquetSourceWithSplits(List<Attribute> output, ExternalSplit... splits) {

@@ -37,6 +37,7 @@ import org.elasticsearch.swisshash.BytesRefSwissHash;
 import org.elasticsearch.swisshash.LongSwissHash;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -953,6 +954,211 @@ public class BlockHashTests extends BlockHashTestCase {
                 try (IntVector nonEmpty = hash.nonEmpty()) {
                     assertThat(nonEmpty.getPositionCount(), equalTo(distinct));
                 }
+            }
+        }
+    }
+
+    /**
+     * A page that is not dense (its dictionary is the whole row group) but repeats a few entries hashes each of them
+     * once, in first-seen order, and leaves the rest of the dictionary out.
+     */
+    public void testRepeatedSparseOrdinals() {
+        int positions = 40;
+        int dictionarySize = 100;
+        // First-seen order d50, d0, d99, d3. Ordinal 0 is referenced.
+        int[] used = { 50, 0, 99, 3 };
+        assertFalse(OrdinalBytesRefBlock.isDense(positions, dictionarySize));
+        try (
+            IntVector.Builder ords = blockFactory.newIntVectorFixedBuilder(positions);
+            BytesRefVector.Builder bytes = blockFactory.newBytesRefVectorBuilder(dictionarySize)
+        ) {
+            Integer[] expectedOrds = new Integer[positions];
+            for (int p = 0; p < positions; p++) {
+                ords.appendInt(used[p % used.length]);
+                expectedOrds[p] = p % used.length;
+            }
+            for (int i = 0; i < dictionarySize; i++) {
+                bytes.appendBytesRef(new BytesRef("d" + i));
+            }
+            OrdinalBytesRefVector vector = new OrdinalBytesRefVector(ords.build(), bytes.build());
+            assertNotNull(DictionaryOrdinals.distinct(vector.getOrdinalsVector()));
+
+            hash(ordsAndKeys -> {
+                if (forcePackedHash) {
+                    assertThat(ordsAndKeys.description(), startsWith("PackedValuesBlockHash{groups=[0:BYTES_REF], entries=4, size="));
+                    assertThat(ordsAndKeys.description(), endsWith("b}"));
+                    assertOrds(ordsAndKeys.ords(), expectedOrds);
+                    assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 4)));
+                } else {
+                    assertThat(ordsAndKeys.description(), startsWith("BytesRefBlockHash{channel=0, entries=4, size="));
+                    assertThat(ordsAndKeys.description(), endsWith("b, seenNull=false}"));
+                    assertOrds(ordsAndKeys.ords(), Arrays.stream(expectedOrds).map(o -> o + 1).toArray(Integer[]::new));
+                    assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(1, 5)));
+                }
+                assertKeys(ordsAndKeys.keys(), "d50", "d0", "d99", "d3");
+            }, vector.asBlock());
+        }
+    }
+
+    /**
+     * Like {@link #testRepeatedSparseOrdinals}, for a nullable, multivalued block.
+     */
+    public void testRepeatedSparseOrdinalBlockWithNullsAndMultivalues() {
+        try (
+            IntBlock.Builder ords = blockFactory.newIntBlockBuilder(12);
+            BytesRefVector.Builder bytes = blockFactory.newBytesRefVectorBuilder(30)
+        ) {
+            // 14 values, 3 distinct, first-seen order e20, e0, e7.
+            ords.appendInt(20);
+            ords.appendNull();
+            ords.beginPositionEntry().appendInt(0).appendInt(20).endPositionEntry();
+            ords.appendInt(7);
+            ords.beginPositionEntry().appendInt(7).appendInt(7).appendInt(0).endPositionEntry();
+            ords.appendInt(20);
+            ords.appendNull();
+            ords.appendInt(0);
+            ords.beginPositionEntry().appendInt(20).appendInt(7).endPositionEntry();
+            ords.appendInt(7);
+            ords.appendInt(0);
+            ords.appendInt(20);
+            for (int i = 0; i < 30; i++) {
+                bytes.appendBytesRef(new BytesRef("e" + i));
+            }
+            OrdinalBytesRefBlock block = new OrdinalBytesRefBlock(ords.build(), bytes.build());
+            assertFalse(block.isDense());
+            assertNotNull(DictionaryOrdinals.distinct(block.getOrdinalsBlock()));
+
+            hash(ordsAndKeys -> {
+                if (forcePackedHash) {
+                    assertThat(ordsAndKeys.description(), startsWith("PackedValuesBlockHash{groups=[0:BYTES_REF], entries=4, size="));
+                    assertThat(ordsAndKeys.description(), endsWith("b}"));
+                    assertOrds(
+                        ordsAndKeys.ords(),
+                        new int[] { 0 },
+                        new int[] { 1 },
+                        new int[] { 2, 0 },
+                        new int[] { 3 },
+                        new int[] { 3, 2 },
+                        new int[] { 0 },
+                        new int[] { 1 },
+                        new int[] { 2 },
+                        new int[] { 0, 3 },
+                        new int[] { 3 },
+                        new int[] { 2 },
+                        new int[] { 0 }
+                    );
+                    assertKeys(ordsAndKeys.keys(), "e20", null, "e0", "e7");
+                } else {
+                    assertThat(ordsAndKeys.description(), startsWith("BytesRefBlockHash{channel=0, entries=3, size="));
+                    assertThat(ordsAndKeys.description(), endsWith("b, seenNull=true}"));
+                    assertOrds(
+                        ordsAndKeys.ords(),
+                        new int[] { 1 },
+                        new int[] { 0 },
+                        new int[] { 2, 1 },
+                        new int[] { 3 },
+                        new int[] { 3, 2 },
+                        new int[] { 1 },
+                        new int[] { 0 },
+                        new int[] { 2 },
+                        new int[] { 1, 3 },
+                        new int[] { 3 },
+                        new int[] { 2 },
+                        new int[] { 1 }
+                    );
+                    assertKeys(ordsAndKeys.keys(), null, "e20", "e0", "e7");
+                }
+                assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 4)));
+            }, block);
+        }
+    }
+
+    /**
+     * A page that is not dense and whose values are mostly distinct, as on a high-cardinality Parquet column, is hashed
+     * value by value in first-seen order.
+     */
+    public void testHighCardinalitySparseOrdinals() {
+        int positions = 20;
+        int dictionarySize = 3 * positions;
+        try (
+            IntVector.Builder ords = blockFactory.newIntVectorFixedBuilder(positions);
+            BytesRefVector.Builder bytes = blockFactory.newBytesRefVectorBuilder(dictionarySize)
+        ) {
+            String[] expectedKeys = new String[positions];
+            for (int p = 0; p < positions; p++) {
+                int ord = dictionarySize - 1 - 3 * p;
+                ords.appendInt(ord);
+                expectedKeys[p] = "d" + ord;
+            }
+            for (int i = 0; i < dictionarySize; i++) {
+                bytes.appendBytesRef(new BytesRef("d" + i));
+            }
+            OrdinalBytesRefVector vector = new OrdinalBytesRefVector(ords.build(), bytes.build());
+            assertFalse(vector.isDense());
+            assertNull(DictionaryOrdinals.distinct(vector.getOrdinalsVector()));
+
+            hash(ordsAndKeys -> {
+                if (forcePackedHash) {
+                    assertThat(ordsAndKeys.description(), startsWith("PackedValuesBlockHash{groups=[0:BYTES_REF], entries=20, size="));
+                    assertOrds(ordsAndKeys.ords(), IntStream.range(0, positions).boxed().toArray(Integer[]::new));
+                    assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, positions)));
+                } else {
+                    assertThat(ordsAndKeys.description(), startsWith("BytesRefBlockHash{channel=0, entries=20, size="));
+                    assertOrds(ordsAndKeys.ords(), IntStream.range(1, positions + 1).boxed().toArray(Integer[]::new));
+                    assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(1, positions + 1)));
+                }
+                assertKeys(ordsAndKeys.keys(), (Object[]) expectedKeys);
+            }, vector.asBlock());
+        }
+    }
+
+    /**
+     * Repeated, not dense ordinal pages added to a hash already past the prefetch threshold: the distinct entries are
+     * hashed through the prefetching path and must resolve to the groups the first page created.
+     */
+    public void testRepeatedSparseOrdinalsOnPrefetchingHash() {
+        assumeFalse("the packed hash has no ordinals path", forcePackedHash);
+        BytesRefSwissHash.PREFETCH_THRESHOLD = between(1, 1024);
+        int distinct = between(2_000, 8_000); // exceeds the small-core capacity so a big core (and the prefetch path) forms
+        try (BlockHash hash = new BytesRefBlockHash(0, blockFactory)) {
+            try (BytesRefVector.Builder values = blockFactory.newBytesRefVectorBuilder(distinct)) {
+                for (int i = 0; i < distinct; i++) {
+                    values.appendBytesRef(new BytesRef("v" + i));
+                }
+                try (BytesRefBlock block = values.build().asBlock()) {
+                    // value i is first seen at position i, so it resolves to group i + 1
+                    hash(false, hash, ordsAndKeys -> {}, block);
+                }
+            }
+            // The dictionary is the first values; the page references a few dozen of them, each several times.
+            int dictionarySize = distinct;
+            int referencedCount = between(1, DictionaryOrdinals.EARLY_CHECK_VALUES / DictionaryOrdinals.MIN_AVERAGE_REPEATS);
+            int positions = Math.max(DictionaryOrdinals.MIN_VALUES, referencedCount * between(4, 8));
+            int stride = dictionarySize / referencedCount;
+            try (
+                IntVector.Builder ords = blockFactory.newIntVectorFixedBuilder(positions);
+                BytesRefVector.Builder bytes = blockFactory.newBytesRefVectorBuilder(dictionarySize)
+            ) {
+                for (int p = 0; p < positions; p++) {
+                    ords.appendInt((p % referencedCount) * stride);
+                }
+                for (int d = 0; d < dictionarySize; d++) {
+                    bytes.appendBytesRef(new BytesRef("v" + d));
+                }
+                OrdinalBytesRefVector vector = new OrdinalBytesRefVector(ords.build(), bytes.build());
+                try (BytesRefBlock block = vector.asBlock()) {
+                    assertFalse(vector.isDense());
+                    assertNotNull(DictionaryOrdinals.distinct(vector.getOrdinalsVector()));
+                    hash(false, hash, ordsAndKeys -> {
+                        IntBlock groupIds = ordsAndKeys.ords();
+                        for (int p = 0; p < positions; p++) {
+                            assertThat(groupIds.getInt(p), equalTo((p % referencedCount) * stride + 1));
+                        }
+                    }, block);
+                }
+            }
+            try (IntVector nonEmpty = hash.nonEmpty()) {
+                assertThat(nonEmpty.getPositionCount(), equalTo(distinct));
             }
         }
     }

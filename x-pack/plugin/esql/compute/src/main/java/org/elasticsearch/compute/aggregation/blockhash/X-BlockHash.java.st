@@ -135,12 +135,26 @@ $if(BytesRef)$
             return blockFactory.newConstantIntVector(groupId, vector.getPositionCount());
         }
         // Going through the dictionary only pays off when it is small relative to the page. A Parquet
-        // page reuses the whole row-group dictionary, which can be far larger than the page. This is
-        // a cost choice only: neither path adds a key the page does not contain.
+        // page reuses the whole row-group dictionary, which can be far larger than the page; such a page
+        // can still repeat a few entries, so it hashes each of those once. These are cost choices only:
+        // no path adds a key the page does not contain.
         var ordinals = vector.asOrdinals();
-        if (ordinals != null && ordinals.isDense()) {
-            return addOrdinalsVector(ordinals);
+        if (ordinals != null) {
+            if (ordinals.isDense()) {
+                return addOrdinalsVector(ordinals);
+            }
+            IntVector groupIds = addRepeatedOrdinalsVector(ordinals);
+            if (groupIds != null) {
+                return groupIds;
+            }
         }
+        return addValues(vector);
+    }
+
+    /**
+     * Adds the vector values one by one, without looking for ordinals.
+     */
+    private IntVector addValues(BytesRefVector vector) {
         if (hash instanceof BytesRefSwissHash swiss && swiss.shouldPrefetch()) {
             return addWithPrefetch(vector, swiss);
         }
@@ -226,11 +240,17 @@ $endif$
      */
     IntBlock add($Type$Block block) {
 $if(BytesRef)$
-        // Same cost-only density gate as add(vector): walking a row-group dictionary once per page
-        // costs more than hashing the page's own values.
+        // Same cost-only choices as add(vector): walking a row-group dictionary once per page costs more
+        // than hashing the page's own values, unless the page repeats them.
         var ordinals = block.asOrdinals();
-        if (ordinals != null && ordinals.isDense()) {
-            return addOrdinalsBlock(ordinals);
+        if (ordinals != null) {
+            if (ordinals.isDense()) {
+                return addOrdinalsBlock(ordinals);
+            }
+            IntBlock groupIds = addRepeatedOrdinalsBlock(ordinals);
+            if (groupIds != null) {
+                return groupIds;
+            }
         }
 $endif$
         MultivalueDedupe.HashResult result = new MultivalueDedupe$Type$(block).hashAdd(blockFactory, hash);
@@ -268,10 +288,8 @@ $if(BytesRef)$
         BytesRefVector dictionary = inputBlock.getDictionaryVector();
         int positions = inputOrds.getPositionCount();
         boolean[] referenced = new boolean[dictionary.getPositionCount()];
-        for (int p = 0; p < positions; p++) {
-            referenced[inputOrds.getInt(p)] = true;
-        }
-        int[] groupIds = hashReferenced(dictionary, referenced);
+        int referencedCount = DictionaryOrdinals.markReferenced(inputOrds, referenced);
+        int[] groupIds = hashReferenced(dictionary, referenced, referencedCount);
         try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
             for (int p = 0; p < positions; p++) {
                 builder.appendInt(referencedGroupId(groupIds, inputOrds.getInt(p)));
@@ -291,14 +309,8 @@ $if(BytesRef)$
             IntBlock.Builder builder = blockFactory.newIntBlockBuilder(inputOrds.getPositionCount())
         ) {
             boolean[] referenced = new boolean[dictionary.getPositionCount()];
-            for (int p = 0; p < inputOrds.getPositionCount(); p++) {
-                int firstIndex = inputOrds.getFirstValueIndex(p);
-                int end = firstIndex + inputOrds.getValueCount(p);
-                for (int i = firstIndex; i < end; i++) {
-                    referenced[inputOrds.getInt(i)] = true;
-                }
-            }
-            int[] groupIds = hashReferenced(dictionary, referenced);
+            int referencedCount = DictionaryOrdinals.markReferenced(inputOrds, referenced);
+            int[] groupIds = hashReferenced(dictionary, referenced, referencedCount);
             for (int p = 0; p < inputOrds.getPositionCount(); p++) {
                 int valueCount = inputOrds.getValueCount(p);
                 int firstIndex = inputOrds.getFirstValueIndex(p);
@@ -329,9 +341,9 @@ $if(BytesRef)$
      * slice, a Parquet row-group dictionary), and hashing all of it would turn values this page never contained
      * into groups.
      */
-    private int[] hashReferenced(BytesRefVector dictionary, boolean[] referenced) {
+    private int[] hashReferenced(BytesRefVector dictionary, boolean[] referenced, int referencedCount) {
         int[] groupIds = new int[referenced.length];
-        if (allReferenced(referenced)) {
+        if (referencedCount == referenced.length) {
             // Nothing to leave out, so hash the dictionary as a plain vector and keep its prefetching.
             try (IntVector dictionaryGroupIds = add(dictionary)) {
                 for (int ord = 0; ord < groupIds.length; ord++) {
@@ -340,11 +352,15 @@ $if(BytesRef)$
             }
             return groupIds;
         }
-        BytesRef scratch = new BytesRef();
-        for (int ord = 0; ord < groupIds.length; ord++) {
-            if (referenced[ord]) {
-                BytesRef v = dictionary.getBytesRef(ord, scratch);
-                groupIds[ord] = Math.toIntExact(hashOrdToGroupNullReserved(hash.add(v)));
+        try (
+            BytesRefVector values = DictionaryOrdinals.referencedValues(blockFactory, dictionary, referenced, referencedCount);
+            IntVector valueGroupIds = addValues(values)
+        ) {
+            int v = 0;
+            for (int ord = 0; ord < groupIds.length; ord++) {
+                if (referenced[ord]) {
+                    groupIds[ord] = valueGroupIds.getInt(v++);
+                }
             }
         }
         return groupIds;
@@ -360,13 +376,63 @@ $if(BytesRef)$
         return groupId;
     }
 
-    private static boolean allReferenced(boolean[] referenced) {
-        for (boolean r : referenced) {
-            if (r == false) {
-                return false;
-            }
+    /**
+     * Adds an ordinals vector that is not dense but repeats its values, hashing each distinct value once in
+     * first-seen order, which assigns the same group ids as hashing every position.
+     *
+     * @return the group ids, or {@code null} if the vector should be hashed value by value
+     */
+    private IntVector addRepeatedOrdinalsVector(OrdinalBytesRefVector inputBlock) {
+        DictionaryOrdinals.Distinct distinct = DictionaryOrdinals.distinct(inputBlock.getOrdinalsVector());
+        if (distinct == null) {
+            return null;
         }
-        return true;
+        try (
+            BytesRefVector values = distinct.values(blockFactory, inputBlock.getDictionaryVector());
+            IntVector groupIds = addValues(values)
+        ) {
+            return distinct.mapLocalIds(blockFactory, groupIds);
+        }
+    }
+
+    /**
+     * Adds an ordinals block that is not dense but repeats its values, like {@link #addRepeatedOrdinalsVector}.
+     * Nulls get group id 0.
+     *
+     * @return the group ids, or {@code null} if the block should be hashed value by value
+     */
+    private IntBlock addRepeatedOrdinalsBlock(OrdinalBytesRefBlock inputBlock) {
+        DictionaryOrdinals.Distinct distinct = DictionaryOrdinals.distinct(inputBlock.getOrdinalsBlock());
+        if (distinct == null) {
+            return null;
+        }
+        try (
+            BytesRefVector values = distinct.values(blockFactory, inputBlock.getDictionaryVector());
+            IntVector groupIds = addValues(values);
+            IntBlock inputOrds = new MultivalueDedupeInt(inputBlock.getOrdinalsBlock()).dedupeToBlockAdaptive(blockFactory);
+            IntBlock.Builder builder = blockFactory.newIntBlockBuilder(inputOrds.getPositionCount())
+        ) {
+            for (int p = 0; p < inputOrds.getPositionCount(); p++) {
+                int valueCount = inputOrds.getValueCount(p);
+                int firstIndex = inputOrds.getFirstValueIndex(p);
+                switch (valueCount) {
+                    case 0 -> {
+                        builder.appendInt(0);
+                        seenNull = true;
+                    }
+                    case 1 -> builder.appendInt(groupIds.getInt(distinct.localId(p, inputOrds.getInt(firstIndex))));
+                    default -> {
+                        int end = firstIndex + valueCount;
+                        builder.beginPositionEntry();
+                        for (int i = firstIndex; i < end; i++) {
+                            builder.appendInt(groupIds.getInt(distinct.localId(p, inputOrds.getInt(i))));
+                        }
+                        builder.endPositionEntry();
+                    }
+                }
+            }
+            return builder.build();
+        }
     }
 $endif$
 

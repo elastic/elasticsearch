@@ -225,9 +225,7 @@ final class BytesRefTopNBlockHash extends BlockHash {
 
         // Mark dictionary entries actually referenced by this page; only those participate in the TopN.
         boolean[] referenced = new boolean[dictSize];
-        for (int p = 0; p < positions; p++) {
-            referenced[ordinalIndices.getInt(p)] = true;
-        }
+        DictionaryOrdinals.markReferenced(ordinalIndices, referenced);
 
         // Pass 1: feed each referenced dictionary entry to the TopN set. Pass 2 (below) hashes only
         // the survivors, so transient winners that get evicted later in this loop never reach the hash.
@@ -312,21 +310,17 @@ final class BytesRefTopNBlockHash extends BlockHash {
         int positions = ordinalIndices.getPositionCount();
         int dictSize = dict.getPositionCount();
 
-        // Single pass in row order: feed null positions into the TopN's null accounting (matching the
-        // interleaving the non-ordinal {@link #add(BytesRefBlock)} does) and mark which dictionary entries
-        // this page actually references so the dictionary sweep below ignores phantom entries.
-        boolean[] referenced = new boolean[dictSize];
-        for (int p = 0; p < positions; p++) {
-            if (ordinalIndices.isNull(p)) {
-                acceptNull();
-            } else {
-                // Single-valued precondition (mayHaveMultivaluedFields() == false) means each non-null
-                // position has exactly one value; we read it via getFirstValueIndex to be safe across
-                // block layouts where the value array is not 1:1 with positions (e.g. compacted nullable
-                // IntArrayBlock).
-                referenced[ordinalIndices.getInt(ordinalIndices.getFirstValueIndex(p))] = true;
+        // Feed null positions into the TopN's null accounting before any value reaches it, then mark which
+        // dictionary entries this page actually references so the dictionary sweep below ignores phantom entries.
+        if (ordinalIndices.mayHaveNulls()) {
+            for (int p = 0; p < positions; p++) {
+                if (ordinalIndices.isNull(p)) {
+                    acceptNull();
+                }
             }
         }
+        boolean[] referenced = new boolean[dictSize];
+        DictionaryOrdinals.markReferenced(ordinalIndices, referenced);
 
         // Pass over the dictionary: feed referenced entries to the TopN. As with the vector path, hashing is
         // deferred so transient winners that get evicted later never enter the hash table.

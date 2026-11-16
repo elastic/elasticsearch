@@ -2920,6 +2920,17 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(Expressions.name(w.condition()), equalTo("a.b.1m.4321"));
     }
 
+    public void testDottedColumnUnquotedAndQuotedAreTheSameName() {
+        // Nested parquet source.ip and a flat leaf named "source.ip" are both written
+        // source.ip in ES|QL. Backticks do not pick the literal leaf; the file schema does.
+        Filter unquoted = as(processingCommand("where source.ip == \"188.166.20.77\""), Filter.class);
+        Filter quoted = as(processingCommand("where `source.ip` == \"188.166.20.77\""), Filter.class);
+        Equals unquotedEq = as(unquoted.condition(), Equals.class);
+        Equals quotedEq = as(quoted.condition(), Equals.class);
+        assertThat(Expressions.name(unquotedEq.left()), equalTo("source.ip"));
+        assertThat(Expressions.name(quotedEq.left()), equalTo("source.ip"));
+    }
+
     public void testQuotedName() {
         // row `my-field`=123 | stats count(`my-field`) | eval x = `count(`my-field`)`
         LogicalPlan plan = processingCommand("stats count(`my-field`) |  keep `count(``my-field``)`");

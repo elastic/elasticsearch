@@ -270,7 +270,7 @@ The `SEMANTIC` is the identifier you give to the piece of text being matched. Fo
 
 By default, matched values are output as keyword string data types. To convert a semantic’s data type, suffix it with the target data type. For example `%{NUMBER:num:int}`, which converts the `num` semantic from a string to an integer. Currently the only supported conversions are `int` and `float`. For other types, use the [Type conversion functions](/reference/query-languages/esql/functions-operators/type-conversion-functions.md).
 
-For an overview of the available patterns, refer to [GitHub](https://github.com/elastic/elasticsearch//blob/master/libs/grok/src/main/resources/patterns). You can also retrieve a list of all patterns using a [REST API](/reference/ingest-processor/grok-processor.md#grok-processor-rest-get).
+For an overview of the available patterns, refer to [GitHub](https://github.com/elastic/elasticsearch/blob/main/libs/grok/src/main/resources/patterns). You can also retrieve a list of all patterns using a [REST API](/reference/ingest-processor/grok-processor.md#grok-processor-rest-get).
 
 
 ### Regular expressions [esql-grok-regex]

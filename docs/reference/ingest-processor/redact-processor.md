@@ -9,7 +9,7 @@ mapped_pages:
 
 The Redact processor uses the Grok rules engine to obscure text in the input document matching the given Grok patterns. The processor can be used to obscure Personal Identifying Information (PII) by configuring it to detect known patterns such as email or IP addresses. Text that matches a Grok pattern is replaced with a configurable string such as `<EMAIL>` where an email address is matched or simply replace all matches with the text `<REDACTED>` if preferred.
 
-{{es}} comes packaged with a number of useful predefined [patterns](https://github.com/elastic/elasticsearch/blob/master/libs/grok/src/main/resources/patterns/ecs-v1) that can be conveniently referenced by the Redact processor. If one of those does not suit your needs, create a new pattern with a custom pattern definition. The Redact processor replaces every occurrence of a match. If there are multiple matches all will be replaced with the pattern name.
+{{es}} comes packaged with a number of useful predefined [patterns](https://github.com/elastic/elasticsearch/blob/main/libs/grok/src/main/resources/patterns/ecs-v1) that can be conveniently referenced by the Redact processor. If one of those does not suit your needs, create a new pattern with a custom pattern definition. The Redact processor replaces every occurrence of a match. If there are multiple matches all will be replaced with the pattern name.
 
 The Redact processor is compatible with [Elastic Common Schema (ECS)](ecs://reference/ecs-field-reference.md) patterns. Legacy Grok patterns are not supported.
 
@@ -141,9 +141,9 @@ In the response both the IP `55.3.244.1` and email address `test@elastic.co` hav
 
 ## Custom patterns [redact-custom-patterns]
 
-If one of the existing Grok [patterns](https://github.com/elastic/elasticsearch/blob/master/libs/grok/src/main/resources/patterns/ecs-v1) does not fit your requirements custom patterns can be added with the `pattern_definitions` option. New patterns definitions are composed of a pattern name and the pattern itself. The pattern may be a regular expression or reference existing Grok patterns.
+If one of the existing Grok [patterns](https://github.com/elastic/elasticsearch/blob/main/libs/grok/src/main/resources/patterns/ecs-v1) does not fit your requirements custom patterns can be added with the `pattern_definitions` option. New patterns definitions are composed of a pattern name and the pattern itself. The pattern may be a regular expression or reference existing Grok patterns.
 
-This example defines the custom pattern `GITHUB_NAME` to match GitHub usernames. The pattern definition uses the existing `USERNAME` Grok [pattern](https://github.com/elastic/elasticsearch/blob/master/libs/grok/src/main/resources/patterns/ecs-v1/grok-patterns) prefixed by the literal `@`.
+This example defines the custom pattern `GITHUB_NAME` to match GitHub usernames. The pattern definition uses the existing `USERNAME` Grok [pattern](https://github.com/elastic/elasticsearch/blob/main/libs/grok/src/main/resources/patterns/ecs-v1/grok-patterns) prefixed by the literal `@`.
 
 ::::{note}
 The [Grok Debugger](docs-content://explore-analyze/query-filter/tools/grok-debugger.md) is a really useful tool for building custom patterns.

@@ -345,6 +345,9 @@ public final class HivePartitionDetector implements PartitionDetector {
             if (v == null) {
                 continue;
             }
+            if (DeclaredTypeCoercions.isPlainNumberText(v) == false) {
+                return null;
+            }
             try {
                 Number n = StringUtils.parseIntegral(v);
                 if (n instanceof BigInteger) {
@@ -372,6 +375,9 @@ public final class HivePartitionDetector implements PartitionDetector {
         for (String v : values) {
             if (v == null) {
                 continue;
+            }
+            if (DeclaredTypeCoercions.isPlainNumberText(v) == false) {
+                return false;
             }
             try {
                 StringUtils.parseDouble(v);
@@ -432,6 +438,10 @@ public final class HivePartitionDetector implements PartitionDetector {
     static Object castValue(String value, DataType type, @Nullable CastInterner interner) {
         if (value == null) {
             return null;
+        }
+        if ((type == DataType.INTEGER || type == DataType.LONG || type == DataType.DOUBLE)
+            && DeclaredTypeCoercions.isPlainNumberText(value) == false) {
+            throw new NumberFormatException("Cannot parse number [" + value + "]");
         }
         Object cast;
         if (type == DataType.INTEGER) {

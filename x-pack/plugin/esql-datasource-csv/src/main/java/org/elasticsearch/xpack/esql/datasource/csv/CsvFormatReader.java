@@ -6448,6 +6448,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     // jackson-core's fast parser is bit-identical to Double.parseDouble on accepted
                     // inputs; on rejection we fall back to the shared conversion path, which itself
                     // uses Double.parseDouble, so the accepted/rejected boundary matches the baseline.
+                    if (DeclaredTypeCoercions.isPlainNumberText(buf, start, len) == false) {
+                        return emitConvertedStageField(new String(buf, start, len), bufIdx, dt);
+                    }
                     try {
                         stageDoubleValue(bufIdx, NumberInput.parseDouble(buf, start, len, true));
                         return true;
@@ -7287,7 +7290,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // stringToDouble (StringUtils.parseDouble) rejects NaN/Infinity that the direct-block fast path
             // (NumberInput.parseDouble) accepts - routing here would break the direct-block parity contract.
             try {
-                return Double.parseDouble(value);
+                return DeclaredTypeCoercions.parseDoubleText(value);
             } catch (NumberFormatException e) {
                 lastFieldError = cannotRead(value, DataType.DOUBLE);
                 return null;

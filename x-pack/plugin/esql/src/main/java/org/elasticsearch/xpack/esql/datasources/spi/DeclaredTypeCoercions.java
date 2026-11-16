@@ -558,7 +558,7 @@ public final class DeclaredTypeCoercions {
             // the string-coercion arm was the lone path rejecting non-finite doubles. A string source
             // parses with Double.parseDouble (accepts NaN/Infinity, still rejects garbage via NFE); a
             // numeric source (declared double over a physical int/long/unsigned_long) widens.
-            case DOUBLE -> fromString ? v -> Double.parseDouble((String) v) : v -> ((Number) v).doubleValue();
+            case DOUBLE -> fromString ? v -> parseDoubleText((String) v) : v -> ((Number) v).doubleValue();
             case UNSIGNED_LONG -> DeclaredTypeCoercions::exactToUnsignedLong;
             case BOOLEAN -> v -> strictParseBoolean((String) v);
             case DATETIME -> {
@@ -687,6 +687,55 @@ public final class DeclaredTypeCoercions {
     }
 
     /**
+     * Whether {@code text} avoids the number spellings that only Java's parsers define: a type suffix
+     * ({@code 10D}), a hexadecimal float ({@code 0x1p3}) and digits outside ASCII. Text that fails this check
+     * is not a number in a data file, whatever {@code Double.parseDouble} or {@code Character.digit} accept.
+     */
+    public static boolean isPlainNumberText(String text) {
+        return isPlainNumberText(text.toCharArray(), 0, text.length());
+    }
+
+    /** {@link #isPlainNumberText(String)} over the {@code len} chars of {@code buf} starting at {@code start}. */
+    public static boolean isPlainNumberText(char[] buf, int start, int len) {
+        int end = start + len;
+        while (end > start && buf[end - 1] <= ' ') {
+            end--;
+        }
+        if (end == start) {
+            return false;
+        }
+        for (int i = start; i < end; i++) {
+            switch (buf[i]) {
+                case 'x', 'X', 'p', 'P' -> {
+                    return false;
+                }
+                default -> {
+                    if (buf[i] > 127) {
+                        return false;
+                    }
+                }
+            }
+        }
+        return switch (buf[end - 1]) {
+            case 'd', 'D', 'f', 'F' -> false;
+            default -> true;
+        };
+    }
+
+    /**
+     * {@link Double#parseDouble} restricted to {@link #isPlainNumberText plain number text}; {@code NaN} and
+     * {@code Infinity} still pass.
+     *
+     * @throws NumberFormatException if the text is not a plain number
+     */
+    public static double parseDoubleText(String text) {
+        if (text.isBlank() == false && isPlainNumberText(text) == false) {
+            throw new NumberFormatException("Cannot parse number [" + text + "]");
+        }
+        return Double.parseDouble(text);
+    }
+
+    /**
      * Exact conversion of a file value into a declared {@code integer} column. Accepts only values that
      * are mathematically whole and in {@code int} range ({@code 2.0}, {@code 1e5}, {@code 42}); refuses
      * a non-zero fractional part ({@code 1.9}) with a value error naming the value — never rounds the
@@ -757,6 +806,9 @@ public final class DeclaredTypeCoercions {
         if (value instanceof BigDecimal bigDecimal) {
             bd = bigDecimal;
         } else {
+            if (isPlainNumberText(value.toString()) == false) {
+                throw new InvalidArgumentException("Cannot parse number [{}]", value);
+            }
             try {
                 bd = new BigDecimal(value.toString());
             } catch (NumberFormatException e) {

@@ -1113,7 +1113,8 @@ public class EsqlSessionTests extends ESTestCase {
             false,
             false,
             List.of(path),
-            List.of()
+            List.of(),
+            Set.of()
         );
         EsqlSession.PreAnalysisResult result = new EsqlSession.PreAnalysisResult(Set.of(), Set.of());
         PlainActionFuture<EsqlSession.PreAnalysisResult> future = new PlainActionFuture<>();

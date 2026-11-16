@@ -15,7 +15,6 @@ import org.elasticsearch.action.search.OpenPointInTimeResponse;
 import org.elasticsearch.action.search.SearchContextId;
 import org.elasticsearch.action.search.SearchContextIdForNode;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -222,7 +221,7 @@ public class SecurityPointInTimeTests extends SecurityIntegTestCase {
     private static BytesReference encodePointInTime(ShardId shardId, SearchContextIdForNode context, Map<String, AliasFilter> aliasFilter) {
         PitSearchPhaseResult result = new PitSearchPhaseResult(context.getSearchContextId());
         result.setSearchShardTarget(new SearchShardTarget(context.getNode(), shardId, context.getClusterAlias()));
-        return SearchContextId.encode(List.of(result), aliasFilter, TransportVersion.current(), ShardSearchFailure.EMPTY_ARRAY);
+        return SearchContextId.encode(List.of(result), aliasFilter, TransportVersion.current(), List.of());
     }
 
     private static final class PitSearchPhaseResult extends SearchPhaseResult {

@@ -41,7 +41,6 @@ import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
@@ -443,10 +442,14 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                 int bucketIdx = waitForNextCompleted(futures);
                 ColumnChunkPrefetcher.PrefetchedChunks prefetchedResult;
                 try {
-                    prefetchedResult = futures[bucketIdx].get();
-                } catch (ExecutionException e) {
-                    // Unwrap the CompletableFuture wrapper; the underlying cause is what callers
-                    // expect (e.g. an IOException from S3) and what existing tests assert against.
+                    // waitForNextCompleted's fast path returns a completed slot without reading
+                    // the ambient cancel signal. Taking the value through the helper still
+                    // observes cancel, so look-ahead buckets that landed during decode of an
+                    // earlier group do not keep the worker thread in materialize.
+                    prefetchedResult = StorageRetryCancellation.getWithCancellationChecks(futures[bucketIdx]);
+                } catch (CompletionException e) {
+                    // Unwrap the helper's wrapper; the underlying cause is what callers expect
+                    // (e.g. an IOException from S3) and what existing tests assert against.
                     Throwable cause = e.getCause();
                     if (cause instanceof IOException io) {
                         throw io;
@@ -455,9 +458,6 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                         throw re;
                     }
                     throw new IOException("prefetch failed for row group " + buckets.get(bucketIdx).rowGroupIndex, cause);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new IOException("interrupted while awaiting row group prefetch", e);
                 }
                 futures[bucketIdx] = null;
                 pending--;
@@ -830,8 +830,9 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         try {
             StorageRetryCancellation.getWithCancellationChecks(CompletableFuture.anyOf(pendingList.toArray(CompletableFuture[]::new)));
         } catch (CompletionException ignored) {
-            // anyOf surfaces the first failure; ignore here — the caller's get() on the failed
-            // future will rethrow the underlying cause with proper unwrapping.
+            // anyOf surfaces the first failure; ignore here — the caller's
+            // getWithCancellationChecks on the failed future will rethrow the underlying
+            // cause with proper unwrapping.
         }
         idx = findCompleted(futures);
         if (idx < 0) {

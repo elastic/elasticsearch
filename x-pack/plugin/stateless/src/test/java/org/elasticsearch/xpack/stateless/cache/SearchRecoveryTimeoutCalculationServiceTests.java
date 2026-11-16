@@ -1986,12 +1986,13 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                 equalTo(expectedEqualShareMs * relocationsToTarget)
             );
 
-            // 2 incoming recoveries, of which 50% may be relocations, so a single relocation slot.
+            // 2 incoming recoveries, of which 50% may be non-critical (including all relocations), so a single relocation slot.
             clusterSettings.applySettings(
                 Settings.builder()
                     .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 2)
                     .put(
-                        DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING.getKey(),
+                        DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING
+                            .getKey(),
                         "50%"
                     )
                     .build()

@@ -17,6 +17,9 @@ dependencies {
   javaRestTestImplementation project(xpackModule('ql:test-fixtures'))
   javaRestTestImplementation 'io.ous:jtoml:2.0.0'
   clusterModules project(':x-pack:plugin:eql')
+  // x-pack-eql extends x-pack-ql (-> mapper-version); stage that chain so the @ClassRule cluster can load eql.
+  clusterModules project(':x-pack:plugin:ql')
+  clusterModules project(':x-pack:plugin:mapper-version')
   clusterModules project(':x-pack:plugin:security')
   clusterModules project(':modules:repository-gcs')
 }

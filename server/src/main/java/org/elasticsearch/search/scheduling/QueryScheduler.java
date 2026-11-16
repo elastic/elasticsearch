@@ -237,6 +237,14 @@ public final class QueryScheduler {
         }
 
         /**
+         * Big arrays that charge the query, or {@code bigArrays} itself if it charges no breaker.
+         */
+        public BigArrays bigArrays(BigArrays bigArrays) {
+            CircuitBreakerService next = bigArrays.breakerService();
+            return next == null ? bigArrays : bigArrays.withBreakerService(breakerService(next));
+        }
+
+        /**
          * The bytes the query holds on this node.
          */
         long memoryBytes() {

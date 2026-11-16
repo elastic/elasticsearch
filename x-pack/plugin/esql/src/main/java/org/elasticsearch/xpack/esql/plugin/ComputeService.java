@@ -2054,7 +2054,7 @@ public class ComputeService {
         QueryScheduler.QueryPart computePart = searchService.queryScheduler().part(context.queryId(), task.getId());
 
         try {
-            BigArrays queryBigArrays = bigArrays.withBreakerService(computePart.breakerService(bigArrays.breakerService()));
+            BigArrays queryBigArrays = computePart.bigArrays(bigArrays);
             BlockFactory queryBlockFactory = blockFactory.newQueryFactory(computePart.breaker(), queryBigArrays);
             var workerThreadPool = transportService.getThreadPool();
             int esqlWorkerPoolSize = workerThreadPool.info(EsqlPlugin.computePool()).getMax();

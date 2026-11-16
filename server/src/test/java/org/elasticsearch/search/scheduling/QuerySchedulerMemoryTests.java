@@ -218,12 +218,12 @@ public class QuerySchedulerMemoryTests extends ESTestCase {
     }
 
     /**
-     * BigArrays allocated through the breaker service of a part charge the query.
+     * The big arrays of a part charge the query.
      */
     public void testBigArraysChargeTheQuery() {
         BigArrays nodeBigArrays = new BigArrays(null, breakerService, CircuitBreaker.REQUEST).withCircuitBreaking();
         try (var part = scheduler.part(queryId("q"), owner)) {
-            BigArrays bigArrays = nodeBigArrays.withBreakerService(part.breakerService(breakerService));
+            BigArrays bigArrays = part.bigArrays(nodeBigArrays);
             try (LongArray array = bigArrays.newLongArray(1000)) {
                 array.set(0, 1);
                 assertThat(part.memoryBytes(), greaterThan(0L));
@@ -233,6 +233,15 @@ public class QuerySchedulerMemoryTests extends ESTestCase {
             assertThat(part.peakMemoryBytes(), greaterThan(0L));
         }
         assertThat(request.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * Big arrays that charge no breaker stay as they are.
+     */
+    public void testBigArraysWithoutBreaker() {
+        try (var part = scheduler.part(queryId("q"), owner)) {
+            assertThat(part.bigArrays(BigArrays.NON_RECYCLING_INSTANCE), sameInstance(BigArrays.NON_RECYCLING_INSTANCE));
+        }
     }
 
     /**

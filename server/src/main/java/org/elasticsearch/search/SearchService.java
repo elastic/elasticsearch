@@ -2150,12 +2150,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             if (request.scroll() != null) {
                 context.scrollContext().scroll = request.scroll();
             }
-            parseSource(
-                context,
-                request.source(),
-                includeAggregations,
-                bigArrays.withBreakerService(part.breakerService(bigArrays.breakerService()))
-            );
+            parseSource(context, request.source(), includeAggregations, part.bigArrays(bigArrays));
 
             // if the from and size are still not set, default them
             if (context.from() == -1) {

@@ -580,7 +580,8 @@ public class RoaringBitmapAggregatorTests extends AggregatorTestCase {
             null,
             false,
             false,
-            true
+            true,
+            false
         );
     }
 

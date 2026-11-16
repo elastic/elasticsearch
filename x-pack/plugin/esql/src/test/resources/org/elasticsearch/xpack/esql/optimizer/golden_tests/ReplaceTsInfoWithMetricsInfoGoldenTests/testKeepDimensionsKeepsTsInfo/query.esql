@@ -1,0 +1,4 @@
+TS k8s
+| TS_INFO
+| KEEP metric_name, dimensions
+| STATS dims = VALUES(dimensions) BY metric_name

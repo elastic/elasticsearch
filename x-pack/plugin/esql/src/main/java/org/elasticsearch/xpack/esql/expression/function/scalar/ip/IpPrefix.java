@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.Signature;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
@@ -65,6 +66,7 @@ public class IpPrefix extends EsqlScalarFunction implements OptionalArgument, An
     @FunctionInfo(
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "ip",
+        signatures = { @Signature(params = { "ip", "integer", "integer" }, returnType = "ip") },
         briefSummary = "Truncates an IP to a given prefix length.",
         description = "Truncates an IP to a given prefix length.",
         examples = @Example(file = "ip", tag = "ipPrefix")

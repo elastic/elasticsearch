@@ -144,6 +144,21 @@ public class DimensionsExtractorTests extends ESTestCase {
         assertThat("tsid should be attached to the IndexRequest after extraction", req.tsid(), notNullValue());
     }
 
+    public void testRejectsCustomRouting() throws IOException {
+        Map<String, Object> doc = Map.of("dim.host", "node-1");
+        IndexRouting.ExtractFromSource.ForIndexDimensions strategy = forIndexDimensions("dim.*");
+        IndexRequest request = toIndexRequest(doc).routing(randomAlphaOfLength(5));
+        try (EscfEncoder encoder = new EscfEncoder()) {
+            DimensionsExtractor extractor = new DimensionsExtractor(strategy);
+            encoder.parseToScratch(toJson(doc), XContentType.JSON, extractor);
+            Exception e = expectThrows(IllegalArgumentException.class, () -> extractor.computeShardId(request));
+            assertThat(
+                e.getMessage(),
+                equalTo("specifying routing is not supported because the destination index [test] is in time_series mode")
+            );
+        }
+    }
+
     public void testResetClearsBuilderBetweenDocuments() throws IOException {
         IndexRouting.ExtractFromSource.ForIndexDimensions strategyA = forIndexDimensions("dim.*");
         IndexRouting.ExtractFromSource.ForIndexDimensions strategyB = forIndexDimensions("dim.*");

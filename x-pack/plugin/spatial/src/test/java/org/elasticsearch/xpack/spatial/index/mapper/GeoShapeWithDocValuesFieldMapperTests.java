@@ -585,4 +585,10 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
     protected List<SortShortcutSupport> getSortShortcutSupport() {
         return List.of();
     }
+
+    @Override
+    protected boolean supportsDynamicallyAddedMultiFields() {
+        // multi-fields have no effect on a geo_shape field, and adding one is only warned about
+        return false;
+    }
 }

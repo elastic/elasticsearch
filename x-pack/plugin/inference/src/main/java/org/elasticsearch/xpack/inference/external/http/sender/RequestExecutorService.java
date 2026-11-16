@@ -56,7 +56,8 @@ import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_P
  *
  * <b>NOTE:</b> requests wait for a pooled connection indefinitely: the http client disables the connection lease timeout
  * ({@link org.apache.hc.client5.http.config.RequestConfig.Builder#setConnectionRequestTimeout}), so a queued task is bounded
- * only by the per-request inference timeout.
+ * only by the per-request inference timeout. Once a task fails or times out, its http exchanges are aborted, which removes them
+ * from the connection pool's pending queue (see {@link TimedListener#addAbortHandler(Runnable)}).
  *
  * The request flow looks as follows:
  *
@@ -358,8 +359,7 @@ public class RequestExecutorService implements RequestExecutor {
 
     private void executeTaskImmediately(RejectableTask task) {
         try {
-            task.getRequestManager()
-                .execute(task.getInferenceInputs(), requestSender, task.getRequestCompletedFunction(), task.getListener());
+            task.getRequestManager().execute(task.getInferenceInputs(), requestSender, task.getTimedListener());
         } catch (Exception e) {
             logger.warn(
                 format("Failed to execute fast-path request for inference id [%s]", task.getRequestManager().inferenceEntityId()),
@@ -730,8 +730,7 @@ public class RequestExecutorService implements RequestExecutor {
                     assert shouldExecuteImmediately(reserveRes) : "Reserving request tokens required a sleep when it should not have";
                 }
 
-                task.getRequestManager()
-                    .execute(task.getInferenceInputs(), requestSender, task.getRequestCompletedFunction(), task.getListener());
+                task.getRequestManager().execute(task.getInferenceInputs(), requestSender, task.getTimedListener());
             } catch (Exception e) {
                 logger.warn(format("Executor service grouping [%s] failed to execute request", rateLimitGroupingId), e);
                 // Reject the task to free up tracked bytes
@@ -863,7 +862,7 @@ public class RequestExecutorService implements RequestExecutor {
         }
 
         @Override
-        public Supplier<Boolean> getRequestCompletedFunction() {
+        public TimedListener<InferenceServiceResults> getTimedListener() {
             throw new UnsupportedOperationException("NoopTask is a pure marker class for signals in the request queue");
         }
     };

@@ -75,6 +75,8 @@ public final class LongSwissHash extends SwissHash implements LongHashTable, Par
 
     static final int INITIAL_CAPACITY = PageCacheRecycler.PAGE_SIZE_IN_BYTES / KEY_SIZE;
 
+    static final int MAX_SIZE = (int) (MAX_CAPACITY * BigCore.FILL_FACTOR);
+
     static {
         if (PageCacheRecycler.PAGE_SIZE_IN_BYTES >> PAGE_SHIFT != 1) {
             throw new AssertionError("bad constants");
@@ -267,12 +269,9 @@ public final class LongSwissHash extends SwissHash implements LongHashTable, Par
 
     private int growTracking() {
         // Juggle constants for the new page size
-        growCount++;
         int oldCapacity = capacity;
-        capacity <<= 1;
-        if (capacity < 0) {
-            throw new IllegalArgumentException("overflow: oldCapacity=" + oldCapacity + ", new capacity=" + capacity);
-        }
+        capacity = nextCapacity(capacity);
+        growCount++;
         mask = capacity - 1;
         nextGrowSize = (int) (capacity * BigCore.FILL_FACTOR);
         return oldCapacity;
@@ -415,15 +414,19 @@ public final class LongSwissHash extends SwissHash implements LongHashTable, Par
         }
 
         private long key(int id) {
-            return (long) LONG_HANDLE.get(keyPages[0], keyOffset(id));
+            return (long) LONG_HANDLE.get(keyPages[0], Math.toIntExact(keyOffset(id)));
         }
 
         private void setKey(int id, long value) {
-            LONG_HANDLE.set(keyPages[0], keyOffset(id), value);
+            LONG_HANDLE.set(keyPages[0], Math.toIntExact(keyOffset(id)), value);
         }
 
         private int id(int slot) {
             return (int) INT_HANDLE.get(idPage, idOffset(slot));
+        }
+
+        private static int idOffset(final int slot) {
+            return slot * ID_SIZE;
         }
     }
 
@@ -487,30 +490,32 @@ public final class LongSwissHash extends SwissHash implements LongHashTable, Par
                 // keyPages are indexed by id, which never exceeds nextGrowSize - 1 before this core
                 // is replaced, so size them to nextGrowSize rather than the (up to 1/FILL_FACTOR
                 // larger) capacity used for the slot-indexed control/id arrays.
-                int keyPagesNeeded = (nextGrowSize * KEY_SIZE - 1) >> PAGE_SHIFT;
-                keyPagesNeeded++;
+                int keyPagesNeeded = pagesNeeded(nextGrowSize, KEY_SIZE);
                 var initialKeyPages = keyPages;
                 keyPages = new byte[keyPagesNeeded][];
                 for (int i = 0; i < keyPagesNeeded; i++) {
                     keyPages[i] = (i < initialKeyPages.length) ? initialKeyPages[i] : grabKeyPage();
                 }
-                assert keyPages[keyOffset(nextGrowSize - 1) >> PAGE_SHIFT] != null
+                assert keyPages[(int) (keyOffset(nextGrowSize - 1) >> PAGE_SHIFT)] != null
                     && Arrays.stream(keyPages).mapToInt(b -> b.length).distinct().count() == 1L
                     && keyPagesNeeded > initialKeyPages.length;
 
-                int idPagesNeeded = (capacity * ID_SIZE - 1) >> PAGE_SHIFT;
-                idPagesNeeded++;
+                int idPagesNeeded = pagesNeeded(capacity, ID_SIZE);
                 idPages = new byte[idPagesNeeded][];
                 for (int i = 0; i < idPagesNeeded; i++) {
                     idPages[i] = grabPage();
                 }
-                assert idPages[idOffset(mask) >> PAGE_SHIFT] != null;
+                assert idPages[(int) (idOffset(mask) >> PAGE_SHIFT)] != null;
                 success = true;
             } finally {
                 if (false == success) {
                     close();
                 }
             }
+        }
+
+        static long idOffset(final int slot) {
+            return (long) slot * ID_SIZE;
         }
 
         /**
@@ -585,8 +590,8 @@ public final class LongSwissHash extends SwissHash implements LongHashTable, Par
         }
 
         private void insertAtSlot(final int insertSlot, final byte control, final int id) {
-            final int idOffset = idOffset(insertSlot);
-            INT_HANDLE.set(idPages[idOffset >> PAGE_SHIFT], idOffset & PAGE_MASK, id);
+            final long idOffset = idOffset(insertSlot);
+            INT_HANDLE.set(idPages[(int) (idOffset >> PAGE_SHIFT)], (int) (idOffset & PAGE_MASK), id);
             controlData[insertSlot] = control;
             // mirror only if slot is within the first group size, to handle wraparound loads
             if (insertSlot < BYTE_VECTOR_LANES) {
@@ -724,18 +729,18 @@ public final class LongSwissHash extends SwissHash implements LongHashTable, Par
         }
 
         private long key(final int id) {
-            final int keyOffset = keyOffset(id);
-            return (long) LONG_HANDLE.get(keyPages[keyOffset >> PAGE_SHIFT], keyOffset & PAGE_MASK);
+            final long keyOffset = keyOffset(id);
+            return (long) LONG_HANDLE.get(keyPages[(int) (keyOffset >> PAGE_SHIFT)], (int) (keyOffset & PAGE_MASK));
         }
 
         private void setKey(final int id, final long value) {
-            final int keyOffset = keyOffset(id);
-            LONG_HANDLE.set(keyPages[keyOffset >> PAGE_SHIFT], keyOffset & PAGE_MASK, value);
+            final long keyOffset = keyOffset(id);
+            LONG_HANDLE.set(keyPages[(int) (keyOffset >> PAGE_SHIFT)], (int) (keyOffset & PAGE_MASK), value);
         }
 
         private int id(final int slot) {
-            final int idOffset = idOffset(slot);
-            return (int) INT_HANDLE.get(idPages[idOffset >> PAGE_SHIFT], idOffset & PAGE_MASK);
+            final long idOffset = idOffset(slot);
+            return (int) INT_HANDLE.get(idPages[(int) (idOffset >> PAGE_SHIFT)], (int) (idOffset & PAGE_MASK));
         }
 
         /**
@@ -745,8 +750,8 @@ public final class LongSwissHash extends SwissHash implements LongHashTable, Par
          */
         int prefetch(final int hash) {
             final int group = hash & mask;
-            final int idOffset = idOffset(group);
-            return controlData[group] ^ idPages[idOffset >> PAGE_SHIFT][idOffset & PAGE_MASK];
+            final long idOffset = idOffset(group);
+            return controlData[group] ^ idPages[(int) (idOffset >> PAGE_SHIFT)][(int) (idOffset & PAGE_MASK)];
         }
     }
 
@@ -762,12 +767,8 @@ public final class LongSwissHash extends SwissHash implements LongHashTable, Par
         return smallCore != null ? smallCore.key(actualId) : bigCore.key(actualId);
     }
 
-    private int keyOffset(final int id) {
-        return id * KEY_SIZE;
-    }
-
-    private int idOffset(final int slot) {
-        return slot * ID_SIZE;
+    static long keyOffset(final int id) {
+        return (long) id * KEY_SIZE;
     }
 
     /**
@@ -811,8 +812,8 @@ public final class LongSwissHash extends SwissHash implements LongHashTable, Par
                 final int base = p * PARTITION_WRITE_BATCH;
                 for (int i = 0; i < c; i++) {
                     final int id = idOffset + (positions[base + i] & 0xFFFF);
-                    final int keyOffset = id * KEY_SIZE;
-                    sub[writeOffset++] = (long) LONG_HANDLE.get(keyPages[keyOffset >> PAGE_SHIFT], keyOffset & PAGE_MASK);
+                    final long keyOffset = keyOffset(id);
+                    sub[writeOffset++] = (long) LONG_HANDLE.get(keyPages[(int) (keyOffset >> PAGE_SHIFT)], (int) (keyOffset & PAGE_MASK));
                 }
             }
         }
@@ -920,6 +921,9 @@ public final class LongSwissHash extends SwissHash implements LongHashTable, Par
      * Grows this table so it can hold at least {@code minSize} entries without future resizing.
      */
     public void ensureCapacity(int minSize) {
+        if (minSize > MAX_SIZE) {
+            throw new IllegalArgumentException("maximum hash size [" + MAX_SIZE + "] exceeded: requested [" + minSize + "]");
+        }
         if (nextGrowSize < minSize) {
             if (smallCore != null) {
                 smallCore.transitionToBigCore(minSize);

@@ -58,7 +58,6 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -228,7 +227,6 @@ public class AuthenticationServiceTests extends ESTestCase {
         when(secondRealm.realmRef()).thenReturn(new RealmRef(SECOND_REALM_NAME, SECOND_REALM_TYPE, "authc_test", secondDomain));
         Settings settings = Settings.builder()
             .put("path.home", createTempDir())
-            .put("node.name", "authc_test")
             .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
             .put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true)
             .put(XPackSettings.AUDIT_ENABLED.getKey(), true)
@@ -267,10 +265,9 @@ public class AuthenticationServiceTests extends ESTestCase {
 
         auditTrail = mock(AuditTrail.class);
         client = mock(Client.class);
-        threadPool = new ThreadPool(
+        threadPool = new TestThreadPool(
+            "authc_test",
             settings,
-            MeterRegistry.NOOP,
-            new DefaultBuiltInExecutorBuilders(),
             new FixedExecutorBuilder(
                 settings,
                 THREAD_POOL_NAME,

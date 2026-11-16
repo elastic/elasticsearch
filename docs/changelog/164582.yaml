@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 164582
+summary: Use single pass for time-series aggregation with one index
+type: enhancement

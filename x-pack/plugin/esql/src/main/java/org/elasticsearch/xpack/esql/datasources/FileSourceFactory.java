@@ -411,8 +411,11 @@ final class FileSourceFactory implements ExternalSourceFactory {
             settings,
             ExternalSourceResolver.storageConfig(config)
         );
+        FormatReader prototype = null;
+        Configured<FormatReader> resolvedReader = null;
         try {
-            Configured<FormatReader> resolvedReader = unwrappedDatasetReader(location, config).withConfigTrackingConsumedKeys(config);
+            prototype = unwrappedDatasetReader(location, config);
+            resolvedReader = prototype.withConfigTrackingConsumedKeys(config);
             ConfigKeyValidator.check(
                 config,
                 List.of(resolvedStorage.consumedKeys(), resolvedReader.consumedKeys(), COORDINATOR_KEYS, LEGACY_VOCABULARY_KEYS)
@@ -430,6 +433,9 @@ final class FileSourceFactory implements ExternalSourceFactory {
             }
             FileOrderConfig.validate(config);
         } finally {
+            if (resolvedReader != null) {
+                FormatReaders.closeDistinctFrom(resolvedReader.value(), prototype);
+            }
             StorageProviderCache.closeLease(resolvedStorage.value());
         }
     }

@@ -223,6 +223,19 @@ public class QueryFailureTelemetryTests extends ESTestCase {
      * The compute layer reports its preferred failure (a client error over a server error) and attaches the others as
      * suppressed. The query is labelled after the failure the client gets, never after a merely suppressed one.
      */
+    /**
+     * The decorator's refusal (429) with the store fault suppressed must stay {@code resource_limit}.
+     * Walking suppressed exceptions would label the query {@code storage_unavailable} while the
+     * response stays 429.
+     */
+    public void testDecoratorRefusalStaysResourceLimit() {
+        ExternalUnavailableException store = new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, PATH, "HTTP 503", "", false, 0L);
+        EsRejectedExecutionException refused = new EsRejectedExecutionException("retry start rejected", true);
+        ExternalFailures.attachRecorded(refused, store);
+        assertThat(QueryFailureTelemetry.classify(refused), equalTo(new Failure("resource_limit", "429")));
+        assertThat(QueryFailureTelemetry.classify(ExternalFailures.classify(refused)), equalTo(new Failure("resource_limit", "429")));
+    }
+
     public void testSuppressedFailuresDoNotDecideTheClassification() {
         ExternalUnavailableException unavailable = new ExternalUnavailableException(
             Condition.STORE_UNAVAILABLE,

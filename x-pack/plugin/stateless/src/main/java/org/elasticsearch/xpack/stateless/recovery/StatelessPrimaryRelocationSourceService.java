@@ -35,6 +35,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.engine.Engine;
@@ -117,7 +118,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
      */
     public static final Setting<Boolean> TRANSFER_HOLLOW_COMMIT_METADATA_SETTING = Setting.boolSetting(
         "stateless.cluster.primary_relocation.transfer_hollow_commit_metadata",
-        false,
+        true,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -758,12 +759,22 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
 
         @FunctionalInterface
         interface RelocationRunner {
-            void run(
+            void doRun(
                 Client parentClient,
                 StatelessPrimaryRelocationAction.Request request,
                 IndexShard shard,
                 ActionListener<StartRelocationResponse> listener
             );
+
+            /// Runs [#doRun] and fails `listener` if it throws.
+            default void run(
+                Client parentClient,
+                StatelessPrimaryRelocationAction.Request request,
+                IndexShard shard,
+                ActionListener<StartRelocationResponse> listener
+            ) {
+                ActionListener.run(listener, l -> doRun(parentClient, request, shard, l));
+            }
         }
 
         private volatile CompositeRecoverySchedulingListener schedulingListeners;
@@ -937,7 +948,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
                 final Releasable activeRelocationMarker = relocation.shard()
                     .markActivelyRelocatingPrimary(relocation.request().clusterStateVersion());
                 final ActionListener<StartRelocationResponse> wrappedListener = ActionListener.releaseAfter(
-                    ActionListener.runAfter(relocation.listener(), () -> onRelocationComplete(relocation)),
+                    ActionListener.releaseAfter(relocation.listener(), Releasables.releaseOnce(() -> onRelocationComplete(relocation))),
                     activeRelocationMarker
                 );
                 // The generic executor has an unbounded queue and the threadpool shuts down after this service is

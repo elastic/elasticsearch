@@ -51,6 +51,20 @@ public class EsqlFlags {
     );
 
     /**
+     * Whether the coordinator may plan the fetch phase: load the columns a query only needs after a {@code LIMIT} or
+     * {@code TopN} for the rows that survive it, instead of on every data node for every candidate row. Nothing can
+     * run such a plan yet, so only tests turn it on.
+     */
+    public enum FetchPhaseMode {
+        /** Every plan loads its columns eagerly. */
+        DISABLED,
+        /** The fetch phase for the plans that can use it and are likely faster with it. */
+        AUTO,
+        /** The fetch phase for every plan that can use it, whatever it costs. Tests and benchmarks use it to cover every shape. */
+        ALWAYS
+    }
+
+    /**
      * Cluster-wide cap on the number of leaf branches an independently executed query may use.
      * View compaction also uses this as the flatten budget for nested view unions.
      * An explicit {@link QueryPragmas#MAX_BRANCH_COUNT} pragma overrides this value for that query.
@@ -173,7 +187,8 @@ public class EsqlFlags {
         ESQL_MAX_FILLNULL_FIELDS.getDefault(Settings.EMPTY),
         ESQL_MAX_COMMAND_COUNT.getDefault(Settings.EMPTY),
         ESQL_METRICS_INFO_MAX_TIME_RANGE.getDefault(Settings.EMPTY),
-        ESQL_TIME_SERIES_REDUCE_PER_INDEX.getDefault(Settings.EMPTY)
+        ESQL_TIME_SERIES_REDUCE_PER_INDEX.getDefault(Settings.EMPTY),
+        FetchPhaseMode.DISABLED
     );
 
     private final boolean stringLikeOnIndex;
@@ -193,6 +208,8 @@ public class EsqlFlags {
     private final TimeValue metricsInfoMaxTimeRange;
 
     private final boolean timeSeriesReducePerIndex;
+
+    private final FetchPhaseMode fetchPhaseMode;
 
     /**
      * Constructor for tests.
@@ -298,8 +315,7 @@ public class EsqlFlags {
             maxBranchCountPerMerge,
             maxFillNullFields,
             ESQL_MAX_COMMAND_COUNT.getDefault(Settings.EMPTY),
-            ESQL_METRICS_INFO_MAX_TIME_RANGE.getDefault(Settings.EMPTY),
-            ESQL_TIME_SERIES_REDUCE_PER_INDEX.getDefault(Settings.EMPTY)
+            ESQL_METRICS_INFO_MAX_TIME_RANGE.getDefault(Settings.EMPTY)
         );
     }
 
@@ -322,11 +338,12 @@ public class EsqlFlags {
             maxFillNullFields,
             maxCommandCount,
             metricsInfoMaxTimeRange,
-            ESQL_TIME_SERIES_REDUCE_PER_INDEX.getDefault(Settings.EMPTY)
+            ESQL_TIME_SERIES_REDUCE_PER_INDEX.getDefault(Settings.EMPTY),
+            FetchPhaseMode.DISABLED
         );
     }
 
-    private EsqlFlags(
+    public EsqlFlags(
         boolean stringLikeOnIndex,
         int roundToPushdownThreshold,
         int maxBranchCount,
@@ -335,7 +352,8 @@ public class EsqlFlags {
         int maxFillNullFields,
         int maxCommandCount,
         TimeValue metricsInfoMaxTimeRange,
-        boolean timeSeriesReducePerIndex
+        boolean timeSeriesReducePerIndex,
+        FetchPhaseMode fetchPhaseMode
     ) {
         this.stringLikeOnIndex = stringLikeOnIndex;
         this.roundToPushdownThreshold = roundToPushdownThreshold;
@@ -346,6 +364,7 @@ public class EsqlFlags {
         this.maxCommandCount = maxCommandCount;
         this.metricsInfoMaxTimeRange = metricsInfoMaxTimeRange;
         this.timeSeriesReducePerIndex = timeSeriesReducePerIndex;
+        this.fetchPhaseMode = fetchPhaseMode;
     }
 
     public EsqlFlags(ClusterSettings settings) {
@@ -358,7 +377,8 @@ public class EsqlFlags {
             settings.get(ESQL_MAX_FILLNULL_FIELDS),
             settings.get(ESQL_MAX_COMMAND_COUNT),
             settings.get(ESQL_METRICS_INFO_MAX_TIME_RANGE),
-            settings.get(ESQL_TIME_SERIES_REDUCE_PER_INDEX)
+            settings.get(ESQL_TIME_SERIES_REDUCE_PER_INDEX),
+            FetchPhaseMode.DISABLED
         );
     }
 
@@ -375,7 +395,26 @@ public class EsqlFlags {
             ESQL_MAX_FILLNULL_FIELDS.getDefault(Settings.EMPTY),
             ESQL_MAX_COMMAND_COUNT.getDefault(Settings.EMPTY),
             ESQL_METRICS_INFO_MAX_TIME_RANGE.getDefault(Settings.EMPTY),
-            enabled
+            enabled,
+            FetchPhaseMode.DISABLED
+        );
+    }
+
+    /**
+     * Test helper that leaves the other flags at their defaults.
+     */
+    public static EsqlFlags withFetchPhase(FetchPhaseMode fetchPhaseMode) {
+        return new EsqlFlags(
+            ESQL_STRING_LIKE_ON_INDEX.getDefault(Settings.EMPTY),
+            ESQL_ROUNDTO_PUSHDOWN_THRESHOLD.getDefault(Settings.EMPTY),
+            ESQL_MAX_BRANCH_COUNT.getDefault(Settings.EMPTY),
+            ESQL_MAX_BRANCH_LEVEL.getDefault(Settings.EMPTY),
+            ESQL_MAX_BRANCH_COUNT_PER_MERGE.getDefault(Settings.EMPTY),
+            ESQL_MAX_FILLNULL_FIELDS.getDefault(Settings.EMPTY),
+            ESQL_MAX_COMMAND_COUNT.getDefault(Settings.EMPTY),
+            ESQL_METRICS_INFO_MAX_TIME_RANGE.getDefault(Settings.EMPTY),
+            ESQL_TIME_SERIES_REDUCE_PER_INDEX.getDefault(Settings.EMPTY),
+            fetchPhaseMode
         );
     }
 
@@ -420,6 +459,13 @@ public class EsqlFlags {
         return timeSeriesReducePerIndex;
     }
 
+    /**
+     * Whether the coordinator may plan the fetch phase. See {@link FetchPhaseMode}.
+     */
+    public FetchPhaseMode fetchPhaseMode() {
+        return fetchPhaseMode;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -433,7 +479,8 @@ public class EsqlFlags {
             && maxFillNullFields == that.maxFillNullFields
             && maxCommandCount == that.maxCommandCount
             && timeSeriesReducePerIndex == that.timeSeriesReducePerIndex
-            && Objects.equals(metricsInfoMaxTimeRange, that.metricsInfoMaxTimeRange);
+            && Objects.equals(metricsInfoMaxTimeRange, that.metricsInfoMaxTimeRange)
+            && fetchPhaseMode == that.fetchPhaseMode;
     }
 
     @Override
@@ -447,7 +494,8 @@ public class EsqlFlags {
             maxFillNullFields,
             maxCommandCount,
             metricsInfoMaxTimeRange,
-            timeSeriesReducePerIndex
+            timeSeriesReducePerIndex,
+            fetchPhaseMode
         );
     }
 
@@ -471,6 +519,8 @@ public class EsqlFlags {
             + metricsInfoMaxTimeRange
             + ", timeSeriesReducePerIndex="
             + timeSeriesReducePerIndex
+            + ", fetchPhaseMode="
+            + fetchPhaseMode
             + ']';
     }
 }

@@ -174,7 +174,6 @@ public class RankVectorsFieldMapper extends FieldMapper {
                     meta.getValue()
                 ),
                 builderParams(this, context),
-                indexCreatedVersion,
                 licenseState,
                 isExcludeSourceVectorsFinal
             );
@@ -277,7 +276,6 @@ public class RankVectorsFieldMapper extends FieldMapper {
         }
     }
 
-    private final IndexVersion indexCreatedVersion;
     private final XPackLicenseState licenseState;
     private final boolean isExcludeSourceVectors;
 
@@ -285,12 +283,10 @@ public class RankVectorsFieldMapper extends FieldMapper {
         String simpleName,
         MappedFieldType fieldType,
         BuilderParams params,
-        IndexVersion indexCreatedVersion,
         XPackLicenseState licenseState,
         boolean isExcludeSourceVectors
     ) {
         super(simpleName, fieldType, params);
-        this.indexCreatedVersion = indexCreatedVersion;
         this.licenseState = licenseState;
         this.isExcludeSourceVectors = isExcludeSourceVectors;
     }

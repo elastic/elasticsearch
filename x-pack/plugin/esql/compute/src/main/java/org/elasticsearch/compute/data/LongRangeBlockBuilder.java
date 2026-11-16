@@ -30,8 +30,8 @@ public final class LongRangeBlockBuilder extends AbstractBlockBuilder implements
         fromBuilder = null;
         toBuilder = null;
         try {
-            fromBuilder = new LongBlockBuilder(estimatedSize, blockFactory);
-            toBuilder = new LongBlockBuilder(estimatedSize, blockFactory);
+            fromBuilder = new LongBlockBuilder(estimatedSize, blockFactory, false);
+            toBuilder = new LongBlockBuilder(estimatedSize, blockFactory, false);
         } finally {
             if (toBuilder == null) {
                 Releasables.closeWhileHandlingException(fromBuilder);

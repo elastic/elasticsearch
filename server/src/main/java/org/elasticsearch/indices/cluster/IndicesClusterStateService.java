@@ -103,6 +103,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.indices.cluster.IndexRemovalReason.CLOSED;
@@ -1025,7 +1026,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         Shard shard = indexService.getShardOrNull(shardRouting.shardId().id());
         if (shard == null) {
             assert shardRouting.initializing() : shardRouting + " should have been removed by failMissingShards";
-            createShard(shardRouting, state);
+            createShard(shardRouting, state, this::getShardsClosedListener);
         } else {
             updateShard(shardRouting, shard, state);
         }
@@ -1087,7 +1088,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
     }
 
-    private void createShard(ShardRouting shardRouting, ClusterState state) {
+    private void createShard(ShardRouting shardRouting, ClusterState state, Supplier<ActionListener<Void>> shardCloseListenerSupplier) {
         assert shardRouting.initializing() : "only allow shard creation for initializing shard but was " + shardRouting;
         final var shardId = shardRouting.shardId();
         final ProjectMetadata project = state.metadata().lookupProject(shardRouting.index()).orElse(null);
@@ -1174,7 +1175,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 e,
                 state,
                 shardCloseExecutor,
-                getShardsClosedListener()
+                shardCloseListenerSupplier.get()
             );
         }
     }
@@ -1754,7 +1755,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
             final ShardRouting currentRouting = getCurrentRouting(key, currentState);
             assert currentRouting != null : "shard routing is null on create shard retry for " + key;
-            createShard(currentRouting, currentState);
+            createShard(currentRouting, currentState, ActionListener::noop);
         } catch (Exception e) {
             // should not be possible
             final var wrappedException = new IllegalStateException("unexpected failure in handleRecoveryFailure on " + shardRouting, e);

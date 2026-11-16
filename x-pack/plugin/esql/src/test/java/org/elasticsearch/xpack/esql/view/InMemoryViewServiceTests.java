@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.ConfigurationTestUtils;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.analysis.LetResolver;
 import org.elasticsearch.xpack.esql.analysis.PlanSize;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -40,6 +41,7 @@ import org.elasticsearch.xpack.esql.parser.AbstractStatementParserTests;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
+import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
 import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelationSerializationTests;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -97,6 +99,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -2483,6 +2486,27 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         // with two separate children.
         assertThat(compacted, instanceOf(BranchPlan.class));
         assertThat(compacted.children().size(), equalTo(2));
+    }
+
+    /**
+     * A {@code LET} binding keys its branch by its name, but a view of the same name can sit at the same level: the binding
+     * shadows the view only where the name is written, so a wildcard still reaches the view. A view's key is recorded
+     * verbatim and asserted unique, and the binding comes first, so the binding's key must step aside for the view's.
+     */
+    public void testLetBindingKeyStepsAsideForSameNamedView() {
+        assumeTrue("Requires LET support", EsqlCapabilities.Cap.NAMED_SUBQUERY_LET.isEnabled());
+        assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        addIndex("let-key-index");
+        addView("let_key_view", "FROM let-key-index | LIMIT 1");
+        var statement = TEST_PARSER.createStatement("LET let_key_view = (FROM let-key-index | LIMIT 2); FROM let_key_view, let_key_v*");
+        LogicalPlan substituted = LetResolver.resolve(statement.plan(), statement.letBindings(), ViewResolver.DEFAULT_MAX_PLAN_NODES_COUNT);
+
+        LogicalPlan compacted = ViewCompaction.preIndexResolution(replaceViewsWithoutCompaction(substituted, viewResolver));
+
+        BranchPlan branches = as(compacted, BranchPlan.class);
+        assertThat(branches.namedSubqueries().keySet(), contains("let_key_view~2", "let_key_view"));
+        assertThat(branches.branchIdentity("let_key_view~2"), equalTo(BranchIdentity.SUBQUERY));
+        assertThat(branches.branchIdentity("let_key_view").isView(), is(true));
     }
 
     /**

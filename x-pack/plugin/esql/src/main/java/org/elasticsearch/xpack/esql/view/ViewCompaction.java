@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
 import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
+import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -267,6 +268,9 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
         // whether a boundary must survive compaction is decided separately, from
         // preserveViewBoundaries, at the points that would collapse it.
         LinkedHashMap<String, BranchIdentity> identities = new LinkedHashMap<>();
+        // View and inlined keys are asserted unique rather than uniquified, so a LET binding's key, which may come first,
+        // must steer clear of them: a binding can share its name with a view at this level (LET low ...; FROM low, lo*).
+        Set<String> assertedKeys = assertedKeys(unionAll.children());
         int unnamedCount = 0;
         for (LogicalPlan child : unionAll.children()) {
             if (child instanceof ViewSubquery named) {
@@ -291,6 +295,12 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
                 assertSubqueryDoesNotExist(subPlans, name);
                 subPlans.put(name, child);
                 identities.put(name, BranchIdentity.view(name));
+            } else if (child instanceof NamedSubquery named) {
+                // A LET binding: a subquery the user named, so it is keyed by its name. Like a literal subquery, NOT a
+                // view branch, even when its body resolved to a view union: the views keep their identities a level deeper.
+                String name = makeUniqueKey(subPlans, assertedKeys, named.name());
+                subPlans.put(name, preserveWrappers ? named : named.child());
+                identities.put(name, BranchIdentity.SUBQUERY);
             } else if (child instanceof Subquery unnamed) {
                 // A literal user-written subquery: NOT a view branch, even when its body resolved to a view union
                 // ((FROM my_view) under CPS, or (FROM v1, v2)) — one identity per nesting level. The views inside keep
@@ -311,6 +321,21 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
             }
         }
         return new BranchPlan(unionAll.source(), subPlans, identities, unionAll.output());
+    }
+
+    /** The keys {@link #toBranchPlan} records verbatim for these children, asserting rather than uniquifying them. */
+    private static Set<String> assertedKeys(List<LogicalPlan> children) {
+        Set<String> keys = new HashSet<>();
+        for (LogicalPlan child : children) {
+            if (child instanceof ViewSubquery view) {
+                keys.add(view.name());
+            } else if (child instanceof BranchPlan vua) {
+                keys.addAll(vua.namedSubqueries().keySet());
+            } else if (isSubqueryOfAView(child)) {
+                keys.add(((ViewSubquery) ((Subquery) child).child()).name());
+            }
+        }
+        return keys;
     }
 
     /**
@@ -490,6 +515,16 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
             }
         }
         return new BranchPlan(vua.source(), flat, flatIdentities, vua.output());
+    }
+
+    /** As {@link #makeUniqueKey(LinkedHashMap, String)}, also avoiding {@code reserved}. */
+    private static String makeUniqueKey(LinkedHashMap<String, LogicalPlan> flat, Set<String> reserved, String key) {
+        String original = key;
+        int counter = 2;
+        while (flat.containsKey(key) || reserved.contains(key)) {
+            key = original + "~" + counter++;
+        }
+        return key;
     }
 
     /**

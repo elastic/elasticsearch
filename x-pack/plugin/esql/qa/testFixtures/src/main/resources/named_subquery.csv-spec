@@ -430,3 +430,93 @@ emp_no:integer
 10002
 10003
 ;
+
+// -------------------------------------------------------------------
+// METADATA _class, _name on LET bindings
+// -------------------------------------------------------------------
+
+letBindingsClassAndName
+required_capability: named_subquery_let
+required_capability: metadata_class_and_name
+required_capability: named_subquery_let_metadata_class_and_name
+
+LET top_salary_employees = (FROM employees | WHERE salary > 70000 | KEEP emp_no)\;
+LET low_salary_employees = (FROM employees | WHERE salary <= 30000 | KEEP emp_no)\;
+FROM top_salary_employees, low_salary_employees METADATA _class, _name
+| STATS count = COUNT(*) BY _class, _name
+| SORT _name
+;
+
+count:long | _class:keyword | _name:keyword
+9          | subquery       | low_salary_employees
+8          | subquery       | top_salary_employees
+;
+
+letSingleBindingClassAndName
+required_capability: named_subquery_let
+required_capability: metadata_class_and_name
+required_capability: named_subquery_let_metadata_class_and_name
+
+LET top_langs = (FROM languages | SORT language_code | LIMIT 2)\;
+FROM top_langs METADATA _class, _name
+| KEEP language_code, _class, _name
+| SORT language_code
+;
+
+language_code:integer | _class:keyword | _name:keyword
+1                     | subquery       | top_langs
+2                     | subquery       | top_langs
+;
+
+letBindingBesideIndexClassAndName
+required_capability: named_subquery_let
+required_capability: metadata_class_and_name
+required_capability: named_subquery_let_metadata_class_and_name
+
+LET top_langs = (FROM languages | SORT language_code | LIMIT 2)\;
+FROM languages, top_langs METADATA _class, _name
+| STATS count = COUNT(*) BY _class, _name
+| SORT _class
+;
+
+count:long | _class:keyword | _name:keyword
+4          | index          | languages
+2          | subquery       | top_langs
+;
+
+letBindingBesideSubqueryClassAndName
+required_capability: named_subquery_let
+required_capability: subquery_in_from_command
+required_capability: metadata_class_and_name
+required_capability: named_subquery_let_metadata_class_and_name
+
+LET top_langs = (FROM languages | SORT language_code | LIMIT 2)\;
+FROM top_langs, (FROM languages | WHERE language_code > 2) METADATA _class, _name
+| KEEP language_code, _class, _name
+| SORT language_code
+;
+
+language_code:integer | _class:keyword | _name:keyword
+1                     | subquery       | top_langs
+2                     | subquery       | top_langs
+3                     | subquery       | null
+4                     | subquery       | null
+;
+
+letBindingBesideSubqueryAndIndexClassAndName
+required_capability: named_subquery_let
+required_capability: subquery_in_from_command
+required_capability: metadata_class_and_name
+required_capability: named_subquery_let_metadata_class_and_name
+
+LET top_langs = (FROM languages | SORT language_code | LIMIT 2)\;
+FROM languages, top_langs, (FROM languages | WHERE language_code > 2) METADATA _class, _name
+| STATS count = COUNT(*) BY _class, _name
+| SORT _class, _name NULLS LAST
+;
+
+count:long | _class:keyword | _name:keyword
+4          | index          | languages
+2          | subquery       | top_langs
+2          | subquery       | null
+;

@@ -71,6 +71,15 @@ public interface SourceLoader {
          * @param b the builder to write the xcontent
          */
         void write(LeafStoredFieldLoader storedFields, int docId, XContentBuilder b) throws IOException;
+
+        /**
+         * The bytes of {@code _source} held in memory for {@code source}, which {@link #source} last returned: its own, unless it
+         * was cut from a larger source this leaf keeps for the documents that follow.
+         */
+        default long sourceBytesHeld(Source source) {
+            BytesReference bytes = source.internalSourceRef();
+            return bytes == null ? 0 : bytes.length();
+        }
     }
 
     /**
@@ -194,6 +203,11 @@ public interface SourceLoader {
 
                 TimeValue duration = TimeValue.timeValueMillis(metrics.getRelativeTimeSupplier().getAsLong() - startTime);
                 metrics.recordSyntheticSourceLoadLatency(duration);
+            }
+
+            @Override
+            public long sourceBytesHeld(Source source) {
+                return leaf.sourceBytesHeld(source);
             }
         }
 

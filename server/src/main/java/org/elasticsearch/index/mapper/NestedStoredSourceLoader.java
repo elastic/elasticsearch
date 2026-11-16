@@ -108,6 +108,12 @@ final class NestedStoredSourceLoader implements SourceLoader {
             return nestedIdentity.extractSource(lastRootSource);
         }
 
+        /** The root's source, which is kept for its other children however small the slice of this one. */
+        @Override
+        public long sourceBytesHeld(Source source) {
+            return rootLeaf.sourceBytesHeld(lastRootSource);
+        }
+
         @Override
         public void write(LeafStoredFieldLoader storedFields, int docId, XContentBuilder b) throws IOException {
             Source source = source(storedFields, docId);

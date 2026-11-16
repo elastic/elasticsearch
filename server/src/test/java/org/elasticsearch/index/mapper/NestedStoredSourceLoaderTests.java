@@ -32,6 +32,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
+
 public class NestedStoredSourceLoaderTests extends MapperServiceTestCase {
 
     private static final String NESTED_MAPPING = """
@@ -163,6 +166,33 @@ public class NestedStoredSourceLoaderTests extends MapperServiceTestCase {
             }
             leafLoader.advanceTo(2);
             assertEquals("root", leaf.source(leafLoader, 2).source().get("name"));
+        });
+    }
+
+    /**
+     * A child's slice is small, but the root's source it was cut from is kept for the root's other children, so that is what a
+     * reader reserving memory for the source it loads counts.
+     */
+    public void testChildReportsTheRootSourceItHolds() throws IOException {
+        MapperService mapperService = createMapperService(NESTED_MAPPING);
+        String large = "x".repeat(10_000);
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
+            b.field("name", large);
+            b.startArray("children");
+            b.startObject().field("value", "child1").endObject();
+            b.endArray();
+        }));
+
+        // doc 0 = nested child, doc 1 = root
+        withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), reader -> {
+            SourceLoader loader = nestedLoader(mapperService);
+            var storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
+                storedFieldLoader(loader).getLoader(reader.leaves().get(0), null),
+                loader.leaf(reader.leaves().get(0), null)
+            );
+            storedFields.advanceTo(0);
+            assertThat(storedFields.source().internalSourceRef().length(), lessThan(100));
+            assertThat(storedFields.lastSourceBytesSize(), greaterThan((long) large.length()));
         });
     }
 

@@ -78,7 +78,13 @@ public class ReplaceAggregateAggExpressionWithEval extends OptimizerRules.Optimi
                 aliasesBuilder.put(a.toAttribute(), a.child());
             }
         };
-        aggregate.forEachExpression(Alias.class, collectAlias);
+        AttributeSet childAttributes = aggregate.child().outputSet();
+        aggregate.forEachExpression(Alias.class, a -> {
+            // An output alias that reuses an input attribute's id says nothing about the input values the aggregate functions read.
+            if (childAttributes.contains(a.toAttribute()) == false) {
+                collectAlias.accept(a);
+            }
+        });
         collectAliases(aggregate.child(), collectAlias);
         var aliases = aliasesBuilder.build();
 
@@ -197,7 +203,7 @@ public class ReplaceAggregateAggExpressionWithEval extends OptimizerRules.Optimi
      * Returns the input whose rows pass through {@code plan} with the same values, or {@code null} if there is none. A join's
      * right-hand side never qualifies, since it is null-filled on unmatched rows or, for {@code INLINE STATS}, computed per group,
      * and neither does the left-hand side of a {@code RIGHT} or {@code FULL} join. Neither does the input of a plan that writes
-     * new values under one of its input's attributes, such as {@code RERANK} scoring into an existing {@code _score}.
+     * new values under one of its input's attributes, see {@link #writesUnderInputAttribute}.
      */
     private static LogicalPlan passThroughInput(LogicalPlan plan) {
         if (plan instanceof Join join) {
@@ -206,15 +212,25 @@ public class ReplaceAggregateAggExpressionWithEval extends OptimizerRules.Optimi
         }
         if (plan instanceof DocPreserving docPreserving) {
             LogicalPlan input = docPreserving.preservingInput();
-            if (plan instanceof GeneratingPlan<?> generatingPlan) {
-                AttributeSet inputAttributes = input.outputSet();
-                if (generatingPlan.generatedAttributes().stream().anyMatch(inputAttributes::contains)) {
-                    return null;
-                }
-            }
-            return input;
+            return writesUnderInputAttribute(plan, input) ? null : input;
         }
         return null;
+    }
+
+    /**
+     * Whether {@code plan} gives one of its input's attribute ids a new value: as a generated attribute, such as {@code RERANK}
+     * scoring into an existing {@code _score}, or as an alias, such as the projection that renames the score of a pushed-down
+     * {@code RERANK} back to {@code _score}. Aliases collected at or below such a plan may then mean something else above it.
+     */
+    private static boolean writesUnderInputAttribute(LogicalPlan plan, LogicalPlan input) {
+        AttributeSet inputAttributes = input.outputSet();
+        if (plan instanceof GeneratingPlan<?> generatingPlan
+            && generatingPlan.generatedAttributes().stream().anyMatch(inputAttributes::contains)) {
+            return true;
+        }
+        return plan.expressions()
+            .stream()
+            .anyMatch(e -> e.anyMatch(x -> x instanceof Alias alias && inputAttributes.contains(alias.toAttribute())));
     }
 
     private static AggregateFunction getCannonical(AggregateFunction af, AttributeMap<Expression> aliases) {

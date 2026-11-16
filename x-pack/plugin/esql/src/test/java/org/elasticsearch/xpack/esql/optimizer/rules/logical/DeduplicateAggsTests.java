@@ -869,4 +869,47 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
         assertThat(Expressions.attribute(aliased(aggs.get(0), Max.class).field()).id(), not(rerankScore));
         assertThat(Expressions.attribute(aliased(aggs.get(1), Max.class).field()).id(), is(rerankScore));
     }
+
+    /**
+     * Pushing {@code RERANK} below the projection of {@code s} renames its score and aliases it back under the input's
+     * {@code _score} id. The {@code INLINE STATS} keeps that projection on the join's left-hand side, below the aggregate.
+     */
+    public void testRerankScoreAliasedBackIsNotResolved() {
+        var plan = optimize(defaultAnalyzer().addAnalysisTestsInferenceResolution().query("""
+            from test metadata _score
+            | eval s = _score
+            | rerank "query" on first_name with { "inference_id" : "reranking-inference-id" }
+            | inline stats c = count(*)
+            | stats a = max(s), b = max(_score), mc = max(c)
+            """));
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var aggs = agg.aggregates();
+        assertThat(Expressions.names(aggs), contains("a", "b", "mc"));
+        var searchScore = Expressions.attribute(aliased(aggs.get(0), Max.class).field()).id();
+        assertThat(Expressions.attribute(aliased(aggs.get(1), Max.class).field()).id(), not(searchScore));
+        as(agg.child(), InlineJoin.class);
+    }
+
+    /**
+     * Grouping by {@code _score} folds the alias of the renamed {@code RERANK} score, back under the input's {@code _score} id,
+     * into the aggregate, while {@code max(s)} reads the search score under that same id.
+     */
+    public void testRerankScoreGroupingIsNotResolved() {
+        var plan = optimize(defaultAnalyzer().addAnalysisTestsInferenceResolution().query("""
+            from test metadata _score
+            | eval s = _score
+            | rerank "query" on first_name with { "inference_id" : "reranking-inference-id" }
+            | stats a = max(s), b = max(_score) by _score
+            """));
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var aggs = agg.aggregates();
+        assertThat(Expressions.names(aggs), contains("a", "b", "_score"));
+        var rerankScore = as(agg.child(), Rerank.class).scoreAttribute().id();
+        assertThat(Expressions.attribute(aliased(aggs.get(0), Max.class).field()).id(), not(rerankScore));
+        assertThat(Expressions.attribute(aliased(aggs.get(1), Max.class).field()).id(), is(rerankScore));
+    }
 }

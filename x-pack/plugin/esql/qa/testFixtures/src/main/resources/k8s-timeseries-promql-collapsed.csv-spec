@@ -111,7 +111,7 @@ clients:double        | step:datetime                                           
 ;
 
 // TS_COLLAPSE folds the three steps into one row, so v holds three values while one holds one.
-statsAfterCollapseOverEqualValues
+stats_after_collapse_over_equal_values
 required_capability: promql_command_v0
 required_capability: ts_collapse
 required_capability: fix_deduplicate_aggs_over_aggregate_outputs

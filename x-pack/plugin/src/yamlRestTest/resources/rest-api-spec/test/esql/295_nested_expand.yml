@@ -497,3 +497,72 @@ setup:
   - length: { values: 2 }
   - match: { values.0: [1, "the quick <em>fox</em>"] }
   - match: { values.1: [2, "the quick <em>fox</em>"] }
+
+---
+"A flattened key under a nested object is not an ordinary column":
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [flattened_keys]
+      reason: "flattened keys are behind a feature flag"
+  - do:
+      indices.create:
+        index: ne_flattened
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              items:
+                type: nested
+                properties:
+                  qty:
+                    type: long
+                  attrs:
+                    type: flattened
+              other:
+                type: nested
+                properties:
+                  attrs:
+                    type: flattened
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "ne_flattened", "_id": "a" } }
+          - { "items": [ { "qty": 1, "attrs": { "color": "red" } } ], "other": [ { "attrs": { "size": "L" } } ] }
+  - do:
+      catch: /Unknown column \[items\.attrs\.color\]/
+      esql.query:
+        body:
+          query: 'FROM ne_flattened | NESTED_EXPAND items | KEEP items.qty, items.attrs.color | LIMIT 10'
+  # Nor is one of another nested collection, which this query does not expand
+  - do:
+      catch: /Unknown column \[other\.attrs\.size\]/
+      esql.query:
+        body:
+          query: 'FROM ne_flattened | NESTED_EXPAND items | KEEP items.qty, other.attrs.size | LIMIT 10'
+
+---
+"A column of the query named _doc does not replace the document NESTED_EXPAND reads":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM nested_expand | EVAL _doc = CONCAT(id, "-user") | NESTED_EXPAND items | KEEP _doc, items.qty | SORT items.qty | LIMIT 10'
+  - match: { columns.0.name: "_doc" }
+  - match: { columns.0.type: "keyword" }
+  - length: { values: 3 }
+  - match: { values.0: ["1-user", 1] }
+  - match: { values.1: ["1-user", 2] }
+  - match: { values.2: ["2-user", null] }
+  # A column of a LOOKUP JOIN named _doc
+  - do:
+      esql.query:
+        body:
+          query: 'FROM ne_orders_items | LOOKUP JOIN ne_lookup_note ON id | RENAME note AS _doc | NESTED_EXPAND items | KEEP _doc, items.qty | SORT items.qty | LIMIT 10'
+  - length: { values: 2 }
+  - match: { values.0: ["n", 1] }
+  - match: { values.1: ["n", 2] }

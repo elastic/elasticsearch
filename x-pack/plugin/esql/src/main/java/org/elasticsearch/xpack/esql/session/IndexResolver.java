@@ -778,7 +778,8 @@ public class IndexResolver {
             }
             for (String name : keyNames) {
                 IndexFieldCapabilities root = flattenedRoot(response.get(), name);
-                if (root == null) {
+                // A key of a field under a nested object is a child's, like the field, so it is not an ordinary column either
+                if (root == null || NestedScopeField.inNestedScope(root, response.get())) {
                     continue;
                 }
                 if (isNew) {

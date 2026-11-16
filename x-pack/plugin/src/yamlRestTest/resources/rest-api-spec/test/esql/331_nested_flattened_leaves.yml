@@ -603,6 +603,79 @@ knn on a vector under a nested object is rejected:
 - match: { error.type: verification_exception }
 - contains: { error.reason: "[KNN] function cannot search [items.v]: Searching nested child fields is not supported yet." }
 ---
+a key of a flattened field under a nested object reads the children:
+- requires:
+    test_runner_features: [capabilities]
+    capabilities:
+    - method: POST
+      path: /_query
+      parameters: []
+      capabilities: [flattened_keys]
+    reason: "A name under a flattened field is its keyword key"
+- do:
+    indices.create:
+      index: nf_flat
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              properties:
+                attrs:
+                  type: flattened
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: nf_flat
+      - id: a
+        items:
+        - { attrs: { env: dev } }
+        - { attrs: { env: prod } }
+      - index:
+          _index: nf_flat
+      - id: b
+        items:
+        - { attrs: { env: prod } }
+      - index:
+          _index: nf_flat
+      - id: c
+- do:
+    esql.query:
+      body:
+        query: FROM nf_flat | KEEP id, items.attrs.env | SORT id | LIMIT 10
+- match:
+    values:
+    - [a, [dev, prod]]
+    - [b, prod]
+    - [c, null]
+- do:
+    allowed_warnings_regex:
+    - "Line 1:.*: evaluation of \\[.*\\] failed, treating result as null. Only first 20 failures recorded."
+    - "Line 1:.*: java.lang.IllegalArgumentException: single-value function encountered multi-value"
+    esql.query:
+      body:
+        query: 'FROM nf_flat | WHERE items.attrs.env == "prod" | KEEP id | SORT id | LIMIT 10'
+- match:
+    values:
+    - [b]
+- do:
+    esql.query:
+      body:
+        query: FROM nf_flat | STATS n = COUNT(*) BY items.attrs.env | SORT items.attrs.env | LIMIT 10
+- match:
+    values:
+    - [1, dev]
+    - [2, prod]
+    - [1, null]
+---
 null checks read the values of every object:
 # A text field's index answers whether a document has a value, but under a nested object the parent's index holds none of them.
 - do:

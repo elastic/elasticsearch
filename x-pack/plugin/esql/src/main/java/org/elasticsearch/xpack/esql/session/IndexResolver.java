@@ -772,11 +772,19 @@ public class IndexResolver {
                 if (root == null) {
                     continue;
                 }
+                boolean underNested = NestedLeaves.pathFor(root.name(), response.get()) != null;
+                if (underNested && flattenedLeaves == false) {
+                    continue;
+                }
+                if (underNested) {
+                    underNestedNames.add(name);
+                }
+                IndexFieldCapabilities fc = key(name, underNested ? flattened(root) : root);
                 if (isNew) {
                     fieldsCaps.computeIfAbsent(
                         name,
                         (_key) -> new IndexFieldCapabilitiesWithSourceHash(new ArrayList<>(), response.getIndexMappingHash())
-                    ).fieldCapabilities.add(key(name, root));
+                    ).fieldCapabilities.add(fc);
                 }
                 if (trackUnmappedFieldIndices) {
                     fieldToMappedIndices.computeIfAbsent(name, k -> new HashSet<>()).add(indexName);

@@ -11,12 +11,14 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
+import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.DocPreserving;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -180,8 +182,8 @@ public class ReplaceAggregateAggExpressionWithEval extends OptimizerRules.Optimi
 
     /**
      * Collects the aliases that hold on every row reaching the aggregate being optimized, the only ones safe for comparing its
-     * aggregate functions. The walk only follows {@link DocPreserving} plans and the left-hand side of joins; any other plan stops
-     * it, which at worst computes a duplicate aggregate function twice.
+     * aggregate functions. The walk only follows {@link DocPreserving} plans that keep their input's values and the left-hand side
+     * of joins; any other plan stops it, which at worst computes a duplicate aggregate function twice.
      */
     private static void collectAliases(LogicalPlan plan, Consumer<Alias> consumer) {
         LogicalPlan input = passThroughInput(plan);
@@ -194,14 +196,25 @@ public class ReplaceAggregateAggExpressionWithEval extends OptimizerRules.Optimi
     /**
      * Returns the input whose rows pass through {@code plan} with the same values, or {@code null} if there is none. A join's
      * right-hand side never qualifies, since it is null-filled on unmatched rows or, for {@code INLINE STATS}, computed per group,
-     * and neither does the left-hand side of a {@code RIGHT} or {@code FULL} join.
+     * and neither does the left-hand side of a {@code RIGHT} or {@code FULL} join. Neither does the input of a plan that writes
+     * new values under one of its input's attributes, such as {@code RERANK} scoring into an existing {@code _score}.
      */
     private static LogicalPlan passThroughInput(LogicalPlan plan) {
         if (plan instanceof Join join) {
             JoinType type = join.config().type();
             return JoinTypes.RIGHT.equals(type) || JoinTypes.FULL.equals(type) ? null : join.left();
         }
-        return plan instanceof DocPreserving docPreserving ? docPreserving.preservingInput() : null;
+        if (plan instanceof DocPreserving docPreserving) {
+            LogicalPlan input = docPreserving.preservingInput();
+            if (plan instanceof GeneratingPlan<?> generatingPlan) {
+                AttributeSet inputAttributes = input.outputSet();
+                if (generatingPlan.generatedAttributes().stream().anyMatch(inputAttributes::contains)) {
+                    return null;
+                }
+            }
+            return input;
+        }
+        return null;
     }
 
     private static AggregateFunction getCannonical(AggregateFunction af, AttributeMap<Expression> aliases) {

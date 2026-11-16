@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -42,6 +43,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
@@ -845,5 +847,26 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
         var agg = as(limit.child(), Aggregate.class);
         assertThat(Expressions.names(agg.aggregates()), contains("a"));
         assertTrue(agg.child().anyMatch(AbstractSubqueryJoin.class::isInstance));
+    }
+
+    /**
+     * {@code RERANK} writes its score into the existing {@code _score}, so above it {@code s} holds the search score while
+     * {@code _score} holds the rerank score.
+     */
+    public void testRerankOverwrittenScoreIsNotResolved() {
+        var plan = optimize(defaultAnalyzer().addAnalysisTestsInferenceResolution().query("""
+            from test metadata _score
+            | eval s = _score
+            | rerank "query" on first_name with { "inference_id" : "reranking-inference-id" }
+            | stats a = max(s), b = max(_score)
+            """));
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var aggs = agg.aggregates();
+        assertThat(Expressions.names(aggs), contains("a", "b"));
+        var rerankScore = as(agg.child(), Rerank.class).scoreAttribute().id();
+        assertThat(Expressions.attribute(aliased(aggs.get(0), Max.class).field()).id(), not(rerankScore));
+        assertThat(Expressions.attribute(aliased(aggs.get(1), Max.class).field()).id(), is(rerankScore));
     }
 }

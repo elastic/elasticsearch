@@ -348,3 +348,21 @@ book_no:keyword | title:text                                            | author
 4536            | War and Peace (Signet Classics)                       | [John Hockenberry, Leo Tolstoy, Pat Conroy] | 0.03
 2776            | The Devil and Other Stories (Oxford World's Classics) | Leo Tolstoy                                 | 0.02
 ;
+
+reranker score is not merged with a copy of the search score
+required_capability: rerank
+required_capability: match_operator_colon
+required_capability: routing_function_update
+required_capability: fix_deduplicate_aggs_over_aggregate_outputs
+
+FROM books METADATA _score
+| WHERE title:"war and peace" AND author:"Tolstoy"
+| EVAL bm25 = _score
+| RERANK "war and peace" ON title WITH { "inference_id" : "test_reranker" }
+| STATS b = MAX(bm25), r = MAX(_score)
+| EVAL b = ROUND(b, 2), r = ROUND(r, 2)
+;
+
+b:double | r:double
+11.74    | 0.08
+;

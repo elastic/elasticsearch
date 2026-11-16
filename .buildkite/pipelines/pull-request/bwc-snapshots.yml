@@ -1,5 +1,8 @@
 config:
   trigger-phrase: '.*run\W+elasticsearch-ci/bwc.*'
+  # Runs in the merge queue (see .buildkite/scripts/merge-queue/pipeline.ts). On a pull request it only runs with the
+  # test-merge-queue label or its "run elasticsearch-ci/<name>" comment.
+  allow-labels: test-merge-queue
   skip-target-branches:
     - "patch/serverless-fix"
   skip-labels:

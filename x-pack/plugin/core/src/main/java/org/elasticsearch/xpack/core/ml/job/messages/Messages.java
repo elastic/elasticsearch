@@ -106,6 +106,8 @@ public final class Messages {
             + "request order.";
     public static final String DATAFEED_ESQL_OUTER_LIMIT_WARNING =
         "{0} query contains an outer LIMIT clause; remove it because ML owns the safety ceiling.";
+    public static final String DATAFEED_ESQL_OUTER_LIMIT_DELAYED_DATA_WARNING =
+        "The delayed data check applies the LIMIT to the whole check window. It can miss delayed data or report data that is not delayed.";
     public static final String DATAFEED_ESQL_QUERY_CANCELLED = "ES|QL query was cancelled";
     public static final String DATAFEED_ESQL_RESPONSE_MISSING_COLUMN = "ESQL query response is missing the required columns: {0}";
     public static final String DATAFEED_ESQL_PREVIEW_UPGRADE_IN_PROGRESS =

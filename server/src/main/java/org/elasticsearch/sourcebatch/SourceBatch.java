@@ -12,6 +12,7 @@ package org.elasticsearch.sourcebatch;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.plugins.internal.MeteringModel;
 
 /**
  * An immutable, format-agnostic batch of source documents carrying a shared {@link SourceSchema}.
@@ -56,6 +57,15 @@ public interface SourceBatch extends Releasable, Accountable {
             sizes[d] = row(d).sizeInBytes();
         }
         return sizes;
+    }
+
+    /**
+     * Returns the size metered for every row under {@code model}, indexed by row: the model's charge for each value of the row,
+     * leaving out the values below an excluded root field. Only a column-major batch meters its rows, in one
+     * sweep over each column; there is no row-by-row form, so the default throws.
+     */
+    default long[] meteredRowSizes(MeteringModel model) {
+        throw new UnsupportedOperationException("metering is only supported for columnar batches");
     }
 
     /**

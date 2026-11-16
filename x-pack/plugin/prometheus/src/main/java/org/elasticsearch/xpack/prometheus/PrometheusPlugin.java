@@ -19,6 +19,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestHandler;
@@ -80,6 +81,7 @@ public class PrometheusPlugin extends Plugin implements ActionPlugin {
     private final SetOnce<PrometheusIndexTemplateRegistry> indexTemplateRegistry = new SetOnce<>();
     private final SetOnce<IndexingPressure> indexingPressure = new SetOnce<>();
     private final SetOnce<Recycler<BytesRef>> recycler = new SetOnce<>();
+    private final SetOnce<CircuitBreakerService> circuitBreakerService = new SetOnce<>();
     private final boolean enabled;
     private volatile TimeValue queryTimeout;
     private final long maxProtobufContentLengthBytes;
@@ -95,6 +97,7 @@ public class PrometheusPlugin extends Plugin implements ActionPlugin {
         ClusterService clusterService = services.clusterService();
         indexingPressure.set(services.indexingPressure());
         recycler.set(services.bigArrays().bytesRefRecycler());
+        circuitBreakerService.set(services.bigArrays().breakerService());
         queryTimeout = PROMETHEUS_QUERY_TIMEOUT.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(PROMETHEUS_QUERY_TIMEOUT, value -> queryTimeout = value);
         indexTemplateRegistry.set(
@@ -148,7 +151,7 @@ public class PrometheusPlugin extends Plugin implements ActionPlugin {
                 )
             );
             if (QUERY_EXEMPLARS_FEATURE_FLAG.isEnabled()) {
-                handlers.add(new PrometheusQueryExemplarsRestAction(() -> queryTimeout));
+                handlers.add(new PrometheusQueryExemplarsRestAction(() -> queryTimeout, circuitBreakerService.get()));
             }
             return handlers;
         }

@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
@@ -94,8 +93,6 @@ public final class Fork extends MergePlan implements TelemetryAware {
         }
         Fork fork = (Fork) plan;
 
-        checkForUnseparatedFork(fork, false, failures);
-
         Map<String, Attribute> mergedOutput = fork.output().stream().collect(Collectors.toMap(Attribute::name, attr -> attr));
 
         fork.children().forEach(subPlan -> {
@@ -158,35 +155,6 @@ public final class Fork extends MergePlan implements TelemetryAware {
                     limitSource
                 )
             );
-        }
-    }
-
-    /**
-     * Rejects two user-written FORKs on the same uninterrupted pipeline path. A {@link UnionAll} is a real merge boundary, whether it
-     * came from user subqueries, a view, an external dataset, or federation, so each of its branches starts a new FORK segment. The right
-     * side of an {@link AbstractSubqueryJoin} is an independently executed query scope and is verified by its own FORK node.
-     */
-    private static void checkForUnseparatedFork(LogicalPlan plan, boolean forkSeen, Failures failures) {
-        if (plan instanceof UnionAll unionAll) {
-            for (LogicalPlan child : unionAll.children()) {
-                checkForUnseparatedFork(child, false, failures);
-            }
-            return;
-        }
-        if (plan instanceof AbstractSubqueryJoin join) {
-            checkForUnseparatedFork(join.left(), forkSeen, failures);
-            return;
-        }
-        boolean seen = forkSeen;
-        if (plan.getClass() == Fork.class) {
-            if (forkSeen) {
-                failures.add(Failure.fail(plan, MULTIPLE_FORKS_ERROR));
-                return;
-            }
-            seen = true;
-        }
-        for (LogicalPlan child : plan.children()) {
-            checkForUnseparatedFork(child, seen, failures);
         }
     }
 

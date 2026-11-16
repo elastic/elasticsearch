@@ -264,7 +264,7 @@ final class PrefetchedRowGroupBuilder {
             pages.add(new PrefetchedPageReader.CompressedPage(decoded, pageStartRow));
             valueCount += decoded.getValueCount();
         }
-        return new PrefetchedPageReader(decompressor, breaker, pages, dictPage, valueCount, decodeBudget);
+        return new PrefetchedPageReader(decompressor, breaker, pages, dictPage, valueCount, decodeBudget, column.getCodec());
     }
 
     /**
@@ -317,7 +317,7 @@ final class PrefetchedRowGroupBuilder {
                     valueCount += page.getValueCount();
                 }
             }
-            return new PrefetchedPageReader(decompressor, breaker, pages, dictPage, valueCount, decodeBudget);
+            return new PrefetchedPageReader(decompressor, breaker, pages, dictPage, valueCount, decodeBudget, column.getCodec());
         } catch (IOException e) {
             throw ParquetReadFailures.wrap(
                 e,

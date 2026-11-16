@@ -37,7 +37,7 @@ public class EsqlStreamQueryAction extends ActionType<ActionResponse.Empty> {
 
     /**
      * Out-of-band handle delivered to the REST layer once analysis is complete and compute is about
-     * to start. Carries the id of a stored result, the schema, null-column mask, and time zone needed to
+     * to start. Carries the id of the result when it is stored, the schema, null-column mask, and time zone needed to
      * render the first NDJSON line (the header), plus the {@link PageStreamPublisher} that carries every
      * subsequent page and the terminal footer. The publisher's lifetime spans the entire query, so
      * this record is a handle to the full result stream, not merely a start-moment signal. All

@@ -27,11 +27,10 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 
 /**
- * System index holding stored ES|QL results, one document per page with the serialized page in binary doc values. Page
- * {@code 0} of a result holds its metadata. The documents of a result are routed by its id and the index is sorted by result
- * and page, so a result sits on one shard, in order. Fields are single-valued doc values only, so that a bulk of pages is
- * indexed as one columnar batch. The index is never refreshed on a schedule: writers refresh it once their pages must be
- * visible.
+ * System index holding stored ES|QL results: one document per page, with the serialized page in binary doc values, and the
+ * result's metadata as page {@code 0}. A result is routed by its id and the index is sorted by result and page, so it sits on
+ * one shard, in order. Fields are single-valued doc values only, so that a bulk of pages is indexed as one columnar batch. The
+ * index is never refreshed on a schedule.
  */
 public final class AsyncResultPagesIndex {
 

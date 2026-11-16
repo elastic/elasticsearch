@@ -64,7 +64,7 @@ public class EsqlStreamQueryRequest extends EsqlQueryRequest {
     }
 
     /**
-     * Whether the result is stored so that it can be read again by id, from any row, while the query runs and after.
+     * Whether the result is stored, so that it can be read again by its id.
      */
     public boolean store() {
         return store;

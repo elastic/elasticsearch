@@ -593,3 +593,8 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testClosingNodeShouldWaitForOngoingMerge
   issue: https://github.com/elastic/elasticsearch/issues/165534
+- class: org.elasticsearch.index.mapper.ObjectMapperTests
+  tasks:
+    - :server:test
+  method: testStrictColumnarModesRejectEnabledFalseInsidePlainObject
+  issue: https://github.com/elastic/elasticsearch/issues/162523

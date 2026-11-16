@@ -1051,6 +1051,36 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         }
     }
 
+    public void testStrictColumnarModesRejectEnabledFalseInsidePlainObject() {
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            // Columnar's per-prefix flattening facets (enabled:false, heterogeneous dynamic) are captured on the root
+            // object only. Inside a nested scope that capture would be lost, so they are rejected rather than silently
+            // mishandled - the single nested level stays plain (flat leaves, no per-prefix facets), which is simpler to
+            // reason about. enabled:false is accepted at the root (see testStrictColumnarModesAllowEnabledFalse).
+            MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(settings, mapping(b -> {
+                b.startObject("comments");
+                {
+                    b.field("type", "object");
+                    b.startObject("properties");
+                    {
+                        b.startObject("meta");
+                        {
+                            b.field("enabled", false);
+                            b.startObject("properties");
+                            b.startObject("host").field("type", "keyword").endObject();
+                            b.endObject();
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            })));
+            assertThat(e.getMessage(), containsString("the value of [enabled] is [false]"));
+        }
+    }
+
     public void testStrictColumnarModesRejectMismatchedDynamicInsideNested() {
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();

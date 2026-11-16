@@ -555,19 +555,33 @@ public class IndexResolver {
          * it is the {@code keyword} key of that name. Empty unless every node reads keys.
          */
         Set<String> keyNames() {
+            Set<String> keys = new HashSet<>();
+            for (String name : keyCandidates()) {
+                if (isLeaf(name) == false) {
+                    keys.add(name);
+                }
+            }
+            return keys;
+        }
+
+        /**
+         * The names the query uses that an index may hold as a key of a {@code flattened} field, even where another index maps them
+         * as a leaf and gives the column its type. Empty unless every node reads keys.
+         */
+        Set<String> keyCandidates() {
             if (namedFields == null || flattenedDataTypeEnabled == false || minTransportVersion == null) {
                 return Set.of();
             }
             if (minTransportVersion.supports(Configuration.ESQL_FLATTENED_KEYS) == false) {
                 return Set.of();
             }
-            Set<String> keys = new HashSet<>();
+            Set<String> candidates = new HashSet<>();
             for (String name : namedFields.names()) {
-                if (name.indexOf('.') > 0 && isLeaf(name) == false) {
-                    keys.add(name);
+                if (name.indexOf('.') > 0) {
+                    candidates.add(name);
                 }
             }
-            return keys;
+            return candidates;
         }
 
         /**
@@ -611,6 +625,7 @@ public class IndexResolver {
             fieldsInfo.caps,
             trackUnmappedFieldIndices,
             fieldsInfo.objectsAreNotLeaves(),
+            fieldsInfo.keyCandidates(),
             fieldsInfo.keyNames(),
             fieldsInfo.flattenedLeaves()
         );
@@ -721,13 +736,15 @@ public class IndexResolver {
 
     /**
      * @param objectsAreNotLeaves whether an object neither maps its name nor gives a column its type
-     * @param keyNames the names that an index maps as the keys of a {@code flattened} field they are under
+     * @param keyCandidates the names an index may hold as keys of a {@code flattened} field they are under
+     * @param keyNames the candidates no index maps as a leaf, which take the type of the keys
      * @param flattenedLeaves whether a field under a nested object is a column; otherwise it is left out
      */
     private static CollectedFieldCaps collectFieldCaps(
         FieldCapabilitiesResponse fieldCapsResponse,
         boolean trackUnmappedFieldIndices,
         boolean objectsAreNotLeaves,
+        Set<String> keyCandidates,
         Set<String> keyNames,
         boolean flattenedLeaves
     ) {
@@ -767,7 +784,7 @@ public class IndexResolver {
                     fieldToMappedIndices.computeIfAbsent(fc.name(), k -> new HashSet<>()).add(indexName);
                 }
             }
-            for (String name : keyNames) {
+            for (String name : keyCandidates) {
                 IndexFieldCapabilities root = flattenedRoot(response.get(), name);
                 if (root == null) {
                     continue;
@@ -777,7 +794,11 @@ public class IndexResolver {
                     continue;
                 }
                 if (underNested) {
+                    // Where another index maps the name and gives the column its type, this one still reads it from the children
                     underNestedNames.add(name);
+                }
+                if (keyNames.contains(name) == false) {
+                    continue;
                 }
                 IndexFieldCapabilities fc = key(name, root);
                 if (isNew) {
@@ -884,6 +905,8 @@ public class IndexResolver {
                 isStaticallySingleValued &= fc.isStaticallySingleValued();
             }
         }
+        // Where an index holds the name under a nested object, even as a key, a parent holds the values of all of its objects
+        isStaticallySingleValued &= underNested == false;
 
         // TODO I think we only care about unmapped fields if we're aggregating on them. do we even then?
 

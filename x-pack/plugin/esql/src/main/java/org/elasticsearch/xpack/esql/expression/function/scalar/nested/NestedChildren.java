@@ -69,13 +69,16 @@ public final class NestedChildren implements Releasable {
      * values reads the child's object from the parent's {@code _source}, as a top-level field reads its document's. A shard
      * that does not map {@code path} as nested gives its parents no children, and one that does not map a field gives nulls
      * for it. Each shard is only looked at once a page of its parents is read: a driver may get the factory after the
-     * shards of other drivers are released. The children load with the same {@code settings} as their parents.
+     * shards of other drivers are released. The children load with the same {@code settings} as their parents. A shard that
+     * holds a field as a key of a {@code flattened} field converts its keyword values to the field's type with the field's
+     * {@code keyCasts} entry, and gives nulls without one.
      */
     public static Factory factory(
         IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> shardContexts,
         String path,
         List<String> paths,
         List<DataType> types,
+        List<ValuesSourceReaderOperator.ConverterFactory> keyCasts,
         PlannerSettings settings
     ) {
         List<String> fields = paths.stream().map(p -> path + "." + p).toList();
@@ -98,6 +101,7 @@ public final class NestedChildren implements Releasable {
         for (int f = 0; f < fields.size(); f++) {
             String name = fields.get(f);
             DataType type = types.get(f);
+            ValuesSourceReaderOperator.ConverterFactory keyCast = keyCasts.get(f);
             infos.add(new ValuesSourceReaderOperator.FieldInfo(name, PlannerUtils.toElementType(type), false, (driverContext, shard) -> {
                 var context = (EsPhysicalOperationProviders.DefaultShardContext) shardContexts.get(shard);
                 BlockLoader loader = context.nestedChildBlockLoader(
@@ -120,6 +124,12 @@ public final class NestedChildren implements Releasable {
                         )
                     );
                     loader = ConstantNull.INSTANCE;
+                }
+                if (DataType.isString(type) == false && context.readsKey(name)) {
+                    // A key is a keyword: a column of the type another index maps reads it through a cast, as a parent does
+                    return keyCast == null
+                        ? ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS
+                        : ValuesSourceReaderOperator.loadAndConvert(loader, keyCast);
                 }
                 return ValuesSourceReaderOperator.load(loader);
             }));

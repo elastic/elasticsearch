@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
+import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
@@ -48,9 +49,21 @@ import java.util.stream.Collectors;
 public final class NestedFlattenOperator extends AbstractPageMappingOperator {
     /**
      * A field that may be under a nested object on some shard, in block {@code channel}. {@code converted} is a field
-     * converted as it is loaded, as a cast across a type conflict is, which the child values are not.
+     * converted as it is loaded, as a cast across a type conflict is, which the child values are not. {@code keyCast} converts
+     * the keyword values of a shard that holds {@code name} as a key of a {@code flattened} field to {@code type}, which another
+     * index maps; without it such a shard's values are null.
      */
-    public record Leaf(String name, int channel, DataType type, boolean converted) {
+    public record Leaf(
+        String name,
+        int channel,
+        DataType type,
+        boolean converted,
+        @Nullable ValuesSourceReaderOperator.ConverterFactory keyCast
+    ) {
+        public Leaf(String name, int channel, DataType type, boolean converted) {
+            this(name, channel, type, converted, null);
+        }
+
         /** Whether the child values can be read; otherwise the field is null on the shards that nest it. */
         boolean readable() {
             return converted == false && canFlatten(PlannerUtils.toElementType(type));
@@ -198,12 +211,14 @@ public final class NestedFlattenOperator extends AbstractPageMappingOperator {
         if (reader == null) {
             List<String> paths = new ArrayList<>(group.leaves().size());
             List<DataType> types = new ArrayList<>(group.leaves().size());
+            List<ValuesSourceReaderOperator.ConverterFactory> keyCasts = new ArrayList<>(group.leaves().size());
             for (int l : group.leaves()) {
                 Leaf leaf = factory.leaves().get(l);
                 paths.add(leaf.name().substring(group.path().length() + 1));
                 types.add(leaf.type());
+                keyCasts.add(leaf.keyCast());
             }
-            reader = NestedChildren.factory(factory.shards(), group.path(), paths, types, factory.settings()).get(context);
+            reader = NestedChildren.factory(factory.shards(), group.path(), paths, types, keyCasts, factory.settings()).get(context);
             readers.put(group, reader);
         }
         return reader;

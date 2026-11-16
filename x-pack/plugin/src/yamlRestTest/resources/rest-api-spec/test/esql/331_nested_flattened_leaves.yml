@@ -1503,6 +1503,85 @@ a geo_point under a nested object agrees with the same field under a plain objec
 - match: { values: [[2.0, 2.0, 2]] }
 
 ---
+a key of a flattened field under a nested object is cast to the type another index maps:
+# Each index reads its own mapping: the flattened key of mk_nested is read from the children and cast to the long that mk_long
+# maps, as the key of mk_object under a plain object is.
+- requires:
+    test_runner_features: [capabilities]
+    capabilities:
+    - method: POST
+      path: /_query
+      parameters: []
+      capabilities: [flattened_keys]
+    reason: "A name under a flattened field is its keyword key"
+- do:
+    indices.create:
+      index: mk_nested
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          properties:
+            items:
+              type: nested
+              properties:
+                attrs:
+                  type: flattened
+- do:
+    indices.create:
+      index: mk_object
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          properties:
+            items:
+              properties:
+                attrs:
+                  type: flattened
+- do:
+    indices.create:
+      index: mk_long
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          properties:
+            items:
+              properties:
+                attrs:
+                  properties:
+                    env:
+                      type: long
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: mk_nested
+      - items:
+        - { attrs: { env: "5" } }
+        - { attrs: { env: "7" } }
+      - index:
+          _index: mk_object
+      - items: { attrs: { env: "6" } }
+      - index:
+          _index: mk_long
+      - items: { attrs: { env: 9 } }
+- do:
+    esql.query:
+      body:
+        query: FROM mk_* METADATA _index | EVAL env = MV_SORT(items.attrs.env) | KEEP _index, env | SORT _index | LIMIT 10
+- match:
+    values:
+    - [mk_long, 9]
+    - [mk_nested, [5, 7]]
+    - [mk_object, 6]
+
+---
 an alias under a nested object reads its target:
 - do:
     indices.create:

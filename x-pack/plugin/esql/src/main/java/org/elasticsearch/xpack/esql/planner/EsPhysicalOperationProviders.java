@@ -344,7 +344,13 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                     continue;
                 }
             }
-            leaves.add(new NestedFlattenOperator.Leaf(name, extracted.get(attr.id()).channel(), attr.dataType(), converted));
+            ValuesSourceReaderOperator.ConverterFactory keyCast = null;
+            if (converted == false && DataType.isString(attr.dataType()) == false) {
+                ReferenceAttribute keyword = new ReferenceAttribute(attr.source(), name, DataType.KEYWORD);
+                AbstractConvertFunction cast = EsqlDataTypeConverter.castFromKeyword(attr.dataType(), keyword, configuration);
+                keyCast = cast == null ? null : new TypeConverter((EsqlScalarFunction) cast);
+            }
+            leaves.add(new NestedFlattenOperator.Leaf(name, extracted.get(attr.id()).channel(), attr.dataType(), converted, keyCast));
         }
         return leaves;
     }
@@ -950,7 +956,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
 
         /** Whether this shard reads the field {@code name} as the key of a {@code flattened} field, a {@code keyword}. */
-        boolean readsKey(String name) {
+        public boolean readsKey(String name) {
             return ctx instanceof EsqlSearchExecutionContext esql && esql.readsKey(name);
         }
 

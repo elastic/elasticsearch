@@ -1126,6 +1126,19 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                 return decodeFlat(bucket, info, store, rgRowCount, blockFactory);
             }
             return decodeList(bucket, info, columnName, store, projectedSchema, rgRowCount, createdBy, blockFactory);
+        } catch (Exception e) {
+            throw ParquetReadFailures.wrap(
+                e,
+                "Failed to read Parquet column ["
+                    + columnName
+                    + "] (type "
+                    + info.esqlType()
+                    + ") at row group ["
+                    + (bucket.rowGroupIndex + 1)
+                    + "] in file ["
+                    + messageLocation
+                    + "]"
+            );
         }
     }
 

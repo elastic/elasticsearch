@@ -1,0 +1,48 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: org.elasticsearch.gradle.internal.precommit.CheckstylePrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenApisPrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenPatternsPrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.FilePermissionsPrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.LoggerUsagePrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.TestingConventionsPrecommitPlugin
+
+configurations.all {
+  resolutionStrategy.force "io.airlift:aircompressor:${versions.aircompressor}"
+}
+
+dependencies {
+  // the S3 fixture, and the helpers of the ES|QL tests that put the fixture and its credentials in a cluster
+  javaRestTestImplementation project(xpackModule('esql:qa:testFixtures'))
+  javaRestTestImplementation project(xpackModule('esql:qa:server'))
+  javaRestTestImplementation project(xpackModule('esql'))
+  javaRestTestImplementation(project(path: xpackModule('esql'), configuration: 'testRuntimeElements'))
+  javaRestTestImplementation project(':test:fixtures:s3-fixture')
+  javaRestTestImplementation project(':test:fixtures:aws-fixture-utils')
+
+  // The node of the test: the S3 repository that the engine writes through, the engine, and the ES|QL data sources that read the table.
+  // The plugins that the engine extends (the Parquet reader and the Iceberg plugin) are added by the build.
+  clusterModules project(':modules:repository-s3')
+  clusterPlugins project(xpackModule('parquet-write-engine'))
+  clusterPlugins project(xpackModule('esql-datasource-iceberg'))
+  clusterPlugins project(xpackModule('esql-datasource-s3'))
+}
+
+tasks.named('javaRestTestTestingConventions').configure {
+  baseClass 'org.elasticsearch.test.rest.ESRestTestCase'
+  suffix 'IT'
+}
+
+tasks.named('javaRestTest') {
+  usesDefaultDistribution("the engine needs the ES|QL plugin and the S3 module of the default distribution")
+  maxParallelForks = 1
+  enabled = buildParams.snapshotBuild
+  systemProperty 'tests.rest.client_timeout', '60'
+  systemProperty 'tests.rest.socket_timeout', '60'
+}

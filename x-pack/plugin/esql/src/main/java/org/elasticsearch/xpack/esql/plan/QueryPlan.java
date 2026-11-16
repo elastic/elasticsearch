@@ -25,10 +25,10 @@ import java.util.function.Predicate;
  */
 public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends Node<PlanType> {
 
-    private AttributeSet lazyOutputSet;
-    private AttributeSet lazyInputSet;
-    private List<Expression> lazyExpressions;
-    private AttributeSet lazyReferences;
+    private volatile AttributeSet lazyOutputSet;
+    private volatile AttributeSet lazyInputSet;
+    private volatile List<Expression> lazyExpressions;
+    private volatile AttributeSet lazyReferences;
 
     public QueryPlan(Source source, List<PlanType> children) {
         super(source, children);

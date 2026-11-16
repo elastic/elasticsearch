@@ -51,7 +51,7 @@ public class ClampMax extends EsqlScalarFunction implements AnyNullIsNull {
         .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .name("clamp_max");
 
-    private DataType resolvedType;
+    private volatile DataType resolvedType;
 
     @FunctionInfo(
         returnType = { "double", "integer", "long", "unsigned_long", "double", "keyword", "ip", "boolean", "date", "version" },

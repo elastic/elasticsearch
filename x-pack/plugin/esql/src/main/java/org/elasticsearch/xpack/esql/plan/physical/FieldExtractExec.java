@@ -69,7 +69,7 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
      */
     protected final Set<Attribute> centroidAttributes;
 
-    private List<Attribute> lazyOutput;
+    private volatile List<Attribute> lazyOutput;
 
     public FieldExtractExec(
         Source source,

@@ -108,7 +108,7 @@ public class TopSnippets extends EsqlScalarFunction
     private static final int MAX_PASSAGES_PER_CHUNK = 1;
 
     private final Expression field, query, options;
-    private TopSnippetsOptions topSnippetsOptions;
+    private volatile TopSnippetsOptions topSnippetsOptions;
 
     private static final String NUM_SNIPPETS = "num_snippets";
     private static final String NUM_WORDS = "num_words";

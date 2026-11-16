@@ -61,7 +61,7 @@ public class CopySign extends EsqlScalarFunction implements AnyNullIsNull {
         Map.entry(DataType.INTEGER, CopySignIntegerEvaluator.Factory::new)
     );
 
-    private DataType dataType;
+    private volatile DataType dataType;
 
     @FunctionInfo(
         briefSummary = "Combines the magnitude of one number with the sign of another.",

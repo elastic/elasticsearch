@@ -52,7 +52,7 @@ public class ClampMin extends EsqlScalarFunction implements AnyNullIsNull {
         .stdDivergence("A `min` that isn't a number literal, such as `clamp_min(a, scalar(b))`, isn't supported yet.")
         .name("clamp_min");
 
-    private DataType resolvedType;
+    private volatile DataType resolvedType;
 
     @FunctionInfo(
         returnType = { "double", "integer", "long", "double", "unsigned_long", "keyword", "ip", "boolean", "date", "version" },

@@ -75,10 +75,10 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
         }
     }
 
-    private TypeResolution lazyTypeResolution = null;
-    private Boolean lazyChildrenResolved = null;
-    private Expression lazyCanonical = null;
-    private AttributeSet lazyReferences = null;
+    private volatile TypeResolution lazyTypeResolution = null;
+    private volatile Boolean lazyChildrenResolved = null;
+    private volatile Expression lazyCanonical = null;
+    private volatile AttributeSet lazyReferences = null;
 
     public Expression(Source source, List<Expression> children) {
         super(source, children);

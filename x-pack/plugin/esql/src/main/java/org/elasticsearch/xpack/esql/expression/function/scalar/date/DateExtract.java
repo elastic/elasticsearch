@@ -65,7 +65,7 @@ public class DateExtract extends EsqlConfigurationFunction implements AnyNullIsN
      */
     private static final Set<ChronoField> MONOTONIC_CHRONOS = Set.of(ChronoField.YEAR, ChronoField.PROLEPTIC_MONTH, ChronoField.EPOCH_DAY);
 
-    private ChronoField chronoField;
+    private volatile ChronoField chronoField;
 
     @FunctionInfo(
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },

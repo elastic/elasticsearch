@@ -18,7 +18,7 @@ import java.util.Objects;
 public abstract class UnaryExec extends PhysicalPlan {
 
     private final PhysicalPlan child;
-    private AttributeSet lazyOutputSet;
+    private volatile AttributeSet lazyOutputSet;
 
     protected UnaryExec(Source source, PhysicalPlan child) {
         super(source, Collections.singletonList(child));

@@ -45,7 +45,7 @@ public class Clamp extends EsqlScalarFunction implements OnlySurrogateExpression
     private final Expression field;
     private final Expression min;
     private final Expression max;
-    private DataType resolvedType;
+    private volatile DataType resolvedType;
 
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Clamp.class).ternary(Clamp::new).name("clamp");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()

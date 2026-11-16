@@ -95,7 +95,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
     private final String valueColumnName;
     private final NameId valueId;
     private final NameId stepId;
-    private List<Attribute> output;
+    private volatile List<Attribute> output;
 
     // Range query constructor
     public PromqlCommand(

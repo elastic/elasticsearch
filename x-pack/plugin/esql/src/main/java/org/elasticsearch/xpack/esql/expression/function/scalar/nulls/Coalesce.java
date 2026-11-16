@@ -47,7 +47,7 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
         .capabilities("flattened")
         .name("coalesce");
 
-    private DataType dataType;
+    private volatile DataType dataType;
 
     @FunctionInfo(
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },

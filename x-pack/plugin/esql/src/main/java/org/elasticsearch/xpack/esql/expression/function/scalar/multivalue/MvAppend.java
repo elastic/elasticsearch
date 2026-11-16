@@ -58,7 +58,7 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper, Any
         .name("mv_append");
 
     private final Expression field1, field2;
-    private DataType dataType;
+    private volatile DataType dataType;
 
     @FunctionInfo(
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },

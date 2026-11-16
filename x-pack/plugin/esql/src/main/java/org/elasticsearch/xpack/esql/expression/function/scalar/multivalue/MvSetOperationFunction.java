@@ -33,7 +33,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  */
 public abstract class MvSetOperationFunction extends BinaryScalarFunction implements EvaluatorMapper {
 
-    protected DataType dataType;
+    protected volatile DataType dataType;
 
     protected MvSetOperationFunction(Source source, Expression left, Expression right) {
         super(source, left, right);

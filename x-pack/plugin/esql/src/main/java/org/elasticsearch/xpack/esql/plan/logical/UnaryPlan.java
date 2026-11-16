@@ -21,7 +21,7 @@ import java.util.Objects;
 public abstract class UnaryPlan extends LogicalPlan {
 
     private final LogicalPlan child;
-    private AttributeSet lazyOutputSet;
+    private volatile AttributeSet lazyOutputSet;
 
     protected UnaryPlan(Source source, LogicalPlan child) {
         super(source, Collections.singletonList(child));

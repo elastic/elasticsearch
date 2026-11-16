@@ -84,7 +84,7 @@ public final class Case extends EsqlScalarFunction {
 
     private final List<Condition> conditions;
     private final Expression elseValue;
-    private DataType dataType;
+    private volatile DataType dataType;
 
     @FunctionInfo(
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },

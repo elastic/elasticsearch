@@ -41,7 +41,7 @@ public abstract sealed class TypeConflictedField extends EsField permits Invalid
         return new Exact(false, "Field [" + getName() + "] is invalid, cannot access it");
     }
 
-    private String cachedErrorMessage;
+    private volatile String cachedErrorMessage;
 
     public String errorMessage() {
         if (cachedErrorMessage == null) {

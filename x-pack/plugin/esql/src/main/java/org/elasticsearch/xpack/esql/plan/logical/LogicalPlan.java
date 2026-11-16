@@ -29,9 +29,9 @@ public abstract class LogicalPlan extends QueryPlan<LogicalPlan> implements Reso
         OPTIMIZED;
     }
 
-    private Stage stage = Stage.PARSED;
-    private Boolean lazyChildrenResolved = null;
-    private Boolean lazyResolved = null;
+    private volatile Stage stage = Stage.PARSED;
+    private volatile Boolean lazyChildrenResolved = null;
+    private volatile Boolean lazyResolved = null;
 
     public LogicalPlan(Source source, List<LogicalPlan> children) {
         super(source, children);

@@ -85,7 +85,7 @@ public final class CompactInvalidMappedField extends TypeConflictedField {
         return samples;
     }
 
-    private Map<String, Set<String>> lazyTypesToIndices;
+    private volatile Map<String, Set<String>> lazyTypesToIndices;
 
     @Override
     public Map<String, Set<String>> getTypesToIndices() {

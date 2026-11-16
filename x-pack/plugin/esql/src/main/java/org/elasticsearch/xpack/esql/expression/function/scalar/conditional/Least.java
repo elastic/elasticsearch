@@ -47,7 +47,7 @@ public class Least extends EsqlScalarFunction implements OptionalArgument, AnyNu
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Least", Least::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Least.class).unaryVariadic(Least::new).name("least");
 
-    private DataType dataType;
+    private volatile DataType dataType;
 
     private static final Map<DataType, BiFunction<Source, ExpressionEvaluator.Factory[], ExpressionEvaluator.Factory>> EVALUATOR_MAP = Map
         .of(

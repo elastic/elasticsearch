@@ -39,7 +39,7 @@ public final class Alias extends NamedExpression {
      * Postpone attribute creation until it is actually created.
      * Being immutable, create only one instance.
      */
-    private Attribute lazyAttribute;
+    private volatile Attribute lazyAttribute;
 
     public Alias(Source source, String name, Expression child) {
         this(source, name, child, null);

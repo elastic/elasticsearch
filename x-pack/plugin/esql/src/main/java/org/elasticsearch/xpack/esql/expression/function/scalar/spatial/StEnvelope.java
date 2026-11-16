@@ -66,7 +66,7 @@ public class StEnvelope extends SpatialUnaryDocValuesFunction implements AnyNull
         SpatialCoordinateTypes.CARTESIAN,
         new CartesianPointVisitor()
     );
-    private DataType dataType;
+    private volatile DataType dataType;
 
     @FunctionInfo(
         returnType = { "geo_shape", "cartesian_shape" },

@@ -37,8 +37,8 @@ public class HashJoinExec extends BinaryExec implements EstimatesRowSize {
     private final List<Attribute> leftFields;
     private final List<Attribute> rightFields;
     private final List<Attribute> addedFields;
-    private List<Attribute> lazyOutput;
-    private AttributeSet lazyAddedFields;
+    private volatile List<Attribute> lazyOutput;
+    private volatile AttributeSet lazyAddedFields;
 
     public HashJoinExec(
         Source source,

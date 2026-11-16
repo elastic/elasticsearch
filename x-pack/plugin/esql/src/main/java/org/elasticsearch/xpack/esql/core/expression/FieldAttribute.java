@@ -83,7 +83,7 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
 
     private final String parentName;
     private final EsField field;
-    protected FieldName lazyFieldName;
+    protected volatile FieldName lazyFieldName;
 
     @Deprecated
     /**

@@ -41,7 +41,7 @@ public class LookupJoinExec extends BinaryExec implements EstimatesRowSize {
      */
     private final List<Attribute> addedFields;
     private final Expression joinOnConditions;
-    private List<Attribute> lazyOutput;
+    private volatile List<Attribute> lazyOutput;
 
     public LookupJoinExec(
         Source source,

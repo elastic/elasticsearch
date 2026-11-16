@@ -107,7 +107,7 @@ public abstract class EsqlArithmeticOperation extends ArithmeticOperation implem
     // path's per-row /-by-zero warning contract is preserved (Mod, Div).
     private final boolean excludeZeroRhs;
 
-    private DataType dataType;
+    private volatile DataType dataType;
 
     EsqlArithmeticOperation(
         Source source,

@@ -49,7 +49,7 @@ public class Greatest extends EsqlScalarFunction implements OptionalArgument, An
         .unaryVariadic(Greatest::new)
         .name("greatest");
 
-    private DataType dataType;
+    private volatile DataType dataType;
 
     private static final Map<DataType, BiFunction<Source, ExpressionEvaluator.Factory[], ExpressionEvaluator.Factory>> EVALUATOR_MAP = Map
         .of(

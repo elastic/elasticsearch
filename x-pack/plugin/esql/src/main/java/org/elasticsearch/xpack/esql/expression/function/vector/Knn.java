@@ -104,7 +104,7 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
     private final Integer implicitK;
     // Expressions to be used as prefilters in knn query
     private final List<Expression> filterExpressions;
-    private float[] cachedQuery;
+    private volatile float[] cachedQuery;
 
     public static final String MIN_CANDIDATES_OPTION = "min_candidates";
 

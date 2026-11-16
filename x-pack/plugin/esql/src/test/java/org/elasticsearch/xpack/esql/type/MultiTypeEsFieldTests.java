@@ -68,7 +68,7 @@ public class MultiTypeEsFieldTests extends AbstractEsFieldTypeTests<MultiTypeEsF
 
         EsField.TimeSeriesFieldType tsType = randomFrom(EsField.TimeSeriesFieldType.values());
 
-        return new MultiTypeEsField(name, toType, false, indexToConvertExpressions, tsType, potentiallyUnmappedExpression, randomBoolean());
+        return new MultiTypeEsField(name, toType, false, indexToConvertExpressions, tsType, potentiallyUnmappedExpression);
     }
 
     @Override
@@ -78,17 +78,15 @@ public class MultiTypeEsFieldTests extends AbstractEsFieldTypeTests<MultiTypeEsF
         Map<String, Expression> indexToConvertExpressions = instance.getIndexToConversionExpressions();
         EsField.TimeSeriesFieldType tsType = instance.getTimeSeriesFieldType();
         Expression potentiallyUnmappedExpression = instance.getPotentiallyUnmappedExpression();
-        boolean underNested = instance.isUnderNested();
-        switch (between(0, 5)) {
+        switch (between(0, 4)) {
             case 0 -> name = randomAlphaOfLength(name.length() + 1);
             case 1 -> dataType = randomValueOtherThan(dataType, () -> randomFrom(DataType.types()));
             case 2 -> indexToConvertExpressions = mutateConvertExpressions(name, dataType, indexToConvertExpressions);
             case 3 -> tsType = randomValueOtherThan(tsType, () -> randomFrom(EsField.TimeSeriesFieldType.values()));
             case 4 -> potentiallyUnmappedExpression = potentiallyUnmappedExpression != null ? null : createToString(name, dataType);
-            case 5 -> underNested = underNested == false;
             default -> throw new IllegalArgumentException();
         }
-        return new MultiTypeEsField(name, dataType, false, indexToConvertExpressions, tsType, potentiallyUnmappedExpression, underNested);
+        return new MultiTypeEsField(name, dataType, false, indexToConvertExpressions, tsType, potentiallyUnmappedExpression);
     }
 
     @Override

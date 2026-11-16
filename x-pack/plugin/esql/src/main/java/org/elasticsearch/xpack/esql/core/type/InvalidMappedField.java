@@ -36,21 +36,12 @@ public final class InvalidMappedField extends TypeConflictedField {
     }
 
     public InvalidMappedField(String name, Map<String, Set<String>> typesToIndices, TimeSeriesFieldType timeSeriesFieldType) {
-        this(name, typesToIndices, timeSeriesFieldType, false);
-    }
-
-    public InvalidMappedField(
-        String name,
-        Map<String, Set<String>> typesToIndices,
-        TimeSeriesFieldType timeSeriesFieldType,
-        boolean isUnderNested
-    ) {
         // Use a mutable map: IndexResolver may add child fields into the properties of a conflicting parent field later.
-        this(name, new TreeMap<>(), typesToIndices, false, timeSeriesFieldType, isUnderNested);
+        this(name, new TreeMap<>(), typesToIndices, false, timeSeriesFieldType);
     }
 
     public InvalidMappedField(String name, Map<String, Set<String>> typesToIndices, Map<String, EsField> properties) {
-        this(name, properties, typesToIndices, false, TimeSeriesFieldType.UNKNOWN, false);
+        this(name, properties, typesToIndices, false, TimeSeriesFieldType.UNKNOWN);
     }
 
     /**
@@ -59,12 +50,8 @@ public final class InvalidMappedField extends TypeConflictedField {
      * unmapped fields as {@link DataType#KEYWORD}.
      */
     public static InvalidMappedField potentiallyUnmapped(String name, Map<String, Set<String>> typesToIndices) {
-        return potentiallyUnmapped(name, typesToIndices, false);
-    }
-
-    public static InvalidMappedField potentiallyUnmapped(String name, Map<String, Set<String>> typesToIndices, boolean isUnderNested) {
         // Use a mutable map: IndexResolver may add child fields into the properties of a conflicting parent field later.
-        return new InvalidMappedField(name, new TreeMap<>(), typesToIndices, true, TimeSeriesFieldType.UNKNOWN, isUnderNested);
+        return new InvalidMappedField(name, new TreeMap<>(), typesToIndices, true, TimeSeriesFieldType.UNKNOWN);
     }
 
     private InvalidMappedField(
@@ -72,10 +59,9 @@ public final class InvalidMappedField extends TypeConflictedField {
         Map<String, EsField> properties,
         Map<String, Set<String>> typesToIndices,
         boolean isPotentiallyUnmapped,
-        TimeSeriesFieldType type,
-        boolean isUnderNested
+        TimeSeriesFieldType type
     ) {
-        super(name, DataType.UNSUPPORTED, properties, false, type, isUnderNested);
+        super(name, DataType.UNSUPPORTED, properties, false, type);
         this.typesToIndices = typesToIndices;
         this.isPotentiallyUnmapped = isPotentiallyUnmapped;
     }

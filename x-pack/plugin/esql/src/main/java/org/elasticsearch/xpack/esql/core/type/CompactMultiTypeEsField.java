@@ -41,10 +41,9 @@ public final class CompactMultiTypeEsField extends UnionTypeEsField {
         boolean aggregatable,
         Map<DataType, Expression> typeToConversionExpressions,
         TimeSeriesFieldType timeSeriesFieldType,
-        @Nullable Expression unmappedConversionExpression,
-        boolean isUnderNested
+        @Nullable Expression unmappedConversionExpression
     ) {
-        super(name, dataType, Map.of(), aggregatable, timeSeriesFieldType, isUnderNested);
+        super(name, dataType, Map.of(), aggregatable, timeSeriesFieldType);
         this.typeToConversionExpressions = typeToConversionExpressions;
         this.unmappedConversionExpression = unmappedConversionExpression;
     }
@@ -56,8 +55,7 @@ public final class CompactMultiTypeEsField extends UnionTypeEsField {
             in.readBoolean(),
             in.readImmutableMap(DataType::readFrom, i -> i.readNamedWriteable(Expression.class)),
             readTimeSeriesFieldType(in),
-            in.readOptionalNamedWriteable(Expression.class),
-            readUnderNested(in)
+            in.readOptionalNamedWriteable(Expression.class)
         );
     }
 
@@ -69,7 +67,6 @@ public final class CompactMultiTypeEsField extends UnionTypeEsField {
         out.writeMap(typeToConversionExpressions, (o, k) -> k.writeTo(o), StreamOutput::writeNamedWriteable);
         writeTimeSeriesFieldType(out);
         out.writeOptionalNamedWriteable(unmappedConversionExpression);
-        writeUnderNested(out);
     }
 
     @Override
@@ -99,8 +96,7 @@ public final class CompactMultiTypeEsField extends UnionTypeEsField {
             isAggregatable(),
             UnionTypeEsField.replaceChildrenWithExpressionField(typeToConversionExpressions, convertExpression),
             getTimeSeriesFieldType(),
-            unmappedConversionExpression,
-            isUnderNested()
+            unmappedConversionExpression
         );
     }
 
@@ -112,8 +108,7 @@ public final class CompactMultiTypeEsField extends UnionTypeEsField {
             isAggregatable(),
             typeToConversionExpressions,
             getTimeSeriesFieldType(),
-            unmappedExpression,
-            isUnderNested()
+            unmappedExpression
         );
     }
 
@@ -145,8 +140,7 @@ public final class CompactMultiTypeEsField extends UnionTypeEsField {
             false,
             resolution.typeToExpr(),
             tcf.getTimeSeriesFieldType(),
-            unmappedConversionExpression,
-            tcf.isUnderNested()
+            unmappedConversionExpression
         );
     }
 

@@ -97,8 +97,8 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
             }
         }
         EsField esField = legacy
-            ? new MultiTypeEsField(name, targetType, true, byIndex, EsField.TimeSeriesFieldType.NONE, null, false)
-            : new CompactMultiTypeEsField(name, targetType, true, byType, EsField.TimeSeriesFieldType.NONE, null, false);
+            ? new MultiTypeEsField(name, targetType, true, byIndex, EsField.TimeSeriesFieldType.NONE, null)
+            : new CompactMultiTypeEsField(name, targetType, true, byType, EsField.TimeSeriesFieldType.NONE, null);
         return new FieldAttribute(Source.EMPTY, name, esField);
     }
 

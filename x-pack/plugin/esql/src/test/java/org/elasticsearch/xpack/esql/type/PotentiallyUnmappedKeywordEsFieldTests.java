@@ -29,21 +29,19 @@ import static org.hamcrest.Matchers.equalTo;
 public class PotentiallyUnmappedKeywordEsFieldTests extends AbstractEsFieldTypeTests<PotentiallyUnmappedKeywordEsField> {
     @Override
     protected PotentiallyUnmappedKeywordEsField createTestInstance() {
-        return new PotentiallyUnmappedKeywordEsField(randomAlphaOfLength(4), randomProperties(4), randomBoolean());
+        return new PotentiallyUnmappedKeywordEsField(randomAlphaOfLength(4), randomProperties(4));
     }
 
     @Override
     protected PotentiallyUnmappedKeywordEsField mutateInstance(PotentiallyUnmappedKeywordEsField instance) {
         String name = instance.getName();
         Map<String, EsField> properties = instance.getProperties();
-        boolean underNested = instance.isUnderNested();
-        switch (between(0, 2)) {
-            case 0 -> name = randomAlphaOfLength(name.length() + 1);
-            case 1 -> properties = randomValueOtherThan(properties, () -> randomProperties(4));
-            case 2 -> underNested = underNested == false;
-            default -> throw new IllegalArgumentException();
+        if (randomBoolean()) {
+            name = randomAlphaOfLength(name.length() + 1);
+        } else {
+            properties = randomValueOtherThan(properties, () -> randomProperties(4));
         }
-        return new PotentiallyUnmappedKeywordEsField(name, properties, underNested);
+        return new PotentiallyUnmappedKeywordEsField(name, properties);
     }
 
     /**

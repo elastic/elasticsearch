@@ -33,26 +33,21 @@ public class PotentiallyUnmappedKeywordEsField extends KeywordEsField implements
      */
     // Visible for testing
     public PotentiallyUnmappedKeywordEsField(String name, Map<String, EsField> properties) {
-        this(name, properties, false);
-    }
-
-    public PotentiallyUnmappedKeywordEsField(String name, Map<String, EsField> properties, boolean isUnderNested) {
-        super(name, properties, false, Short.MAX_VALUE, false, false, TimeSeriesFieldType.UNKNOWN, false, isUnderNested);
+        super(name, properties, false, Short.MAX_VALUE, false, false, TimeSeriesFieldType.UNKNOWN);
     }
 
     /**
-     * Reads the field from its name, properties and whether it is under a nested object, which are all that tell two such
-     * fields apart.
+     * Reads the field from its name and properties, which are all that tell two such fields apart.
      */
     public static PotentiallyUnmappedKeywordEsField readField(StreamInput in) throws IOException {
         KeywordEsField field = new KeywordEsField(in);
-        return new PotentiallyUnmappedKeywordEsField(field.getName(), new HashMap<>(field.getProperties()), field.isUnderNested());
+        return new PotentiallyUnmappedKeywordEsField(field.getName(), new HashMap<>(field.getProperties()));
     }
 
     @Override
     public EsField withProperties(Map<String, EsField> newProperties) {
         // Preserve the unmapped marker so data nodes still load this field from _source where it is unmapped.
-        return new PotentiallyUnmappedKeywordEsField(getName(), newProperties, isUnderNested());
+        return new PotentiallyUnmappedKeywordEsField(getName(), newProperties);
     }
 
     /**
@@ -65,7 +60,7 @@ public class PotentiallyUnmappedKeywordEsField extends KeywordEsField implements
         if (out.getTransportVersion().supports(ESQL_UNMAPPED_KEYWORD_LEAF_NAME)) {
             writeTo(out);
         } else {
-            new PotentiallyUnmappedKeywordEsField(fullName, getProperties(), isUnderNested()).writeTo(out);
+            new PotentiallyUnmappedKeywordEsField(fullName, getProperties()).writeTo(out);
         }
     }
 

@@ -36,31 +36,17 @@ public final class CompactInvalidMappedField extends TypeConflictedField {
         String name,
         Map<DataType, Set<String>> typesToIndices,
         Map<Set<String>, Set<String>> indexDedupCache,
-        TimeSeriesFieldType timeSeriesFieldType,
-        boolean isUnderNested
+        TimeSeriesFieldType timeSeriesFieldType
     ) {
-        return new CompactInvalidMappedField(
-            name,
-            truncatedAndDedup(typesToIndices, indexDedupCache),
-            false,
-            timeSeriesFieldType,
-            isUnderNested
-        );
+        return new CompactInvalidMappedField(name, truncatedAndDedup(typesToIndices, indexDedupCache), false, timeSeriesFieldType);
     }
 
     public static CompactInvalidMappedField potentiallyUnmapped(
         String name,
         Map<DataType, Set<String>> typesToIndices,
-        Map<Set<String>, Set<String>> indexDedupCache,
-        boolean isUnderNested
+        Map<Set<String>, Set<String>> indexDedupCache
     ) {
-        return new CompactInvalidMappedField(
-            name,
-            truncatedAndDedup(typesToIndices, indexDedupCache),
-            true,
-            TimeSeriesFieldType.UNKNOWN,
-            isUnderNested
-        );
+        return new CompactInvalidMappedField(name, truncatedAndDedup(typesToIndices, indexDedupCache), true, TimeSeriesFieldType.UNKNOWN);
     }
 
     private static Set<String> truncate(Set<String> indices) {
@@ -73,10 +59,9 @@ public final class CompactInvalidMappedField extends TypeConflictedField {
         String name,
         Map<DataType, TruncatedIndices> typesToIndices,
         boolean isPotentiallyUnmapped,
-        TimeSeriesFieldType timeSeriesFieldType,
-        boolean isUnderNested
+        TimeSeriesFieldType timeSeriesFieldType
     ) {
-        super(name, DataType.UNSUPPORTED, new TreeMap<>(), false, timeSeriesFieldType, isUnderNested);
+        super(name, DataType.UNSUPPORTED, new TreeMap<>(), false, timeSeriesFieldType);
         this.typesToIndices = typesToIndices;
         this.isPotentiallyUnmapped = isPotentiallyUnmapped;
     }

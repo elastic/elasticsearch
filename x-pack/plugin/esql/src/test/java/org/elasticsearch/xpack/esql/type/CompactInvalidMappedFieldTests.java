@@ -41,8 +41,7 @@ public class CompactInvalidMappedFieldTests extends ESTestCase {
             "f",
             input,
             new HashMap<>(),
-            EsField.TimeSeriesFieldType.UNKNOWN,
-            false
+            EsField.TimeSeriesFieldType.UNKNOWN
         );
 
         assertMap(
@@ -62,8 +61,7 @@ public class CompactInvalidMappedFieldTests extends ESTestCase {
             "f",
             input,
             new HashMap<>(),
-            EsField.TimeSeriesFieldType.UNKNOWN,
-            false
+            EsField.TimeSeriesFieldType.UNKNOWN
         );
 
         assertMap(
@@ -78,7 +76,7 @@ public class CompactInvalidMappedFieldTests extends ESTestCase {
             .collect(Collectors.toCollection(LinkedHashSet::new));
         Map<DataType, Set<String>> input = new TreeMap<>(Map.of(DataType.KEYWORD, manyIndices));
 
-        String message = CompactInvalidMappedField.mappedEverywhere("f", input, new HashMap<>(), EsField.TimeSeriesFieldType.UNKNOWN, false)
+        String message = CompactInvalidMappedField.mappedEverywhere("f", input, new HashMap<>(), EsField.TimeSeriesFieldType.UNKNOWN)
             .errorMessage();
 
         assertThat(message, containsString("[1] incompatible types"));
@@ -95,7 +93,7 @@ public class CompactInvalidMappedFieldTests extends ESTestCase {
         );
 
         assertThat(
-            CompactInvalidMappedField.mappedEverywhere("f", compactInput, new HashMap<>(), EsField.TimeSeriesFieldType.UNKNOWN, false)
+            CompactInvalidMappedField.mappedEverywhere("f", compactInput, new HashMap<>(), EsField.TimeSeriesFieldType.UNKNOWN)
                 .errorMessage(),
             equalTo(new InvalidMappedField("f", legacyInput).errorMessage())
         );
@@ -104,7 +102,7 @@ public class CompactInvalidMappedFieldTests extends ESTestCase {
     public void testPotentiallyUnmappedFlagAndMessageKeyword() {
         Map<DataType, Set<String>> input = new TreeMap<>(Map.of(DataType.LONG, new LinkedHashSet<>(Set.of("idx_a"))));
 
-        CompactInvalidMappedField field = CompactInvalidMappedField.potentiallyUnmapped("f", input, new HashMap<>(), false);
+        CompactInvalidMappedField field = CompactInvalidMappedField.potentiallyUnmapped("f", input, new HashMap<>());
 
         assertThat(field.isPotentiallyUnmapped(), equalTo(true));
         assertThat(field.errorMessage(), containsString("[keyword] due to loading from _source"));
@@ -122,7 +120,7 @@ public class CompactInvalidMappedFieldTests extends ESTestCase {
         );
 
         assertThat(
-            CompactInvalidMappedField.mappedEverywhere("f", input, new HashMap<>(), EsField.TimeSeriesFieldType.UNKNOWN, false).types(),
+            CompactInvalidMappedField.mappedEverywhere("f", input, new HashMap<>(), EsField.TimeSeriesFieldType.UNKNOWN).types(),
             containsInAnyOrder(DataType.KEYWORD, DataType.LONG)
         );
     }

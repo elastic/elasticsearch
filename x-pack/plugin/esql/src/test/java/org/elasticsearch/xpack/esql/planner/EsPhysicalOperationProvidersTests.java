@@ -68,8 +68,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
-import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedFlattenOperator;
-import org.elasticsearch.xpack.esql.index.NestedLeaves;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -88,9 +86,7 @@ import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -333,80 +329,6 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             blockLoader,
             equalTo(ConstantNull.INSTANCE)
         );
-    }
-
-    /**
-     * A shard reads a field from the child documents only if {@code IndexResolver} resolved it as under a nested object. It does
-     * not when a node can't read them, which loads null for the field, so a shard of a newer node that maps it under one must too.
-     */
-    public void testNestedLeavesFollowTheResolvedField() throws IOException {
-        assumeTrue("fields under a nested object are columns only in snapshot builds", NestedLeaves.ENABLED);
-        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
-            createMapperService(
-                mapping(
-                    b -> b.startObject("item")
-                        .field("type", "nested")
-                        .startObject("properties")
-                        .startObject("note")
-                        .field("type", "text")
-                        .endObject()
-                        .endObject()
-                        .endObject()
-                )
-            ),
-            null
-        );
-        EsPhysicalOperationProviders provider = new EsPhysicalOperationProviders(
-            FoldContext.small(),
-            TEST_CFG,
-            new IndexedByShardIdFromSingleton<>(
-                new EsPhysicalOperationProviders.DefaultShardContext(0, new NoOpReleasable(), searchExecutionContext, AliasFilter.EMPTY)
-            ),
-            null,
-            PlannerSettings.DEFAULTS,
-            () -> 0L,
-            QueryWarnings.EMIT
-        );
-        for (boolean knowsEveryShard : new boolean[] { true, false }) {
-            assertThat(nestedLeaves(provider, false, knowsEveryShard), empty());
-            assertThat(nestedLeaves(provider, true, knowsEveryShard), hasSize(1));
-        }
-    }
-
-    private static List<NestedFlattenOperator.Leaf> nestedLeaves(
-        EsPhysicalOperationProviders provider,
-        boolean underNested,
-        boolean knowsEveryShard
-    ) {
-        EsField note = new EsField(
-            "item.note",
-            DataType.TEXT,
-            Map.of(),
-            false,
-            false,
-            EsField.TimeSeriesFieldType.NONE,
-            false,
-            false,
-            underNested
-        );
-        FieldAttribute attr = new FieldAttribute(Source.EMPTY, "item.note", note);
-        EsQueryExec queryExec = new EsQueryExec(
-            Source.EMPTY,
-            "test",
-            IndexMode.STANDARD,
-            List.of(),
-            null,
-            null,
-            10,
-            List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
-        );
-        FieldExtractExec fieldExtractExec = new FieldExtractExec(
-            Source.EMPTY,
-            queryExec,
-            List.of(attr),
-            MappedFieldType.FieldExtractPreference.NONE
-        );
-        return provider.nestedLeaves(fieldExtractExec, new Layout.Builder().append(attr).build(), knowsEveryShard);
     }
 
     /**

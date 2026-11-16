@@ -93,7 +93,6 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedFlattenOperator;
 import org.elasticsearch.xpack.esql.index.NestedLeaves;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
@@ -626,9 +625,8 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     }
 
     /**
-     * The fields the lookup index maps under a nested object, which field extraction loads as nulls. Only those IndexResolver
-     * resolved as {@link EsField#isUnderNested}, as in {@link EsPhysicalOperationProviders}. {@code channel} gives the block of
-     * each of {@code extractFields}.
+     * The fields the lookup index maps under a nested object, which field extraction loads as nulls. {@code channel} gives
+     * the block of each of {@code extractFields}.
      */
     static List<NestedFlattenOperator.Leaf> nestedLeaves(
         EsPhysicalOperationProviders.ShardContext shardContext,
@@ -641,9 +639,6 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         List<NestedFlattenOperator.Leaf> leaves = new ArrayList<>();
         for (int i = 0; i < extractFields.size(); i++) {
             NamedExpression extractField = extractFields.get(i);
-            if (extractField instanceof FieldAttribute == false || ((FieldAttribute) extractField).field().isUnderNested() == false) {
-                continue;
-            }
             String fieldName = extractFieldName(extractField);
             if (extractField.dataType() != DataType.UNSUPPORTED && NestedFlattenOperator.nestedPath(shardContext, fieldName) != null) {
                 leaves.add(new NestedFlattenOperator.Leaf(fieldName, channel.applyAsInt(i), extractField.dataType(), false));

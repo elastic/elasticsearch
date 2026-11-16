@@ -866,7 +866,7 @@ public class IndexResolver {
             }
             for (IndexFieldCapabilities fc : rest) {
                 if (type != EsqlDataTypeRegistry.INSTANCE.fromEs(fc.type(), fc.metricType())) {
-                    return conflictingTypes(name, fullName, fieldsInfo, indexDedupCache, timeSeriesFieldType, underNested);
+                    return conflictingTypes(name, fullName, fieldsInfo, indexDedupCache, timeSeriesFieldType);
                 }
             }
             for (IndexFieldCapabilities fc : rest) {
@@ -1021,21 +1021,15 @@ public class IndexResolver {
             // OBJECT fields are containers for subfields, not leaf fields that get queried directly.
             // Wrapping them would break downstream code that doesn't expect OBJECT as a data type in InvalidMappedField.
             case OBJECT -> field;
-            // Mutable properties: IndexResolver may add the field's multi-fields that are also partially unmapped
-            case KEYWORD -> new PotentiallyUnmappedKeywordEsField(name, new HashMap<>(), field.isUnderNested());
+            case KEYWORD -> new PotentiallyUnmappedKeywordEsField(name);
             default -> {
                 if (field instanceof TypeConflictedField) {
                     yield useLegacyField
-                        ? InvalidMappedField.potentiallyUnmapped(
-                            name,
-                            partiallyUnmappedTypesByName(field, mappedIndices),
-                            field.isUnderNested()
-                        )
+                        ? InvalidMappedField.potentiallyUnmapped(name, partiallyUnmappedTypesByName(field, mappedIndices))
                         : CompactInvalidMappedField.potentiallyUnmapped(
                             name,
                             partiallyUnmappedTypesByDataType(field, mappedIndices),
-                            indexDedupCache,
-                            field.isUnderNested()
+                            indexDedupCache
                         );
                 }
                 // We only need to maintain mappedIndices for the legacy InvalidMappedType.
@@ -1068,8 +1062,7 @@ public class IndexResolver {
         FieldsInfo fieldsInfo,
         // If this isn't null, it also means we need to create CompactInvalidMappedField instead of InvalidMappedField.
         @Nullable Map<Set<String>, Set<String>> indexDedupCache,
-        EsField.TimeSeriesFieldType timeSeriesFieldType,
-        boolean underNested
+        EsField.TimeSeriesFieldType timeSeriesFieldType
     ) {
         Map<DataType, Set<String>> typesToIndices = new TreeMap<>();
         for (FieldCapabilitiesIndexResponse ir : fieldsInfo.caps().getIndexResponses()) {
@@ -1083,11 +1076,11 @@ public class IndexResolver {
             }
         }
         if (indexDedupCache != null) {
-            return CompactInvalidMappedField.mappedEverywhere(name, typesToIndices, indexDedupCache, timeSeriesFieldType, underNested);
+            return CompactInvalidMappedField.mappedEverywhere(name, typesToIndices, indexDedupCache, timeSeriesFieldType);
         }
         Map<String, Set<String>> stringKeyed = new TreeMap<>();
         typesToIndices.forEach((type, indices) -> stringKeyed.put(type.typeName(), indices));
-        return new InvalidMappedField(name, stringKeyed, timeSeriesFieldType, underNested);
+        return new InvalidMappedField(name, stringKeyed, timeSeriesFieldType);
     }
 
     /** The field of {@code fields} that {@code name} is under and that holds it as a key, if any. */

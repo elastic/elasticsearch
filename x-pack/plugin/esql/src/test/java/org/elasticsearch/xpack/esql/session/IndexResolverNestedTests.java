@@ -17,16 +17,12 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
-import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
-import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
 import org.elasticsearch.xpack.esql.index.NestedLeaves;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -69,32 +65,6 @@ public class IndexResolverNestedTests extends ESTestCase {
         );
         assertThat(mapping.get("process").getProperties().get("pid").isUnderNested(), equalTo(true));
         assertThat(mapping.get("process").getProperties().get("note").isUnderNested(), equalTo(true));
-    }
-
-    /**
-     * A field the indices map under a nested object with different types stays under it, as does what it becomes where some
-     * index doesn't map it, so that a data node reads its children once a cast resolves it.
-     */
-    public void testFieldUnderNestedObjectKeepsItAsATypeConflictOrPartiallyUnmapped() {
-        assumeTrue("snapshot builds read the fields under a nested object", NestedLeaves.ENABLED);
-        Map<String, EsField> mapping = resolve(
-            TransportVersion.current(),
-            nestedIndex(),
-            index(
-                "other",
-                new IndexFieldCapabilitiesBuilder("process", "nested").build(),
-                new IndexFieldCapabilitiesBuilder("process.pid", "keyword").build()
-            )
-        );
-        EsField pid = mapping.get("process").getProperties().get("pid");
-        assertThat(pid, instanceOf(TypeConflictedField.class));
-        assertThat(pid.isUnderNested(), equalTo(true));
-        assertThat(IndexResolver.wrapPartiallyUnmappedField(pid, "pid", "process.pid", Set.of("test")).isUnderNested(), equalTo(true));
-
-        EsField keyword = new KeywordEsField("note", Map.of(), false, 0, false, false, EsField.TimeSeriesFieldType.NONE, false, true);
-        EsField wrapped = IndexResolver.wrapPartiallyUnmappedField(keyword, "note", "process.note", Set.of("test"));
-        assertThat(wrapped, instanceOf(PotentiallyUnmappedKeywordEsField.class));
-        assertThat(wrapped.isUnderNested(), equalTo(true));
     }
 
     /**

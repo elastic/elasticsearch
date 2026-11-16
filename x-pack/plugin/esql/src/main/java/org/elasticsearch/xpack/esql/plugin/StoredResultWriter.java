@@ -33,7 +33,7 @@ import org.elasticsearch.escf.EscfRowBuffer;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.async.AsyncResultPagesIndex;
+import org.elasticsearch.xpack.core.esql.EsqlStreamResultsIndex;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
@@ -41,14 +41,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
-import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.EXPIRATION_TIME_FIELD;
-import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.FIRST_ROW_FIELD;
-import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.PAGE_FIELD;
-import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.PAGE_SEQ_FIELD;
-import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.ROW_COUNT_FIELD;
-import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.STREAM_ID_FIELD;
-import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.TRANSPORT_VERSION_FIELD;
+import static org.elasticsearch.xpack.core.ClientHelper.ESQL_ORIGIN;
+import static org.elasticsearch.xpack.core.esql.EsqlStreamResultsIndex.EXPIRATION_TIME_FIELD;
+import static org.elasticsearch.xpack.core.esql.EsqlStreamResultsIndex.FIRST_ROW_FIELD;
+import static org.elasticsearch.xpack.core.esql.EsqlStreamResultsIndex.PAGE_FIELD;
+import static org.elasticsearch.xpack.core.esql.EsqlStreamResultsIndex.PAGE_SEQ_FIELD;
+import static org.elasticsearch.xpack.core.esql.EsqlStreamResultsIndex.ROW_COUNT_FIELD;
+import static org.elasticsearch.xpack.core.esql.EsqlStreamResultsIndex.STREAM_ID_FIELD;
+import static org.elasticsearch.xpack.core.esql.EsqlStreamResultsIndex.TRANSPORT_VERSION_FIELD;
 
 /**
  * Stores the result of a streaming query while it is streamed. Each page is serialized into a columnar batch as it is handed to
@@ -110,7 +110,7 @@ final class StoredResultWriter implements PageStreamPublisher.PageObserver {
         long expirationTime,
         Runnable onCapacity
     ) {
-        this.client = new OriginSettingClient(client, ASYNC_SEARCH_ORIGIN);
+        this.client = new OriginSettingClient(client, ESQL_ORIGIN);
         this.clusterService = clusterService;
         this.recycler = recycler;
         this.docId = docId;
@@ -178,6 +178,7 @@ final class StoredResultWriter implements PageStreamPublisher.PageObserver {
     ) {
         return new StoredResultMetadata(
             running.headers(),
+            running.task(),
             running.columns(),
             running.zoneId(),
             status,
@@ -233,8 +234,8 @@ final class StoredResultWriter implements PageStreamPublisher.PageObserver {
             fail(e);
             return;
         }
-        String id = seq == 0 ? docId : AsyncResultPagesIndex.pageDocId(docId, seq);
-        chunk.requests.add(new IndexRequest(AsyncResultPagesIndex.INDEX).id(id).routing(docId).opType(opType));
+        String id = seq == 0 ? docId : EsqlStreamResultsIndex.pageDocId(docId, seq);
+        chunk.requests.add(new IndexRequest(EsqlStreamResultsIndex.INDEX).id(id).routing(docId).opType(opType));
         chunk.bytes += written[0];
         unackedBytes += written[0];
     }
@@ -264,7 +265,7 @@ final class StoredResultWriter implements PageStreamPublisher.PageObserver {
                 bulk.add(request);
             }
             // the bulk owns the batch from here on
-            bulk.setPreBuiltBatches(Map.of(AsyncResultPagesIndex.INDEX, batch));
+            bulk.setPreBuiltBatches(Map.of(EsqlStreamResultsIndex.INDEX, batch));
             batch = null;
         } catch (Exception e) {
             Releasables.close(batch);

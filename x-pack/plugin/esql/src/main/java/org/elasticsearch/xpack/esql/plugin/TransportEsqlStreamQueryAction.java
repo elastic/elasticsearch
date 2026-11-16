@@ -43,8 +43,7 @@ import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.async.AsyncExecutionId;
-import org.elasticsearch.xpack.core.async.AsyncResultPagesIndex;
+import org.elasticsearch.xpack.core.esql.EsqlStreamResultsIndex;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
@@ -220,7 +219,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
     protected void doExecute(Task task, EsqlStreamQueryRequest request, ActionListener<ActionResponse.Empty> listener) {
         if (request.store()) {
             String unavailable = null;
-            if (AsyncResultPagesIndex.FEATURE_FLAG.isEnabled() == false) {
+            if (EsqlStreamResultsIndex.FEATURE_FLAG.isEnabled() == false) {
                 unavailable = "storing a result is not available";
             } else if (ShardBatchIndexer.isBatchIndexingSupported(batchIndexingEnabled, clusterService) == false) {
                 // stored pages are indexed as columnar batches
@@ -258,11 +257,9 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
     ) {
         EsqlFlags flags = computeService.createFlags();
         String sessionId = getOrCreateSessionID(task);
-        // Stored results are identified so that they can be read again: the task id routes to this coordinator.
-        AsyncExecutionId resultId = request.store()
-            ? new AsyncExecutionId(UUIDs.randomBase64UUID(), new TaskId(clusterService.localNode().getId(), task.getId()))
-            : null;
-        Map<String, String> securityHeaders = resultId == null
+        String streamId = request.store() ? UUIDs.randomBase64UUID() : null;
+        TaskId taskId = new TaskId(clusterService.localNode().getId(), task.getId());
+        Map<String, String> securityHeaders = streamId == null
             ? null
             : ClientHelper.getPersistableSafeSecurityHeaders(threadPool.getThreadContext(), clusterService.state());
         AtomicBoolean streamStarted = new AtomicBoolean(false);
@@ -319,7 +316,8 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                     try {
                         StreamingOutputExec streamingPlan = new StreamingOutputExec(plan, publisher);
                         Exception startFailure = startStream(
-                            resultId,
+                            streamId,
+                            taskId,
                             securityHeaders,
                             request,
                             publisher,
@@ -415,7 +413,8 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                     assert outputRunSeen.get() == false : "an OUTPUT plan ran but the stream was never started";
                     List<ColumnInfoImpl> columns = buildColumns(result.schema(), result.attributeMetadata());
                     Exception startFailure = startStream(
-                        resultId,
+                        streamId,
+                        taskId,
                         securityHeaders,
                         request,
                         publisher,
@@ -484,7 +483,8 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
     }
 
     private Exception startStream(
-        @Nullable AsyncExecutionId resultId,
+        @Nullable String streamId,
+        TaskId taskId,
         @Nullable Map<String, String> securityHeaders,
         EsqlStreamQueryRequest request,
         PageStreamPublisher publisher,
@@ -493,13 +493,13 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         boolean[] nullColumns,
         ZoneId zoneId
     ) {
-        if (resultId != null) {
+        if (streamId != null) {
             StoredResultWriter writer = new StoredResultWriter(
                 client,
                 clusterService,
                 services.blockFactoryProvider().blockFactory().bigArrays().bytesRefRecycler(),
-                resultId.getDocId(),
-                StoredResultMetadata.running(securityHeaders, columns, zoneId),
+                streamId,
+                StoredResultMetadata.running(securityHeaders, taskId, columns, zoneId),
                 threadPool.absoluteTimeInMillis() + Objects.requireNonNullElse(request.keepAlive(), EsqlQueryRequest.DEFAULT_KEEP_ALIVE)
                     .millis(),
                 publisher::observerCapacityAvailable
@@ -508,8 +508,8 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
             writer.start();
             publisher.addCloseListener(ActionListener.running(() -> writer.finish(publisher.footer(), publisher.failure())));
         }
-        String id = resultId == null ? null : resultId.getEncoded();
-        request.resultStreamListener().onResponse(new EsqlStreamQueryAction.ResultStream(id, columns, publisher, nullColumns, zoneId));
+        request.resultStreamListener()
+            .onResponse(new EsqlStreamQueryAction.ResultStream(streamId, columns, publisher, nullColumns, zoneId));
         Exception startFailure = publisher.failure();
         if (startFailure != null) {
             return startFailure;

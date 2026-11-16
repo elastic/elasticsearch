@@ -19,7 +19,7 @@ import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.async.AsyncResultPagesIndex;
+import org.elasticsearch.xpack.core.esql.EsqlStreamResultsIndex;
 import org.elasticsearch.xpack.esql.EsqlStreamTestUtils;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.junit.After;
@@ -327,7 +327,7 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
     }
 
     public void testStore() throws IOException {
-        assumeTrue("stored results are behind a feature flag", AsyncResultPagesIndex.FEATURE_FLAG.isEnabled());
+        assumeTrue("stored results are behind a feature flag", EsqlStreamResultsIndex.FEATURE_FLAG.isEnabled());
         Request enable = new Request("PUT", "/_cluster/settings");
         enable.setJsonEntity("{\"persistent\": {\"indices.batch_indexing\": true}}");
         assertOK(client().performRequest(enable));
@@ -342,7 +342,7 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
     }
 
     public void testStoreRequiresStreaming() {
-        assumeTrue("stored results are behind a feature flag", AsyncResultPagesIndex.FEATURE_FLAG.isEnabled());
+        assumeTrue("stored results are behind a feature flag", EsqlStreamResultsIndex.FEATURE_FLAG.isEnabled());
         ResponseException re = expectThrows(
             ResponseException.class,
             () -> EsqlStreamTestUtils.rawStream(client(), "{\"query\": \"FROM stream-test | LIMIT 1\"}", "store=true")

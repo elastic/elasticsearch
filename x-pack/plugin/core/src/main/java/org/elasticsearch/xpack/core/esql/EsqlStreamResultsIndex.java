@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.async;
+package org.elasticsearch.xpack.core.esql;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -24,7 +24,7 @@ import java.util.Locale;
 
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.ESQL_ORIGIN;
 
 /**
  * System index holding stored ES|QL results: one document per page, with the serialized page in binary doc values, and the
@@ -32,14 +32,14 @@ import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
  * one shard, in order. Fields are single-valued doc values only, so that a bulk of pages is indexed as one columnar batch. The
  * index is never refreshed on a schedule.
  */
-public final class AsyncResultPagesIndex {
+public final class EsqlStreamResultsIndex {
 
     /**
      * The index is only registered, and results only stored, when this is enabled.
      */
     public static final FeatureFlag FEATURE_FLAG = new FeatureFlag("esql_stored_results");
 
-    public static final String INDEX = ".async-stream-result";
+    public static final String INDEX = ".esql-stream-results";
 
     public static final String STREAM_ID_FIELD = "stream_id";
     public static final String PAGE_SEQ_FIELD = "page_seq";
@@ -56,13 +56,13 @@ public final class AsyncResultPagesIndex {
      */
     static final int NUMBER_OF_SHARDS = 6;
 
-    private AsyncResultPagesIndex() {}
+    private EsqlStreamResultsIndex() {}
 
     /**
-     * The id of the document holding page {@code pageSeq} of the result stored under {@code asyncDocId}.
+     * The id of the document holding page {@code pageSeq} of the result stored under {@code streamId}.
      */
-    public static String pageDocId(String asyncDocId, int pageSeq) {
-        return asyncDocId + "/" + pageSeq;
+    public static String pageDocId(String streamId, int pageSeq) {
+        return streamId + "/" + pageSeq;
     }
 
     static Settings settings() {
@@ -136,11 +136,11 @@ public final class AsyncResultPagesIndex {
     public static SystemIndexDescriptor getSystemIndexDescriptor() {
         return SystemIndexDescriptor.builder()
             .setIndexPattern(INDEX + "*")
-            .setDescription("Pages of async query results")
+            .setDescription("Pages of streamed ES|QL results")
             .setPrimaryIndex(INDEX)
             .setMappings(mappings())
             .setSettings(settings())
-            .setOrigin(ASYNC_SEARCH_ORIGIN)
+            .setOrigin(ESQL_ORIGIN)
             .build();
     }
 }

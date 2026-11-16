@@ -22,13 +22,14 @@ import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.TestBlockFactory;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesRefRecycler;
-import org.elasticsearch.xpack.core.async.AsyncResultPagesIndex;
+import org.elasticsearch.xpack.core.esql.EsqlStreamResultsIndex;
 import org.junit.After;
 import org.junit.Before;
 
@@ -63,7 +64,7 @@ public class StoredResultWriterTests extends ESTestCase {
             clusterService,
             new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY)),
             RESULT,
-            StoredResultMetadata.running(Map.of(), List.of(), ZoneOffset.UTC),
+            StoredResultMetadata.running(Map.of(), new TaskId("node", 1), List.of(), ZoneOffset.UTC),
             0,
             () -> {}
         );
@@ -184,7 +185,7 @@ public class StoredResultWriterTests extends ESTestCase {
             ActionListener<Resp> listener
         ) {
             BulkRequest bulk = (BulkRequest) request;
-            assertThat(bulk.requests().get(0).index(), equalTo(AsyncResultPagesIndex.INDEX));
+            assertThat(bulk.requests().get(0).index(), equalTo(EsqlStreamResultsIndex.INDEX));
             sent.add(new Bulk(bulk, (ActionListener<BulkResponse>) listener));
         }
 

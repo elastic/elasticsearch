@@ -37,7 +37,6 @@ import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
-import org.elasticsearch.xpack.core.async.AsyncResultPagesIndex;
 import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
@@ -63,7 +62,7 @@ public class InternalUsers {
             new String[] { "cancel_task" },
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(XPackPlugin.ASYNC_RESULTS_INDEX + "*", AsyncResultPagesIndex.INDEX + "*")
+                    .indices(XPackPlugin.ASYNC_RESULTS_INDEX + "*")
                     .privileges("all")
                     .allowRestrictedIndices(true)
                     .build(), },

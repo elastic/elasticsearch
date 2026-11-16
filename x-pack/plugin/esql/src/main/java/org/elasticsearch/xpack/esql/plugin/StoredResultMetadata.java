@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 
 import java.io.IOException;
@@ -23,11 +24,13 @@ import java.util.Map;
  * how it ended. Written before any page of rows and rewritten when the query finishes.
  *
  * @param headers   security headers of the user that ran the query, to check who may read the result
+ * @param task      the task running the query, to tell whether a running result is still written
  * @param pageCount number of pages of rows, which follow this one from page {@code 1}
  * @param rowCount  number of rows across all pages
  */
 public record StoredResultMetadata(
     Map<String, String> headers,
+    TaskId task,
     List<ColumnInfoImpl> columns,
     ZoneId zoneId,
     Status status,
@@ -46,13 +49,14 @@ public record StoredResultMetadata(
         CANCELLED
     }
 
-    public static StoredResultMetadata running(Map<String, String> headers, List<ColumnInfoImpl> columns, ZoneId zoneId) {
-        return new StoredResultMetadata(headers, columns, zoneId, Status.RUNNING, 0, 0, 0, false, List.of(), null);
+    public static StoredResultMetadata running(Map<String, String> headers, TaskId task, List<ColumnInfoImpl> columns, ZoneId zoneId) {
+        return new StoredResultMetadata(headers, task, columns, zoneId, Status.RUNNING, 0, 0, 0, false, List.of(), null);
     }
 
     public StoredResultMetadata(StreamInput in) throws IOException {
         this(
             in.readMap(StreamInput::readString),
+            TaskId.readFromStream(in),
             in.readCollectionAsList(ColumnInfoImpl::new),
             in.readZoneId(),
             in.readEnum(Status.class),
@@ -68,6 +72,7 @@ public record StoredResultMetadata(
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(headers, StreamOutput::writeString);
+        task.writeTo(out);
         out.writeCollection(columns);
         out.writeZoneId(zoneId);
         out.writeEnum(status);

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.async;
+package org.elasticsearch.xpack.core.esql;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Settings;
@@ -20,32 +20,32 @@ import org.elasticsearch.transport.BytesRefRecycler;
 
 import java.nio.charset.StandardCharsets;
 
-import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.EXPIRATION_TIME_FIELD;
-import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.FIRST_ROW_FIELD;
-import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.PAGE_FIELD;
-import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.PAGE_SEQ_FIELD;
-import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.ROW_COUNT_FIELD;
-import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.STREAM_ID_FIELD;
-import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.TRANSPORT_VERSION_FIELD;
+import static org.elasticsearch.xpack.core.esql.EsqlStreamResultsIndex.EXPIRATION_TIME_FIELD;
+import static org.elasticsearch.xpack.core.esql.EsqlStreamResultsIndex.FIRST_ROW_FIELD;
+import static org.elasticsearch.xpack.core.esql.EsqlStreamResultsIndex.PAGE_FIELD;
+import static org.elasticsearch.xpack.core.esql.EsqlStreamResultsIndex.PAGE_SEQ_FIELD;
+import static org.elasticsearch.xpack.core.esql.EsqlStreamResultsIndex.ROW_COUNT_FIELD;
+import static org.elasticsearch.xpack.core.esql.EsqlStreamResultsIndex.STREAM_ID_FIELD;
+import static org.elasticsearch.xpack.core.esql.EsqlStreamResultsIndex.TRANSPORT_VERSION_FIELD;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Page documents must be indexed through the columnar batch path, which falls back to the row path without failing
  * when a mapping is outside what it supports.
  */
-public class AsyncResultPagesIndexTests extends MapperServiceTestCase {
+public class EsqlStreamResultsIndexTests extends MapperServiceTestCase {
 
     public void testPagesResolveForBatchIndexing() throws Exception {
         MapperService mapperService = createMapperService(
-            AsyncResultPagesIndex.settings(),
-            AsyncResultPagesIndex.getSystemIndexDescriptor().getMappings()
+            EsqlStreamResultsIndex.settings(),
+            EsqlStreamResultsIndex.getSystemIndexDescriptor().getMappings()
         );
         BytesRefRecycler recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
         try (EscfBatchBuilder builder = new EscfBatchBuilder(recycler)) {
             for (int seq = 0; seq < 3; seq++) {
                 EscfRowBuffer row = builder.beginRow();
-                byte[] asyncId = "result-id".getBytes(StandardCharsets.UTF_8);
-                row.stringField(STREAM_ID_FIELD, asyncId, 0, asyncId.length);
+                byte[] streamId = "result-id".getBytes(StandardCharsets.UTF_8);
+                row.stringField(STREAM_ID_FIELD, streamId, 0, streamId.length);
                 row.longField(PAGE_SEQ_FIELD, seq);
                 row.longField(FIRST_ROW_FIELD, seq * 100L);
                 row.longField(ROW_COUNT_FIELD, 100);

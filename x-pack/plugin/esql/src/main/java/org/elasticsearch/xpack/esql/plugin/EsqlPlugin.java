@@ -54,6 +54,7 @@ import org.elasticsearch.compute.operator.topn.TopNOperatorStatus;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -64,6 +65,7 @@ import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.ShutdownAwarePlugin;
+import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.plugins.spi.SPIClassIterator;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -75,7 +77,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
-import org.elasticsearch.xpack.core.async.AsyncResultPagesIndex;
+import org.elasticsearch.xpack.core.esql.EsqlStreamResultsIndex;
 import org.elasticsearch.xpack.core.esql.QueryMetricsListener;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
@@ -203,7 +205,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SearchPlugin, ShutdownAwarePlugin {
+public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SearchPlugin, ShutdownAwarePlugin, SystemIndexPlugin {
 
     private static final Logger logger = LogManager.getLogger(EsqlPlugin.class);
 
@@ -791,6 +793,21 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     }
 
     @Override
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+        return EsqlStreamResultsIndex.FEATURE_FLAG.isEnabled() ? List.of(EsqlStreamResultsIndex.getSystemIndexDescriptor()) : List.of();
+    }
+
+    @Override
+    public String getFeatureName() {
+        return "esql";
+    }
+
+    @Override
+    public String getFeatureDescription() {
+        return "Stores the results of streamed ES|QL queries";
+    }
+
+    @Override
     public List<ActionHandler> getActions() {
         List<ActionHandler> actions = new ArrayList<>(
             List.of(
@@ -821,8 +838,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 new ActionHandler(DeleteDatasetAction.INSTANCE, TransportDeleteDatasetAction.class)
             )
         );
-        if (AsyncResultPagesIndex.FEATURE_FLAG.isEnabled()) {
-            actions.add(new ActionHandler(TransportReadAsyncResultPagesAction.TYPE, TransportReadAsyncResultPagesAction.class));
+        if (EsqlStreamResultsIndex.FEATURE_FLAG.isEnabled()) {
+            actions.add(new ActionHandler(TransportReadStreamPagesAction.TYPE, TransportReadStreamPagesAction.class));
         }
         return actions;
     }

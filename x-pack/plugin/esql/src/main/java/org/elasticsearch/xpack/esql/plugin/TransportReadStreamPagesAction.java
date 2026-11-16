@@ -48,7 +48,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.async.AsyncResultPagesIndex;
+import org.elasticsearch.xpack.core.esql.EsqlStreamResultsIndex;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -57,31 +57,31 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.EXPIRATION_TIME_FIELD;
-import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.FIRST_ROW_FIELD;
-import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.PAGE_FIELD;
-import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.PAGE_SEQ_FIELD;
-import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.ROW_COUNT_FIELD;
-import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.STREAM_ID_FIELD;
-import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.TRANSPORT_VERSION_FIELD;
+import static org.elasticsearch.xpack.core.esql.EsqlStreamResultsIndex.EXPIRATION_TIME_FIELD;
+import static org.elasticsearch.xpack.core.esql.EsqlStreamResultsIndex.FIRST_ROW_FIELD;
+import static org.elasticsearch.xpack.core.esql.EsqlStreamResultsIndex.PAGE_FIELD;
+import static org.elasticsearch.xpack.core.esql.EsqlStreamResultsIndex.PAGE_SEQ_FIELD;
+import static org.elasticsearch.xpack.core.esql.EsqlStreamResultsIndex.ROW_COUNT_FIELD;
+import static org.elasticsearch.xpack.core.esql.EsqlStreamResultsIndex.STREAM_ID_FIELD;
+import static org.elasticsearch.xpack.core.esql.EsqlStreamResultsIndex.TRANSPORT_VERSION_FIELD;
 
 /**
  * Reads a range of pages of one stored result straight from the shard holding it. Pages are returned
  * as they were stored, in page order, and are decoded by the caller. Stateless clusters read from the
  * indexing shard, others from any copy.
  */
-public class TransportReadAsyncResultPagesAction extends TransportSingleShardAction<
-    TransportReadAsyncResultPagesAction.Request,
-    TransportReadAsyncResultPagesAction.Response> {
+public class TransportReadStreamPagesAction extends TransportSingleShardAction<
+    TransportReadStreamPagesAction.Request,
+    TransportReadStreamPagesAction.Response> {
 
-    public static final String NAME = "indices:data/read/esql/async/pages";
+    public static final String NAME = "indices:data/read/esql/stream/pages";
     public static final ActionType<Response> TYPE = new ActionType<>(NAME);
 
     private final IndicesService indicesService;
     private final boolean stateless;
 
     @Inject
-    public TransportReadAsyncResultPagesAction(
+    public TransportReadStreamPagesAction(
         ClusterService clusterService,
         TransportService transportService,
         IndicesService indicesService,
@@ -117,23 +117,23 @@ public class TransportReadAsyncResultPagesAction extends TransportSingleShardAct
 
     @Override
     protected ShardIterator shards(ProjectState project, InternalRequest request) {
-        String asyncDocId = request.request().asyncDocId;
+        String streamId = request.request().streamId;
         // the pages of a result are routed by its id
-        int shard = OperationRouting.shardId(project.metadata(), request.concreteIndex(), asyncDocId, asyncDocId).id();
+        int shard = OperationRouting.shardId(project.metadata(), request.concreteIndex(), streamId, streamId).id();
         if (stateless) {
             // the indexing shard: search shards only see pages once they are uploaded
             return project.routingTable().shardRoutingTable(request.concreteIndex(), shard).primaryShardIt();
         }
         // any copy holds the acknowledged pages; stick to one copy per result. The prefix keeps an id starting with '_' from
         // being read as a named preference.
-        return clusterService.operationRouting().getShards(project, request.concreteIndex(), shard, "result:" + asyncDocId);
+        return clusterService.operationRouting().getShards(project, request.concreteIndex(), shard, "result:" + streamId);
     }
 
     @Override
     protected Response shardOperation(Request request, ShardId shardId) throws IOException {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard shard = indexService.getShard(shardId.id());
-        try (Engine.Searcher searcher = shard.acquireSearcher("async_result_pages")) {
+        try (Engine.Searcher searcher = shard.acquireSearcher("esql_stream_results")) {
             SearchExecutionContext context = indexService.newSearchExecutionContext(
                 shardId.id(),
                 0,
@@ -146,7 +146,7 @@ public class TransportReadAsyncResultPagesAction extends TransportSingleShardAct
             );
             MappedFieldType seqType = context.getFieldType(PAGE_SEQ_FIELD);
             Query query = new BooleanQuery.Builder().add(
-                context.getFieldType(STREAM_ID_FIELD).termQuery(request.asyncDocId, context),
+                context.getFieldType(STREAM_ID_FIELD).termQuery(request.streamId, context),
                 BooleanClause.Occur.FILTER
             )
                 .add(
@@ -283,20 +283,20 @@ public class TransportReadAsyncResultPagesAction extends TransportSingleShardAct
     }
 
     public static class Request extends SingleShardRequest<Request> {
-        private final String asyncDocId;
+        private final String streamId;
         private final int fromSeq;
         private final int maxPages;
 
-        public Request(String asyncDocId, int fromSeq, int maxPages) {
-            super(AsyncResultPagesIndex.INDEX);
-            this.asyncDocId = asyncDocId;
+        public Request(String streamId, int fromSeq, int maxPages) {
+            super(EsqlStreamResultsIndex.INDEX);
+            this.streamId = streamId;
             this.fromSeq = fromSeq;
             this.maxPages = maxPages;
         }
 
         Request(StreamInput in) throws IOException {
             super(in);
-            this.asyncDocId = in.readString();
+            this.streamId = in.readString();
             this.fromSeq = in.readVInt();
             this.maxPages = in.readVInt();
         }
@@ -304,7 +304,7 @@ public class TransportReadAsyncResultPagesAction extends TransportSingleShardAct
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(asyncDocId);
+            out.writeString(streamId);
             out.writeVInt(fromSeq);
             out.writeVInt(maxPages);
         }

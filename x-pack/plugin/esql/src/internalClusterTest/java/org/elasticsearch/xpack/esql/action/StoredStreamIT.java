@@ -25,22 +25,17 @@ import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.TestBlockFactory;
-import org.elasticsearch.indices.SystemIndexDescriptor;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.xpack.core.async.AsyncExecutionId;
-import org.elasticsearch.xpack.core.async.AsyncResultPagesIndex;
+import org.elasticsearch.xpack.core.esql.EsqlStreamResultsIndex;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.StoredResultMetadata;
-import org.elasticsearch.xpack.esql.plugin.TransportReadAsyncResultPagesAction;
-import org.elasticsearch.xpack.esql.plugin.TransportReadAsyncResultPagesAction.StoredPage;
+import org.elasticsearch.xpack.esql.plugin.TransportReadStreamPagesAction;
+import org.elasticsearch.xpack.esql.plugin.TransportReadStreamPagesAction.StoredPage;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
@@ -59,29 +54,9 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class StoredStreamIT extends AbstractEsqlIntegTestCase {
 
-    /**
-     * Registers the index the results are stored in, as the async plugin does in a real cluster.
-     */
-    public static class ResultsIndexPlugin extends Plugin implements SystemIndexPlugin {
-        @Override
-        public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            return List.of(AsyncResultPagesIndex.getSystemIndexDescriptor());
-        }
-
-        @Override
-        public String getFeatureName() {
-            return "async_result_pages";
-        }
-
-        @Override
-        public String getFeatureDescription() {
-            return "Stored ES|QL results";
-        }
-    }
-
     @Before
     public void requireStoredResults() {
-        assumeTrue("stored results are behind a feature flag", AsyncResultPagesIndex.FEATURE_FLAG.isEnabled());
+        assumeTrue("stored results are behind a feature flag", EsqlStreamResultsIndex.FEATURE_FLAG.isEnabled());
     }
 
     @Override
@@ -90,13 +65,6 @@ public class StoredStreamIT extends AbstractEsqlIntegTestCase {
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), true)
             .build();
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(ResultsIndexPlugin.class);
-        return Collections.unmodifiableList(plugins);
     }
 
     private int indexDocs() {
@@ -136,7 +104,7 @@ public class StoredStreamIT extends AbstractEsqlIntegTestCase {
         var resultStream = stream(false, subscriber);
         assertThat(subscriber.rowCount.get(), equalTo(numDocs));
         assertThat(resultStream.id(), nullValue());
-        assertFalse(indexExists(AsyncResultPagesIndex.INDEX));
+        assertFalse(indexExists(EsqlStreamResultsIndex.INDEX));
     }
 
     public void testStoreRequiresBatchIndexing() {
@@ -163,11 +131,11 @@ public class StoredStreamIT extends AbstractEsqlIntegTestCase {
         MockLog.assertThatLogger(() -> {
             streamRef.set(stream(true, subscriber));
             // pages are stored in the background, after the stream completes
-            AsyncExecutionId id = AsyncExecutionId.decode(streamRef.get().id());
+            String id = streamRef.get().id();
             try {
                 assertBusy(() -> {
                     try {
-                        assertThat(readPages(id.getDocId(), 0, 1).size(), equalTo(1));
+                        assertThat(readPages(id, 0, 1).size(), equalTo(1));
                     } catch (Exception e) {
                         // the result is stored in the background and may not be there yet
                         throw new AssertionError(e);
@@ -188,7 +156,7 @@ public class StoredStreamIT extends AbstractEsqlIntegTestCase {
         var resultStream = streamRef.get();
         assertThat(subscriber.rowCount.get(), equalTo(numDocs));
         assertThat(resultStream.id(), notNullValue());
-        String docId = AsyncExecutionId.decode(resultStream.id()).getDocId();
+        String docId = resultStream.id();
 
         NamedWriteableRegistry registry = internalCluster().getInstance(NamedWriteableRegistry.class);
         AtomicReference<StoredResultMetadata> metadata = new AtomicReference<>();
@@ -247,7 +215,7 @@ public class StoredStreamIT extends AbstractEsqlIntegTestCase {
         NamedWriteableRegistry registry = internalCluster().getInstance(NamedWriteableRegistry.class);
         for (int r = 0; r < results; r++) {
             var subscriber = new StreamQueryTestUtils.CountingStreamSubscriber();
-            String docId = AsyncExecutionId.decode(stream(true, subscriber).id()).getDocId();
+            String docId = stream(true, subscriber).id();
             assertBusy(() -> {
                 List<StoredPage> first;
                 try {
@@ -266,7 +234,7 @@ public class StoredStreamIT extends AbstractEsqlIntegTestCase {
         }
 
         int shardsWithPages = 0;
-        for (var shard : client().admin().indices().prepareStats(AsyncResultPagesIndex.INDEX).setDocs(true).get().getShards()) {
+        for (var shard : client().admin().indices().prepareStats(EsqlStreamResultsIndex.INDEX).setDocs(true).get().getShards()) {
             if (shard.getShardRouting().primary() && shard.getStats().getDocs().getCount() > 0) {
                 shardsWithPages++;
             }
@@ -274,7 +242,7 @@ public class StoredStreamIT extends AbstractEsqlIntegTestCase {
         assertThat(shardsWithPages, greaterThan(1));
 
         var routingTable = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().routingTable();
-        long nodes = routingTable.allShards(AsyncResultPagesIndex.INDEX)
+        long nodes = routingTable.allShards(EsqlStreamResultsIndex.INDEX)
             .stream()
             .filter(ShardRouting::primary)
             .map(ShardRouting::currentNodeId)
@@ -284,10 +252,9 @@ public class StoredStreamIT extends AbstractEsqlIntegTestCase {
     }
 
     private List<StoredPage> readPages(String docId, int fromSeq, int maxPages) {
-        return client().execute(
-            TransportReadAsyncResultPagesAction.TYPE,
-            new TransportReadAsyncResultPagesAction.Request(docId, fromSeq, maxPages)
-        ).actionGet(TEST_REQUEST_TIMEOUT).pages();
+        return client().execute(TransportReadStreamPagesAction.TYPE, new TransportReadStreamPagesAction.Request(docId, fromSeq, maxPages))
+            .actionGet(TEST_REQUEST_TIMEOUT)
+            .pages();
     }
 
     private static StreamInput input(StoredPage stored, NamedWriteableRegistry registry) throws IOException {

@@ -223,6 +223,36 @@ public class QueryInterceptorTests extends ESTestCase {
         assertFalse(sink.accepted.get(0).isSuccess());
     }
 
+    public void testRegistryPreservesLoggerWithoutProviders() {
+        var logger = new RecordingSink(true);
+        var context = new TestContext(100);
+        new QuerySinkRegistry(List.of()).createInterceptor(logger.sink).notifySinks(context);
+        assertThat(logger.accepted, contains(sameInstance(context)));
+    }
+
+    public void testRegistrySharesPluginSinksAcrossInterceptors() {
+        var providerCalls = new ArrayList<String>();
+        var captured = new ArrayList<QueryCaptureContext>();
+        QuerySink<QueryCaptureContext> pluginSink = new TestQuerySink<>(() -> true, captured::add, () -> "plugin");
+        QuerySinkProvider provider = () -> {
+            providerCalls.add("create");
+            return List.of(pluginSink);
+        };
+        var registry = new QuerySinkRegistry(List.of(provider));
+        var enabledLogger = new RecordingSink(true);
+        var disabledLogger = new RecordingSink(false);
+        var first = new TestContext(100);
+        var second = new TestContext(200);
+
+        registry.createInterceptor(enabledLogger.sink).notifySinks(first);
+        registry.createInterceptor(disabledLogger.sink).notifySinks(second);
+
+        assertThat(providerCalls, contains("create"));
+        assertThat(captured, contains(first, second));
+        assertThat(enabledLogger.accepted, contains(first));
+        assertThat(disabledLogger.accepted, empty());
+    }
+
     private static QueryInterceptor<TestContext> interceptor(List<QuerySink<TestContext>> sinks) {
         return new QueryInterceptor<>(sinks);
     }

@@ -663,7 +663,8 @@ public abstract sealed class IndexRouting {
              * hash so {@link #postProcess(IndexRequest)} can later embed it in the auto-generated id
              * for LogsDB, and reroutes if the destination shard is a not-yet-handed-off split target).
              */
-            int shardIdForRoutingHash(RoutingHashBuilder builder) {
+            int shardIdForRoutingHash(RoutingHashBuilder builder, IndexRequest indexRequest) {
+                checkNoRouting(indexRequest.routing());
                 int h = builder.buildHash(IndexRouting.ExtractFromSource::defaultOnEmpty);
                 setRecordedHash(h);
                 return rerouteWritesIfResharding(routingFunction.shardNum(h));
@@ -757,6 +758,7 @@ public abstract sealed class IndexRouting {
              * not-yet-handed-off split target.
              */
             int shardIdForExtractedTsid(TsidBuilder tsidBuilder, IndexRequest indexRequest) {
+                checkNoRouting(indexRequest.routing());
                 BytesRef tsid = tsidBuilder.buildTsid(tsidLayout);
                 indexRequest.tsid(tsid);
                 int h = hash(tsid);

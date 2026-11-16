@@ -1367,7 +1367,23 @@ public final class TextFieldMapper extends FieldMapper {
 
         @Override
         protected Query readingValues(Query query, SearchExecutionContext context) {
-            return new ReanalyzingTextQuery(query, valueFetcherProvider(context), context.getIndexAnalyzer(f -> null), true);
+            return new ReanalyzingTextQuery(
+                query,
+                valueFetcherProvider(context, readsValueBytes(query, context)),
+                context.getIndexAnalyzer(f -> null),
+                true,
+                valuesAnalyzer(context)
+            );
+        }
+
+        /**
+         * This field's analyzer if {@link CandidateValues} supports it, otherwise null. This is the field's own
+         * analyzer, not the index-wide per-field wrapper that queries are built with.
+         */
+        @Nullable
+        private NamedAnalyzer valuesAnalyzer(SearchExecutionContext context) {
+            final NamedAnalyzer analyzer = context.getIndexAnalyzer(name());
+            return CandidateValues.valuesSpellTheirTokens(analyzer) ? analyzer : null;
         }
 
         /** Whether this field can read its parent's values, which a multi-field keeping none of its own does. */
@@ -1385,15 +1401,24 @@ public final class TextFieldMapper extends FieldMapper {
             return parent.hasDocValues();
         }
 
-        /** Reads this field's values back, for the queries that analyze them again. */
+        /**
+         * Reads this field's values back, for the queries that analyze them again. With {@code keepBytes}, values are
+         * returned as copied {@link BytesRef}s rather than strings, for queries that scan the bytes first.
+         */
         private IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> valueFetcherProvider(
-            SearchExecutionContext context
+            SearchExecutionContext context,
+            boolean keepBytes
         ) {
             if (hasDocValues()) {
                 assert usesBinaryDocValues() : "a strictly columnar text field keeps its values in a binary column";
-                return FieldValueFetchers.fromBinaryDocValues(name(), binaryFormat());
+                return FieldValueFetchers.fromBinaryDocValues(name(), binaryFormat(), keepBytes);
             }
             return FieldValueFetchers.fromParent(context, name());
+        }
+
+        /** Whether {@code query} scans the values' bytes with {@link CandidateValues} before analyzing them. */
+        private boolean readsValueBytes(Query query, SearchExecutionContext context) {
+            return scansEveryDocument() && valuesAnalyzer(context) != null && CandidateValues.of(query, name()).reads();
         }
 
         /** {@code query} as it stands where the field indexed positions, confirmed against its values where it did not. */
@@ -1403,9 +1428,10 @@ public final class TextFieldMapper extends FieldMapper {
             }
             return new ReanalyzingTextQuery(
                 query,
-                valueFetcherProvider(context),
+                valueFetcherProvider(context, readsValueBytes(query, context)),
                 context.getIndexAnalyzer(f -> null),
-                scansEveryDocument()
+                scansEveryDocument(),
+                valuesAnalyzer(context)
             );
         }
 
@@ -1424,7 +1450,8 @@ public final class TextFieldMapper extends FieldMapper {
             return new ReanalyzingIntervalsSource(
                 source,
                 scansEveryDocument() ? Queries.ALL_DOCS_INSTANCE : approximation,
-                valueFetcherProvider(context),
+                // Intervals do not use the prefilter, so strings are enough.
+                valueFetcherProvider(context, false),
                 context.getIndexAnalyzer(f -> null)
             );
         }

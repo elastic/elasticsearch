@@ -1074,4 +1074,9 @@ public class DateFieldMapperTests extends MapperTestCase {
         }
         throw new AssertionError("no [format] parameter");
     }
+
+    public void testScriptedFieldIsNotStaticallySingleValued() throws IOException {
+        assertScriptedFieldIsNotStaticallySingleValued("non-empty");
+    }
+
 }

@@ -69,7 +69,7 @@ public final class AddDateNanosEvaluator implements ExpressionEvaluator {
   }
 
   public LongBlock eval(int positionCount, LongBlock dateNanosBlock) {
-    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (dateNanosBlock.isNull(p)) {
           result.appendNull();
@@ -96,7 +96,7 @@ public final class AddDateNanosEvaluator implements ExpressionEvaluator {
   }
 
   public LongBlock eval(int positionCount, LongVector dateNanosVector) {
-    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         long dateNanos = dateNanosVector.getLong(p);
         try {

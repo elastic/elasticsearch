@@ -8,17 +8,12 @@
  */
 
 
-import org.apache.tools.ant.filters.FixCrLfFilter
-import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.ConcatFilesTask
 import org.elasticsearch.gradle.internal.DependenciesInfoPlugin
 import org.elasticsearch.gradle.internal.NoticeTask
 import org.elasticsearch.gradle.internal.distribution.BundledJdkPlatforms
-import org.elasticsearch.gradle.internal.distribution.ModulePlatforms
-import org.elasticsearch.gradle.internal.distribution.TokenExpansions
 import org.elasticsearch.gradle.internal.test.ClusterFeaturesMetadataPlugin
-import org.elasticsearch.gradle.transform.FilteringJarTransform
 
 import static org.elasticsearch.gradle.internal.toolchain.EarlyAccessCatalogJdkToolchainResolver.findLatestPreReleaseBuild
 
@@ -119,6 +114,7 @@ String defaultOutputs = 'build/outputs/default'
 String systemdOutputs = 'build/outputs/systemd'
 String integTestOutputs = 'build/outputs/integ-test-only'
 String externalTestOutputs = 'build/outputs/external-test'
+def distributionSourceDirectory = layout.projectDirectory.dir('src')
 
 def processDefaultOutputsTaskProvider = tasks.register("processDefaultOutputs", Sync) {
   into defaultOutputs
@@ -294,260 +290,96 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
 
   }
 
+  apply plugin: 'elasticsearch.distribution-layout'
 
-  // TODO: the map needs to be an input of the tasks, so that when it changes, the task will re-run...
-  /*****************************************************************************
-   *             Properties to expand when copying packaging files             *
-   *****************************************************************************/
+  esDistributionLayout {
+    sourceDirectory.set(distributionSourceDirectory)
+    defaultModules.from(defaultModulesFiles)
+    integTestModules.from(buildIntegTestModulesTaskProvider)
+    if (buildParams.getSnapshotBuild()) {
+      externalTestModules.from(buildExternalTestModulesTaskProvider)
+    }
+    if (project.name == 'packages') {
+      systemdModules.from(systemdModuleFiles)
+    }
+    defaultConfig.from(defaultConfigFiles)
+    integTestConfig.from(integTestConfigFiles)
+    log4jConfig.from(buildDefaultLog4jConfigTaskProvider)
+    defaultBin.from(defaultBinFiles)
+    integTestBin.from(integTestBinFiles)
+    defaultNotice.from(buildDefaultNoticeTaskProvider)
+    integTestNotice.from(buildServerNoticeTaskProvider)
+
+    library('libs') {
+      from dependencies.project(path: ':server')
+      into ''
+    }
+    library('libsVersionChecker') {
+      from dependencies.project(path: ':distribution:tools:java-version-checker')
+      into 'java-version-checker'
+    }
+    library('libsCliLauncher') {
+      from dependencies.project(path: ':distribution:tools:cli-launcher')
+      into 'cli-launcher'
+    }
+    library('libsServerCli') {
+      from dependencies.project(path: ':distribution:tools:server-cli')
+      into 'tools/server-cli'
+    }
+    library('libsServerLauncher') {
+      from dependencies.project(path: ':distribution:tools:server-launcher')
+      into 'tools/server-launcher'
+      serverLauncher()
+      nativeX64(dependencies.project(path: ':distribution:tools:server-launcher', configuration: 'nativeLinuxX64'))
+      nativeAarch64(dependencies.project(path: ':distribution:tools:server-launcher', configuration: 'nativeLinuxAarch64'))
+    }
+    library('libsWindowsServiceCli') {
+      from dependencies.project(path: ':distribution:tools:windows-service-cli')
+      into 'tools/windows-service-cli'
+    }
+    library('libsGeoIpCli') {
+      from dependencies.project(path: ':distribution:tools:geoip-cli')
+      into 'tools/geoip-cli'
+    }
+    library('libsPluginCli') {
+      from dependencies.project(path: ':distribution:tools:plugin-cli')
+      into 'tools/plugin-cli'
+    }
+    library('libsKeystoreCli') {
+      from dependencies.project(path: ':distribution:tools:keystore-cli')
+      into 'tools/keystore-cli'
+    }
+    library('libsSecurityCli') {
+      from dependencies.project(path: ':x-pack:plugin:security:cli')
+      into 'tools/security-cli'
+    }
+    library('libsAnsiConsole') {
+      from dependencies.project(path: ':distribution:tools:ansi-console')
+      into 'tools/ansi-console'
+    }
+    library('libsNative') {
+      // Request the dedicated `nativeLibs` consumable variant — see libs/native/libraries/build.gradle.
+      // Do not switch this back to the `default` configuration: it is plugin-order dependent and would
+      // silently bind to the Java runtime variant if `elasticsearch.build` is ever applied to that project.
+      from dependencies.project(path: ':libs:native:native-libraries', configuration: 'nativeLibs')
+      into 'platform'
+      platformNative()
+    }
+    library('libsEntitlementAgent') {
+      from dependencies.project(path: ':libs:entitlement:agent')
+      into 'entitlement-agent'
+    }
+    library('libsEntitlementBridge') {
+      from dependencies.project(path: ':libs:entitlement:bridge')
+      into 'entitlement-bridge'
+      filtered()
+    }
+  }
+
   configurations {
-    ['libs', 'libsVersionChecker', 'libsCliLauncher', 'libsServerCli', 'libsServerLauncher', 'libsServerLauncherNativeX64', 'libsServerLauncherNativeAarch64', 'libsWindowsServiceCli', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole', 'libsNative', 'libsEntitlementAgent'].each {
-      create(it) {
-        canBeConsumed = false
-        canBeResolved = true
-        attributes {
-          attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category, Category.LIBRARY))
-          attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage, Usage.JAVA_RUNTIME))
-          attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling, Bundling.EXTERNAL))
-        }
-      }
-    }
-    libsEntitlementBridge {
-      canBeConsumed = false
-      canBeResolved = true
-      attributes {
-        attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category, Category.LIBRARY))
-        attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage, Usage.JAVA_RUNTIME))
-        attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling, Bundling.EXTERNAL))
-        attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, FilteringJarTransform.FILTERED_JAR_TYPE)
-      }
-    }
     all {
       resolutionStrategy.dependencySubstitution {
         substitute module("org.apache.logging.log4j:log4j-core") using project(":libs:log4j") because "patched to remove JndiLookup class"
-      }
-    }
-  }
-
-  // Register artifact transform for filtering entitlements-bridge jar
-  FilteringJarTransform.registerTransform(dependencies) { spec ->
-    spec.exclude('module-info.class')
-    spec.exclude('META-INF/versions/**')
-  }
-
-  dependencies {
-    libs project(':server')
-
-    libsVersionChecker project(':distribution:tools:java-version-checker')
-    libsCliLauncher project(':distribution:tools:cli-launcher')
-    libsServerCli project(':distribution:tools:server-cli')
-    libsServerLauncher project(':distribution:tools:server-launcher')
-    libsServerLauncherNativeX64 project(path: ':distribution:tools:server-launcher', configuration: 'nativeLinuxX64')
-    libsServerLauncherNativeAarch64 project(path: ':distribution:tools:server-launcher', configuration: 'nativeLinuxAarch64')
-    libsWindowsServiceCli project(':distribution:tools:windows-service-cli')
-    libsAnsiConsole project(':distribution:tools:ansi-console')
-    libsPluginCli project(':distribution:tools:plugin-cli')
-    libsKeystoreCli project(path: ':distribution:tools:keystore-cli')
-    libsSecurityCli project(':x-pack:plugin:security:cli')
-    libsGeoIpCli project(':distribution:tools:geoip-cli')
-    // Request the dedicated `nativeLibs` consumable variant — see libs/native/libraries/build.gradle.
-    // Do not switch this back to the `default` configuration: it is plugin-order dependent and would
-    // silently bind to the Java runtime variant if `elasticsearch.build` is ever applied to that project.
-    libsNative project(path: ':libs:native:native-libraries', configuration: 'nativeLibs')
-    libsEntitlementAgent project(':libs:entitlement:agent')
-    libsEntitlementBridge project(':libs:entitlement:bridge')
-  }
-
-  project.ext {
-
-    /*****************************************************************************
-     *                   Common files in all distributions                       *
-     *****************************************************************************/
-    libFiles = { os, architecture ->
-      copySpec {
-        // Delay by using closures, since they have not yet been configured, so no jar task exists yet.
-        from(configurations.libs)
-        into('java-version-checker') {
-          from(configurations.libsVersionChecker)
-        }
-        into('cli-launcher') {
-          from(configurations.libsCliLauncher)
-        }
-        into('tools/server-cli') {
-          from(configurations.libsServerCli)
-        }
-        into('tools/server-launcher') {
-          from(configurations.libsServerLauncher)
-          // Linux-only: include native binary for the matching architecture
-          if (os == 'linux') {
-            if (architecture == 'x64') {
-              from(configurations.libsServerLauncherNativeX64)
-            } else if (architecture == 'aarch64') {
-              from(configurations.libsServerLauncherNativeAarch64)
-            }
-          }
-          eachFile {
-            if (it.name == 'server-launcher' || it.name == 'server-launcher.exe') {
-              it.permissions.unix(0755)
-            }
-          }
-        }
-        into('tools/windows-service-cli') {
-          from(configurations.libsWindowsServiceCli)
-        }
-        into('tools/geoip-cli') {
-          from(configurations.libsGeoIpCli)
-        }
-        into('tools/plugin-cli') {
-          from(configurations.libsPluginCli)
-        }
-        into('tools/keystore-cli') {
-          from(configurations.libsKeystoreCli)
-        }
-        into('tools/security-cli') {
-          from(configurations.libsSecurityCli)
-        }
-        into('tools/ansi-console') {
-          from(configurations.libsAnsiConsole)
-        }
-        into('platform') {
-          from(configurations.libsNative)
-          if (os != null) {
-            include(os + '-' + architecture + '/*')
-          }
-        }
-        into('entitlement-agent') {
-          from(configurations.libsEntitlementAgent)
-        }
-        into('entitlement-bridge') {
-          from(configurations.libsEntitlementBridge)
-        }
-      }
-    }
-
-    modulesFiles = { os, architecture ->
-      copySpec {
-        eachFile {
-          if (it.relativePath.segments[-2] == 'bin' || (os == 'darwin' && it.relativePath.segments[-2] == 'MacOS')) {
-            // bin files, wherever they are within modules (eg platform specific) should be executable
-            // and MacOS is an alternative to bin on macOS
-            it.permissions.unix(0755)
-          } else {
-            it.permissions.unix(0644)
-          }
-        }
-        List<String> excludePlatforms = ModulePlatforms.excludedDirectories(os, architecture)
-        from(defaultModulesFiles) {
-          // geo registers the geo_shape mapper that is overridden by
-          // the geo_shape mapper registered in the x-pack-spatial plugin
-          exclude "**/geo/**"
-
-          for (String excludePlatform : excludePlatforms) {
-            exclude "**/platform/${excludePlatform}/**"
-          }
-        }
-        if (buildParams.getSnapshotBuild()) {
-          from(buildExternalTestModulesTaskProvider)
-        }
-        if (project.path.startsWith(':distribution:packages')) {
-          from(systemdModuleFiles)
-        }
-      }
-    }
-
-    integTestModulesFiles = copySpec {
-      from buildIntegTestModulesTaskProvider
-    }
-
-    configFiles = { distributionType, isTestDistro ->
-      copySpec {
-        with copySpec {
-          // main config files, processed with distribution specific substitutions
-          from '../src/config'
-          exclude 'log4j2.properties' // this is handled separately below
-          filter("tokens": TokenExpansions.forProject(project, distributionType, isTestDistro), ReplaceTokens.class)
-        }
-        from buildDefaultLog4jConfigTaskProvider
-        from isTestDistro ? integTestConfigFiles : defaultConfigFiles
-      }
-    }
-
-    binFiles = { distributionType, testDistro ->
-      copySpec {
-        // non-windows files, for all distributions
-        with copySpec {
-          from '../src/bin'
-          exclude '*.exe'
-          exclude '*.bat'
-          eachFile {
-            it.permissions {
-              unix(0755)
-            }
-          }
-          filter("tokens": TokenExpansions.forProject(project, distributionType, testDistro), ReplaceTokens.class)
-        }
-        // windows files, only for zip
-        if (distributionType == 'zip') {
-          with copySpec {
-            from '../src/bin'
-            include '*.bat'
-            filter(FixCrLfFilter, eol: FixCrLfFilter.CrLf.newInstance('crlf'))
-            filter("tokens": TokenExpansions.forProject(project, distributionType, testDistro), ReplaceTokens.class)
-          }
-          with copySpec {
-            from '../src/bin'
-            include '*.exe'
-          }
-        }
-        // module provided bin files
-        with copySpec {
-          eachFile { it.permissions.unix(0755) }
-          from(testDistro ? integTestBinFiles : defaultBinFiles)
-          if (distributionType != 'zip') {
-            exclude '*.bat'
-          }
-        }
-      }
-    }
-
-    noticeFile = { testDistro ->
-      copySpec {
-        if (testDistro) {
-          from buildServerNoticeTaskProvider
-        } else {
-          from(buildDefaultNoticeTaskProvider) {
-            filePermissions {
-              unix(0644)
-            }
-          }
-        }
-      }
-    }
-
-    jdkFiles = { Project project, String os, String architecture ->
-      return copySpec {
-        from project.jdks.getByName(BundledJdkPlatforms.jdkName(os, architecture))
-        exclude "demo/**"
-        /*
-         * The Contents/MacOS directory interferes with notarization, and is unused by our distribution, so we exclude
-         * it from the build.
-         */
-        if ("darwin".equals(os)) {
-          exclude "Contents/MacOS"
-        }
-        eachFile { FileCopyDetails details ->
-          if (details.relativePath.segments[-2] == 'bin' || details.relativePath.segments[-1] == 'jspawnhelper') {
-            details.permissions {
-              unix(0755)
-            }
-          } else {
-            details.permissions {
-              unix(0644)
-            }
-          }
-          if (details.name == 'src.zip') {
-            details.exclude()
-          }
-        }
       }
     }
   }

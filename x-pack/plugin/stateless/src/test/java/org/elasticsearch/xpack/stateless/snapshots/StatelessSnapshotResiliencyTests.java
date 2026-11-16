@@ -442,6 +442,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             res.add(StatelessSharedBlobCacheService.STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING);
             res.add(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_DELETED_INDEX_REGIONS_ENABLED_SETTING);
             res.add(StatelessPrimaryRelocationSourceService.PRE_FLUSH_SLOW_UPLOAD_QUEUE_THRESHOLD_SETTING);
+            res.add(StatelessPrimaryRelocationSourceService.PREWARM_WAIT_TIMEOUT_SETTING);
             res.add(StatelessPrimaryRelocationSourceService.TRANSFER_HOLLOW_COMMIT_METADATA_SETTING);
             res.add(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING);
             res.add(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING);
@@ -558,6 +559,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                     new StatelessCommitServiceProvider(testStatelessPlugin.statelessCommitService),
                     mock(IndexShardCacheWarmer.class),
                     HollowShardsMetrics.NOOP,
+                    primaryRelocationMetricsCollectorProvider,
                     client,
                     ByteSizeValue.ofBytes(Long.MAX_VALUE)
                 );

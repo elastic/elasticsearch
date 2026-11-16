@@ -1,0 +1,657 @@
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: [ "mapper.columnar.bare_null_is_absence" ]
+      reason: "columnar index mode and bare null handling required"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.mode: columnar
+            index.number_of_shards: 1
+            index.mapping.source.mode: synthetic
+          mappings:
+            properties:
+              byt:
+                type: byte
+              sht:
+                type: short
+              int:
+                type: integer
+              hfl:
+                type: half_float
+              flt:
+                type: float
+              dbl:
+                type: double
+              sfl:
+                type: scaled_float
+                scaling_factor: 10
+              dtn:
+                type: date_nanos
+              bin:
+                type: binary
+                doc_values: true
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "index": { "_id": "value" } }'
+          - '{ "byt": 1, "sht": 1, "int": 1, "hfl": 1.5, "flt": 1.5, "dbl": 1.5, "sfl": 1.5, "dtn": "2026-01-01T00:00:00.000Z", "bin": "YQ==" }'
+          - '{ "index": { "_id": "null_in_array" } }'
+          - '{ "byt": [null], "sht": [null], "int": [null], "hfl": [null], "flt": [null], "dbl": [null], "sfl": [null], "dtn": [null], "bin": [null] }'
+          - '{ "index": { "_id": "only_nulls" } }'
+          - '{ "byt": [null, null], "sht": [null, null], "int": [null, null], "hfl": [null, null], "flt": [null, null], "dbl": [null, null], "sfl": [null, null], "dtn": [null, null], "bin": [null, null] }'
+          - '{ "index": { "_id": "mixed" } }'
+          - '{ "byt": [1, null, 2], "sht": [1, null, 2], "int": [1, null, 2], "hfl": [1.5, null, 2.5], "flt": [1.5, null, 2.5], "dbl": [1.5, null, 2.5], "sfl": [1.5, null, 2.5], "dtn": ["2026-01-01T00:00:00.000Z", null, "2026-01-02T00:00:00.000Z"], "bin": ["YQ==", null, "Yg=="] }'
+          - '{ "index": { "_id": "bare_null" } }'
+          - '{ "byt": null, "sht": null, "int": null, "hfl": null, "flt": null, "dbl": null, "sfl": null, "dtn": null, "bin": null }'
+          - '{ "index": { "_id": "empty_array" } }'
+          - '{ "byt": [], "sht": [], "int": [], "hfl": [], "flt": [], "dbl": [], "sfl": [], "dtn": [], "bin": [] }'
+          - '{ "index": { "_id": "missing" } }'
+          - '{ "other": "c" }'
+          - '{ "index": { "_id": "leading_null" } }'
+          - '{ "byt": [null, 1], "sht": [null, 1], "int": [null, 1], "hfl": [null, 1.5], "flt": [null, 1.5], "dbl": [null, 1.5], "sfl": [null, 1.5], "dtn": [null, "2026-01-01T00:00:00.000Z"], "bin": [null, "YQ=="] }'
+          - '{ "index": { "_id": "trailing_null" } }'
+          - '{ "byt": [1, null], "sht": [1, null], "int": [1, null], "hfl": [1.5, null], "flt": [1.5, null], "dbl": [1.5, null], "sfl": [1.5, null], "dtn": ["2026-01-01T00:00:00.000Z", null], "bin": ["YQ==", null] }'
+          - '{ "index": { "_id": "both_ends_null" } }'
+          - '{ "byt": [null, 1, null], "sht": [null, 1, null], "int": [null, 1, null], "hfl": [null, 1.5, null], "flt": [null, 1.5, null], "dbl": [null, 1.5, null], "sfl": [null, 1.5, null], "dtn": [null, "2026-01-01T00:00:00.000Z", null], "bin": [null, "YQ==", null] }'
+
+---
+exists matches only documents with a non-null value on a byte field:
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: byt } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { exists: { field: byt } }
+
+  - match: { count: 5 }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { bool: { must_not: { exists: { field: byt } } } }
+
+  - match: { count: 5 }
+
+---
+exists matches only documents with a non-null value on a short field:
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: sht } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { exists: { field: sht } }
+
+  - match: { count: 5 }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { bool: { must_not: { exists: { field: sht } } } }
+
+  - match: { count: 5 }
+
+---
+exists matches only documents with a non-null value on an integer field:
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: int } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { exists: { field: int } }
+
+  - match: { count: 5 }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { bool: { must_not: { exists: { field: int } } } }
+
+  - match: { count: 5 }
+
+---
+exists matches only documents with a non-null value on a half_float field:
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: hfl } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { exists: { field: hfl } }
+
+  - match: { count: 5 }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { bool: { must_not: { exists: { field: hfl } } } }
+
+  - match: { count: 5 }
+
+---
+exists matches only documents with a non-null value on a float field:
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: flt } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { exists: { field: flt } }
+
+  - match: { count: 5 }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { bool: { must_not: { exists: { field: flt } } } }
+
+  - match: { count: 5 }
+
+---
+exists matches only documents with a non-null value on a double field:
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: dbl } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { exists: { field: dbl } }
+
+  - match: { count: 5 }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { bool: { must_not: { exists: { field: dbl } } } }
+
+  - match: { count: 5 }
+
+---
+exists matches only documents with a non-null value on a scaled_float field:
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: sfl } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { exists: { field: sfl } }
+
+  - match: { count: 5 }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { bool: { must_not: { exists: { field: sfl } } } }
+
+  - match: { count: 5 }
+
+---
+exists matches only documents with a non-null value on a date_nanos field:
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: dtn } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { exists: { field: dtn } }
+
+  - match: { count: 5 }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { bool: { must_not: { exists: { field: dtn } } } }
+
+  - match: { count: 5 }
+
+---
+exists matches only documents with a non-null value on a binary field:
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: bin } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { exists: { field: bin } }
+
+  - match: { count: 5 }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { bool: { must_not: { exists: { field: bin } } } }
+
+  - match: { count: 5 }
+
+---
+value_count and missing aggregations treat documents with only nulls as having no value:
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            values_byt: { value_count: { field: byt } }
+            without_byt: { missing: { field: byt } }
+            values_sht: { value_count: { field: sht } }
+            without_sht: { missing: { field: sht } }
+            values_int: { value_count: { field: int } }
+            without_int: { missing: { field: int } }
+            values_hfl: { value_count: { field: hfl } }
+            without_hfl: { missing: { field: hfl } }
+            values_flt: { value_count: { field: flt } }
+            without_flt: { missing: { field: flt } }
+            values_dbl: { value_count: { field: dbl } }
+            without_dbl: { missing: { field: dbl } }
+            values_sfl: { value_count: { field: sfl } }
+            without_sfl: { missing: { field: sfl } }
+            values_dtn: { value_count: { field: dtn } }
+            without_dtn: { missing: { field: dtn } }
+            values_bin: { value_count: { field: bin } }
+            without_bin: { missing: { field: bin } }
+
+  - match: { aggregations.values_byt.value: 6 }
+  - match: { aggregations.without_byt.doc_count: 5 }
+  - match: { aggregations.values_sht.value: 6 }
+  - match: { aggregations.without_sht.doc_count: 5 }
+  - match: { aggregations.values_int.value: 6 }
+  - match: { aggregations.without_int.doc_count: 5 }
+  - match: { aggregations.values_hfl.value: 6 }
+  - match: { aggregations.without_hfl.doc_count: 5 }
+  - match: { aggregations.values_flt.value: 6 }
+  - match: { aggregations.without_flt.doc_count: 5 }
+  - match: { aggregations.values_dbl.value: 6 }
+  - match: { aggregations.without_dbl.doc_count: 5 }
+  - match: { aggregations.values_sfl.value: 6 }
+  - match: { aggregations.without_sfl.doc_count: 5 }
+  - match: { aggregations.values_dtn.value: 6 }
+  - match: { aggregations.without_dtn.doc_count: 5 }
+  - match: { aggregations.values_bin.value: 6 }
+  - match: { aggregations.without_bin.doc_count: 5 }
+
+---
+synthetic source drops the null elements of a byte field:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
+      reason: "synthetic source keeps null array elements today, and the proposed rule drops them at indexing"
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { match_all: {} }
+          sort: [ _doc ]
+          _source: byt
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.byt: 1 }
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.3._source.byt: [1, 2] }
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
+  - match: { hits.hits.7._source.byt: 1 }
+  - match: { hits.hits.8._source.byt: 1 }
+  - match: { hits.hits.9._source.byt: 1 }
+
+---
+synthetic source drops the null elements of a short field:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
+      reason: "synthetic source keeps null array elements today, and the proposed rule drops them at indexing"
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { match_all: {} }
+          sort: [ _doc ]
+          _source: sht
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.sht: 1 }
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.3._source.sht: [1, 2] }
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
+  - match: { hits.hits.7._source.sht: 1 }
+  - match: { hits.hits.8._source.sht: 1 }
+  - match: { hits.hits.9._source.sht: 1 }
+
+---
+synthetic source drops the null elements of an integer field:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
+      reason: "synthetic source keeps null array elements today, and the proposed rule drops them at indexing"
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { match_all: {} }
+          sort: [ _doc ]
+          _source: int
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.int: 1 }
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.3._source.int: [1, 2] }
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
+  - match: { hits.hits.7._source.int: 1 }
+  - match: { hits.hits.8._source.int: 1 }
+  - match: { hits.hits.9._source.int: 1 }
+
+---
+synthetic source drops the null elements of a half_float field:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
+      reason: "synthetic source keeps null array elements today, and the proposed rule drops them at indexing"
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { match_all: {} }
+          sort: [ _doc ]
+          _source: hfl
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.hfl: 1.5 }
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.3._source.hfl: [1.5, 2.5] }
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
+  - match: { hits.hits.7._source.hfl: 1.5 }
+  - match: { hits.hits.8._source.hfl: 1.5 }
+  - match: { hits.hits.9._source.hfl: 1.5 }
+
+---
+synthetic source drops the null elements of a float field:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
+      reason: "synthetic source keeps null array elements today, and the proposed rule drops them at indexing"
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { match_all: {} }
+          sort: [ _doc ]
+          _source: flt
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.flt: 1.5 }
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.3._source.flt: [1.5, 2.5] }
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
+  - match: { hits.hits.7._source.flt: 1.5 }
+  - match: { hits.hits.8._source.flt: 1.5 }
+  - match: { hits.hits.9._source.flt: 1.5 }
+
+---
+synthetic source drops the null elements of a double field:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
+      reason: "synthetic source keeps null array elements today, and the proposed rule drops them at indexing"
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { match_all: {} }
+          sort: [ _doc ]
+          _source: dbl
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.dbl: 1.5 }
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.3._source.dbl: [1.5, 2.5] }
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
+  - match: { hits.hits.7._source.dbl: 1.5 }
+  - match: { hits.hits.8._source.dbl: 1.5 }
+  - match: { hits.hits.9._source.dbl: 1.5 }
+
+---
+synthetic source drops the null elements of a scaled_float field:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
+      reason: "synthetic source keeps null array elements today, and the proposed rule drops them at indexing"
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { match_all: {} }
+          sort: [ _doc ]
+          _source: sfl
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.sfl: 1.5 }
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.3._source.sfl: [1.5, 2.5] }
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
+  - match: { hits.hits.7._source.sfl: 1.5 }
+  - match: { hits.hits.8._source.sfl: 1.5 }
+  - match: { hits.hits.9._source.sfl: 1.5 }
+
+---
+synthetic source drops the null elements of a date_nanos field:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
+      reason: "synthetic source keeps null array elements today, and the proposed rule drops them at indexing"
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { match_all: {} }
+          sort: [ _doc ]
+          _source: dtn
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.dtn: "2026-01-01T00:00:00.000Z" }
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.3._source.dtn: ["2026-01-01T00:00:00.000Z", "2026-01-02T00:00:00.000Z"] }
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
+  - match: { hits.hits.7._source.dtn: "2026-01-01T00:00:00.000Z" }
+  - match: { hits.hits.8._source.dtn: "2026-01-01T00:00:00.000Z" }
+  - match: { hits.hits.9._source.dtn: "2026-01-01T00:00:00.000Z" }
+
+---
+synthetic source drops the null elements of a binary field:
+  - do:
+      search:
+        index: test
+        body:
+          query: { match_all: {} }
+          sort: [ _doc ]
+          _source: bin
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.bin: "YQ==" }
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.3._source.bin: ["YQ==", "Yg=="] }
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
+  - match: { hits.hits.7._source.bin: "YQ==" }
+  - match: { hits.hits.8._source.bin: "YQ==" }
+  - match: { hits.hits.9._source.bin: "YQ==" }

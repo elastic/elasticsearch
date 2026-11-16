@@ -77,6 +77,30 @@ public class ColumnarExistsNullSemanticsTests extends MapperServiceTestCase {
         assertExistsMatchesOnlyDocumentsWithANonNullValue("boolean", () -> randomBoolean());
     }
 
+    public void testByteExistsMatchesOnlyDocumentsWithANonNullValue() throws IOException {
+        assertExistsMatchesOnlyDocumentsWithANonNullValue("byte", () -> randomByte());
+    }
+
+    public void testShortExistsMatchesOnlyDocumentsWithANonNullValue() throws IOException {
+        assertExistsMatchesOnlyDocumentsWithANonNullValue("short", () -> randomShort());
+    }
+
+    public void testIntegerExistsMatchesOnlyDocumentsWithANonNullValue() throws IOException {
+        assertExistsMatchesOnlyDocumentsWithANonNullValue("integer", () -> randomInt());
+    }
+
+    public void testHalfFloatExistsMatchesOnlyDocumentsWithANonNullValue() throws IOException {
+        assertExistsMatchesOnlyDocumentsWithANonNullValue("half_float", () -> randomIntBetween(0, 1000) / 4.0f);
+    }
+
+    public void testFloatExistsMatchesOnlyDocumentsWithANonNullValue() throws IOException {
+        assertExistsMatchesOnlyDocumentsWithANonNullValue("float", () -> randomFloat());
+    }
+
+    public void testDoubleExistsMatchesOnlyDocumentsWithANonNullValue() throws IOException {
+        assertExistsMatchesOnlyDocumentsWithANonNullValue("double", () -> randomDouble());
+    }
+
     @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/165909")
     public void testKeywordSyntheticSourceDropsNullElements() throws IOException {
         assertSyntheticSourceDropsNullElements("keyword", () -> randomAlphaOfLengthBetween(1, 8));
@@ -105,6 +129,36 @@ public class ColumnarExistsNullSemanticsTests extends MapperServiceTestCase {
     @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/165909")
     public void testBooleanSyntheticSourceDropsNullElements() throws IOException {
         assertSyntheticSourceDropsNullElements("boolean", () -> randomBoolean());
+    }
+
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/165909")
+    public void testByteSyntheticSourceDropsNullElements() throws IOException {
+        assertSyntheticSourceDropsNullElements("byte", () -> randomByte());
+    }
+
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/165909")
+    public void testShortSyntheticSourceDropsNullElements() throws IOException {
+        assertSyntheticSourceDropsNullElements("short", () -> randomShort());
+    }
+
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/165909")
+    public void testIntegerSyntheticSourceDropsNullElements() throws IOException {
+        assertSyntheticSourceDropsNullElements("integer", () -> randomInt());
+    }
+
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/165909")
+    public void testHalfFloatSyntheticSourceDropsNullElements() throws IOException {
+        assertSyntheticSourceDropsNullElements("half_float", () -> randomIntBetween(0, 1000) / 4.0f);
+    }
+
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/165909")
+    public void testFloatSyntheticSourceDropsNullElements() throws IOException {
+        assertSyntheticSourceDropsNullElements("float", () -> randomFloat());
+    }
+
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/165909")
+    public void testDoubleSyntheticSourceDropsNullElements() throws IOException {
+        assertSyntheticSourceDropsNullElements("double", () -> randomDouble());
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/165521")

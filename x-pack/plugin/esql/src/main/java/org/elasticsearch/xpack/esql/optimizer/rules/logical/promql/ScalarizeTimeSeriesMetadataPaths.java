@@ -884,11 +884,7 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
                     groupings.add(timeseries.get(id));
                 }
                 // a label the container holds too is compared with it
-                promoted.get(id).forEach((name, label) -> {
-                    if (inContainer(id, name) == false) {
-                        addIfAbsent(labels, (Attribute) label);
-                    }
-                });
+                outside(id).values().forEach(label -> addIfAbsent(labels, (Attribute) label));
             }
             return new TopNBy(topNBy.source(), pack(topNBy.child(), labels, groupings), topNBy.order(), topNBy.limitPerGroup(), groupings);
         }
@@ -903,15 +899,7 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
                     dims.add(dim);
                     continue;
                 }
-                NameId id = record(dim);
-                if (timeseries.containsKey(id)) {
-                    dims.add((Attribute) timeseries.get(id));
-                }
-                promoted.get(id).forEach((name, label) -> {
-                    if (inContainer(id, name) == false) {
-                        addIfAbsent(dims, (Attribute) label);
-                    }
-                });
+                parts(record(dim)).forEach(part -> addIfAbsent(dims, (Attribute) part));
             }
             return new PackDims(pack.source(), pack.child(), dims, pack.packed());
         }
@@ -1099,10 +1087,8 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
             if (whole == null) {
                 whole = typed ? TranslationContextV2.emptyLabels(at) : absent(at);
             }
-            for (var label : promoted.getOrDefault(id, new TreeMap<>()).entrySet()) {
-                if (inContainer(id, label.getKey()) == false) {
-                    whole = new TimeSeriesMetadataSet(at, whole, Literal.keyword(at, label.getKey()), label.getValue());
-                }
+            for (var label : outside(id).entrySet()) {
+                whole = new TimeSeriesMetadataSet(at, whole, Literal.keyword(at, label.getKey()), label.getValue());
             }
             return whole;
         }
@@ -1117,6 +1103,24 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
             }
             Expression container = container(id);
             return container == null ? absent(at) : container;
+        }
+
+        /** The promoted labels of the container {@code id} that it does not hold. */
+        private SortedMap<String, Expression> outside(NameId id) {
+            SortedMap<String, Expression> outside = new TreeMap<>(promoted.getOrDefault(id, new TreeMap<>()));
+            outside.keySet().removeIf(name -> inContainer(id, name));
+            return outside;
+        }
+
+        /** The parts of the container {@code id} that tell its series apart: the container that is left, and each label outside it. */
+        private List<Expression> parts(NameId id) {
+            var parts = new ArrayList<Expression>();
+            Expression container = container(id);
+            if (container != null) {
+                parts.add(container);
+            }
+            parts.addAll(outside(id).values());
+            return parts;
         }
 
         /** Whether the container {@code id} holds {@code name}, promoted or not. */
@@ -1160,15 +1164,7 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
                         if (key.dataType() == DataType.TIME_SERIES_METADATA_DATA_TYPE && reads(key)) {
                             // Each label once: a label in the container too would hash twice, so the same series would hash apart
                             // in plans that promote different labels.
-                            NameId id = record(key);
-                            if (timeseries.containsKey(id)) {
-                                keys.add(container(id));
-                            }
-                            for (var label : promoted.get(id).entrySet()) {
-                                if (inContainer(id, label.getKey()) == false) {
-                                    keys.add(label.getValue());
-                                }
-                            }
+                            keys.addAll(parts(record(key)));
                         } else {
                             keys.add(key);
                         }

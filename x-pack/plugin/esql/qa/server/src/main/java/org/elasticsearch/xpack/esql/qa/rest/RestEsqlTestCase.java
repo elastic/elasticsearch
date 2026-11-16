@@ -169,6 +169,11 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             return this;
         }
 
+        public RequestObjectBuilder settings(String rawSettings) throws IOException {
+            builder.rawField("settings", new BytesArray(rawSettings).streamInput(), XContentType.JSON);
+            return this;
+        }
+
         public RequestObjectBuilder timeZone(ZoneId zoneId) throws IOException {
             return timeZone(zoneId.toString());
         }

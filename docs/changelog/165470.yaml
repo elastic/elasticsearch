@@ -1,0 +1,5 @@
+area: Logs
+issues: []
+pr: 165470
+summary: Fixed a bug where FLS did not always filter companion fields correctly
+type: bug

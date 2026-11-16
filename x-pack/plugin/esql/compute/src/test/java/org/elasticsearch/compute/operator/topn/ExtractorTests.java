@@ -16,12 +16,14 @@ import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder.Aggregat
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.DocOriginTable;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.lucene.AlwaysReferencedIndexedByShardId;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.test.BlockTestUtils;
+import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.test.ESTestCase;
 
@@ -175,6 +177,27 @@ public class ExtractorTests extends ESTestCase {
                                         v.segments(),
                                         v.docs(),
                                         DocVector.config().mayContainDuplicates()
+                                    ).asBlock();
+                                }
+                            ) }
+                    );
+                    cases.add(
+                        new Object[] {
+                            new TestCase(
+                                "doc that left its node",
+                                e,
+                                DocVectorEncoder.detached().withOrigins(new DocOriginTable(NoopCircuitBreaker.INSTANCE)),
+                                false,
+                                () -> RandomBlock.randomDetachedDocBlock(blockFactory, 1, between(1, 3)).block(),
+                                b -> {
+                                    // the result names only the origin its row references, and rows compare by origin
+                                    DocVector v = (DocVector) b.asVector();
+                                    return new DocVector(
+                                        AlwaysReferencedIndexedByShardId.INSTANCE,
+                                        v.shards(),
+                                        v.segments(),
+                                        v.docs(),
+                                        DocVector.config().origins(v.origins()).mayContainDuplicates()
                                     ).asBlock();
                                 }
                             ) }

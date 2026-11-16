@@ -119,13 +119,12 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
 
     private enum ValuesMode {
         /**
-         * Columnar inline ordering (strict-columnar + exact): non-ignored values in source order,
-         * ignored values (exceeding ignore_above) tail-appended per key in sorted byte order.
+         * Columnar inline ordering (strict-columnar + exact): values in source order.
          */
         AS_IS_INLINE,
         /**
-         * Offsets-sidecar ordering (non-columnar + exact): all values including those exceeding
-         * ignore_above are restored to their original source order via the offsets sidecar.
+         * Offsets-sidecar ordering (non-columnar + exact): values are restored to their original
+         * source order via the offsets sidecar.
          */
         AS_IS_OFFSETS,
         /** Sort values and remove duplicates. Both SortedSetDocValues and SortableBinaryDocValues
@@ -202,10 +201,15 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
         for (Map<String, Object> map : maps) {
             flattenSource("", map, flat, mode);
         }
+        // Like a keyword field, the root has no value that ignore_above left out
+        for (List<BytesRef> values : flat.values()) {
+            values.removeIf(v -> v != null && v.utf8ToString().length() > ignoreAbove);
+        }
+        flat.values().removeIf(List::isEmpty);
         if (flat.isEmpty()) {
             return null;
         }
-        collapseValues(flat, mode, ignoreAbove);
+        collapseValues(flat, mode);
         // Convert to a LinkedHashMap preserving the BytesRef key order
         LinkedHashMap<String, Object> result = new LinkedHashMap<>();
         for (Map.Entry<BytesRef, List<BytesRef>> e : flat.entrySet()) {
@@ -248,34 +252,10 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
         }
     }
 
-    private static void collapseValues(TreeMap<BytesRef, List<BytesRef>> result, ValuesMode mode, int ignoreAbove) {
+    private static void collapseValues(TreeMap<BytesRef, List<BytesRef>> result, ValuesMode mode) {
         switch (mode) {
-            case AS_IS_INLINE -> {
-                // Ignored values (exceeding ignore_above) are stored separately and tail-appended
-                // per key in sorted byte order; non-ignored values stay in document order.
-                if (ignoreAbove < Integer.MAX_VALUE) {
-                    for (List<BytesRef> list : result.values()) {
-                        List<BytesRef> notIgnored = new ArrayList<>();
-                        List<BytesRef> ignored = new ArrayList<>();
-                        for (BytesRef v : list) {
-                            if (v == null || v.utf8ToString().length() <= ignoreAbove) {
-                                notIgnored.add(v);
-                            } else {
-                                ignored.add(v);
-                            }
-                        }
-                        if (ignored.isEmpty() == false) {
-                            Collections.sort(ignored);
-                            list.clear();
-                            list.addAll(notIgnored);
-                            list.addAll(ignored);
-                        }
-                    }
-                }
-            }
-            case AS_IS_OFFSETS -> {
-                // The offsets sidecar restores original document order for all values including
-                // those that exceeded ignore_above, so no reordering is needed.
+            case AS_IS_INLINE, AS_IS_OFFSETS -> {
+                // Values stay in document order
             }
             case SORTED_UNIQUE -> {
                 for (Map.Entry<BytesRef, List<BytesRef>> entry : result.entrySet()) {

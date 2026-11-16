@@ -43,6 +43,24 @@ public record DriverSleeps(Map<String, Long> counts, List<Sleep> first, List<Sle
             "esql_thread_name_in_driver_profile"
         );
 
+        public static final ProfileSchema<Sleep> PROFILE_SCHEMA = ProfileSchema.of(Sleep.class, (builder, value, params) -> {
+            builder.startObject();
+            builder.field("reason", value.reason);
+            builder.field("thread_name", value.threadName);
+            builder.timestampFieldsFromUnixEpochMillis("sleep_millis", "sleep", value.sleep);
+            if (value.wake > 0) {
+                builder.timestampFieldsFromUnixEpochMillis("wake_millis", "wake", value.wake);
+            }
+            return builder.endObject();
+        })
+            .required("reason", ProfileSchema.string())
+            .required("thread_name", ProfileSchema.string())
+            .optional("sleep", ProfileSchema.string())
+            .required("sleep_millis", ProfileSchema.integer())
+            .optional("wake", ProfileSchema.string())
+            .optional("wake_millis", ProfileSchema.integer())
+            .build();
+
         Sleep(StreamInput in) throws IOException {
             this(
                 in.readString(),
@@ -75,16 +93,25 @@ public record DriverSleeps(Map<String, Long> counts, List<Sleep> first, List<Sle
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field("reason", reason);
-            builder.field("thread_name", threadName);
-            builder.timestampFieldsFromUnixEpochMillis("sleep_millis", "sleep", sleep);
-            if (wake > 0) {
-                builder.timestampFieldsFromUnixEpochMillis("wake_millis", "wake", wake);
-            }
-            return builder.endObject();
+            return PROFILE_SCHEMA.write(builder, this, params);
         }
     }
+
+    public static final ProfileSchema<DriverSleeps> PROFILE_SCHEMA = ProfileSchema.of(DriverSleeps.class, (builder, value, params) -> {
+        builder.startObject();
+        builder.startObject("counts");
+        for (Map.Entry<String, Long> count : value.counts.entrySet()) {
+            builder.field(count.getKey(), count.getValue());
+        }
+        builder.endObject();
+        writeSleeps(builder, params, "first", value.first);
+        writeSleeps(builder, params, "last", value.last);
+        return builder.endObject();
+    })
+        .required("counts", ProfileSchema.dynamicObject(ProfileSchema.integer()))
+        .required("first", ProfileSchema.array(Sleep.PROFILE_SCHEMA.schema()))
+        .required("last", ProfileSchema.array(Sleep.PROFILE_SCHEMA.schema()))
+        .build();
 
     /**
      * How many sleeps of the first and last sleeps and wakes to keep.
@@ -169,21 +196,13 @@ public record DriverSleeps(Map<String, Long> counts, List<Sleep> first, List<Sle
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.startObject("counts");
-        for (Map.Entry<String, Long> count : counts.entrySet()) {
-            builder.field(count.getKey(), count.getValue());
-        }
-        builder.endObject();
-        toXContent(builder, params, "first", first);
-        toXContent(builder, params, "last", last);
-        return builder.endObject();
+        return PROFILE_SCHEMA.write(builder, this, params);
     }
 
-    private static void toXContent(XContentBuilder builder, ToXContent.Params params, String name, List<Sleep> sleeps) throws IOException {
+    private static void writeSleeps(XContentBuilder builder, ToXContent.Params params, String name, List<Sleep> sleeps) throws IOException {
         builder.startArray(name);
         for (Sleep sleep : sleeps) {
-            sleep.toXContent(builder, params);
+            Sleep.PROFILE_SCHEMA.write(builder, sleep, params);
         }
         builder.endArray();
     }

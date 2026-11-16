@@ -9,6 +9,9 @@
 :::{include} project_routing.md
 :::
 
+:::{include} time_series_reduce_per_index.md
+:::
+
 :::{include} time_zone.md
 :::
 

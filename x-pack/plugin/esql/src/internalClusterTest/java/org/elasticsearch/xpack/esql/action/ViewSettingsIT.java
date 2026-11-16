@@ -881,8 +881,9 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * Loading a subfield of a flattened field is rejected under {@code load}, and a view that SETs {@code load} must reject it
-     * the same way when the caller set nothing. {@code foo} is flattened in {@code flat_a}; {@code foo.bar} is a keyword in
+     * Where a name under a flattened field is not its key, loading a subfield of a flattened field is rejected under
+     * {@code load}, and a view that SETs {@code load} must reject it the same way when the caller set nothing. Where it is its key,
+     * both read it. {@code foo} is flattened in {@code flat_a}; {@code foo.bar} is a keyword in
      * {@code flat_b}, so {@code foo} is type-conflicted over both; {@code flat_c} maps neither, so over {@code flat_a, flat_c}
      * {@code foo} is flattened in only one index.
      */
@@ -905,6 +906,12 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
             String body = cases.get(i).get(0);
             String error = cases.get(i).get(1) + " is of flattened field type is not supported with unmapped_fields=\"load\"";
             String viewName = "flat_view_" + i;
+            if (EsqlCapabilities.Cap.FLATTENED_KEYS.isEnabled()) {
+                run("SET unmapped_fields=\"load\"; " + body).close();
+                assertAcked(createView(viewName, "SET unmapped_fields=\"load\"; " + body));
+                run("FROM " + viewName).close();
+                continue;
+            }
             expectThrows(VerificationException.class, containsString(error), () -> run("SET unmapped_fields=\"load\"; " + body).close());
             assertAcked(createView(viewName, "SET unmapped_fields=\"load\"; " + body));
             expectThrows(VerificationException.class, containsString(error), () -> run("FROM " + viewName).close());

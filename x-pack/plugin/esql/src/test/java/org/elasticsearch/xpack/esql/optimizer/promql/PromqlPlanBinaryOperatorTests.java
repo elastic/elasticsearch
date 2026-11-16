@@ -19,9 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DateEsField;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
@@ -49,12 +47,11 @@ import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
-import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -496,9 +493,9 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         var plan = planPromql(
             "PROMQL index=k8s step=5m result=(sum by (cluster) (network.eth0.tx) / on (cluster) sum by (cluster) (network.eth0.rx))"
         );
-        var joins = plan.collect(InnerJoin.class);
+        var joins = plan.collect(HashJoin.class);
         assertThat(joins, hasSize(1));
-        InnerJoin join = joins.getFirst();
+        HashJoin join = joins.getFirst();
         assertThat(join.unique(), equalTo(true));
         assertThat(join.leftFields().getFirst().name(), equalTo("step"));
         assertThat(keyedLabels(join.left()), containsInAnyOrder("cluster"));
@@ -511,7 +508,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
             "PROMQL index=k8s step=5m result=((sum by (cluster) (network.eth0.tx) / on (cluster) "
                 + "sum by (cluster) (network.eth0.rx)) / ignoring (pod) sum by (cluster, region) (network.eth0.rx))"
         );
-        var joins = plan.collect(InnerJoin.class);
+        var joins = plan.collect(HashJoin.class);
         assertThat(joins, hasSize(2));
         joins.forEach(join -> assertFalse(join.leftFields().stream().map(Attribute::name).toList().contains("region")));
     }
@@ -523,9 +520,9 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
             "PROMQL index=k8s step=5m result=(sum by (cluster, pod) (network.eth0.tx) "
                 + "/ on (cluster) group_left sum by (cluster) (network.eth0.rx))"
         );
-        var joins = plan.collect(InnerJoin.class);
+        var joins = plan.collect(HashJoin.class);
         assertThat(joins, hasSize(1));
-        InnerJoin join = joins.getFirst();
+        HashJoin join = joins.getFirst();
         assertThat(join.unique(), equalTo(false));
         assertThat(keyedLabels(join.left()), containsInAnyOrder("cluster"));
         assertThat(keyedLabels(join.right()), containsInAnyOrder("cluster"));
@@ -547,9 +544,9 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
             "PROMQL index=k8s step=5m result=(sum by (cluster) (network.eth0.tx) "
                 + "/ on (cluster) group_right sum by (cluster, pod) (network.eth0.rx))"
         );
-        var joins = plan.collect(InnerJoin.class);
+        var joins = plan.collect(HashJoin.class);
         assertThat(joins, hasSize(1));
-        InnerJoin join = joins.getFirst();
+        HashJoin join = joins.getFirst();
         assertThat(join.unique(), equalTo(false));
         // After the swap the probe (left of the join) is the RHS "many" side, grouped by (cluster, pod).
         assertThat(keyedLabels(join.left()), containsInAnyOrder("cluster"));
@@ -561,7 +558,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         var plan = planPromql(
             "PROMQL index=k8s step=5m result=(sum by (cluster) (network.eth0.tx) > bool on (cluster) sum by (cluster) (network.eth0.rx))"
         );
-        var joins = plan.collect(InnerJoin.class);
+        var joins = plan.collect(HashJoin.class);
         assertThat(joins, hasSize(1));
         assertThat(keyedLabels(joins.getFirst().left()), containsInAnyOrder("cluster"));
     }
@@ -572,7 +569,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         var plan = planPromql(
             "PROMQL index=k8s step=5m result=(sum by (cluster) (network.eth0.tx) > on (cluster) sum by (cluster) (network.eth0.rx))"
         );
-        assertThat(plan.collect(InnerJoin.class), hasSize(1));
+        assertThat(plan.collect(HashJoin.class), hasSize(1));
         boolean hasGreaterThanFilter = plan.collect(Filter.class)
             .stream()
             .anyMatch(f -> f.condition().anyMatch(GreaterThan.class::isInstance));
@@ -586,7 +583,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         LogicalPlan plan = planPromql(
             "PROMQL index=k8s step=5m result=(sum by (cluster) (network.eth0.tx) + sum by (pod) (network.eth0.rx))"
         );
-        assertThat(plan.collect(InnerJoin.class), hasSize(1));
+        assertThat(plan.collect(HashJoin.class), hasSize(1));
     }
 
     public void testVectorMatchOnLabelAbsentFromBothOperandsJoinsOnStep() {
@@ -597,7 +594,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         var plan = planPromql(
             "PROMQL index=k8s step=5m result=(sum by (cluster) (network.eth0.tx) / on (pod) sum by (cluster) (network.eth0.rx))"
         );
-        var joins = plan.collect(InnerJoin.class);
+        var joins = plan.collect(HashJoin.class);
         assertThat(joins, hasSize(1));
         assertThat(
             joins.getFirst().leftFields().stream().map(Attribute::name).toList(),
@@ -662,7 +659,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
             "PROMQL index=k8s step=5m result=(1 + (sum by (cluster) (network.eth0.tx) "
                 + "/ on (cluster) sum by (cluster) (network.eth0.rx)))"
         );
-        assertThat(plan.collect(InnerJoin.class), hasSize(1));
+        assertThat(plan.collect(HashJoin.class), hasSize(1));
     }
 
     public void testVectorMatchNestedInAggregation() {
@@ -672,7 +669,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
             "PROMQL index=k8s step=5m result=(sum(sum by (cluster) (network.eth0.tx) "
                 + "/ on (cluster) sum by (cluster) (network.eth0.rx)))"
         );
-        assertThat(plan.collect(InnerJoin.class), hasSize(1));
+        assertThat(plan.collect(HashJoin.class), hasSize(1));
     }
 
     public void testVectorMatchNestedInFunction() {
@@ -682,7 +679,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
             "PROMQL index=k8s step=5m result=(abs(sum by (cluster) (network.eth0.tx) "
                 + "/ on (cluster) sum by (cluster) (network.eth0.rx)))"
         );
-        assertThat(plan.collect(InnerJoin.class), hasSize(1));
+        assertThat(plan.collect(HashJoin.class), hasSize(1));
     }
 
     public void testVectorMatchComparisonInsideUnion() {
@@ -692,7 +689,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
             "PROMQL index=k8s step=5m result=((sum by (cluster) (network.eth0.tx) "
                 + "> on (cluster) sum by (cluster) (network.eth0.rx)) or sum by (cluster) (network.eth0.rx))"
         );
-        assertThat(plan.collect(InnerJoin.class), hasSize(1));
+        assertThat(plan.collect(HashJoin.class), hasSize(1));
     }
 
     public void testVectorMatchComposedWithPlainVectorOperand() {
@@ -702,7 +699,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
             "PROMQL index=k8s step=5m result=((sum by (cluster) (network.eth0.tx) "
                 + "/ on (cluster) sum by (cluster) (network.eth0.rx)) + sum by (cluster) (network.eth0.rx))"
         );
-        assertThat(plan.collect(InnerJoin.class), hasSize(2));
+        assertThat(plan.collect(HashJoin.class), hasSize(2));
     }
 
     public void testTopKOverVectorMatchInsideUnion() {
@@ -712,7 +709,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
             "PROMQL index=k8s step=5m result=(topk(2, sum by (cluster) (network.eth0.tx) "
                 + "/ on (cluster) sum by (cluster) (network.eth0.rx)) or sum by (cluster) (network.eth0.rx))"
         );
-        assertThat(plan.collect(InnerJoin.class), hasSize(1));
+        assertThat(plan.collect(HashJoin.class), hasSize(1));
     }
 
     /**
@@ -776,6 +773,16 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
             "PROMQL index=k8s step=1m result=(max by (cluster) (absent_over_time(network.eth0.tx[5m])) "
                 + "- max by (cluster) (absent_over_time(network.eth0.rx{pod=\"one\"}[5m])))"
         );
+        assertThat(plan.toString(), timestampPresence(plan), hasSize(0));
+    }
+
+    /**
+     * A counter is a metric too: the series a counter selector selects have a sample of it, so its {@code absent_over_time}
+     * plans no row-presence check of the series.
+     */
+    public void testAbsentOverTimeOfCounterChecksNoRowPresence() {
+        // network.total_bytes_in is mapped as a counter (k8s-mappings.json)
+        LogicalPlan plan = planPromql("PROMQL index=k8s step=1m result=(absent_over_time(network.total_bytes_in[5m]))");
         assertThat(plan.toString(), timestampPresence(plan), hasSize(0));
     }
 
@@ -917,43 +924,6 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         )) {
             assertNotNull(promql, planPrometheusLayout(promql));
         }
-    }
-
-    /**
-     * Plans against the layout of {@code metrics-prometheus@template}: {@code labels} and {@code metrics} are passthrough
-     * objects, so each sub-field is also exposed under its bare name, and {@code labels.__name__} is a dimension.
-     */
-    private LogicalPlan planPrometheusLayout(String promql) {
-        EsField name = dimension("__name__");
-        EsField instance = dimension("instance");
-        EsField job = dimension("job");
-        EsField available = metric("node_memory_MemAvailable_bytes", DataType.DOUBLE);
-        EsField total = metric("node_memory_MemTotal_bytes", DataType.DOUBLE);
-        EsField cpu = metric("node_cpu_seconds_total", DataType.COUNTER_DOUBLE);
-        Map<String, EsField> labels = Map.of(name.getName(), name, instance.getName(), instance, job.getName(), job);
-        Map<String, EsField> metrics = Map.of(available.getName(), available, total.getName(), total, cpu.getName(), cpu);
-        Map<String, EsField> mapping = new HashMap<>(labels);
-        mapping.putAll(metrics);
-        mapping.put("@timestamp", DateEsField.dateEsField("@timestamp", Map.of(), true, EsField.TimeSeriesFieldType.NONE));
-        mapping.put("labels", new EsField("labels", DataType.OBJECT, labels, false, EsField.TimeSeriesFieldType.NONE));
-        mapping.put("metrics", new EsField("metrics", DataType.OBJECT, metrics, false, EsField.TimeSeriesFieldType.NONE));
-        var index = new EsIndex(
-            "metrics-node.prometheus-default",
-            mapping,
-            Map.of("metrics-node.prometheus-default", new IndexProperties(IndexMode.TIME_SERIES, 0)),
-            Map.of(),
-            Map.of()
-        );
-        var analyzed = tsAnalyzer().addIndex(index).query("PROMQL index=metrics-node.prometheus-default step=1m result=(" + promql + ")");
-        return logicalOptimizerWithLatestVersion.optimize(analyzed);
-    }
-
-    private static EsField dimension(String name) {
-        return new KeywordEsField(name, Map.of(), true, 0, false, false, EsField.TimeSeriesFieldType.DIMENSION);
-    }
-
-    private static EsField metric(String name, DataType type) {
-        return new EsField(name, type, Map.of(), true, EsField.TimeSeriesFieldType.METRIC);
     }
 
     private List<String> outputNames(String promql) {

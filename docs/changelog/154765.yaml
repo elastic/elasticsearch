@@ -12,8 +12,8 @@ highlight:
     This functionality is in technical preview and may be changed or removed
     in a future release.
   notable: true
-  title: match_phrase can now operate on runtime expressions
+  title: '`match_phrase` can now operate on runtime expressions'
 issues: []
 pr: 154765
-summary: match_phrase can now operate on runtime expressions
+summary: '`match_phrase` can now operate on runtime expressions'
 type: enhancement

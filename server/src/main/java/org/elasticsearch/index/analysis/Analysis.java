@@ -494,12 +494,30 @@ public class Analysis {
         SynonymsManagementAPIService synonymsManagementAPIService,
         boolean ignoreMissing
     ) {
-        PlainActionFuture<PagedResult<SynonymRule>> future = new PlainActionFuture<>();
+        return getRulesFromIndex(synonymsSets, synonymsManagementAPIService, ignoreMissing).reader();
+    }
+
+    /**
+     * Synonym rules read from the {@code .synonyms} index. {@code degraded} is set when {@code ignoreMissing}
+     * skipped some of the sets or swallowed a failure to load them, so {@code reader} lacks some or all of the
+     * sets' rules.
+     */
+    public record IndexRules(Reader reader, boolean degraded) {}
+
+    public static IndexRules getRulesFromIndex(
+        Set<String> synonymsSets,
+        SynonymsManagementAPIService synonymsManagementAPIService,
+        boolean ignoreMissing
+    ) {
+        boolean degraded;
+        PlainActionFuture<SynonymsManagementAPIService.SynonymSetRules> future = new PlainActionFuture<>();
         synonymsManagementAPIService.getSynonymSetRules(synonymsSets, ignoreMissing, future);
 
         PagedResult<SynonymRule> result;
         try {
-            result = future.actionGet();
+            SynonymsManagementAPIService.SynonymSetRules setRules = future.actionGet();
+            result = setRules.rules();
+            degraded = setRules.missingSetIds().isEmpty() == false;
         } catch (Exception e) {
             if (ignoreMissing == false) {
                 throw e;
@@ -516,13 +534,14 @@ public class Analysis {
                 logger.error(message, e);
             }
             result = new PagedResult<>(0, new SynonymRule[0]);
+            degraded = true;
         }
 
         StringBuilder sb = new StringBuilder();
         for (SynonymRule rule : result.pageResults()) {
             sb.append(rule.synonyms()).append(System.lineSeparator());
         }
-        return new StringReader(sb.toString());
+        return new IndexRules(new StringReader(sb.toString()), degraded);
     }
 
     private static boolean isNotEntitled(IOException ioe) {

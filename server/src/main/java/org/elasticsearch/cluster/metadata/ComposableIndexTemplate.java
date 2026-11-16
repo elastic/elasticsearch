@@ -414,7 +414,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
 
     public ComposableIndexTemplate mergeMappings(CompressedXContent mappings) throws IOException {
         Objects.requireNonNull(mappings);
-        if (Mapping.EMPTY.toCompressedXContent().equals(mappings) && this.template() != null && this.template().mappings() != null) {
+        if (Mapping.emptyCompressed().equals(mappings) && this.template() != null && this.template().mappings() != null) {
             return this;
         }
         ComposableIndexTemplate.Builder mergedIndexTemplateBuilder = this.toBuilder();

@@ -628,6 +628,53 @@ public class PrivilegeTests extends ESTestCase {
         );
     }
 
+    public void testManageBoostProfilesPrivilege() {
+        verifyClusterActionAllowed(
+            ClusterPrivilegeResolver.MANAGE_BOOST_PROFILES,
+            "cluster:monitor/boost/profile/get",
+            "cluster:admin/boost/profile/put",
+            "cluster:admin/boost/profile/delete"
+        );
+        verifyClusterActionDenied(
+            ClusterPrivilegeResolver.MANAGE_BOOST_PROFILES,
+            "cluster:monitor/boost/rule/get",
+            "cluster:monitor/boost/explain",
+            "cluster:admin/boost/rule/create",
+            "cluster:admin/boost/rule/update",
+            "cluster:admin/boost/rule/delete",
+            "cluster:admin/something/else"
+        );
+    }
+
+    public void testManageBoostRulesPrivilege() {
+        verifyClusterActionAllowed(
+            ClusterPrivilegeResolver.MANAGE_BOOST_RULES,
+            "cluster:monitor/boost/rule/get",
+            "cluster:monitor/boost/explain",
+            "cluster:admin/boost/rule/create",
+            "cluster:admin/boost/rule/update",
+            "cluster:admin/boost/rule/delete"
+        );
+        verifyClusterActionDenied(
+            ClusterPrivilegeResolver.MANAGE_BOOST_RULES,
+            "cluster:monitor/boost/profile/get",
+            "cluster:admin/boost/profile/put",
+            "cluster:admin/boost/profile/delete",
+            "cluster:admin/something/else"
+        );
+    }
+
+    public void testManageCoversBoostWriteActions() {
+        verifyClusterActionAllowed(
+            ClusterPrivilegeResolver.MANAGE,
+            "cluster:admin/boost/profile/put",
+            "cluster:admin/boost/profile/delete",
+            "cluster:admin/boost/rule/create",
+            "cluster:admin/boost/rule/update",
+            "cluster:admin/boost/rule/delete"
+        );
+    }
+
     public void testRamBytesUsed() {
         final long fixedBytes = RamUsageEstimator.shallowSizeOfInstance(Privilege.class) + RamUsageEstimator.shallowSizeOfInstance(
             CachedSupplier.class

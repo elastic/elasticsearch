@@ -131,6 +131,17 @@ public abstract class SimdVecLibraryTests extends ESTestCase {
         };
     }
 
+    /**
+     * A random mask over a block of {@code count} vectors, {@code count < 32}, that also selects vectors past the end of the block.
+     * The public masked bindings assert on such masks, so tests pass them to the {@code _raw} bindings to check that the native
+     * kernels still never read vectors or write scores past the block.
+     */
+    protected static int randomInvalidBulkMask(int count) {
+        int validMask = count == 0 ? 0 : randomBulkMask(count);
+        int pastTheBlock = BulkMask.select(randomInt() & ~BulkMask.all(count), randomIntBetween(count, Integer.SIZE - 1));
+        return validMask | pastTheBlock;
+    }
+
     /** A float array of {@code count} scores, all {@link #UNSELECTED_SCORE}. */
     protected static float[] unselectedScores(int count) {
         float[] scores = new float[count];
@@ -159,5 +170,14 @@ public abstract class SimdVecLibraryTests extends ESTestCase {
                 delta
             );
         }
+    }
+
+    /**
+     * Asserts that {@code call} rejects a heap segment, as every binding without {@code @Critical} does.
+     * The generated binding checks this with an {@code assert}, so the failure is an {@link AssertionError}.
+     */
+    protected static void assertRejectsHeapSegments(ThrowingRunnable call) {
+        AssertionError e = expectThrows(AssertionError.class, call);
+        assertEquals("non-critical bindings require native memory segments", e.getMessage());
     }
 }

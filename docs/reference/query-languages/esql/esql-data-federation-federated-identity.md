@@ -13,71 +13,119 @@ products:
 
 Federated identity lets {{es}} read an Amazon S3 data source without you storing any static AWS credentials. You configure AWS to trust the identities that Elastic Cloud issues for your project or deployment, and AWS grants {{es}} temporary, scoped read access to your bucket.
 
-Setup involves steps in both AWS and Elastic: collect values from Elastic, configure AWS to trust them, then register the data source back in Elastic.
+Setup happens in both Elastic and AWS:
 
-You can use this page in two ways:
+1. Elastic gives you a CloudFormation template or AWS CLI commands with your project or deployment's values filled in.
+2. You create the AWS resources and grant them read access to your bucket.
+3. You connect the data source in Elastic.
 
-- Work through the following steps to understand each AWS resource and how the pieces fit together.
-- Jump to the [complete AWS CLI example](#complete-aws-cli-example) to set it up hands-on and learn it by doing.
-
-Refer to the [AWS IAM documentation](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_create_oidc.html) as the authoritative reference for the commands shown here.
+Refer to the [AWS IAM documentation](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_create_oidc.html) as the authoritative reference for the AWS commands shown here.
 
 ## Before you begin
 
 To follow this guide, you need:
 
-- An {{ech}} deployment with {{esql}} Data Federation available. Federated identity is on by default on {{ech}}, except in some special environments such as AWS GovCloud.
-- An AWS account with permissions to create IAM OpenID Connect identity providers, roles, and policies.
-- An S3 bucket containing the file or files you want to query.
+- An {{ech}} deployment with [{{esql}} Data Federation enabled](esql-data-federation.md#enable-the-feature). Federated identity is:
+  - Available on {{ech}} on AWS, Azure, and Google Cloud.
+  - Not available on IBM Cloud, in special environments such as AWS GovCloud, or on self-managed, ECE, or ECK deployments.
+- The cluster `manage` privilege, to use the {{esql}} Data Federation UI. Refer to [privileges](esql-data-federation-security.md#privileges).
+- An S3 bucket containing the files you want to query.
+- An AWS identity that can create IAM resources. The permissions depend on your setup method.
 
-## Set up federated identity
+:::{dropdown} Required AWS permissions
+The AWS identity needs the following permissions:
 
-Follow these steps to set up federated identity authentication for your project or deployment.
+- For either setup method, to grant the role read access to your bucket: `iam:CreatePolicy` and `iam:AttachRolePolicy`.
+- For [manual setup](#create-aws-resources-manually): `iam:CreateOpenIDConnectProvider`, `iam:GetOpenIDConnectProvider`, and `iam:CreateRole`. If your AWS account already has an identity provider for your Elastic issuer and it doesn't list your audience, you also need `iam:AddClientIDToOpenIDConnectProvider`.
+- For [CloudFormation setup](#create-aws-resources-with-cloudformation):
+  - CloudFormation: `cloudformation:CreateStack`, `cloudformation:DescribeStacks`, `cloudformation:DescribeStackEvents`, and `cloudformation:GetTemplateSummary`
+  - IAM: `iam:CreateRole`, `iam:GetRole`, `iam:AttachRolePolicy`, `iam:PutRolePolicy`, `iam:GetRolePolicy`, and `iam:PassRole`
+  - Lambda: `lambda:CreateFunction`, `lambda:GetFunction`, and `lambda:InvokeFunction`
+  - CloudWatch Logs: `logs:CreateLogGroup`, `logs:PutRetentionPolicy`, and `logs:DescribeLogGroups`
+
+To delete these resources later, you also need the matching `Delete*` permissions.
+:::
+
+## Start setup in Elastic
+
+Both setup methods start in Elastic:
+
+1. Go to **Data management** > **{{esql}} Data Federation**.
+2. Open the **Connect external data source** flyout in one of these ways:
+   - On the **Data sources** tab, click **Connect data source**.
+   - On the **Datasets** tab, click **Add dataset**, then select **Connect new data source** in the **Data source** menu.
+3. Set **Data source type** to **Amazon S3**.
+4. Enter a **Name** for the data source.
+5. Under **Authentication**, keep **Federated Identity** selected as the **Preferred method**.
+
+Keep the flyout open while you create the AWS resources.
+
+Then choose a setup method:
+
+- [CloudFormation](#create-aws-resources-with-cloudformation): Recommended. A template creates the AWS resources for you.
+- [Manual](#create-aws-resources-manually): You create the resources yourself, for example with the AWS CLI commands that Elastic shows.
+
+## Create AWS resources with CloudFormation
+
+In the flyout, **CloudFormation** is selected as the setup method by default:
+
+:::{dropdown} CloudFormation setup in the Connect external data source flyout
+![The Connect external data source flyout with Federated Identity and the CloudFormation setup method selected, showing the Open template in AWS Console button and the Role ARN field](images/data-federation/federated-identity-cloudformation.png)
+:::
+
+To set up federated identity with CloudFormation:
+
+1. In the **Set up AWS access with CloudFormation** section, click **Open template in AWS Console**. AWS opens a new CloudFormation stack named `elastic-datasources-federated-identity-<id>` in a new tab, with your values filled in.
+2. In AWS, create the stack:
+   1. On the **Quick create stack** page, review the stack name and parameters.
+   2. Under **Capabilities**, select the checkbox acknowledging that the template may create IAM resources.
+   3. Click **Create stack**.
+3. Wait until the stack status is `CREATE_COMPLETE`.
+4. On the stack's **Outputs** tab, copy the **RoleArn** value.
+5. [Grant the role read access](#grant-role-read-access) to your bucket. The template creates the role without any permissions.
+
+### Template resources
+
+The template creates the following resources:
+
+- **IAM OpenID Connect identity provider**: Trusts your Elastic issuer. Created only if your AWS account doesn't have one yet. Every CloudFormation stack for the same issuer shares it, so deleting a stack doesn't delete the provider.
+- **IAM role**: Named `ElasticEsqlDataFederation-<stack-id>`. Only your project or deployment can assume it.
+- **Lambda function and log group**: Create or update the shared identity provider.
+
+## Create AWS resources manually
+
+In the flyout, select the **Manual** setup method.
+
+Use one of the following approaches. Don't mix them, because the commands create the resources in a different order than the following steps:
+
+- **Run the commands from Elastic**: Run all three in order in [AWS CloudShell](https://docs.aws.amazon.com/cloudshell/latest/userguide/welcome.html) or any shell with the AWS CLI configured, then continue with [connecting a data source and creating a dataset](#connect-data-source-and-create-a-dataset).
+- **Create the resources yourself**: Follow these steps, for example in the AWS console or with infrastructure as code.
 
 :::::::{stepper}
 
-::::::{step} Get the trust values from Elastic
-Federated identity works by having AWS trust the tokens that Elastic issues for your project or deployment. Before you configure AWS, collect the values that identify those tokens from Elastic.
-
-In {{kib}}:
-
-1. Go to **Data management** > **{{esql}} Data Federation**.
-2. Click **Connect data source**.
-3. Set **Data source type** to **Amazon S3**.
-4. Under **Authentication**, select **Federated Identity**.
-
-The flyout shows the two values you need for the AWS setup:
-
-| Value | Description | Used in AWS as |
-|---|---|---|
-| JWT issuer | The Elastic Cloud workload identity service URL for your org and region. | The identity provider URL |
-| Project ID or Deployment ID | The unique identifier for your project or deployment. | The `sub` (subject) condition |
-
-:::{dropdown} Show the Federated Identity authentication fields
-:::{image} images/data-federation/connect-data-source-federated-identity.png
-:alt: The Connect data source flyout with Federated Identity selected, showing the read-only JWT issuer and project ID fields
-:width: 450px
-:::
-:::
-
-You use the issuer and subject to configure AWS in the next steps. After AWS creates the role, you enter its role ARN back in Elastic.
-::::::
-
 ::::::{step} Create an OpenID Connect identity provider
-Create an IAM identity provider that trusts the tokens Elastic issues. Set its URL to the JWT issuer and its client ID to `sts.amazonaws.com`. If you choose a custom audience instead, use the same value in AWS and in the Elastic data source's `jwt_audience` setting.
+Create an IAM identity provider that trusts the tokens Elastic issues, with the following values:
+
+- **Provider URL**: Your issuer URL, the `JWT_ISSUER` value in the **Manual** commands.
+- **Client ID**: `sts.amazonaws.com`. The Elastic UI always uses this audience. To use a custom audience, set the same value here and in the data source's `jwt_audience` setting, and connect the data source with the [Console or curl request](#connect-data-source).
 
 :::{dropdown} Example: create the provider with the AWS CLI
-Refer to the [AWS IAM documentation](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_create_oidc.html) for the authoritative steps and for console-based setup.
+For console-based setup, refer to the [AWS IAM documentation](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_create_oidc.html). To create the provider with the AWS CLI, run:
 
 ```shell
 aws iam create-open-id-connect-provider \
   --url "<elastic-jwt-issuer>" \
   --client-id-list "sts.amazonaws.com" <1>
 ```
-1. If you choose a different value, you must use the same here, in the role's trust policy, and in the Elastic data source audience fields.
+1. If you use a custom audience, use the same value here, in the role's trust policy, and in the data source's `jwt_audience` setting.
 :::
 
-Note the provider ARN that AWS returns. You reference it in the role's trust policy next.
+An AWS account can have only one identity provider for each issuer URL. If your account already has a provider for your Elastic issuer, for example from an earlier setup, reuse it instead of creating another:
+
+1. Find the provider's ARN under **Identity providers** in the IAM console, or with `aws iam list-open-id-connect-providers`.
+2. If the provider's client IDs don't include your audience, add it with `aws iam add-client-id-to-open-id-connect-provider`.
+
+Note the provider ARN, whether you created the provider or reused it. You reference it in the role's trust policy next.
 ::::::
 
 ::::::{step} Create an IAM role
@@ -98,7 +146,7 @@ The following trust policy lets your identity provider assume the role, but only
       "Condition": {
         "StringEquals": {
           "<issuer-host>/<path>:aud": "sts.amazonaws.com", <2>
-          "<issuer-host>/<path>:sub": "project:<project-id>" <3>
+          "<issuer-host>/<path>:sub": "deployment:<deployment-id>" <3>
         }
       }
     }
@@ -106,27 +154,37 @@ The following trust policy lets your identity provider assume the role, but only
 }
 ```
 1. The ARN of the identity provider you created in the previous step.
-2. The condition key is the JWT issuer with the `https://` scheme removed, followed by `:aud`. The value must match the `client-id` you set on the provider and the `audience` set in Elastic.
-3. The condition key is the same issuer prefix followed by `:sub`. The value is the subject exactly as shown in the **Connect data source** flyout, including its prefix: `project:<project-id>` on serverless or `deployment:<deployment-id>` on {{ech}}. This restricts the role to your project or deployment.
+2. The condition key is the issuer URL with the `https://` scheme removed, followed by `:aud`. The value must match the client ID you set on the provider, and the data source's `jwt_audience`, which defaults to `sts.amazonaws.com`.
+3. The condition key is the same issuer prefix followed by `:sub`. The value is your subject: `deployment:<deployment-id>` on {{ech}}, or `project:<project-id>` on serverless. It's the `SUBJECT` value in the **Manual** commands. This restricts the role to your project or deployment.
 
 :::{dropdown} Example: create the role with the AWS CLI
-Save the preceding trust policy to a file, then create the role:
+To create the role with the AWS CLI:
 
-```shell
-aws iam create-role \
-  --role-name parquet-sample-role \
-  --assume-role-policy-document file://trust-policy.json <1>
-```
-1. A local file holding the preceding trust policy. `create-role` returns the role ARN.
+1. Save the preceding trust policy to a file named `trust-policy.json`.
+2. Create the role:
+
+   ```shell
+   aws iam create-role \
+     --role-name "<role-name>" \
+     --assume-role-policy-document file://trust-policy.json <1>
+   ```
+   1. The trust policy file from the previous step. `create-role` returns the role ARN.
 :::
 
-Note the role ARN that AWS returns. You enter it, along with the audience, in Elastic in the final step.
+Note the role ARN that AWS returns. You enter it when you [connect the data source](#connect-data-source).
 ::::::
+:::::::
 
-::::::{step} Grant the role read access
-Attach a permissions policy to the role that grants the minimum access {{es}} needs to read your data.
+Once the role is created, [grant it read access](#grant-role-read-access).
 
-The following policy allows reading your objects with `s3:GetObject`, and listing the bucket with `s3:ListBucket` for prefix or glob queries:
+## Grant role read access
+
+The role needs permission to read your bucket. Whether you need this section depends on how you created the role:
+
+- **With CloudFormation**: The template creates the role without any permissions. Attach the following policy.
+- **Manually**: If you ran the commands that Elastic shows, they already attached this policy, so continue with [Connect data source and create a dataset](#connect-data-source-and-create-a-dataset). If you created the resources in the AWS console or with infrastructure as code, attach the following policy.
+
+The following policy grants the minimum access {{es}} needs: `s3:GetObject` to read your objects, and `s3:ListBucket` to list the bucket for prefix or glob queries:
 
 ```json
 {
@@ -149,46 +207,62 @@ The following policy allows reading your objects with `s3:GetObject`, and listin
 2. Bucket-level actions apply to the bucket ARN, not object ARNs. Include this statement only if you query by prefix or glob rather than a single fixed file.
 
 :::{dropdown} Example: create and attach the policy with the AWS CLI
-Save the preceding permissions policy to a file, then create it and attach it to the role:
+To create the policy and attach it to the role with the AWS CLI:
 
-```shell
-# Create the permissions policy
-POLICY_ARN=$(aws iam create-policy \
-  --policy-name parquet-sample-policy \
-  --policy-document file://permissions-policy.json \
-  --query 'Policy.Arn' --output text)
+1. Save the preceding permissions policy to a file named `permissions-policy.json`.
+2. Create the policy and attach it to the role. Replace `<role-name>` with the role's name, which is the last part of its ARN. For CloudFormation, it's the `ElasticEsqlDataFederation-<stack-id>` name at the end of the stack's `RoleArn` output.
 
-# Attach it to the role
-aws iam attach-role-policy \
-  --role-name parquet-sample-role \
-  --policy-arn "${POLICY_ARN}" <1>
-```
-1. The policy ARN returned by `create-policy`. Attaching the policy authorizes the role to read your data.
+   ```shell
+   # Create the permissions policy
+   POLICY_ARN=$(aws iam create-policy \
+     --policy-name "<policy-name>" \
+     --policy-document file://permissions-policy.json \
+     --query 'Policy.Arn' --output text)
+
+   # Attach it to the role
+   aws iam attach-role-policy \
+     --role-name "<role-name>" \
+     --policy-arn "${POLICY_ARN}" <1>
+   ```
+   1. The policy ARN returned by `create-policy`. Attaching the policy authorizes the role to read your data.
 :::
-::::::
 
-::::::{step} Connect the data source and create a dataset
-Back in Elastic:
+Once the policy is attached, [connect the data source and create a dataset](#connect-data-source-and-create-a-dataset).
 
-**Step 1.** In the **Connect data source** flyout from the first step, select **Federated Identity** and enter the **role ARN** you created.
+## Connect data source and create a dataset
+
+After the role can read your bucket, connect the data source and create a dataset that reads from it.
+
+### Connect data source
+
+Connect the data source with the role ARN from either setup method:
 
 ::::{tab-set}
 :group: surface
 
 :::{tab-item} UI
 :sync: ui
-Enter the role ARN in the flyout. For the full field reference, refer to [connect external data sources](esql-data-federation-sources.md).
+To connect in the UI:
+
+1. In the **Connect external data source** flyout you opened earlier, paste the role ARN into **Role ARN**.
+
+   If you used CloudFormation and the ARN isn't the `ElasticEsqlDataFederation-<stack-id>` role that the template created, Elastic warns that it doesn't look like a CloudFormation-generated role.
+2. Click **Connect**.
+
+To learn more about connecting data sources, refer to [data sources](esql-data-federation-sources.md).
 :::
 
 :::{tab-item} Console
 :sync: console
+Create the data source with this request:
+
 ```console
 PUT /_query/data_source/prod_s3_federated
 {
   "type": "s3",
   "settings": {
     "auth": "federated_identity",
-    "role_arn": "arn:aws:iam::112233445566:role/parquet-sample-role", <1>
+    "role_arn": "arn:aws:iam::112233445566:role/<role-name>", <1>
     "jwt_audience": "sts.amazonaws.com" <2>
   }
 }
@@ -199,6 +273,8 @@ PUT /_query/data_source/prod_s3_federated
 
 :::{tab-item} curl
 :sync: curl
+Create the data source with this request:
+
 ```bash
 curl -X PUT "${ELASTICSEARCH_URL}/_query/data_source/prod_s3_federated" \
   -H "Authorization: ApiKey ${API_KEY}" \
@@ -207,7 +283,7 @@ curl -X PUT "${ELASTICSEARCH_URL}/_query/data_source/prod_s3_federated" \
   "type": "s3",
   "settings": {
     "auth": "federated_identity",
-    "role_arn": "arn:aws:iam::112233445566:role/parquet-sample-role",
+    "role_arn": "arn:aws:iam::112233445566:role/<role-name>",
     "jwt_audience": "sts.amazonaws.com"
   }
 }'
@@ -216,121 +292,18 @@ curl -X PUT "${ELASTICSEARCH_URL}/_query/data_source/prod_s3_federated" \
 
 ::::
 
-:::{note}
-If creating the data source fails with `federated authentication settings require the [<setting>] cluster setting to be enabled`, federated identity isn't available for your deployment. It isn't supported on self-managed, {{ece}}, or {{eck}} deployments, and it's off in some special {{ech}} environments such as AWS GovCloud. The error names one of these settings:
+If federated identity isn't available for your project or deployment, connecting fails with an error. Refer to [Before you begin](#before-you-begin).
 
-- {applies_to}`stack: preview 9.6+` `esql.external.federated_identity.enabled`
-- {applies_to}`stack: experimental =9.5` `esql.datasource.federated_identity.enabled`
-:::
+### Create a dataset
 
-**Step 2.** **Create a dataset.** [Create a dataset](esql-data-federation-manage-datasets.md) that points at your files, for example `s3://amzn-s3-demo-bucket/some/sample.parquet` in **Parquet** format.
+If you connected the data source from the **Add dataset** wizard, the wizard selects it for you, so continue with the wizard.
 
-:::{note}
-`region` is a dataset-level setting, not a data source setting. Set it on the dataset when your bucket is not in the default commercial AWS partition. For `auth: federated_identity`, `region` also determines the AWS region used for the STS role-assumption request. If omitted, {{es}} auto-detects the bucket region for S3 calls, and STS defaults to `us-east-1` — which works for standard commercial AWS. See [`sts_region`](esql-data-federation-sources.md) on the data source to override the STS region independently.
-:::
+[Create a dataset](esql-data-federation-manage-datasets.md) that points at your files, for example `s3://amzn-s3-demo-bucket/some/sample.parquet` in **Parquet** format.
 
 You can now query the remote data with {{esql}}.
-::::::
 
-:::::::
-
-## Complete AWS CLI example
-
-The preceding steps explain each AWS resource on its own. The following is an end-to-end example of that setup, using sample values for one scenario. It is illustrative, not a script to run as-is: replace the example values with your own before you run it. Refer to the [AWS IAM documentation](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_create_oidc.html) as the authoritative reference for these commands.
-
-:::{dropdown} Show the complete AWS CLI example
-This example sets up federated identity for reading a single Parquet file at `s3://amzn-s3-demo-bucket/some/sample.parquet`. Run the commands in order in [AWS CloudShell](https://docs.aws.amazon.com/cloudshell/latest/userguide/welcome.html) or any shell with the AWS CLI configured.
-
-**Step 1.** Set the variables for your environment:
-
-```shell
-export JWT_ISSUER="https://<your-jwt-issuer>" # <1>
-export SUBJECT="project:<your-project-id>" # <2>
-export BUCKET_NAME="amzn-s3-demo-bucket"
-export FILE_NAME="some/sample.parquet"
-export ROLE_NAME="parquet-sample-role"
-export POLICY_NAME="parquet-sample-policy"
-```
-1. Copy from the **Connect data source** flyout.
-2. Copy from the flyout. Use `project:<id>` for serverless or `deployment:<id>` for {{ech}}.
-
-**Step 2.** Create the OpenID Connect identity provider, then capture its ARN and the issuer host that the trust policy needs (the issuer without its `https://` scheme):
-
-```shell
-PROVIDER_ARN=$(aws iam create-open-id-connect-provider \
-  --url "${JWT_ISSUER}" \
-  --client-id-list "sts.amazonaws.com" \
-  --query 'OpenIDConnectProviderArn' --output text)
-
-ISSUER_HOST="${JWT_ISSUER#https://}"
-```
-
-**Step 3.** Create the IAM role with a trust policy that lets only your provider, audience, and subject assume it:
-
-```shell
-ROLE_ARN=$(aws iam create-role \
-  --role-name "${ROLE_NAME}" \
-  --assume-role-policy-document "$(cat <<EOF
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Principal": { "Federated": "${PROVIDER_ARN}" },
-      "Action": "sts:AssumeRoleWithWebIdentity",
-      "Condition": {
-        "StringEquals": {
-          "${ISSUER_HOST}:aud": "sts.amazonaws.com",
-          "${ISSUER_HOST}:sub": "${SUBJECT}"
-        }
-      }
-    }
-  ]
-}
-EOF
-)" \
-  --query 'Role.Arn' --output text)
-```
-
-**Step 4.** Create the permissions policy that grants read access to your file:
-
-```shell
-POLICY_ARN=$(aws iam create-policy \
-  --policy-name "${POLICY_NAME}" \
-  --policy-document "$(cat <<EOF
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": [ "s3:GetObject" ],
-      "Resource": [ "arn:aws:s3:::${BUCKET_NAME}/${FILE_NAME}" ]
-    },
-    {
-      "Effect": "Allow",
-      "Action": [ "s3:ListBucket" ],
-      "Resource": [ "arn:aws:s3:::${BUCKET_NAME}" ]
-    }
-  ]
-}
-EOF
-)" \
-  --query 'Policy.Arn' --output text)
-```
-
-**Step 5.** Attach the policy to the role:
-
-```shell
-aws iam attach-role-policy \
-  --role-name "${ROLE_NAME}" \
-  --policy-arn "${POLICY_ARN}"
-```
-
-**Step 6.** Print the role ARN. Enter it, along with the audience, when you connect the data source in Elastic:
-
-```shell
-echo "${ROLE_ARN}"
-```
+:::{note}
+If your bucket isn't in standard commercial AWS, set [`region`](esql-data-federation-dataset-settings.md#amazon-s3-region) on the dataset. With federated identity, the dataset's `region` also selects the STS endpoint used to assume the role, unless the data source sets [`sts_region`](esql-data-federation-data-source-settings.md#sts-region).
 :::
 
 ## Next steps
@@ -338,5 +311,5 @@ echo "${ROLE_ARN}"
 Continue with the following dataset and security tasks:
 
 - [Query your data](esql-data-federation-querying.md) with `FROM`, including metadata columns and current limitations.
-- [Create and manage datasets](esql-data-federation-manage-datasets.md) over this data source, then review [file formats](esql-data-federation-file-formats.md) and [dataset settings](esql-data-federation-dataset-settings.md).
+- [Manage datasets](esql-data-federation-manage-datasets.md) over this data source, and review [file formats](esql-data-federation-file-formats.md) and [dataset settings](esql-data-federation-dataset-settings.md).
 - [Manage credentials and privileges](esql-data-federation-security.md) to control who can access your data sources and datasets.

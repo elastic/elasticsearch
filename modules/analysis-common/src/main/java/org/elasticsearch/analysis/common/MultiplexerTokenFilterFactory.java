@@ -81,6 +81,7 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
         // and collect the resource names of the contained filters, so that a reload request naming a
         // synonyms set still selects analyzers that use that set from inside a multiplexer
         Set<String> resourceNames = new HashSet<>();
+        boolean degraded = false;
         for (String filter : filterNames) {
             String[] parts = Strings.tokenizeToStringArray(filter, ",");
             if (parts.length == 1) {
@@ -89,6 +90,7 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
                 filters.add(factory);
                 mode = mode.merge(factory.getAnalysisMode());
                 resourceNames.addAll(factory.getResourceNames());
+                degraded |= factory.isDegraded();
             } else {
                 List<TokenFilterFactory> existingChain = new ArrayList<>(previousTokenFilters);
                 List<TokenFilterFactory> chain = new ArrayList<>();
@@ -99,12 +101,14 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
                     existingChain.add(factory);
                     mode = mode.merge(factory.getAnalysisMode());
                     resourceNames.addAll(factory.getResourceNames());
+                    degraded |= factory.isDegraded();
                 }
                 filters.add(chainFilters(filter, chain));
             }
         }
         final AnalysisMode analysisMode = mode;
         final Set<String> analysisResourceNames = Set.copyOf(resourceNames);
+        final boolean anyDegraded = degraded;
 
         return new TokenFilterFactory() {
             @Override
@@ -134,6 +138,11 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
             @Override
             public Set<String> getResourceNames() {
                 return analysisResourceNames;
+            }
+
+            @Override
+            public boolean isDegraded() {
+                return anyDegraded;
             }
         };
     }

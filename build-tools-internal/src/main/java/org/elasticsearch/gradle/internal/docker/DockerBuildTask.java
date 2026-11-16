@@ -15,8 +15,6 @@ import org.gradle.api.GradleException;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.file.RegularFileProperty;
-import org.gradle.api.logging.Logger;
-import org.gradle.api.logging.Logging;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.MapProperty;
@@ -32,19 +30,23 @@ import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.process.ExecOperations;
+import org.gradle.process.ExecResult;
 import org.gradle.process.ExecSpec;
 import org.gradle.workers.WorkAction;
 import org.gradle.workers.WorkParameters;
 import org.gradle.workers.WorkerExecutor;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -56,7 +58,7 @@ import javax.inject.Inject;
  * mechanism that can retry, and emitting the image SHA as a task output.
  */
 public abstract class DockerBuildTask extends DefaultTask {
-    private static final Logger LOGGER = Logging.getLogger(DockerBuildTask.class);
+    private static final int MAX_PULL_ATTEMPTS = 10;
 
     private final WorkerExecutor workerExecutor;
     private final RegularFileProperty markerFile;
@@ -102,6 +104,7 @@ public abstract class DockerBuildTask extends DefaultTask {
             params.getDockerExecutable().set(dockerExecutable);
             params.getOciImageLayout().set(getOciImageLayout());
             params.getBuildContexts().set(getBuildContexts());
+            params.getSourceDateEpoch().set(getSourceDateEpoch());
         });
     }
 
@@ -188,6 +191,16 @@ public abstract class DockerBuildTask extends DefaultTask {
     @Optional
     public abstract MapProperty<String, String> getBuildContexts();
 
+    /**
+     * When set, rewrites all timestamps in the layers of the image, and its creation date, to this value in seconds
+     * since the epoch. Layers otherwise contain timestamps that differ from build to build, so without a build cache
+     * identical content gets different layer digests and registries cannot deduplicate it. The value must be
+     * constant for layers to be identical across commits.
+     */
+    @Input
+    @Optional
+    public abstract Property<Long> getSourceDateEpoch();
+
     @OutputFile
     public RegularFileProperty getMarkerFile() {
         return markerFile;
@@ -207,49 +220,49 @@ public abstract class DockerBuildTask extends DefaultTask {
         /**
          * Wraps `docker pull` in a retry loop, to try and provide some resilience against
          * transient errors
-         * @param baseImage the image to pull.
+         * @param image the image to pull.
          */
-        private void pullBaseImage(String baseImage) {
-            final int maxAttempts = 10;
-            String docker = getParameters().getDockerExecutable().get();
+        private void pullImage(String image) {
+            DockerImagePullSupport.pullImage(execOperations, getParameters().getDockerExecutable().get(), image, null, MAX_PULL_ATTEMPTS);
+        }
 
-            for (int attempt = 1; attempt <= maxAttempts; attempt++) {
-                try {
-                    LoggedExec.exec(execOperations, spec -> {
-                        maybeConfigureDockerConfig(spec);
-                        spec.executable(docker);
-                        spec.args("pull");
-                        spec.environment("DOCKER_BUILDKIT", "1");
-                        spec.args(baseImage);
-                    });
-
-                    return;
-                } catch (Exception e) {
-                    LOGGER.warn("Attempt {}/{} to pull Docker base image {} failed", attempt, maxAttempts, baseImage);
-                }
+        /**
+         * Base images pinned by digest are immutable, so an image that is already present locally (e.g. pre-cached on CI
+         * agents at image bake time, see {@link DockerImageCachePlugin}) is reused. Other base images (e.g. moving
+         * {@code latest} tags) are always pulled to pick up updates. Cross-platform builds use buildx, which resolves
+         * digest-pinned base images itself, so these are not pulled into the daemon.
+         */
+        private void pullBaseImage(String baseImage, boolean isCrossPlatform) {
+            if (DockerImagePullSupport.isDigestPinned(baseImage) == false) {
+                pullImage(baseImage);
+            } else if (isCrossPlatform == false) {
+                DockerImagePullSupport.ensureImageAvailable(execOperations, getParameters().getDockerExecutable().get(), baseImage, null);
             }
-
-            // If we successfully ran `docker pull` above, we would have returned before this point.
-            throw new GradleException("Failed to pull Docker base image [" + baseImage + "], all attempts failed");
         }
 
         private void maybeConfigureDockerConfig(ExecSpec spec) {
-            String dockerConfig = System.getenv("DOCKER_CONFIG");
-            if (dockerConfig != null) {
-                spec.environment("DOCKER_CONFIG", dockerConfig);
-            }
+            DockerImagePullSupport.maybeConfigureDockerConfig(spec);
         }
 
         @Override
         public void execute() {
             final Parameters parameters = getParameters();
 
-            if (parameters.getPull().get()) {
-                parameters.getBaseImages().get().forEach(this::pullBaseImage);
-            }
-
             final List<String> tags = parameters.getTags().get();
             final boolean isCrossPlatform = isCrossPlatform();
+            final boolean rewriteTimestamps = parameters.getSourceDateEpoch().isPresent();
+            final String rewriteTimestampOption = rewriteTimestamps ? ",rewrite-timestamp=true" : "";
+
+            if (parameters.getPull().get()) {
+                // Besides explicitly declared base images, also make sure digest-pinned images referenced in the
+                // Dockerfile are available, so `docker build` does not pull them implicitly without any retries.
+                Set<String> baseImages = new LinkedHashSet<>(parameters.getBaseImages().get());
+                File dockerfile = new File(parameters.getDockerContext().get().getAsFile(), "Dockerfile");
+                if (dockerfile.isFile()) {
+                    baseImages.addAll(DockerImagePullSupport.digestPinnedBaseImages(dockerfile));
+                }
+                baseImages.forEach(baseImage -> pullBaseImage(baseImage, isCrossPlatform));
+            }
 
             LoggedExec.exec(execOperations, spec -> {
                 maybeConfigureDockerConfig(spec);
@@ -279,8 +292,17 @@ public abstract class DockerBuildTask extends DefaultTask {
 
                 parameters.getBuildArgs().get().forEach((k, v) -> spec.args("--build-arg", k + "=" + v));
 
+                if (rewriteTimestamps) {
+                    spec.args("--build-arg", "SOURCE_DATE_EPOCH=" + parameters.getSourceDateEpoch().get());
+                }
+
                 if (parameters.getPush().getOrElse(false)) {
-                    spec.args("--push");
+                    if (rewriteTimestamps) {
+                        // --push is shorthand for --output type=image,push=true, but only the exporter accepts options
+                        spec.args("--output", "type=image,push=true" + rewriteTimestampOption);
+                    } else {
+                        spec.args("--push");
+                    }
                 } else if (parameters.getPlatforms().get().size() == 1) {
                     if (isCrossPlatform && parameters.getOciImageLayout().isPresent()) {
                         // Load the image into the daemon (see the --load comment below) and additionally
@@ -289,10 +311,12 @@ public abstract class DockerBuildTask extends DefaultTask {
                         // named build context. This is required with the docker-container buildx driver,
                         // whose isolated image store cannot see daemon images in FROM instructions.
                         // Multiple --output flags require buildx >= 0.13.
-                        spec.args("--output", "type=docker");
+                        spec.args("--output", daemonExporterSpec(rewriteTimestamps, isCrossPlatform));
                         spec.args(
                             "--output",
-                            "type=oci,tar=false,dest=" + parameters.getOciImageLayout().get().getAsFile().getAbsolutePath()
+                            "type=oci,tar=false,dest="
+                                + parameters.getOciImageLayout().get().getAsFile().getAbsolutePath()
+                                + rewriteTimestampOption
                         );
                     } else {
                         // Add --load to ensure the image ends up in the local Docker daemon as a
@@ -304,7 +328,12 @@ public abstract class DockerBuildTask extends DefaultTask {
                         // "no such object". It also prevents issues with newer Docker versions
                         // (23.0+) that may create manifest lists even for single-platform builds
                         // when BuildKit is enabled.
-                        spec.args("--load");
+                        if (rewriteTimestamps) {
+                            // --load is shorthand for --output type=docker, but only the exporter accepts options
+                            spec.args("--output", daemonExporterSpec(true, isCrossPlatform));
+                        } else {
+                            spec.args("--load");
+                        }
                     }
                 }
             });
@@ -315,7 +344,7 @@ public abstract class DockerBuildTask extends DefaultTask {
                 // multi-platform image builds do not end up in local registry, so we need to pull the just build image
                 // first to get the checksum and also serves as a test for the image being pushed correctly
                 if (parameters.getPlatforms().get().size() > 1 && parameters.getPush().getOrElse(false)) {
-                    pullBaseImage(tags.get(0));
+                    pullImage(tags.get(0));
                 }
                 final String checksum = getImageChecksum(tags.get(0));
                 Files.writeString(parameters.getMarkerFile().getAsFile().get().toPath(), checksum + "\n");
@@ -357,6 +386,48 @@ public abstract class DockerBuildTask extends DefaultTask {
                 .anyMatch(any -> any.equals(Architecture.current().dockerPlatform) == false);
         }
 
+        private String daemonExporterSpec(boolean rewriteTimestamps, boolean isCrossPlatform) {
+            return DockerExporter.daemonSpec(
+                rewriteTimestamps,
+                isCrossPlatform,
+                System.getenv("BUILDX_BUILDER"),
+                this::buildxInspect,
+                () -> dockerOutput("info", "--format", "{{ .DriverStatus }}")
+            );
+        }
+
+        private String buildxInspect() {
+            final var stdout = new ByteArrayOutputStream();
+            final var stderr = new ByteArrayOutputStream();
+            final var result = execOperations.exec(spec -> {
+                maybeConfigureDockerConfig(spec);
+                spec.setExecutable(getParameters().getDockerExecutable().get());
+                spec.args("buildx", "inspect");
+                spec.setStandardOutput(stdout);
+                spec.setErrorOutput(stderr);
+                spec.setIgnoreExitValue(true);
+            });
+            if (result.getExitValue() != 0) {
+                throw new GradleException(
+                    "Failed to inspect the selected docker buildx builder to choose the image exporter: " + stderr.toString().trim()
+                );
+            }
+            return stdout.toString();
+        }
+
+        /** The stdout of the docker command, or {@code null} if it failed. */
+        private String dockerOutput(String... args) {
+            final ByteArrayOutputStream stdout = new ByteArrayOutputStream();
+            final ExecResult result = execOperations.exec(spec -> {
+                maybeConfigureDockerConfig(spec);
+                spec.setExecutable(getParameters().getDockerExecutable().get());
+                spec.args((Object[]) args);
+                spec.setStandardOutput(stdout);
+                spec.setIgnoreExitValue(true);
+            });
+            return result.getExitValue() == 0 ? stdout.toString() : null;
+        }
+
         private String getImageChecksum(String imageTag) {
             final ByteArrayOutputStream stdout = new ByteArrayOutputStream();
             String docker = getParameters().getDockerExecutable().get();
@@ -395,5 +466,7 @@ public abstract class DockerBuildTask extends DefaultTask {
         DirectoryProperty getOciImageLayout();
 
         MapProperty<String, String> getBuildContexts();
+
+        Property<Long> getSourceDateEpoch();
     }
 }

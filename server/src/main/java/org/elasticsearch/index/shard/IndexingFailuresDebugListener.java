@@ -15,6 +15,7 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.IndexOperationBatch;
+import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 
 import java.util.List;
@@ -122,8 +123,7 @@ public class IndexingFailuresDebugListener implements IndexingOperationListener 
         return switch (ex) {
             case DocumentMissingException dme -> true;
             case VersionConflictEngineException vcee -> true;
-            case IllegalArgumentException iae -> iae.getMessage() != null
-                && iae.getMessage().startsWith("Number of documents in the shard cannot exceed [");
+            case IllegalArgumentException iae -> InternalEngine.isTooManyDocsFailure(iae);
             default -> false;
         };
     }

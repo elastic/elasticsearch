@@ -17,13 +17,17 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -48,11 +52,11 @@ public class IndexOperationBatchTests extends ESTestCase {
     }
 
     private static IndexOperationBatch primaryBatch(int n) {
-        return IndexOperationBatch.initFromBulk(items(n), 0, n, null, Engine.Operation.Origin.PRIMARY, 1L, 0L);
+        return IndexOperationBatch.initFromBulk(items(n), 0, n, null, Engine.Operation.Origin.PRIMARY, 1L, 0L, null);
     }
 
     private static IndexOperationBatch primaryBatch(BulkItemRequest[] items, int from, int to) {
-        return IndexOperationBatch.initFromBulk(items, from, to, null, Engine.Operation.Origin.PRIMARY, 1L, 0L);
+        return IndexOperationBatch.initFromBulk(items, from, to, null, Engine.Operation.Origin.PRIMARY, 1L, 0L, null);
     }
 
     private static BytesArray src(int d) {
@@ -211,7 +215,8 @@ public class IndexOperationBatchTests extends ESTestCase {
             null,
             Engine.Operation.Origin.PRIMARY,
             1L,
-            0L
+            0L,
+            null
         );
         assertThat(batch.docCount(), equalTo(to - from));
         // initFromBulk always produces offset == 0; offset != 0 arises only via slice()
@@ -229,23 +234,23 @@ public class IndexOperationBatchTests extends ESTestCase {
         // from < 0
         expectThrows(
             IndexOutOfBoundsException.class,
-            () -> IndexOperationBatch.initFromBulk(items, -1, 1, null, Engine.Operation.Origin.PRIMARY, 1L, 0L)
+            () -> IndexOperationBatch.initFromBulk(items, -1, 1, null, Engine.Operation.Origin.PRIMARY, 1L, 0L, null)
         );
         // to > items.length
         expectThrows(
             IndexOutOfBoundsException.class,
-            () -> IndexOperationBatch.initFromBulk(items, 0, n + 1, null, Engine.Operation.Origin.PRIMARY, 1L, 0L)
+            () -> IndexOperationBatch.initFromBulk(items, 0, n + 1, null, Engine.Operation.Origin.PRIMARY, 1L, 0L, null)
         );
         // to < from
         expectThrows(
             IndexOutOfBoundsException.class,
-            () -> IndexOperationBatch.initFromBulk(items, 2, 1, null, Engine.Operation.Origin.PRIMARY, 1L, 0L)
+            () -> IndexOperationBatch.initFromBulk(items, 2, 1, null, Engine.Operation.Origin.PRIMARY, 1L, 0L, null)
         );
         // from == to (empty range) — rejected with IllegalArgumentException (not OOB; in-bounds but empty)
         final int x = randomIntBetween(0, n);
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> IndexOperationBatch.initFromBulk(items, x, x, null, Engine.Operation.Origin.PRIMARY, 1L, 0L)
+            () -> IndexOperationBatch.initFromBulk(items, x, x, null, Engine.Operation.Origin.PRIMARY, 1L, 0L, null)
         );
         assertTrue(e.getMessage().contains("empty batch"));
     }
@@ -263,7 +268,16 @@ public class IndexOperationBatchTests extends ESTestCase {
             final IndexRequest req = new IndexRequest("index").id("id-" + d).source(src(d), XContentType.JSON);
             items[d] = replicaItem(d, req, seqNos[d], primaryTerms[d], versions[d]);
         }
-        final IndexOperationBatch batch = IndexOperationBatch.initFromBulk(items, 0, n, null, Engine.Operation.Origin.REPLICA, 1L, 0L);
+        final IndexOperationBatch batch = IndexOperationBatch.initFromBulk(
+            items,
+            0,
+            n,
+            null,
+            Engine.Operation.Origin.REPLICA,
+            1L,
+            0L,
+            null
+        );
         for (int d = 0; d < n; d++) {
             assertThat("seqNo at d=" + d, batch.seqNo(d), equalTo(seqNos[d]));
             assertThat("primaryTerm at d=" + d, ByteUtils.readLongLE(batch.primaryTermBytes().bytes, d * 8), equalTo(primaryTerms[d]));
@@ -285,7 +299,8 @@ public class IndexOperationBatchTests extends ESTestCase {
                 escf,
                 Engine.Operation.Origin.PRIMARY,
                 1L,
-                0L
+                0L,
+                null
             );
             assertThat(batch.sourceBatch(), sameInstance(escf));
             assertThat(batch.sourceBatch().docCount(), equalTo(n));
@@ -448,7 +463,8 @@ public class IndexOperationBatchTests extends ESTestCase {
                 rootEscf,
                 Engine.Operation.Origin.PRIMARY,
                 1L,
-                0L
+                0L,
+                null
             );
             final int from = randomIntBetween(0, n - 2);
             final int to = randomIntBetween(from + 1, n);
@@ -600,7 +616,16 @@ public class IndexOperationBatchTests extends ESTestCase {
         try (EscfBatch escf = escfBatch(n)) {
             final BulkItemRequest[] items = items(n);
             items[0] = new BulkItemRequest(0, new IndexRequest("index").id("doc-0").source(src(0), XContentType.JSON).routing("route-0"));
-            final IndexOperationBatch batch = IndexOperationBatch.initFromBulk(items, 0, n, escf, Engine.Operation.Origin.PRIMARY, 7L, 0L);
+            final IndexOperationBatch batch = IndexOperationBatch.initFromBulk(
+                items,
+                0,
+                n,
+                escf,
+                Engine.Operation.Origin.PRIMARY,
+                7L,
+                0L,
+                null
+            );
             ByteUtils.writeLongLE(10L, batch.seqNoBytes().bytes, 0);
             ByteUtils.writeLongLE(3L, batch.versionBytes().bytes, 0);
             ByteUtils.writeLongLE(11L, batch.seqNoBytes().bytes, 8);
@@ -634,6 +659,47 @@ public class IndexOperationBatchTests extends ESTestCase {
         }
     }
 
+    public void testExplodeKeepsDoubleSpellingInJsonSource() throws IOException {
+        final BytesArray json = new BytesArray("{\"d\":-1.90}");
+        try (EscfBatch escf = EscfEncoder.encode(List.of(json), XContentType.JSON)) {
+            final Translog.Index replayed = explodeSingleRow(json, XContentType.JSON, escf);
+            assertThat(replayed.source().utf8ToString(), equalTo("{\"d\":-1.90}"));
+        }
+
+        final BytesReference cbor;
+        try (XContentBuilder builder = XContentBuilder.builder(XContentType.CBOR.xContent())) {
+            cbor = BytesReference.bytes(builder.startObject().field("f", 123.42f).endObject());
+        }
+        try (EscfBatch escf = EscfEncoder.encode(List.of(cbor), XContentType.CBOR)) {
+            final Translog.Index replayed = explodeSingleRow(cbor, XContentType.CBOR, escf);
+            final Object f = XContentHelper.convertToMap(replayed.source(), false, XContentType.CBOR).v2().get("f");
+            assertThat(f, equalTo(123.41999816894531));
+        }
+    }
+
+    private static Translog.Index explodeSingleRow(BytesReference source, XContentType contentType, EscfBatch escf) throws IOException {
+        final BulkItemRequest[] items = { new BulkItemRequest(0, new IndexRequest("index").id("doc-0").source(source, contentType)) };
+        final IndexOperationBatch batch = IndexOperationBatch.initFromBulk(
+            items,
+            0,
+            1,
+            escf,
+            Engine.Operation.Origin.PRIMARY,
+            7L,
+            0L,
+            null
+        );
+        ByteUtils.writeLongLE(10L, batch.seqNoBytes().bytes, 0);
+        ByteUtils.writeLongLE(1L, batch.versionBytes().bytes, 0);
+        final IndexOperationBatch.TranslogRecord record = batch.toTranslogRecord(
+            new byte[] { IndexOperationBatch.TranslogRecord.ROW_INDEXED },
+            null
+        );
+        final List<Translog.Operation> ops = record.explode();
+        assertThat(ops.size(), equalTo(1));
+        return (Translog.Index) ops.get(0);
+    }
+
     public void testToTranslogRecordOnSliceUsesSliceCoordinates() throws IOException {
         final int n = randomIntBetween(3, 8);
         try (EscfBatch escf = escfBatch(n)) {
@@ -644,7 +710,8 @@ public class IndexOperationBatchTests extends ESTestCase {
                 escf,
                 Engine.Operation.Origin.PRIMARY,
                 1L,
-                0L
+                0L,
+                null
             );
             final int from = randomIntBetween(1, n - 1);
             final IndexOperationBatch slice = parent.slice(from, n);
@@ -676,7 +743,8 @@ public class IndexOperationBatchTests extends ESTestCase {
                 escf,
                 Engine.Operation.Origin.PRIMARY,
                 1L,
-                0L
+                0L,
+                null
             );
             for (int d = 0; d < n; d++) {
                 ByteUtils.writeLongLE(d, batch.seqNoBytes().bytes, d * 8);
@@ -705,11 +773,41 @@ public class IndexOperationBatchTests extends ESTestCase {
                 escf,
                 Engine.Operation.Origin.PRIMARY,
                 1L,
-                0L
+                0L,
+                null
             );
             final byte[] statuses = new byte[n - 1]; // all ROW_INDEXED, but one row short
             final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> batch.toTranslogRecord(statuses, null));
             assertTrue("unexpected exception message: " + ex.getMessage(), ex.getMessage().contains("does not match batch docCount"));
         }
+    }
+
+    public void testNormalizedSizesFollowSlicesIntoMaterializedOps() {
+        final int n = randomIntBetween(2, 8);
+        final BulkItemRequest[] items = items(n);
+        final long[] sizes = new long[n];
+        for (int i = 0; i < n; i++) {
+            sizes[i] = randomLongBetween(1, 10240);
+        }
+        final IndexOperationBatch batch = IndexOperationBatch.initFromBulk(
+            items,
+            0,
+            n,
+            null,
+            Engine.Operation.Origin.PRIMARY,
+            1L,
+            0L,
+            sizes
+        );
+        final int from = randomIntBetween(0, n - 1);
+        final int to = randomIntBetween(from + 1, n);
+        final IndexOperationBatch slice = batch.slice(from, to);
+        for (int i = 0; i < to - from; i++) {
+            assertThat(slice.normalizedSize(i), equalTo(sizes[from + i]));
+            assertThat(slice.toIndexOp(i).parsedDoc().getNormalizedSize(), equalTo(sizes[from + i]));
+        }
+        // an unmetered batch (e.g. on a replica) reports UNKNOWN_SIZE rather than zero, so reporters ignore it
+        // primaryBatch calls initFromBulk with sizes array set to null
+        assertThat(primaryBatch(n).toIndexOp(0).parsedDoc().getNormalizedSize(), equalTo(XContentMeteringParserDecorator.UNKNOWN_SIZE));
     }
 }

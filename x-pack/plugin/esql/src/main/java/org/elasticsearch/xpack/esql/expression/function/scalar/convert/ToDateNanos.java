@@ -76,7 +76,12 @@ public class ToDateNanos extends AbstractConvertFunction implements Configuratio
         Map.entry(TEXT, (source, fieldEval) -> null)
     );
 
-    private Map<DataType, BuildFactory> lazyEvaluators = null;
+    /**
+     * Volatile because a plan's expressions are shared by the drivers of every shard on a node, which may call
+     * {@link #factories()} concurrently. Without it, a reader can see the map before {@code putAll} replaces the
+     * {@code null}-returning placeholders from {@link #STATIC_EVALUATORS}.
+     */
+    private volatile Map<DataType, BuildFactory> lazyEvaluators = null;
 
     private final Configuration configuration;
 

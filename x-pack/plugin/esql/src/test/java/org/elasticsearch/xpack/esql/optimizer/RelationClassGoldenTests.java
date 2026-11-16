@@ -27,6 +27,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.externalResolutionFor;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 
 /**
@@ -141,7 +142,8 @@ public class RelationClassGoldenTests extends GoldenTestCase {
 
     /** Identical schemas on both branches, so the UnionAll is leaf-shaped until this rule touches it. */
     private static ExternalSourceResolution externalSourceResolution() {
-        return new ExternalSourceResolution(
+        return externalResolutionFor(
+            datasetMetadata(),
             Map.of(
                 RESOURCE_A,
                 new ExternalSourceResolution.ResolvedSource(schemaFor(RESOURCE_A), FileList.UNRESOLVED, Map.of()),

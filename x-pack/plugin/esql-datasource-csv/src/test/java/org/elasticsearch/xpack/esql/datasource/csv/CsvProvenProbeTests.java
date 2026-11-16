@@ -378,13 +378,16 @@ public class CsvProvenProbeTests extends ESTestCase {
     public void testExactWalkAbortsOnCancellation() {
         // A long quote-free stretch (no boundary before minSkip) so the walk runs past the cancel-check interval;
         // an always-cancelled supplier must abort promptly with TaskCancelledException rather than scan to EOF.
+        // The reason names the record-boundary walk, not split discovery: this is the in-flight read probe.
         byte[] buf = new byte[128 * 1024];
         Arrays.fill(buf, (byte) 'x');
         RecordSplitter splitter = splitter(quoted());
-        expectThrows(
+        TaskCancelledException thrown = expectThrows(
             TaskCancelledException.class,
             () -> splitter.findRecordStartAtOrAfter(new ByteArrayInputStream(buf), buf.length - 1L, () -> true)
         );
+        assertEquals(RecordSplitter.RECORD_WALK_CANCELLED_MESSAGE, thrown.getMessage());
+        assertFalse("cancel during a CSV record probe must not look like split discovery", thrown.getMessage().contains("split discovery"));
     }
 
     public void testSplitReconstructionMatchesWholeFile() throws IOException {

@@ -60,7 +60,7 @@ public final class CastIntToLongEvaluator implements ExpressionEvaluator {
   }
 
   public LongBlock eval(int positionCount, IntBlock vBlock) {
-    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (vBlock.isNull(p)) {
           result.appendNull();

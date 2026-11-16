@@ -1040,50 +1040,11 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
         }
     }
 
-    /// A re-evaluation of an equal-share plan only hands out saved time, even when the warm-amount heuristic would win. With 4 shards on
-    /// the source each was budgeted 2500ms of the 10s grace; 2000ms later the fresh share is 4000ms when two shards are left (1500ms
-    /// saved) and 2000ms when all four remain (nothing saved). Warm amount would take the whole remaining 8000ms, because no other shard on
-    /// the source may relocate to the target.
-    public void testReevaluationOfEqualSharePlanUsesSavedTimeEvenIfWarmAmountWins() {
-        final var index = new Index("idx", randomUUID());
-        final long startedAtMillis = randomNonNegativeLong() / 2;
-        final var previous = new SearchRecoveryTimeout(
-            TimeValue.timeValueMillis(2500),
-            TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE,
-            2500.0
-        );
-        final int shardsLeft = randomFrom(2, 4);
-        final var state = clusterStateSearchShardsRelocatingFromShuttingDownSource(
-            1,
-            1,
-            index,
-            "source",
-            "target",
-            startedAtMillis,
-            shardsLeft - 1
-        );
-        final var shardId = new ShardId(index, 0);
-        final var warmingInfo = answeredWarmingInfo(startedAtMillis, 600L, 600L);
-
-        final var plan = shutdownRelocationPlan(state, startedAtMillis, shardId, warmingInfo, 0L, previous, TelemetryProvider.NOOP);
-        assertThat(plan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE));
-        assertThat(plan.extendable(), is(true));
-        assertThat(plan.timeout().millis(), equalTo(shardsLeft == 2 ? 1500L : 0L));
-        assertThat(plan.perShardShareMs(), equalTo(8000.0 / shardsLeft));
-        assertThat(plan.shouldExtendAfter(previous), is(true));
-
-        final var firstPlan = shutdownRelocationPlan(state, startedAtMillis, shardId, warmingInfo, 0L, null, TelemetryProvider.NOOP);
-        assertThat(firstPlan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_WARM_AMOUNT));
-        assertThat(firstPlan.timeout().millis(), equalTo(8000L));
-        assertThat(firstPlan.extendable(), is(false));
-        assertThat(firstPlan.shouldExtendAfter(previous), is(false));
-    }
-
-    /// Source warming info that arrives after an equal-share plan does not replace the extension. The first calculation runs while the
-    /// request is still pending, so it is equal-share: 4 shards share a 10s grace, 2500ms each. 2000ms later two shards have left and the
-    /// warming info arrives; warm amount would take the whole remaining 8000ms, but only the 1500ms saved since the previous share is
-    /// handed out.
-    public void testReevaluationIgnoresSourceWarmingInfoThatArrivesAfterEqualSharePlan() {
+    /// A re-evaluation of an equal-share plan only hands out saved time, even when source warming info arrives in the meantime and
+    /// warm-amount would win. The first calculation runs while the request is pending, so 4 shards share the 10s grace at 2500ms each.
+    /// 2000ms later the warming info arrives (giving warm-amount the whole remaining 8000ms), while the fresh equal share is 4000ms when
+    /// two shards are left (1500ms saved) and 2000ms when all four remain (nothing saved).
+    public void testReevaluationOfEqualSharePlanUsesSavedTimeEvenAfterWarmingInfoArrives() {
         try (
             var threadPool = new FakeTimeThreadPool(
                 getTestName(),
@@ -1098,6 +1059,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs);
             final long startedAtMillis = threadPool.absoluteTimeInMillis();
             final var index = new Index("idx", randomUUID());
+            final var shardId = new ShardId(index, 0);
             final String sourceNodeId = "source-node";
             final String targetNodeId = "target-node";
             final var service = newCalculationService(threadPool, settings, 1000L);
@@ -1112,7 +1074,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                 startedAtMillis,
                 3
             );
-            final ShardRouting initialSelf = relocatingSearchReplicaTarget(initialState, new ShardId(index, 0));
+            final ShardRouting initialSelf = relocatingSearchReplicaTarget(initialState, shardId);
             final var firstPlan = service.searchRecoveryTimeout(initialState, mockIndexShard(initialSelf), 0L, null, warmingInfo);
             assertThat(firstPlan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE));
             assertThat(firstPlan.perShardShareMs(), equalTo(2500.0));
@@ -1120,26 +1082,29 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
 
             threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + 2000);
             warmingInfo.complete(new SourceShardWarmingInfo.WarmingInfo(600L, 600L));
-            final ClusterState stateAfterEarlyFinishes = clusterStateSearchShardsRelocatingFromShuttingDownSource(
+            final int shardsLeft = randomFrom(2, 4);
+            final ClusterState state = clusterStateSearchShardsRelocatingFromShuttingDownSource(
                 1,
                 1,
                 index,
                 sourceNodeId,
                 targetNodeId,
                 startedAtMillis,
-                1
+                shardsLeft - 1
             );
-            final ShardRouting self = relocatingSearchReplicaTarget(stateAfterEarlyFinishes, new ShardId(index, 0));
-            final var extended = service.searchRecoveryTimeout(stateAfterEarlyFinishes, mockIndexShard(self), 0L, firstPlan, warmingInfo);
+            final ShardRouting self = relocatingSearchReplicaTarget(state, shardId);
+            final var extended = service.searchRecoveryTimeout(state, mockIndexShard(self), 0L, firstPlan, warmingInfo);
             assertThat(extended.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE));
             assertThat(extended.extendable(), is(true));
-            assertThat(extended.timeout().millis(), equalTo(1500L));
-            assertThat(extended.perShardShareMs(), equalTo(4000.0));
+            assertThat(extended.timeout().millis(), equalTo(shardsLeft == 2 ? 1500L : 0L));
+            assertThat(extended.perShardShareMs(), equalTo(8000.0 / shardsLeft));
             assertThat(extended.shouldExtendAfter(firstPlan), is(true));
 
-            final var freshPlan = service.searchRecoveryTimeout(stateAfterEarlyFinishes, mockIndexShard(self), 0L, null, warmingInfo);
+            final var freshPlan = service.searchRecoveryTimeout(state, mockIndexShard(self), 0L, null, warmingInfo);
             assertThat(freshPlan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_WARM_AMOUNT));
             assertThat(freshPlan.timeout().millis(), equalTo(8000L));
+            assertThat(freshPlan.extendable(), is(false));
+            assertThat(freshPlan.shouldExtendAfter(firstPlan), is(false));
         }
     }
 
@@ -2699,7 +2664,9 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
         return measurements.get(0).attributes();
     }
 
-    public void testWarmAmountWinsOverEqualShare() {
+    /// Warm amount is 4800ms for a 600 of 1000 bytes share, beating both data volume (4000ms for 250 bytes against a 500-byte warming
+    /// cache) and the equal share of three shards (2667ms).
+    public void testWarmAmountWinsWhenLargest() {
         final Index index = new Index("idx", randomUUID());
         final long startedAtMillis = randomNonNegativeLong() / 2;
         // One relocating here, two still STARTED on the source (no target yet).
@@ -2711,12 +2678,11 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             startedAtMillis,
             new ShardId(index, 0),
             answeredWarmingInfo(startedAtMillis, 600L, 1000L),
-            0L,
+            250L,
             null,
             telemetryProvider(meterRegistry)
         );
         assertThat(plan.awaitWarming(), is(true));
-        // remaining=8000; equal-share=8000/3; warm-amount=600/1000*8000=4800 wins
         assertThat(plan.timeout().millis(), equalTo(4800L));
         assertThat(plan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_WARM_AMOUNT));
         assertThat(plan.extendable(), is(false));
@@ -2822,28 +2788,6 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
         }
     }
 
-    /// Source warming info that arrives after the first plan is not used by it: the plan reads the warming info once, when it is computed.
-    public void testSourceWarmingInfoArrivingAfterPlanIsNotUsed() {
-        final Index index = new Index("idx", randomUUID());
-        final long startedAtMillis = randomNonNegativeLong() / 2;
-        final var state = oneRelocatingTwoStartedOnSource(index, startedAtMillis);
-        final var warmingInfo = SourceShardWarmingInfo.newPending(startedAtMillis);
-
-        final var plan = shutdownRelocationPlan(
-            state,
-            startedAtMillis,
-            new ShardId(index, 0),
-            warmingInfo,
-            0L,
-            null,
-            TelemetryProvider.NOOP
-        );
-        warmingInfo.complete(new SourceShardWarmingInfo.WarmingInfo(600L, 600L));
-
-        assertThat(plan.timeout().millis(), equalTo(2667L));
-        assertThat(plan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE));
-    }
-
     public void testSourceShardWarmingInfoStatusAndLookup() {
         final long startedAtMillis = randomNonNegativeLong() / 2;
         assertThat(SourceShardWarmingInfo.NOT_REQUESTED.status(startedAtMillis), equalTo(SourceShardWarmingInfo.Status.NOT_REQUESTED));
@@ -2869,24 +2813,6 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
         assertThat(none.status(startedAtMillis), equalTo(SourceShardWarmingInfo.Status.UNAVAILABLE));
         assertThat(none.get(startedAtMillis), equalTo(Optional.empty()));
         assertThat(SourceShardWarmingInfo.WarmingInfo.NONE.warmBytesRatio(), equalTo(0.0));
-    }
-
-    /// Warm amount is 4800ms for a 600 of 1000 bytes share, data volume 4000ms for 250 bytes against a 500-byte warming cache, and both
-    /// beat the equal share of three shards (2667ms). The larger, warm amount, wins.
-    public void testWarmAmountWinsWhenLargerThanDataVolume() {
-        final Index index = new Index("idx", randomUUID());
-        final long startedAtMillis = randomNonNegativeLong() / 2;
-        final var plan = shutdownRelocationPlan(
-            oneRelocatingTwoStartedOnSource(index, startedAtMillis),
-            startedAtMillis,
-            new ShardId(index, 0),
-            answeredWarmingInfo(startedAtMillis, 600L, 1000L),
-            250L,
-            null,
-            TelemetryProvider.NOOP
-        );
-        assertThat(plan.timeout().millis(), equalTo(4800L));
-        assertThat(plan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_WARM_AMOUNT));
     }
 
     /// Ties go to the other heuristic. Warm amount of a 600 of 1000 bytes share and data volume of 300 bytes against a 500-byte warming

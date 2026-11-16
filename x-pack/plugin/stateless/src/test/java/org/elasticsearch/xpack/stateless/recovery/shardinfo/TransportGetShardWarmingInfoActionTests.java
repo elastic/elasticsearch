@@ -115,15 +115,6 @@ public class TransportGetShardWarmingInfoActionTests extends ESTestCase {
         IOUtils.close(stores);
     }
 
-    public void testWarmingInfoForShardsRelocatingToTarget() {
-        final long startedAt = randomNonNegativeLong();
-        state = sourceState(startedAt, relocating(0, TARGET), started(1), relocating(2, TARGET));
-        withBytesToWarm(600L, 300L, 100L);
-
-        assertThat(action.computeWarmingInfo(request(0, startedAt)), equalTo(response(600L, 1000L)));
-        assertThat(action.computeWarmingInfo(request(2, startedAt)), equalTo(response(100L, 1000L)));
-    }
-
     public void testExcludesShardsRelocatingToOtherTargets() {
         final long startedAt = randomNonNegativeLong();
         state = sourceState(startedAt, relocating(0, TARGET), relocating(1, OTHER_TARGET), started(2));
@@ -131,15 +122,7 @@ public class TransportGetShardWarmingInfoActionTests extends ESTestCase {
 
         // 300 goes to another target, so 600 and 100 remain for this target
         assertThat(action.computeWarmingInfo(request(0, startedAt)), equalTo(response(600L, 700L)));
-    }
-
-    public void testRequestedShardRelocatingToOtherTargetIsNone() {
-        final long startedAt = randomNonNegativeLong();
-        state = sourceState(startedAt, relocating(0, OTHER_TARGET), relocating(1, TARGET));
-        withBytesToWarm(600L, 300L);
-
-        assertThat(action.computeWarmingInfo(request(0, startedAt)), equalTo(Response.NONE));
-        assertThat(action.computeWarmingInfo(request(1, startedAt)), equalTo(response(300L, 300L)));
+        assertThat(action.computeWarmingInfo(request(1, startedAt)), equalTo(Response.NONE));
     }
 
     public void testSumsAcrossIndicesWithSameShardNumber() {
@@ -330,6 +313,7 @@ public class TransportGetShardWarmingInfoActionTests extends ESTestCase {
         state = sourceState(startedAt, relocating(0, TARGET), started(1));
         withBytesToWarm(0L, 0L);
 
+        // Both shards estimate to 0, so new Response(0L, 0L) equals Response.NONE, while the 0 estimates are still memoized.
         assertThat(action.computeWarmingInfo(request(0, startedAt)), equalTo(Response.NONE));
         action.computeWarmingInfo(request(0, startedAt));
         assertEstimated(0, 1);

@@ -1777,7 +1777,7 @@ public class LocalExecutionPlanner {
         source = source.with(new RowInTableLookupOperator.Factory(keys, blockMapping), layout);
 
         // Load the "values" from each match
-        int loadedFields = 0;
+        List<ColumnLoadOperator.Values> valuesToLoad = new ArrayList<>(join.addedFields().size());
         var joinDataOutput = join.joinData().output();
         for (Attribute f : join.addedFields()) {
             if (f.equals(marker)) {
@@ -1792,11 +1792,14 @@ public class LocalExecutionPlanner {
             if (localField == null) {
                 throw new IllegalArgumentException("can't find local data for [" + f + "]");
             }
+            valuesToLoad.add(new ColumnLoadOperator.Values(f.name(), localField));
+        }
+        int loadedFields = valuesToLoad.size();
+        if (loadedFields > 0) {
             source = source.with(
-                new ColumnLoadOperator.Factory(new ColumnLoadOperator.Values(f.name(), localField), positionsChannel),
+                new ColumnLoadOperator.Factory(valuesToLoad.toArray(ColumnLoadOperator.Values[]::new), positionsChannel),
                 layout
             );
-            loadedFields++;
         }
 
         if (marker != null) {

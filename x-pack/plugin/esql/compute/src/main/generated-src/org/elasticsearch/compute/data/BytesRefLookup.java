@@ -8,7 +8,9 @@
 package org.elasticsearch.compute.data;
 
 // begin generated imports
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.ReleasableIterator;
@@ -20,12 +22,22 @@ import org.elasticsearch.core.Releasables;
  * This class is generated. Edit {@code X-Lookup.java.st} instead.
  */
 public final class BytesRefLookup implements ReleasableIterator<BytesRefBlock> {
+    private static final int UNSET_FIXED_LENGTH = -1;
+    private static final int VARIABLE_LENGTH = -2;
+
     private final BytesRef firstScratch = new BytesRef();
     private final BytesRef valueScratch = new BytesRef();
     private final BytesRefBlock values;
     private final IntBlock positions;
     private final long targetByteSize;
     private int position;
+    private boolean closed;
+
+    private long batchValues;
+    private long batchSlots;
+    private boolean batchHasMultiValues;
+    private long batchValueBytes;
+    private int batchFixedLength;
 
     private BytesRef first;
     private int valuesInPosition;
@@ -45,11 +57,94 @@ public final class BytesRefLookup implements ReleasableIterator<BytesRefBlock> {
 
     @Override
     public BytesRefBlock next() {
-        try (BytesRefBlock.Builder builder = positions.blockFactory().newBytesRefBlockBuilder(positions.getTotalValueCount())) {
-            int count = 0;
-            while (position < positions.getPositionCount()) {
-                int start = positions.getFirstValueIndex(position);
-                int end = start + positions.getValueCount(position);
+        int batchStart = position;
+        int batchEnd = scanBatch(batchStart);
+        position = batchEnd;
+        if (batchValues == 0) {
+            return (BytesRefBlock) positions.blockFactory().newConstantNullBlock(batchEnd - batchStart);
+        }
+        return buildBatch(batchStart, batchEnd);
+    }
+
+    private int scanBatch(int batchStart) {
+        batchValues = 0;
+        batchSlots = 0;
+        batchHasMultiValues = false;
+        batchValueBytes = 0;
+        batchFixedLength = UNSET_FIXED_LENGTH;
+        int scanPos = batchStart;
+        int count = 0;
+        while (scanPos < positions.getPositionCount()) {
+            if (scanPosition(scanPos, count) == false) {
+                break;
+            }
+            count++;
+            scanPos++;
+            if (count > Operator.MIN_TARGET_PAGE_SIZE && batchValues > 0 && batchOutputBytes(count) >= targetByteSize) {
+                break;
+            }
+        }
+        return scanPos;
+    }
+
+    private boolean scanPosition(int pos, int count) {
+        int pStart = positions.getFirstValueIndex(pos);
+        int pEnd = pStart + positions.getValueCount(pos);
+        int valuePositionCount = values.getPositionCount();
+        long valuesForPos = 0;
+        long posValueBytes = 0;
+        int posFixedLength = batchFixedLength;
+        for (int i = pStart; i < pEnd; i++) {
+            int vp = positions.getInt(i);
+            if (vp < valuePositionCount) {
+                int vCount = values.getValueCount(vp);
+                valuesForPos += vCount;
+                if (valuesForPos > Block.MAX_LOOKUP) {
+                    // TODO replace this with a warning and break
+                    throw new IllegalArgumentException("Found a single entry with " + valuesForPos + " entries");
+                }
+                int vStart = values.getFirstValueIndex(vp);
+                for (int v = vStart; v < vStart + vCount; v++) {
+                    int len = values.getBytesRef(v, firstScratch).length;
+                    posValueBytes += len;
+                    posFixedLength = mergeFixedLength(posFixedLength, len);
+                }
+            }
+        }
+        long slotCount = Math.max(1L, valuesForPos);
+        if (count > 0 && batchSlots + slotCount > ArrayUtil.MAX_ARRAY_LENGTH) {
+            return false;
+        }
+        batchValues += valuesForPos;
+        batchSlots += slotCount;
+        if (valuesForPos > 1) {
+            batchHasMultiValues = true;
+        }
+        if (valuesForPos == 0) {
+            posFixedLength = mergeFixedLength(posFixedLength, 0);
+        }
+        batchValueBytes += posValueBytes;
+        batchFixedLength = posFixedLength;
+        return true;
+    }
+
+    private long batchOutputBytes(int count) {
+        long outputBytes = BytesRefArrayBlock.BASE_RAM_BYTES_USED + batchValueBytes;
+        if (batchFixedLength == VARIABLE_LENGTH) {
+            outputBytes += (batchSlots + 1L) * Integer.BYTES;
+        }
+        if (batchHasMultiValues) {
+            outputBytes += RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (count + 1L) * Integer.BYTES;
+        }
+        return outputBytes;
+    }
+
+    private BytesRefBlock buildBatch(int batchStart, int batchEnd) {
+        int exactSlots = Math.toIntExact(batchSlots);
+        try (BytesRefBlock.Builder builder = positions.blockFactory().newBytesRefBlockBuilder(exactSlots, Math.max(1L, batchValueBytes))) {
+            for (int p = batchStart; p < batchEnd; p++) {
+                int start = positions.getFirstValueIndex(p);
+                int end = start + positions.getValueCount(p);
                 valuesInPosition = 0;
                 for (int i = start; i < end; i++) {
                     copy(builder, positions.getInt(i));
@@ -59,14 +154,16 @@ public final class BytesRefLookup implements ReleasableIterator<BytesRefBlock> {
                     case 1 -> builder.appendBytesRef(first);
                     default -> builder.endPositionEntry();
                 }
-                position++;
-                // TOOD what if the estimate is super huge? should we break even with less than MIN_TARGET?
-                if (++count > Operator.MIN_TARGET_PAGE_SIZE && builder.estimatedBytes() < targetByteSize) {
-                    break;
-                }
             }
             return builder.build();
         }
+    }
+
+    private static int mergeFixedLength(int current, int length) {
+        if (current == UNSET_FIXED_LENGTH || current == length) {
+            return length;
+        }
+        return VARIABLE_LENGTH;
     }
 
     private void copy(BytesRefBlock.Builder builder, int valuePosition) {
@@ -85,10 +182,6 @@ public final class BytesRefLookup implements ReleasableIterator<BytesRefBlock> {
                 builder.beginPositionEntry();
                 builder.appendBytesRef(first);
             }
-            if (valuesInPosition > Block.MAX_LOOKUP) {
-                // TODO replace this with a warning and break
-                throw new IllegalArgumentException("Found a single entry with " + valuesInPosition + " entries");
-            }
             builder.appendBytesRef(values.getBytesRef(i, valueScratch));
             valuesInPosition++;
         }
@@ -96,6 +189,9 @@ public final class BytesRefLookup implements ReleasableIterator<BytesRefBlock> {
 
     @Override
     public void close() {
-        Releasables.close(values, positions);
+        if (closed == false) {
+            closed = true;
+            Releasables.close(values, positions);
+        }
     }
 }

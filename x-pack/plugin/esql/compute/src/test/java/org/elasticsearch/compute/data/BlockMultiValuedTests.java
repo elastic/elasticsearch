@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -37,7 +38,11 @@ import static org.elasticsearch.compute.data.BasicBlockTests.assertDeepCopy;
 import static org.elasticsearch.compute.data.BasicBlockTests.assertInsertNulls;
 import static org.elasticsearch.compute.test.BlockTestUtils.valuesAtPositions;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class BlockMultiValuedTests extends ESTestCase {
@@ -138,6 +143,111 @@ public class BlockMultiValuedTests extends ESTestCase {
 
     public void testLookupFromSingleManyPages() {
         assertLookup(ByteSizeValue.ofBytes(1), between(1, 32), p -> 1);
+    }
+
+    public void testLookupTinyTargetChunks() {
+        int chunks = assertLookup(ByteSizeValue.ofBytes(1), between(Operator.MIN_TARGET_PAGE_SIZE + 2, 512), p -> 1);
+        if (nullAllowed == false) {
+            assertThat(chunks, greaterThan(1));
+        }
+    }
+
+    public void testLookupSplitDoesNotDependOnNulls() {
+        // A single-position block is built as a constant, which looks up dense positions without splitting.
+        var b = RandomBlock.randomBlock(blockFactory(), elementType, between(2, 1000), nullAllowed, 1, 1, 0, 0);
+        try {
+            int positionCount = 16 * 1024;
+            int denseBlocks = countLookupBlocks(b.block(), positionCount, 1, ByteSizeValue.ofKb(10));
+            int sparseBlocks = countLookupBlocks(b.block(), positionCount, 10, ByteSizeValue.ofKb(10));
+            assertThat(sparseBlocks, lessThanOrEqualTo(denseBlocks));
+            assertThat(denseBlocks, lessThan(positionCount / (2 * (Operator.MIN_TARGET_PAGE_SIZE + 1))));
+        } finally {
+            b.block().close();
+        }
+    }
+
+    public void testLookupAllNullPositionsReturnsConstantNullBlock() {
+        var b = RandomBlock.randomBlock(blockFactory(), elementType, between(2, 100), nullAllowed, 1, 1, 0, 0);
+        int positionCount = 5000;
+        try (IntBlock.Builder builder = blockFactory().newIntBlockBuilder(positionCount)) {
+            for (int p = 0; p < positionCount; p++) {
+                builder.appendNull();
+            }
+            try (
+                IntBlock positions = builder.build();
+                ReleasableIterator<? extends Block> lookup = b.block().lookup(positions, ByteSizeValue.ofKb(10))
+            ) {
+                assertThat(lookup.hasNext(), equalTo(true));
+                try (Block chunk = lookup.next()) {
+                    assertThat(chunk, instanceOf(ConstantNullBlock.class));
+                    assertThat(chunk.getPositionCount(), equalTo(positionCount));
+                }
+                assertThat(lookup.hasNext(), equalTo(false));
+            }
+        } finally {
+            b.block().close();
+        }
+    }
+
+    public void testLookupSplitBlocksHaveNoSpareCapacity() {
+        if (nullAllowed) {
+            return;
+        }
+        if (elementType == ElementType.BYTES_REF) {
+            BytesRef v0 = new BytesRef("a".repeat(100));
+            BytesRef v1 = new BytesRef("b".repeat(101));
+            try (BytesRefBlock.Builder vb = blockFactory().newBytesRefBlockBuilder(2)) {
+                vb.appendBytesRef(v0).appendBytesRef(v1);
+                try (BytesRefBlock values = vb.build()) {
+                    assertSplitBlocksHaveNoSpareCapacity(values, 5000, ByteSizeValue.ofKb(10));
+                }
+            }
+            return;
+        }
+        var b = RandomBlock.randomBlock(blockFactory(), elementType, between(2, 1000), false, 1, 1, 0, 0);
+        try {
+            assertSplitBlocksHaveNoSpareCapacity(b.block(), 16 * 1024, ByteSizeValue.ofKb(10));
+        } finally {
+            b.block().close();
+        }
+    }
+
+    private void assertSplitBlocksHaveNoSpareCapacity(Block values, int positionCount, ByteSizeValue target) {
+        try (IntBlock.Builder builder = blockFactory().newIntBlockBuilder(positionCount)) {
+            for (int p = 0; p < positionCount; p++) {
+                builder.appendInt(p % values.getPositionCount());
+            }
+            int blocks = 0;
+            try (IntBlock positions = builder.build(); ReleasableIterator<? extends Block> lookup = values.lookup(positions, target)) {
+                while (lookup.hasNext()) {
+                    try (Block block = lookup.next(); Block exact = block.deepCopy(blockFactory())) {
+                        assertThat(block.ramBytesUsed(), lessThanOrEqualTo(exact.ramBytesUsed()));
+                    }
+                    blocks++;
+                }
+            }
+            assertThat(blocks, greaterThan(1));
+        }
+    }
+
+    private int countLookupBlocks(Block values, int positionCount, int nonNullEvery, ByteSizeValue target) {
+        try (IntBlock.Builder builder = blockFactory().newIntBlockBuilder(positionCount)) {
+            for (int p = 0; p < positionCount; p++) {
+                if (p % nonNullEvery == 0) {
+                    builder.appendInt(between(0, values.getPositionCount() - 1));
+                } else {
+                    builder.appendNull();
+                }
+            }
+            int blocks = 0;
+            try (IntBlock positions = builder.build(); ReleasableIterator<? extends Block> lookup = values.lookup(positions, target)) {
+                while (lookup.hasNext()) {
+                    lookup.next().close();
+                    blocks++;
+                }
+            }
+            return blocks;
+        }
     }
 
     public void testToMask() {
@@ -319,7 +429,7 @@ public class BlockMultiValuedTests extends ESTestCase {
         }
     }
 
-    private void assertLookup(ByteSizeValue targetBytes, int positionsToCopy, IntUnaryOperator positionsPerPosition) {
+    private int assertLookup(ByteSizeValue targetBytes, int positionsToCopy, IntUnaryOperator positionsPerPosition) {
         BlockFactory positionsFactory = blockFactory();
         int positionCount = randomIntBetween(100, 16 * 1024);
         var b = RandomBlock.randomBlock(blockFactory(), elementType, positionCount, nullAllowed, 0, 100, 0, 0);
@@ -340,6 +450,7 @@ public class BlockMultiValuedTests extends ESTestCase {
             }
             Block copy = null;
             int positionOffset = 0;
+            int chunks = 0;
             try (
                 IntBlock positions = builder.build();
                 ReleasableIterator<? extends Block> lookup = b.block().lookup(positions, targetBytes);
@@ -352,6 +463,7 @@ public class BlockMultiValuedTests extends ESTestCase {
                         }
                         assertThat(lookup.hasNext(), equalTo(true));
                         copy = lookup.next();
+                        chunks++;
                         if (positions.getPositionCount() - positionOffset < Operator.MIN_TARGET_PAGE_SIZE) {
                             assertThat(copy.getPositionCount(), equalTo(positions.getPositionCount() - positionOffset));
                         } else {
@@ -378,6 +490,7 @@ public class BlockMultiValuedTests extends ESTestCase {
                     }
                 }
                 assertThat(lookup.hasNext(), equalTo(false));
+                return chunks;
             } finally {
                 Releasables.close(copy);
             }

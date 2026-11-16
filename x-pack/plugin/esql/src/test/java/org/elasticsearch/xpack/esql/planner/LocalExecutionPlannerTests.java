@@ -1275,6 +1275,21 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             List.of(new long[] { 10, 20 }),                            // build (k0)
             List.of(new long[] { 100, 200 }, new long[] { 111, 222 })  // build (v0, v1)
         );
+        List<Class<?>> factories = new ArrayList<>();
+        for (var factory : planHashJoin(hashJoin).driverFactories.get(0)
+            .driverSupplier()
+            .physicalOperation().intermediateOperatorFactories) {
+            factories.add(factory.getClass());
+        }
+        assertThat(
+            factories,
+            contains(
+                RowInTableLookupOperator.Factory.class,
+                ColumnLoadOperator.Factory.class,
+                FilterOperator.FilterOperatorFactory.class,
+                ProjectOperator.ProjectOperatorFactory.class
+            )
+        );
         assertHashJoinRows(runHashJoin(hashJoin), List.of(List.of(100L, 111L, 10L), List.of(200L, 222L, 20L), List.of(100L, 111L, 10L)));
     }
 

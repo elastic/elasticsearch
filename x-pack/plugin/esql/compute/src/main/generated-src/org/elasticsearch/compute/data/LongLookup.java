@@ -8,6 +8,8 @@
 package org.elasticsearch.compute.data;
 
 // begin generated imports
+import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.ReleasableIterator;
@@ -23,7 +25,11 @@ public final class LongLookup implements ReleasableIterator<LongBlock> {
     private final IntBlock positions;
     private final long targetByteSize;
     private int position;
+    private boolean closed;
 
+    private long batchValues;
+    private long batchSlots;
+    private boolean batchHasMultiValues;
     private long first;
     private int valuesInPosition;
 
@@ -42,11 +48,76 @@ public final class LongLookup implements ReleasableIterator<LongBlock> {
 
     @Override
     public LongBlock next() {
-        try (LongBlock.Builder builder = positions.blockFactory().newLongBlockBuilder(positions.getTotalValueCount())) {
-            int count = 0;
-            while (position < positions.getPositionCount()) {
-                int start = positions.getFirstValueIndex(position);
-                int end = start + positions.getValueCount(position);
+        int batchStart = position;
+        int batchEnd = scanBatch(batchStart);
+        position = batchEnd;
+        if (batchValues == 0) {
+            return (LongBlock) positions.blockFactory().newConstantNullBlock(batchEnd - batchStart);
+        }
+        return buildBatch(batchStart, batchEnd);
+    }
+
+    private int scanBatch(int batchStart) {
+        batchValues = 0;
+        batchSlots = 0;
+        batchHasMultiValues = false;
+        int scanPos = batchStart;
+        int count = 0;
+        while (scanPos < positions.getPositionCount()) {
+            if (scanPosition(scanPos, count) == false) {
+                break;
+            }
+            count++;
+            scanPos++;
+            if (count > Operator.MIN_TARGET_PAGE_SIZE && batchValues > 0 && batchOutputBytes(count) >= targetByteSize) {
+                break;
+            }
+        }
+        return scanPos;
+    }
+
+    private boolean scanPosition(int pos, int count) {
+        int pStart = positions.getFirstValueIndex(pos);
+        int pEnd = pStart + positions.getValueCount(pos);
+        int valuePositionCount = values.getPositionCount();
+        long valuesForPos = 0;
+        for (int i = pStart; i < pEnd; i++) {
+            int vp = positions.getInt(i);
+            if (vp < valuePositionCount) {
+                int vCount = values.getValueCount(vp);
+                valuesForPos += vCount;
+                if (valuesForPos > Block.MAX_LOOKUP) {
+                    // TODO replace this with a warning and break
+                    throw new IllegalArgumentException("Found a single entry with " + valuesForPos + " entries");
+                }
+            }
+        }
+        long slotCount = Math.max(1L, valuesForPos);
+        if (count > 0 && batchSlots + slotCount > ArrayUtil.MAX_ARRAY_LENGTH) {
+            return false;
+        }
+        batchValues += valuesForPos;
+        batchSlots += slotCount;
+        if (valuesForPos > 1) {
+            batchHasMultiValues = true;
+        }
+        return true;
+    }
+
+    private long batchOutputBytes(int count) {
+        long outputBytes = RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + batchSlots * Long.BYTES;
+        if (batchHasMultiValues) {
+            outputBytes += RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (count + 1L) * Integer.BYTES;
+        }
+        return outputBytes;
+    }
+
+    private LongBlock buildBatch(int batchStart, int batchEnd) {
+        int exactSlots = Math.toIntExact(batchSlots);
+        try (LongBlock.Builder builder = positions.blockFactory().newLongBlockBuilder(exactSlots)) {
+            for (int p = batchStart; p < batchEnd; p++) {
+                int start = positions.getFirstValueIndex(p);
+                int end = start + positions.getValueCount(p);
                 valuesInPosition = 0;
                 for (int i = start; i < end; i++) {
                     copy(builder, positions.getInt(i));
@@ -55,11 +126,6 @@ public final class LongLookup implements ReleasableIterator<LongBlock> {
                     case 0 -> builder.appendNull();
                     case 1 -> builder.appendLong(first);
                     default -> builder.endPositionEntry();
-                }
-                position++;
-                // TOOD what if the estimate is super huge? should we break even with less than MIN_TARGET?
-                if (++count > Operator.MIN_TARGET_PAGE_SIZE && builder.estimatedBytes() < targetByteSize) {
-                    break;
                 }
             }
             return builder.build();
@@ -82,10 +148,6 @@ public final class LongLookup implements ReleasableIterator<LongBlock> {
                 builder.beginPositionEntry();
                 builder.appendLong(first);
             }
-            if (valuesInPosition > Block.MAX_LOOKUP) {
-                // TODO replace this with a warning and break
-                throw new IllegalArgumentException("Found a single entry with " + valuesInPosition + " entries");
-            }
             builder.appendLong(values.getLong(i));
             valuesInPosition++;
         }
@@ -93,6 +155,9 @@ public final class LongLookup implements ReleasableIterator<LongBlock> {
 
     @Override
     public void close() {
-        Releasables.close(values, positions);
+        if (closed == false) {
+            closed = true;
+            Releasables.close(values, positions);
+        }
     }
 }

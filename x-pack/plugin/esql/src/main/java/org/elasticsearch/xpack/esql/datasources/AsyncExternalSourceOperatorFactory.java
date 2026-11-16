@@ -1169,8 +1169,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     /**
      * Wraps {@code pages} in a {@link VirtualColumnIterator} when this factory has any virtual
      * partition / {@code _file.*} columns. The iterator allocates the constant blocks against
-     * {@link #producerBlockFactory(DriverContext)} — the request-level root factory, never the
-     * driver-local factory wrapping {@link org.elasticsearch.compute.data.LocalCircuitBreaker}. Returns
+     * the producer {@link BlockFactory} (request-level root, never the driver-local factory wrapping
+     * {@link org.elasticsearch.compute.data.LocalCircuitBreaker}). Returns
      * {@code pages} unchanged when there are no virtual columns to materialise — either the
      * dataset is unpartitioned, or the query projects no output columns at all (a zero-projection
      * {@code COUNT(*)} read, which forwards the reader's position-only pages untouched).
@@ -1178,7 +1178,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private CloseableIterator<Page> wrapWithVirtualColumns(
         CloseableIterator<Page> pages,
         Map<String, Object> partitionValuesForFile,
-        DriverContext driverContext
+        @Nullable BlockFactory producerFactory
     ) {
         // Two independent skip axes. The DATASET axis: an unpartitioned dataset has no virtual
         // columns to materialise. The OUTPUT axis: a zero-projection read (a bare STATS COUNT(*),
@@ -1195,34 +1195,13 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         if (partitionColumnNames.isEmpty() || attributes.isEmpty()) {
             return pages;
         }
-        return new VirtualColumnIterator(
-            pages,
-            attributes,
-            partitionColumnNames,
-            partitionValuesForFile,
-            producerBlockFactory(driverContext)
-        );
+        return new VirtualColumnIterator(pages, attributes, partitionColumnNames, partitionValuesForFile, producerFactory);
     }
 
-    /**
-     * Root {@link BlockFactory} for producer / I/O thread allocations.
-     * <p>
-     * Child factories wrap a {@link org.elasticsearch.compute.data.LocalCircuitBreaker} that
-     * asserts single-thread access during the driver run loop. Allocating against that breaker
-     * from a generic-pool thread races with the driver and can corrupt reserved-bytes accounting
-     * (assertions are stripped in production). {@link BlockFactory#parent()} is the request-level
-     * factory whose breaker is thread-safe. A missing driver factory (tests that never stub one)
-     * returns {@code null} so {@link FormatReadContext} can keep a null breaker. An unstubbed mock
-     * {@code parent()} is treated as already-root.
-     */
     @Nullable
     static BlockFactory producerBlockFactory(DriverContext driverContext) {
         BlockFactory factory = driverContext.blockFactory();
-        if (factory == null) {
-            return null;
-        }
-        BlockFactory parent = factory.parent();
-        return parent != null ? parent : factory;
+        return factory == null ? null : factory.parent();
     }
 
     @Nullable
@@ -1407,7 +1386,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private CloseableIterator<Page> adaptSchema(
         CloseableIterator<Page> pages,
         ColumnMapping mapping,
-        DriverContext driverContext,
+        @Nullable BlockFactory producerFactory,
         @Nullable List<Attribute> perFileReadSchema,
         @Nullable List<String> perFileCols,
         @Nullable Consumer<String> informationalWarningSink,
@@ -1454,7 +1433,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             pages,
             queryDataSchema.attributes(),
             mapping,
-            producerBlockFactory(driverContext),
+            producerFactory,
             rowPositionInputIndex,
             perFileColumnTypes,
             informationalWarningSink,
@@ -2767,7 +2746,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             CloseableIterator<Page> adapted = adaptSchema(
                 pages,
                 fileSplit.columnMapping(),
-                state.driverContext,
+                state.producerBlockFactory,
                 perFileReadSchema,
                 perFileCols,
                 bufferedInformationalWarningSink(state.buffer),
@@ -2785,7 +2764,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             CloseableIterator<Page> wrapped = wrapWithVirtualColumns(
                 withEncoder,
                 overlayFileLocation(fileSplit.partitionValues(), fileSplit.path()),
-                state.driverContext
+                state.producerBlockFactory
             );
             pages = null;
             assignPages(state, wrapped);
@@ -2995,7 +2974,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             CloseableIterator<Page> adapted = adaptSchema(
                 pages,
                 mapping,
-                state.driverContext,
+                state.producerBlockFactory,
                 perFileReadSchema,
                 perFileCols,
                 bufferedInformationalWarningSink(state.buffer),
@@ -3006,7 +2985,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             CloseableIterator<Page> withEncoder = wrapWithEncoderIfNeeded(adapted, perFileCols, state.driverContext);
             // Per-file virtual-column iterator (built with FileMetadataColumns.extractValues for
             // this file) so {@code _file.*} columns carry the right values for the current file.
-            CloseableIterator<Page> wrapped = wrapWithVirtualColumns(withEncoder, perFileValues, state.driverContext);
+            CloseableIterator<Page> wrapped = wrapWithVirtualColumns(withEncoder, perFileValues, state.producerBlockFactory);
             pages = null;
             assignPages(state, wrapped);
             return true;
@@ -3176,7 +3155,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 pages = applyRowPositionStrategy(reader, pages, projectedColumns);
                 pages = StatsCapturingIterator.wrap(pages, buffer.capturedSourceMetadataSink());
                 CloseableIterator<Page> withEncoder = wrapWithEncoderIfNeeded(pages, projectedColumns, driverContext);
-                finalPages = wrapWithVirtualColumns(withEncoder, overlayFileLocation(partitionValues, path), driverContext);
+                finalPages = wrapWithVirtualColumns(
+                    withEncoder,
+                    overlayFileLocation(partitionValues, path),
+                    producerBlockFactory(driverContext)
+                );
             } catch (Exception e) {
                 closeQuietly(pages);
                 throw e;
@@ -3240,7 +3223,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             CloseableIterator<Page> wrapped = wrapWithVirtualColumns(
                 withEncoder,
                 overlayFileLocation(partitionValues, path),
-                driverContext
+                producerBlockFactory(driverContext)
             );
             drainPagesAsync(
                 wrapped,

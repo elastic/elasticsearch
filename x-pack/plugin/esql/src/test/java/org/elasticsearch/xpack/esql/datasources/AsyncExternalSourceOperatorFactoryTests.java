@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -112,6 +113,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doAnswer;
@@ -651,12 +653,72 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         DriverContext missingFactory = mock(DriverContext.class);
         assertNull(AsyncExternalSourceOperatorFactory.producerBlockFactory(missingFactory));
+    }
 
-        DriverContext mocked = mock(DriverContext.class);
-        BlockFactory mockFactory = mock(BlockFactory.class);
-        when(mocked.blockFactory()).thenReturn(mockFactory);
-        when(mockFactory.parent()).thenReturn(null);
-        assertSame(mockFactory, AsyncExternalSourceOperatorFactory.producerBlockFactory(mocked));
+    public void testChildDriverContextChargesProducerToRootBreaker() throws Exception {
+        LocalCircuitBreaker local = new LocalCircuitBreaker(TEST_BLOCK_FACTORY.breaker(), 0, 0);
+        try {
+            BlockFactory child = TEST_BLOCK_FACTORY.newChildFactory(local);
+            DriverContext driverContext = mock(DriverContext.class);
+            when(driverContext.blockFactory()).thenReturn(child);
+            doAnswer(inv -> null).when(driverContext).addAsyncAction();
+            doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+            AtomicReference<CircuitBreaker> seenBreaker = new AtomicReference<>();
+            Page filePage = new Page(1, TEST_BLOCK_FACTORY.newIntArrayVector(new int[] { 7 }, 1).asBlock());
+            FormatReader formatReader = new SinglePageReader(() -> filePage) {
+                @Override
+                public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+                    seenBreaker.set(context.breaker());
+                    return super.read(object, context);
+                }
+            };
+
+            StoragePath filePath = StoragePath.of("s3://bucket/data/year=2024/f1.parquet");
+            FileList fileList = GlobExpander.fileListOf(
+                List.of(new StorageEntry(filePath, 100, Instant.EPOCH)),
+                "s3://bucket/data/**" + "/f1.parquet"
+            );
+            List<Attribute> attributes = List.of(ref("value", DataType.INTEGER), ref("year", DataType.INTEGER));
+
+            AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+                new StubMultiFileStorageProvider(),
+                formatReader,
+                filePath,
+                attributes,
+                100,
+                10,
+                Runnable::run
+            ).fileList(fileList).partitionColumnNames(Set.of("year")).partitionValues(Map.of("year", 2024)).build();
+
+            SourceOperator operator = factory.get(driverContext);
+            Page page = null;
+            try {
+                while (operator.isFinished() == false) {
+                    Page p = operator.getOutput();
+                    if (p != null) {
+                        if (page == null) {
+                            page = p;
+                        } else {
+                            p.releaseBlocks();
+                        }
+                    }
+                }
+                assertNotNull(page);
+                assertSame(TEST_BLOCK_FACTORY.breaker(), seenBreaker.get());
+                assertThat(seenBreaker.get(), not(instanceOf(LocalCircuitBreaker.class)));
+                IntBlock yearBlock = page.getBlock(1);
+                assertSame(TEST_BLOCK_FACTORY, yearBlock.blockFactory());
+                assertNotSame(child, yearBlock.blockFactory());
+            } finally {
+                if (page != null) {
+                    page.releaseBlocks();
+                }
+                operator.close();
+            }
+        } finally {
+            local.close();
+        }
     }
 
     public void testMultiFileReadIteratesAllFiles() throws Exception {

@@ -108,6 +108,34 @@ public class ShardSearchStatsTests extends IndexShardTestCase {
         assertEquals(nanos, shards.stream().mapToLong(ShardSearchStats::totalSearchLoadNanos).sum());
     }
 
+    /**
+     * Time charged by weight is shared in proportion to the weights without losing any: a shard with no weight gets none,
+     * and the shards share it equally when they all have none.
+     */
+    public void testChargingShardsByWeight() {
+        SearchStatsSettings searchStatsSettings = new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings());
+        List<ShardSearchStats> shards = randomList(2, 5, () -> new ShardSearchStats(searchStatsSettings));
+        long[] weights = new long[shards.size()];
+        for (int i = 1; i < weights.length; i++) {
+            weights[i] = randomLongBetween(1, Long.MAX_VALUE / weights.length);
+        }
+        long nanos = randomLongBetween(0, TimeUnit.HOURS.toNanos(1));
+        ShardSearchStats.charge(List.of(), new long[0], nanos, System.nanoTime());
+        ShardSearchStats.charge(shards, weights, nanos, System.nanoTime());
+        assertEquals(nanos, shards.stream().mapToLong(ShardSearchStats::totalSearchLoadNanos).sum());
+        assertEquals(0, shards.get(0).totalSearchLoadNanos());
+        double totalWeight = Arrays.stream(weights).asDoubleStream().sum();
+        for (int i = 1; i < weights.length; i++) {
+            assertEquals(nanos * (weights[i] / totalWeight), shards.get(i).totalSearchLoadNanos(), 1.0);
+        }
+
+        List<ShardSearchStats> unweighted = randomList(1, 5, () -> new ShardSearchStats(searchStatsSettings));
+        ShardSearchStats.charge(unweighted, new long[unweighted.size()], nanos, System.nanoTime());
+        for (ShardSearchStats shard : unweighted) {
+            assertEquals(nanos / unweighted.size(), shard.totalSearchLoadNanos(), 1.0);
+        }
+    }
+
     public void testDfsPhase() {
         try (SearchContext sc = createSearchContext(false)) {
             shardSearchStatsListener.onPreDfsPhase(sc);

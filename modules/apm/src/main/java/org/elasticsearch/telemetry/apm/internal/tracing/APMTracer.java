@@ -20,7 +20,6 @@ import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.context.ContextKey;
-import io.opentelemetry.context.Scope;
 import io.opentelemetry.context.propagation.TextMapGetter;
 import io.opentelemetry.instrumentation.api.instrumenter.SpanStatusBuilder;
 import io.opentelemetry.sdk.common.CompletableResultCode;
@@ -38,7 +37,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.lucene.util.automaton.MinimizationOperations;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
@@ -314,25 +312,6 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         });
     }
 
-    /**
-     * Called when a span starts. This version of the method relies on context to assign the span a parent.
-     *
-     * @param name       the name of the span. Sent to the tracing system
-     * @param attributes
-     */
-    @Override
-    public void startTrace(String name, Map<String, Object> attributes) {
-        // If tracing has been disabled, return immediately
-        var services = this.services;
-        if (services == null) {
-            return;
-        }
-
-        SpanBuilder spanBuilder = services.tracer.spanBuilder(name);
-        setSpanAttributes(attributes, spanBuilder);
-        spanBuilder.startSpan();
-    }
-
     private static void updateThreadContext(TraceContext traceContext, APMServices services, Context context) {
         // The new span context can be used as the parent context directly within the same Java process...
         traceContext.putTransient(Task.APM_TRACE_CONTEXT, context);
@@ -367,33 +346,6 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
                 .extract(Context.current(), traceContextMap, new MapKeyGetter());
         }
         return null;
-    }
-
-    /**
-     * Most of the examples of how to use the OTel API look something like this, where the span context
-     * is automatically propagated:
-     *
-     * <pre>{@code
-     * Span span = tracer.spanBuilder("parent").startSpan();
-     * try (Scope scope = parentSpan.makeCurrent()) {
-     *     // ...do some stuff, possibly creating further spans
-     * } finally {
-     *     span.end();
-     * }
-     * }</pre>
-     * This typically isn't useful in Elasticsearch, because a {@link Scope} can't be used across threads.
-     * This method exists to make it possible to use scopes in the few situation where it makes sense.
-     *
-     * @param traceable provides the ID of a currently-open span for which to open a scope.
-     * @return a method to close the scope when you are finished with it.
-     */
-    @Override
-    public Releasable withScope(Traceable traceable) {
-        final Context context = spans.get(traceable.getSpanId());
-        if (context != null && Span.fromContextOrNull(context).isRecording()) {
-            return context.makeCurrent()::close;
-        }
-        return () -> {};
     }
 
     private void setSpanAttributes(@Nullable Map<String, Object> spanAttributes, SpanBuilder spanBuilder) {
@@ -491,11 +443,6 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         getSpan(traceable).setAllAttributes(attributes);
     }
 
-    @Override
-    public void setStatusToError(Traceable traceable, String description) {
-        getSpan(traceable).setStatus(StatusCode.ERROR, description);
-    }
-
     public SpanStatusBuilder spanStatusBuilder(Traceable traceable) {
         return new APMSpanStatusBuilder(getSpan(traceable));
     }
@@ -517,19 +464,6 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             logger.trace("Finishing trace [{}]", spanId);
             Span.fromContext(context).end();
         }
-    }
-
-    /**
-     * Called when a span ends. This version of the method relies on context to select the span to stop.
-     */
-    @Override
-    public void stopTrace() {
-        Span.current().end();
-    }
-
-    @Override
-    public void addEvent(Traceable traceable, String eventName) {
-        getSpan(traceable).addEvent(eventName);
     }
 
     private static class MapKeyGetter implements TextMapGetter<Map<String, String>> {

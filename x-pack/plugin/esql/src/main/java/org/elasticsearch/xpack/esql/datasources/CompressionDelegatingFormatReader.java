@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -136,6 +137,14 @@ final class CompressionDelegatingFormatReader implements FormatReader {
         // contribution can no longer match the entry the resolver seeded — the warm rail dies for compressed files
         // only.
         FormatReader configured = inner.withReadConfig(readConfig);
+        return configured == inner ? this : new CompressionDelegatingFormatReader(configured, codec, maxDecompressionRatio);
+    }
+
+    @Override
+    public FormatReader withBlockFactory(BlockFactory blockFactory) {
+        // Delegate: a compressed .csv.gz builds pages on the same factory as the plain file. Without this the
+        // interface default returns the wrapper and per-read allocations stay on the node ctor factory.
+        FormatReader configured = inner.withBlockFactory(blockFactory);
         return configured == inner ? this : new CompressionDelegatingFormatReader(configured, codec, maxDecompressionRatio);
     }
 

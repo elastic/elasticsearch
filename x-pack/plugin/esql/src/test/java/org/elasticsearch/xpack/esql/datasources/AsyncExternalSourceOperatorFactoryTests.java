@@ -752,8 +752,15 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             doAnswer(inv -> null).when(driverContext).removeAsyncAction();
 
             AtomicReference<CircuitBreaker> seenBreaker = new AtomicReference<>();
+            AtomicReference<BlockFactory> seenFactory = new AtomicReference<>();
             Page filePage = new Page(1, TEST_BLOCK_FACTORY.newIntArrayVector(new int[] { 7 }, 1).asBlock());
             FormatReader formatReader = new SinglePageReader(() -> filePage) {
+                @Override
+                public FormatReader withBlockFactory(BlockFactory blockFactory) {
+                    seenFactory.set(blockFactory);
+                    return this;
+                }
+
                 @Override
                 public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
                     seenBreaker.set(context.breaker());
@@ -792,6 +799,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                     }
                 }
                 assertNotNull(page);
+                assertSame("the operator must bind the producer parent factory before read", TEST_BLOCK_FACTORY, seenFactory.get());
                 assertSame(TEST_BLOCK_FACTORY.breaker(), seenBreaker.get());
                 assertThat(seenBreaker.get(), not(instanceOf(LocalCircuitBreaker.class)));
                 IntBlock yearBlock = page.getBlock(1);

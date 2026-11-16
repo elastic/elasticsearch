@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -27,6 +28,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -1548,6 +1550,33 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
             );
             assertThat(type, e.getMessage(), containsString("cannot reconstruct _source from doc values"));
         }
+    }
+
+    public void testColumnarPlainParamDocValuesFalseOnMultiFieldAcrossAllMappersGate() throws IOException {
+        CheckedConsumer<XContentBuilder, IOException> fields = b -> {
+            b.startObject("field");
+            {
+                b.field("type", "keyword");
+                b.startObject("fields");
+                b.startObject("point").field("type", "geo_point").field("doc_values", false).endObject();
+                b.endObject();
+            }
+            b.endObject();
+        };
+
+        // Before the gate: multi-fields are exempt from the reconstructability check, so doc_values: false is applied.
+        IndexVersion before = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.DOC_VALUES_TOP_LEVEL_ATTRIBUTES,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.DOC_VALUES_NO_OP_IN_COLUMNAR_ALL_MAPPERS)
+        );
+        MapperService old = createMapperService(before, columnarSettings(IndexMode.COLUMNAR), mapping(fields));
+        assertFalse(old.fieldType("field.point").hasDocValues());
+
+        // On or after the gate: the parameter is ignored and a warning is logged.
+        MapperService current = createMapperService(columnarSettings(IndexMode.COLUMNAR), mapping(fields));
+        assertWarnings(docValuesIgnoredWarning("point"));
+        assertTrue(current.fieldType("field.point").hasDocValues());
+        assertThat(current.documentMapper().mappingSource().string(), not(containsString("doc_values")));
     }
 
     public void testColumnarPlainParamDocValuesFalseInDynamicTemplate() throws Exception {

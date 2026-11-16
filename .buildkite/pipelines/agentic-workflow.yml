@@ -104,4 +104,8 @@ steps:
       machineType:    "${ARCHIMEDES_AGENT_MACHINE_TYPE}"
       diskType:       "${ARCHIMEDES_AGENT_DISK_TYPE}"
       buildDirectory: /dev/shm/bk
+    retry:
+      automatic:
+        - exit_status: "*"
+          limit: 1
     command: archimedes ci

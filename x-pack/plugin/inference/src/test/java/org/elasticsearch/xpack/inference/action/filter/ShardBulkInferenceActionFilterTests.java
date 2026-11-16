@@ -234,8 +234,8 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         BytesReference sourceBytes = BytesReference.bytes(IndexSource.getXContentBuilder(XContentType.JSON, fieldName, fieldValue));
         SourceBatch batch;
         try (EscfEncoder encoder = new EscfEncoder()) {
-            encoder.addDocument(sourceBytes, XContentType.JSON, 0);
-            batch = encoder.buildPartition(0);
+            encoder.addDocument(sourceBytes, XContentType.JSON);
+            batch = encoder.build();
         }
 
         // Attach the batch to the item, replicating what BulkShardRequest(StreamInput) does on the shard node:

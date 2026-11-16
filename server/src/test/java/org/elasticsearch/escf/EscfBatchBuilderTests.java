@@ -39,16 +39,15 @@ public class EscfBatchBuilderTests extends ESTestCase {
 
     public void testScalars() throws IOException {
         try (EscfBatchBuilder builder = newBuilder()) {
-            EscfRowBuffer row = builder.beginRow();
-            row.longField("i", 42L);
-            row.longField("l", 10_000_000_000L);
-            row.doubleField("d", 1.5);
-            row.stringField("s", utf8("hello"));
-            row.booleanField("b", true);
-            row.booleanField("f", false);
-            row.finishRow();
-            builder.commit(0);
-            try (EscfBatch batch = builder.buildPartition(0)) {
+            builder.beginRow();
+            builder.longField("i", 42L);
+            builder.longField("l", 10_000_000_000L);
+            builder.doubleField("d", 1.5);
+            builder.stringField("s", utf8("hello"));
+            builder.booleanField("b", true);
+            builder.booleanField("f", false);
+            builder.finishRow();
+            try (EscfBatch batch = builder.build()) {
                 assertEquals(1, batch.docCount());
                 assertEquals(asMap("{\"i\":42,\"l\":10000000000,\"d\":1.5,\"s\":\"hello\",\"b\":true,\"f\":false}"), reconstruct(batch, 0));
             }
@@ -57,15 +56,14 @@ public class EscfBatchBuilderTests extends ESTestCase {
 
     public void testNestedObjects() throws IOException {
         try (EscfBatchBuilder builder = newBuilder()) {
-            EscfRowBuffer row = builder.beginRow();
-            row.startObject("user");
-            row.stringField("name", utf8("alice"));
-            row.longField("age", 30L);
-            row.endObject();
-            row.stringField("status", utf8("active"));
-            row.finishRow();
-            builder.commit(0);
-            try (EscfBatch batch = builder.buildPartition(0)) {
+            builder.beginRow();
+            builder.startObject("user");
+            builder.stringField("name", utf8("alice"));
+            builder.longField("age", 30L);
+            builder.endObject();
+            builder.stringField("status", utf8("active"));
+            builder.finishRow();
+            try (EscfBatch batch = builder.build()) {
                 assertEquals(asMap("{\"user\":{\"name\":\"alice\",\"age\":30},\"status\":\"active\"}"), reconstruct(batch, 0));
             }
         }
@@ -73,12 +71,11 @@ public class EscfBatchBuilderTests extends ESTestCase {
 
     public void testEmptyObject() throws IOException {
         try (EscfBatchBuilder builder = newBuilder()) {
-            EscfRowBuffer row = builder.beginRow();
-            row.emptyObject("empty");
-            row.longField("x", 1L);
-            row.finishRow();
-            builder.commit(0);
-            try (EscfBatch batch = builder.buildPartition(0)) {
+            builder.beginRow();
+            builder.emptyObject("empty");
+            builder.longField("x", 1L);
+            builder.finishRow();
+            try (EscfBatch batch = builder.build()) {
                 assertEquals(asMap("{\"empty\":{},\"x\":1}"), reconstruct(batch, 0));
             }
         }
@@ -88,11 +85,10 @@ public class EscfBatchBuilderTests extends ESTestCase {
         long[] longs = new long[] { 1L, 2L, 3L, 4L };
         byte[] packed = SourceBatchEncodeHelper.packFixedArray(SourceValueType.LONG, longs, new Object[4], 4);
         try (EscfBatchBuilder builder = newBuilder()) {
-            EscfRowBuffer row = builder.beginRow();
-            row.arrayField("vals", SourceValueType.FIXED_ARRAY, packed);
-            row.finishRow();
-            builder.commit(0);
-            try (EscfBatch batch = builder.buildPartition(0)) {
+            builder.beginRow();
+            builder.arrayField("vals", SourceValueType.FIXED_ARRAY, packed);
+            builder.finishRow();
+            try (EscfBatch batch = builder.build()) {
                 assertEquals(asMap("{\"vals\":[1,2,3,4]}"), reconstruct(batch, 0));
             }
         }
@@ -105,12 +101,37 @@ public class EscfBatchBuilderTests extends ESTestCase {
             Double.doubleToRawLongBits(-3.25) };
         byte[] packed = SourceBatchEncodeHelper.packFixedArray(SourceValueType.DOUBLE, numerics, new Object[3], 3);
         try (EscfBatchBuilder builder = newBuilder()) {
-            EscfRowBuffer row = builder.beginRow();
-            row.arrayField("vals", SourceValueType.FIXED_ARRAY, packed);
-            row.finishRow();
-            builder.commit(0);
-            try (EscfBatch batch = builder.buildPartition(0)) {
+            builder.beginRow();
+            builder.arrayField("vals", SourceValueType.FIXED_ARRAY, packed);
+            builder.finishRow();
+            try (EscfBatch batch = builder.build()) {
                 assertEquals(asMap("{\"vals\":[1.5,2.5,-3.25]}"), reconstruct(batch, 0));
+            }
+        }
+    }
+
+    /**
+     * A late-discovered column (first seen in row 1, absent in row 0) must back-fill row 0 with
+     * an absent entry so every column builder holds exactly {@code docCount} values.
+     */
+    public void testLateDiscoveredColumnBackfillsAbsentForPriorRows() throws IOException {
+        try (EscfBatchBuilder builder = newBuilder()) {
+            // Row 0: "a" present, "b" absent (first seen later)
+            builder.beginRow();
+            builder.longField("a", 1L);
+            builder.finishRow();
+
+            // Row 1: both "a" and "b" present — "b" is discovered here
+            builder.beginRow();
+            builder.longField("a", 2L);
+            builder.stringField("b", utf8("hello"));
+            builder.finishRow();
+
+            try (EscfBatch batch = builder.build()) {
+                assertEquals(2, batch.docCount());
+                // row 0: "b" must be absent (not present), reconstructed map has no "b"
+                assertEquals(asMap("{\"a\":1}"), reconstruct(batch, 0));
+                assertEquals(asMap("{\"a\":2,\"b\":\"hello\"}"), reconstruct(batch, 1));
             }
         }
     }
@@ -118,19 +139,17 @@ public class EscfBatchBuilderTests extends ESTestCase {
     public void testAbsentBackfill() throws IOException {
         try (EscfBatchBuilder builder = newBuilder()) {
             // Row 0: both "a" and "b" present
-            EscfRowBuffer row = builder.beginRow();
-            row.longField("a", 1L);
-            row.stringField("b", utf8("hello"));
-            row.finishRow();
-            builder.commit(0);
+            builder.beginRow();
+            builder.longField("a", 1L);
+            builder.stringField("b", utf8("hello"));
+            builder.finishRow();
 
             // Row 1: only "a" present; "b" must be absent (not null) in the batch
-            row = builder.beginRow();
-            row.longField("a", 2L);
-            row.finishRow();
-            builder.commit(0);
+            builder.beginRow();
+            builder.longField("a", 2L);
+            builder.finishRow();
 
-            try (EscfBatch batch = builder.buildPartition(0)) {
+            try (EscfBatch batch = builder.build()) {
                 assertEquals(2, batch.docCount());
                 assertEquals(asMap("{\"a\":1,\"b\":\"hello\"}"), reconstruct(batch, 0));
                 assertEquals(asMap("{\"a\":2}"), reconstruct(batch, 1));
@@ -138,73 +157,87 @@ public class EscfBatchBuilderTests extends ESTestCase {
         }
     }
 
-    public void testMultiplePartitions() throws IOException {
-        try (EscfBatchBuilder builder = newBuilder()) {
-            EscfRowBuffer row = builder.beginRow();
-            row.longField("x", 10L);
-            row.finishRow();
-            builder.commit(0);
-
-            row = builder.beginRow();
-            row.longField("x", 20L);
-            row.finishRow();
-            builder.commit(1);
-
-            row = builder.beginRow();
-            row.longField("x", 30L);
-            row.finishRow();
-            builder.commit(0);
-
-            assertEquals(2, builder.docCount(0));
-            assertEquals(1, builder.docCount(1));
-
-            try (EscfBatch batch0 = builder.buildPartition(0)) {
-                assertEquals(2, batch0.docCount());
-                assertEquals(asMap("{\"x\":10}"), reconstruct(batch0, 0));
-                assertEquals(asMap("{\"x\":30}"), reconstruct(batch0, 1));
-            }
-            try (EscfBatch batch1 = builder.buildPartition(1)) {
-                assertEquals(1, batch1.docCount());
-                assertEquals(asMap("{\"x\":20}"), reconstruct(batch1, 0));
-            }
-        }
-    }
-
     public void testNullField() throws IOException {
         try (EscfBatchBuilder builder = newBuilder()) {
-            EscfRowBuffer row = builder.beginRow();
-            row.nullField("a");
-            row.longField("b", 5L);
-            row.finishRow();
-            builder.commit(0);
-            try (EscfBatch batch = builder.buildPartition(0)) {
+            builder.beginRow();
+            builder.nullField("a");
+            builder.longField("b", 5L);
+            builder.finishRow();
+            try (EscfBatch batch = builder.build()) {
                 assertEquals(asMap("{\"a\":null,\"b\":5}"), reconstruct(batch, 0));
             }
         }
     }
 
     /**
-     * Mirrors the Jackson fallback after a failed SIMD parse: {@code beginRow()} without
-     * {@code finishRow()} leaves the row unstaged; a subsequent {@code beginRow()} resets scratch
-     * so the completed row does not inherit partial field values.
+     * Duplicate field name in one row must throw {@link IllegalArgumentException} and must not
+     * corrupt the column builders.
      */
-    public void testBeginRowResetsUnfinishedRow() throws IOException {
+    public void testDuplicateFieldInOneRowThrows() {
         try (EscfBatchBuilder builder = newBuilder()) {
-            EscfRowBuffer row = builder.beginRow();
-            row.longField("a", 999L);
-            row.longField("b", 888L);
-            assertFalse(row.isStarted());
-            expectThrows(IllegalStateException.class, () -> builder.commit(0));
+            builder.beginRow();
+            builder.longField("x", 1L);
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> builder.longField("x", 2L));
+            assertEquals("Duplicate field [x]", ex.getMessage());
+        }
+    }
 
-            row = builder.beginRow();
-            row.longField("a", 1L);
-            row.longField("b", 2L);
-            row.finishRow();
-            builder.commit(0);
+    /**
+     * {@link EscfBatchBuilder#abortRow()} seals a partial row as an orphan (absent-fills + increments
+     * docCount) so the column builders stay well-formed. The next row is unaffected.
+     */
+    public void testAbortRowLeavesWellFormedBatch() throws IOException {
+        try (EscfBatchBuilder builder = newBuilder()) {
+            // Start a row but abort it (simulates a failed SIMD parse).
+            builder.beginRow();
+            builder.longField("a", 999L);
+            builder.abortRow();
+            assertEquals(1, builder.docCount()); // orphan row counted
 
-            try (EscfBatch batch = builder.buildPartition(0)) {
-                assertEquals(1, batch.docCount());
-                assertEquals(asMap("{\"a\":1,\"b\":2}"), reconstruct(batch, 0));
+            // Next row is the "real" document.
+            builder.beginRow();
+            builder.longField("a", 1L);
+            builder.stringField("b", utf8("hi"));
+            builder.finishRow();
+            assertEquals(2, builder.docCount()); // orphan + real
+
+            try (EscfBatch batch = builder.build()) {
+                assertEquals(2, batch.docCount());
+                // row 1 (the real row) is well-formed
+                assertEquals(asMap("{\"a\":1,\"b\":\"hi\"}"), reconstruct(batch, 1));
+            }
+        }
+    }
+
+    /**
+     * Regression test: with exactly 64 schema leaves the {@code touched} bitset has {@code numBits=64},
+     * so the absent-fill loop must not call {@code nextClearBit(64)} (which would trigger Lucene's
+     * bounds assertion) when column 63 is untouched.
+     */
+    public void testAbsentBackfillAt64LeafBoundary() throws IOException {
+        try (EscfBatchBuilder builder = newBuilder()) {
+            // Register 64 leaves in row 0: fields f0 … f62 present, f63 absent.
+            builder.beginRow();
+            for (int i = 0; i < 63; i++) {
+                builder.longField("f" + i, i);
+            }
+            // f63 is intentionally absent — this triggers the boundary condition.
+            builder.finishRow();
+
+            // Row 1: only f63 present; all others absent.
+            builder.beginRow();
+            builder.longField("f63", 63L);
+            builder.finishRow();
+
+            try (EscfBatch batch = builder.build()) {
+                assertEquals(2, batch.docCount());
+                Map<String, Object> row0 = reconstruct(batch, 0);
+                for (int i = 0; i < 63; i++) {
+                    assertEquals((long) i, ((Number) row0.get("f" + i)).longValue());
+                }
+                assertNull(row0.get("f63"));
+                Map<String, Object> row1 = reconstruct(batch, 1);
+                assertEquals(63L, ((Number) row1.get("f63")).longValue());
             }
         }
     }
@@ -294,27 +327,26 @@ public class EscfBatchBuilderTests extends ESTestCase {
     public void testDuplicateFieldIsRejected() throws IOException {
         // Empty schema: the field is added by the first write and found by the second.
         try (EscfBatchBuilder builder = newBuilder()) {
-            EscfRowBuffer row = builder.beginRow();
-            row.longField("a", 1L);
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> row.longField("a", 2L));
+            builder.beginRow();
+            builder.longField("a", 1L);
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder.longField("a", 2L));
             assertEquals("Duplicate field [a]", e.getMessage());
         }
         // Known schema: after "a" the predicted field is "b", so the duplicate is found by the lookup.
         // Likewise for a duplicate that is not adjacent.
         for (boolean adjacent : new boolean[] { true, false }) {
             try (EscfBatchBuilder builder = newBuilder()) {
-                EscfRowBuffer first = builder.beginRow();
-                first.longField("a", 1L);
-                first.longField("b", 2L);
-                first.finishRow();
-                builder.commit(0);
+                builder.beginRow();
+                builder.longField("a", 1L);
+                builder.longField("b", 2L);
+                builder.finishRow();
 
-                EscfRowBuffer row = builder.beginRow();
-                row.longField("a", 3L);
+                builder.beginRow();
+                builder.longField("a", 3L);
                 if (adjacent == false) {
-                    row.longField("b", 4L);
+                    builder.longField("b", 4L);
                 }
-                IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> row.longField("a", 5L));
+                IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder.longField("a", 5L));
                 assertEquals("Duplicate field [a]", e.getMessage());
             }
         }
@@ -347,32 +379,31 @@ public class EscfBatchBuilderTests extends ESTestCase {
                 }
                 boolean withNested = mode != 1 || randomBoolean();
                 Map<String, Object> doc = new LinkedHashMap<>();
-                EscfRowBuffer row = builder.beginRow();
+                builder.beginRow();
                 int insertNestedAt = randomIntBetween(0, topNames.size());
                 for (int i = 0; i <= topNames.size(); i++) {
                     if (i == insertNestedAt && withNested && nestedNames.isEmpty() == false) {
                         Map<String, Object> inner = new LinkedHashMap<>();
-                        row.startObject("obj");
+                        builder.startObject("obj");
                         for (String n : nestedNames) {
                             long v = randomLong();
-                            row.longField(n, v);
+                            builder.longField(n, v);
                             inner.put(n, v);
                         }
-                        row.endObject();
+                        builder.endObject();
                         doc.put("obj", inner);
                     }
                     if (i < topNames.size()) {
                         String n = topNames.get(i);
                         long v = randomLong();
-                        row.longField(n, v);
+                        builder.longField(n, v);
                         doc.put(n, v);
                     }
                 }
-                row.finishRow();
-                builder.commit(0);
+                builder.finishRow();
                 expected.add(normalize(doc));
             }
-            try (EscfBatch batch = builder.buildPartition(0)) {
+            try (EscfBatch batch = builder.build()) {
                 assertEquals(rows, batch.docCount());
                 for (int r = 0; r < rows; r++) {
                     assertEquals("row " + r, expected.get(r), reconstruct(batch, r));
@@ -400,12 +431,11 @@ public class EscfBatchBuilderTests extends ESTestCase {
     private static void assertRoundTrip(String... docs) throws IOException {
         try (EscfBatchBuilder builder = newBuilder()) {
             for (String doc : docs) {
-                EscfRowBuffer row = builder.beginRow();
-                writeFields(row, asOrderedMap(doc));
-                row.finishRow();
-                builder.commit(0);
+                builder.beginRow();
+                writeFields(builder, asOrderedMap(doc));
+                builder.finishRow();
             }
-            try (EscfBatch batch = builder.buildPartition(0)) {
+            try (EscfBatch batch = builder.build()) {
                 assertEquals(docs.length, batch.docCount());
                 for (int r = 0; r < docs.length; r++) {
                     assertEquals("row " + r, asMap(docs[r]), reconstruct(batch, r));
@@ -418,24 +448,24 @@ public class EscfBatchBuilderTests extends ESTestCase {
      * Writes the entries of a parsed document: integers as longs, doubles, strings, and maps as nested (or empty)
      * objects. Any other value type fails the test rather than being written as something else.
      */
-    private static void writeFields(EscfRowBuffer row, Map<?, ?> fields) {
+    private static void writeFields(EscfBatchBuilder builder, Map<?, ?> fields) {
         for (Map.Entry<?, ?> entry : fields.entrySet()) {
             String name = (String) entry.getKey();
             Object value = entry.getValue();
             if (value instanceof Map<?, ?> nested) {
                 if (nested.isEmpty()) {
-                    row.emptyObject(name);
+                    builder.emptyObject(name);
                 } else {
-                    row.startObject(name);
-                    writeFields(row, nested);
-                    row.endObject();
+                    builder.startObject(name);
+                    writeFields(builder, nested);
+                    builder.endObject();
                 }
             } else if (value instanceof Double number) {
-                row.doubleField(name, number);
+                builder.doubleField(name, number);
             } else if (value instanceof Integer || value instanceof Long) {
-                row.longField(name, ((Number) value).longValue());
+                builder.longField(name, ((Number) value).longValue());
             } else if (value instanceof String string) {
-                row.stringField(name, utf8(string));
+                builder.stringField(name, utf8(string));
             } else {
                 throw new AssertionError("unsupported test value [" + value + "] for [" + name + "]");
             }

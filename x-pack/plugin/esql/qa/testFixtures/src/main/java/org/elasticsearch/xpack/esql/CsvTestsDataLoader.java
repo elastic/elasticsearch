@@ -584,6 +584,9 @@ public class CsvTestsDataLoader {
         new ViewConfig("partial_mapping_view_message_wildcard"),
         new ViewConfig("partial_mapping_mv_view"),
         new ViewConfig("view_with_subquery"),
+        new ViewConfig("view_fork_sample_data"),
+        new ViewConfig("view_fork_employees"),
+        new ViewConfig("view_in_subquery_with_fork", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
         new ViewConfig("view_row_constants", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),
         new ViewConfig("view_row_eval", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),
         new ViewConfig("view_row_employees_subquery", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),
@@ -592,6 +595,10 @@ public class CsvTestsDataLoader {
         new ViewConfig("view_k8s_downsampled_low_tx_count", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
         new ViewConfig("view_k8s_early_window", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
         new ViewConfig("view_k8s_downsampled_first_bucket", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
+        new ViewConfig(
+            "view_k8s_bare_rate_by_tbucket",
+            List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS, EsqlCapabilities.Cap.METRICS_GROUP_BY_ALL_WITH_TS_DIMENSIONS)
+        ),
         new ViewConfig("view_k8s_mixed_subqueries", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS, EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),
         new ViewConfig("employees_in_subquery", List.of(WHERE_IN_SUBQUERY_WITHOUT_VIEW)),
         new ViewConfig("employees_in_eval_subquery", List.of(WHERE_IN_SUBQUERY_WITH_VIEW, EVAL_IN_SUBQUERY)),

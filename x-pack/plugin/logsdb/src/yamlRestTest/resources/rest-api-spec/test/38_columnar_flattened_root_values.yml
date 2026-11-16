@@ -10,18 +10,6 @@ setup:
 
   - do:
       indices.create:
-        index: logsdb_ship
-        body:
-          settings:
-            index.mode: logsdb
-            index.number_of_shards: 1
-          mappings:
-            properties:
-              "@timestamp": { type: date }
-              crew: { type: flattened }
-
-  - do:
-      indices.create:
         index: logsdb_columnar_ship
         body:
           settings:
@@ -38,8 +26,6 @@ two slots, two roles with one value each:
       bulk:
         refresh: true
         body:
-          - '{ "index": { "_index": "logsdb_ship" } }'
-          - '{ "@timestamp": "2026-05-04T00:00:00.000Z", "crew": { "pilot": "han solo", "copilot": "chewbacca" } }'
           - '{ "index": { "_index": "logsdb_columnar_ship" } }'
           - '{ "@timestamp": "2026-05-04T00:00:00.000Z", "crew": { "pilot": "han solo", "copilot": "chewbacca" } }'
 
@@ -47,20 +33,10 @@ two slots, two roles with one value each:
 
   - do:
       search:
-        index: logsdb_ship
-        body: { size: 0, aggs: { crew_members: { value_count: { field: crew } }, crew_names: { terms: { field: crew } } } }
-  - set: { aggregations.crew_members.value: expected_count }
-  - set: { aggregations.crew_names.buckets: expected_names }
-  - match: { aggregations.crew_members.value: 2 }
-  - match: { aggregations.crew_names.buckets.0.key: chewbacca }
-  - match: { aggregations.crew_names.buckets.1.key: han solo }
-
-  - do:
-      search:
         index: logsdb_columnar_ship
         body: { size: 0, aggs: { crew_members: { value_count: { field: crew } }, crew_names: { terms: { field: crew } } } }
-  - match: { aggregations.crew_members.value: $expected_count }
-  - match: { aggregations.crew_names.buckets: $expected_names }
+  - match: { aggregations.crew_members.value: 2 }
+  - match: { aggregations.crew_names.buckets: [ { key: chewbacca, doc_count: 1 }, { key: han solo, doc_count: 1 } ] }
 
 ---
 two slots, one role with two values:
@@ -68,8 +44,6 @@ two slots, one role with two values:
       bulk:
         refresh: true
         body:
-          - '{ "index": { "_index": "logsdb_ship" } }'
-          - '{ "@timestamp": "2026-05-04T00:00:00.000Z", "crew": { "passengers": [ "luke skywalker", "princess leia" ] } }'
           - '{ "index": { "_index": "logsdb_columnar_ship" } }'
           - '{ "@timestamp": "2026-05-04T00:00:00.000Z", "crew": { "passengers": [ "luke skywalker", "princess leia" ] } }'
 
@@ -77,17 +51,7 @@ two slots, one role with two values:
 
   - do:
       search:
-        index: logsdb_ship
-        body: { size: 0, aggs: { crew_members: { value_count: { field: crew } }, crew_names: { terms: { field: crew } } } }
-  - set: { aggregations.crew_members.value: expected_count }
-  - set: { aggregations.crew_names.buckets: expected_names }
-  - match: { aggregations.crew_members.value: 2 }
-  - match: { aggregations.crew_names.buckets.0.key: luke skywalker }
-  - match: { aggregations.crew_names.buckets.1.key: princess leia }
-
-  - do:
-      search:
         index: logsdb_columnar_ship
         body: { size: 0, aggs: { crew_members: { value_count: { field: crew } }, crew_names: { terms: { field: crew } } } }
-  - match: { aggregations.crew_members.value: $expected_count }
-  - match: { aggregations.crew_names.buckets: $expected_names }
+  - match: { aggregations.crew_members.value: 2 }
+  - match: { aggregations.crew_names.buckets: [ { key: luke skywalker, doc_count: 1 }, { key: princess leia, doc_count: 1 } ] }

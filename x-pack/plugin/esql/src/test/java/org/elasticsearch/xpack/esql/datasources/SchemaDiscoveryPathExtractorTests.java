@@ -46,17 +46,17 @@ public class SchemaDiscoveryPathExtractorTests extends ESTestCase {
     public void testLimitZeroReadsNoRows() {
         LogicalPlan plan = new Limit(SRC, intLiteral(0), externalRelation(PATH));
 
-        assertEquals(Set.of(PATH), SchemaDiscoveryPathExtractor.pathsReadingNoRows(plan));
+        assertEquals(Set.of(spec(PATH)), SchemaDiscoveryPathExtractor.specsReadingNoRows(plan));
     }
 
     public void testPositiveLimitReadsRows() {
         LogicalPlan plan = new Limit(SRC, intLiteral(5), externalRelation(PATH));
 
-        assertEquals(Set.of(), SchemaDiscoveryPathExtractor.pathsReadingNoRows(plan));
+        assertEquals(Set.of(), SchemaDiscoveryPathExtractor.specsReadingNoRows(plan));
     }
 
     public void testNoLimitReadsRows() {
-        assertEquals(Set.of(), SchemaDiscoveryPathExtractor.pathsReadingNoRows(externalRelation(PATH)));
+        assertEquals(Set.of(), SchemaDiscoveryPathExtractor.specsReadingNoRows(externalRelation(PATH)));
     }
 
     public void testLimitZeroAboveAFilterStillReadsNoRows() {
@@ -64,20 +64,20 @@ public class SchemaDiscoveryPathExtractorTests extends ESTestCase {
         Filter filter = new Filter(SRC, externalRelation(PATH), new GreaterThan(SRC, unresolved("x"), intLiteral(1)));
         LogicalPlan plan = new Limit(SRC, intLiteral(0), filter);
 
-        assertEquals(Set.of(PATH), SchemaDiscoveryPathExtractor.pathsReadingNoRows(plan));
+        assertEquals(Set.of(spec(PATH)), SchemaDiscoveryPathExtractor.specsReadingNoRows(plan));
     }
 
     public void testLimitZeroAboveProjectionStillReadsNoRows() {
         Keep keep = new Keep(SRC, externalRelation(PATH), List.of(unresolved("a")));
         LogicalPlan plan = new Limit(SRC, intLiteral(0), keep);
 
-        assertEquals(Set.of(PATH), SchemaDiscoveryPathExtractor.pathsReadingNoRows(plan));
+        assertEquals(Set.of(spec(PATH)), SchemaDiscoveryPathExtractor.specsReadingNoRows(plan));
     }
 
     public void testDescribeReadsNoRows() {
         LogicalPlan plan = new Describe(SRC, externalRelation(PATH));
 
-        assertEquals(Set.of(PATH), SchemaDiscoveryPathExtractor.pathsReadingNoRows(plan));
+        assertEquals(Set.of(spec(PATH)), SchemaDiscoveryPathExtractor.specsReadingNoRows(plan));
     }
 
     public void testAggregateUnderDescribeReadsNoRows() {
@@ -85,7 +85,7 @@ public class SchemaDiscoveryPathExtractorTests extends ESTestCase {
         Aggregate aggregate = new Aggregate(SRC, externalRelation(PATH), List.of(), List.<NamedExpression>of());
         LogicalPlan plan = new Describe(SRC, aggregate);
 
-        assertEquals(Set.of(PATH), SchemaDiscoveryPathExtractor.pathsReadingNoRows(plan));
+        assertEquals(Set.of(spec(PATH)), SchemaDiscoveryPathExtractor.specsReadingNoRows(plan));
     }
 
     public void testAggregateUnderLimitZeroStillReadsRows() {
@@ -98,7 +98,7 @@ public class SchemaDiscoveryPathExtractorTests extends ESTestCase {
         assertEquals(
             "an aggregate below the zero limit still consumes rows",
             Set.of(),
-            SchemaDiscoveryPathExtractor.pathsReadingNoRows(plan)
+            SchemaDiscoveryPathExtractor.specsReadingNoRows(plan)
         );
     }
 
@@ -114,7 +114,7 @@ public class SchemaDiscoveryPathExtractorTests extends ESTestCase {
         assertEquals(
             "INLINESTATS below the zero limit still consumes rows",
             Set.of(),
-            SchemaDiscoveryPathExtractor.pathsReadingNoRows(plan)
+            SchemaDiscoveryPathExtractor.specsReadingNoRows(plan)
         );
     }
 
@@ -122,7 +122,7 @@ public class SchemaDiscoveryPathExtractorTests extends ESTestCase {
         Limit inner = new Limit(SRC, intLiteral(0), externalRelation(PATH));
         LogicalPlan plan = new Limit(SRC, intLiteral(10), inner);
 
-        assertEquals(Set.of(PATH), SchemaDiscoveryPathExtractor.pathsReadingNoRows(plan));
+        assertEquals(Set.of(spec(PATH)), SchemaDiscoveryPathExtractor.specsReadingNoRows(plan));
     }
 
     public void testPathReadByAnyBranchNeedsMoreThanSchemaDiscovery() {
@@ -135,7 +135,7 @@ public class SchemaDiscoveryPathExtractorTests extends ESTestCase {
             List.of()
         );
 
-        assertEquals("a path read by one arm is not schema discovery", Set.of(), SchemaDiscoveryPathExtractor.pathsReadingNoRows(fork));
+        assertEquals("a path read by one arm is not schema discovery", Set.of(), SchemaDiscoveryPathExtractor.specsReadingNoRows(fork));
     }
 
     public void testEachPathDecidedIndependently() {
@@ -145,14 +145,19 @@ public class SchemaDiscoveryPathExtractorTests extends ESTestCase {
             List.of()
         );
 
-        assertEquals(Set.of(PATH), SchemaDiscoveryPathExtractor.pathsReadingNoRows(fork));
+        assertEquals(Set.of(spec(PATH)), SchemaDiscoveryPathExtractor.specsReadingNoRows(fork));
     }
 
     public void testNonLiteralPathIsOmittedRatherThanThrowing() {
         UnresolvedExternalRelation relation = new UnresolvedExternalRelation(SRC, unresolved("p"), Map.of());
         LogicalPlan plan = new Limit(SRC, intLiteral(0), relation);
 
-        assertEquals(Set.of(), SchemaDiscoveryPathExtractor.pathsReadingNoRows(plan));
+        assertEquals(Set.of(), SchemaDiscoveryPathExtractor.specsReadingNoRows(plan));
+    }
+
+    /** The spec the relations above denote: they all carry an empty config. */
+    private static ExternalSourceSpec spec(String path) {
+        return new ExternalSourceSpec(path, Map.of());
     }
 
     private static UnresolvedExternalRelation externalRelation(String path) {
@@ -175,7 +180,7 @@ public class SchemaDiscoveryPathExtractorTests extends ESTestCase {
             assertEquals(
                 "a " + type + " zero must resolve as a reading query",
                 Set.of(),
-                SchemaDiscoveryPathExtractor.pathsReadingNoRows(plan)
+                SchemaDiscoveryPathExtractor.specsReadingNoRows(plan)
             );
         }
     }

@@ -25,12 +25,12 @@ import java.util.Map;
  *                 so {@code TransportEsqlQueryAction#toResponse} can emit them as client {@code Warning}
  *                 headers. Empty when nothing was shadowed.
  */
-public record ExternalSourceResolution(Map<String, ResolvedSource> resolved, List<String> warnings) {
+public record ExternalSourceResolution(Map<ExternalSourceSpec, ResolvedSource> resolved, List<String> warnings) {
 
     public static final ExternalSourceResolution EMPTY = new ExternalSourceResolution(Map.of());
 
     /** Compact overload defaulting {@link #warnings} to empty. */
-    public ExternalSourceResolution(Map<String, ResolvedSource> resolved) {
+    public ExternalSourceResolution(Map<ExternalSourceSpec, ResolvedSource> resolved) {
         this(resolved, List.of());
     }
 
@@ -62,8 +62,11 @@ public record ExternalSourceResolution(Map<String, ResolvedSource> resolved, Lis
         warnings = warnings == null || warnings.isEmpty() ? List.of() : List.copyOf(warnings);
     }
 
-    public ResolvedSource resolvedSource(String path) {
-        return resolved.get(path);
+    /**
+     * The resolution for one spec, or {@code null} when nothing resolved it.
+     */
+    public ResolvedSource resolvedSource(ExternalSourceSpec spec) {
+        return resolved.get(spec);
     }
 
     public boolean isEmpty() {

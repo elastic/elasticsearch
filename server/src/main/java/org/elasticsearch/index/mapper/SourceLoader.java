@@ -19,6 +19,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.fielddata.MultiValuedSortableBinaryDocValues;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -515,8 +516,9 @@ public interface SourceLoader {
 
         @Override
         public Leaf leaf(LeafReaderContext context, int[] docIdsInLeaf) throws IOException {
-            // The companion column exists only once a document in this segment has been updated in place. When it is absent, no overlay
-            // is needed: the index-time source blob still matches the doc values for every document in the segment.
+            // The companion column is absent on a segment whose index has no updatable fields, and present otherwise; a per-document check
+            // of its value tells whether that document was updated in place (see source()). When it is absent, no overlay is needed: the
+            // index-time source blob still matches the doc values for every document in the segment.
             final NumericDocValues updateSeqNo = context.reader().getNumericDocValues(SeqNoFieldMapper.DV_UPDATE_SEQ_NO_NAME);
             if (updateSeqNo == null) {
                 return delegate.leaf(context, docIdsInLeaf);
@@ -530,8 +532,10 @@ public interface SourceLoader {
                 @Override
                 public Source source(LeafStoredFieldLoader storedFields, int docId) throws IOException {
                     Source source = delegateLeaf.source(storedFields, docId);
-                    // Only a document updated in place needs its source corrected; one never updated still matches its index-time blob.
-                    if (updateSeqNo.advanceExact(docId) == false) {
+                    // Only a document updated in place needs its source corrected; one never updated still matches its index-time blob. The
+                    // companion column is seeded with UNASSIGNED_SEQ_NO on every document at index time, so the marker being present is not
+                    // enough: a document is updated only once it carries a real sequence number.
+                    if (updateSeqNo.advanceExact(docId) == false || updateSeqNo.longValue() == SequenceNumbers.UNASSIGNED_SEQ_NO) {
                         return source;
                     }
                     List<Map.Entry<String, Object>> overlay = null;

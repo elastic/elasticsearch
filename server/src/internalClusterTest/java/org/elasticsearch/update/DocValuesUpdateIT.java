@@ -9,8 +9,10 @@
 
 package org.elasticsearch.update;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -20,9 +22,11 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -637,6 +641,193 @@ public class DocValuesUpdateIT extends ESIntegTestCase {
         GetResponse untouchedDoc = client().prepareGet("idx", "2").setRealtime(false).get();
         assertThat(untouchedDoc.getSourceAsMap().get("status"), equalTo("new"));
         assertThat(untouchedDoc.getSourceAsMap().get("name"), equalTo("gadget"));
+    }
+
+    /**
+     * A never-updated document's columnar_stored {@code _source} must be its index-time blob, untouched by the read-time overlay. The
+     * mapping excludes {@code count} from {@code _source}, so the blob has no {@code count}: one showing up in the returned source can only
+     * have been spliced in from doc values by the overlay. No document in either index is ever updated. The control index has the same
+     * mapping except that {@code count} is not updatable.
+     * <p>
+     * Batch indexing is forced on (the test cluster randomly turns its kill switch off) because the columnar batch path seeds the
+     * {@code _dv_update_seq_no} companion column on every document, which is what makes the overlay run for never-updated documents.
+     */
+    public void testColumnarStoredOverlaySkipsNeverUpdatedDoc() throws Exception {
+        assumeTrue("batch indexing feature flag must be enabled", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
+        updateClusterSettings(Settings.builder().put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), true));
+        try {
+            for (boolean updatable : new boolean[] { false, true }) {
+                assertNeverUpdatedDocSourceExcludesCount(updatable);
+            }
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(BatchIndexingEnabled.BATCH_INDEXING.getKey()));
+        }
+    }
+
+    private void assertNeverUpdatedDocSourceExcludesCount(boolean updatable) {
+        final String index = updatable ? "updatable" : "control";
+        assertAcked(
+            prepareCreate(index).setSettings(
+                Settings.builder()
+                    .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                    .put("index.disable_sequence_numbers", false)
+                    .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
+                    .put(IndexSettings.BATCH_INDEXING.getKey(), true)
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+            ).setMapping(Strings.format("""
+                {
+                  "_source": { "excludes": ["count"] },
+                  "properties": {
+                    "count": { "type": "long", "index": false %s },
+                    "name":  { "type": "keyword" }
+                  }
+                }
+                """, updatable ? ", \"doc_values\": { \"updatable\": true }" : ""))
+        );
+        ensureGreen(index);
+        prepareIndex(index).setId("1").setSource("count", 1, "name", "widget").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+
+        final Map<String, Object> getSource = client().prepareGet(index, "1").setRealtime(false).get().getSourceAsMap();
+        assertThat("[" + index + "] get _source of a never-updated doc", getSource, equalTo(Map.of("name", "widget")));
+        assertResponse(
+            prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()),
+            response -> assertThat(
+                "[" + index + "] search _source of a never-updated doc",
+                response.getHits().getAt(0).getSourceAsMap(),
+                equalTo(Map.of("name", "widget"))
+            )
+        );
+    }
+
+    /**
+     * An in-place update cannot clear a field, so an update that sets an updatable keyword to the empty string under
+     * {@code empty_keyword_string_as_null} falls back to the read-modify-reindex path, which reads the value as null and removes the field.
+     * The fallback bumps the version, and the field is gone from {@code _source}.
+     */
+    /**
+     * The columnar_stored overlay must honour the mapping's {@code _source} filter. {@code count} is updatable but excluded from
+     * {@code _source}, so it is not in the index-time blob and must not appear in {@code _source} after an in-place update either; the
+     * included updatable field {@code status} must still show its updated value.
+     */
+    public void testColumnarStoredOverlayHonoursSourceExcludes() {
+        assertAcked(
+            prepareCreate("idx").setSettings(
+                Settings.builder()
+                    .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                    .put("index.disable_sequence_numbers", false)
+                    .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+            ).setMapping("""
+                {
+                  "_source": { "excludes": ["count"] },
+                  "properties": {
+                    "status": { "type": "keyword", "index": false, "doc_values": { "updatable": true } },
+                    "count":  { "type": "long",    "index": false, "doc_values": { "updatable": true } },
+                    "name":   { "type": "keyword" }
+                  }
+                }
+                """)
+        );
+        ensureGreen("idx");
+        prepareIndex("idx").setId("1")
+            .setSource("status", "new", "count", 1, "name", "widget")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        UpdateResponse update = client().update(
+            new UpdateRequest("idx", "1").doc(Map.of("status", "active", "count", 42))
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+        ).actionGet();
+        assertThat(update.getResult(), equalTo(DocWriteResponse.Result.UPDATED));
+        assertThat("expected an in-place update, not a reindex", update.getVersion(), equalTo(1L));
+
+        Map<String, Object> getSource = client().prepareGet("idx", "1").setRealtime(false).get().getSourceAsMap();
+        assertThat("get _source after an in-place update", getSource, equalTo(Map.of("status", "active", "name", "widget")));
+        assertResponse(
+            prepareSearch("idx").setQuery(QueryBuilders.matchAllQuery()),
+            response -> assertThat(
+                "search _source after an in-place update",
+                response.getHits().getAt(0).getSourceAsMap(),
+                equalTo(Map.of("status", "active", "name", "widget"))
+            )
+        );
+
+        // A force-merge re-materializes the columnar_stored blob through the overlay, so the excluded field must not be baked onto disk.
+        assertNoFailures(indicesAdmin().prepareForceMerge("idx").setMaxNumSegments(1).get());
+        Map<String, Object> mergedSource = client().prepareGet("idx", "1").setRealtime(false).get().getSourceAsMap();
+        assertThat("get _source after a force-merge", mergedSource, equalTo(Map.of("status", "active", "name", "widget")));
+    }
+
+    public void testInPlaceUpdateOfEmptyStringFallsBackAndClearsField() {
+        assertAcked(
+            prepareCreate("idx").setSettings(
+                Settings.builder()
+                    .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                    .put("index.disable_sequence_numbers", false)
+                    .put(FieldMapper.EMPTY_KEYWORD_STRING_AS_NULL_SETTING.getKey(), true)
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+            ).setMapping("""
+                {
+                  "properties": {
+                    "status": { "type": "keyword", "index": false, "doc_values": { "updatable": true } },
+                    "name":   { "type": "keyword" }
+                  }
+                }
+                """)
+        );
+        ensureGreen("idx");
+        prepareIndex("idx").setId("1")
+            .setSource("status", "new", "name", "widget")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        UpdateResponse update = client().update(
+            new UpdateRequest("idx", "1").doc(Map.of("status", "")).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+        ).actionGet();
+        assertThat(update.getResult(), equalTo(DocWriteResponse.Result.UPDATED));
+        // The fallback reindexes the document, so the version is bumped rather than left at 1 as an in-place update would.
+        assertThat("expected a reindex fallback, not an in-place update", update.getVersion(), equalTo(2L));
+
+        Map<String, Object> source = client().prepareGet("idx", "1").setRealtime(false).get().getSourceAsMap();
+        assertThat("empty string read as null clears the field", source, equalTo(Map.of("name", "widget")));
+    }
+
+    /**
+     * An in-place update cannot store a value longer than the non-indexed field length limit, which indexing rejects. The update falls back
+     * to the read-modify-reindex path, where the reindex surfaces the same large-term error to the client.
+     */
+    public void testInPlaceUpdateOfOverlongValueFailsLikeIndexing() {
+        final int maxLength = 32766; // the setting's minimum is IndexWriter.MAX_TERM_LENGTH
+        assertAcked(
+            prepareCreate("idx").setSettings(
+                Settings.builder()
+                    .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                    .put("index.disable_sequence_numbers", false)
+                    .put(IndexSettings.NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.getKey(), maxLength + "b")
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+            ).setMapping("""
+                {
+                  "properties": {
+                    "status": { "type": "keyword", "index": false, "doc_values": { "updatable": true } }
+                  }
+                }
+                """)
+        );
+        ensureGreen("idx");
+        prepareIndex("idx").setId("1").setSource("status", "short").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+
+        final String overlong = "x".repeat(maxLength + 1);
+        Exception e = expectThrows(
+            Exception.class,
+            () -> client().update(new UpdateRequest("idx", "1").doc(Map.of("status", overlong))).actionGet()
+        );
+        Throwable cause = ExceptionsHelper.unwrap(e, IllegalArgumentException.class);
+        assertNotNull("expected a large-term failure in the cause chain", cause);
+        assertThat(cause.getMessage(), containsString("whose UTF8 encoding is longer than the max length"));
     }
 
     /**

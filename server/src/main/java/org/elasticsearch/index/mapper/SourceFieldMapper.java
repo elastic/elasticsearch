@@ -640,6 +640,12 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         }
     }
 
+    /** The {@code _source} includes/excludes filter this field applies, or {@code null} when none is configured. */
+    @Nullable
+    public SourceFilter sourceFilter() {
+        return sourceFilter;
+    }
+
     @Nullable
     public BytesReference applyFilters(
         MappingLookup mappingLookup,

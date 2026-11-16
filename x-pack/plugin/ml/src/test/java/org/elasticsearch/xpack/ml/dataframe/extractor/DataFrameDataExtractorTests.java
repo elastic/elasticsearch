@@ -763,9 +763,7 @@ public class DataFrameDataExtractorTests extends ESTestCase {
     private SearchResponse createResponseWithShardFailures() {
         SearchResponse searchResponse = mock(SearchResponse.class);
         when(searchResponse.status()).thenReturn(RestStatus.OK);
-        when(searchResponse.getShardFailures()).thenReturn(
-            new ShardSearchFailure[] { new ShardSearchFailure(new RuntimeException("shard failed")) }
-        );
+        when(searchResponse.shardFailuresList()).thenReturn(List.of(new ShardSearchFailure(new RuntimeException("shard failed"))));
         when(searchResponse.getFailedShards()).thenReturn(1);
         when(searchResponse.getScrollId()).thenReturn(randomAlphaOfLength(1000));
         return searchResponse;
@@ -796,8 +794,8 @@ public class DataFrameDataExtractorTests extends ESTestCase {
         protected SearchResponse executeSearchRequest(SearchRequestBuilder searchRequestBuilder) {
             capturedSearchRequests.add(searchRequestBuilder);
             SearchResponse searchResponse = alwaysResponse == null ? responses.remove() : alwaysResponse;
-            if (searchResponse.getShardFailures() != null) {
-                throw new RuntimeException(searchResponse.getShardFailures()[0].getCause());
+            if (searchResponse.shardFailuresList().isEmpty() == false) {
+                throw new RuntimeException(searchResponse.shardFailuresList().getFirst().getCause());
             }
             return searchResponse;
         }

@@ -33,7 +33,6 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -417,8 +416,8 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
             numberOfShards
         );
         logger.info("iteration [{}] - failed shards: {} (expected 0)", iteration, searchResponse.getFailedShards());
-        if (CollectionUtils.isEmpty(searchResponse.getShardFailures()) == false) {
-            logger.info("iteration [{}] - shard failures: {}", iteration, Arrays.toString(searchResponse.getShardFailures()));
+        if (searchResponse.shardFailuresList().isEmpty() == false) {
+            logger.info("iteration [{}] - shard failures: {}", iteration, searchResponse.shardFailuresList());
         }
         logger.info(
             "iteration [{}] - returned documents: {} (expected {})",

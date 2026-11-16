@@ -774,7 +774,7 @@ public class PointInTimeIT extends ESIntegTestCase {
                             assertThat(resp.getTotalShards(), equalTo(numShards));
                             assertThat(resp.getSuccessfulShards(), equalTo(numShards - shardsRemoved));
                             assertThat(resp.getFailedShards(), equalTo(shardsRemoved));
-                            assertThat(resp.getShardFailures().length, equalTo(shardsRemoved));
+                            assertThat(resp.shardFailuresList(), hasSize(shardsRemoved));
                             for (var failure : resp.getShardFailures()) {
                                 assertTrue(shardsToRelocate.contains(failure.shardId()));
                                 assertThat(failure.getCause(), instanceOf(NoShardAvailableActionException.class));

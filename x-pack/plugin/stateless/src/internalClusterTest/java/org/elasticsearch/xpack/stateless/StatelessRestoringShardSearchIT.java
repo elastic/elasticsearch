@@ -94,7 +94,7 @@ public class StatelessRestoringShardSearchIT extends AbstractStatelessRestoringS
                 assertThat(response.getFailedShards(), equalTo(1));
                 assertThat(response.getSuccessfulShards(), equalTo(1));
                 assertHitCount(response, 100);
-                final var failure = response.getShardFailures()[0];
+                final var failure = response.shardFailuresList().getFirst();
                 assertThat(failure.status(), equalTo(RestStatus.FORBIDDEN));
                 assertShardRestoringException(failure.getCause(), restoreUuid);
             });
@@ -107,7 +107,7 @@ public class StatelessRestoringShardSearchIT extends AbstractStatelessRestoringS
                 assertThat(response.getFailedShards(), equalTo(1));
                 assertThat(response.getSuccessfulShards(), equalTo(1));
                 assertHitCount(response, 100);
-                final var failure = response.getShardFailures()[0];
+                final var failure = response.shardFailuresList().getFirst();
                 assertThat(failure.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
                 assertThat(ExceptionsHelper.unwrapCause(failure.getCause()), instanceOf(NoShardAvailableActionException.class));
             });

@@ -1486,7 +1486,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                 ),
             (searchResponse) -> {
                 assertEquals(1, searchResponse.getSuccessfulShards());
-                assertEquals("simulated failure", searchResponse.getShardFailures()[0].getCause().getMessage());
+                assertEquals("simulated failure", searchResponse.shardFailuresList().getFirst().getCause().getMessage());
                 assertNotEquals(0, searchResponse.getHits().getHits().length);
                 for (SearchHit hit : searchResponse.getHits().getHits()) {
                     assertEquals(fetchFieldValue + "_" + hit.getId(), hit.getFields().get(fetchFieldName).getValue());

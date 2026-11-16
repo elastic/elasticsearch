@@ -65,6 +65,8 @@ public final class SelectorV2 {
     private static IntermediateResult series(Selector selector, TranslationContextV2 context, Expression value) {
         LogicalPlan input = context.cmd().child();
         LogicalPlan foldedPlan = PromqlLogicalPlanBuilder.tryFoldRelation(context.cmd(), input);
+        // TODO: regex matchers parse with Lucene syntax rather than RE2, so `<none>|Job` (a named automaton to Lucene) and an
+        // empty alternative like `/metrics|` fail as a server error; https://github.com/elastic/elasticsearch/pull/165701
         Expression matcher = selector.labelMatchers().predicate(selector.source(), selector.labels(), context.configuration());
 
         if (foldedPlan != null) {

@@ -59,6 +59,9 @@ public record SearchRecoveryTimeout(TimeValue timeout, TimeoutContext timeoutCon
             MayFollow.NO_PLAN,
             false
         ),
+        // A full data-volume share is only handed out as the first plan once the source started shutting down. Within the shutdown
+        // phase only the time saved by shards that finished earlier than planned is handed out; the calculation service never
+        // produces a data-volume plan then, so this is a safeguard.
         RELOCATION_SOURCE_SHUTTING_DOWN_DATA_VOLUME(
             "relocation source shutting down (data volume proportional share of remaining time to capped grace deadline)",
             false,

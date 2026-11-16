@@ -515,8 +515,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
             (k, v) -> new EsqlExecutionInfo.Cluster(
                 RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY,
                 RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY,
-                "test",
-                false
+                "test"
             )
         );
         assertTrue("precondition: execution info must have metadata to report", executionInfo.hasMetadataToReport());

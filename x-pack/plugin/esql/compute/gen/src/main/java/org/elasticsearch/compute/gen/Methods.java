@@ -245,6 +245,17 @@ public class Methods {
     }
 
     /**
+     * Returns the call that builds {@code t} instances from a {@code BlockFactory}.
+     */
+    static String buildResultFromFactory(TypeName t, boolean enablePooling) {
+        String method = buildFromFactory(t);
+        if (enablePooling && (t.equals(INT_BLOCK_BUILDER) || t.equals(LONG_BLOCK_BUILDER) || t.equals(DOUBLE_BLOCK_BUILDER))) {
+            return method + "(positionCount, true)";
+        }
+        return method + "(positionCount)";
+    }
+
+    /**
      * Returns the name of the method used to build {@code t} instances
      * from a {@code BlockFactory}.
      */

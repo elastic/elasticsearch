@@ -310,10 +310,11 @@ public abstract class AbstractCrossClusterTestCase extends AbstractMultiClusters
                 .setSettings(Settings.builder().put("index.number_of_shards", numShards))
                 .setMapping("id", "type=keyword", "tag", "type=keyword", "v", "type=long")
         );
+        var bulk = remoteClient.prepareBulk();
         for (int i = 0; i < 10; i++) {
-            remoteClient.prepareIndex(indexName).setSource("id", "remote-" + i, "tag", "remote", "v", i * i).get();
+            bulk.add(remoteClient.prepareIndex(indexName).setSource("id", "remote-" + i, "tag", "remote", "v", i * i));
         }
-        remoteClient.admin().indices().prepareRefresh(indexName).get();
+        bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
     }
 
     protected void populateLookupIndex(String clusterAlias, String indexName, int numDocs, String keyType) {
@@ -336,10 +337,13 @@ public abstract class AbstractCrossClusterTestCase extends AbstractMultiClusters
                     "type=keyword"
                 )
         );
+        var bulk = client.prepareBulk();
         for (int i = 0; i < numDocs; i++) {
-            client.prepareIndex(indexName).setSource("lookup_key", i, "lookup_name", "lookup_" + i, "lookup_tag", tag, field_tag, i).get();
+            bulk.add(
+                client.prepareIndex(indexName).setSource("lookup_key", i, "lookup_name", "lookup_" + i, "lookup_tag", tag, field_tag, i)
+            );
         }
-        client.admin().indices().prepareRefresh(indexName).get();
+        bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
     }
 
     protected void populateLookupIndex(String clusterAlias, String indexName, int numDocs) {

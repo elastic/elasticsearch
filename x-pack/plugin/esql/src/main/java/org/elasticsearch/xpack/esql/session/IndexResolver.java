@@ -14,6 +14,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
+import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.IndicesOptions.CrossProjectModeOptions;
 import org.elasticsearch.client.internal.Client;
@@ -180,6 +181,7 @@ public class IndexResolver {
             null,
             null,
             DO_NOT_GROUP,
+            null, /* lookup indices never feed the EQL delegate */
             listener.map(Versioned::inner)
         );
     }
@@ -217,8 +219,9 @@ public class IndexResolver {
         boolean needsAnalyzerGroups,
         boolean needsFieldSemantics,
         boolean trackUnmappedFieldIndices,
-        @Nullable Set<String> namedFields,
+        @Nullable NamedFields namedFields,
         IndicesExpressionGrouper indicesExpressionGrouper,
+        @Nullable Consumer<FieldCapabilitiesResponse> mergedCapsSink,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
         doResolveIndices(
@@ -238,6 +241,7 @@ public class IndexResolver {
                 indicesExpressionGrouper.groupIndices(IndicesOptions.DEFAULT, Strings.splitStringByCommaToArray(indexPattern1), false),
                 v -> List.of(v.indices())
             ),
+            mergedCapsSink,
             listener
         );
     }
@@ -273,6 +277,7 @@ public class IndexResolver {
             null,
             null,
             RESOLVED_EXPRESSIONS,
+            null, /* exemplar data streams never feed the EQL delegate */
             listener
         );
     }
@@ -320,7 +325,7 @@ public class IndexResolver {
         boolean needsAnalyzerGroups,
         boolean needsFieldSemantics,
         boolean trackUnmappedFieldIndices,
-        @Nullable Set<String> namedFields,
+        @Nullable NamedFields namedFields,
         @Nullable Consumer<TargetProjects> routingInfoCapture,
         IndexViewOrigins indexViewOrigins,
         ActionListener<Versioned<IndexResolution>> listener
@@ -343,6 +348,7 @@ public class IndexResolver {
                 EsqlResolvedIndexExpression.from(fieldCapabilitiesResponse),
                 v -> List.copyOf(v.expression())
             ),
+            null, /* no field-caps retention for CPS/flat resolution */
             listener.delegateResponse((l, e) -> {
                 if (e instanceof IllegalArgumentException
                     && e.getMessage().startsWith(RemoteClusterAware.ALL_INDICES_EXCLUDED_MESSAGE_PREFIX)) {
@@ -370,9 +376,10 @@ public class IndexResolver {
         boolean needsAnalyzerGroups,
         boolean needsFieldSemantics,
         boolean trackUnmappedFieldIndices,
-        @Nullable Set<String> namedFields,
+        @Nullable NamedFields namedFields,
         @Nullable Consumer<TargetProjects> routingInfoCapture,
         OriginalIndexExtractor originalIndexExtractor,
+        @Nullable Consumer<FieldCapabilitiesResponse> mergedCapsSink,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
         ActionListener<EsqlResolveFieldsResponse> responseHandler = listener.delegateFailureAndWrap((l, response) -> {
@@ -383,6 +390,21 @@ public class IndexResolver {
                 }
             }
             TransportVersion responseMinimumVersion = response.caps().minTransportVersion();
+            if (mergedCapsSink != null) {
+                // Retain the merged field-caps for reuse (the EQL source command), so the EQL engine skips its own
+                // resolution. ES|QL's own fetch is unmerged (setMergeResults(false)); merge here, once, on this pool.
+                assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION); // too expensive on a transport worker
+                mergedCapsSink.accept(
+                    TransportFieldCapabilitiesAction.mergeToFieldCapsResponse(
+                        response.caps().getIndexResponses(),
+                        response.caps().getFailures(),
+                        responseMinimumVersion,
+                        request.fieldCapsRequest().includeUnmapped(),
+                        request.fieldCapsRequest().includeIndices(),
+                        () -> {}
+                    )
+                );
+            }
             // Note: Once {@link EsqlResolveFieldsResponse}'s CREATED version is live everywhere
             // we can remove this and make sure responseMinimumVersion is non-null. That'll be 10.0-ish.
             TransportVersion overallMinimumVersion = responseMinimumVersion == null
@@ -421,6 +443,12 @@ public class IndexResolver {
         // that dispatched this request, if one is metering this thread.
         client.execute(EsqlResolveFieldsAction.TYPE, request, PlanningCpuTracker.inheritMeteredCpu(responseHandler));
     }
+
+    /**
+     * The names the query uses, which may be keys, and their parent paths that field caps is asked for only to find the fields that
+     * hold those keys.
+     */
+    public record NamedFields(Set<String> names, Set<String> parentPaths) {}
 
     /**
      * Information for resolving a field.
@@ -469,8 +497,7 @@ public class IndexResolver {
      * @param flattenedDataTypeEnabled whether the {@code flattened} data type is enabled (the {@code esql.query.flattened.enabled}
      *                                 kill switch). When {@code false}, {@code flattened} fields are resolved as
      *                                 {@link DataType#UNSUPPORTED}, reverting to pre-flattened-support behavior.
-     * @param namedFields the names the query uses, which may be keys of {@code flattened} fields, or {@code null} if the query reads
-     *                    no keys
+     * @param namedFields the names the query uses, which may be keys, or {@code null} if the query reads no keys
      */
     public record FieldsInfo(
         FieldCapabilitiesResponse caps,
@@ -482,7 +509,7 @@ public class IndexResolver {
         boolean needsAnalyzerGroups,
         boolean needsFieldSemantics,
         boolean flattenedDataTypeEnabled,
-        @Nullable Set<String> namedFields
+        @Nullable NamedFields namedFields
     ) {
         public FieldsInfo(
             FieldCapabilitiesResponse caps,
@@ -525,12 +552,22 @@ public class IndexResolver {
                 return Set.of();
             }
             Set<String> keys = new HashSet<>();
-            for (String name : namedFields) {
+            for (String name : namedFields.names()) {
                 if (name.indexOf('.') > 0 && isLeaf(name) == false) {
                     keys.add(name);
                 }
             }
             return keys;
+        }
+
+        /**
+         * Whether field caps returns {@code name} only because it is the parent path of a name the query uses, and in every index it
+         * is a field with values of its own rather than one that holds the names below it: it is then not one of the query's fields.
+         */
+        boolean isOnlyAParentPath(String name, List<IndexFieldCapabilities> fcs) {
+            return namedFields != null
+                && namedFields.parentPaths().contains(name)
+                && fcs.stream().noneMatch(IndexResolver::holdsNamesBelow);
         }
 
         private boolean isLeaf(String name) {
@@ -580,6 +617,9 @@ public class IndexResolver {
             ? new HashMap<>()
             : null;
         for (String name : names) {
+            if (fieldsInfo.isOnlyAParentPath(name, fieldsCaps.get(name).fieldCapabilities)) {
+                continue;
+            }
             Map<String, EsField> fields = rootFields;
             String fullName = name;
             boolean isAlias = false;
@@ -999,16 +1039,26 @@ public class IndexResolver {
         return new InvalidMappedField(name, stringKeyed, timeSeriesFieldType);
     }
 
-    /** The {@code flattened} field of {@code fields} that {@code name} is under, if any. */
+    /** The field of {@code fields} that {@code name} is under and that holds it as a key, if any. */
     @Nullable
     private static IndexFieldCapabilities flattenedRoot(Map<String, IndexFieldCapabilities> fields, String name) {
         for (int dot = name.indexOf('.'); dot > 0; dot = name.indexOf('.', dot + 1)) {
             IndexFieldCapabilities parent = fields.get(name.substring(0, dot));
-            if (parent != null && FlattenedFieldMapper.CONTENT_TYPE.equals(parent.type())) {
+            if (parent != null && holdsKeys(parent)) {
                 return parent;
             }
         }
         return null;
+    }
+
+    /** Whether the field holds the names below it: an object, a passthrough object included, or a field that holds them as keys. */
+    private static boolean holdsNamesBelow(IndexFieldCapabilities fc) {
+        return isObject(fc) || holdsKeys(fc);
+    }
+
+    /** Whether the field holds the names below it as keys, as a {@code flattened} field does. */
+    private static boolean holdsKeys(IndexFieldCapabilities fc) {
+        return FlattenedFieldMapper.CONTENT_TYPE.equals(fc.type());
     }
 
     /** The key {@code name} of the {@code flattened} field {@code root}, a {@code keyword}. */

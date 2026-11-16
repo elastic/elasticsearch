@@ -7,15 +7,13 @@
 
 package org.elasticsearch.xpack.stateless.commits;
 
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
 import java.io.IOException;
 
 /// Represents a [BatchedCompoundCommit] blob stored in the object store.
-public record BlobFile(String blobName, PrimaryTermAndGeneration termAndGeneration) implements Writeable {
+public record BlobFile(String blobName, PrimaryTermAndGeneration termAndGeneration) implements Blob {
 
     /// @throws IllegalArgumentException if the blob name does not start with [BatchedCompoundCommit#PREFIX], if the generation in the blob
     /// name is not a number, or if it differs from the generation of the given term and generation
@@ -34,10 +32,6 @@ public record BlobFile(String blobName, PrimaryTermAndGeneration termAndGenerati
     /// blob name is not a number
     public BlobFile(String blobName, long primaryTerm) {
         this(blobName, new PrimaryTermAndGeneration(primaryTerm, parseGenerationOrThrow(blobName)));
-    }
-
-    public BlobFile(StreamInput in) throws IOException {
-        this(in.readString(), new PrimaryTermAndGeneration(in));
     }
 
     @Override

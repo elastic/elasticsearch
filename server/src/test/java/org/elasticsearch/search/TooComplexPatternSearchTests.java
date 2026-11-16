@@ -19,7 +19,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
-import static org.hamcrest.Matchers.emptyArray;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -48,7 +48,7 @@ public class TooComplexPatternSearchTests extends ESSingleNodeTestCase {
         );
 
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(e.shardFailures(), not(emptyArray()));
+        assertThat(e.shardFailures(), not(empty()));
         for (ShardSearchFailure failure : e.shardFailures()) {
             assertThat(failure.status(), equalTo(RestStatus.BAD_REQUEST));
             assertThat(ExceptionsHelper.unwrap(failure.getCause(), TooComplexToDeterminizeException.class), notNullValue());

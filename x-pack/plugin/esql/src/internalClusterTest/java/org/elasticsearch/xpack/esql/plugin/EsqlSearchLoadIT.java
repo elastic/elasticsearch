@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.SearchService;
@@ -27,6 +28,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * The time ES|QL spends on a query is charged to the shards it reads, on the nodes holding them.
@@ -71,6 +73,7 @@ public class EsqlSearchLoadIT extends AbstractEsqlIntegTestCase {
 
         // the data node charges the shards it read
         assertThat(searchLoad("read"), greaterThan(0.0));
+        assertCpuIsPartOfTheLoad("read");
         assertThat(searchLoad("other"), equalTo(0.0));
     }
 
@@ -121,6 +124,7 @@ public class EsqlSearchLoadIT extends AbstractEsqlIntegTestCase {
             assertThat(chargedToShards(dataNode) - chargedBefore, equalTo(workersAttributed + searchAttributed));
         });
         assertThat(searchLoad("read"), greaterThan(0.0));
+        assertCpuIsPartOfTheLoad("read");
         assertThat(searchLoad("other"), equalTo(0.0));
     }
 
@@ -132,6 +136,21 @@ public class EsqlSearchLoadIT extends AbstractEsqlIntegTestCase {
             }
         }
         return charged;
+    }
+
+    /**
+     * The CPU time charged to {@code index} is part of its search load.
+     */
+    private static void assertCpuIsPartOfTheLoad(String index) {
+        SearchStats.Stats stats = indicesAdmin().prepareStats(index)
+            .setSearch(true)
+            .get()
+            .getIndex(index)
+            .getTotal()
+            .getSearch()
+            .getTotal();
+        assertThat(stats.getSearchCpuRate(), greaterThan(0.0));
+        assertThat(stats.getSearchCpuRate(), lessThanOrEqualTo(stats.getSearchLoadRate()));
     }
 
     private static double searchLoad(String index) {

@@ -1031,8 +1031,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         IndexShard replica
     ) throws Exception {
         final Engine.Result result;
-        // A doc-values update is realized on the primary and reported with OpType.UPDATE, so it is dispatched by type here rather than
-        // through the op-type switch (which never otherwise sees UPDATE on a replica).
+        // A DocValuesUpdateRequest reports OpType.INDEX but must be replayed through the in-place doc-values path, so it is dispatched by
+        // type here rather than through the op-type switch.
         if (docWriteRequest instanceof DocValuesUpdateRequest docValuesUpdate) {
             // Replay at the operation's own seq_no/term (carried on the request), not the response's — the response reports the
             // document's unchanged seq_no, which differs from the operation's for an in-place update.

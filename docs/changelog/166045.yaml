@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 166045
-summary: Fix `STATS` merging aggregations over columns from earlier `STATS` or `INLINE STATS`
+summary: "Fix `STATS` merging aggregations over columns from earlier `STATS`, `INLINE STATS` or `TS_COLLAPSE`"
 type: bug

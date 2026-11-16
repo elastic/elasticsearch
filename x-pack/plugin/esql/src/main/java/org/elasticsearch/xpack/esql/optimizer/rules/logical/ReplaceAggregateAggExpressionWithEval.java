@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.DocPreserving;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -68,13 +69,15 @@ public class ReplaceAggregateAggExpressionWithEval extends OptimizerRules.Optimi
         Map<GroupingFunction.NonEvaluatableGroupingFunction, Attribute> nonEvalGroupingAttributes = new HashMap<>(
             aggregate.groupings().size()
         );
-        collectAliases(aggregate, a -> {
+        Consumer<Alias> collectAlias = a -> {
             if (a.child() instanceof GroupingFunction.NonEvaluatableGroupingFunction groupingFunction) {
                 nonEvalGroupingAttributes.put(groupingFunction, a.toAttribute());
             } else {
                 aliasesBuilder.put(a.toAttribute(), a.child());
             }
-        });
+        };
+        aggregate.forEachExpression(Alias.class, collectAlias);
+        collectAliases(aggregate.child(), collectAlias);
         var aliases = aliasesBuilder.build();
 
         // break down each aggregate into AggregateFunction and/or grouping key
@@ -177,24 +180,28 @@ public class ReplaceAggregateAggExpressionWithEval extends OptimizerRules.Optimi
 
     /**
      * Collects the aliases that hold on every row reaching the aggregate being optimized, the only ones safe for comparing its
-     * aggregate functions. It stops at other {@link Aggregate}s, whose outputs depend on the rows they aggregated, and skips join
-     * sides whose columns can be null-filled or computed per group: the right-hand side, plus the left-hand side of {@code RIGHT}
-     * and {@code FULL} joins.
+     * aggregate functions. The walk only follows {@link DocPreserving} plans and the left-hand side of joins; any other plan stops
+     * it, which at worst computes a duplicate aggregate function twice.
      */
     private static void collectAliases(LogicalPlan plan, Consumer<Alias> consumer) {
-        List<LogicalPlan> children = plan instanceof Join join ? joinSidesToWalk(join) : plan.children();
-        for (LogicalPlan child : children) {
-            // Stop at any aggregate other than the one being optimized, without walking below it.
-            if (child instanceof Aggregate == false) {
-                collectAliases(child, consumer);
-            }
+        LogicalPlan input = passThroughInput(plan);
+        if (input != null) {
+            plan.forEachExpression(Alias.class, consumer);
+            collectAliases(input, consumer);
         }
-        plan.forEachExpression(Alias.class, consumer);
     }
 
-    private static List<LogicalPlan> joinSidesToWalk(Join join) {
-        JoinType type = join.config().type();
-        return JoinTypes.RIGHT.equals(type) || JoinTypes.FULL.equals(type) ? List.of() : List.of(join.left());
+    /**
+     * Returns the input whose rows pass through {@code plan} with the same values, or {@code null} if there is none. A join's
+     * right-hand side never qualifies, since it is null-filled on unmatched rows or, for {@code INLINE STATS}, computed per group,
+     * and neither does the left-hand side of a {@code RIGHT} or {@code FULL} join.
+     */
+    private static LogicalPlan passThroughInput(LogicalPlan plan) {
+        if (plan instanceof Join join) {
+            JoinType type = join.config().type();
+            return JoinTypes.RIGHT.equals(type) || JoinTypes.FULL.equals(type) ? null : join.left();
+        }
+        return plan instanceof DocPreserving docPreserving ? docPreserving.preservingInput() : null;
     }
 
     private static AggregateFunction getCannonical(AggregateFunction af, AttributeMap<Expression> aliases) {

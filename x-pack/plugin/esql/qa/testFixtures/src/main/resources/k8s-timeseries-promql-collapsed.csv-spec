@@ -109,3 +109,17 @@ clients:double        | step:datetime                                           
 [205.0, 357.0]        | [2024-05-10T00:03:00.000Z, 2024-05-10T00:04:00.000Z]                           | staging         | 281.0
 // end::ts_collapse_eval-result[]
 ;
+
+// TS_COLLAPSE folds the three steps into one row, so v holds three values while one holds one.
+statsAfterCollapseOverEqualValues
+required_capability: promql_command_v0
+required_capability: ts_collapse
+required_capability: fix_deduplicate_aggs_over_aggregate_outputs
+PROMQL index=k8s step=10m start="2024-05-10T00:00:00.000Z" end="2024-05-10T00:20:00.000Z" v=(vector(1))
+| TS_COLLAPSE
+| EVAL one = 1.0
+| STATS a = COUNT(v), b = COUNT(one);
+
+a:long | b:long
+3      | 1
+;

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.output;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.DocWriteRequest;
@@ -19,6 +20,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
@@ -545,6 +547,28 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         verify(renormalizer).shutdown();
         verify(renormalizer).waitUntilIdle();
         verify(flushListener).clear();
+    }
+
+    public void testKilledProcessIsNotLoggedAtWarn() throws Exception {
+        @SuppressWarnings("unchecked")
+        Iterator<AutodetectResult> iterator = mock(Iterator.class);
+        when(iterator.hasNext()).thenThrow(new ElasticsearchException("process killed"));
+        when(process.readAutodetectResults()).thenReturn(iterator);
+
+        String logger = AutodetectResultProcessor.class.getName();
+        String message = "[" + JOB_ID + "] some results not processed due to the process being killed";
+        try (MockLog log = MockLog.capture(AutodetectResultProcessor.class)) {
+            log.addExpectation(new MockLog.SeenEventExpectation("killed-info", logger, Level.INFO, message));
+            log.addExpectation(new MockLog.UnseenEventExpectation("killed-warn", logger, Level.WARN, message));
+
+            processorUnderTest.setProcessKilled();
+            processorUnderTest.process();
+
+            log.assertAllExpectationsMatched();
+        }
+
+        verify(persister).bulkPersisterBuilder(eq(JOB_ID), any());
+        verify(renormalizer).shutdown();
     }
 
     public void testProcessingOpenedForecasts() {

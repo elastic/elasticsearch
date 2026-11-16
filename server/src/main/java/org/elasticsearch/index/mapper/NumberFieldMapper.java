@@ -461,11 +461,15 @@ public class NumberFieldMapper extends FieldMapper {
             FieldMapper.validateUpdatableDocValues(
                 context.buildFullName(leafName()),
                 docValuesParameters.getValue(),
-                indexed.getValue(),
-                indexType().hasDocValuesSkipper(),
-                // A sorted-numeric column updates a single value at a time, so an updatable numeric must be single-valued.
-                false,
-                multiFieldsBuilder.hasMultiFields(),
+                FieldMapper.UpdatableDocValuesChecks.builder()
+                    .indexed(indexed.getValue())
+                    .hasSkipper(indexType().hasDocValuesSkipper())
+                    // A sorted-numeric column updates a single value at a time, so an updatable numeric must be single-valued.
+                    .allowMultiValue(false)
+                    .hasMultiFields(multiFieldsBuilder.hasMultiFields())
+                    .ignoreMalformed(ignoreMalformed.getValue().value())
+                    .hasScript(script.get() != null)
+                    .build(),
                 indexSettings
             );
             MappedFieldType ft = new NumberFieldType(context.buildFullName(leafName()), this, context.isSourceSynthetic());

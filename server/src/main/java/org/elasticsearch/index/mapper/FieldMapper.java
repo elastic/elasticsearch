@@ -154,25 +154,83 @@ public abstract class FieldMapper extends Mapper {
     public static final FeatureFlag DOC_VALUES_UPDATABLE_FEATURE_FLAG = new FeatureFlag("doc_values_updatable");
 
     /**
-     * Validates the constraints Lucene places on a field whose doc values are updated in place via {@code IndexWriter#updateDocValues}:
-     * the field must be doc-values-only (no postings, points or vectors), must carry no doc-values skip index, and must not participate
-     * in the index sort. Lucene enforces these at update time; failing here turns a runtime error into a mapping error.
-     * <p>
-     * A field whose column cannot hold more than one updatable value (a {@code SORTED_NUMERIC} column, updated a single value at a time)
-     * passes {@code allowMultiValue=false} so that {@code multi_value=true} is rejected; a binary column (keyword) passes {@code true}.
+     * The per-field characteristics {@link #validateUpdatableDocValues} checks the updatable constraint against. They are passed in rather
+     * than read from the field because each field type exposes them on its own builder. Build with {@link #builder()}, which lets a caller
+     * set only what applies and leaves the rest {@code false}.
      *
-     * @param field          the full path of the field being validated
-     * @param indexed        whether the field also builds an inverted index or points
-     * @param hasSkipper     whether the field builds a doc-values skip index
-     * @param allowMultiValue whether this field type can be updated when it is multi-valued
+     * @param indexed          the field also builds an inverted index or points
+     * @param hasSkipper       the field builds a doc-values skip index
+     * @param allowMultiValue  the field type can be updated when it is multi-valued (a binary keyword column, not a sorted-numeric one)
+     * @param hasMultiFields   the field has multi-fields
+     * @param ignoreMalformed  the field has {@code ignore_malformed} enabled
+     * @param hasScript        the field has an index-time script
      */
-    public static void validateUpdatableDocValues(
-        String field,
-        DocValuesParameter.Values docValues,
+    public record UpdatableDocValuesChecks(
         boolean indexed,
         boolean hasSkipper,
         boolean allowMultiValue,
         boolean hasMultiFields,
+        boolean ignoreMalformed,
+        boolean hasScript
+    ) {
+        public static Builder builder() {
+            return new Builder();
+        }
+
+        public static final class Builder {
+            private boolean indexed;
+            private boolean hasSkipper;
+            private boolean allowMultiValue;
+            private boolean hasMultiFields;
+            private boolean ignoreMalformed;
+            private boolean hasScript;
+
+            public Builder indexed(boolean indexed) {
+                this.indexed = indexed;
+                return this;
+            }
+
+            public Builder hasSkipper(boolean hasSkipper) {
+                this.hasSkipper = hasSkipper;
+                return this;
+            }
+
+            public Builder allowMultiValue(boolean allowMultiValue) {
+                this.allowMultiValue = allowMultiValue;
+                return this;
+            }
+
+            public Builder hasMultiFields(boolean hasMultiFields) {
+                this.hasMultiFields = hasMultiFields;
+                return this;
+            }
+
+            public Builder ignoreMalformed(boolean ignoreMalformed) {
+                this.ignoreMalformed = ignoreMalformed;
+                return this;
+            }
+
+            public Builder hasScript(boolean hasScript) {
+                this.hasScript = hasScript;
+                return this;
+            }
+
+            public UpdatableDocValuesChecks build() {
+                return new UpdatableDocValuesChecks(indexed, hasSkipper, allowMultiValue, hasMultiFields, ignoreMalformed, hasScript);
+            }
+        }
+    }
+
+    /**
+     * Validates the constraints Lucene places on a field whose doc values are updated in place via {@code IndexWriter#updateDocValues}:
+     * the field must be doc-values-only (no postings, points or vectors), must carry no doc-values skip index, and must not participate
+     * in the index sort. Lucene enforces these at update time; failing here turns a runtime error into a mapping error. The field's other
+     * characteristics that rule out an in-place update are carried in {@code checks}.
+     */
+    public static void validateUpdatableDocValues(
+        String field,
+        DocValuesParameter.Values docValues,
+        UpdatableDocValuesChecks checks,
         IndexSettings indexSettings
     ) {
         if (docValues.updatable() == false) {
@@ -186,28 +244,28 @@ public abstract class FieldMapper extends Mapper {
         if (docValues.enabled() == false) {
             throw new IllegalArgumentException("[doc_values.updatable] requires doc values on field [" + field + "]");
         }
-        if (indexed) {
+        if (checks.indexed()) {
             throw new IllegalArgumentException(
                 "[doc_values.updatable] requires [index:false] on field ["
                     + field
                     + "]: only fields stored purely as doc values can be updated in place"
             );
         }
-        if (hasSkipper) {
+        if (checks.hasSkipper()) {
             throw new IllegalArgumentException(
                 "[doc_values.updatable] cannot be combined with a doc values skip index on field ["
                     + field
                     + "]: the skip index stores per-range value bounds computed at index time that an in-place update would leave stale"
             );
         }
-        if (allowMultiValue == false && docValues.multiValue()) {
+        if (checks.allowMultiValue() == false && docValues.multiValue()) {
             throw new IllegalArgumentException(
                 "[doc_values.updatable] requires [doc_values.multi_value:false] on field ["
                     + field
                     + "]: this field type can only update a single value at a time"
             );
         }
-        if (hasMultiFields) {
+        if (checks.hasMultiFields()) {
             throw new IllegalArgumentException(
                 "[doc_values.updatable] cannot be set on field ["
                     + field
@@ -222,6 +280,27 @@ public abstract class FieldMapper extends Mapper {
                     + field
                     + "] because it is used in the index sort: documents are physically ordered by this field at index time "
                     + "and an in-place update cannot reorder them"
+            );
+        }
+        if (checks.ignoreMalformed()) {
+            throw new IllegalArgumentException(
+                "[doc_values.updatable] cannot be combined with [ignore_malformed] on field ["
+                    + field
+                    + "]: a malformed value is kept outside the field's column, which an in-place update rewrites only in part"
+            );
+        }
+        if (docValues.onFailure() == DocValuesParameter.Values.OnFailure.IGNORE) {
+            throw new IllegalArgumentException(
+                "[doc_values.updatable] cannot be combined with [doc_values.on_failure:ignore] on field ["
+                    + field
+                    + "]: values kept outside the field's column on failure would be left stale by an in-place update"
+            );
+        }
+        if (checks.hasScript()) {
+            throw new IllegalArgumentException(
+                "[doc_values.updatable] cannot be set on field ["
+                    + field
+                    + "] because it has a script: the field's value is computed at index time and an in-place update would bypass it"
             );
         }
         if (indexSettings.sequenceNumbersDisabled()) {
@@ -2081,11 +2160,7 @@ public abstract class FieldMapper extends Mapper {
 
             // updatable is not updateable in the mapping-merge sense: flipping it would change the Lucene doc-values type of a field
             // that already has values on disk.
-            updatableParameter = Parameter.boolParam("updatable", false, subParameterDefaults.updatable).addValidator(v -> {
-                if (v && DOC_VALUES_UPDATABLE_FEATURE_FLAG.isEnabled() == false) {
-                    throw new MapperParsingException("[doc_values.updatable=true] is not yet supported");
-                }
-            });
+            updatableParameter = Parameter.boolParam("updatable", false, subParameterDefaults.updatable);
 
             // An updatable field has no top-level form: it serializes multi_value/nullability/on_failure together with updatable inside
             // the doc_values object, so suppress their top-level emission while updatable is configured.
@@ -2100,6 +2175,9 @@ public abstract class FieldMapper extends Mapper {
             );
 
             this.addValidator(v -> {
+                if (v.updatable && DOC_VALUES_UPDATABLE_FEATURE_FLAG.isEnabled() == false) {
+                    throw new MapperParsingException("[doc_values.updatable=true] is not yet supported");
+                }
                 if (v.enabled == false
                     && (multiValueParameter.isConfigured() || nullabilityParameter.isConfigured() || onFailureParameter.isConfigured())) {
                     throw new IllegalArgumentException(

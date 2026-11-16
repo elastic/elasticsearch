@@ -27,6 +27,9 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.LowercaseNormalizer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.test.rest.ObjectPath;
@@ -1374,6 +1377,43 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         assumeTrue("doc_values updatable feature flag must be enabled", FieldMapper.DOC_VALUES_UPDATABLE_FEATURE_FLAG.isEnabled());
     }
 
+    @Override
+    @SuppressWarnings("unchecked")
+    protected <T> T compileScript(Script script, ScriptContext<T> context) {
+        // A trivial keyword script so that a field carrying one builds far enough for the updatable validation to run (and reject it).
+        return (T) (StringFieldScript.Factory) (fieldName, params, searchLookup, onScriptError) -> ctx -> new StringFieldScript(
+            fieldName,
+            params,
+            searchLookup,
+            OnScriptError.FAIL,
+            ctx
+        ) {
+            @Override
+            public void execute() {}
+        };
+    }
+
+    /**
+     * With the feature flag off, {@code doc_values.updatable: true} must be rejected when the mapping is parsed. Snapshot builds enable the
+     * flag, so this only runs with {@code -Dtests.jvm.argline="-Des.doc_values_updatable_feature_flag_enabled=false"}.
+     */
+    public void testUpdatableRejectedWhenFeatureFlagDisabled() {
+        assumeFalse(
+            "only meaningful when the doc_values updatable feature flag is disabled",
+            FieldMapper.DOC_VALUES_UPDATABLE_FEATURE_FLAG.isEnabled()
+        );
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(
+                columnar(),
+                fieldMapping(
+                    b -> b.field("type", "keyword").field("index", false).startObject("doc_values").field("updatable", true).endObject()
+                )
+            )
+        );
+        assertThat(e.getMessage(), containsString("[doc_values.updatable=true] is not yet supported"));
+    }
+
     /**
      * A high-cardinality keyword marked updatable is written as a plain single-valued {@link DocValuesType#BINARY} column — the only
      * bytes doc-values type Lucene's {@code updateBinaryDocValue} accepts (it rejects SORTED_SET).
@@ -1578,6 +1618,86 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
             )
         );
         assertThat(e.getMessage(), containsString("because it has multi-fields"));
+    }
+
+    public void testUpdatableRejectedWithIgnoreMalformed() {
+        assumeUpdatableEnabled();
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(
+                columnar(),
+                fieldMapping(
+                    b -> b.field("type", "long")
+                        .field("index", false)
+                        .field("ignore_malformed", true)
+                        .startObject("doc_values")
+                        .field("updatable", true)
+                        .endObject()
+                )
+            )
+        );
+        assertThat(e.getMessage(), containsString("cannot be combined with [ignore_malformed]"));
+    }
+
+    public void testUpdatableRejectedWithOnFailureIgnore() {
+        assumeUpdatableEnabled();
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(
+                columnar(),
+                fieldMapping(
+                    b -> b.field("type", "keyword")
+                        .field("index", false)
+                        .startObject("doc_values")
+                        .field("updatable", true)
+                        .field("multi_value", false)
+                        .field("on_failure", "ignore")
+                        .endObject()
+                )
+            )
+        );
+        assertThat(e.getMessage(), containsString("[doc_values.on_failure:ignore]"));
+    }
+
+    public void testUpdatableRejectedWithScript() {
+        assumeUpdatableEnabled();
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(
+                columnar(),
+                fieldMapping(
+                    b -> b.field("type", "keyword")
+                        .field("index", false)
+                        .field("script", "dummy")
+                        .startObject("doc_values")
+                        .field("updatable", true)
+                        .endObject()
+                )
+            )
+        );
+        assertThat(e.getMessage(), containsString("because it has a script"));
+    }
+
+    public void testUpdatableRejectedWithNestedFields() {
+        assumeUpdatableEnabled();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> createMapperService(columnar(), mapping(b -> {
+            b.startObject("count")
+                .field("type", "long")
+                .field("index", false)
+                .startObject("doc_values")
+                .field("updatable", true)
+                .endObject()
+                .endObject();
+            b.startObject("items")
+                .field("type", "nested")
+                .startObject("properties")
+                .startObject("sku")
+                .field("type", "keyword")
+                .endObject()
+                .endObject()
+                .endObject();
+        })));
+        assertThat(e.getMessage(), containsString("cannot be used in a mapping with nested fields"));
     }
 
     public void testUpdatableRejectedWhenUsedInIndexSort() {

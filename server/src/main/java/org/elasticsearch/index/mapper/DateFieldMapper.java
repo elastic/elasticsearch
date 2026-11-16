@@ -520,11 +520,15 @@ public final class DateFieldMapper extends FieldMapper {
             FieldMapper.validateUpdatableDocValues(
                 fullFieldName,
                 docValuesParameters.getValue(),
-                index.getValue(),
-                ft.hasDocValuesSkipper(),
-                // A sorted-numeric column updates a single value at a time, so an updatable date must be single-valued.
-                false,
-                multiFieldsBuilder.hasMultiFields(),
+                FieldMapper.UpdatableDocValuesChecks.builder()
+                    .indexed(index.getValue())
+                    .hasSkipper(ft.hasDocValuesSkipper())
+                    // A sorted-numeric column updates a single value at a time, so an updatable date must be single-valued.
+                    .allowMultiValue(false)
+                    .hasMultiFields(multiFieldsBuilder.hasMultiFields())
+                    .ignoreMalformed(ignoreMalformed.getValue())
+                    .hasScript(script.get() != null)
+                    .build(),
                 indexSettings
             );
 

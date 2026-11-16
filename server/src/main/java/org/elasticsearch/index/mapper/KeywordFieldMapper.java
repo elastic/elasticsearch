@@ -575,11 +575,14 @@ public final class KeywordFieldMapper extends FieldMapper {
             FieldMapper.validateUpdatableDocValues(
                 fullName,
                 docValuesParameters(),
-                indexed.getValue(),
-                fieldtype.docValuesSkipIndexType() != DocValuesSkipIndexType.NONE,
-                // A keyword's binary column holds its slot count inline, so Lucene can replace it with several values in one update.
-                true,
-                multiFieldsBuilder.hasMultiFields(),
+                FieldMapper.UpdatableDocValuesChecks.builder()
+                    .indexed(indexed.getValue())
+                    .hasSkipper(fieldtype.docValuesSkipIndexType() != DocValuesSkipIndexType.NONE)
+                    // A keyword's binary column holds its slot count inline, so Lucene can replace it with several values in one update.
+                    .allowMultiValue(true)
+                    .hasMultiFields(multiFieldsBuilder.hasMultiFields())
+                    .hasScript(script.get() != null)
+                    .build(),
                 indexSettings
             );
             if (docValuesParameters().updatable() && usesBinaryDocValues() == false) {
@@ -1713,19 +1716,45 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     @Override
     public void encodeDocValuesUpdate(List<Object> values, DocValuesUpdateSink sink) {
+        // An in-place update only overwrites the field's column, so it cannot reproduce index-time handling that drops or rewrites a value.
+        // Decline (the caller then falls back to the read-modify-reindex path, which parses the value normally) when a value would be read
+        // as null under empty_keyword_string_as_null, so the reindex can clear the field, or exceeds the non-indexed field length limit, so
+        // the reindex fails it the same way indexing does.
+        if (emptyStringAsNull) {
+            for (Object value : values) {
+                if (value.toString().isEmpty()) {
+                    throw new IllegalArgumentException(
+                        "in-place doc-values update of an empty string on field ["
+                            + fullPath()
+                            + "] is read as null under [index.mapping.empty_keyword_string_as_null]"
+                    );
+                }
+            }
+        }
         // Mirror the binary doc-values value indexing writes for this field so the in-place update is byte-identical and the codec reads it
         // the same way. A columnar-payload keyword frames its values with StringBinaryPayload (slots in document order); the single-valued
         // format stores the raw bytes of its one value.
         if (fieldType().diskFormat() == KeywordFieldType.DocValuesDiskFormat.BINARY_COLUMNAR_PAYLOAD) {
             List<BytesRef> slots = new ArrayList<>(values.size());
             for (Object value : values) {
-                slots.add(new BytesRef(normalizeValue(fieldType().normalizer(), fullPath(), value.toString())));
+                slots.add(checkValueLength(new BytesRef(normalizeValue(fieldType().normalizer(), fullPath(), value.toString()))));
             }
             sink.binary(fullPath(), BytesRef.deepCopyOf(new StringBinaryPayload.Builder().encode(slots)));
         } else {
             String normalized = normalizeValue(fieldType().normalizer(), fullPath(), values.get(0).toString());
-            sink.binary(fullPath(), new BytesRef(normalized));
+            sink.binary(fullPath(), checkValueLength(new BytesRef(normalized)));
         }
+    }
+
+    /**
+     * Rejects a value longer than the non-indexed field length limit, which indexing enforces too. The caller catches this and falls back
+     * to the read-modify-reindex path, where the same limit surfaces the error to the client.
+     */
+    private BytesRef checkValueLength(BytesRef value) {
+        if (value.length > maxValueLength) {
+            throw largeTermException(value);
+        }
+        return value;
     }
 
     @Override

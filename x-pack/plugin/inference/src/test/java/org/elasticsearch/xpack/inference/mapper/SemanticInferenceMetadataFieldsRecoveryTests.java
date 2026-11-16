@@ -41,8 +41,10 @@ import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.model.TestModel;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.generateRandomChunkingSettings;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomChunkedInferenceEmbeddingByte;
@@ -137,11 +139,14 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
         }
     }
 
-    public void testSnapshotRecovery() throws IOException {
+    /**
+     * Multi-consumer snapshots read some operations on other threads, as peer recovery does (#166191).
+     */
+    public void testSnapshotRecovery() throws Exception {
         List<Translog.Index> expectedOperations = new ArrayList<>();
         int size = randomIntBetween(10, 50);
         for (int i = 0; i < size; i++) {
-            var source = randomSource();
+            var source = randomSource(i > 0);
             var sourceToParse = new SourceToParse(Integer.toString(i), source, XContentType.JSON, null);
             var doc = mapperService.documentMapper().parse(sourceToParse);
             assertNull(doc.dynamicMappingsUpdate());
@@ -179,6 +184,7 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
         }
         engine.flush();
 
+        boolean singleConsumer = randomBoolean();
         var searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT);
         try (
             var snapshot = newRandomSnapshot(
@@ -188,20 +194,45 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
                 0,
                 size - 1,
                 true,
-                randomBoolean(),
+                singleConsumer,
                 randomBoolean(),
                 IndexVersion.current()
             )
         ) {
             var asserter = TranslogOperationAsserter.withEngineConfig(engine.config());
             for (int i = 0; i < size; i++) {
-                var op = snapshot.next();
+                // the first read always moves to another thread, so a multi-consumer run reads embeddings after a handoff
+                var op = singleConsumer == false && (i == 0 || randomBoolean()) ? nextOnNewThread(snapshot) : snapshot.next();
                 assertThat(op.opType(), equalTo(Translog.Operation.Type.INDEX));
                 Translog.Index indexOp = (Translog.Index) op;
                 asserter.assertSameIndexOperation(indexOp, expectedOperations.get(i));
             }
-            assertNull(snapshot.next());
+            assertNull(singleConsumer == false && randomBoolean() ? nextOnNewThread(snapshot) : snapshot.next());
         }
+    }
+
+    /**
+     * Reads the next operation on a new thread, rethrowing anything that thread threw.
+     */
+    private static Translog.Operation nextOnNewThread(Translog.Snapshot snapshot) throws Exception {
+        AtomicReference<Translog.Operation> operation = new AtomicReference<>();
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+
+        Thread thread = new Thread(() -> {
+            try {
+                operation.set(snapshot.next());
+            } catch (Throwable t) {
+                failure.set(t);
+            }
+        });
+        thread.start();
+        thread.join(Duration.ofSeconds(TEST_REQUEST_TIMEOUT.seconds()));
+
+        Throwable t = failure.get();
+        if (t != null) {
+            throw new AssertionError(t);
+        }
+        return operation.get();
     }
 
     private Translog.Snapshot newRandomSnapshot(
@@ -240,10 +271,10 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
         }
     }
 
-    private BytesReference randomSource() throws IOException {
+    private BytesReference randomSource(boolean allowNoInference) throws IOException {
         var builder = JsonXContent.contentBuilder().startObject();
         builder.field("field", randomAlphaOfLengthBetween(10, 30));
-        if (rarely()) {
+        if (allowNoInference && rarely()) {
             return BytesReference.bytes(builder.endObject());
         }
         SemanticTextFieldMapperTests.addSemanticTextInferenceResults(

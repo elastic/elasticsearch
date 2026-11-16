@@ -218,8 +218,11 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
 
     /**
      * Adds a guardrail against reading the test seed at configuration time. The seed is a configuration cache input when
-     * it is read while configuring, so a script that calls {@code get()} on it, or on {@code buildParams.random}, which is
-     * derived from it, makes every build with a new seed miss the configuration cache.
+     * it is read while configuring, so a script that reads it ({@code get()}, {@code getOrNull()}, {@code getOrElse(...)}
+     * or {@code orNull}), or reads {@code buildParams.random}, which is derived from it, makes every build with a new seed
+     * miss the configuration cache. The rule follows the call chain from the provider, so a read inside a lazy closure such
+     * as {@code map { ... }} is not flagged. The chain may continue on later lines, but each argument list or closure in it
+     * must sit on one line, and the rule does not follow the provider through a variable.
      */
     private void addEagerTestSeedRules(List<ScriptRule> rules) {
         rules.add(
@@ -228,8 +231,12 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
                 "Build scripts must not read the test seed at configuration time",
                 path -> true,
                 Pattern.compile(
+                    // the provider, then a chain of calls (arguments and closures on one line each, closures may hold ${...}),
+                    // then a read. The whitespace before an argument list or closure sits inside the optional group: if two
+                    // parts of the pattern could match the same whitespace, a failed match would backtrack exponentially.
                     "\\bbuildParams\\s*\\.\\s*(?:testSeedProvider\\b|getTestSeedProvider\\s*\\(\\s*\\)|random\\b|getRandom\\s*\\(\\s*\\))"
-                        + "[^\\n]*?\\.\\s*(?:get\\s*\\(\\s*\\)|getOrNull\\s*\\(\\s*\\)|getOrElse\\s*\\()"
+                        + "(?:\\s*\\.\\s*\\w+(?:\\s*\\([^()\\n]*\\)|\\s*\\{(?:[^{}\\n]|\\$\\{[^{}\\n]*\\})*\\})?)*?"
+                        + "\\s*\\.\\s*(?:get\\s*\\(\\s*\\)|getOrNull\\s*\\(\\s*\\)|getOrElse\\s*\\(|orNull\\b)"
                 ),
                 "Calling get() on buildParams.testSeedProvider or buildParams.random reads the test seed while the build is "
                     + "configured. The seed then becomes a configuration cache input and changes with every build, so the "

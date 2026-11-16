@@ -18,6 +18,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
@@ -170,7 +171,12 @@ public class ValidateBuildGradleScriptsTaskTests {
                 "systemProperty 'base', buildParams.getTestSeedProvider().map { s -> 'base_' + s }.get()",
                 "systemProperty 'flag', buildParams.random.map{r -> r.nextBoolean()}.get()",
                 "def random = buildParams.getRandom().getOrNull()",
-                "def other = buildParams.random.getOrElse(new Random())"
+                "def other = buildParams.random.getOrElse(new Random())",
+                "def orNull = buildParams.testSeedProvider.orNull",
+                "def chained = buildParams.testSeedProvider",
+                "  .map { s -> 'base_' + s }",
+                "  .get()",
+                "def gstring = buildParams.testSeedProvider.map { \"seed_${it}\" }.get()"
             )
         );
         ValidateBuildGradleScriptsTask task = createTask(project, scriptFile);
@@ -179,10 +185,31 @@ public class ValidateBuildGradleScriptsTaskTests {
             task.validateScripts();
             fail("GradleException was expected");
         } catch (GradleException e) {
-            for (int line = 1; line <= 5; line++) {
+            for (int line : List.of(1, 2, 3, 4, 5, 6, 7, 10)) {
                 assertTrue(e.getMessage(), e.getMessage().contains("[eager-test-seed] x-pack/plugin/foo/qa/s3/build.gradle:" + line));
             }
         }
+    }
+
+    /**
+     * A long property chain with no read must fail to match quickly; whitespace that two parts of the pattern could both
+     * match made this take exponential time.
+     */
+    @Test(timeout = 10_000)
+    public void testEagerTestSeedRuleDoesNotBacktrackOnLongChains() throws Exception {
+        Project project = createProject();
+        List<String> lines = new ArrayList<>();
+        lines.add("def x = buildParams.random");
+        for (int i = 0; i < 30; i++) {
+            lines.add("        .p" + i);
+        }
+        lines.add("println x");
+        File scriptFile = writeFile(project, "x-pack/plugin/foo/build.gradle", lines);
+        ValidateBuildGradleScriptsTask task = createTask(project, scriptFile);
+
+        task.validateScripts();
+
+        assertOutputMarkerWritten(task);
     }
 
     @Test
@@ -194,6 +221,8 @@ public class ValidateBuildGradleScriptsTaskTests {
             List.of(
                 "nonInputProperties.systemProperty 'base', buildParams.testSeedProvider.map { seed -> 'base_' + seed }",
                 "nonInputProperties.systemProperty 'flag', buildParams.random.map{r -> r.nextBoolean()}",
+                "nonInputProperties.systemProperty 'path', buildParams.testSeedProvider.map { s -> basePath.get() + s }",
+                "nonInputProperties.systemProperty 'n', buildParams.random.map { r -> r.nextInt(10) }.map { n -> names.getOrElse(n, 'x') }",
                 "def bucket = providers.environmentVariable('BUCKET').get()"
             )
         );

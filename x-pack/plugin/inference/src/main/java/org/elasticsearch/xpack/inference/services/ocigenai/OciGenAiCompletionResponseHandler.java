@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventParser;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventProcessor;
+import org.elasticsearch.xpack.inference.services.ocigenai.request.completion.OciGenAiChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.ocigenai.response.OciGenAiErrorResponseEntity;
 
 import java.util.concurrent.Flow;
@@ -31,7 +32,7 @@ public class OciGenAiCompletionResponseHandler extends OciGenAiResponseHandler {
     @Override
     public InferenceServiceResults parseResult(OutboundRequest outboundRequest, Flow.Publisher<HttpResult> flow) {
         var serverSentEventProcessor = new ServerSentEventProcessor(new ServerSentEventParser());
-        var ociGenAiProcessor = new OciGenAiStreamingProcessor();
+        var ociGenAiProcessor = new OciGenAiStreamingProcessor(OciGenAiChatCompletionRequest.apiFormatOf(outboundRequest));
 
         flow.subscribe(serverSentEventProcessor);
         serverSentEventProcessor.subscribe(ociGenAiProcessor);

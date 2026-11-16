@@ -40,6 +40,7 @@ public class OciGenAiUnifiedChatCompletionResponseHandler extends OciGenAiRespon
         var serverSentEventProcessor = new ServerSentEventProcessor(new ServerSentEventParser());
         var ociGenAiProcessor = new OciGenAiUnifiedStreamingProcessor(
             modelIdOf(outboundRequest),
+            OciGenAiChatCompletionRequest.apiFormatOf(outboundRequest),
             (message, e) -> chatCompletionErrorResponseHandler.buildMidStreamChatCompletionError(
                 outboundRequest.getInferenceEntityId(),
                 message,

@@ -29,6 +29,7 @@ import static org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiTestUt
 import static org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiTestUtils.ENDPOINT_ID_VALUE;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.startsWith;
 
 public class OciGenAiEmbeddingsRequestTests extends ESTestCase {
 
@@ -40,7 +41,10 @@ public class OciGenAiEmbeddingsRequestTests extends ESTestCase {
 
         assertThat(httpPost.getUri().toString(), is(model.uri().toString()));
         assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
-        assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is(OciGenAiTestUtils.AUTH_HEADER_VALUE));
+        assertThat(
+            httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(),
+            startsWith("Signature version=\"1\",keyId=\"" + OciGenAiTestUtils.keyId() + "\"")
+        );
 
         var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(requestMap, aMapWithSize(5));

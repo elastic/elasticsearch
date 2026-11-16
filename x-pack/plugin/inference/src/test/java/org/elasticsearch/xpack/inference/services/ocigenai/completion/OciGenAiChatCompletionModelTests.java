@@ -22,7 +22,7 @@ import java.net.URI;
 import java.util.List;
 
 import static org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiTestUtils.COMPARTMENT_ID;
-import static org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiTestUtils.REGION_VALUE;
+import static org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiTestUtils.ENDPOINT_ID_VALUE;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -54,6 +54,16 @@ public class OciGenAiChatCompletionModelTests extends ESTestCase {
         assertThat(overridden.getSecretSettings(), is(model.getSecretSettings()));
     }
 
+    public void testOf_IgnoresTheRequestModel_ForADedicatedEndpoint() {
+        var model = createModel(null, "meta.llama-3.3-70b-instruct", ENDPOINT_ID_VALUE, TaskType.CHAT_COMPLETION);
+
+        // the dedicated endpoint fixes the model, so the request model must not change the api format either
+        var result = OciGenAiChatCompletionModel.of(model, requestBody("cohere.command-a-03-2025"));
+
+        assertThat(result, sameInstance(model));
+        assertThat(result.getServiceSettings().apiFormat(), is(OciGenAiChatApiFormat.GENERIC));
+    }
+
     private static UnifiedCompletionRequestBody requestBody(@Nullable String modelId) {
         return new UnifiedCompletionRequestBody(
             List.of(new Message(new ContentString("hello"), "user", null, null, null, null)),
@@ -79,16 +89,27 @@ public class OciGenAiChatCompletionModelTests extends ESTestCase {
     }
 
     public static OciGenAiChatCompletionModel createModel(@Nullable String url, String modelId, TaskType taskType) {
+        return createModel(url, modelId, null, taskType);
+    }
+
+    /**
+     * @param url        the base URL to send requests to, or {@code null} for the regional endpoint
+     * @param endpointId the dedicated AI cluster endpoint OCID, or {@code null} for on-demand serving
+     */
+    public static OciGenAiChatCompletionModel createModel(
+        @Nullable String url,
+        String modelId,
+        @Nullable String endpointId,
+        TaskType taskType
+    ) {
         return new OciGenAiChatCompletionModel(
             "id",
             taskType,
             OciGenAiService.NAME,
-            url,
             new OciGenAiChatCompletionServiceSettings(
-                OciGenAiTestUtils.commonSettings(REGION_VALUE, COMPARTMENT_ID, modelId, null, null, new RateLimitSettings(1000))
+                OciGenAiTestUtils.commonSettings(url, modelId, endpointId, new RateLimitSettings(1000))
             ),
-            OciGenAiTestUtils.createSecretSettings(),
-            OciGenAiTestUtils.fixedAuthHeader()
+            OciGenAiTestUtils.createSecretSettings()
         );
     }
 }

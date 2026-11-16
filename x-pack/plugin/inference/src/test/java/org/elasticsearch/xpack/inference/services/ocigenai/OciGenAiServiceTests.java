@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.inference.services.ocigenai;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.common.ValidationException;
@@ -23,7 +23,6 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
-import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceConfigurationTests;
@@ -31,21 +30,17 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
-import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.RerankingInferenceService;
-import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.UnifiedCompletionRequestBody;
-import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
@@ -54,19 +49,13 @@ import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionC
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
 import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
-import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ocigenai.completion.OciGenAiChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.ocigenai.completion.OciGenAiChatCompletionModelTests;
-import org.elasticsearch.xpack.inference.services.ocigenai.completion.OciGenAiChatCompletionTaskSettings;
+import org.elasticsearch.xpack.inference.services.ocigenai.completion.OciGenAiChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.ocigenai.embeddings.OciGenAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.ocigenai.embeddings.OciGenAiEmbeddingsModelTests;
-import org.elasticsearch.xpack.inference.services.ocigenai.embeddings.OciGenAiEmbeddingsServiceSettings;
-import org.elasticsearch.xpack.inference.services.ocigenai.embeddings.OciGenAiEmbeddingsTaskSettings;
-import org.elasticsearch.xpack.inference.services.ocigenai.request.OciGenAiRequestUtils;
-import org.elasticsearch.xpack.inference.services.ocigenai.rerank.OciGenAiRerankModel;
 import org.elasticsearch.xpack.inference.services.ocigenai.rerank.OciGenAiRerankModelTests;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.net.URI;
@@ -83,20 +72,17 @@ import java.util.regex.Pattern;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
-import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.core.inference.results.RankedDocsResults.RankedDoc.INDEX;
 import static org.elasticsearch.xpack.core.inference.results.RankedDocsResults.RankedDoc.RELEVANCE_SCORE;
 import static org.elasticsearch.xpack.core.inference.results.RankedDocsResults.RankedDoc.TEXT;
 import static org.elasticsearch.xpack.core.inference.results.RankedDocsResultsTests.buildExpectationRerank;
 import static org.elasticsearch.xpack.inference.Utils.buildExpectationCompletions;
-import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.getRequestConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
-import static org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiServiceFields.INPUT_TYPE;
 import static org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiTestUtils.COMPARTMENT_ID;
 import static org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiTestUtils.REGION_VALUE;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -105,7 +91,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.mockito.Mockito.mock;
 
 public class OciGenAiServiceTests extends InferenceServiceTestCase {
 
@@ -118,7 +103,7 @@ public class OciGenAiServiceTests extends InferenceServiceTestCase {
     );
 
     private static final String REGION_DESCRIPTION = "The OCI region identifier of the Generative AI inference endpoint, for "
-        + "example us-chicago-1. Either the region or the url must be provided.";
+        + "example us-chicago-1. Either the region or the url must be provided, but not both.";
     private static final String MODEL_ID_DESCRIPTION = "The OCI Generative AI model to use for "
         + "the inference task, for example cohere.embed-v4.0 or meta.llama-3.3-70b-instruct.";
     private static final String ENDPOINT_ID_DESCRIPTION = "The OCID of a dedicated AI cluster endpoint hosting "
@@ -175,132 +160,6 @@ public class OciGenAiServiceTests extends InferenceServiceTestCase {
     // parsing
     // ---------------------------------------------------------------------------------------------------------------------------
 
-    public void testParseRequestConfig_CreatesAnEmbeddingsModel() throws IOException {
-        try (var service = createInferenceService()) {
-            ActionListener<Model> modelListener = ActionListener.wrap(model -> {
-                assertThat(model, instanceOf(OciGenAiEmbeddingsModel.class));
-
-                var embeddingsModel = (OciGenAiEmbeddingsModel) model;
-                assertThat(embeddingsModel.getServiceSettings().region(), is(REGION_VALUE));
-                assertThat(embeddingsModel.getServiceSettings().compartmentId(), is(COMPARTMENT_ID));
-                assertThat(embeddingsModel.getServiceSettings().modelId(), is(EMBEDDINGS_MODEL));
-                assertFalse(embeddingsModel.getServiceSettings().dimensionsSetByUser());
-                assertThat(embeddingsModel.getTaskSettings().getInputType(), is(InputType.INGEST));
-                assertThat(embeddingsModel.getSecretSettings().keyId(), is(OciGenAiTestUtils.keyId()));
-                assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
-                assertThat(
-                    embeddingsModel.uri(),
-                    is(URI.create("https://inference.generativeai.us-chicago-1.oci.oraclecloud.com/20231130/actions/embedText"))
-                );
-            }, e -> fail("Model parsing should have succeeded, but failed: " + e.getMessage()));
-
-            service.parseRequestConfig(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                getRequestConfigMap(
-                    OciGenAiTestUtils.serviceSettingsMap(EMBEDDINGS_MODEL),
-                    new HashMap<>(Map.of(INPUT_TYPE, "ingest")),
-                    createRandomChunkingSettingsMap(),
-                    OciGenAiTestUtils.secretSettingsMap()
-                ),
-                modelListener
-            );
-        }
-    }
-
-    public void testParseRequestConfig_CreatesChatCompletionModels() throws IOException {
-        for (var taskType : List.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION)) {
-            try (var service = createInferenceService()) {
-                ActionListener<Model> modelListener = ActionListener.wrap(model -> {
-                    assertThat(model, instanceOf(OciGenAiChatCompletionModel.class));
-
-                    var chatModel = (OciGenAiChatCompletionModel) model;
-                    assertThat(chatModel.getTaskType(), is(taskType));
-                    assertThat(chatModel.getServiceSettings().modelId(), is(CHAT_MODEL));
-                    assertThat(chatModel.getServiceSettings().apiFormat(), is(OciGenAiChatApiFormat.GENERIC));
-                    assertThat(chatModel.getTaskSettings(), is(OciGenAiChatCompletionTaskSettings.EMPTY_SETTINGS));
-                    assertThat(
-                        chatModel.uri(),
-                        is(URI.create("https://inference.generativeai.us-chicago-1.oci.oraclecloud.com/20231130/actions/chat"))
-                    );
-                }, e -> fail("Model parsing should have succeeded, but failed: " + e.getMessage()));
-
-                service.parseRequestConfig(
-                    "id",
-                    taskType,
-                    getRequestConfigMap(
-                        OciGenAiTestUtils.serviceSettingsMap(CHAT_MODEL),
-                        new HashMap<>(),
-                        OciGenAiTestUtils.secretSettingsMap()
-                    ),
-                    modelListener
-                );
-            }
-        }
-    }
-
-    public void testParseRequestConfig_CreatesARerankModel() throws IOException {
-        try (var service = createInferenceService()) {
-            ActionListener<Model> modelListener = ActionListener.wrap(model -> {
-                assertThat(model, instanceOf(OciGenAiRerankModel.class));
-
-                var rerankModel = (OciGenAiRerankModel) model;
-                assertThat(rerankModel.getServiceSettings().modelId(), is(RERANK_MODEL));
-                assertThat(rerankModel.getTaskSettings().getTopN(), is(3));
-            }, e -> fail("Model parsing should have succeeded, but failed: " + e.getMessage()));
-
-            service.parseRequestConfig(
-                "id",
-                TaskType.RERANK,
-                getRequestConfigMap(
-                    OciGenAiTestUtils.serviceSettingsMap(RERANK_MODEL),
-                    new HashMap<>(Map.of("top_n", 3)),
-                    OciGenAiTestUtils.secretSettingsMap()
-                ),
-                modelListener
-            );
-        }
-    }
-
-    public void testParseRequestConfig_ThrowsUnsupportedTaskType() throws IOException {
-        try (var service = createInferenceService()) {
-            var failureListener = getModelListenerForException(
-                ElasticsearchStatusException.class,
-                "The [ocigenai] service does not support task type [sparse_embedding]"
-            );
-
-            service.parseRequestConfig(
-                "id",
-                TaskType.SPARSE_EMBEDDING,
-                getRequestConfigMap(
-                    OciGenAiTestUtils.serviceSettingsMap(EMBEDDINGS_MODEL),
-                    new HashMap<>(),
-                    OciGenAiTestUtils.secretSettingsMap()
-                ),
-                failureListener
-            );
-        }
-    }
-
-    public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInServiceSettings() throws IOException {
-        try (var service = createInferenceService()) {
-            var serviceSettings = OciGenAiTestUtils.serviceSettingsMap(EMBEDDINGS_MODEL);
-            serviceSettings.put("extra_key", "value");
-
-            var failureListener = getModelListenerForException(
-                XContentParseException.class,
-                "[service_settings] unknown field [extra_key]"
-            );
-
-            service.parseRequestConfig(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                getRequestConfigMap(serviceSettings, new HashMap<>(), OciGenAiTestUtils.secretSettingsMap()),
-                failureListener
-            );
-        }
-    }
-
     public void testParseRequestConfig_ThrowsWhenThePrivateKeyIsInvalid() throws IOException {
         try (var service = createInferenceService()) {
             var listener = new PlainActionFuture<Model>();
@@ -321,42 +180,79 @@ public class OciGenAiServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testParsePersistedConfig_WithSecrets_CreatesAnEmbeddingsModel() throws IOException {
-        try (var service = createInferenceService()) {
-            var serviceSettings = OciGenAiTestUtils.serviceSettingsMap(EMBEDDINGS_MODEL);
-            serviceSettings.put(ServiceFields.DIMENSIONS, 1536);
-            serviceSettings.put(ServiceFields.DIMENSIONS_SET_BY_USER, false);
-            serviceSettings.put("extra_key", "value");
-            var secretSettings = OciGenAiTestUtils.secretSettingsMap();
-            secretSettings.put("extra_key", "value");
-            var persistedConfig = getPersistedConfigMap(serviceSettings, new HashMap<>(Map.of(INPUT_TYPE, "search")), secretSettings);
-            persistedConfig.config().put("extra_key", "value");
+    public void testParseRequestConfig_ThrowsWhenNeitherRegionNorUrlIsSet() throws IOException {
+        var serviceSettings = OciGenAiTestUtils.serviceSettingsMap(null, COMPARTMENT_ID, EMBEDDINGS_MODEL, null, null);
 
-            var model = service.parsePersistedConfig(
-                new UnparsedModel("id", TaskType.TEXT_EMBEDDING, OciGenAiService.NAME, persistedConfig.config(), persistedConfig.secrets())
-            );
+        var exception = parseRequestConfigFailure(serviceSettings);
 
-            assertThat(model, instanceOf(OciGenAiEmbeddingsModel.class));
-            var embeddingsModel = (OciGenAiEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().modelId(), is(EMBEDDINGS_MODEL));
-            assertThat(embeddingsModel.getServiceSettings().dimensions(), is(1536));
-            assertFalse(embeddingsModel.getServiceSettings().dimensionsSetByUser());
-            assertThat(embeddingsModel.getTaskSettings().getInputType(), is(InputType.SEARCH));
-            assertThat(embeddingsModel.getSecretSettings().keyId(), is(OciGenAiTestUtils.keyId()));
-            assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
-        }
+        assertThat(exception, instanceOf(IllegalArgumentException.class));
+        assertThat(exception.getMessage(), is("[service_settings] must contain either the [region] or the [url] setting"));
     }
 
-    public void testParsePersistedConfig_WithoutSecrets_CreatesAChatCompletionModel() throws IOException {
-        try (var service = createInferenceService()) {
-            var persistedConfig = getPersistedConfigMap(OciGenAiTestUtils.serviceSettingsMap(CHAT_MODEL), new HashMap<>(), null);
+    public void testParseRequestConfig_ThrowsWhenBothRegionAndUrlAreSet() throws IOException {
+        var serviceSettings = OciGenAiTestUtils.serviceSettingsMap(
+            REGION_VALUE,
+            COMPARTMENT_ID,
+            EMBEDDINGS_MODEL,
+            null,
+            "https://inference.generativeai.example.com"
+        );
 
-            var model = service.parsePersistedConfig(
-                new UnparsedModel("id", TaskType.CHAT_COMPLETION, OciGenAiService.NAME, persistedConfig.config(), null)
+        var exception = parseRequestConfigFailure(serviceSettings);
+
+        assertThat(exception, instanceOf(IllegalArgumentException.class));
+        assertThat(exception.getMessage(), is("[service_settings] must contain only one of the [region] and [url] settings"));
+    }
+
+    public void testParseRequestConfig_ThrowsWhenTheUrlIsNotAbsolute() throws IOException {
+        var serviceSettings = OciGenAiTestUtils.serviceSettingsMap(
+            null,
+            COMPARTMENT_ID,
+            EMBEDDINGS_MODEL,
+            null,
+            "inference.generativeai.example.com"
+        );
+
+        var exception = parseRequestConfigFailure(serviceSettings);
+
+        assertThat(exception, instanceOf(IllegalArgumentException.class));
+        assertThat(
+            exception.getMessage(),
+            is(
+                "[service_settings] Invalid url [inference.generativeai.example.com] received for field [url]. "
+                    + "Error: the url must be absolute, with a scheme and a host"
+            )
+        );
+    }
+
+    public void testParseRequestConfig_ThrowsWhenTheUrlIsInvalid() throws IOException {
+        var serviceSettings = OciGenAiTestUtils.serviceSettingsMap(null, COMPARTMENT_ID, EMBEDDINGS_MODEL, null, "^^");
+
+        var exception = parseRequestConfigFailure(serviceSettings);
+
+        assertThat(exception, instanceOf(IllegalArgumentException.class));
+        assertThat(exception.getMessage(), containsString("[service_settings] Invalid url [^^] received for field [url]"));
+    }
+
+    public void testParseRequestConfig_UsesTheApiVersionInTheActionPath() throws IOException {
+        var serviceSettings = OciGenAiTestUtils.serviceSettingsMap(EMBEDDINGS_MODEL);
+        serviceSettings.put(OciGenAiServiceFields.API_VERSION, "20260101");
+
+        try (var service = createInferenceService()) {
+            var listener = new PlainActionFuture<Model>();
+            service.parseRequestConfig(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                getRequestConfigMap(serviceSettings, new HashMap<>(), OciGenAiTestUtils.secretSettingsMap()),
+                listener
             );
 
-            assertThat(model, instanceOf(OciGenAiChatCompletionModel.class));
-            assertThat(model.getSecretSettings(), Matchers.nullValue());
+            var model = (OciGenAiEmbeddingsModel) listener.actionGet(TIMEOUT);
+            assertThat(model.getServiceSettings().apiVersion(), is("20260101"));
+            assertThat(
+                model.uri(),
+                is(URI.create("https://inference.generativeai.us-chicago-1.oci.oraclecloud.com/20260101/actions/embedText"))
+            );
         }
     }
 
@@ -370,7 +266,7 @@ public class OciGenAiServiceTests extends InferenceServiceTestCase {
         try (var service = new OciGenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EMBEDDINGS_RESPONSE));
 
-            var model = createSignedEmbeddingsModel(getUrl(webServer));
+            var model = OciGenAiEmbeddingsModelTests.createModel(getUrl(webServer), EMBEDDINGS_MODEL, null, null, null, null);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(model, List.of("input"), false, new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
             var result = listener.actionGet(TIMEOUT);
@@ -667,6 +563,70 @@ public class OciGenAiServiceTests extends InferenceServiceTestCase {
         }
     }
 
+    public void testInfer_ThrowsForATaskTypeNotServedByInfer() throws IOException {
+        try (var service = createInferenceService()) {
+            // chat_completion is served by unifiedCompletionInfer only
+            var model = OciGenAiChatCompletionModelTests.createChatCompletionModel(getUrl(webServer), CHAT_MODEL);
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            service.infer(model, List.of("input"), false, new HashMap<>(), InputType.UNSPECIFIED, null, listener);
+
+            var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
+            assertThat(exception.getMessage(), containsString("does not support task type [chat_completion]"));
+            assertThat(webServer.requests(), empty());
+        }
+    }
+
+    public void testInfer_FailsWithoutTheSigningKey() throws IOException {
+        try (var service = createInferenceService()) {
+            var model = new OciGenAiChatCompletionModel(
+                "id",
+                TaskType.COMPLETION,
+                OciGenAiService.NAME,
+                new OciGenAiChatCompletionServiceSettings(
+                    OciGenAiTestUtils.commonSettings(getUrl(webServer), CHAT_MODEL, null, new RateLimitSettings(1000))
+                ),
+                null
+            );
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            service.infer(model, List.of("Say hello."), false, new HashMap<>(), InputType.UNSPECIFIED, null, listener);
+
+            var exception = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(ExceptionsHelper.unwrapCause(exception).getMessage(), containsString("because the API signing key is missing"));
+            assertThat(webServer.requests(), empty());
+        }
+    }
+
+    public void testUnifiedCompletionInfer_DedicatedEndpoint_IgnoresTheModelFromTheRequest() throws Exception {
+        try (var service = createInferenceService()) {
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(CHAT_RESPONSE));
+
+            var model = OciGenAiChatCompletionModelTests.createModel(
+                getUrl(webServer),
+                CHAT_MODEL,
+                OciGenAiTestUtils.ENDPOINT_ID_VALUE,
+                TaskType.CHAT_COMPLETION
+            );
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            service.unifiedCompletionInfer(
+                model,
+                new UnifiedCompletionRequest(requestBody("cohere.command-a-03-2025"), false),
+                null,
+                listener
+            );
+            listener.actionGet(TIMEOUT);
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            assertThat(
+                requestMap.get("servingMode"),
+                is(Map.of("servingType", "DEDICATED", "endpointId", OciGenAiTestUtils.ENDPOINT_ID_VALUE))
+            );
+            @SuppressWarnings("unchecked")
+            var chatRequest = (Map<String, Object>) requestMap.get("chatRequest");
+            assertThat(chatRequest.get("apiFormat"), is("GENERIC"));
+        }
+    }
+
     // ---------------------------------------------------------------------------------------------------------------------------
     // configuration
     // ---------------------------------------------------------------------------------------------------------------------------
@@ -728,6 +688,7 @@ public class OciGenAiServiceTests extends InferenceServiceTestCase {
                                     "supported_task_types": ["text_embedding", "rerank", "completion", "chat_completion"]
                                 },
                                 "api_version": {
+                                    "default_value": "20231130",
                                     "description": "%s",
                                     "label": "API Version",
                                     "required": false,
@@ -826,39 +787,6 @@ public class OciGenAiServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testBuildModelFromConfigAndSecrets() throws IOException {
-        for (var model : List.<Model>of(
-            OciGenAiEmbeddingsModelTests.createModel(null, EMBEDDINGS_MODEL, 512, SimilarityMeasure.COSINE, InputType.INGEST, null),
-            OciGenAiChatCompletionModelTests.createCompletionModel(null, CHAT_MODEL),
-            OciGenAiChatCompletionModelTests.createChatCompletionModel(null, CHAT_MODEL),
-            OciGenAiRerankModelTests.createModel(null, RERANK_MODEL, 2, true)
-        )) {
-            try (var service = createInferenceService()) {
-                var resultModel = service.buildModelFromConfigAndSecrets(model.getConfigurations(), model.getSecrets());
-                assertThat(resultModel, is(model));
-            }
-        }
-    }
-
-    public void testBuildModelFromConfigAndSecrets_UnsupportedTaskType() throws IOException {
-        var modelConfigurations = new ModelConfigurations(
-            "id",
-            TaskType.SPARSE_EMBEDDING,
-            OciGenAiService.NAME,
-            mock(ServiceSettings.class)
-        );
-        try (var service = createInferenceService()) {
-            var exception = expectThrows(
-                ElasticsearchStatusException.class,
-                () -> service.buildModelFromConfigAndSecrets(modelConfigurations, mock(ModelSecrets.class))
-            );
-            assertThat(
-                exception.getMessage(),
-                is(Strings.format("The [%s] service does not support task type [%s]", OciGenAiService.NAME, TaskType.SPARSE_EMBEDDING))
-            );
-        }
-    }
-
     // ---------------------------------------------------------------------------------------------------------------------------
     // InferenceServiceTestCase hooks
     // ---------------------------------------------------------------------------------------------------------------------------
@@ -895,35 +823,17 @@ public class OciGenAiServiceTests extends InferenceServiceTestCase {
     // helpers
     // ---------------------------------------------------------------------------------------------------------------------------
 
-    /**
-     * Creates a model that signs its requests with the test key pair and derives the action URL from the given base URL, like a model
-     * configured with the {@code url} service setting does.
-     */
-    private static OciGenAiEmbeddingsModel createSignedEmbeddingsModel(String baseUrl) {
-        var serviceSettings = new OciGenAiEmbeddingsServiceSettings(
-            OciGenAiTestUtils.commonSettings(
-                null,
-                COMPARTMENT_ID,
-                EMBEDDINGS_MODEL,
-                null,
-                URI.create(baseUrl),
-                new RateLimitSettings(1000)
-            ),
-            false,
-            null,
-            null,
-            null
-        );
-        return new OciGenAiEmbeddingsModel(
-            "id",
-            TaskType.TEXT_EMBEDDING,
-            OciGenAiService.NAME,
-            null,
-            serviceSettings,
-            OciGenAiEmbeddingsTaskSettings.EMPTY_SETTINGS,
-            OciGenAiTestUtils.createSecretSettings(),
-            OciGenAiRequestUtils::signRequest
-        );
+    private Exception parseRequestConfigFailure(Map<String, Object> serviceSettings) throws IOException {
+        try (var service = createInferenceService()) {
+            var listener = new PlainActionFuture<Model>();
+            service.parseRequestConfig(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                getRequestConfigMap(serviceSettings, new HashMap<>(), OciGenAiTestUtils.secretSettingsMap()),
+                listener
+            );
+            return expectThrows(Exception.class, () -> listener.actionGet(TIMEOUT));
+        }
     }
 
     private static UnifiedCompletionRequestBody requestBody(@Nullable String modelId) {
@@ -946,12 +856,5 @@ public class OciGenAiServiceTests extends InferenceServiceTestCase {
         var events = new ArrayList<String>();
         assertion.events().forEachRemaining(events::add);
         return events;
-    }
-
-    private static ActionListener<Model> getModelListenerForException(Class<?> exceptionClass, String expectedMessage) {
-        return ActionListener.wrap((model) -> fail("Model parsing should have failed"), e -> {
-            assertThat(e, Matchers.instanceOf(exceptionClass));
-            assertThat(e.getMessage(), containsString(expectedMessage));
-        });
     }
 }

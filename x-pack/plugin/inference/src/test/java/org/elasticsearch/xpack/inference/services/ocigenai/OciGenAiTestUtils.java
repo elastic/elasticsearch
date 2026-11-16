@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.ocigenai;
 
-import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
-import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
@@ -27,7 +25,6 @@ import java.security.interfaces.RSAPrivateCrtKey;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
@@ -43,7 +40,6 @@ public final class OciGenAiTestUtils {
     public static final String COMPARTMENT_ID = "ocid1.compartment.oc1..aaaaaaaacompartment";
     public static final String ENDPOINT_ID_VALUE = "ocid1.generativeaiendpoint.oc1.us-chicago-1.aaaaaaaaendpoint";
     public static final String REGION_VALUE = "us-chicago-1";
-    public static final String AUTH_HEADER_VALUE = "Signature version=\"1\",keyId=\"test\"";
 
     private static volatile KeyPair keyPair;
 
@@ -216,12 +212,12 @@ public final class OciGenAiTestUtils {
     }
 
     /**
-     * Randomised common settings for wire serialization tests. When a URL is used the region may be absent.
+     * Randomised common settings for wire serialization tests, with either a region or a URL.
      */
     public static OciGenAiServiceSettings.CommonSettings randomCommonSettings() {
         var useUrl = ESTestCase.randomBoolean();
         return new OciGenAiServiceSettings.CommonSettings(
-            useUrl && ESTestCase.randomBoolean() ? null : ESTestCase.randomAlphaOfLength(8),
+            useUrl ? null : ESTestCase.randomAlphaOfLength(8),
             ESTestCase.randomAlphaOfLength(10),
             ESTestCase.randomAlphaOfLength(10),
             ESTestCase.randomBoolean() ? null : ESTestCase.randomAlphaOfLength(10),
@@ -232,14 +228,18 @@ public final class OciGenAiTestUtils {
     }
 
     /**
-     * A request signer replacement that sets a fixed {@code Authorization} header instead of computing a real OCI signature.
+     * Common settings that target the given base URL (for example a mock web server) instead of a regional endpoint, or the regional
+     * endpoint of {@link #REGION_VALUE} when the URL is {@code null}.
      */
-    public static BiConsumer<SimpleHttpRequest, OciGenAiModel> fixedAuthHeader(String value) {
-        return (httpPost, model) -> httpPost.setHeader(HttpHeaders.AUTHORIZATION, value);
-    }
-
-    public static BiConsumer<SimpleHttpRequest, OciGenAiModel> fixedAuthHeader() {
-        return fixedAuthHeader(AUTH_HEADER_VALUE);
+    public static OciGenAiServiceSettings.CommonSettings commonSettings(
+        @Nullable String url,
+        String modelId,
+        @Nullable String endpointId,
+        @Nullable RateLimitSettings rateLimitSettings
+    ) {
+        return url == null
+            ? commonSettings(REGION_VALUE, COMPARTMENT_ID, modelId, endpointId, null, rateLimitSettings)
+            : commonSettings(null, COMPARTMENT_ID, modelId, endpointId, URI.create(url), rateLimitSettings);
     }
 
     private OciGenAiTestUtils() {}

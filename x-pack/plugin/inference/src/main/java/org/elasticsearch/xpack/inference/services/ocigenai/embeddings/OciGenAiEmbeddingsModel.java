@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.ocigenai.embeddings;
 
-import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -21,7 +20,6 @@ import org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiUtils;
 import org.elasticsearch.xpack.inference.services.ocigenai.action.OciGenAiActionVisitor;
 
 import java.util.Map;
-import java.util.function.BiConsumer;
 
 public class OciGenAiEmbeddingsModel extends OciGenAiModel {
 
@@ -68,26 +66,6 @@ public class OciGenAiEmbeddingsModel extends OciGenAiModel {
 
     public OciGenAiEmbeddingsModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
         super(modelConfigurations, modelSecrets, OciGenAiUtils.EMBED_TEXT);
-    }
-
-    // Should only be used directly for testing. Allows overriding the URL and bypassing request signing.
-    public OciGenAiEmbeddingsModel(
-        String inferenceEntityId,
-        TaskType taskType,
-        String service,
-        @Nullable String url,
-        OciGenAiEmbeddingsServiceSettings serviceSettings,
-        OciGenAiEmbeddingsTaskSettings taskSettings,
-        @Nullable OciGenAiSecretSettings secrets,
-        BiConsumer<SimpleHttpRequest, OciGenAiModel> requestSigner
-    ) {
-        super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
-            new ModelSecrets(secrets),
-            OciGenAiUtils.EMBED_TEXT,
-            url,
-            requestSigner
-        );
     }
 
     public OciGenAiEmbeddingsModel(OciGenAiEmbeddingsModel model, OciGenAiEmbeddingsServiceSettings serviceSettings) {

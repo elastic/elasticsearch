@@ -12,7 +12,6 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.SecretSettings;
@@ -188,48 +187,45 @@ public class OciGenAiSecretSettings implements SecretSettings {
         return Objects.hash(tenancyId, userId, fingerprint, privateKey);
     }
 
-    public static class Configuration {
-        public static Map<String, SettingsConfiguration> get() {
-            return CONFIGURATION.getOrCompute();
-        }
-
-        private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(
-            TaskType.TEXT_EMBEDDING,
-            TaskType.COMPLETION,
-            TaskType.CHAT_COMPLETION,
-            TaskType.RERANK
+    /**
+     * The configuration of the API signing key fields, exposed by the service's configuration for the given task types.
+     */
+    public static Map<String, SettingsConfiguration> toSettingsConfiguration(EnumSet<TaskType> supportedTaskTypes) {
+        var configurationMap = new HashMap<String, SettingsConfiguration>();
+        configurationMap.put(
+            TENANCY_ID,
+            secretConfiguration(supportedTaskTypes, "The OCID of the OCI tenancy that owns the API signing key.", "Tenancy OCID")
         );
+        configurationMap.put(
+            USER_ID,
+            secretConfiguration(supportedTaskTypes, "The OCID of the OCI user the API signing key belongs to.", "User OCID")
+        );
+        configurationMap.put(
+            FINGERPRINT,
+            secretConfiguration(
+                supportedTaskTypes,
+                "The fingerprint of the API signing key's public key, as shown in the OCI Console.",
+                "Fingerprint"
+            )
+        );
+        configurationMap.put(
+            PRIVATE_KEY,
+            secretConfiguration(
+                supportedTaskTypes,
+                "The PEM encoded RSA private key of the API signing key (PKCS#8 or PKCS#1, not passphrase protected).",
+                "Private Key"
+            )
+        );
+        return Collections.unmodifiableMap(configurationMap);
+    }
 
-        private static final LazyInitializable<Map<String, SettingsConfiguration>, RuntimeException> CONFIGURATION =
-            new LazyInitializable<>(() -> {
-                var configurationMap = new HashMap<String, SettingsConfiguration>();
-                configurationMap.put(
-                    TENANCY_ID,
-                    secretConfiguration("The OCID of the OCI tenancy that owns the API signing key.", "Tenancy OCID")
-                );
-                configurationMap.put(USER_ID, secretConfiguration("The OCID of the OCI user the API signing key belongs to.", "User OCID"));
-                configurationMap.put(
-                    FINGERPRINT,
-                    secretConfiguration("The fingerprint of the API signing key's public key, as shown in the OCI Console.", "Fingerprint")
-                );
-                configurationMap.put(
-                    PRIVATE_KEY,
-                    secretConfiguration(
-                        "The PEM encoded RSA private key of the API signing key (PKCS#8 or PKCS#1, not passphrase protected).",
-                        "Private Key"
-                    )
-                );
-                return Collections.unmodifiableMap(configurationMap);
-            });
-
-        private static SettingsConfiguration secretConfiguration(String description, String label) {
-            return new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription(description)
-                .setLabel(label)
-                .setRequired(true)
-                .setSensitive(true)
-                .setUpdatable(true)
-                .setType(SettingsConfigurationFieldType.STRING)
-                .build();
-        }
+    private static SettingsConfiguration secretConfiguration(EnumSet<TaskType> supportedTaskTypes, String description, String label) {
+        return new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(description)
+            .setLabel(label)
+            .setRequired(true)
+            .setSensitive(true)
+            .setUpdatable(true)
+            .setType(SettingsConfigurationFieldType.STRING)
+            .build();
     }
 }

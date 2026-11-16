@@ -7,22 +7,20 @@
 
 package org.elasticsearch.xpack.inference.services.ocigenai;
 
-import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
+import org.elasticsearch.xpack.inference.common.secrets.SecretsApplier;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.RateLimitGroupingModel;
 import org.elasticsearch.xpack.inference.services.ocigenai.action.OciGenAiActionVisitor;
-import org.elasticsearch.xpack.inference.services.ocigenai.request.OciGenAiRequestUtils;
+import org.elasticsearch.xpack.inference.services.ocigenai.request.OciGenAiSecretsApplier;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.BiConsumer;
 
 /**
  * Base class of the OCI Generative AI models. Resolves the action URL from the service settings and holds the request signer that
@@ -33,44 +31,30 @@ public abstract class OciGenAiModel extends RateLimitGroupingModel {
     private final URI uri;
 
     /**
-     * Applies the OCI request signature headers to a {@link SimpleHttpRequest}. By default this is
-     * {@link OciGenAiRequestUtils#signRequest(SimpleHttpRequest, OciGenAiModel)}; unit tests may provide different behaviour so that
-     * requests can be created without a real signing key.
+     * Signs the outbound requests; holds the signing key parsed once from the stored secrets.
      */
-    private final BiConsumer<SimpleHttpRequest, OciGenAiModel> requestSigner;
+    private final SecretsApplier secretsApplier;
 
     protected OciGenAiModel(ModelConfigurations configurations, ModelSecrets secrets, String action) {
-        this(configurations, secrets, action, null, OciGenAiRequestUtils::signRequest);
-    }
-
-    /**
-     * @param urlOverride an explicit action URL, or {@code null} to derive it from the service settings. Should only be used by tests.
-     */
-    protected OciGenAiModel(
-        ModelConfigurations configurations,
-        ModelSecrets secrets,
-        String action,
-        @Nullable String urlOverride,
-        BiConsumer<SimpleHttpRequest, OciGenAiModel> requestSigner
-    ) {
         super(configurations, secrets);
         var serviceSettings = (OciGenAiServiceSettings) configurations.getServiceSettings();
-        this.uri = urlOverride == null
-            ? OciGenAiUtils.buildUri(serviceSettings.uri(), serviceSettings.region(), serviceSettings.apiVersion(), action)
-            : URI.create(urlOverride);
-        this.requestSigner = Objects.requireNonNull(requestSigner);
+        this.uri = OciGenAiUtils.buildUri(serviceSettings.uri(), serviceSettings.region(), serviceSettings.apiVersion(), action);
+        this.secretsApplier = new OciGenAiSecretsApplier(
+            configurations.getInferenceEntityId(),
+            (OciGenAiSecretSettings) secrets.getSecretSettings()
+        );
     }
 
     protected OciGenAiModel(OciGenAiModel model, ServiceSettings serviceSettings) {
         super(model, serviceSettings);
         this.uri = model.uri();
-        this.requestSigner = model.requestSigner();
+        this.secretsApplier = model.secretsApplier();
     }
 
     protected OciGenAiModel(OciGenAiModel model, TaskSettings taskSettings) {
         super(model, taskSettings);
         this.uri = model.uri();
-        this.requestSigner = model.requestSigner();
+        this.secretsApplier = model.secretsApplier();
     }
 
     public abstract ExecutableAction accept(OciGenAiActionVisitor creator, Map<String, Object> taskSettings);
@@ -82,8 +66,8 @@ public abstract class OciGenAiModel extends RateLimitGroupingModel {
         return uri;
     }
 
-    public BiConsumer<SimpleHttpRequest, OciGenAiModel> requestSigner() {
-        return requestSigner;
+    public SecretsApplier secretsApplier() {
+        return secretsApplier;
     }
 
     @Override

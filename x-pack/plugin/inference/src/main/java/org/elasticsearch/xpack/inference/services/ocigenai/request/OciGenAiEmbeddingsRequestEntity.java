@@ -77,7 +77,7 @@ public record OciGenAiEmbeddingsRequestEntity(
             case SEARCH, INTERNAL_SEARCH -> SEARCH_QUERY;
             case CLASSIFICATION -> CLASSIFICATION;
             case CLUSTERING -> CLUSTERING;
-            default -> null;
+            case UNSPECIFIED -> null;
         };
     }
 

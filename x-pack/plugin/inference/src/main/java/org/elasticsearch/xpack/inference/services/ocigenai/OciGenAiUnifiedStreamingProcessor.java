@@ -39,16 +39,27 @@ public class OciGenAiUnifiedStreamingProcessor extends DelegatingProcessor<
 
     private final String id;
     private final String modelId;
+    private final OciGenAiChatApiFormat apiFormat;
     private final BiFunction<String, Exception, Exception> errorParser;
 
-    public OciGenAiUnifiedStreamingProcessor(String modelId, BiFunction<String, Exception, Exception> errorParser) {
-        this(UUIDs.randomBase64UUID(), modelId, errorParser);
+    public OciGenAiUnifiedStreamingProcessor(
+        String modelId,
+        OciGenAiChatApiFormat apiFormat,
+        BiFunction<String, Exception, Exception> errorParser
+    ) {
+        this(UUIDs.randomBase64UUID(), modelId, apiFormat, errorParser);
     }
 
     // visible for testing so that the generated id can be controlled
-    OciGenAiUnifiedStreamingProcessor(String id, String modelId, BiFunction<String, Exception, Exception> errorParser) {
+    OciGenAiUnifiedStreamingProcessor(
+        String id,
+        String modelId,
+        OciGenAiChatApiFormat apiFormat,
+        BiFunction<String, Exception, Exception> errorParser
+    ) {
         this.id = Objects.requireNonNull(id);
         this.modelId = Objects.requireNonNull(modelId);
+        this.apiFormat = Objects.requireNonNull(apiFormat);
         this.errorParser = Objects.requireNonNull(errorParser);
     }
 
@@ -63,7 +74,7 @@ public class OciGenAiUnifiedStreamingProcessor extends DelegatingProcessor<
             }
             try {
                 parseObjects(parserConfig, event.data(), parser -> {
-                    var chunk = OciGenAiChatCompletionResponseEntity.parseStreamingEvent(parser, id, modelId);
+                    var chunk = OciGenAiChatCompletionResponseEntity.parseStreamingEvent(parser, id, modelId, apiFormat);
                     return chunk == null ? Stream.<ChatCompletionChunkResponse>empty() : Stream.of(chunk);
                 }).forEach(results::offer);
             } catch (Exception e) {

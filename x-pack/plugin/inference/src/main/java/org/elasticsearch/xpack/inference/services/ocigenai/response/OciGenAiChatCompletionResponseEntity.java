@@ -134,13 +134,12 @@ public class OciGenAiChatCompletionResponseEntity {
 
     /**
      * A streaming event: a {@code GENERIC} choice ({@code index}, {@code message}, {@code finishReason}) or a {@code COHERE} delta
-     * ({@code apiFormat}, {@code text}, {@code finishReason}).
+     * ({@code text}, {@code finishReason}). Which one is known up front from the chat API format of the request.
      */
     private record StreamEvent(
         @Nullable Integer index,
         @Nullable ChatMessage message,
         @Nullable String finishReason,
-        @Nullable String apiFormat,
         @Nullable String text
     ) {}
 
@@ -184,7 +183,7 @@ public class OciGenAiChatCompletionResponseEntity {
     private static final ConstructingObjectParser<StreamEvent, Void> STREAM_EVENT_PARSER = new ConstructingObjectParser<>(
         "oci_genai_chat_completion_stream_event",
         true,
-        args -> new StreamEvent((Integer) args[0], (ChatMessage) args[1], (String) args[2], (String) args[3], (String) args[4])
+        args -> new StreamEvent((Integer) args[0], (ChatMessage) args[1], (String) args[2], (String) args[3])
     );
 
     static {
@@ -219,7 +218,6 @@ public class OciGenAiChatCompletionResponseEntity {
         STREAM_EVENT_PARSER.declareInt(optionalConstructorArg(), new ParseField(INDEX_FIELD));
         STREAM_EVENT_PARSER.declareObject(optionalConstructorArg(), MESSAGE_PARSER, new ParseField(MESSAGE_FIELD));
         STREAM_EVENT_PARSER.declareString(optionalConstructorArg(), new ParseField(FINISH_REASON_FIELD));
-        STREAM_EVENT_PARSER.declareString(optionalConstructorArg(), new ParseField(API_FORMAT_FIELD));
         STREAM_EVENT_PARSER.declareString(optionalConstructorArg(), new ParseField(TEXT_FIELD));
     }
 
@@ -298,45 +296,58 @@ public class OciGenAiChatCompletionResponseEntity {
      *
      * @param parser  a parser positioned at the start of the event object
      * @param id      the id shared by all chunks of the stream
-     * @param modelId the model id to report, because OCI Generative AI streaming events do not carry it
+     * @param modelId   the model id to report, because OCI Generative AI streaming events do not carry it
+     * @param apiFormat the chat API format of the request, which determines the shape of the events
      * @return the chunk, or {@code null} when the event carries no content, tool call or finish reason
      */
     @Nullable
-    public static ChatCompletionChunkResponse parseStreamingEvent(XContentParser parser, String id, String modelId) throws IOException {
+    public static ChatCompletionChunkResponse parseStreamingEvent(
+        XContentParser parser,
+        String id,
+        String modelId,
+        OciGenAiChatApiFormat apiFormat
+    ) throws IOException {
         var event = STREAM_EVENT_PARSER.apply(parser, null);
 
-        final ChatCompletionChoiceResponse choice;
-        if (OciGenAiChatApiFormat.COHERE.name().equals(event.apiFormat()) || (event.message() == null && event.text() != null)) {
-            if (event.finishReason() != null) {
-                // the final Cohere event repeats the full text, which must not be emitted again
-                choice = new ChatCompletionChoiceResponse(
-                    new ChatCompletionMessageResponse(null, null, null, null),
-                    toOpenAiFinishReason(OciGenAiChatApiFormat.COHERE, event.finishReason()),
-                    0
-                );
-            } else if (Strings.isNullOrEmpty(event.text()) == false) {
-                choice = new ChatCompletionChoiceResponse(
-                    new ChatCompletionMessageResponse(event.text(), null, toOpenAiRole("ASSISTANT"), null),
-                    null,
-                    0
-                );
-            } else {
-                return null;
-            }
-        } else {
-            var message = event.message() == null ? null : toMessageResponse(event.message());
-            var hasContent = message != null && (message.content() != null || message.toolCalls() != null || message.role() != null);
-            if (hasContent == false && event.finishReason() == null) {
-                return null;
-            }
-            choice = new ChatCompletionChoiceResponse(
-                message == null ? new ChatCompletionMessageResponse(null, null, null, null) : message,
-                event.finishReason(),
-                Objects.requireNonNullElse(event.index(), 0)
+        var choice = switch (apiFormat) {
+            case COHERE -> parseCohereStreamingEvent(event);
+            case GENERIC -> parseGenericStreamingEvent(event);
+        };
+        return choice == null ? null : new ChatCompletionChunkResponse(id, List.of(choice), modelId, CHAT_COMPLETION_CHUNK_OBJECT, null);
+    }
+
+    @Nullable
+    private static ChatCompletionChoiceResponse parseCohereStreamingEvent(StreamEvent event) {
+        if (event.finishReason() != null) {
+            // the final Cohere event repeats the full text, which must not be emitted again
+            return new ChatCompletionChoiceResponse(
+                new ChatCompletionMessageResponse(null, null, null, null),
+                toOpenAiFinishReason(OciGenAiChatApiFormat.COHERE, event.finishReason()),
+                0
             );
         }
+        if (Strings.isNullOrEmpty(event.text()) == false) {
+            return new ChatCompletionChoiceResponse(
+                new ChatCompletionMessageResponse(event.text(), null, toOpenAiRole("ASSISTANT"), null),
+                null,
+                0
+            );
+        }
+        return null;
+    }
 
-        return new ChatCompletionChunkResponse(id, List.of(choice), modelId, CHAT_COMPLETION_CHUNK_OBJECT, null);
+    @Nullable
+    private static ChatCompletionChoiceResponse parseGenericStreamingEvent(StreamEvent event) {
+        var message = event.message() == null ? null : toMessageResponse(event.message());
+        var hasContent = message != null && (message.content() != null || message.toolCalls() != null || message.role() != null);
+        if (hasContent == false && event.finishReason() == null) {
+            return null;
+        }
+        return new ChatCompletionChoiceResponse(
+            message == null ? new ChatCompletionMessageResponse(null, null, null, null) : message,
+            event.finishReason(),
+            Objects.requireNonNullElse(event.index(), 0)
+        );
     }
 
     private static ChatCompletionMessageResponse toMessageResponse(@Nullable ChatMessage message) {

@@ -40,6 +40,8 @@ import static org.elasticsearch.xpack.inference.common.parser.StringParser.valid
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.invalidUrlErrorMsg;
 import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiSecretSettings.FINGERPRINT;
 import static org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiSecretSettings.PRIVATE_KEY;
@@ -134,11 +136,12 @@ public abstract class OciGenAiServiceSettings extends FilteredXContentObject imp
     /**
      * The settings shared by all OCI Generative AI tasks.
      *
-     * @param region            the OCI region identifier; may be {@code null} only when {@code uri} is provided
+     * @param region            the OCI region identifier; {@code null} when {@code uri} is provided
      * @param compartmentId     the compartment OCID
      * @param modelId           the OCI Generative AI model id (for example {@code cohere.embed-v4.0})
      * @param endpointId        the OCID of a dedicated AI cluster endpoint, or {@code null} for on-demand serving
-     * @param uri               an explicit base URL overriding the public regional endpoint, or {@code null}
+     * @param uri               an explicit base URL used instead of the public regional endpoint; {@code null} when {@code region}
+     *                          is provided
      * @param apiVersion        the inference API version, defaults to {@link OciGenAiUtils#DEFAULT_API_VERSION} when {@code null}
      * @param rateLimitSettings the rate limit, defaults to {@link #DEFAULT_RATE_LIMIT_SETTINGS} when {@code null}
      */
@@ -156,8 +159,8 @@ public abstract class OciGenAiServiceSettings extends FilteredXContentObject imp
             Objects.requireNonNull(modelId);
             apiVersion = Objects.requireNonNullElse(apiVersion, OciGenAiUtils.DEFAULT_API_VERSION);
             rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
-            if (region == null && uri == null) {
-                throw new IllegalArgumentException(Strings.format("Either [%s] or [%s] must be provided", REGION, URL));
+            if ((region == null) == (uri == null)) {
+                throw new IllegalArgumentException(Strings.format("Exactly one of [%s] and [%s] must be provided", REGION, URL));
             }
         }
 
@@ -296,7 +299,7 @@ public abstract class OciGenAiServiceSettings extends FilteredXContentObject imp
 
     /**
      * Accumulates the parsed common fields and assembles the {@link CommonSettings}, enforcing that {@code compartment_id} and
-     * {@code model_id} are present and that either {@code region} or {@code url} is provided. Task specific builders extend this
+     * {@code model_id} are present and that exactly one of {@code region} and {@code url} is provided. Task specific builders extend this
      * and contribute their own fields.
      *
      * @param <T> the task specific settings type produced by {@link #build(CommonSettings)}
@@ -353,6 +356,11 @@ public abstract class OciGenAiServiceSettings extends FilteredXContentObject imp
                     Strings.format("[%s] must contain either the [%s] or the [%s] setting", SERVICE_SETTINGS, REGION, URL)
                 );
             }
+            if (region != null && url != null) {
+                throw new IllegalArgumentException(
+                    Strings.format("[%s] must contain only one of the [%s] and [%s] settings", SERVICE_SETTINGS, REGION, URL)
+                );
+            }
             if (region != null && REGION_PATTERN.matcher(region).matches() == false) {
                 throw new IllegalArgumentException(
                     Strings.format(
@@ -364,9 +372,25 @@ public abstract class OciGenAiServiceSettings extends FilteredXContentObject imp
                 );
             }
 
-            return build(
-                new CommonSettings(region, compartmentId, modelId, endpointId, createOptionalUri(url), apiVersion, rateLimitSettings)
-            );
+            return build(new CommonSettings(region, compartmentId, modelId, endpointId, parseUrl(url), apiVersion, rateLimitSettings));
+        }
+
+        /**
+         * Parses the {@code url} setting, requiring an absolute URL with a scheme and a host: the host is part of the signed request, so a
+         * relative value would only fail once the first request is signed.
+         */
+        @Nullable
+        private static URI parseUrl(@Nullable String url) {
+            if (url == null) {
+                return null;
+            }
+            var uri = createUri(url, URL);
+            if (uri.getScheme() == null || uri.getHost() == null) {
+                throw new IllegalArgumentException(
+                    invalidUrlErrorMsg(url, URL, SERVICE_SETTINGS, "the url must be absolute, with a scheme and a host")
+                );
+            }
+            return uri;
         }
 
         private static void validateOptionalStringIsNotEmpty(@Nullable String value, String settingName) {

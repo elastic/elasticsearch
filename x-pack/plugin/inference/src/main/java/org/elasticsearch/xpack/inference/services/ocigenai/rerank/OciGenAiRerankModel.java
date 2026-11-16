@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.ocigenai.rerank;
 
-import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -20,7 +19,6 @@ import org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiUtils;
 import org.elasticsearch.xpack.inference.services.ocigenai.action.OciGenAiActionVisitor;
 
 import java.util.Map;
-import java.util.function.BiConsumer;
 
 public class OciGenAiRerankModel extends OciGenAiModel {
 
@@ -61,26 +59,6 @@ public class OciGenAiRerankModel extends OciGenAiModel {
 
     public OciGenAiRerankModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
         super(modelConfigurations, modelSecrets, OciGenAiUtils.RERANK_TEXT);
-    }
-
-    // Should only be used directly for testing. Allows overriding the URL and bypassing request signing.
-    public OciGenAiRerankModel(
-        String inferenceEntityId,
-        TaskType taskType,
-        String service,
-        @Nullable String url,
-        OciGenAiRerankServiceSettings serviceSettings,
-        OciGenAiRerankTaskSettings taskSettings,
-        @Nullable OciGenAiSecretSettings secrets,
-        BiConsumer<SimpleHttpRequest, OciGenAiModel> requestSigner
-    ) {
-        super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
-            new ModelSecrets(secrets),
-            OciGenAiUtils.RERANK_TEXT,
-            url,
-            requestSigner
-        );
     }
 
     private OciGenAiRerankModel(OciGenAiRerankModel model, OciGenAiRerankTaskSettings taskSettings) {

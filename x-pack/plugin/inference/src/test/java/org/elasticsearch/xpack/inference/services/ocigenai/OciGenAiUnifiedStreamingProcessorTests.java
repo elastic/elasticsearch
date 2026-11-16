@@ -34,7 +34,7 @@ public class OciGenAiUnifiedStreamingProcessorTests extends ESTestCase {
             {"message":{"role":"ASSISTANT","content":[{"type":"TEXT","text":""}]},"finishReason":"stop","pad":"aaa"}"""));
         item.offer(new ServerSentEvent("[DONE]"));
 
-        var results = onNext(createProcessor(), item);
+        var results = onNext(createProcessor(OciGenAiChatApiFormat.GENERIC), item);
 
         var chunks = List.copyOf(results.chunks());
         assertThat(chunks, hasSize(3));
@@ -57,7 +57,7 @@ public class OciGenAiUnifiedStreamingProcessorTests extends ESTestCase {
         item.offer(new ServerSentEvent("""
             {"apiFormat":"COHERE","text":"Hello","chatHistory":[],"finishReason":"MAX_TOKENS","pad":"aaaaaaa"}"""));
 
-        var results = onNext(createProcessor(), item);
+        var results = onNext(createProcessor(OciGenAiChatApiFormat.COHERE), item);
 
         var chunks = List.copyOf(results.chunks());
         assertThat(chunks, hasSize(2));
@@ -71,12 +71,15 @@ public class OciGenAiUnifiedStreamingProcessorTests extends ESTestCase {
         item.offer(new ServerSentEvent("not json"));
         var expected = new RuntimeException("mapped");
 
-        var exception = onError(new OciGenAiUnifiedStreamingProcessor("stream-id", MODEL_ID, (message, e) -> expected), item);
+        var exception = onError(
+            new OciGenAiUnifiedStreamingProcessor("stream-id", MODEL_ID, OciGenAiChatApiFormat.GENERIC, (message, e) -> expected),
+            item
+        );
 
         assertThat(exception, sameInstance(expected));
     }
 
-    private static OciGenAiUnifiedStreamingProcessor createProcessor() {
-        return new OciGenAiUnifiedStreamingProcessor("stream-id", MODEL_ID, (message, e) -> new RuntimeException(message, e));
+    private static OciGenAiUnifiedStreamingProcessor createProcessor(OciGenAiChatApiFormat apiFormat) {
+        return new OciGenAiUnifiedStreamingProcessor("stream-id", MODEL_ID, apiFormat, (message, e) -> new RuntimeException(message, e));
     }
 }

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.ocigenai.completion;
 
-import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -21,7 +20,6 @@ import org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiUtils;
 import org.elasticsearch.xpack.inference.services.ocigenai.action.OciGenAiActionVisitor;
 
 import java.util.Map;
-import java.util.function.BiConsumer;
 
 /**
  * Model of the OCI Generative AI {@code completion} and {@code chat_completion} tasks, both served by the {@code chat} action.
@@ -29,10 +27,14 @@ import java.util.function.BiConsumer;
 public class OciGenAiChatCompletionModel extends OciGenAiModel {
 
     /**
-     * Creates a copy of the model targeting the model id of the request when the request specifies one.
+     * Creates a copy of the model targeting the model id of the request when the request specifies one. A dedicated AI cluster
+     * endpoint ({@code endpoint_id}) fixes the model that serves the request, so the request model is ignored for those: overriding it
+     * would only change the chat API format derived from the model id, and build a request body the hosted model does not expect.
      */
     public static OciGenAiChatCompletionModel of(OciGenAiChatCompletionModel model, UnifiedCompletionRequestBody request) {
-        if (request.model() == null || request.model().equals(model.getServiceSettings().modelId())) {
+        if (request.model() == null
+            || model.getServiceSettings().isDedicated()
+            || request.model().equals(model.getServiceSettings().modelId())) {
             return model;
         }
 
@@ -80,31 +82,6 @@ public class OciGenAiChatCompletionModel extends OciGenAiModel {
 
     public OciGenAiChatCompletionModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
         super(modelConfigurations, modelSecrets, OciGenAiUtils.CHAT);
-    }
-
-    // Should only be used directly for testing. Allows overriding the URL and bypassing request signing.
-    public OciGenAiChatCompletionModel(
-        String inferenceEntityId,
-        TaskType taskType,
-        String service,
-        @Nullable String url,
-        OciGenAiChatCompletionServiceSettings serviceSettings,
-        @Nullable OciGenAiSecretSettings secrets,
-        BiConsumer<SimpleHttpRequest, OciGenAiModel> requestSigner
-    ) {
-        super(
-            new ModelConfigurations(
-                inferenceEntityId,
-                taskType,
-                service,
-                serviceSettings,
-                OciGenAiChatCompletionTaskSettings.EMPTY_SETTINGS
-            ),
-            new ModelSecrets(secrets),
-            OciGenAiUtils.CHAT,
-            url,
-            requestSigner
-        );
     }
 
     private OciGenAiChatCompletionModel(OciGenAiChatCompletionModel model, OciGenAiChatCompletionServiceSettings serviceSettings) {

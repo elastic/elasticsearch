@@ -90,12 +90,6 @@ public class OciGenAiEmbeddingsModelTests extends ESTestCase {
         );
     }
 
-    public void testUri_UsesTheOverride() {
-        var model = createModel("http://127.0.0.1:1234", "cohere.embed-v4.0", null, null, null, null);
-
-        assertThat(model.uri(), is(URI.create("http://127.0.0.1:1234")));
-    }
-
     public void testOf_OverridesTaskSettingsFromRequest() {
         var model = createModel(null, "cohere.embed-v4.0", null, null, InputType.INGEST, Truncation.END);
 
@@ -104,7 +98,7 @@ public class OciGenAiEmbeddingsModelTests extends ESTestCase {
         assertThat(overridden.getTaskSettings().getInputType(), is(InputType.SEARCH));
         assertThat(overridden.getTaskSettings().getTruncation(), is(Truncation.END));
         assertThat(overridden.uri(), is(model.uri()));
-        assertThat(overridden.requestSigner(), sameInstance(model.requestSigner()));
+        assertThat(overridden.secretsApplier(), sameInstance(model.secretsApplier()));
     }
 
     public void testRateLimitGroupingHash_IgnoresTheSigningKey() {
@@ -145,7 +139,7 @@ public class OciGenAiEmbeddingsModelTests extends ESTestCase {
         @Nullable Integer maxInputTokens
     ) {
         var serviceSettings = new OciGenAiEmbeddingsServiceSettings(
-            OciGenAiTestUtils.commonSettings(REGION_VALUE, COMPARTMENT_ID, modelId, endpointId, null, new RateLimitSettings(1000)),
+            OciGenAiTestUtils.commonSettings(url, modelId, endpointId, new RateLimitSettings(1000)),
             dimensionsSetByUser,
             dimensions,
             maxInputTokens,
@@ -155,11 +149,10 @@ public class OciGenAiEmbeddingsModelTests extends ESTestCase {
             "id",
             TaskType.TEXT_EMBEDDING,
             OciGenAiService.NAME,
-            url,
             serviceSettings,
             new OciGenAiEmbeddingsTaskSettings(inputType, truncation),
-            OciGenAiTestUtils.createSecretSettings(),
-            OciGenAiTestUtils.fixedAuthHeader()
+            null,
+            OciGenAiTestUtils.createSecretSettings()
         );
     }
 }

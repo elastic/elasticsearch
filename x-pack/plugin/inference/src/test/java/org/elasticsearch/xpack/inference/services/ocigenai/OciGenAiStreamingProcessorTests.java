@@ -37,7 +37,7 @@ public class OciGenAiStreamingProcessorTests extends ESTestCase {
             {"message":{"role":"ASSISTANT","content":[{"type":"TEXT","text":""}]},"finishReason":"stop","pad":"aaa"}"""));
         item.offer(new ServerSentEvent("[DONE]"));
 
-        var response = onNext(new OciGenAiStreamingProcessor(), item);
+        var response = onNext(new OciGenAiStreamingProcessor(OciGenAiChatApiFormat.GENERIC), item);
 
         assertThat(toJsonString(response), equalTo("""
             {"completion":[{"delta":"Hello"},{"delta":", how"}]}"""));
@@ -52,7 +52,7 @@ public class OciGenAiStreamingProcessorTests extends ESTestCase {
         item.offer(new ServerSentEvent("""
             {"apiFormat":"COHERE","text":"Hello, how","chatHistory":[],"finishReason":"COMPLETE","pad":"aaaaaaa"}"""));
 
-        var response = onNext(new OciGenAiStreamingProcessor(), item);
+        var response = onNext(new OciGenAiStreamingProcessor(OciGenAiChatApiFormat.COHERE), item);
 
         assertThat(toJsonString(response), equalTo("""
             {"completion":[{"delta":"Hello"},{"delta":", how"}]}"""));
@@ -62,7 +62,7 @@ public class OciGenAiStreamingProcessorTests extends ESTestCase {
         var item = new ArrayDeque<ServerSentEvent>();
         item.offer(new ServerSentEvent("not json"));
 
-        var exception = onError(new OciGenAiStreamingProcessor(), item);
+        var exception = onError(new OciGenAiStreamingProcessor(OciGenAiChatApiFormat.GENERIC), item);
 
         assertThat(exception, notNullValue());
     }

@@ -35,6 +35,14 @@ public class OciGenAiStreamingProcessor extends DelegatingProcessor<Deque<Server
     static final String DONE_MESSAGE = "[DONE]";
 
     private final String id = UUIDs.randomBase64UUID();
+    private final OciGenAiChatApiFormat apiFormat;
+
+    /**
+     * @param apiFormat the chat API format of the request, which determines the shape of the streamed events
+     */
+    public OciGenAiStreamingProcessor(OciGenAiChatApiFormat apiFormat) {
+        this.apiFormat = Objects.requireNonNull(apiFormat);
+    }
 
     @Override
     protected void next(Deque<ServerSentEvent> item) throws Exception {
@@ -55,7 +63,7 @@ public class OciGenAiStreamingProcessor extends DelegatingProcessor<Deque<Server
 
         try {
             return parseObjects(parserConfig, event.data(), parser -> {
-                var chunk = OciGenAiChatCompletionResponseEntity.parseStreamingEvent(parser, id, "");
+                var chunk = OciGenAiChatCompletionResponseEntity.parseStreamingEvent(parser, id, "", apiFormat);
                 if (chunk == null || chunk.choices() == null) {
                     return Stream.empty();
                 }

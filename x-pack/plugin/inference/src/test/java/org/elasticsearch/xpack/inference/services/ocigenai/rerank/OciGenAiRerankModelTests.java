@@ -19,8 +19,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiServiceFields.TOP_N;
-import static org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiTestUtils.COMPARTMENT_ID;
-import static org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiTestUtils.REGION_VALUE;
 import static org.hamcrest.Matchers.is;
 
 public class OciGenAiRerankModelTests extends ESTestCase {
@@ -54,13 +52,9 @@ public class OciGenAiRerankModelTests extends ESTestCase {
             "id",
             TaskType.RERANK,
             OciGenAiService.NAME,
-            url,
-            new OciGenAiRerankServiceSettings(
-                OciGenAiTestUtils.commonSettings(REGION_VALUE, COMPARTMENT_ID, modelId, null, null, new RateLimitSettings(1000))
-            ),
+            new OciGenAiRerankServiceSettings(OciGenAiTestUtils.commonSettings(url, modelId, null, new RateLimitSettings(1000))),
             new OciGenAiRerankTaskSettings(topN, returnDocuments),
-            OciGenAiTestUtils.createSecretSettings(),
-            OciGenAiTestUtils.fixedAuthHeader()
+            OciGenAiTestUtils.createSecretSettings()
         );
     }
 }

@@ -170,7 +170,7 @@ public class OciGenAiChatCompletionResponseEntityTests extends ESTestCase {
     }
 
     public void testParseStreamingEvent_GenericContentDelta() throws IOException {
-        var chunk = parseEvent("""
+        var chunk = parseEvent(OciGenAiChatApiFormat.GENERIC, """
             {"index":0,"message":{"role":"ASSISTANT","content":[{"type":"TEXT","text":"Hello"}]},"pad":"aaaaa"}
             """);
 
@@ -187,7 +187,7 @@ public class OciGenAiChatCompletionResponseEntityTests extends ESTestCase {
     }
 
     public void testParseStreamingEvent_GenericFinalEvent() throws IOException {
-        var chunk = parseEvent("""
+        var chunk = parseEvent(OciGenAiChatApiFormat.GENERIC, """
             {"message":{"role":"ASSISTANT","content":[{"type":"TEXT","text":""}]},"finishReason":"stop","pad":"aaa"}
             """);
 
@@ -199,10 +199,10 @@ public class OciGenAiChatCompletionResponseEntityTests extends ESTestCase {
     }
 
     public void testParseStreamingEvent_GenericToolCallDeltas() throws IOException {
-        var first = parseEvent("""
+        var first = parseEvent(OciGenAiChatApiFormat.GENERIC, """
             {"index":0,"message":{"role":"ASSISTANT","toolCalls":[{"type":"FUNCTION","id":"call_1","name":"get_weather"}]},"pad":"a"}
             """);
-        var second = parseEvent("""
+        var second = parseEvent(OciGenAiChatApiFormat.GENERIC, """
             {"index":0,"message":{"role":"ASSISTANT","toolCalls":[{"type":"FUNCTION","arguments":"{\\"city\\": \\""}]},"pad":"aaa"}
             """);
 
@@ -218,7 +218,7 @@ public class OciGenAiChatCompletionResponseEntityTests extends ESTestCase {
     }
 
     public void testParseStreamingEvent_CohereDelta() throws IOException {
-        var chunk = parseEvent("""
+        var chunk = parseEvent(OciGenAiChatApiFormat.COHERE, """
             {"apiFormat":"COHERE","text":"Hello","pad":"aaaaa"}
             """);
 
@@ -230,7 +230,7 @@ public class OciGenAiChatCompletionResponseEntityTests extends ESTestCase {
     }
 
     public void testParseStreamingEvent_CohereFinalEvent_DoesNotRepeatTheText() throws IOException {
-        var chunk = parseEvent("""
+        var chunk = parseEvent(OciGenAiChatApiFormat.COHERE, """
             {"apiFormat":"COHERE","text":"Hello","chatHistory":[],"finishReason":"COMPLETE","pad":"a"}
             """);
 
@@ -241,8 +241,21 @@ public class OciGenAiChatCompletionResponseEntityTests extends ESTestCase {
     }
 
     public void testParseStreamingEvent_ReturnsNullForEmptyEvent() throws IOException {
-        assertThat(parseEvent("{\"pad\":\"aaa\"}"), nullValue());
-        assertThat(parseEvent("{\"apiFormat\":\"COHERE\",\"text\":\"\",\"pad\":\"aaa\"}"), nullValue());
+        assertThat(parseEvent(OciGenAiChatApiFormat.GENERIC, "{\"pad\":\"aaa\"}"), nullValue());
+        assertThat(parseEvent(OciGenAiChatApiFormat.COHERE, "{\"pad\":\"aaa\"}"), nullValue());
+        assertThat(parseEvent(OciGenAiChatApiFormat.COHERE, "{\"apiFormat\":\"COHERE\",\"text\":\"\",\"pad\":\"aaa\"}"), nullValue());
+    }
+
+    public void testParseStreamingEvent_UsesTheApiFormatOfTheRequest() throws IOException {
+        // the event shape is taken from the request's api format, not from fields of the event
+        var cohereChunk = parseEvent(OciGenAiChatApiFormat.COHERE, """
+            {"text":"Hello","pad":"aaaaa"}
+            """);
+        assertThat(cohereChunk.choices().getFirst().message().content(), is("Hello"));
+
+        assertThat(parseEvent(OciGenAiChatApiFormat.GENERIC, """
+            {"text":"Hello","pad":"aaaaa"}
+            """), nullValue());
     }
 
     public void testToOpenAiFinishReason() {
@@ -259,10 +272,10 @@ public class OciGenAiChatCompletionResponseEntityTests extends ESTestCase {
         assertThat(OciGenAiChatCompletionResponseEntity.toOpenAiFinishReason(OciGenAiChatApiFormat.COHERE, null), nullValue());
     }
 
-    private static ChatCompletionChunkResponse parseEvent(String json) throws IOException {
+    private static ChatCompletionChunkResponse parseEvent(OciGenAiChatApiFormat apiFormat, String json) throws IOException {
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, json)) {
-            return OciGenAiChatCompletionResponseEntity.parseStreamingEvent(parser, "stream-id", "meta.llama-3.3-70b-instruct");
+            return OciGenAiChatCompletionResponseEntity.parseStreamingEvent(parser, "stream-id", "meta.llama-3.3-70b-instruct", apiFormat);
         }
     }
 

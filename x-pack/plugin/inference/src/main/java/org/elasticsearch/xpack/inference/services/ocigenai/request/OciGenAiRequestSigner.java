@@ -53,7 +53,11 @@ public final class OciGenAiRequestSigner {
     static final String AUTHORIZATION_HEADER = "authorization";
 
     private static final Set<String> METHODS_WITH_BODY = Set.of("POST", "PUT", "PATCH");
-    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.RFC_1123_DATE_TIME.withLocale(Locale.ROOT)
+    /**
+     * The RFC 7231 {@code IMF-fixdate} format required for the {@code date} header. {@link DateTimeFormatter#RFC_1123_DATE_TIME} is not
+     * used because it formats days of the month below 10 with a single digit.
+     */
+    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss 'GMT'", Locale.ENGLISH)
         .withZone(ZoneOffset.UTC);
     private static final String JCA_SIGNATURE_ALGORITHM = "SHA256withRSA";
 

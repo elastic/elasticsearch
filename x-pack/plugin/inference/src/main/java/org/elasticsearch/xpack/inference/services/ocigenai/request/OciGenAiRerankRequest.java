@@ -56,9 +56,18 @@ public class OciGenAiRerankRequest implements OutboundRerankRequest {
         var entity = new OciGenAiRerankRequestEntity(query, documents, model.getServiceSettings(), topN, returnDocuments);
         httpPost.setBody(Strings.toString(entity).getBytes(StandardCharsets.UTF_8), ContentType.APPLICATION_JSON);
 
-        model.requestSigner().accept(httpPost, model);
+        model.secretsApplier()
+            .applyTo(
+                httpPost,
+                listener.delegateFailureAndWrap(
+                    (requestListener, signedRequest) -> requestListener.onResponse(new HttpRequest(signedRequest, getInferenceEntityId()))
+                )
+            );
+    }
 
-        listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
+    @Override
+    public void onAuthenticationFailure() {
+        model.secretsApplier().onAuthenticationFailure();
     }
 
     @Override

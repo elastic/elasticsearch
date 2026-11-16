@@ -63,6 +63,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUnsupportedTaskTypeStatusException;
 import static org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiServiceFields.API_VERSION;
 import static org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiServiceFields.COMPARTMENT_ID;
 import static org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiServiceFields.EMBEDDING_MAX_BATCH_SIZE;
@@ -86,6 +87,12 @@ public class OciGenAiService extends SenderService<OciGenAiModel> implements Rer
         TaskType.CHAT_COMPLETION,
         TaskType.RERANK
     );
+
+    /**
+     * The task types served by {@link #doInfer}: {@code chat_completion} goes through {@link #doUnifiedCompletionInfer} and
+     * {@code rerank} through {@link #doRerankInfer}.
+     */
+    private static final EnumSet<TaskType> SUPPORTED_INFERENCE_ACTION_TASK_TYPES = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION);
 
     /**
      * The input types accepted by the embedding models (translated to the OCI {@code inputType}).
@@ -177,15 +184,12 @@ public class OciGenAiService extends SenderService<OciGenAiModel> implements Rer
     public Model updateModelWithEmbeddingDetails(Model model, int embeddingSize) {
         if (model instanceof OciGenAiEmbeddingsModel embeddingsModel) {
             var serviceSettings = embeddingsModel.getServiceSettings();
-            var similarityFromModel = serviceSettings.similarity();
-            var similarityToUse = similarityFromModel == null ? SimilarityMeasure.COSINE : similarityFromModel;
-
             var updatedServiceSettings = new OciGenAiEmbeddingsServiceSettings(
                 serviceSettings.common(),
                 serviceSettings.dimensionsSetByUser(),
                 embeddingSize,
                 serviceSettings.maxInputTokens(),
-                similarityToUse
+                SimilarityMeasure.similarityOrDefault(serviceSettings.similarity())
             );
 
             return new OciGenAiEmbeddingsModel(embeddingsModel, updatedServiceSettings);
@@ -202,6 +206,11 @@ public class OciGenAiService extends SenderService<OciGenAiModel> implements Rer
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
+        if (SUPPORTED_INFERENCE_ACTION_TASK_TYPES.contains(model.getTaskType()) == false) {
+            listener.onFailure(createUnsupportedTaskTypeStatusException(model, SUPPORTED_INFERENCE_ACTION_TASK_TYPES));
+            return;
+        }
+
         if (model instanceof OciGenAiModel == false) {
             listener.onFailure(createInvalidModelException(model));
             return;
@@ -302,7 +311,7 @@ public class OciGenAiService extends SenderService<OciGenAiModel> implements Rer
                     REGION,
                     new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription(
                         "The OCI region identifier of the Generative AI inference endpoint, for example us-chicago-1. "
-                            + "Either the region or the url must be provided."
+                            + "Either the region or the url must be provided, but not both."
                     )
                         .setLabel("Region")
                         .setRequired(false)
@@ -368,11 +377,12 @@ public class OciGenAiService extends SenderService<OciGenAiModel> implements Rer
 
                 configurationMap.put(
                     API_VERSION,
-                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription(
-                        "The version of the OCI Generative AI inference API to call, for example 20231130. Defaults to "
-                            + OciGenAiUtils.DEFAULT_API_VERSION
-                            + "."
-                    )
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDefaultValue(OciGenAiUtils.DEFAULT_API_VERSION)
+                        .setDescription(
+                            "The version of the OCI Generative AI inference API to call, for example 20231130. Defaults to "
+                                + OciGenAiUtils.DEFAULT_API_VERSION
+                                + "."
+                        )
                         .setLabel("API Version")
                         .setRequired(false)
                         .setSensitive(false)
@@ -408,7 +418,7 @@ public class OciGenAiService extends SenderService<OciGenAiModel> implements Rer
                         .build()
                 );
 
-                configurationMap.putAll(OciGenAiSecretSettings.Configuration.get());
+                configurationMap.putAll(OciGenAiSecretSettings.toSettingsConfiguration(SUPPORTED_TASK_TYPES));
                 configurationMap.putAll(RateLimitSettings.toSettingsConfiguration(SUPPORTED_TASK_TYPES));
 
                 return new InferenceServiceConfiguration.Builder().setService(NAME)

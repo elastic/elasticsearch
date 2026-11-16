@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.external.request.OutboundUnifiedCompletionRequest;
+import org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiChatApiFormat;
 import org.elasticsearch.xpack.inference.services.ocigenai.completion.OciGenAiChatCompletionModel;
 
 import java.net.URI;
@@ -40,9 +41,18 @@ public class OciGenAiChatCompletionRequest implements OutboundUnifiedCompletionR
         var entity = new OciGenAiChatCompletionRequestEntity(chatInput, model);
         httpPost.setBody(Strings.toString(entity).getBytes(StandardCharsets.UTF_8), ContentType.APPLICATION_JSON);
 
-        model.requestSigner().accept(httpPost, model);
+        model.secretsApplier()
+            .applyTo(
+                httpPost,
+                listener.delegateFailureAndWrap(
+                    (requestListener, signedRequest) -> requestListener.onResponse(new HttpRequest(signedRequest, getInferenceEntityId()))
+                )
+            );
+    }
 
-        listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
+    @Override
+    public void onAuthenticationFailure() {
+        model.secretsApplier().onAuthenticationFailure();
     }
 
     /**
@@ -51,6 +61,26 @@ public class OciGenAiChatCompletionRequest implements OutboundUnifiedCompletionR
      */
     public String modelId() {
         return model.getServiceSettings().modelId();
+    }
+
+    /**
+     * @return the chat API format of the request, which also determines the format of the response
+     */
+    public OciGenAiChatApiFormat apiFormat() {
+        return model.getServiceSettings().apiFormat();
+    }
+
+    /**
+     * @return the chat API format of the given request, see {@link #apiFormat()}
+     * @throws IllegalArgumentException if the request is not an OCI Generative AI chat request
+     */
+    public static OciGenAiChatApiFormat apiFormatOf(OutboundRequest outboundRequest) {
+        if (outboundRequest instanceof OciGenAiChatCompletionRequest chatCompletionRequest) {
+            return chatCompletionRequest.apiFormat();
+        }
+        throw new IllegalArgumentException(
+            Strings.format("Expected an OCI Generative AI chat request but got [%s]", outboundRequest.getClass().getSimpleName())
+        );
     }
 
     @Override

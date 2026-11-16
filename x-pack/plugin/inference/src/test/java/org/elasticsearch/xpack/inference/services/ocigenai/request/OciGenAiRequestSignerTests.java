@@ -105,6 +105,19 @@ public class OciGenAiRequestSignerTests extends ESTestCase {
         assertThat(headers.get("x-content-sha256"), is("47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU="));
     }
 
+    public void testSign_DateHeaderUsesTwoDigitDayOfMonth() throws Exception {
+        var signer = new OciGenAiRequestSigner(
+            OciGenAiTestUtils.keyId(),
+            OciGenAiTestUtils.keyPair().getPrivate(),
+            Clock.fixed(Instant.parse("2026-06-03T04:05:06Z"), ZoneOffset.UTC)
+        );
+
+        var headers = signer.sign("POST", EMBED_TEXT_URI, "application/json", new byte[0]);
+
+        // RFC 7231 IMF-fixdate: the day of the month is always two digits
+        assertThat(headers.get("date"), is("Wed, 03 Jun 2026 04:05:06 GMT"));
+    }
+
     public void testSign_KeyIdIsUsedVerbatim() throws Exception {
         var signer = new OciGenAiRequestSigner("ST$sometoken", OciGenAiTestUtils.keyPair().getPrivate(), fixedClock());
 

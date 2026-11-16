@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 165813
+summary: Do not infer schema from a `_file.*`-excluded file
+type: bug

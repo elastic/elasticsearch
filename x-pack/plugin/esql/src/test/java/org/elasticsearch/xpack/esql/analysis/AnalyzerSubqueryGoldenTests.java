@@ -29,6 +29,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.externalResolutionFor;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 
 /**
@@ -888,7 +889,8 @@ public class AnalyzerSubqueryGoldenTests extends GoldenTestCase {
     }
 
     private static ExternalSourceResolution externalSourceResolution() {
-        return new ExternalSourceResolution(
+        return externalResolutionFor(
+            datasetMetadata(),
             Map.of(
                 SALARIES_INT_RESOURCE,
                 externalSource(SALARIES_INT_RESOURCE, DataType.INTEGER),

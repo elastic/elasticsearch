@@ -282,11 +282,8 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper, A
     }
 
     @Override
-    public Object fold(FoldContext ctx) {
+    public Object doFold(Source source, FoldContext ctx) {
         var wkb = (BytesRef) spatialField().fold(ctx);
-        if (wkb == null) {
-            return null;
-        }
         int precision = checkPrecisionRange((int) parameter().fold(ctx));
         try {
             if (bounds() == null) {
@@ -296,11 +293,7 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper, A
                 }
                 return foldMultiValue(computeGeohashCells(wkb, precision, null, foldWarningConsumer()));
             } else {
-                Object boundsValue = bounds().fold(ctx);
-                if (boundsValue == null) {
-                    return null;
-                }
-                GeoBoundingBox bbox = asGeoBoundingBox(boundsValue);
+                GeoBoundingBox bbox = asGeoBoundingBox(bounds().fold(ctx));
                 Geometry geometry = GEO.wkbToGeometry(wkb);
                 if (geometry instanceof Point point) {
                     GeoHashBoundedGrid bounds = new GeoHashBoundedGrid(precision, bbox);

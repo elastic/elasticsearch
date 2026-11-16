@@ -1159,6 +1159,42 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     /**
+     * A caller SET keeps the view as its own branch. A bare time-series aggregation in that view only gets its implicit
+     * {@code _timeseries} column after the branch's columns are determined, and the view must still return it, in the same
+     * position as the view queried without SET, or its body run directly.
+     */
+    public void testCallerSetUnmappedKeepsImplicitTimeSeriesColumnOfView() {
+        String body = "TS k8s | STATS rate = rate(network.total_bytes_in) BY tbucket = TBUCKET(1 hour)";
+        List<String> expected = List.of("rate", "_timeseries", "tbucket");
+        assertThat(outputNames(analyzer().addK8s().statement(body)), equalTo(expected));
+        assertThat(outputNames(analyzer().addK8s().addView("v", body).statement("FROM v")), equalTo(expected));
+        for (Function<String, String> set : List.<Function<String, String>>of(
+            AnalyzerUnmappedTestBase::setUnmappedNullify,
+            AnalyzerUnmappedTestBase::setUnmappedLoad,
+            AnalyzerUnmappedTestBase::setUnmappedLoadAll
+        )) {
+            assertThat(outputNames(analyzer().addK8s().addView("v", body).statement(set.apply("FROM v"))), equalTo(expected));
+        }
+    }
+
+    /**
+     * The {@code LOAD_ALL} command allow-list checks a view body under the view's own mode, not the caller's: {@code TS} is allowed
+     * in a view the caller reads with {@code LOAD_ALL}, but still rejected in a plain subquery next to it, which the caller's mode
+     * does reach.
+     */
+    public void testLoadAllCommandAllowListStopsAtView() {
+        String body = "TS k8s | STATS rate = rate(network.total_bytes_in) BY tbucket = TBUCKET(1 hour)";
+        analyzer().addK8s().addView("v", body).statement(setUnmappedLoadAll("FROM v"));
+        analyzer().addK8s()
+            .addView("v", body)
+            .statementError(setUnmappedLoadAll("FROM v, (" + body + ")"), containsString(Verifier.loadAllUnsupportedCommandMessage("TS")));
+    }
+
+    private static List<String> outputNames(LogicalPlan plan) {
+        return plan.output().stream().map(Attribute::name).toList();
+    }
+
+    /**
      * The caller's setting answers a reference the view does not output with a null column at the view's output. The view
      * body is analysed without the setting, so its projections are plain {@link Project}s; surfacing the null column must
      * not reach into them, which would e.g. replace a RENAME's alias with a reference nothing produces, or let a field the
@@ -1602,6 +1638,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             DataType.UNSUPPORTED,       // not a real mapped field type
             DataType.DOC_DATA_TYPE,     // internal _doc type
             DataType.TSID_DATA_TYPE,    // internal _tsid type
+            DataType.TIME_SERIES_METADATA_DATA_TYPE, // internal _timeseries type
             DataType.SOURCE,            // internal _source type
             DataType.DATE_PERIOD,       // ESQL-internal, not an ES mapping type
             DataType.TIME_DURATION,     // ESQL-internal, not an ES mapping type
@@ -1913,17 +1950,17 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     /**
-     * The MVP allow-list of {@link Verifier#checkLoadAllModeSupportedCommands} rejects commands not yet supported, naming the one it found.
+     * The commands that read or add columns of their own and so do not interact with {@code _unmapped_fields} are allowed, and the column
+     * passes through them.
      */
-    public void testLoadAllModeRejectsUnsupportedCommands() {
-        for (var commandAndLabel : List.of(
-            Tuple.tuple("| RERANK \"food\" ON first_name WITH { \"inference_id\" : \"reranking-inference-id\" }", "RERANK")
+    public void testLoadAllModeAllowsInferenceCommands() {
+        for (String command : List.of(
+            "| RERANK \"food\" ON first_name WITH { \"inference_id\" : \"reranking-inference-id\" }",
+            "| COMPLETION CONCAT(\"x\", first_name) WITH { \"inference_id\" : \"completion-inference-id\" }"
         )) {
-            test().addAnalysisTestsInferenceResolution()
-                .statementError(
-                    setUnmappedLoadAll("FROM test METADATA _score " + commandAndLabel.v1()),
-                    containsString(Verifier.loadAllUnsupportedCommandMessage(commandAndLabel.v2()))
-                );
+            LogicalPlan plan = test().addAnalysisTestsInferenceResolution()
+                .statement(setUnmappedLoadAll("FROM test METADATA _score " + command));
+            assertThat(command, Expressions.names(plan.output()), hasItem("_unmapped_fields"));
         }
     }
 

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166093
+summary: Honor async STOP that arrives before compute starts
+type: bug

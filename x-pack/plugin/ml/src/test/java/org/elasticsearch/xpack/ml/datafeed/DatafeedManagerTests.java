@@ -39,12 +39,17 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequest;
+import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder;
+import org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse;
+import org.elasticsearch.xpack.core.esql.action.internal.SharedSecrets;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
+import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -72,6 +77,7 @@ import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
+import org.junit.After;
 import org.mockito.Mockito;
 
 import java.io.IOException;
@@ -83,6 +89,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.core.security.cloud.CloudCredentialTestUtils.randomCloudCredentialEncryptedData;
@@ -91,9 +98,12 @@ import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -105,6 +115,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 public class DatafeedManagerTests extends ESTestCase {
@@ -393,17 +404,46 @@ public class DatafeedManagerTests extends ESTestCase {
             Map<String, String> headers = invocation.getArgument(2);
             DatafeedConfig applied = update.apply(storedConfig, headers, mockClusterStateForUpdate());
 
-            ActionListener<CredentialTransitions.MintedCredential> mintedListener = ActionListener.wrap(minted -> {
+            @SuppressWarnings("unchecked")
+            BiConsumer<DatafeedConfig, ActionListener<Boolean>> validator = invocation.getArgument(4);
+            ActionListener<Tuple<DatafeedConfig, PersistedCloudCredential>> persistedListener = invocation.getArgument(5);
+            ActionListener<CredentialTransitions.MintedCredential> mintHookListener = ActionListener.wrap(minted -> {
                 DatafeedConfig persisted = new DatafeedConfig.Builder(applied).setCloudInternalCredential(minted.credential())
                     .setHeaders(minted.headers())
                     .build();
-                invocation.<ActionListener<Tuple<DatafeedConfig, PersistedCloudCredential>>>getArgument(5)
-                    .onResponse(Tuple.tuple(persisted, storedConfig.getCloudInternalCredential()));
-            }, e -> invocation.<ActionListener<Tuple<DatafeedConfig, PersistedCloudCredential>>>getArgument(5).onFailure(e));
-
-            mint.mintHook().accept(applied, mintedListener);
+                validator.accept(
+                    persisted,
+                    ActionListener.wrap(
+                        ok -> persistedListener.onResponse(Tuple.tuple(persisted, storedConfig.getCloudInternalCredential())),
+                        persistedListener::onFailure
+                    )
+                );
+            }, persistedListener::onFailure);
+            mint.mintHook().accept(applied, mintHookListener);
             return null;
         }).when(mock).updateDatefeedConfig(anyString(), any(), any(), any(CredentialTransitions.Change.Mint.class), any(), any());
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void stubUpdateKeepPath(
+        DatafeedConfigProvider datafeedConfigProvider,
+        JobConfigProvider jobConfigProvider,
+        DatafeedConfig storedConfig
+    ) {
+        stubGetDatafeedConfig(datafeedConfigProvider, storedConfig);
+        doAnswer(invocation -> {
+            DatafeedUpdate update = invocation.getArgument(1);
+            Map<String, String> headers = invocation.getArgument(2);
+            BiConsumer<DatafeedConfig, ActionListener<Boolean>> validator = invocation.getArgument(3);
+            ActionListener<DatafeedConfig> updatedConfigListener = invocation.getArgument(4);
+            DatafeedConfig applied = update.apply(storedConfig, headers, mockClusterStateForUpdate());
+            validator.accept(
+                applied,
+                ActionListener.wrap(ok -> updatedConfigListener.onResponse(applied), updatedConfigListener::onFailure)
+            );
+            return null;
+        }).when(datafeedConfigProvider).updateDatefeedConfig(anyString(), any(), any(), any(BiConsumer.class), any());
+        stubValidationSucceeds(jobConfigProvider);
     }
 
     private static void stubUpdateMigrationPath(
@@ -424,11 +464,22 @@ public class DatafeedManagerTests extends ESTestCase {
         mockRevokeSucceeds(apiKeyService);
         stubGetDatafeedConfig(datafeedConfigProvider, storedConfig);
         stubUpdateDatefeedConfigCapturesUpdateAndInvokesMintHook(datafeedConfigProvider, storedConfig, capturedUpdate);
+        stubValidationSucceeds(jobConfigProvider);
+    }
+
+    private static void stubValidationSucceeds(JobConfigProvider jobConfigProvider) {
         doAnswer(invocation -> {
-            ActionListener<Boolean> listener = invocation.getArgument(1);
-            listener.onResponse(Boolean.TRUE);
+            invocation.<ActionListener<Boolean>>getArgument(1).onResponse(Boolean.TRUE);
             return null;
         }).when(jobConfigProvider).validateDatafeedJob(any(), any());
+        doAnswer(invocation -> {
+            invocation.<ActionListener<Boolean>>getArgument(2).onResponse(Boolean.TRUE);
+            return null;
+        }).when(jobConfigProvider).validateDatafeedJobAndEsqlQuery(any(), any(), any());
+        doAnswer(invocation -> {
+            invocation.<ActionListener<Boolean>>getArgument(3).onResponse(Boolean.TRUE);
+            return null;
+        }).when(jobConfigProvider).validateDatafeedUpdate(any(), any(), any(), any());
     }
 
     private static void mockGetJobWithSnapshot(JobConfigProvider jobConfigProvider, String jobId, @Nullable String snapshotId) {
@@ -537,11 +588,7 @@ public class DatafeedManagerTests extends ESTestCase {
                 listener.onResponse(Collections.emptySet());
                 return null;
             }).when(datafeedConfigProvider).findDatafeedIdsForJobIds(any(), any());
-            doAnswer(invocation -> {
-                ActionListener<Boolean> listener = invocation.getArgument(1);
-                listener.onResponse(Boolean.TRUE);
-                return null;
-            }).when(jobConfigProvider).validateDatafeedJob(any(), any());
+            stubValidationSucceeds(jobConfigProvider);
         }
 
         @SuppressWarnings("unchecked")
@@ -580,6 +627,7 @@ public class DatafeedManagerTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
         when(client.threadPool()).thenReturn(threadPool);
+        stubClientForSecurityPutPath(client, threadPool);
         DatafeedManager manager = newDatafeedManager(
             datafeedConfigProvider,
             jobConfigProvider,
@@ -678,12 +726,430 @@ public class DatafeedManagerTests extends ESTestCase {
             );
 
         assertThat(response.get(), notNullValue());
-        // Index privileges are not checked at PUT for ES|QL datafeeds, so the persisted datafeed headers
-        // (used by every runtime query) must carry the caller's identity.
         assertThat(storedHeaders.get(), notNullValue());
         assertThat(storedHeaders.get().get(AuthenticationField.AUTHENTICATION_KEY), equalTo(callerAuthentication));
+        // Index privileges are not checked at PUT for ES|QL datafeeds, so the persisted datafeed headers
+        // (used by every runtime query) must carry the caller's identity.
         verify(harness.client(), never()).execute(same(HasPrivilegesAction.INSTANCE), any(), any());
         verify(harness.client(), never()).execute(same(GetRollupIndexCapsAction.INSTANCE), any(), any());
+    }
+
+    private static DatafeedConfig.Builder esqlDatafeedBuilder(String datafeedId, String jobId) {
+        return new DatafeedConfig.Builder(datafeedId, jobId).setEsqlQuery("FROM logs-* | STATS c = COUNT(*) BY t = BUCKET(@timestamp, 1h)")
+            .setSourceTimeField("@timestamp")
+            .setGroupingInterval(TimeValue.timeValueHours(1))
+            .setProjectRouting("_alias:_origin");
+    }
+
+    public void testPutEsqlDatafeedWithRemoteClusterSourceShouldRejectBeforeAnyValidation() {
+        SecurityEnabledPutHarness harness = newSecurityEnabledPutHarness(securityEnabledSettings());
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("test-datafeed", "test-job").setEsqlQuery("FROM remote:logs-*")
+            .setSourceTimeField("@timestamp")
+            .setGroupingInterval(TimeValue.timeValueHours(1))
+            .build();
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        harness.manager()
+            .putDatafeed(
+                new PutDatafeedAction.Request(datafeed),
+                mockClusterStateWithNoTasks(),
+                mockSecurityContextWithUser("df-user"),
+                harness.threadPool(),
+                ActionListener.wrap(r -> fail("expected failure"), failure::set)
+            );
+
+        assertThat(failure.get(), instanceOf(ElasticsearchStatusException.class));
+        assertThat(((ElasticsearchStatusException) failure.get()).status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(failure.get().getMessage(), containsString("do not support remote cluster sources"));
+        verifyNoInteractions(harness.datafeedConfigProvider(), harness.jobConfigProvider(), harness.client());
+    }
+
+    /**
+     * The ES|QL {@code LIMIT 0} probe runs inside {@code validateDatafeedJobAndEsqlQuery} and must see the caller's security headers;
+     * a failing validation must stop the put before anything is persisted or a credential is minted.
+     */
+    @SuppressWarnings("unchecked")
+    public void testPutEsqlDatafeedWhenValidationFailsShouldPassCallerHeadersAndNotPersistOrMint() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.putHeader(AuthenticationField.AUTHENTICATION_KEY, "caller-authentication");
+        threadContext.putHeader("non-security-header", "dropped");
+        SecurityEnabledPutHarness harness = newSecurityEnabledPutHarness(securityEnabledSettings(), threadContext);
+        when(harness.credentialManager().hasCloudManagedCredential(any())).thenReturn(false);
+        doAnswer(invocation -> {
+            ActionListener<Set<String>> listener = invocation.getArgument(1);
+            listener.onResponse(Collections.emptySet());
+            return null;
+        }).when(harness.datafeedConfigProvider()).findDatafeedIdsForJobIds(any(), any());
+        AtomicReference<Map<String, String>> validatedHeaders = new AtomicReference<>();
+        ElasticsearchStatusException probeFailure = new ElasticsearchStatusException("probe failed", RestStatus.BAD_REQUEST);
+        doAnswer(invocation -> {
+            validatedHeaders.set(invocation.getArgument(1));
+            ActionListener<Boolean> listener = invocation.getArgument(2);
+            listener.onFailure(probeFailure);
+            return null;
+        }).when(harness.jobConfigProvider()).validateDatafeedJobAndEsqlQuery(any(), any(), any());
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        harness.manager()
+            .putDatafeed(
+                new PutDatafeedAction.Request(esqlDatafeedBuilder("test-datafeed", "test-job").setProjectRouting(null).build()),
+                mockClusterStateWithNoTasks(),
+                mockSecurityContextWithUser("df-user"),
+                harness.threadPool(),
+                ActionListener.wrap(r -> fail("expected failure"), failure::set)
+            );
+
+        assertThat(failure.get(), sameInstance(probeFailure));
+        assertThat(validatedHeaders.get(), equalTo(Map.of(AuthenticationField.AUTHENTICATION_KEY, "caller-authentication")));
+        verify(harness.apiKeyService(), never()).grantCloudAuthentication(any(), anyString(), any());
+        verify(harness.datafeedConfigProvider(), never()).putDatafeedConfig(any(), any(), any());
+    }
+
+    /**
+     * An update that {@code apply} rejects must fail before a rollback snapshot is retained, a credential is minted, or ES|QL probes run.
+     */
+    @SuppressWarnings("unchecked")
+    public void testUpdateEsqlDatafeedWhenUpdateIsInvalidShouldFailBeforeRollbackSnapshotOrMint() {
+        assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+        UpdateFixture fixture = new UpdateFixture();
+        DatafeedConfig storedConfig = esqlDatafeedBuilder("df-esql", "job-esql").setProjectRouting(ProjectRoutingResolver.LOCAL_ONLY)
+            .setCloudInternalCredential(randomPersistedCloudCredential("existing-key-id"))
+            .build();
+        AtomicReference<DatafeedUpdate> capturedUpdate = new AtomicReference<>();
+        stubUpdateMigrationPath(
+            fixture.datafeedConfigProvider,
+            fixture.jobConfigProvider,
+            fixture.credentialManager,
+            fixture.apiKeyService,
+            fixture.client,
+            fixture.threadPool,
+            storedConfig,
+            capturedUpdate
+        );
+        mockGetJobWithSnapshot(fixture.jobConfigProvider, "job-esql", "rollback-snap-1");
+        mockUpdateModelSnapshotSucceeds(fixture.client, "job-esql", "rollback-snap-1");
+
+        DatafeedUpdate update = new DatafeedUpdate.Builder("df-esql").setProjectRouting("_alias:prod-*").setJobId("other-job").build();
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        fixture.manager.updateDatafeed(
+            new UpdateDatafeedAction.Request(update),
+            mockClusterStateForUpdate(),
+            null,
+            fixture.threadPool,
+            ActionListener.wrap(r -> fail("expected failure"), failure::set)
+        );
+
+        assertThat(failure.get(), notNullValue());
+        assertThat(failure.get().getMessage(), containsString("job_id cannot be changed"));
+        assertThat(capturedUpdate.get(), nullValue());
+        verify(fixture.client, never()).execute(same(UpdateModelSnapshotAction.INSTANCE), any(), any());
+        verify(fixture.apiKeyService, never()).grantCloudAuthentication(any(), anyString(), any());
+        verify(fixture.jobConfigProvider, never()).validateDatafeedJobAndEsqlQuery(any(), any(), any());
+    }
+
+    /**
+     * A re-key persists the minted identity, so the probe must run with the minted headers rather than the updater's.
+     */
+    @SuppressWarnings("unchecked")
+    public void testUpdateDatafeedWhenReKeyedShouldProbeWithMintedHeaders() {
+        assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+        UpdateFixture fixture = new UpdateFixture();
+        DatafeedConfig storedConfig = esqlDatafeedBuilder("df-esql", "job-esql").setProjectRouting(ProjectRoutingResolver.LOCAL_ONLY)
+            .setCloudInternalCredential(randomPersistedCloudCredential("existing-key-id"))
+            .build();
+        AtomicReference<DatafeedUpdate> capturedUpdate = new AtomicReference<>();
+        stubUpdateMigrationPath(
+            fixture.datafeedConfigProvider,
+            fixture.jobConfigProvider,
+            fixture.credentialManager,
+            fixture.apiKeyService,
+            fixture.client,
+            fixture.threadPool,
+            storedConfig,
+            capturedUpdate
+        );
+        mockGetJobWithSnapshot(fixture.jobConfigProvider, "job-esql", "rollback-snap-1");
+        mockUpdateModelSnapshotSucceeds(fixture.client, "job-esql", "rollback-snap-1");
+        fixture.captureValidatedHeaders();
+        AtomicReference<DatafeedConfig> persisted = new AtomicReference<>();
+        doAnswer(invocation -> {
+            DatafeedUpdate update = invocation.getArgument(1);
+            CredentialTransitions.Change.Mint mint = invocation.getArgument(3);
+            BiConsumer<DatafeedConfig, ActionListener<Boolean>> validator = invocation.getArgument(4);
+            ActionListener<Tuple<DatafeedConfig, PersistedCloudCredential>> listener = invocation.getArgument(5);
+            DatafeedConfig applied = update.apply(storedConfig, invocation.getArgument(2), mockClusterStateForUpdate());
+            mint.mintHook().accept(applied, listener.delegateFailureAndWrap((l, minted) -> {
+                persisted.set(
+                    new DatafeedConfig.Builder(applied).setCloudInternalCredential(minted.credential()).setHeaders(minted.headers()).build()
+                );
+                validator.accept(persisted.get(), l.delegateFailureAndWrap((ll, ok) -> ll.onResponse(Tuple.tuple(persisted.get(), null))));
+            }));
+            return null;
+        }).when(fixture.datafeedConfigProvider)
+            .updateDatefeedConfig(anyString(), any(), any(), any(CredentialTransitions.Change.Mint.class), any(), any());
+
+        fixture.update(new DatafeedUpdate.Builder("df-esql").setProjectRouting("_alias:prod-*").build());
+
+        assertThat(persisted.get().getHeaders().get(AuthenticationField.AUTHENTICATION_KEY), notNullValue());
+        assertThat(fixture.validatedHeaders.get(), equalTo(persisted.get().getHeaders()));
+    }
+
+    /**
+     * A keep on a datafeed with a cloud credential retains its persisted headers, so the probe must use those, not the updater's.
+     */
+    @SuppressWarnings("unchecked")
+    public void testUpdateEsqlDatafeedWhenCredentialIsKeptShouldProbeWithPersistedHeaders() {
+        assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+        UpdateFixture fixture = new UpdateFixture();
+        Map<String, String> storedHeaders = Map.of(AuthenticationField.AUTHENTICATION_KEY, "stored-authentication");
+        DatafeedConfig storedConfig = esqlDatafeedBuilder("df-esql", "job-esql").setProjectRouting(ProjectRoutingResolver.LOCAL_ONLY)
+            .setCloudInternalCredential(randomPersistedCloudCredential("existing-key-id"))
+            .setHeaders(storedHeaders)
+            .build();
+        stubUpdateMigrationPath(
+            fixture.datafeedConfigProvider,
+            fixture.jobConfigProvider,
+            fixture.credentialManager,
+            fixture.apiKeyService,
+            fixture.client,
+            fixture.threadPool,
+            storedConfig,
+            new AtomicReference<>()
+        );
+        fixture.captureValidatedHeaders();
+        doAnswer(invocation -> {
+            DatafeedUpdate update = invocation.getArgument(1);
+            BiConsumer<DatafeedConfig, ActionListener<Boolean>> validator = invocation.getArgument(3);
+            ActionListener<Tuple<DatafeedConfig, PersistedCloudCredential>> listener = invocation.getArgument(4);
+            DatafeedConfig applied = update.apply(storedConfig, invocation.getArgument(2), mockClusterStateForUpdate());
+            validator.accept(applied, listener.delegateFailureAndWrap((l, ok) -> l.onResponse(Tuple.tuple(applied, null))));
+            return null;
+        }).when(fixture.datafeedConfigProvider).updateDatefeedConfig(anyString(), any(), any(), any(BiConsumer.class), any());
+
+        DelayedDataCheckConfig delayedCheck = DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueMinutes(10));
+        fixture.update(new DatafeedUpdate.Builder("df-esql").setDelayedDataCheckConfig(delayedCheck).build());
+
+        assertThat(fixture.validatedHeaders.get(), equalTo(storedHeaders));
+    }
+
+    /** Records the stored and to-be-persisted configs that the manager hands to update validation. */
+    private static AtomicReference<List<DatafeedConfig>> captureValidatedConfigs(JobConfigProvider jobConfigProvider) {
+        AtomicReference<List<DatafeedConfig>> configs = new AtomicReference<>();
+        doAnswer(invocation -> {
+            configs.set(List.of(invocation.getArgument(0), invocation.getArgument(1)));
+            invocation.<ActionListener<Boolean>>getArgument(3).onResponse(Boolean.TRUE);
+            return null;
+        }).when(jobConfigProvider).validateDatafeedUpdate(any(), any(), any(), any());
+        return configs;
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testUpdateEsqlDatafeedWhenOnlyQueryDelayChangesShouldValidateAgainstStoredConfig() {
+        assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+        UpdateFixture fixture = new UpdateFixture();
+        DatafeedConfig storedConfig = esqlDatafeedBuilder("df-esql", "job-esql").setProjectRouting(ProjectRoutingResolver.LOCAL_ONLY)
+            .setCloudInternalCredential(randomPersistedCloudCredential("existing-key-id"))
+            .build();
+        when(fixture.credentialManager.hasCloudManagedCredential(any())).thenReturn(true);
+        stubUpdateKeepPath(fixture.datafeedConfigProvider, fixture.jobConfigProvider, storedConfig);
+        AtomicReference<List<DatafeedConfig>> validated = captureValidatedConfigs(fixture.jobConfigProvider);
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        fixture.manager.updateDatafeed(
+            new UpdateDatafeedAction.Request(new DatafeedUpdate.Builder("df-esql").setQueryDelay(TimeValue.timeValueSeconds(90)).build()),
+            mockClusterStateForUpdate(),
+            null,
+            fixture.threadPool,
+            ActionListener.wrap(r -> {}, failure::set)
+        );
+        assertThat(failure.get(), nullValue());
+
+        assertThat(validated.get().get(0).getId(), equalTo(storedConfig.getId()));
+        assertThat(validated.get().get(1).getQueryDelay(), equalTo(TimeValue.timeValueSeconds(90)));
+        assertThat(validated.get().get(1).getCloudInternalCredential().id(), equalTo("existing-key-id"));
+        verify(fixture.jobConfigProvider, never()).validateDatafeedJobAndEsqlQuery(any(), any(), any());
+    }
+
+    /**
+     * A re-key with no other field change still changes the identity the probes run as, so the probe plan needs the stored config
+     * (old credential) next to the to-be-persisted one (minted credential).
+     */
+    @SuppressWarnings("unchecked")
+    public void testUpdateEsqlDatafeedWhenOnlyForceRekeyingShouldValidateMintedConfigAgainstStoredConfig() {
+        assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+        UpdateFixture fixture = new UpdateFixture();
+        DatafeedConfig storedConfig = esqlDatafeedBuilder("df-esql", "job-esql").setProjectRouting(ProjectRoutingResolver.LOCAL_ONLY)
+            .setCloudInternalCredential(randomPersistedCloudCredential("existing-key-id"))
+            .build();
+        stubUpdateMigrationPath(
+            fixture.datafeedConfigProvider,
+            fixture.jobConfigProvider,
+            fixture.credentialManager,
+            fixture.apiKeyService,
+            fixture.client,
+            fixture.threadPool,
+            storedConfig,
+            new AtomicReference<>()
+        );
+        AtomicReference<List<DatafeedConfig>> validated = captureValidatedConfigs(fixture.jobConfigProvider);
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        fixture.manager.updateDatafeed(
+            new UpdateDatafeedAction.Request(new DatafeedUpdate.Builder("df-esql").setForceRekeying(true).build()),
+            mockClusterStateForUpdate(),
+            null,
+            fixture.threadPool,
+            ActionListener.wrap(r -> {}, failure::set)
+        );
+        assertThat(failure.get(), nullValue());
+
+        assertThat(validated.get().get(0).getId(), equalTo(storedConfig.getId()));
+        assertThat(validated.get().get(0).getCloudInternalCredential().id(), equalTo("existing-key-id"));
+        assertThat(validated.get().get(1).getCloudInternalCredential().id(), equalTo("minted-key-id"));
+        assertThat(validated.get().get(1).getProjectRouting(), equalTo(storedConfig.getProjectRouting()));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testUpdateEsqlDatafeedWhenProjectRoutingChangesShouldValidateWithPlanInputs() {
+        assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+        UpdateFixture fixture = new UpdateFixture();
+        DatafeedConfig storedConfig = esqlDatafeedBuilder("df-esql", "job-esql").setProjectRouting(ProjectRoutingResolver.LOCAL_ONLY)
+            .setCloudInternalCredential(randomPersistedCloudCredential("existing-key-id"))
+            .build();
+        AtomicReference<DatafeedUpdate> capturedUpdate = new AtomicReference<>();
+        stubUpdateMigrationPath(
+            fixture.datafeedConfigProvider,
+            fixture.jobConfigProvider,
+            fixture.credentialManager,
+            fixture.apiKeyService,
+            fixture.client,
+            fixture.threadPool,
+            storedConfig,
+            capturedUpdate
+        );
+        mockGetJobWithSnapshot(fixture.jobConfigProvider, "job-esql", "rollback-snap-1");
+        mockUpdateModelSnapshotSucceeds(fixture.client, "job-esql", "rollback-snap-1");
+        fixture.captureValidatedHeaders();
+
+        fixture.update(new DatafeedUpdate.Builder("df-esql").setProjectRouting("_alias:prod-*").build());
+
+        verify(fixture.jobConfigProvider).validateDatafeedUpdate(
+            argThat(stored -> "existing-key-id".equals(stored.getCloudInternalCredential().id())),
+            any(),
+            any(),
+            any()
+        );
+        verify(fixture.jobConfigProvider, never()).validateDatafeedJob(any(), any());
+        verify(fixture.jobConfigProvider, never()).validateDatafeedJobAndEsqlQuery(any(), any(), any());
+    }
+
+    public void testPutEsqlDatafeedWhenCpsOnAndMlFlagOffShouldRejectRemoteSource() {
+        assumeFalse("Run with -Des.ml_cross_project_feature_flag_enabled=false", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+        Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", false).build();
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("test-datafeed", "test-job").setEsqlQuery("FROM remote:logs-*")
+            .setSourceTimeField("@timestamp")
+            .setGroupingInterval(TimeValue.timeValueHours(1))
+            .build();
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        newDatafeedManager(
+            mock(DatafeedConfigProvider.class),
+            mock(JobConfigProvider.class),
+            settings,
+            mock(Client.class),
+            mock(MachineLearningExtension.class),
+            mockAuditor(),
+            mock(AnnotationPersister.class),
+            threadPool,
+            SCOPE_CHANGE_SIGNAL_DATA_ANCHOR
+        ).putDatafeed(
+            new PutDatafeedAction.Request(datafeed),
+            mockClusterStateWithNoTasks(),
+            null,
+            threadPool,
+            ActionListener.wrap(r -> fail("expected failure"), failure::set)
+        );
+        assertThat(failure.get(), instanceOf(ElasticsearchStatusException.class));
+        assertThat(((ElasticsearchStatusException) failure.get()).status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(failure.get().getMessage(), containsString("do not support remote cluster sources"));
+    }
+
+    /** A manager over a cloud-authenticated caller whose own thread context carries a header that must never reach the probe. */
+    @After
+    public void clearEsqlRequestBuilderAccess() {
+        SharedSecrets.setEsqlQueryRequestBuilderAccess(null);
+    }
+
+    private final class UpdateFixture {
+        final DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
+        final CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
+        final InternalCloudApiKeyService apiKeyService = mock(InternalCloudApiKeyService.class);
+        final JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
+        final Client client = mock(Client.class);
+        final ThreadPool threadPool = mock(ThreadPool.class);
+        final AtomicReference<Map<String, String>> validatedHeaders = new AtomicReference<>();
+        final DatafeedManager manager;
+
+        UpdateFixture() {
+            stubEsqlMintProbeSucceeds();
+            ThreadContext callerContext = new ThreadContext(Settings.EMPTY);
+            callerContext.putHeader("caller-only-header", "caller");
+            when(threadPool.getThreadContext()).thenReturn(callerContext);
+            Settings settings = Settings.builder()
+                .put("serverless.cross_project.enabled", true)
+                .put("xpack.security.enabled", false)
+                .build();
+            manager = newDatafeedManager(
+                datafeedConfigProvider,
+                jobConfigProvider,
+                settings,
+                client,
+                mockMlExtension(credentialManager, apiKeyService),
+                mockAuditor(),
+                mock(AnnotationPersister.class),
+                threadPool,
+                SCOPE_CHANGE_SIGNAL_DATA_ANCHOR
+            );
+        }
+
+        /** The ES|QL plugin is absent from the ML test classpath, so the pre-mint ES|QL access probe runs against a stub builder. */
+        @SuppressWarnings("unchecked")
+        private static void stubEsqlMintProbeSucceeds() {
+            EsqlQueryRequestBuilder<EsqlQueryRequest, EsqlQueryResponse> builder = mock();
+            when(builder.query(any())).thenReturn(builder);
+            when(builder.projectRouting(any())).thenReturn(builder);
+            when(builder.params(any())).thenReturn(builder);
+            when(builder.allowPartialResults(anyBoolean())).thenReturn(builder);
+            doAnswer(invocation -> {
+                invocation.<ActionListener<EsqlQueryResponse>>getArgument(0).onResponse(mock(EsqlQueryResponse.class));
+                return null;
+            }).when(builder).execute(any(ActionListener.class));
+            SharedSecrets.setEsqlQueryRequestBuilderAccess(client -> builder);
+        }
+
+        /** Call after {@code stubUpdateMigrationPath}, which also stubs validation. */
+        void captureValidatedHeaders() {
+            doAnswer(invocation -> {
+                validatedHeaders.set(invocation.getArgument(2));
+                invocation.<ActionListener<Boolean>>getArgument(3).onResponse(Boolean.TRUE);
+                return null;
+            }).when(jobConfigProvider).validateDatafeedUpdate(any(), any(), any(), any());
+        }
+
+        void update(DatafeedUpdate update) {
+            AtomicReference<Exception> failure = new AtomicReference<>();
+            manager.updateDatafeed(
+                new UpdateDatafeedAction.Request(update),
+                mockClusterStateForUpdate(),
+                null,
+                threadPool,
+                // downstream persistence and audit are mocked; only the headers handed to the probe matter here
+                ActionListener.wrap(r -> {}, failure::set)
+            );
+            assertThat("update failed before validation: " + failure.get(), validatedHeaders.get(), notNullValue());
+            assertThat(validatedHeaders.get().containsKey("caller-only-header"), is(false));
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -723,8 +1189,7 @@ public class DatafeedManagerTests extends ESTestCase {
         }).when(datafeedConfigProvider).findDatafeedIdsForJobIds(any(), any());
 
         doAnswer(invocation -> {
-            ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[1];
-            listener.onResponse(Boolean.TRUE);
+            invocation.<ActionListener<Boolean>>getArgument(1).onResponse(Boolean.TRUE);
             return null;
         }).when(jobConfigProvider).validateDatafeedJob(any(), any());
 
@@ -1024,8 +1489,7 @@ public class DatafeedManagerTests extends ESTestCase {
         }).when(datafeedConfigProvider).findDatafeedIdsForJobIds(any(), any());
 
         doAnswer(invocation -> {
-            ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[1];
-            listener.onResponse(Boolean.TRUE);
+            invocation.<ActionListener<Boolean>>getArgument(1).onResponse(Boolean.TRUE);
             return null;
         }).when(jobConfigProvider).validateDatafeedJob(any(), any());
 
@@ -1116,6 +1580,8 @@ public class DatafeedManagerTests extends ESTestCase {
         assertThat(response.get().getResponse().getCloudInternalCredential(), equalTo(null));
         verify(apiKeyService, never()).grantCloudAuthentication(any(), anyString(), any());
         verify(auditor, never()).info(anyString(), anyString());
+        verify(jobConfigProvider).validateDatafeedJob(any(), any());
+        verify(jobConfigProvider, never()).validateDatafeedJobAndEsqlQuery(any(), any(), any());
     }
 
     @SuppressWarnings("unchecked")
@@ -1181,6 +1647,8 @@ public class DatafeedManagerTests extends ESTestCase {
         assertThat(response.get(), notNullValue());
         assertThat(response.get().getResponse().getProjectRouting(), equalTo("_alias:prod-*"));
         assertWarnings(DatafeedConfig.PROJECT_ROUTING_INERT_WITHOUT_CPS_MESSAGE);
+        verify(jobConfigProvider).validateDatafeedJob(any(), any());
+        verify(jobConfigProvider, never()).validateDatafeedJobAndEsqlQuery(any(), any(), any());
     }
 
     @SuppressWarnings("unchecked")

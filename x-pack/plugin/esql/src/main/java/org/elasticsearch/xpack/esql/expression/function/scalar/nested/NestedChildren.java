@@ -121,7 +121,11 @@ public final class NestedChildren implements Releasable {
                 BitSetProducer parents = shards.get(shard).parents();
                 if (context.fieldType(name) instanceof AbstractScriptFieldType && parents != null) {
                     // This shard maps the name as a runtime field, which runs on the parent rather than on the child
-                    return ValuesSourceReaderOperator.load(new NestedParentBlockLoader(loader, parents));
+                    if (loader instanceof FallbackSyntheticSourceBlockLoader fallback) {
+                        // Its values are in the children's _ignored_source, not the parent's, so read them from the parent's _source
+                        loader = new NestedChildSourceBlockLoader(fallback, context.fieldType(name).name());
+                    }
+                    return ValuesSourceReaderOperator.load(new NestedParentBlockLoader(loader, parents, context::newSourceLoader));
                 }
                 if (loader instanceof FallbackSyntheticSourceBlockLoader fallback) {
                     // The child's own _ignored_source misses the values the nested object or an object above it keeps whole.

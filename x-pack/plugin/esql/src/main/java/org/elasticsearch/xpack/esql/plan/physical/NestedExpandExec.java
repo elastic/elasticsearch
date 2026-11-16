@@ -18,9 +18,10 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
 /**
  * Physical form of {@link NestedExpand}: appends one column per child field and repeats each parent once per object.
@@ -88,9 +89,7 @@ public final class NestedExpandExec extends UnaryExec {
 
     @Override
     public List<Attribute> output() {
-        List<Attribute> output = new ArrayList<>(child().output());
-        output.addAll(expanded);
-        return output;
+        return mergeOutputAttributes(expanded, child().output());
     }
 
     @Override

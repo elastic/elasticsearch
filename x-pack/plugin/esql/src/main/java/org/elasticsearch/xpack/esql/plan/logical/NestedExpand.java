@@ -12,12 +12,15 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.NestedScopeField;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -26,14 +29,29 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
+import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
 /**
  * Turns each parent row into one row per object of a mapped nested field, repeating the parent columns. A parent
  * without objects keeps one row with null child columns, as {@code MV_EXPAND} does. The parser only knows the field
  * name; analysis binds the nested path and one column per child field.
  */
-public final class NestedExpand extends UnaryPlan implements SortAgnostic {
+public final class NestedExpand extends UnaryPlan implements SortAgnostic, DocPreserving, PostOptimizationVerificationAware {
     public static final TransportVersion VERSION = TransportVersion.fromName("esql_nested_expand");
+    /** The child types the expansion reads. A child of another type may be bound, but only if nothing reads it. */
+    private static final Set<DataType> CHILD_TYPES = Set.of(
+        DataType.BOOLEAN,
+        DataType.INTEGER,
+        DataType.LONG,
+        DataType.DOUBLE,
+        DataType.KEYWORD,
+        DataType.TEXT,
+        DataType.DATETIME,
+        DataType.IP
+    );
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
         "NestedExpand",
@@ -160,10 +178,19 @@ public final class NestedExpand extends UnaryPlan implements SortAgnostic {
                 }
                 result.add(attribute);
             }
-            result.addAll(expanded);
-            output = result;
+            output = mergeOutputAttributes(expanded, result);
         }
         return output;
+    }
+
+    /** Runs once pruning has dropped the child columns nothing reads, so only those that are read must have a readable type. */
+    @Override
+    public void postOptimizationVerification(Failures failures) {
+        for (Attribute attribute : expanded) {
+            if (CHILD_TYPES.contains(attribute.dataType()) == false) {
+                failures.add(fail(this, "NESTED_EXPAND does not support child type [{}] for [{}]", attribute.dataType(), attribute.name()));
+            }
+        }
     }
 
     @Override

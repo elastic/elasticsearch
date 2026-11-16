@@ -1761,17 +1761,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return resolved;
         }
 
-        private static final Set<DataType> NESTED_EXPAND_CHILD_TYPES = Set.of(
-            DataType.BOOLEAN,
-            DataType.INTEGER,
-            DataType.LONG,
-            DataType.DOUBLE,
-            DataType.KEYWORD,
-            DataType.TEXT,
-            DataType.DATETIME,
-            DataType.IP
-        );
-
         /**
          * Binds {@code NESTED_EXPAND} to a mapped nested collection. An unknown name stays unresolved, so the verifier
          * reports it like any other unknown column. A name that exists but is not nested fails here.
@@ -1826,16 +1815,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             for (Attribute attribute : childrenOutput) {
                 if (attribute instanceof FieldAttribute field
                     && field.field() instanceof NestedScopeField child
-                    && child.kind() == NestedScopeField.Kind.VALUE
-                    && child.path().equals(path)) {
-                    if (NESTED_EXPAND_CHILD_TYPES.contains(child.getDataType()) == false) {
+                    && inNestedPath(field.name(), rootName)) {
+                    // Each child's path is the first index's, so one another index nests elsewhere would read nulls there
+                    if (child.conflict() != null) {
                         String publicName = field.name().substring(NestedScopeField.PREFIX.length());
-                        throw nestedExpandError(
-                            target,
-                            "NESTED_EXPAND does not support child type [" + child.getDataType() + "] for [" + publicName + "]"
-                        );
+                        throw nestedExpandError(target, "NESTED_EXPAND cannot read [" + publicName + "]: " + child.conflict());
                     }
-                    children.add(field);
+                    if (child.kind() == NestedScopeField.Kind.VALUE && child.path().equals(path)) {
+                        children.add(field);
+                    }
                 }
             }
             children.sort(Comparator.comparing(FieldAttribute::name));

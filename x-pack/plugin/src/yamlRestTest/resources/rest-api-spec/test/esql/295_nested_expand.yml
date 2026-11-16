@@ -295,3 +295,205 @@ setup:
         body:
           query: 'FROM ne_long, ne_kw, ne_nested_x | NESTED_EXPAND items | EVAL v = x::long | KEEP v, x* | STATS min = MIN(v), max = MAX(v), rows = COUNT(*)'
   - match: { values.0: [7, 8, 3] }
+
+---
+"NESTED_EXPAND fails on a child that another index nests under a different collection":
+  - do:
+      indices.create:
+        index: ne_scope_object
+        body:
+          mappings:
+            properties:
+              items:
+                type: nested
+                properties:
+                  sub:
+                    properties:
+                      v:
+                        type: keyword
+  - do:
+      indices.create:
+        index: ne_scope_nested
+        body:
+          mappings:
+            properties:
+              items:
+                type: nested
+                properties:
+                  sub:
+                    type: nested
+                    properties:
+                      v:
+                        type: keyword
+  - do:
+      catch: '/NESTED_EXPAND cannot read \[items\.sub(\.v)?\]: its nested path is/'
+      esql.query:
+        body:
+          query: 'FROM ne_scope_object, ne_scope_nested | NESTED_EXPAND items | KEEP items.sub.v'
+
+---
+"A source-only runtime field under a nested name reads the parent's synthetic source":
+  - do:
+      indices.create:
+        index: ne_runtime_synthetic
+        body:
+          settings:
+            number_of_shards: 1
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            runtime:
+              items.calc:
+                type: long
+            properties:
+              items:
+                type: nested
+                dynamic: false
+                properties:
+                  qty:
+                    type: long
+  - do:
+      indices.create:
+        index: ne_runtime_stored
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            runtime:
+              items.calc:
+                type: long
+            properties:
+              items:
+                type: nested
+                dynamic: false
+                properties:
+                  qty:
+                    type: long
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "ne_runtime_synthetic", "_id": "a" } }
+          - { "items": [ { "qty": 1, "calc": 3 }, { "qty": 2, "calc": 4 } ] }
+          - { "index": { "_index": "ne_runtime_stored", "_id": "a" } }
+          - { "items": [ { "qty": 1, "calc": 3 }, { "qty": 2, "calc": 4 } ] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM ne_runtime_synthetic | NESTED_EXPAND items | KEEP items.qty, items.calc | SORT items.qty | LIMIT 10'
+  - length: { values: 2 }
+  - match: { values.0: [1, [3, 4]] }
+  - match: { values.1: [2, [3, 4]] }
+  # The same field over stored _source reads the same values
+  - do:
+      esql.query:
+        body:
+          query: 'FROM ne_runtime_stored | NESTED_EXPAND items | KEEP items.qty, items.calc | SORT items.qty | LIMIT 10'
+  - length: { values: 2 }
+  - match: { values.0: [1, [3, 4]] }
+  - match: { values.1: [2, [3, 4]] }
+
+---
+"LIMIT BY after NESTED_EXPAND limits the expanded rows":
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [esql_limit_by]
+      reason: "LIMIT BY is snapshot-only"
+  - do:
+      esql.query:
+        body:
+          query: 'FROM nested_expand | NESTED_EXPAND items | LIMIT 1 BY id | KEEP id | SORT id | LIMIT 10'
+  - length: { values: 2 }
+  - match: { values.0: ["1"] }
+  - match: { values.1: ["2"] }
+
+---
+"A child column shadows an earlier column of the same name":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM nested_expand | EVAL items.qty = 100 | NESTED_EXPAND items | KEEP id, items.qty | SORT id, items.qty | LIMIT 10'
+  - length: { columns: 2 }
+  - match: { columns.0.name: "id" }
+  - match: { columns.1.name: "items.qty" }
+  - length: { values: 3 }
+  - match: { values.0: ["1", 1] }
+  - match: { values.1: ["1", 2] }
+  - match: { values.2: ["2", null] }
+
+---
+"An unsupported child type only fails when a query reads it":
+  - do:
+      indices.create:
+        index: ne_geo
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              items:
+                type: nested
+                properties:
+                  qty:
+                    type: long
+                  loc:
+                    type: geo_point
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "ne_geo", "_id": "a" } }
+          - { "items": [ { "qty": 1, "loc": "POINT (1 2)" } ] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM ne_geo | NESTED_EXPAND items | KEEP items.qty | LIMIT 10'
+  - match: { values.0: [1] }
+  - do:
+      catch: /NESTED_EXPAND does not support child type \[GEO_POINT\] for \[items\.loc\]/
+      esql.query:
+        body:
+          query: 'FROM ne_geo | NESTED_EXPAND items | KEEP items.qty, items.loc | LIMIT 10'
+
+---
+"An implicit HIGHLIGHT borrows the WHERE before NESTED_EXPAND":
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [highlight_mapping_analyzer]
+      reason: "implicit HIGHLIGHT is snapshot-only"
+  - do:
+      indices.create:
+        index: ne_text
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              content:
+                type: text
+              items:
+                type: nested
+                properties:
+                  qty:
+                    type: long
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "ne_text", "_id": "a" } }
+          - { "content": "the quick fox", "items": [ { "qty": 1 }, { "qty": 2 } ] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM ne_text | WHERE MATCH(content, "fox") | NESTED_EXPAND items | HIGHLIGHT | KEEP items.qty, highlight_content | SORT items.qty | LIMIT 10'
+  - length: { values: 2 }
+  - match: { values.0: [1, "the quick <em>fox</em>"] }
+  - match: { values.1: [2, "the quick <em>fox</em>"] }

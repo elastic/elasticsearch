@@ -9,7 +9,6 @@
 // dataset and runs the FROM query verbatim; other backends rebuild the equivalent EXTERNAL query.
 
 uint32GreaterThanPushesDown
-required_capability: external_command
 dataset: uint32_pushdown: "{{uint32_pushdown}}"
 
 FROM uint32_pushdown
@@ -24,7 +23,6 @@ u32:long    | u16:integer
 ;
 
 uint32EqualsAboveIntRangePushesDown
-required_capability: external_command
 dataset: uint32_pushdown: "{{uint32_pushdown}}"
 
 FROM uint32_pushdown
@@ -36,7 +34,6 @@ u32:long    | u16:integer
 ;
 
 uint32InListPushesDown
-required_capability: external_command
 dataset: uint32_pushdown: "{{uint32_pushdown}}"
 
 FROM uint32_pushdown
@@ -50,7 +47,6 @@ u32:long    | u16:integer
 ;
 
 uint32CombinedWithUint16ControlPushesDown
-required_capability: external_command
 dataset: uint32_pushdown: "{{uint32_pushdown}}"
 
 FROM uint32_pushdown
@@ -65,7 +61,6 @@ u32:long    | u16:integer
 ;
 
 uint32CountAfterFilter
-required_capability: external_command
 dataset: uint32_pushdown: "{{uint32_pushdown}}"
 
 FROM uint32_pushdown
@@ -81,7 +76,6 @@ count:long
 // magnitude rather than the raw INT32 bit pattern (which would sign-extend 4000000000 into a
 // negative long).
 uint32AggregatePushdownWidensToUnsignedLong
-required_capability: external_command
 dataset: uint32_pushdown: "{{uint32_pushdown}}"
 
 FROM uint32_pushdown

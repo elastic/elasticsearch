@@ -76,7 +76,6 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractExternalData
      * starts, so the count is exact even though the file is fanned out into multiple splits.
      */
     public void testCountWithQuotedMultilineFieldStraddlingMacroSplitNullField() throws Exception {
-
         Path csvFile = writeCsvFile();
         try {
             String dataset = registerDataset(
@@ -118,7 +117,6 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractExternalData
      * mode (a valid file rejected purely because of how it was split). Proven boundaries prevent it.
      */
     public void testCountWithQuotedMultilineFieldStraddlingMacroSplitStrict() throws Exception {
-
         Path csvFile = writeCsvFile();
         try {
             String dataset = registerDataset(

@@ -182,7 +182,6 @@ id:integer | event.outcome:keyword
 // COUNT of the struct-nested list leaf counts every multivalue element (2+1+2+1 = 6), not 0 as
 // before the fix. This is the headline regression guard: the column used to read as all-null.
 listUnderStructCount
-required_capability: external_command
 required_capability: external_source_list_under_struct
 dataset: nested_events: "{{nested_events}}"
 
@@ -195,7 +194,6 @@ n:long
 
 // Multivalue round-trip. MV_SORT makes the per-row element order deterministic for the assertion.
 listUnderStructValues
-required_capability: external_command
 required_capability: external_source_list_under_struct
 dataset: nested_events: "{{nested_events}}"
 
@@ -215,7 +213,6 @@ id:integer | tags:keyword
 
 // Per-row multivalue cardinality: exercises the repetition-level decode of the nested list.
 listUnderStructMvCount
-required_capability: external_command
 required_capability: external_source_list_under_struct
 dataset: nested_events: "{{nested_events}}"
 
@@ -236,7 +233,6 @@ id:integer | c:integer
 // Genuinely absent lists must read as null (not spuriously present), and non-empty ones must not
 // be dropped — the null vs present decision is driven by the leaf's full definition level.
 listUnderStructIsNull
-required_capability: external_command
 required_capability: external_source_list_under_struct
 dataset: nested_events: "{{nested_events}}"
 
@@ -253,7 +249,6 @@ id:integer
 // MIN/MAX over the multivalue leaf span every element (auth..success). Parquet leaf stats carry
 // the same element-wise extremes, so this stays pushable even though COUNT above must read.
 listUnderStructMinMax
-required_capability: external_command
 required_capability: external_source_list_under_struct
 dataset: nested_events: "{{nested_events}}"
 

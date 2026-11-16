@@ -1114,7 +1114,6 @@ distinct_paths:long
 // Authored as FROM <dataset> so it runs verbatim on dataset-capable backends and as rebuilt EXTERNAL on the others.
 
 matchOnExternalKeyword
-required_capability: external_command
 required_capability: match_function
 required_capability: fn_match_runtime_filter
 dataset: employees_no_mv: "{{employees_no_mv}}"
@@ -1130,7 +1129,6 @@ emp_no:integer | first_name:keyword
 ;
 
 matchOnExternalKeywordAsText
-required_capability: external_command
 required_capability: match_function
 required_capability: fn_match_runtime_filter
 dataset: employees_no_mv: "{{employees_no_mv}}"
@@ -1148,7 +1146,6 @@ emp_no:integer | first_name:keyword
 ;
 
 matchOnExternalInteger
-required_capability: external_command
 required_capability: match_function
 required_capability: fn_match_runtime_filter
 dataset: employees_no_mv: "{{employees_no_mv}}"
@@ -1164,7 +1161,6 @@ emp_no:integer | salary:integer
 ;
 
 matchOnExternalIntegerWithStringQuery
-required_capability: external_command
 required_capability: match_function
 required_capability: fn_match_runtime_filter
 dataset: employees_no_mv: "{{employees_no_mv}}"

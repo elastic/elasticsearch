@@ -18,7 +18,6 @@
 // adjacent missing-column route, which never crashed.
 
 keywordEqualsOverAllNullDecodedBatch
-required_capability: external_command
 dataset: null_batch_keyword: "{{null_batch_keyword}}"
 
 FROM null_batch_keyword
@@ -34,7 +33,6 @@ id:long | code:keyword
 ;
 
 keywordInOverAllNullDecodedBatch
-required_capability: external_command
 dataset: null_batch_keyword: "{{null_batch_keyword}}"
 
 FROM null_batch_keyword
@@ -52,7 +50,6 @@ id:long | code:keyword
 // Numeric control on the same fixture: a Number literal survives the eager cast, so this shape
 // never crashed. It pins that the fix did not change it.
 numericFilterOverSameFixture
-required_capability: external_command
 dataset: null_batch_keyword: "{{null_batch_keyword}}"
 
 FROM null_batch_keyword

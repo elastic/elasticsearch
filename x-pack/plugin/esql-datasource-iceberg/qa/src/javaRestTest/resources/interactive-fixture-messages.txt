@@ -4,7 +4,7 @@
 
 [banner]
 ================================================================================
-  ESQL EXTERNAL COMMAND - INTERACTIVE FIXTURE MODE
+  ESQL EXTERNAL DATASETS - INTERACTIVE FIXTURE MODE
 ================================================================================
 
 [cluster_info]
@@ -62,7 +62,7 @@
   curl -X PUT "{{es_url}}/_query/data_source/fixture_s3" \
     -H 'Content-Type: application/json' -d'{
     "type": "s3",
-    "settings": { "endpoint": "{{s3_endpoint}}", "auth": "anonymous" }
+    "settings": { "endpoint": "{{s3_endpoint}}", "access_key": "{{access_key}}", "secret_key": "{{secret_key}}" }
   }'
 
   Step 2: register a dataset over the standalone parquet file

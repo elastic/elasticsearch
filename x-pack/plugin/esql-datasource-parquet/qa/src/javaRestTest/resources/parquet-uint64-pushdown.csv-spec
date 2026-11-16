@@ -9,7 +9,6 @@
 // dataset and runs the FROM query verbatim; other backends rebuild the equivalent EXTERNAL query.
 
 uint64AggregatePushdownSignFlipEncodes
-required_capability: external_command
 dataset: uint64_pushdown: "{{uint64_pushdown}}"
 
 FROM uint64_pushdown

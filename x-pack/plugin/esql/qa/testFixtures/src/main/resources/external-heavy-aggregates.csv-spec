@@ -10,7 +10,6 @@
 // single-source).
 
 heavyAggregatesMergedAcrossDatasets
-required_capability: external_command
 dataset: emp_a: "{{employees_no_mv}}"
 dataset: emp_b: "{{employees_no_mv}}"
 
@@ -22,7 +21,6 @@ distinct_emp:long | total:long | sum_salary:long | avg_salary:double
 ;
 
 heavyAggregatesGroupedMergedAcrossDatasets
-required_capability: external_command
 required_capability: external_csv_empty_string_not_null
 dataset: emp_a: "{{employees_no_mv}}"
 dataset: emp_b: "{{employees_no_mv}}"
@@ -43,7 +41,6 @@ distinct_emp:long | c:long | gender:keyword
 // The 33 female employees are identical in both datasets, so the unioned distinct count is 33 (not 66), while the
 // unfiltered COUNT(*) doubles to 200. Proves the filter is applied per branch, before the merge.
 heavyAggregatesFilteredMergedAcrossDatasets
-required_capability: external_command
 dataset: emp_a: "{{employees_no_mv}}"
 dataset: emp_b: "{{employees_no_mv}}"
 
@@ -60,7 +57,6 @@ distinct_f:long | total:long
 // grouping is over all rows) but their filtered input is empty, so COUNT_DISTINCT is 0. Proves the per-group filter
 // actually selects rows and the grouped + filtered merge is correct.
 heavyAggregatesFilteredGroupedMergedAcrossDatasets
-required_capability: external_command
 required_capability: external_csv_empty_string_not_null
 dataset: emp_a: "{{employees_no_mv}}"
 dataset: emp_b: "{{employees_no_mv}}"
@@ -78,7 +74,6 @@ distinct_emp:long | gender:keyword
 // Empty buckets over the leaf UnionAll a multi-source FROM produces. This guards the interaction between
 // include_empty_buckets and PushAggregateThroughUnionAll
 emptyBucketsMergedAcrossDatasets
-required_capability: external_command
 required_capability: bucket_include_empty_buckets
 dataset: emp_a: "{{employees_no_mv}}"
 dataset: emp_b: "{{employees_no_mv}}"

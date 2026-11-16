@@ -7,7 +7,6 @@
 // Authored as FROM <dataset>: dataset-capable backends (S3) run FROM; others rebuild the EXTERNAL query.
 
 listCountKeyword
-required_capability: external_command
 dataset: employees_ds: "{{employees}}"
 
 FROM employees_ds
@@ -18,7 +17,6 @@ c:long
 ;
 
 listCountDouble
-required_capability: external_command
 dataset: employees_ds: "{{employees}}"
 
 FROM employees_ds
@@ -29,7 +27,6 @@ c:long
 ;
 
 listIsNotNullKeyword
-required_capability: external_command
 dataset: employees_ds: "{{employees}}"
 
 FROM employees_ds
@@ -41,7 +38,6 @@ c:long
 ;
 
 listIsNotNullDouble
-required_capability: external_command
 dataset: employees_ds: "{{employees}}"
 
 FROM employees_ds
@@ -56,7 +52,6 @@ c:long
 // the fix); adding MAX(list) in the same STATS aborts the stats substitution and forces the scan, so
 // MAX was always correct. After the fix both are scan-answered and COUNT agrees with the value above.
 listCountWithMaxAgrees
-required_capability: external_command
 dataset: employees_ds: "{{employees}}"
 
 FROM employees_ds

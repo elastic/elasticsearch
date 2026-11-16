@@ -654,9 +654,7 @@ public class CircuitBreakerTests extends ESTestCase {
 
                 if (randomBoolean()) {
                     // simulate an all shards exception - SearchPhaseExecutionException
-                    listener.onFailure(
-                        new SearchPhaseExecutionException("search", "all shards failed", failures.toArray(ShardSearchFailure.EMPTY_ARRAY))
-                    );
+                    listener.onFailure(new SearchPhaseExecutionException("search", "all shards failed", failures));
                 } else {
                     // or a partial shard failure
                     // this should still be caught and the exception handled properly and circuit breaker cleared

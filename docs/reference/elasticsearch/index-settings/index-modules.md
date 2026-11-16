@@ -185,7 +185,7 @@ $$$index-refresh-interval-setting$$$
 
     The value defaults to `1s` in {{stack}} and `5s` in {{serverless-short}}. In {{serverless-short}}, `5s` is also the minimum value that can be set.
 
-    In both cases, the setting can be set to `-1` to disable refresh.
+    In both cases, the setting can be set to `-1` to disable periodic refresh operations. This does not fully prevent indexed documents becoming visible to search, because there are mechanisms within {{es}} which perform refresh operations other than the periodic refresh.
 
 $$$index-max-result-window$$$
 

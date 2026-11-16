@@ -539,6 +539,26 @@ public class IpFieldMapperColumnarCompatibilityTests extends AbstractColumnarMap
         );
     }
 
+    /** A nullability=false field that is missing, null, or an array with no non-null value goes in _ignored under on_failure=ignore. */
+    public void testRequiredFieldWithoutValueIsIgnored() throws IOException {
+        final String ips = "[\""
+            + NetworkAddress.format(randomIp(randomBoolean()))
+            + "\",\""
+            + NetworkAddress.format(randomIp(randomBoolean()))
+            + "\"]";
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "ip").field("nullability", false).endObject()),
+            Settings.builder().put(columnarSettings()).put(FieldMapper.DOC_VALUES_ON_FAILURE_SETTING.getKey(), "ignore").build(),
+            batch(
+                "required field without a value",
+                1L,
+                doc("d1", 1L, "{\"f\":" + ips + "}"),
+                doc("d2", 2L, "{\"f\":" + randomFrom("[]", "[[]]", "[null]", "[null,null]") + "}")
+            ),
+            batch("missing and null", 1L, doc("d1", 1L, "{\"f\":" + ips + "}"), doc("d2", 2L, "{}"), doc("d3", 3L, "{\"f\":null}"))
+        );
+    }
+
     public void testIpParentWithKeywordSubField() throws IOException {
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "ip");

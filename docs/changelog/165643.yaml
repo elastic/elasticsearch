@@ -1,0 +1,5 @@
+area: Authorization
+issues: []
+pr: 165643
+summary: Fix built-in roles synchronizer spinning forever on duplicate sync completion
+type: bug

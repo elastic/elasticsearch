@@ -258,6 +258,19 @@ public class ViewServiceTests extends ESTestCase {
         assertThat(viewService.get(ProjectId.DEFAULT, "fork-view"), nullValue());
     }
 
+    public void testPutViewRejectsNestedForkInForkBranch() {
+        var view = new View("fork-view", "FROM a | FORK (FORK (WHERE x > 0) (WHERE x < 0)) (WHERE y > 0)", null, false);
+        var future = new PlainActionFuture<AcknowledgedResponse>();
+        viewService.putView(ProjectId.DEFAULT, new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, view), future);
+
+        expectThrows(
+            VerificationException.class,
+            containsString("Only a single FORK command is supported, but found multiple"),
+            () -> future.actionGet(10, TimeUnit.SECONDS)
+        );
+        assertThat(viewService.get(ProjectId.DEFAULT, "fork-view"), nullValue());
+    }
+
     public void testAcceptsTsWithStats() {
         validatePutView("ts-view", "TS metrics | STATS max(rate(requests)) BY host");
         validatePutView("ts-view", "TS metrics | WHERE cpu > 1 | STATS max(cpu) | KEEP `max(cpu)`");
@@ -280,6 +293,7 @@ public class ViewServiceTests extends ESTestCase {
         validatePutView("promql-view", "PROMQL index=metrics step=1m cpu_avg=(avg(cpu))");
         validatePutView("promql-view", "PROMQL index=metrics step=1m cpu_avg=(avg(cpu)) | WHERE cpu_avg > 1 | KEEP cpu_avg");
         validatePutView("promql-view", "PROMQL index=metrics step=1m cpu_avg=(avg(cpu)) | STATS max(cpu_avg)");
+        validatePutView("promql-view", "PROMQL index=metrics step=1m cpu");
     }
 
     public void testIgnoresTsInSubquery() {
@@ -341,9 +355,9 @@ public class ViewServiceTests extends ESTestCase {
     public void testValidateViewWarnsWhenQueryIsNotValid() {
         var service = viewServiceFailingAnalysisWith(new VerificationException("Found 1 problem\nline 1:6: Unknown index [missing]"));
 
-        validateView(service, new View("v", "FROM missing", null, false));
+        var warning = validateView(service, new View("v", "FROM missing", null, false));
 
-        assertWarnings("view [v] query is not valid: Found 1 problem line 1:6: Unknown index [missing]");
+        assertThat(warning, equalTo("view [v] query is not valid: Found 1 problem line 1:6: Unknown index [missing]"));
         assertThat(service.get(ProjectId.DEFAULT, "v"), nullValue());
     }
 
@@ -358,14 +372,12 @@ public class ViewServiceTests extends ESTestCase {
             new ElasticsearchSecurityException("not allowed", RestStatus.FORBIDDEN),
             new ElasticsearchStatusException("something broke", RestStatus.INTERNAL_SERVER_ERROR)
         )) {
-            validateView(viewServiceFailingAnalysisWith(failure), new View("v", "FROM missing", null, false));
-            ensureNoWarnings();
+            assertThat(validateView(viewServiceFailingAnalysisWith(failure), new View("v", "FROM missing", null, false)), nullValue());
         }
     }
 
     public void testValidateViewDoesNotWarnWhenQueryIsValid() {
-        validateView(viewService, new View("v", "FROM some-index", null, false));
-        ensureNoWarnings();
+        assertThat(validateView(viewService, new View("v", "FROM some-index", null, false)), nullValue());
     }
 
     public void testPutViewDoesNotAnalyze() {
@@ -380,10 +392,10 @@ public class ViewServiceTests extends ESTestCase {
         return new ViewService(clusterService, TEST_PARSER, (statement, viewName, listener) -> listener.onFailure(failure));
     }
 
-    private void validateView(ViewService service, View view) {
-        var future = new PlainActionFuture<Void>();
+    private String validateView(ViewService service, View view) {
+        var future = new PlainActionFuture<String>();
         service.validateView(ProjectId.DEFAULT, view, future);
-        future.actionGet(10, TimeUnit.SECONDS);
+        return future.actionGet(10, TimeUnit.SECONDS);
     }
 
     private PlainActionFuture<AcknowledgedResponse> ensureReservedViewExists(String name, String query, String description) {

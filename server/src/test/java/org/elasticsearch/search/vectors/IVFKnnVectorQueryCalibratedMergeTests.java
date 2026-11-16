@@ -64,7 +64,7 @@ public class IVFKnnVectorQueryCalibratedMergeTests extends ESTestCase {
             ) {
                 ESNextRescoreOversampleTestFixture.assertLeafOversamples(reader, oversampleA, oversampleB);
 
-                IndexSearcher searcher = newSearcher(reader);
+                IndexSearcher searcher = newUnwrappedSearcher(reader);
 
                 float[] queryVector = new float[4];
                 for (int i = 0; i < queryVector.length; i++) {
@@ -110,7 +110,7 @@ public class IVFKnnVectorQueryCalibratedMergeTests extends ESTestCase {
                     IvfMergeConfigResolver.useCodecDefault()
                 )
             ) {
-                IndexSearcher searcher = newSearcher(reader);
+                IndexSearcher searcher = newUnwrappedSearcher(reader);
 
                 float[] queryVector = new float[4];
                 for (int i = 0; i < queryVector.length; i++) {
@@ -156,7 +156,7 @@ public class IVFKnnVectorQueryCalibratedMergeTests extends ESTestCase {
                     IvfMergeConfigResolver.useCodecDefault()
                 )
             ) {
-                IndexSearcher searcher = newSearcher(reader);
+                IndexSearcher searcher = newUnwrappedSearcher(reader);
 
                 float[] queryVector = new float[4];
                 for (int i = 0; i < queryVector.length; i++) {
@@ -214,7 +214,7 @@ public class IVFKnnVectorQueryCalibratedMergeTests extends ESTestCase {
                 // the two segments must genuinely disagree, otherwise the regression path is not exercised
                 assertNotEquals(p0, p1);
 
-                IndexSearcher searcher = newSearcher(reader);
+                IndexSearcher searcher = newUnwrappedSearcher(reader);
 
                 float[] queryVector = new float[dims];
                 for (int i = 0; i < queryVector.length; i++) {
@@ -262,7 +262,7 @@ public class IVFKnnVectorQueryCalibratedMergeTests extends ESTestCase {
                     IvfMergeConfigResolver.useCodecDefault()
                 )
             ) {
-                IndexSearcher searcher = newSearcher(reader);
+                IndexSearcher searcher = newUnwrappedSearcher(reader);
 
                 float[] queryVector = new float[4];
                 for (int i = 0; i < queryVector.length; i++) {
@@ -340,7 +340,7 @@ public class IVFKnnVectorQueryCalibratedMergeTests extends ESTestCase {
 
                     var resolver = IvfQueryConfigResolver.from(true, false, 4, mappingOversample, null);
                     List<CollectorManagerArgs> captured = Collections.synchronizedList(new ArrayList<>());
-                    new CollectorManagerCapturingQuery(queryVector, k, resolver, captured).rewrite(newSearcher(reader));
+                    new CollectorManagerCapturingQuery(queryVector, k, resolver, captured).rewrite(newUnwrappedSearcher(reader));
 
                     assertThat(
                         Set.copyOf(captured.stream().map(args -> Map.entry(args.k(), args.sharedScore().canPublish())).toList()),
@@ -357,6 +357,14 @@ public class IVFKnnVectorQueryCalibratedMergeTests extends ESTestCase {
 
         assertOnlyMaxBudgetLeafPublishes.accept(1.25f);
         assertOnlyMaxBudgetLeafPublishes.accept(6f);
+    }
+
+    /**
+     * {@link IvfQueryConfigResolver} reads persisted calibration from the raw {@code SegmentReader}, and the random reader wrapping
+     * done by {@code newSearcher(reader)} (e.g. {@code ParallelCompositeReader}) hides it, so wrapping is disabled here.
+     */
+    private static IndexSearcher newUnwrappedSearcher(DirectoryReader reader) {
+        return newSearcher(reader, false);
     }
 
     private record CollectorManagerArgs(int k, SharedMinCompetitiveScore sharedScore) {}

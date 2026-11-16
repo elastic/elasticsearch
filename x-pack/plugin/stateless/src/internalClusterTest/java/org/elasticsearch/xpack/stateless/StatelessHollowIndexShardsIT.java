@@ -869,7 +869,9 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                 Settings.builder().put("index.routing.allocation.exclude._name", clusterInfo.indexNodeB),
                 clusterInfo.indexName
             );
-            internalCluster().awaitNodeVacated(clusterInfo.indexName, clusterInfo.indexNodeB);
+            // The test plugin parks node B's shard closes (see closeShard in TestStatelessPluginCatchUnhollow) and releases them
+            // only in the finally block, so wait on the routing table alone.
+            internalCluster().awaitNodesInclude(clusterInfo.indexName, nodes -> nodes.contains(clusterInfo.indexNodeB) == false);
             ensureGreen(clusterInfo.indexName);
 
             // All shard closes on node B are held before removing their ingestion blockers

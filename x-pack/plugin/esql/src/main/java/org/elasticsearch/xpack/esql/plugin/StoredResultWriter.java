@@ -124,7 +124,9 @@ final class StoredResultWriter implements PageStreamPublisher.PageObserver {
      * Writes page {@code 0} before any page of rows.
      */
     void start() {
-        addMetadata(running);
+        synchronized (this) {
+            addMetadata(running);
+        }
         flush();
     }
 
@@ -191,7 +193,8 @@ final class StoredResultWriter implements PageStreamPublisher.PageObserver {
     /**
      * Page {@code 0} is written twice, and a batch cannot hold the same document twice, so it starts a batch of its own.
      */
-    private synchronized void addMetadata(StoredResultMetadata metadata) {
+    private void addMetadata(StoredResultMetadata metadata) {
+        assert Thread.holdsLock(this);
         add(0, 0, 0, metadata, DocWriteRequest.OpType.INDEX, true);
     }
 

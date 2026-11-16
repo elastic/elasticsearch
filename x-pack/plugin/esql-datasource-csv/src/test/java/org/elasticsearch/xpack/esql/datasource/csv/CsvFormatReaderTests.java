@@ -88,6 +88,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 
 public class CsvFormatReaderTests extends ESTestCase {
@@ -2051,13 +2052,53 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertThat(e.getMessage(), Matchers.containsString("Expected 'name:type'"));
     }
 
+    public void testHeaderTextIsNotEchoedWholeIntoTheError() {
+        String blob = "HEADER_START_" + "Z".repeat(200_000) + "_HEADER_END";
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        ExternalClientException unknownType = expectThrows(
+            ExternalClientException.class,
+            () -> reader.schema(createStorageObject("id:" + blob + "\n"))
+        );
+        ExternalClientException malformed = expectThrows(
+            ExternalClientException.class,
+            () -> reader.schema(createStorageObject("id:long," + blob + ":a:b\n"))
+        );
+        ExternalClientException duplicates = expectThrows(
+            ExternalClientException.class,
+            () -> reader.schema(createStorageObject(blob + ":long," + blob + ":long\n"))
+        );
+        List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "ts", DataType.LONG));
+        CsvFormatReader declared = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
+            .withDeclaredProvenanceBinding(true);
+        Exception binding = expectThrows(
+            IllegalArgumentException.class,
+            () -> declared.read(
+                createStorageObject(blob + ",ts," + blob + "\n1,2,3\n"),
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+            )
+        );
+
+        for (Exception failure : List.of(unknownType, malformed, duplicates, binding)) {
+            String message = failure.getMessage();
+            assertThat("header text carried whole", message.length(), lessThan(2048));
+            assertThat(message, containsString("HEADER_START_"));
+            assertThat(message, containsString("_HEADER_END"));
+            assertThat(message, containsString("truncated"));
+        }
+        assertThat(unknownType.getMessage(), containsString(blob.length() + " chars total"));
+        assertThat(malformed.getMessage(), containsString((blob.length() + ":a:b".length()) + " chars total"));
+        assertThat(duplicates.getMessage(), containsString((blob.length() + "['']".length()) + " chars total"));
+        assertThat(binding.getMessage(), containsString(blob.length() + " chars total"));
+    }
+
     public void testUnsupportedType() {
         String csv = "id:unsupported_type\n";
         StorageObject object = createStorageObject(csv);
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
 
         ExternalClientException e = expectThrows(ExternalClientException.class, () -> reader.schema(object));
-        assertTrue(e.getMessage().contains("illegal data type"));
+        assertThat(e.getMessage(), containsString("illegal data type [UNSUPPORTED_TYPE]"));
     }
 
     public void testDefaultErrorPolicyIsStrict() {

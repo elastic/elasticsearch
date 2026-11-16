@@ -304,7 +304,7 @@ public class TranslogTests extends ESTestCase {
             NON_RECYCLING_INSTANCE,
             bufferSize,
             randomBoolean() ? DiskIoBufferPool.INSTANCE : RANDOMIZING_IO_BUFFERS,
-            Objects.requireNonNullElse(listener, (d, s, l) -> {}),
+            Objects.requireNonNullElse(listener, (d, min, max, l) -> {}),
             true
         );
     }
@@ -1328,6 +1328,23 @@ public class TranslogTests extends ESTestCase {
         translog.close();
     }
 
+    public void testAddOperationWithMaxSeqNo() throws IOException {
+        // Long.MAX_VALUE is a legal seqNo: generateSeqNo has no upper bound, and randomNonNegativeLong() in
+        // testTranslogWriter can produce it. The writer walks the record's seqNo range to track the
+        // non-fsynced seqNos; an inclusive loop bound would wrap past Long.MAX_VALUE and never terminate.
+        final Set<Long> persistedSeqNos = new HashSet<>();
+        persistedSeqNoConsumer.set(longsRefConsumer(persistedSeqNos::add));
+        final Translog.NoOp noOp = new Translog.NoOp(Long.MAX_VALUE, primaryTerm.get(), "max seqNo");
+        translog.add(noOp);
+        translog.sync();
+        assertThat(persistedSeqNos, contains(Long.MAX_VALUE));
+        assertThat(translog.getMaxSeqNo(), equalTo(Long.MAX_VALUE));
+        try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+            assertThat(snapshot.next(), equalTo(noOp));
+            assertNull(snapshot.next());
+        }
+    }
+
     public void testTranslogWriter() throws IOException {
         final TranslogWriter writer = translog.createWriter(translog.currentFileGeneration() + 1);
         final Set<Long> persistedSeqNos = new HashSet<>();
@@ -1656,8 +1673,8 @@ public class TranslogTests extends ESTestCase {
         final ArrayList<Long> seqNos = new ArrayList<>();
         final ArrayList<Location> locations = new ArrayList<>();
         final ArrayList<BytesReference> datas = new ArrayList<>();
-        OperationListener listener = (operation, recordSeqNos, location) -> {
-            for (long seqNo : recordSeqNos) {
+        OperationListener listener = (operation, minSeqNo, maxSeqNo, location) -> {
+            for (long seqNo = minSeqNo; seqNo <= maxSeqNo; seqNo++) {
                 seqNos.add(seqNo);
             }
             locations.add(location);

@@ -12,8 +12,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.IntOrLongMatcher;
 import org.elasticsearch.test.MapMatcher;
+import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 
@@ -27,6 +30,7 @@ import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.jsonEntityToMap;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.asyncEsqlQueryRequest;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class EsqlListQueriesActionIT extends AbstractPausableIntegTestCase {
@@ -41,6 +45,15 @@ public class EsqlListQueriesActionIT extends AbstractPausableIntegTestCase {
         var request = new Request("GET", "/_query/queries");
         var response = getRestClient().performRequest(request);
         assertThat(jsonEntityToMap(response.getEntity()), is(Map.of("queries", Map.of())));
+    }
+
+    public void testGetMissingQuery() throws Exception {
+        String nodeId = randomFrom(internalCluster().clusterService().localNode().getId(), randomAlphaOfLength(22));
+        TaskId taskId = new TaskId(nodeId, randomNonNegativeLong());
+        String id = new AsyncExecutionId(randomAlphaOfLength(10), taskId).getEncoded();
+        var e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(new Request("GET", "/_query/queries/" + id)));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), is(404));
+        assertThat(e.getMessage(), containsString("task [" + taskId + "]"));
     }
 
     public void testRunningQueries() throws Exception {

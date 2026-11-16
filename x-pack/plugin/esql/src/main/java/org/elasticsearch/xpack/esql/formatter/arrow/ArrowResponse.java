@@ -53,11 +53,6 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
             this.esqlType = esqlType;
             this.name = name;
         }
-
-        private boolean requiresList() {
-            // Coordinates are one vector value, which requires a list even with one coordinate or no non-null rows.
-            return esqlType == DataType.DENSE_VECTOR;
-        }
     }
 
     private record IndexedColumn(Column column, BlockArrowFormatter converter, int blockIndex, boolean asList) {}
@@ -93,15 +88,15 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
                         "ES|QL type [" + column.esqlType.outputType() + "] is not supported by the Arrow format"
                     );
                 }
-                boolean multivalued = false;
-                for (Page page : pages) {
-                    if (page.getBlock(blockIndex).mayHaveMultivaluedFields()) {
-                        multivalued = true;
-                        break;
+                boolean asList = converter.alwaysList();
+                if (asList == false) {
+                    for (Page page : pages) {
+                        if (converter.isMultivalued(column.name, page.getBlock(blockIndex))) {
+                            asList = true;
+                            break;
+                        }
                     }
                 }
-                // Keep the Arrow representation separate from whether blocks contain ES|QL multivalues.
-                boolean asList = column.requiresList() || multivalued;
                 indexedColumns.add(new IndexedColumn(column, converter, blockIndex, asList));
             }
         }
@@ -401,13 +396,7 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
 
     private static final BlockArrowFormatter TO_BE_IMPLEMENTED_MARKER = new BlockArrowFormatter(DataType.UNSUPPORTED, MinorType.NULL) {
         @Override
-        public void convert(
-            Block block,
-            boolean multivalued,
-            List<ArrowBuf> bufs,
-            List<BufWriter> bufWriters,
-            List<Releasable> releasables
-        ) {}
+        public void convert(Block block, boolean asList, List<ArrowBuf> bufs, List<BufWriter> bufWriters, List<Releasable> releasables) {}
     };
 
     /**
@@ -466,9 +455,8 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
             // ipv4 addresses it would still be twice as big.
             case IP -> new BlockArrowFormatter.TransformedBytesRef(type, MinorType.VARBINARY, ValueConversions::shortenIpV4Addresses);
 
-            // geo_point: Keep WKB format (JSON converts to WKT)
-            // FIXME: use GeoArrow
-            case GEO_POINT, GEO_SHAPE, CARTESIAN_POINT, CARTESIAN_SHAPE -> new BlockArrowFormatter.AsVarBinary(type);
+            // Geo types: keep the WKB format (JSON converts to WKT), tagged with the geoarrow.wkb extension type
+            case GEO_POINT, GEO_SHAPE, CARTESIAN_POINT, CARTESIAN_SHAPE -> new BlockArrowFormatter.AsGeoArrowWkb(type);
 
             // version: convert to string
             case VERSION -> new BlockArrowFormatter.TransformedBytesRef(type, MinorType.VARCHAR, ValueConversions::versionToString);
@@ -483,7 +471,7 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
             case TSID_DATA_TYPE -> new BlockArrowFormatter.AsVarBinary(type);
             case DENSE_VECTOR -> new BlockArrowFormatter.AsFloat32(type);
 
-            case AGGREGATE_METRIC_DOUBLE -> TO_BE_IMPLEMENTED_MARKER;
+            case AGGREGATE_METRIC_DOUBLE -> new BlockArrowFormatter.AsAggregateMetricDouble(type);
             case EXPONENTIAL_HISTOGRAM -> TO_BE_IMPLEMENTED_MARKER;
             case FLATTENED -> new BlockArrowFormatter.TransformedBytesRef(type, MinorType.VARCHAR, ValueConversions::sourceToJson);
             case GEOHASH -> TO_BE_IMPLEMENTED_MARKER;

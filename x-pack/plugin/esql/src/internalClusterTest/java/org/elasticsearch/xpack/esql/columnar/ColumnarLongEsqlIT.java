@@ -41,7 +41,7 @@ public class ColumnarLongEsqlIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void requireFeatureFlag() {
-        assumeTrue("behind a feature flag", IndexSettings.COLUMNAR_NUMERIC_CODEC_FEATURE_FLAG.isEnabled());
+        assumeTrue("behind a feature flag", IndexSettings.BINARY_NUMERIC_DOC_VALUES_FEATURE_FLAG.isEnabled());
     }
 
     @Override
@@ -65,7 +65,7 @@ public class ColumnarLongEsqlIT extends AbstractEsqlIntegTestCase {
                 prepareCreate(index).setSettings(
                     Settings.builder()
                         .put(IndexSettings.MODE.getKey(), mode.getName())
-                        .put(IndexSettings.COLUMNAR_NUMERIC_CODEC_ENABLED_SETTING.getKey(), index.equals(WITH_CODEC))
+                        .put(IndexSettings.BINARY_NUMERIC_DOC_VALUES_ENABLED_SETTING.getKey(), index.equals(WITH_CODEC))
                         .put("index.number_of_shards", between(1, 3))
                         .put("index.number_of_replicas", 0)
                 ).setMapping(mapping)

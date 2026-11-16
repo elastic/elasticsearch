@@ -371,7 +371,7 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
      * and so no point either.
      */
     public void testColumnarCodecPayloadKeepsArrayOrder() throws IOException {
-        assumeTrue("behind a feature flag", IndexSettings.COLUMNAR_NUMERIC_CODEC_FEATURE_FLAG.isEnabled());
+        assumeTrue("behind a feature flag", IndexSettings.BINARY_NUMERIC_DOC_VALUES_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = createMapperService(
             columnarNumericCodecSettings(),
             mapping(b -> b.startObject("field").field("type", "long").endObject())
@@ -397,7 +397,7 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
      * reads the same as the same array without its nulls does in an index that doesn't use the ColumNAR codec.
      */
     public void testColumnarCodecSyntheticSourceKeepsArrayOrder() throws IOException {
-        assumeTrue("behind a feature flag", IndexSettings.COLUMNAR_NUMERIC_CODEC_FEATURE_FLAG.isEnabled());
+        assumeTrue("behind a feature flag", IndexSettings.BINARY_NUMERIC_DOC_VALUES_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = createMapperService(
             columnarNumericCodecSettings(),
             mapping(b -> b.startObject("field").field("type", "long").endObject())
@@ -445,7 +445,7 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
             columnarNumericCodecSettings(),
             mapping(b -> b.startObject("field").field("type", "long").endObject())
         ).documentMapper();
-        if (IndexSettings.COLUMNAR_NUMERIC_CODEC_FEATURE_FLAG.isEnabled()) {
+        if (IndexSettings.BINARY_NUMERIC_DOC_VALUES_FEATURE_FLAG.isEnabled()) {
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.validate(columnarNumericCodecSettings(), true);
             assertEquals(NumberFieldMapper.DocValuesDiskFormat.BINARY, diskFormat(withSetting));
         } else {
@@ -455,7 +455,7 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
             );
             assertThat(
                 e.getMessage(),
-                containsString("unknown setting [" + IndexSettings.COLUMNAR_NUMERIC_CODEC_ENABLED_SETTING.getKey() + "]")
+                containsString("unknown setting [" + IndexSettings.BINARY_NUMERIC_DOC_VALUES_ENABLED_SETTING.getKey() + "]")
             );
             // Even a setting that got past validation is ignored.
             assertEquals(NumberFieldMapper.DocValuesDiskFormat.SORTED_NUMERIC, diskFormat(withSetting));
@@ -476,7 +476,7 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
     private static Settings columnarNumericCodecSettings() {
         return Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(IndexSettings.COLUMNAR_NUMERIC_CODEC_ENABLED_SETTING.getKey(), true)
+            .put(IndexSettings.BINARY_NUMERIC_DOC_VALUES_ENABLED_SETTING.getKey(), true)
             .build();
     }
 

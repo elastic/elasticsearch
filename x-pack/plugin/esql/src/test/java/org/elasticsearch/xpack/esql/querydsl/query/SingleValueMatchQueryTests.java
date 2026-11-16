@@ -137,7 +137,7 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
                 }
             }
         }
-        if (IndexSettings.COLUMNAR_NUMERIC_CODEC_FEATURE_FLAG.isEnabled()) {
+        if (IndexSettings.BINARY_NUMERIC_DOC_VALUES_FEATURE_FLAG.isEnabled()) {
             for (boolean indexed : new boolean[] { true, false }) {
                 for (boolean multivaluedField : new boolean[] { true, false }) {
                     for (boolean allowEmpty : new boolean[] { true, false }) {
@@ -360,7 +360,7 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
         public Settings indexSettings() {
             return Settings.builder()
                 .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-                .put(IndexSettings.COLUMNAR_NUMERIC_CODEC_ENABLED_SETTING.getKey(), true)
+                .put(IndexSettings.BINARY_NUMERIC_DOC_VALUES_ENABLED_SETTING.getKey(), true)
                 .build();
         }
 

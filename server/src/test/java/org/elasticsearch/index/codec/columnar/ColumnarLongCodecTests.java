@@ -59,7 +59,7 @@ import static org.hamcrest.Matchers.containsString;
 
 /**
  * A {@code long} field of a strict columnar index that opts into
- * {@link IndexSettings#COLUMNAR_NUMERIC_CODEC_ENABLED_SETTING} is written with the ColumNAR codec. These tests index the
+ * {@link IndexSettings#BINARY_NUMERIC_DOC_VALUES_ENABLED_SETTING} is written with the ColumNAR codec. These tests index the
  * same documents into an index with the setting on and one with it off, which keeps the field on {@code SORTED_NUMERIC}
  * doc values, and require searches against the two to agree.
  */
@@ -71,7 +71,7 @@ public class ColumnarLongCodecTests extends ESSingleNodeTestCase {
 
     @Before
     public void requireFeatureFlag() {
-        assumeTrue("the ColumNAR numeric codec is behind a feature flag", IndexSettings.COLUMNAR_NUMERIC_CODEC_FEATURE_FLAG.isEnabled());
+        assumeTrue("the ColumNAR numeric codec is behind a feature flag", IndexSettings.BINARY_NUMERIC_DOC_VALUES_FEATURE_FLAG.isEnabled());
     }
 
     /**
@@ -127,7 +127,7 @@ public class ColumnarLongCodecTests extends ESSingleNodeTestCase {
             IllegalArgumentException.class,
             () -> indicesAdmin().prepareCreate(WITH_CODEC).setSettings(settings(mode, randomBoolean())).get()
         );
-        assertThat(e.getMessage(), containsString(IndexSettings.COLUMNAR_NUMERIC_CODEC_ENABLED_SETTING.getKey()));
+        assertThat(e.getMessage(), containsString(IndexSettings.BINARY_NUMERIC_DOC_VALUES_ENABLED_SETTING.getKey()));
     }
 
     /**
@@ -479,7 +479,7 @@ public class ColumnarLongCodecTests extends ESSingleNodeTestCase {
     private static Settings settings(IndexMode mode, boolean codecEnabled) {
         return Settings.builder()
             .put(IndexSettings.MODE.getKey(), mode.getName())
-            .put(IndexSettings.COLUMNAR_NUMERIC_CODEC_ENABLED_SETTING.getKey(), codecEnabled)
+            .put(IndexSettings.BINARY_NUMERIC_DOC_VALUES_ENABLED_SETTING.getKey(), codecEnabled)
             .build();
     }
 

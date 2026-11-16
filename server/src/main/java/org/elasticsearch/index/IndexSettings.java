@@ -1264,16 +1264,16 @@ public final class IndexSettings {
         return SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.TIME_SERIES_ES95_CODEC_DEFAULT);
     }
 
-    /** Gates {@link #COLUMNAR_NUMERIC_CODEC_ENABLED_SETTING} while the numeric doc values layout it opts into is under development. */
-    public static final FeatureFlag COLUMNAR_NUMERIC_CODEC_FEATURE_FLAG = new FeatureFlag("columnar_numeric_codec");
+    /** Gates {@link #BINARY_NUMERIC_DOC_VALUES_ENABLED_SETTING} while the numeric doc values layout it opts into is under development. */
+    public static final FeatureFlag BINARY_NUMERIC_DOC_VALUES_FEATURE_FLAG = new FeatureFlag("binary_numeric_doc_values");
 
     /**
-     * Opts the numeric fields of a strict columnar index into the ColumNAR doc values codec, which so far stores only
-     * {@code long} fields. Off by default while the format is under development, and only registered while the
-     * {@code columnar_numeric_codec} feature flag is enabled.
+     * Opts the numeric fields of a strict columnar index into binary doc values, which the ColumNAR codec stores as numeric
+     * columns. So far only {@code long} fields write them. Off by default while the format is under development, and only
+     * registered while the {@code binary_numeric_doc_values} feature flag is enabled.
      */
-    public static final Setting<Boolean> COLUMNAR_NUMERIC_CODEC_ENABLED_SETTING = Setting.boolSetting(
-        "index.columnar_numeric_codec.enabled",
+    public static final Setting<Boolean> BINARY_NUMERIC_DOC_VALUES_ENABLED_SETTING = Setting.boolSetting(
+        "index.binary_numeric_doc_values.enabled",
         false,
         new Setting.Validator<>() {
             @Override
@@ -1287,7 +1287,7 @@ public final class IndexSettings {
                         String.format(
                             Locale.ROOT,
                             "The setting [%s] is only permitted when [%s] is a columnar index mode. Current mode: [%s].",
-                            COLUMNAR_NUMERIC_CODEC_ENABLED_SETTING.getKey(),
+                            BINARY_NUMERIC_DOC_VALUES_ENABLED_SETTING.getKey(),
                             MODE.getKey(),
                             indexMode.getName()
                         )
@@ -1945,8 +1945,8 @@ public final class IndexSettings {
         useTimeSeriesDocValuesFormatLargeNumericBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BLOCK_SIZE);
         useTimeSeriesDocValuesFormatLargeBinaryBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE);
         timeSeriesEs95CodecEnabled = scopedSettings.get(TIME_SERIES_ES95_CODEC_ENABLED_SETTING);
-        binaryNumericDocValues = COLUMNAR_NUMERIC_CODEC_FEATURE_FLAG.isEnabled()
-            && scopedSettings.get(COLUMNAR_NUMERIC_CODEC_ENABLED_SETTING);
+        binaryNumericDocValues = BINARY_NUMERIC_DOC_VALUES_FEATURE_FLAG.isEnabled()
+            && scopedSettings.get(BINARY_NUMERIC_DOC_VALUES_ENABLED_SETTING);
         useEs812PostingsFormat = scopedSettings.get(USE_ES_812_POSTINGS_FORMAT);
         intraMergeParallelismEnabled = scopedSettings.get(INTRA_MERGE_PARALLELISM_ENABLED_SETTING);
         useTimeSeriesSyntheticId = scopedSettings.get(SYNTHETIC_ID);
@@ -2850,7 +2850,7 @@ public final class IndexSettings {
     /**
      * @return whether the numeric fields of this index that support it write their doc values as one binary payload per
      *         document, in the order the values were written, rather than as {@code SORTED_NUMERIC}; resolved from
-     *         {@link #COLUMNAR_NUMERIC_CODEC_ENABLED_SETTING}, and always {@code false} while the feature flag is off
+     *         {@link #BINARY_NUMERIC_DOC_VALUES_ENABLED_SETTING}, and always {@code false} while the feature flag is off
      */
     public boolean useBinaryNumericDocValues() {
         return binaryNumericDocValues;

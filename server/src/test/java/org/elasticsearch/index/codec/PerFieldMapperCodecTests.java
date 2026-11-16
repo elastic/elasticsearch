@@ -877,7 +877,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
 
     /** With the setting on, {@code long} fields go to ColumNAR as numeric columns; the rest stay where they were. */
     public void testColumnarNumericCodecRoutesLongFields() throws IOException {
-        assumeTrue("behind a feature flag", IndexSettings.COLUMNAR_NUMERIC_CODEC_FEATURE_FLAG.isEnabled());
+        assumeTrue("behind a feature flag", IndexSettings.BINARY_NUMERIC_DOC_VALUES_FEATURE_FLAG.isEnabled());
         final PerFieldFormatSupplier supplier = createColumnarNumericFormatSupplier(true);
         assertThat(supplier.getDocValuesFormatForField("size"), instanceOf(ColumNARDocValuesFormat.class));
         assertThat(supplier.getDocValuesFormatForField("requests"), instanceOf(ColumNARDocValuesFormat.class));
@@ -905,7 +905,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
 
     /** Counters and {@code @timestamp} mostly rise, so they take split-delta, as ES95 does for them; other longs the baseline. */
     public void testColumnarNumericPipelines() throws IOException {
-        assumeTrue("behind a feature flag", IndexSettings.COLUMNAR_NUMERIC_CODEC_FEATURE_FLAG.isEnabled());
+        assumeTrue("behind a feature flag", IndexSettings.BINARY_NUMERIC_DOC_VALUES_FEATURE_FLAG.isEnabled());
         final PerFieldFormatSupplier supplier = createColumnarNumericFormatSupplier(true);
         final int blockSize = ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE;
         final byte[] monotonic = NumericPipeline.monotonicLongPipeline(blockSize).transformIds();
@@ -929,8 +929,8 @@ public class PerFieldMapperCodecTests extends ESTestCase {
             .put(IndexSettings.MODE.getKey(), randomColumnarMode())
             .put(IndexMetadata.SETTING_VERSION_CREATED, randomColumnarEligibleIndexVersion())
             .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "sorted");
-        if (IndexSettings.COLUMNAR_NUMERIC_CODEC_FEATURE_FLAG.isEnabled() && (numericCodecEnabled || randomBoolean())) {
-            settings.put(IndexSettings.COLUMNAR_NUMERIC_CODEC_ENABLED_SETTING.getKey(), numericCodecEnabled);
+        if (IndexSettings.BINARY_NUMERIC_DOC_VALUES_FEATURE_FLAG.isEnabled() && (numericCodecEnabled || randomBoolean())) {
+            settings.put(IndexSettings.BINARY_NUMERIC_DOC_VALUES_ENABLED_SETTING.getKey(), numericCodecEnabled);
         }
         final MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), settings.build(), "test");
         mapperService.merge("type", new CompressedXContent(COLUMNAR_NUMERIC_MAPPING), MapperService.MergeReason.MAPPING_UPDATE);

@@ -99,6 +99,7 @@ public final class ShardBatchMapper {
     /**
      * Whether {@code mapper} takes the column of schema leaf {@code leaf}.
      */
+    @FunctionalInterface
     private interface ColumnSupport {
         boolean test(FieldMapper mapper, int leaf);
     }

@@ -66,6 +66,15 @@ public class BinaryFieldMapperColumnarBatchTests extends MapperServiceTestCase {
         assertFalse(fieldMapper(multiValued).supportsColumnarParse(multiValued.getIndexSettings()));
     }
 
+    /** Values set aside under {@code on_failure: ignore} are written by the row path. */
+    public void testIgnoredFailuresAreNotSupported() throws IOException {
+        MapperService mapperService = createMapperService(
+            columnar(SourceFieldMapper.Mode.SYNTHETIC),
+            mapping(b -> b.startObject(FIELD).field("type", "binary").field("multi_value", false).field("on_failure", "ignore").endObject())
+        );
+        assertFalse(fieldMapper(mapperService).supportsColumnarParse(mapperService.getIndexSettings()));
+    }
+
     public void testRawBinaryMatchesRowPath() throws IOException {
         assertRawBinaryMatchesRowPath(SourceFieldMapper.Mode.SYNTHETIC);
     }

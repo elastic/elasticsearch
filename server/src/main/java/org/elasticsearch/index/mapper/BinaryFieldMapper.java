@@ -395,7 +395,6 @@ public class BinaryFieldMapper extends FieldMapper {
     @Override
     protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
         return fieldType().columnarFormat() == BinaryDocValuesFormat.PLAIN
-            && stored == false
             && docValues.onFailure() != DocValuesParameter.Values.OnFailure.IGNORE;
     }
 

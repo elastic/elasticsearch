@@ -1,0 +1,80 @@
+---
+"Create nested int8_hnsw index for knn inner_hits":
+  # Segments written here are read after the upgrade. When the old cluster predates 9.2 they use the legacy Lucene99
+  # scalar-quantized format, which used to break knn inner_hits on upgraded nodes, see #163972.
+  - do:
+      indices.create:
+        index: knn_inner_hits
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              domain:
+                type: keyword
+              chunks:
+                type: nested
+                properties:
+                  text:
+                    type: text
+                  embedding:
+                    type: dense_vector
+                    dims: 4
+                    index: true
+                    similarity: cosine
+                    index_options:
+                      type: int8_hnsw
+                      m: 16
+                      ef_construction: 100
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "knn_inner_hits", "_id": "1"}}'
+          - '{"domain": "other.com", "chunks": [{"text": "chunk a 1", "embedding": [0.1, 0.2, 0.3, 0.1]}, {"text": "chunk b 1", "embedding": [0.9, 0.1, 0.1, 0.2]}]}'
+          - '{"index": {"_index": "knn_inner_hits", "_id": "2"}}'
+          - '{"domain": "example.com", "chunks": [{"text": "chunk a 2", "embedding": [0.1, 0.2, 0.3, 0.2]}, {"text": "chunk b 2", "embedding": [0.9, 0.1, 0.2, 0.2]}]}'
+          - '{"index": {"_index": "knn_inner_hits", "_id": "3"}}'
+          - '{"domain": "other.com", "chunks": [{"text": "chunk a 3", "embedding": [0.1, 0.2, 0.3, 0.3]}, {"text": "chunk b 3", "embedding": [0.9, 0.1, 0.3, 0.2]}]}'
+          - '{"index": {"_index": "knn_inner_hits", "_id": "4"}}'
+          - '{"domain": "example.com", "chunks": [{"text": "chunk a 4", "embedding": [0.1, 0.2, 0.3, 0.4]}, {"text": "chunk b 4", "embedding": [0.9, 0.1, 0.4, 0.2]}]}'
+          - '{"index": {"_index": "knn_inner_hits", "_id": "5"}}'
+          - '{"domain": "example.com", "chunks": [{"text": "chunk a 5", "embedding": [0.1, 0.2, 0.3, 0.5]}, {"text": "chunk b 5", "embedding": [0.9, 0.1, 0.5, 0.2]}]}'
+  - match: { errors: false }
+
+  # Commit the segments, otherwise the upgraded node would replay the translog and rewrite the documents in its own format
+  - do:
+      indices.flush:
+        index: knn_inner_hits
+
+  - do:
+      search:
+        index: knn_inner_hits
+        body:
+          _source: false
+          knn:
+            field: chunks.embedding
+            query_vector: [0.1, 0.2, 0.3, 0.4]
+            k: 5
+            num_candidates: 10
+            inner_hits: { size: 2, _source: false }
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits.0.inner_hits.chunks.hits.hits: 2 }
+
+  - do:
+      search:
+        index: knn_inner_hits
+        body:
+          _source: false
+          knn:
+            field: chunks.embedding
+            query_vector: [0.1, 0.2, 0.3, 0.4]
+            k: 5
+            num_candidates: 10
+            filter: { term: { domain: example.com } }
+            inner_hits: { size: 2, _source: false }
+  - match: { hits.total.value: 3 }
+  - length: { hits.hits.0.inner_hits.chunks.hits.hits: 2 }

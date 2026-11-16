@@ -2224,4 +2224,9 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         );
         assertThat(e.getMessage(), containsString("final"));
     }
+
+    public void testScriptedFieldIsNotStaticallySingleValued() throws IOException {
+        assertScriptedFieldIsNotStaticallySingleValued("non-empty");
+    }
+
 }

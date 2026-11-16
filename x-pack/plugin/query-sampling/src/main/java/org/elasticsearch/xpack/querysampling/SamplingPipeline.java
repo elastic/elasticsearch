@@ -14,11 +14,9 @@ import org.elasticsearch.xpack.querysampling.capture.CapturedSearch;
 import org.elasticsearch.xpack.querysampling.dedup.MultiplicityTracker;
 import org.elasticsearch.xpack.querysampling.dedup.QueryFingerprint;
 import org.elasticsearch.xpack.querysampling.dedup.TrackedQuery;
-import org.elasticsearch.xpack.querysampling.groundtruth.CostBudget;
 import org.elasticsearch.xpack.querysampling.sampling.EventSlice;
 import org.elasticsearch.xpack.querysampling.sampling.QuerySampler;
-import org.elasticsearch.xpack.querysampling.sampling.SelectivityStrata;
-import org.elasticsearch.xpack.querysampling.storage.SampledQuery;
+import org.elasticsearch.xpack.querysampling.sampling.SampledQuery;
 
 import java.util.List;
 import java.util.concurrent.atomic.LongAdder;
@@ -36,25 +34,14 @@ public final class SamplingPipeline implements Consumer<CapturedSearch> {
     private final MultiplicityTracker tracker;
     private final QuerySampler sampler;
     private final List<Consumer<SampledQuery>> listeners;
-    private final CostBudget budget;
     private final EventSlice events;
-    private final SelectivityStrata selectivity;
     private final LongAdder picked = new LongAdder();
 
-    public SamplingPipeline(
-        MultiplicityTracker tracker,
-        QuerySampler sampler,
-        List<Consumer<SampledQuery>> listeners,
-        CostBudget budget,
-        EventSlice events,
-        SelectivityStrata selectivity
-    ) {
+    public SamplingPipeline(MultiplicityTracker tracker, QuerySampler sampler, List<Consumer<SampledQuery>> listeners, EventSlice events) {
         this.events = events;
-        this.selectivity = selectivity;
         this.tracker = tracker;
         this.sampler = sampler;
         this.listeners = List.copyOf(listeners);
-        this.budget = budget;
     }
 
     public long picked() {
@@ -71,15 +58,11 @@ public final class SamplingPipeline implements Consumer<CapturedSearch> {
 
     @Override
     public synchronized void accept(CapturedSearch captured) {
-        // time over capture probability is an unbiased estimate of the time of all searches this one stands for;
-        // sub-millisecond searches count as 1ms, as exact searches do
-        budget.earn(Math.max(1, captured.tookMillis()) / captured.captureRate());
         QueryFingerprint fingerprint = QueryFingerprint.of(captured.query());
         TrackedQuery tracked = tracker.record(fingerprint, captured.captureRate());
         if (tracked != null && tracked.weights().multiplicity() == 1) {
             sampler.assignStratum(tracked, captured.query().field(), captured.query().queryVector());
             sampler.assignHardness(tracked, captured.query().field(), captured.query().queryVector().length, captured.hits());
-            selectivity.assign(tracked, captured.query());
         }
         if (tracked != null && sampler.offer(tracked)) {
             picked.increment();

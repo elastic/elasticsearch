@@ -239,7 +239,7 @@ public final class QueryCaptureSink extends QuerySink<QueryCaptureContext> {
             || request.scroll() != null;
     }
 
-    // sorted by a field, the hits have no score, which the stored samples and the hardness of a query are made of
+    // sorted by a field, the hits have no score, which the samples and the hardness of a query are made of
     private static boolean returnsHitsWithoutScores(SearchSourceBuilder source) {
         return source.sorts() != null && source.sorts().stream().anyMatch(sort -> sort instanceof ScoreSortBuilder == false);
     }

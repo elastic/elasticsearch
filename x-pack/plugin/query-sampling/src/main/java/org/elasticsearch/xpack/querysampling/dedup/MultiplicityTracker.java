@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongSupplier;
 
 /**
- * Counts arrivals per distinct query so duplicates can be stored once with their multiplicity, which keeps traffic
+ * Counts arrivals per distinct query so duplicates can be kept once with their multiplicity, which keeps traffic
  * estimates unbiased. Queries are forgotten between one and two windows after their last arrival: each remembers the
  * window of its last arrival, and at the end of a window the ones from two windows ago are removed. The number of
  * distinct queries is bounded: when it is reached, the queries not seen in the current window are forgotten early, and

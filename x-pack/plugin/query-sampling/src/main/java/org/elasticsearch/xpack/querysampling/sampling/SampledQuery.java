@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.querysampling.storage;
+package org.elasticsearch.xpack.querysampling.sampling;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.querysampling.capture.CapturedSearch;
@@ -25,7 +25,7 @@ public record SampledQuery(QueryFingerprint fingerprint, CapturedSearch search, 
     }
 
     /**
-     * An arrival kept as an event, see {@link org.elasticsearch.xpack.querysampling.sampling.EventSlice}; its weights
+     * An arrival kept as an event, see {@link EventSlice}; its weights
      * are final.
      */
     public static SampledQuery event(QueryFingerprint fingerprint, CapturedSearch search, TrackedQuery tracked, String eventId) {

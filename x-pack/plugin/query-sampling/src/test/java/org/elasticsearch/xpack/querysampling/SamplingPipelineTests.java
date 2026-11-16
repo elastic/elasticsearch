@@ -9,18 +9,15 @@ package org.elasticsearch.xpack.querysampling;
 
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.querysampling.capture.CapturedQuery;
 import org.elasticsearch.xpack.querysampling.capture.CapturedSearch;
 import org.elasticsearch.xpack.querysampling.dedup.MultiplicityTracker;
-import org.elasticsearch.xpack.querysampling.groundtruth.CostBudget;
 import org.elasticsearch.xpack.querysampling.sampling.EventSlice;
 import org.elasticsearch.xpack.querysampling.sampling.PickBudget;
 import org.elasticsearch.xpack.querysampling.sampling.QuerySampler;
-import org.elasticsearch.xpack.querysampling.sampling.SelectivityStrata;
+import org.elasticsearch.xpack.querysampling.sampling.SampledQuery;
 import org.elasticsearch.xpack.querysampling.sampling.SpatialStrata;
-import org.elasticsearch.xpack.querysampling.storage.SampledQuery;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,14 +34,7 @@ public class SamplingPipelineTests extends ESTestCase {
     private final List<SampledQuery> sampled = new ArrayList<>();
 
     public void testRepeatedQueryIsPickedOnceAndKeepsBeingCounted() {
-        SamplingPipeline pipeline = new SamplingPipeline(
-            tracker,
-            sampler(1.0, 0.0),
-            List.of(sampled::add),
-            new CostBudget(0.0, 0.0),
-            new EventSlice(),
-            noSelectivity()
-        );
+        SamplingPipeline pipeline = new SamplingPipeline(tracker, sampler(1.0, 0.0), List.of(sampled::add), new EventSlice());
         float[] vector = { 1f, 2f, 3f };
 
         for (int i = 0; i < 5; i++) {
@@ -64,14 +54,7 @@ public class SamplingPipelineTests extends ESTestCase {
         );
         events.watch(clusterSettings);
         MultiplicityTracker tiny = new MultiplicityTracker(1);
-        SamplingPipeline pipeline = new SamplingPipeline(
-            tiny,
-            sampler(0.1, 0.999999),
-            List.of(sampled::add),
-            new CostBudget(0.0, 0.0),
-            events,
-            noSelectivity()
-        );
+        SamplingPipeline pipeline = new SamplingPipeline(tiny, sampler(0.1, 0.999999), List.of(sampled::add), events);
         CapturedQuery query = new CapturedQuery(new String[] { "idx" }, "vec", new float[] { 1f }, 10, 100, null, null, List.of(), null);
 
         pipeline.accept(new CapturedSearch(query, List.of(), 1, 0.5));
@@ -92,15 +75,6 @@ public class SamplingPipelineTests extends ESTestCase {
 
     private static QuerySampler sampler(double scale, double draw) {
         return new QuerySampler(scale, 100, picking(draw), new PickBudget(System::nanoTime), new SpatialStrata(0));
-    }
-
-    /** Selectivity counts are off in these tests; if one were asked for it would fail rather than search. */
-    private static SelectivityStrata noSelectivity() {
-        return new SelectivityStrata(
-            (request, listener) -> listener.onFailure(new UnsupportedOperationException()),
-            () -> 0L,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
     }
 
     /** A random whose draws are all the given value, so sampling decisions are deterministic. */

@@ -25,7 +25,6 @@ public final class TrackedQuery {
     private boolean sampled;
     private Stratum stratum;
     private Hardness hardness;
-    private Selectivity selectivity;
 
     // weight is the inverse of the capture probability: how many arrivals this captured one stands for
     synchronized void recordArrival(double weight) {
@@ -78,15 +77,6 @@ public final class TrackedQuery {
 
     public synchronized void hardness(@Nullable Hardness hardness) {
         this.hardness = hardness;
-    }
-
-    @Nullable
-    public synchronized Selectivity selectivity() {
-        return selectivity;
-    }
-
-    public synchronized void selectivity(@Nullable Selectivity selectivity) {
-        this.selectivity = selectivity;
     }
 
     public synchronized boolean isSampled() {

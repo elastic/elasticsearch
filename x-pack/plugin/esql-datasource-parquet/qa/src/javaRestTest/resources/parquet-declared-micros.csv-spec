@@ -2,7 +2,7 @@
 // null anything outside 1677-09-21 .. 2262-04-11; it scales straight to millis now.
 //
 // {{micros_timestamp}} carries ts over seven rows: 1500-01-01 and the year 3000, outside that window; half a
-// microsecond before 1500-01-01 and one microsecond before the epoch, which separate flooring from truncation; the
+// millisecond after 1500-01-01 and one microsecond before the epoch, which separate flooring from truncation; the
 // epoch; a 2024 instant with sub-millisecond digits; and a null.
 
 // The whole microsecond domain, read as the declared type.
@@ -65,6 +65,6 @@ FROM micros_declared_deferred
 
 id:integer | ts:date                  | note:keyword                             | qty:integer | ratio:double
 1          | 1500-01-01T00:00:00.000Z | fifteen hundred                          | 10          | 1.5
-2          | 1500-01-01T00:00:00.000Z | half a microsecond before fifteen hundred | 20         | 2.5
+2          | 1500-01-01T00:00:00.000Z | half a millisecond after fifteen hundred  | 20          | 2.5
 3          | 1969-12-31T23:59:59.999Z | one microsecond before the epoch         | 30          | 3.5
 ;

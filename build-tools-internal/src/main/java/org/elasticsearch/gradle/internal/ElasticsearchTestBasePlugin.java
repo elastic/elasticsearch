@@ -13,7 +13,6 @@ import com.github.jengelman.gradle.plugins.shadow.ShadowBasePlugin;
 
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
-import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.test.ErrorReportingTestListener;
 import org.elasticsearch.gradle.internal.test.SimpleCommandLineArgumentProvider;
 import org.elasticsearch.gradle.internal.test.rerun.InternalTestRerunPlugin;
@@ -43,6 +42,7 @@ import java.util.stream.Stream;
 import javax.inject.Inject;
 
 import static java.util.stream.Collectors.joining;
+import static org.elasticsearch.gradle.internal.util.ParamsUtils.applyGlobalBuildInfoIfRoot;
 import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 import static org.elasticsearch.gradle.util.FileUtils.mkdirs;
 import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure;
@@ -64,12 +64,10 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        project.getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
+        applyGlobalBuildInfoIfRoot(project);
         var buildParams = loadBuildParams(project);
         project.getPluginManager().apply(InternalTestRerunPlugin.class);
         project.getPluginManager().apply(GradleTestPolicySetupPlugin.class);
-        // for fips mode check
-        project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
         // Default test task should run only unit tests
         maybeConfigure(project.getTasks(), "test", Test.class, task -> task.include("**/*Tests.class"));
 
@@ -229,8 +227,9 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             });
 
             if (OS.current().equals(OS.WINDOWS) && System.getProperty("tests.timeoutSuite") == null) {
-                // override the suite timeout to 60 mins for windows, because it has the most inefficient filesystem known to man
-                test.systemProperty("tests.timeoutSuite", "3600000!");
+                // Override the suite timeout to 100 min (1h:40m) for windows, because it has the most inefficient filesystem known to man
+                // This choice of 100min was chosen based on a test that took 87 minutes on Windows for DocsClientYamlTestSuiteIT on 8.19
+                test.systemProperty("tests.timeoutSuite", "6000000!");
             }
 
             /*

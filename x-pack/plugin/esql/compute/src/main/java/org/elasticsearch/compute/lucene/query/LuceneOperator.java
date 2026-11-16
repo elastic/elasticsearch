@@ -26,10 +26,15 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.PartialLeafReaderContext;
 import org.elasticsearch.compute.lucene.ShardContext;
+import org.elasticsearch.compute.operator.Driver;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -38,7 +43,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
-import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -62,6 +67,13 @@ public abstract class LuceneOperator extends SourceOperator {
 
     protected final IndexedByShardId<? extends RefCounted> refCounteds;
     protected final BlockFactory blockFactory;
+    protected final DriverContext driverContext;
+    private final QueryWarnings singleValueQueryWarnings;
+
+    /**
+     * {@link Warnings} for each {@link Query} that needs one. These exist per {@link Driver}.
+     */
+    private final IdentityHashMap<Query, Warnings> queryWarnings = new IdentityHashMap<>();
 
     /**
      * Count of the number of slices processed.
@@ -71,7 +83,7 @@ public abstract class LuceneOperator extends SourceOperator {
     private final LuceneSliceQueue sliceQueue;
 
     private final Set<String> processedQueries = new TreeSet<>();
-    private final Set<String> processedShards = new HashSet<>();
+    private final Set<String> processedShards = new TreeSet<>();
 
     protected LuceneSlice currentSlice;
     private int sliceIndex;
@@ -108,15 +120,18 @@ public abstract class LuceneOperator extends SourceOperator {
 
     protected LuceneOperator(
         IndexedByShardId<? extends RefCounted> refCounteds,
-        BlockFactory blockFactory,
+        DriverContext driverContext,
         int maxPageSize,
-        LuceneSliceQueue sliceQueue
+        LuceneSliceQueue sliceQueue,
+        QueryWarnings singleValueQueryWarnings
     ) {
         this.refCounteds = refCounteds;
         refCounteds.iterable().forEach(RefCounted::mustIncRef);
-        this.blockFactory = blockFactory;
+        this.driverContext = driverContext;
+        this.blockFactory = driverContext.blockFactory();
         this.maxPageSize = maxPageSize;
         this.sliceQueue = sliceQueue;
+        this.singleValueQueryWarnings = singleValueQueryWarnings;
 
         this.shardProcessNanos = new long[sliceQueue.maxShardIndex() + 1];
         this.shardRowsEmitted = new long[shardProcessNanos.length];
@@ -128,6 +143,7 @@ public abstract class LuceneOperator extends SourceOperator {
         protected final int limit;
         protected final boolean needsScore;
         protected final LuceneSliceQueue sliceQueue;
+        protected final QueryWarnings singleValueQueryWarnings;
 
         /**
          * Build the factory.
@@ -143,8 +159,10 @@ public abstract class LuceneOperator extends SourceOperator {
             int taskConcurrency,
             int limit,
             boolean needsScore,
-            Function<ShardContext, ScoreMode> scoreModeFunction
+            Function<ShardContext, ScoreMode> scoreModeFunction,
+            QueryWarnings singleValueQueryWarnings
         ) {
+            this.singleValueQueryWarnings = singleValueQueryWarnings;
             this.limit = limit;
             this.dataPartitioning = dataPartitioning;
             this.sliceQueue = LuceneSliceQueue.create(
@@ -171,16 +189,18 @@ public abstract class LuceneOperator extends SourceOperator {
 
     @Override
     public final Page getOutput() {
-        try {
-            Page page = getCheckedOutput();
-            if (page != null) {
-                pagesEmitted++;
-                rowsEmitted += page.getPositionCount();
+        try (Releasable ignored = singleValueQueryWarnings.bind(driverContext, queryWarnings)) {
+            try {
+                Page page = getCheckedOutput();
+                if (page != null) {
+                    pagesEmitted++;
+                    rowsEmitted += page.getPositionCount();
+                }
+                stopShardClock(System.nanoTime());
+                return page;
+            } catch (IOException ioe) {
+                throw new UncheckedIOException(ioe);
             }
-            stopShardClock(System.nanoTime());
-            return page;
-        } catch (IOException ioe) {
-            throw new UncheckedIOException(ioe);
         }
     }
 
@@ -248,6 +268,15 @@ public abstract class LuceneOperator extends SourceOperator {
 
     protected LuceneSliceQueue getSliceQueue() {
         return sliceQueue;
+    }
+
+    /**
+     * Visible for testing only: the per-driver query warnings map, so tests can assert that two
+     * {@link LuceneOperator}s scanning the same shared query node end up with distinct
+     * {@link Warnings} instances for it.
+     */
+    Map<Query, Warnings> singleValueQueryWarnings() {
+        return queryWarnings;
     }
 
     @Override
@@ -421,8 +450,8 @@ public abstract class LuceneOperator extends SourceOperator {
         private static final TransportVersion ESQL_REPORT_SHARD_PARTITIONING = TransportVersion.fromName("esql_report_shard_partitioning");
 
         private final int processedSlices;
-        private final Set<String> processedQueries;
-        private final Set<String> processedShards;
+        private final List<String> processedQueries;
+        private final List<String> processedShards;
         private final long processNanos;
         private final int totalSlices;
         private final int pagesEmitted;
@@ -450,9 +479,9 @@ public abstract class LuceneOperator extends SourceOperator {
 
         protected Status(LuceneOperator operator) {
             processedSlices = operator.processedSlices;
-            processedQueries = operator.processedQueries;
+            processedQueries = List.copyOf(operator.processedQueries);
             processNanos = operator.processingNanos;
-            processedShards = new TreeSet<>(operator.processedShards);
+            processedShards = List.copyOf(operator.processedShards);
             sliceIndex = operator.sliceIndex;
             totalSlices = operator.sliceQueue.totalSlices();
             LuceneSlice slice = operator.currentSlice;
@@ -477,8 +506,8 @@ public abstract class LuceneOperator extends SourceOperator {
 
         Status(
             int processedSlices,
-            Set<String> processedQueries,
-            Set<String> processedShards,
+            List<String> processedQueries,
+            List<String> processedShards,
             long processNanos,
             int sliceIndex,
             int totalSlices,
@@ -505,8 +534,8 @@ public abstract class LuceneOperator extends SourceOperator {
 
         Status(StreamInput in) throws IOException {
             processedSlices = in.readVInt();
-            processedQueries = in.readCollectionAsSet(StreamInput::readString);
-            processedShards = in.readCollectionAsSet(StreamInput::readString);
+            processedQueries = in.readCollectionAsImmutableList(StreamInput::readString);
+            processedShards = in.readCollectionAsImmutableList(StreamInput::readString);
             processNanos = in.readVLong();
             sliceIndex = in.readVInt();
             totalSlices = in.readVInt();
@@ -551,11 +580,11 @@ public abstract class LuceneOperator extends SourceOperator {
             return processedSlices;
         }
 
-        public Set<String> processedQueries() {
+        public List<String> processedQueries() {
             return processedQueries;
         }
 
-        public Set<String> processedShards() {
+        public List<String> processedShards() {
             return processedShards;
         }
 

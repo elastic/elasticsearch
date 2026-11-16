@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.spi.XContentProvider;
 import org.hamcrest.Matcher;
 import org.hamcrest.StringDescription;
+import org.junit.AfterClass;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
@@ -97,6 +98,16 @@ public class RemoteClusterSecurityWithApmTracingRestIT extends AbstractRemoteClu
             .rolesFile(Resource.fromClasspath("roles.yml"))
             .user(REMOTE_METRIC_USER, PASS.toString(), "read_remote_shared_metrics", false)
             .build();
+    }
+
+    @AfterClass
+    public static void stopClustersGracefully() {
+        if (queryCluster != null) {
+            queryCluster.stop(false);
+        }
+        if (fulfillingCluster != null) {
+            fulfillingCluster.stop(false);
+        }
     }
 
     @ClassRule

@@ -1327,10 +1327,9 @@ public class MetadataCreateIndexService {
     ) {
         final boolean isDataStreamIndex = request.dataStreamName() != null;
 
-        // Create builders for the template and request settings. We transform these into builders
+        // Create a builder for the request settings. We transform these into a builder
         // because we may want settings to be "removed" from these prior to being set on the new
         // index (see more comments below)
-        final Settings.Builder templateSettings = Settings.builder().put(combinedTemplateSettings);
         final Settings.Builder requestSettings = Settings.builder().put(request.settings());
 
         // Create a combined builder that serves two purposes:
@@ -1361,72 +1360,22 @@ public class MetadataCreateIndexService {
 
             // Loop through all the explicit index setting providers, adding them to the
             // additionalIndexSettings map
-            final Settings.Builder additionalIndexSettings = Settings.builder();
-            final var resolvedAt = Instant.ofEpochMilli(request.getNameResolvedAt());
-            Set<String> overrulingSettings = new HashSet<>();
-            for (IndexSettingProvider provider : indexSettingProviders) {
-                Settings.Builder builder = Settings.builder();
-                provider.provideAdditionalSettings(
-                    request.index(),
-                    request.dataStreamName(),
-                    templateIndexMode,
-                    projectMetadata,
-                    resolvedAt,
-                    templateAndRequestSettings,
-                    combinedTemplateMappings,
-                    createdVersion,
-                    builder
-                );
-                var newAdditionalSettings = builder.build();
-                validateAdditionalSettings(provider, newAdditionalSettings, additionalIndexSettings);
-                additionalIndexSettings.put(newAdditionalSettings);
-                if (provider.overrulesTemplateAndRequestSettings()) {
-                    overrulingSettings.addAll(newAdditionalSettings.keySet());
-                }
-            }
+            final IndexSettingProviders.AdditionalSettings providedSettings = IndexSettingProviders.collectAdditionalSettings(
+                indexSettingProviders,
+                request.index(),
+                request.dataStreamName(),
+                templateIndexMode,
+                projectMetadata,
+                Instant.ofEpochMilli(request.getNameResolvedAt()),
+                templateAndRequestSettings,
+                combinedTemplateMappings,
+                createdVersion
+            );
 
-            for (String explicitSetting : additionalIndexSettings.keys()) {
-                if (overrulingSettings.contains(explicitSetting)) {
-                    // Remove any conflicting template and request settings to use the provided values.
-                    templateSettings.remove(explicitSetting);
-                    requestSettings.remove(explicitSetting);
-                } else {
-                    // For all the explicit settings, we go through the template and request level settings
-                    // and see if either a template or the request has "cancelled out" an explicit default
-                    // setting. For example, if a plugin had as an explicit setting:
-                    // "index.mysetting": "blah
-                    // And either a template or create index request had:
-                    // "index.mysetting": null
-                    // We want to remove the explicit setting not only from the explicitly set settings, but
-                    // also from the template and request settings, so that from the newly create index's
-                    // perspective it is as though the setting has not been set at all (using the default
-                    // value).
-                    if (templateSettings.keys().contains(explicitSetting) && templateSettings.get(explicitSetting) == null) {
-                        logger.debug(
-                            "removing default [{}] setting as it is set to null in a template for [{}] creation",
-                            explicitSetting,
-                            request.index()
-                        );
-                        additionalIndexSettings.remove(explicitSetting);
-                        templateSettings.remove(explicitSetting);
-                    }
-                    if (requestSettings.keys().contains(explicitSetting) && requestSettings.get(explicitSetting) == null) {
-                        logger.debug(
-                            "removing default [{}] setting as it is set to null in the request for [{}] creation",
-                            explicitSetting,
-                            request.index()
-                        );
-                        additionalIndexSettings.remove(explicitSetting);
-                        requestSettings.remove(explicitSetting);
-                    }
-                }
-            }
-
-            // Finally, we actually add the explicit defaults prior to the template settings and the
-            // request settings, so that the precedence goes:
-            // Explicit Defaults -> Template -> Request -> Filter out failure store settings -> Necessary Settings (# of shards, uuid, etc)
-            indexSettingsBuilder.put(additionalIndexSettings.build());
-            indexSettingsBuilder.put(templateSettings.build());
+            // Resolve the provided settings against the template and request settings. A setting set to null in the template or the
+            // request cancels the provided value, and settings of overruling providers replace the template and request values.
+            // The precedence is: Provided Settings -> Template -> Request
+            providedSettings.applyTo(templateAndRequestSettings, indexSettingsBuilder, requestSettings);
         }
         if (request.isFailureIndex()) {
             DataStreamFailureStoreDefinition.filterUserDefinedSettings(indexSettingsBuilder);

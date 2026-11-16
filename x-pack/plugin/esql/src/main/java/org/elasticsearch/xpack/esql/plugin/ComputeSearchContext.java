@@ -9,13 +9,11 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.lookup.SourceFilter;
-import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.DefaultShardContext;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 
@@ -27,7 +25,8 @@ import java.util.Objects;
  * access to all contexts created for the data drivers.
  *
  * Closing this will only close the underlying search context, and doing so <i>directly</i> is generally only done during error handling. In
- * happy-path execution, this class will be closed when the reference count in the {@link ShardContext} returned by {@link #shardContext()}
+ * happy-path execution, this class will be closed when the reference count in the {@link ShardContext}
+ * returned by {@link #shardContext(QueryWarnings)}
  * reaches 0.
  */
 class ComputeSearchContext implements Releasable {
@@ -62,9 +61,9 @@ class ComputeSearchContext implements Releasable {
         return index;
     }
 
-    ShardContext shardContext() {
+    ShardContext shardContext(QueryWarnings queryWarnings) {
         if (shardContext.get() == null) {
-            shardContext.set(createShardContext());
+            shardContext.set(createShardContext(this, queryWarnings));
         }
         return shardContext.get();
     }
@@ -74,14 +73,12 @@ class ComputeSearchContext implements Releasable {
         return searchContext;
     }
 
-    private ShardContext createShardContext() {
+    private ShardContext createShardContext(Releasable releasable, QueryWarnings queryWarnings) {
         ensureNotTombstone();
-        SearchExecutionContext searchExecutionContext = new SearchExecutionContext(searchContext.getSearchExecutionContext()) {
-            @Override
-            public SourceProvider createSourceProvider(SourceFilter sourceFilter) {
-                return new ReinitializingSourceProvider(super::createSourceProvider);
-            }
-        };
+        EsqlSearchExecutionContext searchExecutionContext = new EsqlSearchExecutionContext(
+            searchContext.getSearchExecutionContext(),
+            queryWarnings
+        );
         searchContext.addReleasable(searchExecutionContext::releaseQueryConstructionMemory);
         return new DefaultShardContext(index, this, searchExecutionContext, searchContext.request().getAliasFilter());
     }

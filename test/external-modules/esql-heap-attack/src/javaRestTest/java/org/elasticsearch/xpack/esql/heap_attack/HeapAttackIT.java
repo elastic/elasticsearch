@@ -333,6 +333,26 @@ public class HeapAttackIT extends HeapAttackTestCase {
     }
 
     /**
+     * A wide ROW followed by many DISSECTs. Planning used to rebuild every node's output on each call,
+     * making it quadratic in the number of DISSECTs.
+     */
+    public void testManyDissectFromRow() throws IOException {
+        int columns = 2500;
+        int dissects = 450;
+        StringBuilder query = startQuery();
+        query.append("ROW s=\\\"a\\\"");
+        for (int c = 0; c < columns; c++) {
+            query.append(", c").append(c).append("=1");
+        }
+        for (int d = 0; d < dissects; d++) {
+            query.append("\n| DISSECT s \\\"%{k").append(d).append("}\\\"");
+        }
+        query.append("\n| LIMIT 1\"}");
+        Map<String, Object> response = responseAsMap(query(query.toString(), "columns"));
+        assertThat((List<?>) response.get("columns"), hasSize(1 + columns + dissects));
+    }
+
+    /**
      * Hits a circuit breaker by building many moderately long strings.
      */
     public void testHugeManyConcatFromRow() throws IOException {
@@ -453,6 +473,54 @@ public class HeapAttackIT extends HeapAttackTestCase {
         }
         MapMatcher mapMatcher = matchesMap();
         assertMap(resp, mapMatcher.entry("columns", columns));
+    }
+
+    /**
+     * Joins a large multivalued field into a single enormous string.
+     */
+    public void testHugeMvConcat() throws IOException {
+        // One doc whose f00 holds 300k values; joined with a ~1kb delimiter that is one huge string.
+        initMvLongsIndex(1, 1, 300000, false);
+        // Lower the request breaker so the join trips it well before the node runs out of memory.
+        try {
+            setRequestBreakerLimit("20%");
+            assertCircuitBreaks(attempt -> mvConcat(attempt * 999));
+        } finally {
+            setRequestBreakerLimit(null);
+        }
+    }
+
+    private Map<String, Object> mvConcat(int delimiterLength) throws IOException {
+        StringBuilder query = startQuery();
+        query.append("FROM mv_longs | EVAL str = MV_CONCAT(TO_STRING(f00), REPEAT(\\\"x\\\", ")
+            .append(delimiterLength)
+            .append(")) | EVAL len = LENGTH(str) | KEEP len\"}");
+        return responseAsMap(query(query.toString(), null));
+    }
+
+    /**
+     * Chains many TO_BASE64 calls so the encoded value grows ~1.33x per level into a single huge
+     * string.
+     */
+    public void testHugeToBase64() throws IOException {
+        initGiantTextField(1, false, 5);
+        // Lower the request breaker so the chain trips it well before the node runs out of memory.
+        try {
+            setRequestBreakerLimit("20%");
+            assertCircuitBreaks(attempt -> toBase64Chain(10 + attempt * 4));
+        } finally {
+            setRequestBreakerLimit(null);
+        }
+    }
+
+    private Map<String, Object> toBase64Chain(int levels) throws IOException {
+        StringBuilder query = startQuery();
+        query.append("FROM bigtext | EVAL b = ");
+        query.append("TO_BASE64(".repeat(levels));
+        query.append("f");
+        query.append(")".repeat(levels));
+        query.append(" | EVAL len = LENGTH(b) | KEEP len\"}");
+        return responseAsMap(query(query.toString(), null));
     }
 
     public void testManyEval() throws IOException {

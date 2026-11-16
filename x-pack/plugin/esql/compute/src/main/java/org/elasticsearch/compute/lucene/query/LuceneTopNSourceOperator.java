@@ -32,6 +32,7 @@ import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -73,7 +74,8 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             int limit,
             List<SortBuilder<?>> sorts,
             long estimatedPerRowSortSize,
-            boolean needsScore
+            boolean needsScore,
+            QueryWarnings singleValueQueryWarnings
         ) {
             super(
                 contexts,
@@ -86,7 +88,8 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                 taskConcurrency,
                 limit,
                 needsScore,
-                scoreModeFunction(sorts, needsScore)
+                scoreModeFunction(sorts, needsScore),
+                singleValueQueryWarnings
             );
             this.contexts = contexts;
             this.maxPageSize = maxPageSize;
@@ -108,7 +111,8 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                 limit,
                 sliceQueue,
                 needsScore,
-                perShardCollectorProvider
+                perShardCollectorProvider,
+                singleValueQueryWarnings
             );
         }
 
@@ -164,9 +168,10 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         int limit,
         LuceneSliceQueue sliceQueue,
         boolean needsScore,
-        PerShardCollectorProvider perShardCollectorProvider
+        PerShardCollectorProvider perShardCollectorProvider,
+        QueryWarnings singleValueQueryWarnings
     ) {
-        super(contexts, driverContext.blockFactory(), maxPageSize, sliceQueue);
+        super(contexts, driverContext, maxPageSize, sliceQueue, singleValueQueryWarnings);
         this.driverContext = driverContext;
         this.sorts = sorts;
         this.estimatedPerRowSortSize = estimatedPerRowSortSize;
@@ -241,7 +246,9 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
 
             // When it takes a long time to start emitting pages we need to return back to the driver so we can update its status.
             // Even if this should almost never happen, we want to update the driver status even when a query runs "forever".
-            if (System.nanoTime() - start > Driver.DEFAULT_STATUS_INTERVAL.getNanos()) {
+            // But not once the last slice is done: getCurrentOrLoadNextScorer() has then set doneCollecting, which makes isFinished()
+            // true while nothing is emitting, so returning here would drop everything that was collected without an error.
+            if (doneCollecting == false && System.nanoTime() - start > Driver.DEFAULT_STATUS_INTERVAL.getNanos()) {
                 return null;
             }
         }

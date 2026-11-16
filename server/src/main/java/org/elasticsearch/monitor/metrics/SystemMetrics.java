@@ -320,28 +320,20 @@ public class SystemMetrics extends AbstractLifecycleComponent {
     // TODO: system.process.cpu.total.norm.pct can be removed when dashboards are migrated to OTel SDK
     // auto-emitted jvm.cpu.recent_utilization. system.cpu.total.norm.pct has no OTel SDK equivalent and must be kept.
     private void registerSystemCpuMetrics() {
-        short initialSystemCpu = OsProbe.getSystemCpuPercent();
-        if (initialSystemCpu >= 0) {
-            metrics.add(
-                registry.registerDoubleGauge(
-                    "system.cpu.total.norm.pct",
-                    "System-wide CPU usage as a ratio.",
-                    "1",
-                    () -> new DoubleWithAttributes(Math.max(0, OsProbe.getSystemCpuPercent() / 100.0))
-                )
-            );
-        }
-        short initialProcessCpu = ProcessProbe.getProcessCpuPercent();
-        if (initialProcessCpu >= 0) {
-            metrics.add(
-                registry.registerDoubleGauge(
-                    "system.process.cpu.total.norm.pct",
-                    "Process CPU usage as a ratio.",
-                    "1",
-                    () -> new DoubleWithAttributes(Math.max(0, ProcessProbe.getProcessCpuPercent() / 100.0))
-                )
-            );
-        }
+        metrics.add(registry.registerDoublesGauge("system.cpu.total.norm.pct", "System-wide CPU usage as a ratio.", "1", () -> {
+            double cpuLoad = OsProbe.getCpuLoad();
+            if (cpuLoad < 0) {
+                return List.of();
+            }
+            return List.of(new DoubleWithAttributes(cpuLoad));
+        }));
+        metrics.add(registry.registerDoublesGauge("system.process.cpu.total.norm.pct", "Process CPU usage as a ratio.", "1", () -> {
+            double cpuLoad = ProcessProbe.getProcessCpuLoad();
+            if (cpuLoad < 0) {
+                return List.of();
+            }
+            return List.of(new DoubleWithAttributes(cpuLoad));
+        }));
     }
 
     private void registerLongGaugeUnlessNegative(String name, String description, String unit, LongSupplier supplier) {

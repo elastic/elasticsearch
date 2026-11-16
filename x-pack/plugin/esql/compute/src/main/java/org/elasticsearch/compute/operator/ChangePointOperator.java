@@ -215,9 +215,9 @@ public class ChangePointOperator extends CompleteInputCollectorOperator {
     private Warnings warnings(boolean onlyWarnings) {
         if (warnings == null) {
             if (onlyWarnings) {
-                this.warnings = Warnings.createOnlyWarnings(driverContext.warningsMode(), source);
+                this.warnings = driverContext.createOnlyWarnings(source);
             } else {
-                this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+                this.warnings = driverContext.createWarnings(source);
             }
         }
         return warnings;

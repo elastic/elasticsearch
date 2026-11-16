@@ -227,6 +227,10 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             null // configuration - non-streaming lookup doesn't use planning pipeline
         );
         lookupService.lookupAsync(request, parentTask, listener.map(response -> {
+            // Replay warnings accumulated by the (possibly remote) lookup driver.
+            for (String warning : response.warnings()) {
+                driverContext().addWarning(warning);
+            }
             List<Page> pages = response.takePages();
             return new OngoingJoin(new RightChunkedLeftJoin(inputPage, loadFields.size()), pages.iterator());
         }));

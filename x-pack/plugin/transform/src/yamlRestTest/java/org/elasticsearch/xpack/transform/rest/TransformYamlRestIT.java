@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.transform.rest;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.settings.Settings;
@@ -39,7 +40,7 @@ public class TransformYamlRestIT extends ESClientYamlSuiteTestCase {
         .user("x_pack_rest_user", "x-pack-test-password")
         .build();
 
-    public TransformYamlRestIT(ClientYamlTestCandidate testCandidate) {
+    public TransformYamlRestIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -21,6 +22,7 @@ import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.SourceFilter;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -67,6 +69,42 @@ public class FallbackSyntheticSourceBlockLoaderTests extends MapperServiceTestCa
                 assertFalse("must not be reused for a doc in an earlier block", reader.canReuse(10));
             }
         });
+    }
+
+    public void testObjectAndDottedNameInParentKeptInIgnoredSource() throws IOException {
+        var params = new BlockLoaderTestCase.Params(true, MappedFieldType.FieldExtractPreference.NONE);
+        var mapping = mapping(b -> {
+            b.startObject("obj").field("type", "object").field("synthetic_source_keep", "all");
+            {
+                b.startObject("properties");
+                b.startObject("sub").field("type", "object");
+                {
+                    b.startObject("properties");
+                    b.startObject("field").field("type", "keyword").field("doc_values", false).endObject();
+                    b.endObject();
+                }
+                b.endObject();
+                b.endObject();
+            }
+            b.endObject();
+        });
+        var settings = Settings.builder()
+            .put("index.mapping.source.mode", "synthetic")
+            .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), randomBoolean());
+        MapperService mapperService = createMapperService(settings.build(), mapping);
+
+        var runner = new BlockLoaderTestRunner(params).breaker(newLimitedBreaker(ByteSizeValue.ofMb(1)));
+        runner.mapperService(mapperService);
+        runner.document(mapperService.documentMapper().parse(source("""
+            {
+              "obj": {
+                "sub": { "field": "a", "fielx": "x" },
+                "other": "y",
+                "sub.field": "b"
+              }
+            }""")));
+        runner.fieldName("obj.sub.field");
+        runner.run(List.of(new BytesRef("a"), new BytesRef("b")));
     }
 
     private BlockLoader loader(MapperService mapperService) {

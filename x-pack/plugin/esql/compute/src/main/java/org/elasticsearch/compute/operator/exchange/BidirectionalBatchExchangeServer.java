@@ -13,14 +13,15 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.EsqlRefCountingListener;
 import org.elasticsearch.compute.operator.Driver;
+import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.operator.ResponseHeadersCollector;
 import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -69,7 +70,7 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
     private final DiscoveryNode clientNode; // Client node for transport connection
     private PlainActionFuture<Void> driverFuture; // Future for driver completion
     private ThreadContext threadContext; // Thread context for starting driver
-    private ResponseHeadersCollector responseHeadersCollector;
+
     private volatile boolean driverPrepared = false; // Whether driver has been prepared but not started
     private volatile boolean driverStarted = false; // Whether driver has been started (client sent BatchExchangeStatusRequest)
     private ScheduledFuture<?> clientReadyTimeoutFuture; // Timeout for client to send BatchExchangeStatusRequest
@@ -197,6 +198,14 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
         // Store the listener to send response when batch processing completes
         // This MUST be done before starting processing to ensure we can always reply on error
         batchExchangeStatusListener = new ChannelActionListener<>(channel);
+        // Old clients receive warnings as transport response headers rather than the ESQL_DRIVER_WARNINGS wire field.
+        // Emit them here — before the channel serialises its ThreadContext — so they are included.
+        if (channel.getVersion().supports(DriverCompletionInfo.ESQL_DRIVER_WARNINGS) == false) {
+            batchExchangeStatusListener = batchExchangeStatusListener.map(resp -> {
+                resp.warnings().forEach(HeaderWarning::addWarning);
+                return resp;
+            });
+        }
         logger.debug(
             "[LookupJoinServer] BatchExchangeStatusRequest received for exchangeId={}, stored listener (processing will start now)",
             serverToClientId
@@ -271,7 +280,6 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
     private ActionListener<Void> createDriverCompletionListener() {
         return ActionListener.wrap(ignored -> {
             logger.debug("[LookupJoinServer] Driver completion listener onResponse called (success) for exchangeId={}", serverToClientId);
-            responseHeadersCollector.collect();
             driverFuture.onResponse(null);
             logger.debug("[LookupJoinServer] Batch processing completed successfully for exchangeId={}", serverToClientId);
             // Close server resources BEFORE releasing the driver ref
@@ -295,7 +303,6 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
                 serverToClientId,
                 failure != null ? failure.getMessage() : "unknown"
             );
-            responseHeadersCollector.collect();
             // Complete the future first so close() won't throw
             driverFuture.onFailure(failure);
             // Close server resources BEFORE releasing the driver ref
@@ -317,7 +324,6 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
      * The listener is stored when BatchExchangeStatusRequest is received, before processing starts.
      */
     private void sendBatchExchangeStatusResponse(@Nullable Exception failure) {
-        responseHeadersCollector.finish();
         ActionListener<BatchExchangeStatusResponse> listener = batchExchangeStatusListener;
         if (listener != null) {
             logger.debug(
@@ -326,9 +332,15 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
                 serverToClientId
             );
             try {
-                BatchExchangeStatusResponse response = failure == null
-                    ? new BatchExchangeStatusResponse()
-                    : new BatchExchangeStatusResponse(failure);
+                BatchExchangeStatusResponse response;
+                if (failure == null) {
+                    DriverCompletionInfo completionInfo = batchDriver != null
+                        ? DriverCompletionInfo.excludingProfiles(List.of(batchDriver))
+                        : DriverCompletionInfo.EMPTY;
+                    response = new BatchExchangeStatusResponse(completionInfo.warnings());
+                } else {
+                    response = new BatchExchangeStatusResponse(failure);
+                }
                 listener.onResponse(response);
                 // Clear the listener after sending response to prevent duplicate replies
                 batchExchangeStatusListener = null;
@@ -458,7 +470,6 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
 
         // Store thread context for later driver startup
         this.threadContext = threadContext;
-        this.responseHeadersCollector = new ResponseHeadersCollector(threadContext);
 
         // Handler was already registered in initialize(), no need to register again
         logger.debug(

@@ -12,15 +12,15 @@ import org.apache.lucene.search.FilterWeight;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.Weight;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.indices.IndicesQueryCache;
 
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * A query cache for doc partitioning that tries to prevent multiple threads from populating the cache for the same segment.
@@ -28,7 +28,16 @@ import java.util.concurrent.atomic.AtomicInteger;
  * This is best-effort as other threads might also fall back to an uncached scorer.
  */
 final class DocPartitioningQueryCache implements QueryCache {
-    private final Map<Object, SubscribableListener<Void>> cachingListeners = ConcurrentCollections.newConcurrentMap();
+
+    /**
+     * How many instances are populating the cache for a leaf.
+     */
+    private static class PendingCaching {
+        final SubscribableListener<Void> completion = new SubscribableListener<>();
+        final RefCounted tasks = AbstractRefCounted.of(() -> completion.onResponse(null));
+    }
+
+    private final Map<Object, PendingCaching> pendingCachingPerLeaf = ConcurrentCollections.newConcurrentMap();
     private final QueryCache actual;
 
     DocPartitioningQueryCache(QueryCache actual) {
@@ -48,24 +57,15 @@ final class DocPartitioningQueryCache implements QueryCache {
      * or {@code null} if no caching is in progress for this leaf.
      */
     SubscribableListener<Void> blockedOnCaching(LeafReaderContext leaf) {
-        SubscribableListener<Void> listener = cachingListeners.get(leaf.id());
-        if (listener == null || listener.isDone()) {
+        var pendingTask = pendingCachingPerLeaf.get(leaf.id());
+        if (pendingTask == null) {
             return null;
         }
-        return listener;
-    }
-
-    private static SubscribableListener<Void> combine(SubscribableListener<Void> first, SubscribableListener<Void> second) {
-        SubscribableListener<Void> combined = new SubscribableListener<>();
-        AtomicInteger counter = new AtomicInteger(2);
-        ActionListener<Void> onComplete = ActionListener.running(() -> {
-            if (counter.decrementAndGet() == 0) {
-                combined.onResponse(null);
-            }
-        });
-        first.addListener(onComplete);
-        second.addListener(onComplete);
-        return combined;
+        SubscribableListener<Void> completion = pendingTask.completion;
+        if (completion.isDone()) {
+            return null;
+        }
+        return completion;
     }
 
     private class DocPartitioningWeight extends IndicesQueryCache.OptionalCachingWeight {
@@ -76,22 +76,25 @@ final class DocPartitioningQueryCache implements QueryCache {
         }
 
         private void maybeRemoveCachingListener(LeafReaderContext leaf) {
-            cachingListeners.compute(leaf.id(), (k, curr) -> curr == null || curr.isDone() ? null : curr);
+            pendingCachingPerLeaf.compute(leaf.id(), (k, curr) -> curr == null || curr.tasks.hasReferences() == false ? null : curr);
         }
 
         @Override
         public Releasable startCaching(LeafReaderContext leaf) {
-            final SubscribableListener<Void> listener = new SubscribableListener<>();
-            cachingListeners.compute(leaf.id(), (k, curr) -> curr == null || curr.isDone() ? listener : combine(curr, listener));
+            var pending = pendingCachingPerLeaf.compute(
+                leaf.id(),
+                (k, curr) -> curr == null || curr.tasks.tryIncRef() == false ? new PendingCaching() : curr
+            );
             if (cached.add(leaf.id())) {
                 return () -> {
-                    listener.onResponse(null);
+                    pending.tasks.decRef();
                     maybeRemoveCachingListener(leaf);
                 };
+            } else {
+                pending.tasks.decRef();
+                maybeRemoveCachingListener(leaf);
+                return null;
             }
-            listener.onResponse(null);
-            maybeRemoveCachingListener(leaf);
-            return null;
         }
     }
 

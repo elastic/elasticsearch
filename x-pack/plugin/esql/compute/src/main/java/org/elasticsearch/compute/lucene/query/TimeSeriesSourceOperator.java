@@ -8,12 +8,12 @@
 package org.elasticsearch.compute.lucene.query;
 
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Limiter;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.index.codec.tsdb.PartitionedDocValues;
 
@@ -38,7 +38,8 @@ public final class TimeSeriesSourceOperator extends LuceneSourceOperator {
             int docThresholdForAutoStrategy,
             int taskConcurrency,
             int maxPageSize,
-            int limit
+            int limit,
+            QueryWarnings singleValueQueryWarnings
         ) {
             super(
                 contexts,
@@ -49,13 +50,22 @@ public final class TimeSeriesSourceOperator extends LuceneSourceOperator {
                 taskConcurrency,
                 maxPageSize,
                 limit,
-                false
+                false,
+                singleValueQueryWarnings
             );
         }
 
         @Override
         public SourceOperator get(DriverContext driverContext) {
-            return new TimeSeriesSourceOperator(refCounteds, driverContext.blockFactory(), maxPageSize, sliceQueue, limit, limiter);
+            return new TimeSeriesSourceOperator(
+                refCounteds,
+                driverContext,
+                maxPageSize,
+                sliceQueue,
+                limit,
+                limiter,
+                singleValueQueryWarnings
+            );
         }
 
         @Override
@@ -66,13 +76,14 @@ public final class TimeSeriesSourceOperator extends LuceneSourceOperator {
 
     public TimeSeriesSourceOperator(
         IndexedByShardId<? extends RefCounted> shardContextCounters,
-        BlockFactory blockFactory,
+        DriverContext driverContext,
         int maxPageSize,
         LuceneSliceQueue sliceQueue,
         int limit,
-        Limiter limiter
+        Limiter limiter,
+        QueryWarnings singleValueQueryWarnings
     ) {
-        super(shardContextCounters, blockFactory, maxPageSize, sliceQueue, limit, limiter, false);
+        super(shardContextCounters, driverContext, maxPageSize, sliceQueue, limit, limiter, false, singleValueQueryWarnings);
     }
 
     @Override

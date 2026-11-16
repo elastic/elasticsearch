@@ -145,6 +145,12 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             this.debugPort = DefaultLocalClusterHandle.NEXT_DEBUG_PORT.getAndIncrement();
         }
 
+        /** stable, but sufficiently strong seed based on the node's working directory name */
+        private static long nodeIdSeed(String nodeDirName) {
+            UUID uuid = UUID.nameUUIDFromBytes(nodeDirName.getBytes(StandardCharsets.UTF_8));
+            return uuid.getMostSignificantBits() ^ uuid.getLeastSignificantBits();
+        }
+
         public synchronized void start(Version version) {
             LOGGER.info("Starting Elasticsearch node '{}'", name);
             if (version != null) {
@@ -402,6 +408,11 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                 finalSettings.put("path.repo", repoDir.toString());
                 finalSettings.put("path.data", dataDir.toString());
                 finalSettings.put("path.logs", logsDir.toString());
+                // Guarantee a unique persistent node ID even when multiple ES child processes start concurrently.
+                // Without an explicit seed, NodeEnvironment falls back to ThreadLocalRandom inside the child JVM;
+                // on Windows, child processes started at the same nanosecond can end up with identical ThreadLocalRandom seeds
+                // and therefore identical node IDs, which prevents the cluster from forming.
+                finalSettings.put("node.id.seed", Long.toString(nodeIdSeed(workingDir.getFileName().toString())));
                 finalSettings.putAll(spec.resolveSettings());
 
                 Files.writeString(
@@ -484,9 +495,25 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
         }
 
         public void configureKeystore() {
-            createKeystore();
-            addKeystoreSettings();
+            Map<String, String> keystoreSettings = spec.resolveKeystore();
+            if (needsKeystoreFile(keystoreSettings)) {
+                createKeystore();
+            }
+            addKeystoreSettings(keystoreSettings);
             addKeystoreFiles();
+        }
+
+        /**
+         * Every {@code elasticsearch-keystore} call starts a JVM. On first start a node with nothing to put in its keystore
+         * can skip creating one, because Elasticsearch creates an empty keystore itself at startup. Once the node has run,
+         * keep creating it: {@link #updateStoredSecureSettings()} rewrites this file for a running node, which reloads secure
+         * settings from it.
+         */
+        private boolean needsKeystoreFile(Map<String, String> keystoreSettings) {
+            return process != null
+                || (spec.getKeystorePassword() != null && spec.getKeystorePassword().isEmpty() == false)
+                || keystoreSettings.isEmpty() == false
+                || spec.getKeystoreFiles().isEmpty() == false;
         }
 
         private void createKeystore() {
@@ -497,15 +524,42 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             }
         }
 
-        private void addKeystoreSettings() {
-            spec.resolveKeystore().forEach((key, value) -> {
-                Objects.requireNonNull(value, "keystore setting for '" + key + "' may not be null");
-                String input = spec.getKeystorePassword() == null || spec.getKeystorePassword().isEmpty()
-                    ? value
-                    : spec.getKeystorePassword() + "\n" + value;
+        private void addKeystoreSettings(Map<String, String> keystoreSettings) {
+            keystoreSettings.forEach((key, value) -> Objects.requireNonNull(value, "keystore setting for '" + key + "' may not be null"));
+            if (keystoreSettings.isEmpty()) {
+                return;
+            }
+            List<Map.Entry<String, String>> entries = List.copyOf(keystoreSettings.entrySet());
+            List<String> values = entries.stream().map(Map.Entry::getValue).toList();
+            if (canAddKeystoreSettingsInOneCall(spec.getVersion(), values)) {
+                String[] args = Stream.concat(Stream.of("add"), entries.stream().map(Map.Entry::getKey)).toArray(String[]::new);
+                runToolScript("elasticsearch-keystore", keystoreAddInput(spec.getKeystorePassword(), values), args);
+            } else {
+                entries.forEach(
+                    entry -> runToolScript(
+                        "elasticsearch-keystore",
+                        keystoreAddInput(spec.getKeystorePassword(), List.of(entry.getValue())),
+                        "add",
+                        entry.getKey()
+                    )
+                );
+            }
+        }
 
-                runToolScript("elasticsearch-keystore", input, "add", key);
-            });
+        /**
+         * {@code elasticsearch-keystore add} takes several settings since 7.7.0 (#54229), reading one value per line, so one
+         * JVM can add them all. Values spanning lines can't be passed that way.
+         */
+        static boolean canAddKeystoreSettingsInOneCall(Version version, List<String> values) {
+            return version.onOrAfter("7.7.0") && values.stream().noneMatch(value -> value.contains("\n") || value.contains("\r"));
+        }
+
+        /**
+         * Builds the stdin for {@code elasticsearch-keystore add}: the keystore password, if any, then one value per setting.
+         */
+        static String keystoreAddInput(String keystorePassword, List<String> values) {
+            String joinedValues = String.join("\n", values);
+            return keystorePassword == null || keystorePassword.isEmpty() ? joinedValues : keystorePassword + "\n" + joinedValues;
         }
 
         private void addKeystoreFiles() {

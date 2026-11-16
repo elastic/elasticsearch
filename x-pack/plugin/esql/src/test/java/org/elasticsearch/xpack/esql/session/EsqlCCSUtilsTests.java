@@ -535,6 +535,31 @@ public class EsqlCCSUtilsTests extends ESTestCase {
         }
     }
 
+    public void testNoMatchingIndicesPrefersFieldCapsFailureOverAnotherResolutionsEmptyFailures() {
+        for (boolean failureFirst : List.of(true, false)) {
+            EsqlExecutionInfo executionInfo = createEsqlExecutionInfo(true);
+            executionInfo.swapCluster(
+                REMOTE1_ALIAS,
+                (k, v) -> createEsqlExecutionInfoCluster(REMOTE1_ALIAS, "*", true, EsqlExecutionInfo.Cluster.Status.RUNNING)
+            );
+            EsIndex localOnly = EsIndexGenerator.esIndex("logs*", randomMapping(), Map.of("logs-a", IndexMode.STANDARD));
+            IndexResolution withoutFailure = IndexResolution.valid(localOnly, localOnly.concreteQualifiedIndices(), Map.of());
+            EsIndex remotePattern = EsIndexGenerator.esIndex("*:logs*", randomMapping(), Map.of("logs-a", IndexMode.STANDARD));
+            var failure = new FieldCapabilitiesFailure(new String[] { "*:logs*" }, new NoSeedNodeLeftException("unable to connect"));
+            IndexResolution withFailure = IndexResolution.valid(
+                remotePattern,
+                remotePattern.concreteQualifiedIndices(),
+                Map.of(REMOTE1_ALIAS, List.of(failure))
+            );
+            List<IndexResolution> resolutions = failureFirst ? List.of(withFailure, withoutFailure) : List.of(withoutFailure, withFailure);
+            EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, resolutions, false);
+            EsqlExecutionInfo.Cluster remote1Cluster = executionInfo.getCluster(REMOTE1_ALIAS);
+            assertThat(remote1Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+            assertThat(remote1Cluster.getFailures(), hasSize(1));
+            assertThat(remote1Cluster.getFailures().getFirst().reason(), containsString("unable to connect"));
+        }
+    }
+
     public void testDetermineUnavailableRemoteClusters() {
         // two clusters, both "remote unavailable" type exceptions
         {

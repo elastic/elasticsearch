@@ -592,7 +592,7 @@ class KibanaOwnedReservedRoleDescriptors {
                     )
                     .build(),
                 // For ExtraHop, QualysGAV, SentinelOne, Island Browser, Cyera, IRONSCALES, Axonius,
-                // JupiterOne and PingDirectory specific actions.
+                // JupiterOne, PingDirectory and XM Cyber specific actions.
                 // Kibana reads, writes and manages this index
                 // for configured ILM policies.
                 RoleDescriptor.IndicesPrivileges.builder()
@@ -621,7 +621,10 @@ class KibanaOwnedReservedRoleDescriptors {
                         "logs-axonius.ticket-*",
                         "logs-axonius.user-*",
                         "logs-jupiter_one.risks_and_alerts-*",
-                        "logs-ping_directory.user-*"
+                        "logs-ping_directory.user-*",
+                        "logs-xm_cyber.device-*",
+                        "logs-xm_cyber.product-*",
+                        "logs-xm_cyber.vulnerability_instance-*"
                     )
                     .privileges(
                         "manage",

@@ -34,6 +34,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.lucene.search.cost.QueryCacheEntryCostEstimator;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -255,6 +256,12 @@ public class IndicesQueryCache implements QueryCache, Closeable {
 
     @Override
     public Weight doCache(Weight weight, QueryCachingPolicy policy) {
+        // A query may hand its child's already cached weight back to the searcher, which then caches it again (ConstantScoreQuery
+        // does this when scores are not needed). The accounting wrapper the searcher adds around such a weight is redundant: the
+        // one inside the cached weight is kept, like the unwrapping below and in LRUQueryCache keeps a single cache layer.
+        if (weight instanceof CachePopulationAccountingWeight accounting && accounting.wrapped() instanceof CachingWeightWrapper) {
+            weight = accounting.wrapped();
+        }
         while (weight instanceof CachingWeightWrapper) {
             weight = ((CachingWeightWrapper) weight).in;
         }
@@ -509,10 +516,10 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         }
 
         /**
-         * Populates the cache unless another thread is already building the same entry, in which case this returns {@code null} and
-         * the caller runs the query uncached for this leaf, as {@link LRUQueryCache} does whenever population is skipped. An
-         * {@link OptionalCachingWeight} decides for itself which thread populates the cache and what the others do, so it is left to
-         * its own gate.
+         * Populates the cache unless another thread is already building the same entry, or the search's circuit breaker refuses the
+         * heap the entry takes to build, in which case this returns {@code null} and the caller runs the query uncached for this
+         * leaf, as {@link LRUQueryCache} does whenever population is skipped. An {@link OptionalCachingWeight} decides for itself
+         * which thread populates the cache and what the others do, so it is left to its own gate.
          */
         @Override
         protected CacheAndCount tryPopulateCache(
@@ -530,8 +537,8 @@ public class IndicesQueryCache implements QueryCache, Closeable {
                     }
                 }
             }
-            // Building a doc id set costs up to maxDoc / 8 bytes of heap that no circuit breaker charges, and the cache only stores one
-            // copy anyway, so letting every concurrent search build its own copy of a popular filter only wastes heap.
+
+            // Only let one thread build a cache entry for the same query at a time.
             // The loser does not wait for the winner: a blocked search thread holds a search pool slot, the winner may be
             // cancelled or fail.
             final SegmentQueryKey populationKey = new SegmentQueryKey(cacheKey.getKey(), weight.getQuery());
@@ -539,6 +546,15 @@ public class IndicesQueryCache implements QueryCache, Closeable {
                 return null;
             }
             try {
+                // Account for the cost of the query cache entry in the search circuit breaker. If the breaker trips,
+                // skip the cache and run the query uncached.
+                if (weight instanceof CachePopulationAccountingWeight accounting) {
+                    final long bytes = new QueryCacheEntryCostEstimator(scorerSupplier.cost(), context.reader().maxDoc()).estimate();
+                    if (accounting.chargeCachePopulation(context, bytes) == false) {
+                        logger.trace("skipping population of [{}] bytes for query [{}]: circuit breaker refused", bytes, weight.getQuery());
+                        return null;
+                    }
+                }
                 return super.tryPopulateCache(cacheKey, weight, scorerSupplier, context);
             } finally {
                 inFlightPopulations.remove(populationKey);
@@ -563,5 +579,33 @@ public class IndicesQueryCache implements QueryCache, Closeable {
          * or {@code null} if another thread is already caching this segment.
          */
         protected abstract Releasable startCaching(LeafReaderContext leaf);
+    }
+
+    /**
+     * A {@link Weight} through which the cache can reserve, on the circuit breaker of the search that is populating it, the heap
+     * that building an entry allocates. Lucene's {@link QueryCache#doCache} carries no request context, so the searcher puts
+     * one of these inside the weight it hands to {@link #doCache}; the cache finds it again as the weight it is asked to
+     * populate from. Populating a dense entry allocates a {@code FixedBitSet} of {@code maxDoc / 8} bytes that is otherwise
+     * invisible to any breaker, and a search holds it for the whole leaf even if the cache evicts it right away.
+     */
+    public abstract static class CachePopulationAccountingWeight extends FilterWeight {
+        protected CachePopulationAccountingWeight(Weight in) {
+            super(in);
+        }
+
+        /**
+         * Reserves {@code bytes} for the cache entry about to be built for {@code leaf}.
+         *
+         * @return {@code true} if the bytes were reserved, {@code false} if the breaker refused them, in which case the cache
+         *         does not build the entry and the leaf runs uncached
+         */
+        public abstract boolean chargeCachePopulation(LeafReaderContext leaf, long bytes);
+
+        /**
+         * The weight this one wraps.
+         */
+        public final Weight wrapped() {
+            return in;
+        }
     }
 }

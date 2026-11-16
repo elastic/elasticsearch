@@ -121,6 +121,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit.parseGenerationFromBlobName;
 import static org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit.startsWithBlobPrefix;
+import static org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit.startsWithMergeBlobPrefix;
 import static org.elasticsearch.xpack.stateless.commits.BlobFileRanges.computeBlobFileRanges;
 
 public class ObjectStoreService extends AbstractLifecycleComponent implements ClusterStateApplier {
@@ -989,6 +990,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         for (var blob : blobs.entrySet()) {
             if (startsWithBlobPrefix(blob.getKey())) {
                 map.put(new PrimaryTermAndGeneration(blobPrimaryTerm, parseGenerationFromBlobName(blob.getKey())), blob.getValue());
+            } else if (startsWithMergeBlobPrefix(blob.getKey())) {
+                logger.trace(() -> format("ignoring merge blob [%s] in [%s]", blob.getKey(), blobContainer.path().buildAsString()));
             } else {
                 logger.warn(
                     () -> format(

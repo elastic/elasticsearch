@@ -733,24 +733,24 @@ public class PerFieldMapperCodecTests extends ESTestCase {
     /** A text column is written without a dictionary; a keyword column with one. */
     public void testTextAsksForNoDictionary() throws IOException {
         final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(randomColumnarMode(), randomColumnarEligibleIndexVersion());
-        final StringColumnOptions text = supplier.columnarStringOptionsOf("body");
+        final StringColumnOptions text = supplier.columnarFields().stringOptionsOf("body");
         assertNotNull("a columnar text field is written as a string column", text);
         assertEquals("surveying a text column for a dictionary is not worth it", DictionaryPolicy.NONE, text.dictionary());
         assertEquals(
             "a keyword column is still worth a dictionary",
             StringColumnOptions.DEFAULT_DICTIONARY,
-            supplier.columnarStringOptionsOf("category").dictionary()
+            supplier.columnarFields().stringOptionsOf("category").dictionary()
         );
     }
 
     /** The field says how its string column is written, and a field that is not one says nothing. */
     public void testColumnarStringOptionsComeFromTheField() throws IOException {
         final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(randomColumnarMode(), randomColumnarEligibleIndexVersion());
-        final StringColumnOptions options = supplier.columnarStringOptionsOf("category");
+        final StringColumnOptions options = supplier.columnarFields().stringOptionsOf("category");
         assertNotNull("a columnar keyword field is written as a string column", options);
         assertEquals("a keyword column is worth a dictionary", StringColumnOptions.DEFAULT_DICTIONARY, options.dictionary());
-        assertNull("a long field is not a string column", supplier.columnarStringOptionsOf("size"));
-        assertNull("a double field is not a string column", supplier.columnarStringOptionsOf("score"));
+        assertNull("a long field is not a string column", supplier.columnarFields().stringOptionsOf("size"));
+        assertNull("a double field is not a string column", supplier.columnarFields().stringOptionsOf("score"));
     }
 
     /** A field the codec does not store is not written as a string column, whatever its type. */
@@ -759,7 +759,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
             randomColumnarMode(),
             IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_CODEC_NO_FEATURE_FLAG)
         );
-        assertNull(supplier.columnarStringOptionsOf("category"));
+        assertNull(supplier.columnarFields().stringOptionsOf("category"));
     }
 
     /**
@@ -793,18 +793,18 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         );
         for (String field : List.of("category", "body")) {
             assertThat(field, supplier.getDocValuesFormatForField(field), instanceOf(ColumNARDocValuesFormat.class));
-            final StringColumnOptions.Sizes sizes = supplier.resolveStringColumnOptions(field, ColumnarFieldType.STRING).sizes();
+            final StringColumnOptions.Sizes sizes = supplier.columnarFields().stringOptions(field, ColumnarFieldType.STRING).sizes();
             assertThat(field, sizes.plainChunks(), equalTo(new ChunkBounds(32 * 1024, 128)));
             assertThat(field, sizes.escapeChunks(), equalTo(new ChunkBounds(32 * 1024, 128)));
             assertThat(field, sizes.compressedOrdinalBlockSize(), equalTo(512));
             assertThat(field, sizes.valuesPerBlock(), equalTo(StringColumnOptions.DEFAULT_VALUES_PER_BLOCK));
         }
-        assertEquals(DictionaryPolicy.NONE, supplier.resolveStringColumnOptions("body", ColumnarFieldType.STRING).dictionary());
+        assertEquals(DictionaryPolicy.NONE, supplier.columnarFields().stringOptions("body", ColumnarFieldType.STRING).dictionary());
         assertEquals(
             StringColumnOptions.DEFAULT_DICTIONARY,
-            supplier.resolveStringColumnOptions("category", ColumnarFieldType.STRING).dictionary()
+            supplier.columnarFields().stringOptions("category", ColumnarFieldType.STRING).dictionary()
         );
-        final StringColumnOptions.Sizes payload = supplier.resolveStringColumnOptions("payload", ColumnarFieldType.STRING).sizes();
+        final StringColumnOptions.Sizes payload = supplier.columnarFields().stringOptions("payload", ColumnarFieldType.STRING).sizes();
         assertThat("a payload column is never given larger chunks", payload.plainChunks(), equalTo(new ChunkBounds(32 * 1024, 128)));
     }
 
@@ -834,9 +834,9 @@ public class PerFieldMapperCodecTests extends ESTestCase {
                     instanceOf(ColumNARDocValuesFormat.class)
                 );
             }
-            assertFalse("mode=" + mode, supplier.resolveStringColumnOptions("category", ColumnarFieldType.STRING).singleValued());
-            assertTrue("mode=" + mode, supplier.resolveStringColumnOptions("host", ColumnarFieldType.STRING).singleValued());
-            assertFalse("mode=" + mode, supplier.resolveStringColumnOptions("body", ColumnarFieldType.STRING).singleValued());
+            assertFalse("mode=" + mode, supplier.columnarFields().stringOptions("category", ColumnarFieldType.STRING).singleValued());
+            assertTrue("mode=" + mode, supplier.columnarFields().stringOptions("host", ColumnarFieldType.STRING).singleValued());
+            assertFalse("mode=" + mode, supplier.columnarFields().stringOptions("body", ColumnarFieldType.STRING).singleValued());
         }
     }
 
@@ -845,7 +845,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         for (String field : List.of("unmapped", "size")) {
             final IllegalStateException e = expectThrows(
                 IllegalStateException.class,
-                () -> supplier.resolveStringColumnOptions(field, ColumnarFieldType.STRING)
+                () -> supplier.columnarFields().stringOptions(field, ColumnarFieldType.STRING)
             );
             assertThat(e.getMessage(), containsString("field [" + field + "]"));
         }

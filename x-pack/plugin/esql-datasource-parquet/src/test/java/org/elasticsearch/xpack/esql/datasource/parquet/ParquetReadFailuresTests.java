@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import org.apache.parquet.io.ParquetDecodingException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -113,6 +114,58 @@ public class ParquetReadFailuresTests extends ESTestCase {
         assertSame(iae, wrapped.getCause());
         assertThat(wrapped.getMessage(), containsString("ctx"));
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ExternalFailures.classify(wrapped)));
+    }
+
+    public void testParquetDecodingExceptionKeepsContext400() {
+        ParquetDecodingException decoding = new ParquetDecodingException(
+            "Could not decompress V1 data page (codec SNAPPY)",
+            new IOException("FAILED_TO_UNCOMPRESS(5)")
+        );
+        RuntimeException wrapped = ParquetReadFailures.wrap(decoding, "Failed to read Parquet column [id] in file [k.parquet]");
+        assertThat(wrapped, instanceOf(ParquetDecodingException.class));
+        assertThat(wrapped.getMessage(), containsString("Failed to read Parquet column [id] in file [k.parquet]"));
+        assertThat(wrapped.getMessage(), containsString("Could not decompress V1 data page (codec SNAPPY)"));
+        assertSame(decoding, wrapped.getCause());
+
+        RuntimeException classified = ExternalFailures.classify(wrapped);
+        assertThat(classified, instanceOf(ExternalClientException.class));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(classified));
+        assertThat(classified.getMessage(), containsString("k.parquet"));
+        assertThat(classified.getMessage(), containsString("SNAPPY"));
+    }
+
+    public void testParquetDecodingExceptionWithNullMessageKeepsContext() {
+        ParquetDecodingException decoding = new ParquetDecodingException((String) null);
+        RuntimeException wrapped = ParquetReadFailures.wrap(decoding, "Failed to read Parquet column [id] in file [k.parquet]");
+        assertThat(wrapped, instanceOf(ParquetDecodingException.class));
+        assertSame(decoding, wrapped.getCause());
+        assertThat(wrapped.getMessage(), containsString("Failed to read Parquet column [id] in file [k.parquet]"));
+        assertThat(wrapped.getMessage(), containsString("ParquetDecodingException"));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ExternalFailures.classify(wrapped)));
+    }
+
+    public void testTypedElasticsearchFailureStillPassesThrough() {
+        ExternalUnavailableException unavailable = new ExternalUnavailableException(
+            Condition.STORE_UNAVAILABLE,
+            StoragePath.NONE,
+            "",
+            "",
+            false,
+            0L,
+            new IOException()
+        );
+        String unavailableMessage = unavailable.getMessage();
+        RuntimeException wrappedUnavailable = ParquetReadFailures.wrap(unavailable, "ctx");
+        assertSame(unavailable, wrappedUnavailable);
+        assertEquals(unavailableMessage, wrappedUnavailable.getMessage());
+        assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(ExternalFailures.classify(wrappedUnavailable)));
+
+        CircuitBreakingException breaking = new CircuitBreakingException("over", 10, 5, CircuitBreaker.Durability.TRANSIENT);
+        String breakingMessage = breaking.getMessage();
+        RuntimeException wrappedBreaking = ParquetReadFailures.wrap(breaking, "ctx");
+        assertSame(breaking, wrappedBreaking);
+        assertEquals(breakingMessage, wrappedBreaking.getMessage());
+        assertEquals(RestStatus.TOO_MANY_REQUESTS, ExceptionsHelper.status(ExternalFailures.classify(breaking)));
     }
 
     public void testInvalidArgumentExceptionIdentity400() {

@@ -9,14 +9,9 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.codecs.StoredFieldsReader;
-import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.FilterCodecReader;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.MergePolicy;
-import org.apache.lucene.index.OneMergeWrappingMergePolicy;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
@@ -28,7 +23,6 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSortConfig;
-import org.elasticsearch.index.codec.storedfields.TSDBStoredFieldsFormat;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
@@ -227,38 +221,6 @@ public class BlockLoaderTestRunner {
      */
     public void run(Object expected) throws IOException {
         matcher.match(expected, setupAndInvokeBlockLoader());
-    }
-
-    /**
-     * With synthetic {@code _id} the codec wraps the stored fields reader in a {@link TSDBStoredFieldsFormat.TSDBStoredFieldsReader}
-     * that materializes the {@code _id} from doc values, which is asserted against on merge threads. In production
-     * {@code PruningMergePolicy} unwraps it during merges (so Lucene can also bulk-merge); this does the same for the test writer.
-     */
-    private static MergePolicy unwrapSyntheticIdOnMerge(MergePolicy in) {
-        return new OneMergeWrappingMergePolicy(in, toWrap -> new MergePolicy.OneMerge(toWrap.segments) {
-            @Override
-            public CodecReader wrapForMerge(CodecReader reader) throws IOException {
-                return new FilterCodecReader(toWrap.wrapForMerge(reader)) {
-                    @Override
-                    public StoredFieldsReader getFieldsReader() {
-                        StoredFieldsReader fieldsReader = super.getFieldsReader();
-                        return fieldsReader instanceof TSDBStoredFieldsFormat.TSDBStoredFieldsReader tsdbReader
-                            ? tsdbReader.getStoredFieldsReader()
-                            : fieldsReader;
-                    }
-
-                    @Override
-                    public CacheHelper getCoreCacheHelper() {
-                        return null;
-                    }
-
-                    @Override
-                    public CacheHelper getReaderCacheHelper() {
-                        return null;
-                    }
-                };
-            }
-        });
     }
 
     private Object setupAndInvokeBlockLoader() throws IOException {

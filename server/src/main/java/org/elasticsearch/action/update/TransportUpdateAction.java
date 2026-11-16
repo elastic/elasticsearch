@@ -339,9 +339,9 @@ public class TransportUpdateAction extends HandledTransportAction<UpdateRequest,
                         client.bulk(
                             toSingleItemBulkRequest(updatedRequest),
                             unwrappingSingleItemBulkResponse(ActionListener.<DocWriteResponse>wrap(response -> {
-                                // For an in-place doc-values update the response already carries the operation's seq_no, primary term and
-                                // bumped version, which are the document's new identity after the update. Report them directly so a
-                                // follow-up if_seq_no matches.
+                                // For an in-place doc-values update the response carries the operation's advanced seq_no and primary term
+                                // and the document's unchanged version, which together are its identity after the update. Report them
+                                // directly so a follow-up if_seq_no matches.
                                 long seqNo = response.getSeqNo();
                                 long primaryTerm = response.getPrimaryTerm();
                                 UpdateResponse update = new UpdateResponse(

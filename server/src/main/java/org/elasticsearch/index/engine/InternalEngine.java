@@ -2660,7 +2660,10 @@ public class InternalEngine extends Engine {
         if (localCheckpointTracker.hasProcessed(baseSeqNo) == false) {
             // The base has not been applied on this copy yet (peer recovery and CCR deliver operations concurrently, so a delta can race
             // ahead of its base): fail the operation so it is retried once the base arrives in order. The primary gates a delta on the base
-            // being at or below every tracked copy's checkpoint (see UpdateHelper), so this is only the residual off-permit race.
+            // being at or below every tracked copy's checkpoint (see UpdateHelper), but a copy can start being tracked between that check
+            // and replication (peer recovery begins tracking under an ordinary permit, and the replication group is read only after the
+            // operation is applied), so a delta can still reach a copy that has not received the base. The real fix is a replica-side
+            // wait-for-base, left as a follow-up.
             throw new DocValuesUpdateBaseNotPresentException(shardId, op.id(), op.seqNo(), baseSeqNo);
         }
         versionMap.enforceSafeAccess();

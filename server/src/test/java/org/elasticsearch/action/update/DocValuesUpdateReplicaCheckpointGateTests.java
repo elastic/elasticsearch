@@ -12,6 +12,7 @@ package org.elasticsearch.action.update;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.DocValuesUpdateRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -19,6 +20,8 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -38,6 +41,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.mockito.Mockito.mock;
@@ -82,7 +86,7 @@ public class DocValuesUpdateReplicaCheckpointGateTests extends IndexShardTestCas
             primary.updateLocalCheckpointForShard(replicaAllocationId, SequenceNumbers.NO_OPS_PERFORMED);
 
             final long baseSeqNo = indexDoc(primary, "_doc", "1", "{\"count\":1}").getSeqNo();
-            assertThat(primary.getMinInSyncReplicaLocalCheckpoint(), lessThan(baseSeqNo));
+            assertThat(primary.getMinTrackedReplicaLocalCheckpoint(), lessThan(baseSeqNo));
 
             final UpdateHelper updateHelper = new UpdateHelper(mock(ScriptService.class));
             final UpdateRequest request = new UpdateRequest(shardId.getIndexName(), "1").doc(Map.of("count", 42));
@@ -100,7 +104,7 @@ public class DocValuesUpdateReplicaCheckpointGateTests extends IndexShardTestCas
 
             // Release the replica's checkpoint up to the base: every in-sync replica now holds it, so the in-place fast path is taken.
             primary.updateLocalCheckpointForShard(replicaAllocationId, baseSeqNo);
-            assertThat(primary.getMinInSyncReplicaLocalCheckpoint(), greaterThanOrEqualTo(baseSeqNo));
+            assertThat(primary.getMinTrackedReplicaLocalCheckpoint(), greaterThanOrEqualTo(baseSeqNo));
 
             UpdateHelper.Result inPlace = updateHelper.prepare(
                 request,
@@ -169,10 +173,9 @@ public class DocValuesUpdateReplicaCheckpointGateTests extends IndexShardTestCas
 
             final long baseSeqNo = indexDoc(primary, "_doc", "1", "{\"count\":1}").getSeqNo();
 
-            // The recovering copy has not received the base, so it holds the tracked checkpoint below it. The in-sync checkpoint excludes
-            // recovering copies, so it sees no lagging copy at all - which is exactly why gating on it alone would be unsafe here.
+            // The recovering copy has not received the base, so it holds the tracked checkpoint below it. Gating on the in-sync copies
+            // alone would miss this still-recovering copy, which is exactly why the fast path gates on the tracked checkpoint.
             assertThat(primary.getMinTrackedReplicaLocalCheckpoint(), lessThan(baseSeqNo));
-            assertThat(primary.getMinInSyncReplicaLocalCheckpoint(), equalTo(Long.MAX_VALUE));
 
             final RecordingMeterRegistry meter = new RecordingMeterRegistry();
             final UpdateHelper updateHelper = new UpdateHelper(mock(ScriptService.class), new DocValuesUpdateMetrics(meter));
@@ -206,6 +209,96 @@ public class DocValuesUpdateReplicaCheckpointGateTests extends IndexShardTestCas
             assertThat(inPlace.action(), instanceOf(DocValuesUpdateRequest.class));
             assertThat(counter(meter, DocValuesUpdateMetrics.IN_PLACE_TOTAL), equalTo(1L));
             assertThat(counter(meter, DocValuesUpdateMetrics.REINDEX_FALLBACK_TOTAL), equalTo(1L));
+        } finally {
+            closeShards(primary);
+        }
+    }
+
+    /**
+     * The gate also races while the write holds its primary operation permit. A {@code _bulk} update item evaluates the gate inside the
+     * shard bulk action, under the primary permit. Peer recovery starts tracking a new copy through
+     * {@code RecoverySourceHandler#runUnderPrimaryPermit}, which takes an ordinary, non-exclusive permit, so it does not wait for the
+     * in-flight write. {@code ReplicationOperation} reads the replication group only after the primary has applied the operation, so a
+     * delta whose gate passed before tracking started is still sent to the new copy. That copy has not received the base yet and fails
+     * the delta with {@code DocValuesUpdateBaseNotPresentException} (see {@link DocValuesUpdateReplicaBaseNotPresentTests}).
+     * <p>
+     * The final assertion captures the current behaviour: the newly tracked copy does not yet hold the base. The real fix is a
+     * replica-side wait-for-base, left as a follow-up; when it lands this flips to {@code greaterThanOrEqualTo(baseSeqNo)}.
+     */
+    public void testCopyTrackedWhileGatedWriteHoldsPrimaryPermitLacksBase() throws Exception {
+        assumeTrue("doc_values updatable feature flag must be enabled", FieldMapper.DOC_VALUES_UPDATABLE_FEATURE_FLAG.isEnabled());
+
+        final ShardId shardId = new ShardId("index", "_na_", 0);
+        final Settings settings = indexSettings(IndexVersion.current(), 1, 1).put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            // updatable fields need sequence numbers, which columnar disables by default
+            .put("index.disable_sequence_numbers", false)
+            .build();
+        final IndexMetadata indexMetadata = IndexMetadata.builder(shardId.getIndexName())
+            .settings(settings)
+            .putMapping(MAPPING)
+            .primaryTerm(0, 1)
+            .build();
+
+        final IndexShard primary = newShard(shardId, true, "primary-node", indexMetadata, null);
+        try {
+            recoverShardFromStore(primary);
+            final long baseSeqNo = indexDoc(primary, "_doc", "1", "{\"count\":1}").getSeqNo();
+
+            final UpdateHelper updateHelper = new UpdateHelper(mock(ScriptService.class));
+            final UpdateRequest request = new UpdateRequest(shardId.getIndexName(), "1").doc(Map.of("count", 42));
+
+            // The write takes its primary operation permit, as TransportShardBulkAction does before it prepares a _bulk update item.
+            final PlainActionFuture<Releasable> writePermit = new PlainActionFuture<>();
+            primary.acquirePrimaryOperationPermit(writePermit, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+            try (Releasable ignored = safeGet(writePermit)) {
+                // No other copy is tracked yet, so the gate passes and the update is realized as an in-place delta.
+                UpdateHelper.Result inPlace = updateHelper.prepare(
+                    request,
+                    primary,
+                    () -> 0L,
+                    FetchSourceContext.FETCH_SOURCE,
+                    SplitShardCountSummary.UNSET,
+                    true
+                );
+                assertThat(inPlace.action(), instanceOf(DocValuesUpdateRequest.class));
+
+                // Meanwhile, peer recovery of a new replica reaches initiateTracking.
+                final ShardRouting replicaRouting = TestShardRouting.newShardRouting(
+                    shardId,
+                    "replica-node",
+                    false,
+                    ShardRoutingState.INITIALIZING
+                );
+                final String replicaAllocationId = replicaRouting.allocationId().getId();
+                final IndexShardRoutingTable routingTable = new IndexShardRoutingTable.Builder(shardId).addShard(primary.routingEntry())
+                    .addShard(replicaRouting)
+                    .build();
+                primary.updateShardState(
+                    primary.routingEntry(),
+                    primary.getPendingPrimaryTerm(),
+                    null,
+                    currentClusterStateVersion.incrementAndGet(),
+                    Set.of(primary.routingEntry().allocationId().getId()),
+                    routingTable
+                );
+                primary.cloneLocalPeerRecoveryRetentionLease("replica-node", ActionListener.noop());
+
+                // RecoverySourceHandler#runUnderPrimaryPermit takes an ordinary permit, which is granted while the write still holds its
+                // own.
+                final PlainActionFuture<Void> tracked = new PlainActionFuture<>();
+                primary.acquirePrimaryOperationPermit(tracked.delegateFailureAndWrap((l, permit) -> {
+                    try (permit) {
+                        primary.initiateTracking(replicaAllocationId);
+                    }
+                    l.onResponse(null);
+                }), EsExecutors.DIRECT_EXECUTOR_SERVICE);
+                safeGet(tracked);
+
+                // ReplicationOperation reads the replication group after the primary applied the write, so the new copy gets the delta...
+                assertThat(primary.getReplicationGroup().getReplicationTargets(), hasItem(replicaRouting));
+                // ...even though it does not hold the base yet (the known on-permit race; flips when the wait-for-base follow-up lands).
+                assertThat(primary.getMinTrackedReplicaLocalCheckpoint(), lessThan(baseSeqNo));
+            }
         } finally {
             closeShards(primary);
         }

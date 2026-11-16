@@ -554,8 +554,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 docValuesUpdate.ifPrimaryTerm()
             );
             if (result.getResultType() == Engine.Result.Type.SUCCESS) {
-                // Record the operation's generated seq_no/term on the request (before it is replicated) so the replica replays at them;
-                // the user-facing response instead reports the document's unchanged seq_no.
+                // An in-place update advances the document's effective seq_no/term. Record them on the request (before it is replicated)
+                // so the replica applies the delta at the same identity the primary assigned.
                 docValuesUpdate.operationSeqNo(result.getSeqNo(), result.getTerm());
             }
         } else if (isDelete) {
@@ -852,9 +852,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 // The realized action is an IndexRequest for a normal update or upsert, or a DocValuesUpdateRequest for an in-place
                 // doc-values update.
                 final IndexResponse indexResponse = operationResponse.getResponse();
-                // For an in-place doc-values update the IndexResponse already carries the operation's seq_no, primary term and bumped
-                // version, which are the document's new identity after the update. Report them directly so a follow-up if_seq_no matches
-                // the current document.
+                // For an in-place doc-values update the IndexResponse carries the operation's advanced seq_no and primary term and the
+                // document's unchanged version, which together are its identity after the update. Report them directly so a follow-up
+                // if_seq_no matches the current document.
                 updateResponse = new UpdateResponse(
                     indexResponse.getShardInfo(),
                     indexResponse.getShardId(),
@@ -1034,8 +1034,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         // A DocValuesUpdateRequest reports OpType.INDEX but must be replayed through the in-place doc-values path, so it is dispatched by
         // type here rather than through the op-type switch.
         if (docWriteRequest instanceof DocValuesUpdateRequest docValuesUpdate) {
-            // Replay at the operation's own seq_no/term (carried on the request), not the response's — the response reports the
-            // document's unchanged seq_no, which differs from the operation's for an in-place update.
+            // Replay at the operation's own seq_no/term (carried on the request): an in-place update applies at the advanced identity the
+            // primary assigned, not a freshly generated one.
             return replica.applyDocValuesUpdateOnReplica(
                 docValuesUpdate.operationSeqNo(),
                 docValuesUpdate.operationPrimaryTerm(),

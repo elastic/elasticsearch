@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Foldables;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -42,7 +43,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType
 /**
  * Round down to one of a list of values.
  */
-public class RoundTo extends EsqlScalarFunction {
+public class RoundTo extends EsqlScalarFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "RoundTo", RoundTo::new);
 
     private final Expression field;

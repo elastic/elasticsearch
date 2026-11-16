@@ -181,6 +181,10 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
                     // Skip unmappable types, or types not supported in ES|QL in general
                     continue;
                 }
+                if (DataType.UNDER_CONSTRUCTION.containsKey(type) && DataType.UNDER_CONSTRUCTION.get(type).isEnabled() == false) {
+                    // With its feature flag off (release builds) the type is loaded as UNSUPPORTED, which is skipped above
+                    continue;
+                }
                 if (existingIndex(existing, type, type)) {
                     // Skip existing configurations
                     continue;

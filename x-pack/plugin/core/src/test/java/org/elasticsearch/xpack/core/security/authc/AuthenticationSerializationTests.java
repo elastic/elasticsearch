@@ -107,11 +107,13 @@ public class AuthenticationSerializationTests extends ESTestCase {
                 )
             );
         } else {
-            authentication.writeTo(out);
+            // writeTo does not rewrite for older versions, callers are expected to do so before sending
+            final Authentication compatible = authentication.maybeRewriteForOlderVersion(out.getTransportVersion());
+            compatible.writeTo(out);
             final StreamInput in = out.bytes().streamInput();
             in.setTransportVersion(out.getTransportVersion());
             final Authentication readFrom = new Authentication(in);
-            assertThat(readFrom, equalTo(authentication.maybeRewriteForOlderVersion(out.getTransportVersion())));
+            assertThat(readFrom, equalTo(compatible));
         }
     }
 

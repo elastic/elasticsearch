@@ -60,11 +60,20 @@ resolve_latest_build_id() {
 export ES_VERSION=$(grep 'elasticsearch' build-tools-internal/version.properties | awk '{print $3}')
 export BEATS_DIR=$(pwd)/distribution/docker/build/artifacts/beats
 
+BEATS_BUILD_ID=$(resolve_latest_build_id beats "${ES_VERSION}")
+echo "BEATS_BUILD_ID=${BEATS_BUILD_ID}"
+
+BEATS_DOWNLOADS="https://artifacts-snapshot.elastic.co/beats/${BEATS_BUILD_ID}/downloads/beats"
 mkdir -p ${BEATS_DIR}
-curl_with_retry "${BEATS_DIR}/metricbeat-${ES_VERSION}-linux-x86_64.tar.gz" "https://artifacts-snapshot.elastic.co/beats/${ES_VERSION}-SNAPSHOT/downloads/beats/metricbeat/metricbeat-${ES_VERSION}-SNAPSHOT-linux-x86_64.tar.gz"
-curl_with_retry "${BEATS_DIR}/metricbeat-${ES_VERSION}-linux-arm64.tar.gz" "https://artifacts-snapshot.elastic.co/beats/${ES_VERSION}-SNAPSHOT/downloads/beats/metricbeat/metricbeat-${ES_VERSION}-SNAPSHOT-linux-arm64.tar.gz"
-curl_with_retry "${BEATS_DIR}/filebeat-${ES_VERSION}-linux-x86_64.tar.gz" "https://artifacts-snapshot.elastic.co/beats/${ES_VERSION}-SNAPSHOT/downloads/beats/metricbeat/metricbeat-${ES_VERSION}-SNAPSHOT-linux-x86_64.tar.gz"
-curl_with_retry "${BEATS_DIR}/filebeat-${ES_VERSION}-linux-arm64.tar.gz" "https://artifacts-snapshot.elastic.co/beats/${ES_VERSION}-SNAPSHOT/downloads/beats/filebeat/filebeat-${ES_VERSION}-SNAPSHOT-linux-arm64.tar.gz"
+curl_with_retry "${BEATS_DIR}/metricbeat-${ES_VERSION}-linux-x86_64.tar.gz" "${BEATS_DOWNLOADS}/metricbeat/metricbeat-${ES_VERSION}-SNAPSHOT-linux-x86_64.tar.gz"
+curl_with_retry "${BEATS_DIR}/metricbeat-${ES_VERSION}-linux-arm64.tar.gz" "${BEATS_DOWNLOADS}/metricbeat/metricbeat-${ES_VERSION}-SNAPSHOT-linux-arm64.tar.gz"
+curl_with_retry "${BEATS_DIR}/metricbeat-fips-${ES_VERSION}-linux-x86_64.tar.gz" "${BEATS_DOWNLOADS}/metricbeat/metricbeat-fips-${ES_VERSION}-SNAPSHOT-linux-x86_64.tar.gz"
+curl_with_retry "${BEATS_DIR}/metricbeat-fips-${ES_VERSION}-linux-arm64.tar.gz" "${BEATS_DOWNLOADS}/metricbeat/metricbeat-fips-${ES_VERSION}-SNAPSHOT-linux-arm64.tar.gz"
+
+curl_with_retry "${BEATS_DIR}/filebeat-${ES_VERSION}-linux-x86_64.tar.gz" "${BEATS_DOWNLOADS}/filebeat/filebeat-${ES_VERSION}-SNAPSHOT-linux-x86_64.tar.gz"
+curl_with_retry "${BEATS_DIR}/filebeat-${ES_VERSION}-linux-arm64.tar.gz" "${BEATS_DOWNLOADS}/filebeat/filebeat-${ES_VERSION}-SNAPSHOT-linux-arm64.tar.gz"
+curl_with_retry "${BEATS_DIR}/filebeat-fips-${ES_VERSION}-linux-x86_64.tar.gz" "${BEATS_DOWNLOADS}/filebeat/filebeat-fips-${ES_VERSION}-SNAPSHOT-linux-x86_64.tar.gz"
+curl_with_retry "${BEATS_DIR}/filebeat-fips-${ES_VERSION}-linux-arm64.tar.gz" "${BEATS_DOWNLOADS}/filebeat/filebeat-fips-${ES_VERSION}-SNAPSHOT-linux-arm64.tar.gz"
 
 # Fetch ML artifacts
 ML_CPP_BUILD_ID=$(resolve_latest_build_id ml-cpp "${ES_VERSION}")

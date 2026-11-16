@@ -13,8 +13,6 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.KnnByteVectorQuery;
-import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
@@ -23,6 +21,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper.SparseVectorFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -30,13 +29,8 @@ import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.DefaultHighlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.FieldHighlightContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
-import org.elasticsearch.search.fetch.subphase.highlight.HighlightUtils;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
-import org.elasticsearch.search.vectors.DenseVectorQuery;
-import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
 import org.elasticsearch.search.vectors.SparseVectorQueryWrapper;
-import org.elasticsearch.search.vectors.VectorData;
-import org.elasticsearch.search.vectors.VectorSimilarityQuery;
 import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceField;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceFieldMapper;
@@ -52,6 +46,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
@@ -172,14 +167,22 @@ public class SemanticTextHighlighter implements Highlighter {
             return null;
         }
 
-        var values = HighlightUtils.loadFieldValues(sourceFieldType, searchContext, hitContext)
-            .stream()
-            .<Object>map((s) -> DefaultHighlighter.convertFieldValue(sourceFieldType, s))
-            .toList();
-        if (values.size() == 0) {
-            return null;
+        // Chunk offsets are relative to the values assigned directly to the source field. Don't use the field type's value fetcher,
+        // which also returns values copied in through copy_to and would shift the offsets.
+        final Set<String> sourcePaths;
+        if (searchContext.isSourceEnabled()) {
+            // A multi-field's values live under its parent's path in _source
+            String parentPath = searchContext.parentPath(sourceFieldType.name());
+            sourcePaths = Set.of(parentPath != null ? parentPath : sourceFieldType.name());
+        } else {
+            sourcePaths = Set.of();
         }
-        return DefaultHighlighter.mergeFieldValues(values, MULTIVAL_SEP_CHAR);
+
+        SourceValueFetcher valueFetcher = SourceValueFetcher.toString(sourcePaths);
+        valueFetcher.setNextReader(hitContext.readerContext());
+        List<Object> values = valueFetcher.fetchValues(hitContext.source(), hitContext.docId(), new ArrayList<>());
+
+        return values.isEmpty() ? null : DefaultHighlighter.mergeFieldValues(values, MULTIVAL_SEP_CHAR);
     }
 
     private String getContentFromLegacyNestedSources(String fieldName, OffsetAndScore cand, List<Map<?, ?>> nestedSources) {
@@ -257,38 +260,7 @@ public class SemanticTextHighlighter implements Highlighter {
     private List<Query> extractDenseVectorQueries(DenseVectorFieldType fieldType, Query querySection) {
         // TODO: Handle knn section when semantic text field can be used.
         List<Query> queries = new ArrayList<>();
-        querySection.visit(new QueryVisitor() {
-            @Override
-            public boolean acceptField(String field) {
-                return fieldType.name().equals(field);
-            }
-
-            @Override
-            public void consumeTerms(Query query, Term... terms) {
-                super.consumeTerms(query, terms);
-            }
-
-            private void visitLeaf(Query query, Float similarity) {
-                if (query instanceof KnnFloatVectorQuery knnQuery) {
-                    queries.add(fieldType.createExactKnnQuery(VectorData.fromFloats(knnQuery.getTargetCopy()), similarity, null));
-                } else if (query instanceof KnnByteVectorQuery knnQuery) {
-                    queries.add(fieldType.createExactKnnQuery(VectorData.fromBytes(knnQuery.getTargetCopy()), similarity, null));
-                } else if (query instanceof MatchAllDocsQuery) {
-                    queries.add(new MatchAllDocsQuery());
-                } else if (query instanceof DenseVectorQuery.Floats floatsQuery) {
-                    queries.add(fieldType.createExactKnnQuery(VectorData.fromFloats(floatsQuery.getQuery()), similarity, null));
-                } else if (query instanceof RescoreKnnVectorQuery rescoreQuery) {
-                    visitLeaf(rescoreQuery.innerQuery(), similarity);
-                } else if (query instanceof VectorSimilarityQuery similarityQuery) {
-                    visitLeaf(similarityQuery.getInnerKnnQuery(), similarityQuery.getSimilarity());
-                }
-            }
-
-            @Override
-            public void visitLeaf(Query query) {
-                visitLeaf(query, null);
-            }
-        });
+        querySection.visit(new DenseVectorQueryExtractor(fieldType, queries, null));
         return queries;
     }
 

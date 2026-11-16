@@ -4,11 +4,13 @@
 # Based on https://github.com/Unicon/shibboleth-idp-dockerized/blob/master/Dockerfile
 # Building entire image to allow for easier upgrades since published image has not been updated for years
 #
-# NOTE: Using eclipse-temurin JRE (not Alpine) for ARM64 compatibility
+# NOTE: Using eclipse-temurin JRE (not Alpine) for ARM64 compatibility.
+# Keep the tag pinned: Jetty 9.3.27 rejects newer Temurin 11 patch version strings
+# such as 11.0.32.1 when start.jar initializes the base image.
 # Alpine variants don't support ARM64, but the standard JRE is still much smaller
 # than the original openjdk:11.0.16-jre (~394MB vs ~886MB base)
 
-FROM eclipse-temurin:11-jre
+FROM eclipse-temurin:11.0.16_8-jre
 
 ENV JAVA_HOME=/opt/java/openjdk
 # JAVA variable is required by jetty.sh script (it looks for JAVA, not JAVA_HOME)

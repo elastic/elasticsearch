@@ -21,11 +21,20 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPSeriesWeightedSum;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvZip;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.hamcrest.Matcher;
@@ -33,6 +42,7 @@ import org.hamcrest.Matcher;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -55,6 +65,31 @@ import static org.hamcrest.Matchers.sameInstance;
  * which can be automatically tested against several scenarios (null handling, concurrency, etc).
  */
 public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTestCase {
+
+    /**
+     * Scalar expressions that deliberately don't propagate null through all of their arguments,
+     * and therefore don't implement {@link AnyNullIsNull}.
+     * <p>
+     * Every scalar function must either implement {@link AnyNullIsNull} or be registered here.
+     * This forces a conscious decision whenever a new scalar function is added.
+     */
+    private static final Set<Class<? extends Expression>> EXPRESSIONS_WITHOUT_ANY_NULL_IS_NULL = Set.of(
+        // Three-valued-logic expressions, that return non-null for some null inputs.
+        Case.class, // CASE(NULL, 1, 2) = 2
+        Coalesce.class, // COALESCE(NULL, 1) = 1
+        IsNotNull.class, // NULL IS NOT NULL = false
+        IsNull.class, // NULL IS NULL = true
+
+        // Multivalue functions that treat NULL is an empty set.
+        MvZip.class, // MV_ZIP(NULL, ["a"], ",") = ["a"]
+
+        // Special empty/null handling functions
+        MvPSeriesWeightedSum.class, // MV_PSERIES_WEIGHTED_SUM(NULL, 2) = 0.0
+
+        // Non-evaluatable grouping functions
+        Categorize.class
+    );
+
     /**
      * Converts a list of test cases into a list of parameter suppliers.
      * Also, adds a default set of extra test cases.
@@ -91,6 +126,15 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
     }
 
     public final void testEvaluate() {
+        testEvaluate(false);
+    }
+
+    /**
+     * @param testAnyNullIsNull If false, execute the testcase as is
+     *                          If true, if the testcase does not contain any nulls,
+     *                          replace a random entry with null, and assert the result is null
+     */
+    private void testEvaluate(boolean testAnyNullIsNull) {
         assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
         boolean readFloating = randomBoolean();
         Expression expression = readFloating ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
@@ -114,16 +158,58 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
             if (testCase.getExpectedBuildEvaluatorWarnings() != null) {
                 assertWarnings(testCase.getExpectedBuildEvaluatorWarnings());
             }
-            Page row = row(testCase.getDataValues());
+            List<Object> dataValues = testCase.getDataValues();
+            if (testAnyNullIsNull && dataValues.stream().noneMatch(Objects::isNull)) {
+                int randomIndex = randomInt(dataValues.size() - 1);
+                logger.info("testAnyNullIsNull: setting index " + randomIndex + " to null");
+                dataValues.set(randomIndex, null);
+            }
+            Page row = row(dataValues);
             try (Block block = evaluator.eval(row)) {
                 assertThat(block.getPositionCount(), is(1));
                 result = toJavaObjectUnsignedLongAware(block, 0);
                 extraBlockTests(row, block);
+                if (testAnyNullIsNull == false) {
+                    extraBlockTests(row, block);
+                }
             } finally {
                 row.releaseBlocks();
             }
         }
-        assertTestCaseResultAndWarnings(result);
+        if (testAnyNullIsNull) {
+            assertThat(result, nullValue());
+        } else {
+            assertTestCaseResultAndWarnings(result);
+        }
+    }
+
+    /**
+     * Functions marked with {@link AnyNullIsNull} promise to return {@code null} whenever any of their
+     * (non-constant) arguments is {@code null}. This verifies that contract automatically for every such
+     * function.
+     * <p>
+     * This also tests that any scalar function is either marked with {@link AnyNullIsNull} or is on
+     * the list {@link #EXPRESSIONS_WITHOUT_ANY_NULL_IS_NULL}.
+     */
+    public final void testAnyNullIsNull() {
+        assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
+        assumeTrue("No warnings expected", testCase.getExpectedWarnings() == null);
+
+        Expression expression = buildFieldExpression(testCase);
+        assertThat(
+            expression.getClass().getName()
+                + " must implement "
+                + AnyNullIsNull.class.getSimpleName()
+                + " or be registered in EXPRESSIONS_WITHOUT_ANY_NULL_IS_NULL",
+            expression instanceof AnyNullIsNull ^ EXPRESSIONS_WITHOUT_ANY_NULL_IS_NULL.contains(expression.getClass()),
+            is(true)
+        );
+
+        assumeTrue("Function is not marked " + AnyNullIsNull.class.getSimpleName(), expression instanceof AnyNullIsNull);
+
+        if (testCase.getDataValues().isEmpty() == false) {
+            testEvaluate(true);
+        }
     }
 
     /**
@@ -329,6 +415,10 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         } finally {
             exec.shutdown();
         }
+        // This test exercises thread-safety, not warning content: each thread accumulates (possibly duplicated)
+        // warnings into its own per-driver sink. Consume them so the leak-check passes, asserting only that nothing
+        // unexpected surfaced.
+        consumeAndAssertExpectedDriverWarnings();
     }
 
     public final void testEvaluatorToString() {
@@ -362,11 +452,30 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
     }
 
     public void testFold() {
-        Expression expression = buildLiteralExpression(testCase);
         if (testCase.getExpectedTypeError() != null) {
-            assertTypeResolutionFailure(expression);
+            assertTypeResolutionFailure(buildLiteralExpression(testCase));
             return;
         }
+        Expression expression = buildFoldableLiteralExpression();
+        assertFold(new FoldNull().rule(expression, unboundLogicalOptimizerContext()));
+    }
+
+    /**
+     * {@code FoldNull} doesn't always replace an expression with null arguments before it's folded: it may not see
+     * them as null (a {@code CASE} without a match, {@code 1/0}...), and optimizer rules may fold an expression
+     * directly once its references are replaced by literals. So {@link AnyNullIsNull} expressions must fold to
+     * {@code null} by themselves too. Other expressions may evaluate, and warn about, arguments {@code FoldNull} removed.
+     */
+    public void testFoldAnyNullIsNullWithoutFoldNull() {
+        assumeTrue("Expected type error", testCase.getExpectedTypeError() == null);
+        Expression expression = buildFoldableLiteralExpression();
+        assumeTrue("Function is not marked " + AnyNullIsNull.class.getSimpleName(), expression instanceof AnyNullIsNull);
+        assumeTrue("No null argument", expression.children().stream().anyMatch(Expressions::isGuaranteedNull));
+        assertFold(expression);
+    }
+
+    private Expression buildFoldableLiteralExpression() {
+        Expression expression = buildLiteralExpression(testCase);
         assertFalse("expected resolved", expression.typeResolved().unresolved());
         if (expression instanceof SurrogateExpression s) {
             Expression surrogate = s.surrogate();
@@ -374,11 +483,14 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
                 expression = surrogate;
             }
         }
-        Expression nullOptimized = new FoldNull().rule(expression, unboundLogicalOptimizerContext());
-        assertThat(nullOptimized.dataType(), equalTo(testCase.expectedType()));
-        assertTrue(nullOptimized.foldable());
+        return expression;
+    }
+
+    private void assertFold(Expression expression) {
+        assertThat(expression.dataType(), equalTo(testCase.expectedType()));
+        assertTrue(expression.foldable());
         if (testCase.foldingExceptionClass() == null) {
-            Object result = nullOptimized.fold(FoldContext.small());
+            Object result = expression.fold(FoldContext.small());
             // Decode unsigned longs into BigIntegers
             if (testCase.expectedType() == DataType.UNSIGNED_LONG && result != null) {
                 if (result instanceof List<?> l) {
@@ -395,7 +507,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
                 assertWarnings(testCase.getExpectedWarnings());
             }
         } else {
-            Throwable t = expectThrows(testCase.foldingExceptionClass(), () -> nullOptimized.fold(FoldContext.small()));
+            Throwable t = expectThrows(testCase.foldingExceptionClass(), () -> expression.fold(FoldContext.small()));
             assertThat(t.getMessage(), equalTo(testCase.foldingExceptionMessage()));
         }
     }

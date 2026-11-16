@@ -530,7 +530,8 @@ subprojects {
           String expectedLicense
           expectedLicense = "Elastic-License"
           final Pattern pattern = Pattern.compile("\\s*License: (.+)")
-          final String[] actualLines = getOutput().split("\n")
+          final String info = getOutput()
+          final String[] actualLines = info.split("\n")
           int count = 0
           for (final String actualLine : actualLines) {
             final Matcher matcher = pattern.matcher(actualLine)
@@ -538,7 +539,7 @@ subprojects {
               count++
               final String actualLicense = matcher.group(1)
               if (expectedLicense != actualLicense) {
-                throw new GradleException("expected license [${expectedLicense} for package info but found [${actualLicense}]")
+                throw new GradleException("expected license [${expectedLicense}] for package info but found [${actualLicense}]")
               }
             }
           }

@@ -1658,6 +1658,73 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         }
     }
 
+    /**
+     * A field-level-security role that filters out an array field must also hide that field's {@code .offsets} companion. Otherwise
+     * synthetic source reconstruction reads the hidden field's offsets (which point at now-absent values) and emits an array of nulls.
+     */
+    public void testFilteredArrayFieldOffsetsAreHidden() throws Exception {
+        DocumentMapper mapper = createMapperService(syntheticSourceKeepArrays(), mapping(b -> {
+            b.startObject("keep").field("type", "long").endObject();
+            b.startObject("excluded").field("type", "long").endObject();
+        })).documentMapper();
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.array("keep", 3, 1, 2);
+            b.array("excluded", 30, 10, 20);
+        }));
+        var filter = new CharacterRunAutomaton(
+            FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "*" }, new String[] { "excluded" })
+        );
+        assertEquals("{\"keep\":[3,1,2]}", filteredSyntheticSource(mapper, doc, filter));
+    }
+
+    /**
+     * An array that holds only nulls writes the field's {@code .offsets} companion but nothing under the field itself, so a segment made
+     * only of such documents has the companion without its parent. The companion must still follow the parent's FLS decision.
+     */
+    public void testOffsetsWithoutTheirFieldInTheSegment() throws Exception {
+        String type = randomFrom("keyword", "long", "ip", "boolean");
+        DocumentMapper mapper = createMapperService(syntheticSourceKeepArrays(), mapping(b -> {
+            b.startObject("keep").field("type", type).endObject();
+            b.startObject("secret").field("type", type).endObject();
+        })).documentMapper();
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.startArray("keep").nullValue().endArray();
+            b.startArray("secret").nullValue().nullValue().endArray();
+        }));
+        var deny = new CharacterRunAutomaton(
+            FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "*" }, new String[] { "secret" })
+        );
+        var grant = new CharacterRunAutomaton(FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "keep" }, null));
+        for (CharacterRunAutomaton filter : List.of(deny, grant)) {
+            assertEquals("{\"keep\":[null]}", filteredSyntheticSource(mapper, doc, filter));
+        }
+    }
+
+    private static Settings syntheticSourceKeepArrays() {
+        return Settings.builder()
+            .put("index.mapping.source.mode", "synthetic")
+            .put("index.mapping.synthetic_source_keep", "arrays")
+            .build();
+    }
+
+    private static String filteredSyntheticSource(DocumentMapper mapper, ParsedDocument doc, CharacterRunAutomaton filter)
+        throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig())) {
+                iw.addDocuments(doc.docs());
+            }
+            try (
+                DirectoryReader reader = FieldSubsetReader.wrap(
+                    wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
+                    filter,
+                    fieldName -> mapper.mappers().getFieldType(fieldName) != null
+                )
+            ) {
+                return syntheticSource(mapper, reader, doc.docs().size() - 1);
+            }
+        }
+    }
+
     private static final String DOC_TEST_ITEM = """
         {
           "field_text" : "text",

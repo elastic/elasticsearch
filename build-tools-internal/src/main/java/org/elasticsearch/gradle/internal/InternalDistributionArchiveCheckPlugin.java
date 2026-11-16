@@ -62,7 +62,8 @@ public class InternalDistributionArchiveCheckPlugin implements Plugin<Project> {
         TaskProvider<Task> checkNotice = registerCheckNoticeTask(project, checkExtraction);
         TaskProvider<Task> checkModulesTask = InternalDistributionModuleCheckTaskProvider.registerCheckModulesTask(
             project,
-            checkExtraction
+            checkExtraction,
+            archiveExtractionDir
         );
         TaskProvider<Task> checkTask = project.getTasks().named("check");
         checkTask.configure(task -> {

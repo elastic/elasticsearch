@@ -291,7 +291,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
 
     @Override
     public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
-        return List.of(new DataStreamIndexSettingsProvider(parameters.mapperServiceFactory()));
+        return List.of(new TimeSeriesIndexSettingsProvider(parameters.mapperServiceFactory()));
     }
 
     @Override

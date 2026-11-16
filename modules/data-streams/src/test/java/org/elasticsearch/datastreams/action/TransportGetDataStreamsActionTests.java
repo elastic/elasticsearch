@@ -41,6 +41,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
@@ -517,18 +518,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             ClusterSettings.createBuiltInClusterSettings(),
             dataStreamGlobalRetentionSettings,
             emptyDataStreamFailureStoreSettings,
-            new IndexSettingProviders(
-                Set.of(
-                    (
-                        indexName,
-                        dataStreamName,
-                        templateIndexMode,
-                        metadata,
-                        resolvedAt,
-                        indexTemplateAndCreateRequestSettings,
-                        combinedTemplateMappings) -> Settings.builder().put("index.mode", IndexMode.LOOKUP).build()
-                )
-            ),
+            IndexSettingProviders.of(Set.of("index.mode"), () -> Settings.builder().put("index.mode", IndexMode.LOOKUP).build()),
             null
         );
         assertThat(response.getDataStreams().get(0).getIndexModeName(), equalTo("lookup"));
@@ -545,6 +535,72 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
         );
     }
 
+    /**
+     * Providers that cannot influence any of the settings exposed by the get data streams API are not invoked, since what they would
+     * contribute is not used.
+     */
+    public void testProvidersNotInfluencingExposedSettingsAreSkipped() {
+        ClusterState state = DataStreamTestHelper.getClusterStateWithDataStreams(
+            List.of(Tuple.tuple("data-stream-1", 2)),
+            List.of(),
+            System.currentTimeMillis(),
+            Settings.EMPTY,
+            0,
+            false,
+            false
+        );
+
+        AtomicBoolean invoked = new AtomicBoolean(false);
+        var req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {});
+        var response = TransportGetDataStreamsAction.innerOperation(
+            state,
+            req,
+            resolver,
+            systemIndices,
+            ClusterSettings.createBuiltInClusterSettings(),
+            dataStreamGlobalRetentionSettings,
+            emptyDataStreamFailureStoreSettings,
+            IndexSettingProviders.of(Set.of(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()), () -> {
+                invoked.set(true);
+                return Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "1s").build();
+            }),
+            null
+        );
+        assertThat(invoked.get(), is(false));
+        assertThat(response.getDataStreams(), hasSize(1));
+        assertThat(response.getDataStreams().get(0).getIndexModeName(), equalTo("standard"));
+    }
+
+    public void testProvidersAffectIlmPolicy() {
+        ClusterState state = DataStreamTestHelper.getClusterStateWithDataStreams(
+            List.of(Tuple.tuple("data-stream-1", 2)),
+            List.of(),
+            System.currentTimeMillis(),
+            Settings.EMPTY,
+            0,
+            false,
+            false
+        );
+
+        var req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {});
+        var response = TransportGetDataStreamsAction.innerOperation(
+            state,
+            req,
+            resolver,
+            systemIndices,
+            ClusterSettings.createBuiltInClusterSettings(),
+            dataStreamGlobalRetentionSettings,
+            emptyDataStreamFailureStoreSettings,
+            IndexSettingProviders.of(
+                Set.of(IndexMetadata.LIFECYCLE_NAME),
+                () -> Settings.builder().put(IndexMetadata.LIFECYCLE_NAME, "provided-policy").build()
+            ),
+            null
+        );
+        assertThat(response.getDataStreams(), hasSize(1));
+        assertThat(response.getDataStreams().get(0).getIlmPolicy(), equalTo("provided-policy"));
+    }
+
     public void testGetEffectiveSettingsTemplateOnlySettings() {
         // Set a lifecycle only in the template, and make sure that is in the response:
         GetDataStreamAction.Request req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {});
@@ -557,7 +613,8 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
                 .put(IndexSettings.MODE.getKey(), templateIndexMode)
                 .build(),
             Settings.EMPTY,
-            Settings.EMPTY
+            Settings.EMPTY,
+            IndexMode.STANDARD
         );
 
         GetDataStreamAction.Response response = TransportGetDataStreamsAction.innerOperation(
@@ -589,7 +646,8 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
                 .put(IndexMetadata.LIFECYCLE_NAME, templatePolicy)
                 .put(IndexSettings.MODE.getKey(), templateIndexMode)
                 .build(),
-            Settings.EMPTY
+            Settings.EMPTY,
+            IndexMode.STANDARD
         );
 
         GetDataStreamAction.Response response = TransportGetDataStreamsAction.innerOperation(
@@ -628,7 +686,8 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             Settings.builder()
                 .put(IndexMetadata.LIFECYCLE_NAME, dataStreamPolicy)
                 .put(IndexSettings.MODE.getKey(), dataStreamIndexMode)
-                .build()
+                .build(),
+            IndexMode.STANDARD
         );
         GetDataStreamAction.Response response = TransportGetDataStreamsAction.innerOperation(
             state,
@@ -650,7 +709,8 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
     private static ClusterState getClusterStateWithDataStreamWithSettings(
         Settings templateSettings,
         Settings componentTemplateSettings,
-        Settings dataStreamSettings
+        Settings dataStreamSettings,
+        IndexMode dsIndexMode
     ) {
         String dataStreamName = "data-stream-1";
         int numberOfBackingIndices = randomIntBetween(1, 5);
@@ -691,7 +751,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
         DataStream ds = DataStream.builder(
             dataStreamName,
             backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
-        ).setGeneration(numberOfBackingIndices).setSettings(dataStreamSettings).setReplicated(replicated).build();
+        ).setGeneration(numberOfBackingIndices).setSettings(dataStreamSettings).setIndexMode(dsIndexMode).setReplicated(replicated).build();
         builder.put(ds);
 
         for (IndexMetadata index : allIndices) {

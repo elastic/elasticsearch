@@ -1,0 +1,34 @@
+[[release-notes-8.19.25]]
+== {es} version 8.19.25
+
+coming[8.19.25]
+
+Also see <<breaking-changes-8.19,Breaking changes in 8.19>>.
+
+[[bug-8.19.25]]
+[float]
+=== Bug fixes
+
+Downsampling::
+* Skip already indexed buckets on downsample resume {es-pull}162670[#162670]
+
+ES|QL::
+* Fix use-after-close in `BlockArrowFormatter` {es-pull}162376[#162376] (issue: {es-issue}153438[#153438])
+
+Highlighting::
+* Update semantic highlighter to only use knn queries that target the highlighted field {es-pull}163257[#163257] (issue: {es-issue}163241[#163241])
+
+Infra/REST API::
+* Fix deadlock in `ChunkedZipResponse` {es-pull}164437[#164437]
+
+Machine Learning::
+* Fix NPE when previewing aggregated datafeed {es-pull}163937[#163937]
+
+[[upgrade-8.19.25]]
+[float]
+=== Upgrades
+
+Infra/Core::
+* Upgrade ASM to 9.11.1 {es-pull}164365[#164365]
+
+

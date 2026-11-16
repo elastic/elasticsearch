@@ -30,7 +30,7 @@ import java.util.List;
 @SuppressWarnings("removal")
 public class PropagateEmptyRelation extends OptimizerRules.ParameterizedOptimizerRule<UnaryPlan, LogicalOptimizerContext> {
     public PropagateEmptyRelation() {
-        super(OptimizerRules.TransformDirection.DOWN);
+        super(OptimizerRules.TransformDirection.UP);
     }
 
     @Override

@@ -108,7 +108,8 @@ created the data stream:
   - match: { data_streams.0.hidden: false }
   - match: { data_streams.0.system: false }
   - match: { data_streams.0.time_series.temporal_ranges.0.start: 2021-04-28T00:00:00.000Z }
-  - match: { data_streams.0.time_series.temporal_ranges.0.end: 2021-04-29T00:00:00.000Z }
+  # We can't match on time_series.temporal_ranges.0.end in this test because UpdateTimeSeriesRangeService updates it every 5 minutes, so every
+  # once in a while it is not what we expect it to be. See #124575.
   - set:  { data_streams.0.indices.0.index_name: backing_index }
 
   - do:

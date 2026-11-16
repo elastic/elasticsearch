@@ -53,6 +53,15 @@ final class BytesRefVectorBuilder extends AbstractVectorBuilder implements Bytes
     }
 
     @Override
+    public long estimatedBytes() {
+        if (isReleased()) {
+            return 0;
+        }
+        // values accounts for itself through BigArrays so the estimatedBytes field never includes it
+        return BytesRefArrayVector.ramBytesEstimated(values);
+    }
+
+    @Override
     public BytesRefVector build() {
         finish();
         BytesRefVector vector;

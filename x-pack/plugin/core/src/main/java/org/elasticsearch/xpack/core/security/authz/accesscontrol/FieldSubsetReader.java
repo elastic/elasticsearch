@@ -39,6 +39,7 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.mapper.FieldArrayContext;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
@@ -155,12 +156,33 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
                 name = fi.getName()
                     .substring(0, fi.getName().length() - IgnoreMalformedStoredValues.IGNORE_MALFORMED_FIELD_NAME_SUFFIX.length());
             }
+
+            // The .offsets sidecar records array order for its parent field's doc values, so its visibility must follow the parent.
+            // Filtering it independently would leave orphaned offsets behind a hidden field, and synthetic source reconstruction would
+            // then read offsets pointing at absent values. Only treat it as a companion when the parent exists, so a user field that
+            // merely ends with the suffix but has no such parent is unaffected.
+            if (name.endsWith(FieldArrayContext.OFFSETS_FIELD_NAME_SUFFIX) && isMapped.apply(fi.getName()) == false) {
+                String parent = name.substring(0, name.length() - FieldArrayContext.OFFSETS_FIELD_NAME_SUFFIX.length());
+                if (companionParentExists(in.getFieldInfos(), parent, isMapped)) {
+                    name = parent;
+                }
+            }
+
             if (filter.run(name)) {
                 filteredInfos.add(fi);
             }
         }
         fieldInfos = new FieldInfos(filteredInfos.toArray(new FieldInfo[filteredInfos.size()]));
         this.filter = filter;
+    }
+
+    /**
+     * Whether {@code parent} exists, so that a field named {@code parent + suffix} is its companion. The mapping is checked as well as the
+     * segment: a companion can be written without its parent (e.g. a document whose array holds only nulls), so a segment made only of
+     * such documents has the companion but not the parent.
+     */
+    private static boolean companionParentExists(FieldInfos fieldInfos, String parent, Function<String, Boolean> isMapped) {
+        return isMapped.apply(parent) || fieldInfos.fieldInfo(parent) != null;
     }
 
     /** returns true if this field is allowed. */

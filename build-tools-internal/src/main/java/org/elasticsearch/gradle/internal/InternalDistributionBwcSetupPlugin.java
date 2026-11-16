@@ -9,6 +9,7 @@
 
 package org.elasticsearch.gradle.internal;
 
+import org.apache.commons.io.FileUtils;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
@@ -17,7 +18,7 @@ import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
-import org.gradle.api.file.FileSystemOperations;
+import org.gradle.api.attributes.Attribute;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.plugins.JvmToolchainsPlugin;
@@ -29,12 +30,22 @@ import org.gradle.jvm.toolchain.JavaToolchainService;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
 import java.io.File;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
+import java.nio.file.FileSystemException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import javax.inject.Inject;
@@ -52,20 +63,17 @@ import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams
  */
 public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
 
+    private static final String WRAPPER_DISTS_RELATIVE_PATH = "wrapper/dists";
+    static final Attribute<Boolean> BWC_DISTRIBUTION_ATTRIBUTE = Attribute.of("bwc-distribution", Boolean.class);
+
     private final ObjectFactory objectFactory;
     private ProviderFactory providerFactory;
     private JavaToolchainService toolChainService;
-    private FileSystemOperations fileSystemOperations;
 
     @Inject
-    public InternalDistributionBwcSetupPlugin(
-        ObjectFactory objectFactory,
-        ProviderFactory providerFactory,
-        FileSystemOperations fileSystemOperations
-    ) {
+    public InternalDistributionBwcSetupPlugin(ObjectFactory objectFactory, ProviderFactory providerFactory) {
         this.objectFactory = objectFactory;
         this.providerFactory = providerFactory;
-        this.fileSystemOperations = fileSystemOperations;
     }
 
     @Override
@@ -83,8 +91,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 providerFactory,
                 objectFactory,
                 toolChainService,
-                isCi,
-                fileSystemOperations
+                isCi
             );
         });
 
@@ -101,8 +108,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 providerFactory,
                 objectFactory,
                 toolChainService,
-                isCi,
-                fileSystemOperations
+                isCi
             );
         }
 
@@ -117,8 +123,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 providerFactory,
                 objectFactory,
                 toolChainService,
-                isCi,
-                fileSystemOperations
+                isCi
             );
         }
     }
@@ -130,8 +135,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         ProviderFactory providerFactory,
         ObjectFactory objectFactory,
         JavaToolchainService toolChainService,
-        Boolean isCi,
-        FileSystemOperations fileSystemOperations
+        Boolean isCi
     ) {
         ProjectLayout layout = project.getLayout();
         Provider<BwcVersions.UnreleasedVersionInfo> versionInfoProvider = providerFactory.provider(() -> versionInfo);
@@ -168,15 +172,10 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         project.getTasks().register("setupGradleUserHome", task -> {
             File gradleUserHome = project.getGradle().getGradleUserHomeDir();
             String projectName = project.getName();
+            String wrapperDistributionPath = WRAPPER_DISTS_RELATIVE_PATH + "/" + currentWrapperDistributionDirName(project);
             task.doLast(t -> {
-                fileSystemOperations.copy(copy -> {
-                    String absoluteGradleUserHomePath = gradleUserHome.getAbsolutePath();
-                    copy.into(absoluteGradleUserHomePath + "-" + projectName);
-                    copy.from(absoluteGradleUserHomePath, copySpec -> {
-                        copySpec.include("gradle.properties");
-                        copySpec.include("init.d/*");
-                    });
-                });
+                File uniqueGradleUserHome = new File(gradleUserHome.getAbsolutePath() + "-" + projectName);
+                seedUniqueGradleUserHome(gradleUserHome, uniqueGradleUserHome, wrapperDistributionPath);
             });
         });
 
@@ -298,6 +297,136 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             }
             artifact.setClassifier(classifier);
         });
+    }
+
+    private static String currentWrapperDistributionDirName(Project project) {
+        return "gradle-" + project.getGradle().getGradleVersion() + "-bin";
+    }
+
+    /**
+     * Seeds the unique Gradle user home of a nested BWC build with the Gradle config and the wrapper distribution of the outer build.
+     * <p>
+     * The unique user home is updated in place and never deleted as a whole: it also holds the nested build's dependency caches and
+     * the registry of its daemons. An idle nested daemon left over from a previous build keeps writing to its registry under
+     * {@code daemon/}, so deleting the whole directory races with that daemon and fails intermittently.
+     */
+    static void seedUniqueGradleUserHome(File sourceGradleUserHome, File uniqueGradleUserHome, String wrapperDistributionPath) {
+        File wrapperSeedLock = new File(uniqueGradleUserHome.getParentFile(), uniqueGradleUserHome.getName() + ".seed.lock");
+        withExclusiveFileLock(wrapperSeedLock, () -> {
+            FileUtils.forceMkdir(uniqueGradleUserHome);
+            refreshGradleUserHomeConfig(sourceGradleUserHome, uniqueGradleUserHome);
+            File sourceWrapperDistributionDir = new File(sourceGradleUserHome, wrapperDistributionPath);
+            File targetWrapperDistributionDir = new File(uniqueGradleUserHome, wrapperDistributionPath);
+            // A distribution that is not ready is a leftover of an interrupted download; no nested build can be fetching it concurrently
+            // as this task runs before any nested build using this user home is started.
+            if (isReadyWrapperDistribution(targetWrapperDistributionDir) == false
+                && isReadyWrapperDistribution(sourceWrapperDistributionDir)) {
+                replaceDirectory(sourceWrapperDistributionDir, targetWrapperDistributionDir);
+            }
+        });
+    }
+
+    private static void refreshGradleUserHomeConfig(File sourceGradleUserHome, File targetGradleUserHome) throws IOException {
+        File gradleProperties = new File(sourceGradleUserHome, "gradle.properties");
+        File targetGradleProperties = new File(targetGradleUserHome, gradleProperties.getName());
+        if (gradleProperties.isFile()) {
+            FileUtils.copyFile(gradleProperties, targetGradleProperties);
+        } else {
+            FileUtils.deleteQuietly(targetGradleProperties);
+        }
+        File initScriptsDir = new File(sourceGradleUserHome, "init.d");
+        File targetInitScriptsDir = new File(targetGradleUserHome, initScriptsDir.getName());
+        if (initScriptsDir.isDirectory()) {
+            syncDirectory(initScriptsDir, targetInitScriptsDir);
+        } else {
+            FileUtils.deleteDirectory(targetInitScriptsDir);
+        }
+    }
+
+    /**
+     * Makes {@code target} mirror {@code source} without ever removing {@code target} itself: files are replaced through an atomic
+     * rename, so a concurrently starting nested build sees either the old or the new content of a file, never a missing directory or
+     * a partially written file. Files that no longer exist in {@code source} are removed.
+     */
+    private static void syncDirectory(File source, File target) throws IOException {
+        FileUtils.forceMkdir(target);
+        Set<Path> sourceFiles = new HashSet<>();
+        for (File file : FileUtils.listFiles(source, null, true)) {
+            Path relative = source.toPath().relativize(file.toPath());
+            sourceFiles.add(relative);
+            File targetFile = target.toPath().resolve(relative).toFile();
+            FileUtils.forceMkdir(targetFile.getParentFile());
+            File staging = new File(targetFile.getParentFile(), targetFile.getName() + ".tmp-" + UUID.randomUUID());
+            try {
+                FileUtils.copyFile(file, staging);
+                try {
+                    Files.move(staging.toPath(), targetFile.toPath(), StandardCopyOption.ATOMIC_MOVE);
+                } catch (FileSystemException e) {
+                    // An atomic rename over an existing file is not supported everywhere (e.g. it can be refused on Windows).
+                    Files.move(staging.toPath(), targetFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                }
+            } finally {
+                FileUtils.deleteQuietly(staging);
+            }
+        }
+        for (File existing : FileUtils.listFiles(target, null, true)) {
+            if (sourceFiles.contains(target.toPath().relativize(existing.toPath())) == false) {
+                FileUtils.deleteQuietly(existing);
+            }
+        }
+    }
+
+    /**
+     * Replaces {@code target} with a copy of {@code source}, staging the copy next to the target so that the target is either
+     * absent or complete, but never partially copied.
+     */
+    private static void replaceDirectory(File source, File target) throws IOException {
+        File staging = new File(target.getParentFile(), target.getName() + ".tmp-" + UUID.randomUUID());
+        try {
+            FileUtils.copyDirectory(source, staging);
+            FileUtils.deleteDirectory(target);
+            Files.move(staging.toPath(), target.toPath(), StandardCopyOption.ATOMIC_MOVE);
+        } finally {
+            FileUtils.deleteQuietly(staging);
+        }
+    }
+
+    static boolean isReadyWrapperDistribution(File wrapperDistributionDir) {
+        if (wrapperDistributionDir.isDirectory() == false) {
+            return false;
+        }
+        String distributionDirName = wrapperDistributionDir.getName();
+        String extractedGradleDirName = distributionDirName.endsWith("-bin")
+            ? distributionDirName.substring(0, distributionDirName.length() - "-bin".length())
+            : distributionDirName;
+        File[] hashDirs = wrapperDistributionDir.listFiles(File::isDirectory);
+        if (hashDirs == null || hashDirs.length == 0) {
+            return false;
+        }
+        for (File hashDir : hashDirs) {
+            if (new File(hashDir, distributionDirName + ".zip.ok").isFile()
+                && new File(hashDir, extractedGradleDirName + "/bin/gradle").isFile()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static void withExclusiveFileLock(File lockFile, CheckedRunnable action) {
+        lockFile.getParentFile().mkdirs();
+        try (
+            FileChannel channel = FileChannel.open(lockFile.toPath(), StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+            FileLock ignored = channel.lock()
+        ) {
+            action.run();
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to seed Gradle wrapper cache under " + lockFile.getParent(), e);
+        }
+    }
+
+    @FunctionalInterface
+    private interface CheckedRunnable {
+        void run() throws IOException;
     }
 
     private static List<DistributionProject> resolveArchiveProjects(File checkoutDir, Version bwcVersion) {

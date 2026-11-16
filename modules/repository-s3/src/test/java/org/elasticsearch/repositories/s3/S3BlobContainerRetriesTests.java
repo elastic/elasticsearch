@@ -32,6 +32,7 @@ import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.MockSecureSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -71,7 +72,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.NoSuchFileException;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -115,10 +118,12 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     private S3Service service;
     private volatile boolean shouldErrorOnDns;
     private RecordingMeterRegistry recordingMeterRegistry;
+    private boolean legacyContentMd5;
 
     @Before
     public void setUp() throws Exception {
         shouldErrorOnDns = false;
+        legacyContentMd5 = false;
         service = new S3Service(
             Mockito.mock(Environment.class),
             Settings.EMPTY,
@@ -222,6 +227,9 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         service.refreshAndClearCache(S3ClientSettings.load(clientSettings.build()));
 
         final var repositorySettings = Settings.builder().put(S3Repository.CLIENT_NAME.getKey(), clientName);
+        if (legacyContentMd5) {
+            repositorySettings.put("legacy_content_md5", true);
+        }
         if (maxBulkDeletes != null) {
             repositorySettings.put(S3Repository.DELETION_BATCH_SIZE_SETTING.getKey(), maxBulkDeletes);
         }
@@ -891,6 +899,62 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         assertThat(getRetryStartedMeasurements(), empty());
         assertThat(getRetryCompletedMeasurements(), empty());
         assertThat(getRetryHistogramMeasurements(), empty());
+    }
+
+    public void testDeleteObjectsOmitsContentMd5ByDefault() throws IOException {
+        final var deleteRequest = sendDeleteRequest(false);
+        assertNull(deleteRequest.contentMd5());
+    }
+
+    public void testDeleteObjectsSendsContentMd5WithLegacyContentMd5() throws IOException {
+        final var deleteRequest = sendDeleteRequest(true);
+        assertSettingDeprecationsAndWarnings(
+            new Setting<?>[] { S3ClientSettings.LEGACY_CONTENT_MD5.getConcreteSettingForNamespace("placeholder") }
+        );
+        final var expectedMd5 = Base64.getEncoder()
+            .encodeToString(MessageDigests.digest(new BytesArray(deleteRequest.body()), MessageDigests.md5()));
+        assertEquals(expectedMd5, deleteRequest.contentMd5());
+    }
+
+    /**
+     * A multi-object delete request as received by the HTTP server.
+     *
+     * @param contentMd5 the value of the {@code Content-MD5} request header, or {@code null} if it was absent
+     * @param body       the request body
+     */
+    private record RecordedDeleteRequest(String contentMd5, byte[] body) {}
+
+    /**
+     * Deletes a single blob using a client with the given {@code legacy_content_md5} setting and returns the one multi-object delete
+     * request that the server received.
+     */
+    private RecordedDeleteRequest sendDeleteRequest(boolean enableLegacyContentMd5) throws IOException {
+        legacyContentMd5 = enableLegacyContentMd5;
+        final var recordedRequests = new ArrayList<RecordedDeleteRequest>();
+
+        @SuppressForbidden(reason = "use a http server")
+        class RecordingDeleteHandler implements HttpHandler {
+            @Override
+            public void handle(HttpExchange exchange) throws IOException {
+                assertTrue(isMultiDeleteRequest(exchange));
+                recordedRequests.add(
+                    new RecordedDeleteRequest(
+                        exchange.getRequestHeaders().getFirst("Content-MD5"),
+                        exchange.getRequestBody().readAllBytes()
+                    )
+                );
+                final byte[] response = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><DeleteResult/>".getBytes(StandardCharsets.UTF_8);
+                exchange.sendResponseHeaders(HttpStatus.SC_OK, response.length);
+                exchange.getResponseBody().write(response);
+                exchange.close();
+            }
+        }
+        httpServer.createContext("/", new RecordingDeleteHandler());
+
+        final BlobContainer blobContainer = blobContainerBuilder().maxRetries(0).disableChunkedEncoding(true).build();
+        blobContainer.deleteBlobsIgnoringIfNotExists(randomPurpose(), List.of(randomIdentifier()).iterator());
+        assertThat(recordedRequests, hasSize(1));
+        return recordedRequests.get(0);
     }
 
     public void testSuppressedDeletionErrorsAreCapped() {

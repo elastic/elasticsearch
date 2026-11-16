@@ -8,13 +8,14 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -34,7 +35,7 @@ import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 
-public class ToBase64 extends UnaryScalarFunction {
+public class ToBase64 extends UnaryScalarFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToBase64", ToBase64::new);
 
     @FunctionInfo(
@@ -79,20 +80,25 @@ public class ToBase64 extends UnaryScalarFunction {
     }
 
     @Evaluator(warnExceptions = { ArithmeticException.class })
-    static BytesRef process(BytesRef field, @Fixed(includeInToString = false, scope = THREAD_LOCAL) BytesRefBuilder oScratch) {
+    static BytesRef process(BytesRef field, @Fixed(includeInToString = false, scope = THREAD_LOCAL) BreakingBytesRefBuilder oScratch) {
         int outLength = Math.multiplyExact(4, (Math.addExact(field.length, 2) / 3));
-        byte[] bytes = new byte[field.length];
-        System.arraycopy(field.bytes, field.offset, bytes, 0, field.length);
         oScratch.grow(outLength);
         oScratch.clear();
-        int encodedSize = Base64.getEncoder().encode(bytes, oScratch.bytes());
-        return new BytesRef(oScratch.bytes(), 0, encodedSize);
+        try (BreakingBytesRefBuilder inScratch = oScratch.newChildOfSize(field.length)) {
+            System.arraycopy(field.bytes, field.offset, inScratch.bytes(), 0, field.length);
+            int encodedSize = Base64.getEncoder().encode(inScratch.bytes(), oScratch.bytes());
+            return new BytesRef(oScratch.bytes(), 0, encodedSize);
+        }
     }
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return switch (PlannerUtils.toElementType(field.dataType())) {
-            case BYTES_REF -> new ToBase64Evaluator.Factory(source(), toEvaluator.apply(field), context -> new BytesRefBuilder());
+            case BYTES_REF -> new ToBase64Evaluator.Factory(
+                source(),
+                toEvaluator.apply(field),
+                context -> new BreakingBytesRefBuilder(context.breaker(), "to_base64")
+            );
             case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
             default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
         };

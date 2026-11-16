@@ -9,6 +9,7 @@
 
 package org.elasticsearch.validation;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.settings.SecureString;
@@ -25,7 +26,7 @@ import java.util.Objects;
 
 public class DotPrefixClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
-    public DotPrefixClientYamlTestSuiteIT(final ClientYamlTestCandidate testCandidate) {
+    public DotPrefixClientYamlTestSuiteIT(@Name("yaml") final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

@@ -45,6 +45,8 @@ public class EnrichExec extends UnaryExec implements EstimatesRowSize {
     private final Map<String, String> concreteIndices; // cluster -> enrich index
     private final List<NamedExpression> enrichFields;
 
+    private List<Attribute> lazyOutput;
+
     /**
      * @param matchField the match field in the source data
      * @param policyName the enrich policy name
@@ -191,7 +193,10 @@ public class EnrichExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     public List<Attribute> output() {
-        return mergeOutputAttributes(enrichFields, child().output());
+        if (lazyOutput == null) {
+            lazyOutput = mergeOutputAttributes(enrichFields, child().output());
+        }
+        return lazyOutput;
     }
 
     @Override

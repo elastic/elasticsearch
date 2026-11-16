@@ -215,7 +215,8 @@ public class TransformTaskTests extends ESTestCase {
             transformsCheckpointService,
             auditor,
             new TransformScheduler(clock, threadPool, Settings.EMPTY, TimeValue.ZERO),
-            mock(TransformNode.class)
+            mock(TransformNode.class),
+            Clock.systemUTC()
         );
     }
 

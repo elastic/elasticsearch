@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.client.Request;
@@ -35,7 +36,7 @@ public class InferenceRestIT extends ESClientYamlSuiteTestCase {
         .distribution(DistributionType.DEFAULT)
         .build();
 
-    public InferenceRestIT(final ClientYamlTestCandidate testCandidate) {
+    public InferenceRestIT(@Name("yaml") final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

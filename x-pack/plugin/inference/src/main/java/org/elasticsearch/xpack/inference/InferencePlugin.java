@@ -80,6 +80,7 @@ import org.elasticsearch.xpack.inference.action.TransportPutInferenceModelAction
 import org.elasticsearch.xpack.inference.action.TransportUnifiedCompletionInferenceAction;
 import org.elasticsearch.xpack.inference.action.TransportUpdateInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter;
+import org.elasticsearch.xpack.inference.chunking.RecursiveChunkingSettings;
 import org.elasticsearch.xpack.inference.common.InferenceServiceNodeLocalRateLimitCalculator;
 import org.elasticsearch.xpack.inference.common.InferenceServiceRateLimitCalculator;
 import org.elasticsearch.xpack.inference.common.NoopNodeLocalRateLimitCalculator;
@@ -261,7 +262,9 @@ public class InferencePlugin extends Plugin
         throttlerManager.init(services.clusterService());
 
         var truncator = new Truncator(settings, services.clusterService());
-        serviceComponents.set(new ServiceComponents(services.threadPool(), throttlerManager, settings, truncator));
+        serviceComponents.set(
+            new ServiceComponents(services.threadPool(), throttlerManager, settings, truncator, services.clusterService())
+        );
         threadPoolSetOnce.set(services.threadPool());
 
         var httpClientManager = HttpClientManager.create(settings, services.threadPool(), services.clusterService(), throttlerManager);
@@ -324,6 +327,7 @@ public class InferencePlugin extends Plugin
                     ),
                     sageMakerSchemas,
                     services.threadPool(),
+                    services.clusterService(),
                     sageMakerConfigurations::getOrCompute
                 )
             )
@@ -505,6 +509,7 @@ public class InferencePlugin extends Plugin
         settings.addAll(ThrottlerManager.getSettingsDefinitions());
         settings.addAll(RetrySettings.getSettingsDefinitions());
         settings.addAll(Truncator.getSettingsDefinitions());
+        settings.addAll(RecursiveChunkingSettings.getSettingsDefinitions());
         settings.addAll(RequestExecutorServiceSettings.getSettingsDefinitions());
         settings.add(SKIP_VALIDATE_AND_START);
         settings.add(INDICES_INFERENCE_BATCH_SIZE);

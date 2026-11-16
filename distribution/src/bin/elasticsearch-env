@@ -43,7 +43,7 @@ if [ ! -z "$ES_JAVA_HOME" ]; then
   fi
 
   # check the user supplied jdk version
-  "$JAVA" -cp "$ES_HOME/lib/java-version-checker/*" org.elasticsearch.tools.java_version_checker.JavaVersionChecker
+  "$JAVA" -Xms4m -Xmx64m -XX:+UseSerialGC -cp "$ES_HOME/lib/java-version-checker/*" org.elasticsearch.tools.java_version_checker.JavaVersionChecker
 else
   # use the bundled JDK (default)
   if [ "$(uname -s)" = "Darwin" ]; then

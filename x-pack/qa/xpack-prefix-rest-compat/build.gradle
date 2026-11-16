@@ -8,10 +8,9 @@
  */
 
 
-import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
 
-apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 /**
  * This project exists to test the _xpack prefix for REST compatibility. The _xpack prefix was removed from the specification, but still supported
@@ -27,6 +26,10 @@ int compatVersion = VersionProperties.getElasticsearchVersion().getMajor() - 1;
 dependencies {
   "yamlRestTestV${compatVersion}CompatImplementation" project(':test:framework')
   "yamlRestTestV${compatVersion}CompatImplementation"(testArtifact(project(':x-pack:plugin')))
+  // provides the node key and certificate that the cluster loads from the classpath
+  "yamlRestTestV${compatVersion}CompatImplementation"(testArtifact(project(xpackModule('core'))))
+  // provides the service_tokens file that the cluster loads from the classpath
+  "yamlRestTestV${compatVersion}CompatImplementation"(testArtifact(project(':x-pack:plugin:security:qa:service-account'), 'javaRestTest'))
   compatXpackTests project(path: ':x-pack:plugin', configuration: 'restCompatTests')
 }
 
@@ -44,64 +47,8 @@ tasks.named("copyRestCompatTestTask").configure { task ->
     )
   }
 
-// location for keys and certificates
-File extraResourceDir = file("$buildDir/extra_resource")
-File nodeKey = file("$extraResourceDir/testnode.pem")
-File nodeCert = file("$extraResourceDir/testnode.crt")
-// location for service tokens
-File serviceTokens = file("$extraResourceDir/service_tokens")
-
-// Add key and certs to test classpath: it expects them there
-// User cert and key PEM files instead of a JKS Keystore for the cluster's trust material so that
-// it can run in a FIPS 140 JVM
-// TODO: Remove all existing uses of cross project file references when the new approach for referencing static files is available
-// https://github.com/elastic/elasticsearch/pull/32201
-def copyExtraResources = tasks.register("copyExtraResources", Copy) {
-  from(project(':x-pack:plugin:core').file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/')) {
-    include 'testnode.crt', 'testnode.pem'
-  }
-  from(project(':x-pack:plugin:security:qa:service-account').file('src/javaRestTest/resources/')) {
-    include 'service_tokens'
-  }
-  into extraResourceDir
-}
-// Add keystores to test classpath: it expects it there
-sourceSets."yamlRestTestV${compatVersion}Compat".resources.compiledBy(copyExtraResources, t -> {
-  def dirProp = project.objects.directoryProperty()
-  dirProp.set(t.destinationDir)
-  return dirProp;
-})
-
-tasks.named("processYamlRestTestV${compatVersion}CompatResources").configure {
-  dependsOn("copyExtraResources")
-}
-
-testClusters.configureEach {
-  testDistribution = 'DEFAULT' // this is important since we use the reindex module in ML
-  setting 'xpack.ml.enabled', 'true'
-  setting 'xpack.security.enabled', 'true'
-  setting 'xpack.watcher.enabled', 'false'
-  setting 'xpack.security.authc.token.enabled', 'true'
-  setting 'xpack.security.authc.api_key.enabled', 'true'
-  setting 'xpack.security.transport.ssl.enabled', 'true'
-  setting 'xpack.security.transport.ssl.key', nodeKey.name
-  setting 'xpack.security.transport.ssl.certificate', nodeCert.name
-  setting 'xpack.security.transport.ssl.verification_mode', 'certificate'
-  setting 'xpack.security.audit.enabled', 'true'
-  setting 'xpack.license.self_generated.type', 'trial'
-  // disable ILM history, since it disturbs tests using _all
-  setting 'indices.lifecycle.history_index_enabled', 'false'
-  keystore 'bootstrap.password', 'x-pack-test-password'
-  keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
-  setting 'xpack.searchable.snapshot.shared_cache.size', '16MB'
-  setting 'xpack.searchable.snapshot.shared_cache.region_size', '256KB'
-
-  user username: "x_pack_rest_user", password: "x-pack-test-password"
-  extraConfigFile nodeKey.name, nodeKey
-  extraConfigFile nodeCert.name, nodeCert
-  extraConfigFile serviceTokens.name, serviceTokens
-
-  requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
+tasks.named("yamlRestTestV${compatVersion}CompatTest").configure {
+  usesDefaultDistribution("the default distribution is required since the reindex module is used in ML and security is enabled")
 }
 
 // transform (again) the (already) transformed x-pack compatibility tests to test the xpack prefixes

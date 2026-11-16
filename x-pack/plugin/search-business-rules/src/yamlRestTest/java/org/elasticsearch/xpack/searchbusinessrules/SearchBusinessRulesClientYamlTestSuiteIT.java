@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.searchbusinessrules;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -26,7 +27,7 @@ public class SearchBusinessRulesClientYamlTestSuiteIT extends ESClientYamlSuiteT
         .setting("xpack.security.enabled", "false")
         .build();
 
-    public SearchBusinessRulesClientYamlTestSuiteIT(final ClientYamlTestCandidate testCandidate) {
+    public SearchBusinessRulesClientYamlTestSuiteIT(@Name("yaml") final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

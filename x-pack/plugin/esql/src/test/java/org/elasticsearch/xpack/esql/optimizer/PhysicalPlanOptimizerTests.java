@@ -21,6 +21,7 @@ import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.geometry.Circle;
@@ -147,6 +148,7 @@ import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.querydsl.query.SpatialRelatesQuery;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -228,6 +230,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     private Mapper mapper;
     private TestDataSource testData;
     private TestDataSource testDataLimitedRaw;
+    private TestDataSource testAllMapping; // All field types
     private int allFieldRowSize;    // TODO: Move this into testDataSource so tests that load other indexes can also assert on this
     private TestDataSource airports;
     private TestDataSource airportsNoDocValues; // Test when spatial field is indexed but has no doc values
@@ -274,6 +277,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         // Most tests used data from the test index, so we load it here, and use it in the plan() function.
         this.testData = makeTestDataSource("test", "mapping-basic.json", functionRegistry, enrichResolution);
         this.testDataLimitedRaw = makeTestDataSource("test", "mapping-basic-limited-raw.json", functionRegistry, enrichResolution);
+        this.testAllMapping = makeTestDataSource("test_all", "mapping-all-types.json", functionRegistry, enrichResolution);
         allFieldRowSize = testData.mapping.values()
             .stream()
             .mapToInt(
@@ -1593,6 +1597,126 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var tqb = as(sv(source.query(), "emp_no"), TermsQueryBuilder.class);
         assertThat(tqb.fieldName(), is("emp_no"));
         assertThat(tqb.values(), is(List.of(10020, 10040)));
+    }
+
+    /**
+     * {@code IN} on ip, version, unsigned_long, datetime and date_nanos fields must collapse into a single
+     * {@code terms} query under a single {@code sv} wrapper, not into a disjunction of per-value {@code sv}-wrapped
+     * term/range clauses. See https://github.com/elastic/elasticsearch/pull/120192 for the regression history.
+     */
+    public void testPushDownInIp() {
+        var plan = physicalPlan("""
+            from test_all
+            | where ip in (to_ip("1.1.1.1"), to_ip("2.2.2.2"))
+            """, testAllMapping);
+
+        var optimized = optimizedPlan(plan, testAllMapping.stats());
+        var topLimit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extractRest = as(project.child(), FieldExtractExec.class);
+        var source = source(extractRest.child());
+
+        var tqb = as(sv(source.query(), "ip"), TermsQueryBuilder.class);
+        assertThat(tqb.fieldName(), is("ip"));
+        assertThat(tqb.values(), is(List.of("1.1.1.1", "2.2.2.2")));
+    }
+
+    public void testPushDownInVersion() {
+        var plan = physicalPlan("""
+            from test_all
+            | where version in (to_version("1.2.3"), to_version("4.5.6"))
+            """, testAllMapping);
+
+        var optimized = optimizedPlan(plan, testAllMapping.stats());
+        var topLimit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extractRest = as(project.child(), FieldExtractExec.class);
+        var source = source(extractRest.child());
+
+        var tqb = as(sv(source.query(), "version"), TermsQueryBuilder.class);
+        assertThat(tqb.fieldName(), is("version"));
+        assertThat(tqb.values(), is(List.of("1.2.3", "4.5.6")));
+    }
+
+    public void testPushDownInUnsignedLong() {
+        var plan = physicalPlan("""
+            from test_all
+            | where unsigned_long in (to_ul(10), to_ul(20))
+            """, testAllMapping);
+
+        var optimized = optimizedPlan(plan, testAllMapping.stats());
+        var topLimit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extractRest = as(project.child(), FieldExtractExec.class);
+        var source = source(extractRest.child());
+
+        var tqb = as(sv(source.query(), "unsigned_long"), TermsQueryBuilder.class);
+        assertThat(tqb.fieldName(), is("unsigned_long"));
+        assertThat(tqb.values(), is(List.of(10L, 20L)));
+    }
+
+    public void testPushDownInDate() {
+        String first = "2023-10-23T13:55:01.543Z";
+        String second = "2023-10-24T00:00:00.000Z";
+        var plan = physicalPlan(String.format(Locale.ROOT, """
+            from test_all
+            | where date in (to_datetime("%s"), to_datetime("%s"))
+            """, first, second), testAllMapping);
+
+        var optimized = optimizedPlan(plan, testAllMapping.stats());
+        var topLimit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extractRest = as(project.child(), FieldExtractExec.class);
+        var source = source(extractRest.child());
+
+        var tqb = as(sv(source.query(), "date"), TermsQueryBuilder.class);
+        assertThat(tqb.fieldName(), is("date"));
+        assertThat(
+            tqb.values(),
+            is(
+                List.of(
+                    EsqlDataTypeConverter.dateTimeToString(EsqlDataTypeConverter.dateTimeToLong(first)),
+                    EsqlDataTypeConverter.dateTimeToString(EsqlDataTypeConverter.dateTimeToLong(second))
+                )
+            )
+        );
+    }
+
+    /**
+     * date_nanos formatting/conversion is handled separately from datetime ({@link EsqlDataTypeConverter#nanoTimeToString}
+     * vs. {@link EsqlDataTypeConverter#dateTimeToString}), so it's pinned here with its own test; date_nanos pushdown has
+     * regressed independently of datetime before.
+     */
+    public void testPushDownInDateNanos() {
+        String first = "2023-10-23T13:55:01.543123456Z";
+        String second = "2017-10-23T13:53:55.832987654Z";
+        var plan = physicalPlan(String.format(Locale.ROOT, """
+            from test_all
+            | where date_nanos in (to_date_nanos("%s"), to_date_nanos("%s"))
+            """, first, second), testAllMapping);
+
+        var optimized = optimizedPlan(plan, testAllMapping.stats());
+        var topLimit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extractRest = as(project.child(), FieldExtractExec.class);
+        var source = source(extractRest.child());
+
+        var tqb = as(sv(source.query(), "date_nanos"), TermsQueryBuilder.class);
+        assertThat(tqb.fieldName(), is("date_nanos"));
+        assertThat(
+            tqb.values(),
+            is(
+                List.of(
+                    EsqlDataTypeConverter.nanoTimeToString(EsqlDataTypeConverter.dateNanosToLong(first)),
+                    EsqlDataTypeConverter.nanoTimeToString(EsqlDataTypeConverter.dateNanosToLong(second))
+                )
+            )
+        );
     }
 
     public void testPushDownInAndConjunction() {
@@ -3943,6 +4067,63 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertAggregation(agg, "airports", SpatialCentroid.class, GEO_POINT, FieldExtractPreference.DOC_VALUES);
         assertAggregation(agg, "cities", SpatialCentroid.class, GEO_POINT, FieldExtractPreference.DOC_VALUES);
         assertChildIsGeoPointExtract(agg, FieldExtractPreference.DOC_VALUES);
+    }
+
+    /**
+     * Reproducer for https://github.com/elastic/elasticsearch/issues/149814.
+     * When {@code ST_CENTROID_AGG(location)} marks {@code location} for doc-values extraction, the
+     * {@code BinarySpatialFunction} scan in {@code SpatialDocValuesExtraction} also adds {@code city_location}
+     * to {@code foundAttributes} (because {@code ST_DISTANCE(location, city_location)} is a
+     * {@code BinarySpatialFunction} whose both {@code FieldAttribute} operands are eligible for doc-values).
+     * Both fields must therefore be extracted as {@code DOC_VALUES} and the {@code ST_DISTANCE} evaluator
+     * must use the {@code DocValuesAndDocValues} variant. Previously only {@code DocValuesAndSource} existed,
+     * so the right-hand {@code LongBlock} was incorrectly cast to {@code BytesRefBlock}, causing a
+     * {@code ClassCastException} at runtime.
+     */
+    public void testSpatialStDistanceBothFieldsDocValues() {
+        // AVG decomposes to SUM/COUNT + a final division EvalExec, so the physical plan has a
+        // ProjectExec -> EvalExec (division) -> LimitExec -> AggregateExec(FINAL) on top.
+        // Both location and city_location must be independently used by a spatial aggregation so that
+        // Phase 1 of SpatialDocValuesExtraction adds BOTH to foundAttributes. Only then does Phase 2
+        // call withDocValues(true, true) on ST_DISTANCE — the scenario that previously caused a crash.
+        var optimized = optimizedPlan(this.physicalPlan("""
+            FROM airports
+            | STATS centroid = ST_CENTROID_AGG(location), city_centroid = ST_CENTROID_AGG(city_location),
+                    avg_dist = AVG(ST_DISTANCE(location, city_location))
+            """, airports));
+
+        // Navigate past the AVG decomposition wrappers to the FINAL aggregation
+        var project = as(optimized, ProjectExec.class);
+        var evalDiv = as(project.child(), EvalExec.class);
+        var limit = as(evalDiv.child(), LimitExec.class);
+        var agg = as(limit.child(), AggregateExec.class);
+        assertThat("Outer aggregation is FINAL", agg.getMode(), equalTo(FINAL));
+        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, FieldExtractPreference.NONE);
+
+        var exchange = as(agg.child(), ExchangeExec.class);
+        agg = as(exchange.child(), AggregateExec.class);
+        assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(INITIAL));
+        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, FieldExtractPreference.DOC_VALUES);
+
+        // ST_DISTANCE(location, city_location) is pre-evaluated in an EvalExec before the aggregation.
+        // Both location and city_location must be extracted via doc-values because ST_DISTANCE is a
+        // BinarySpatialFunction whose both FieldAttribute operands get added to foundAttributes by the
+        // SpatialDocValuesExtraction rule. The DocValuesAndDocValues evaluator variant handles
+        // the resulting LongBlock+LongBlock case; without it a ClassCastException occurs at runtime.
+        var evalExec = as(agg.child(), EvalExec.class);
+        var fieldExtract = as(evalExec.child(), FieldExtractExec.class);
+        var dvNames = fieldExtract.docValuesAttributes().stream().map(Attribute::name).collect(Collectors.toSet());
+        assertThat("location extracted via doc-values", dvNames, hasItem("location"));
+        assertThat("city_location extracted via doc-values", dvNames, hasItem("city_location"));
+
+        // Verify that the ST_DISTANCE expression in the EvalExec has both leftDocValues and rightDocValues set.
+        // collectLeaves() skips ST_DISTANCE because it has children, so use forEachDown instead.
+        List<StDistance> stDistances = new ArrayList<>();
+        evalExec.fields().forEach(alias -> alias.forEachDown(StDistance.class, stDistances::add));
+        assertThat("ST_DISTANCE found in EvalExec fields", stDistances, is(not(empty())));
+        var stDist = stDistances.get(0);
+        assertTrue("ST_DISTANCE left field uses doc-values", stDist.leftDocValues());
+        assertTrue("ST_DISTANCE right field uses doc-values", stDist.rightDocValues());
     }
 
     /**
@@ -7906,7 +8087,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 FoldContext.small(),
                 List.of(),
                 null,
-                new PhysicalSettings(DataPartitioning.AUTO, ByteSizeValue.ofMb(1))
+                new PhysicalSettings(DataPartitioning.AUTO, ByteSizeValue.ofMb(1)),
+                QueryWarnings.EMIT
             ),
             List.of(),
             MatcherWatchdog.noop()

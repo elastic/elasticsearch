@@ -29,8 +29,10 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matchers;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -45,8 +47,16 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class DataStreamsUpgradeIT extends AbstractXpackRollingUpgradeWithSecurityTestCase {
 
+    @ClassRule
+    public static final ElasticsearchCluster cluster = buildClusterWithSecurity();
+
     public DataStreamsUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
+    }
+
+    @Override
+    protected ElasticsearchCluster getUpgradeCluster() {
+        return cluster;
     }
 
     public void testDataStreams() throws IOException {

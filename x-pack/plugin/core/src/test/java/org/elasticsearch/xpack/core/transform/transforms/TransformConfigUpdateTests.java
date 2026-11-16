@@ -173,6 +173,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             .setDeduceMappings(true)
             .setNumFailureRetries(10)
             .setUnattended(true)
+            .setIndexerRequestTimeout(TimeValue.timeValueMinutes(5))
             .build();
         Map<String, Object> newMetadata = randomMetadata();
         RetentionPolicyConfig retentionPolicyConfig = new TimeRetentionPolicyConfig("time_field", new TimeValue(60_000));
@@ -274,6 +275,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
         assertThat(updatedConfig.getSettings().getDocsPerSecond(), equalTo(config.getSettings().getDocsPerSecond()));
         assertThat(updatedConfig.getSettings().getDatesAsEpochMillis(), equalTo(config.getSettings().getDatesAsEpochMillis()));
         assertThat(updatedConfig.getSettings().getAlignCheckpoints(), equalTo(config.getSettings().getAlignCheckpoints()));
+        assertThat(updatedConfig.getSettings().getIndexerRequestTimeout(), equalTo(config.getSettings().getIndexerRequestTimeout()));
 
         update = new TransformConfigUpdate(
             null,

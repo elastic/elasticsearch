@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -22,7 +23,7 @@ import java.io.IOException;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.MOD;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
 
-public class Mod extends EsqlArithmeticOperation {
+public class Mod extends EsqlArithmeticOperation implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Mod", Mod::new);
 
     @FunctionInfo(

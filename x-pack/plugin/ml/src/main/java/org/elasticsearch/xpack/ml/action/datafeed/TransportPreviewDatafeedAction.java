@@ -6,8 +6,11 @@
  */
 package org.elasticsearch.xpack.ml.action.datafeed;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
@@ -34,6 +37,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.action.PreviewDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedJobValidator;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -48,6 +52,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -130,6 +135,15 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
         PreviewDatafeedAction.Request request,
         ActionListener<PreviewDatafeedAction.Response> listener
     ) {
+        // reject configs that can't be run (for example aggregations without a summary count field) with a bad request instead of failing
+        // later when creating the extractor
+        try {
+            DatafeedJobValidator.validate(datafeedConfig, job, xContentRegistry);
+        } catch (ElasticsearchStatusException e) {
+            listener.onFailure(e);
+            return;
+        }
+
         // The datafeed preview runs in its own context with the provided
         // headers for auth. When security is not enabled the context
         // preserving listener is required to restore the request/response
@@ -206,12 +220,17 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
             client,
             TransportFieldCapabilitiesAction.TYPE,
             fieldCapabilitiesRequest,
-            listener.delegateFailureAndWrap(
-                (l, fieldCapsResponse) -> l.onResponse(
-                    fieldCapsResponse.getField(timeField).containsKey(DateFieldMapper.DATE_NANOS_CONTENT_TYPE)
-                )
-            )
+            listener.delegateFailureAndWrap((l, fieldCapsResponse) -> l.onResponse(timeFieldIsDateNanos(fieldCapsResponse, timeField)))
         );
+    }
+
+    /**
+     * Whether field caps report {@code timeField} as {@link DateFieldMapper#DATE_NANOS_CONTENT_TYPE} only.
+     * If the field is missing from the response, returns {@code false} (including Date and mixed mappings).
+     */
+    static boolean timeFieldIsDateNanos(FieldCapabilitiesResponse fieldCapsResponse, String timeField) {
+        Map<String, FieldCapabilities> fieldTypes = fieldCapsResponse.getField(timeField);
+        return fieldTypes != null && fieldTypes.containsKey(DateFieldMapper.DATE_NANOS_CONTENT_TYPE);
     }
 
     /** Visible for testing */

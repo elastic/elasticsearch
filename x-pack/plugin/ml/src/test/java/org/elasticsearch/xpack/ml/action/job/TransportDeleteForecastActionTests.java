@@ -6,20 +6,49 @@
  */
 package org.elasticsearch.xpack.ml.action.job;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
+import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ml.action.DeleteForecastAction;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.apache.lucene.search.TotalHits.Relation.EQUAL_TO;
+import static org.elasticsearch.xpack.ml.job.persistence.JobScopedDeleteCheckTests.assertNoMissingJobScopeEvent;
+import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TransportDeleteForecastActionTests extends ESTestCase {
 
@@ -86,6 +115,65 @@ public class TransportDeleteForecastActionTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    public void testDeleteForecastShouldNotLogMissingJobScope() {
+        String jobId = "forecast-job";
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        List<DeleteByQueryRequest> deleteByQueryRequests = new ArrayList<>();
+        SearchHit hit = createForecastStatsHit(ForecastRequestStats.ForecastRequestStatus.FINISHED);
+        SearchHits searchHits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, EQUAL_TO), 1f);
+        Client client = new NoOpClient(threadPool) {
+            @Override
+            @SuppressWarnings("unchecked")
+            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                if (request instanceof SearchRequest) {
+                    SearchResponse searchResponse = mock(SearchResponse.class);
+                    when(searchResponse.getHits()).thenReturn(searchHits);
+                    listener.onResponse((Response) searchResponse);
+                } else if (request instanceof DeleteByQueryRequest deleteByQueryRequest) {
+                    deleteByQueryRequests.add(deleteByQueryRequest);
+                    listener.onResponse(
+                        (Response) new BulkByPaginatedSearchResponse(
+                            TimeValue.ZERO,
+                            new BulkByPaginatedSearchTask.Status(Collections.emptyList(), null, 0f),
+                            Collections.emptyList(),
+                            Collections.emptyList(),
+                            false
+                        )
+                    );
+                } else {
+                    throw new AssertionError("unexpected request [" + request.getClass().getSimpleName() + "]");
+                }
+            }
+        };
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
+        TransportDeleteForecastAction action = new TransportDeleteForecastAction(
+            mock(TransportService.class),
+            mock(ActionFilters.class),
+            client,
+            clusterService
+        );
+
+        try {
+            assertNoMissingJobScopeEvent(
+                () -> action.doExecute(
+                    null,
+                    new DeleteForecastAction.Request(jobId, "_all"),
+                    ActionTestUtils.assertNoFailureListener(response -> {})
+                )
+            );
+        } finally {
+            searchHits.decRef();
+        }
+
+        assertThat(deleteByQueryRequests, hasSize(1));
     }
 
     private static SearchHit createForecastStatsHit(ForecastRequestStats.ForecastRequestStatus status) {

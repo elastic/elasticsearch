@@ -1,0 +1,5 @@
+area: Machine Learning
+issues: []
+pr: 164285
+summary: Add delete scope and results alias invariant log events
+type: enhancement

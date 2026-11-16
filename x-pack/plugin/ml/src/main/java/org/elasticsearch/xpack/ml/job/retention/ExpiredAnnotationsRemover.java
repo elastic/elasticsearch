@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.job.persistence.JobScopedDeleteCheck;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
 import java.time.Instant;
@@ -94,6 +95,7 @@ public class ExpiredAnnotationsRemover extends AbstractExpiredJobDataRemover {
         DeleteByQueryRequest request = createDBQRequest(job, requestsPerSecond, cutoffEpochMs, indicesToQuery);
         request.setParentTask(getParentTaskId());
 
+        JobScopedDeleteCheck.logIfNotJobScoped(job.getId(), request);
         client.execute(DeleteByQueryAction.INSTANCE, request, new ActionListener<>() {
             @Override
             public void onResponse(BulkByPaginatedSearchResponse bulkByPaginatedSearchResponse) {

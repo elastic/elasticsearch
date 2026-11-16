@@ -117,6 +117,11 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
      */
     private static final Pattern REINDEXED_ANOMALIES_STRIP = Pattern.compile("^\\.reindexed-[^-]+-(ml-anomalies-.*)$");
 
+    /** Whether {@code indexName} is a {@code .reindexed-<version>-ml-anomalies-*} index left by a major-version reindex. */
+    public static boolean isReindexedAnomaliesIndex(String indexName) {
+        return REINDEXED_ANOMALIES_STRIP.matcher(indexName).matches();
+    }
+
     /**
      * Timeout for each synchronous alias-update call during the heal step.
      */
@@ -570,7 +575,7 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
                         // Never strip from the target; we are about to (re-)add the alias here.
                         continue;
                     }
-                    if (REINDEXED_ANOMALIES_STRIP.matcher(claimantName).matches() == false) {
+                    if (isReindexedAnomaliesIndex(claimantName) == false) {
                         // Leave canonical family members alone — older .ml-anomalies-*-NNNNNN
                         // generations legitimately hold the read alias for historical results.
                         continue;

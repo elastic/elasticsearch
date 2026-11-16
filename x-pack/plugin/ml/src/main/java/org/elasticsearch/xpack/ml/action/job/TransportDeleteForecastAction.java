@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats.ForecastRequestStatus;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.job.persistence.JobScopedDeleteCheck;
 import org.elasticsearch.xpack.ml.utils.QueryBuilderHelper;
 
 import java.util.ArrayList;
@@ -169,6 +170,7 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
         }
 
         DeleteByQueryRequest deleteByQueryRequest = buildDeleteByQuery(jobId, forecastIds);
+        JobScopedDeleteCheck.logIfNotJobScoped(jobId, deleteByQueryRequest);
         executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, deleteByQueryRequest, ActionListener.wrap(response -> {
             if (response.isTimedOut()) {
                 listener.onFailure(

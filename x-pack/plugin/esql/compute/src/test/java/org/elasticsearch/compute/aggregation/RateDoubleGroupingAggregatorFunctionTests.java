@@ -9,7 +9,9 @@ package org.elasticsearch.compute.aggregation;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
@@ -23,11 +25,13 @@ import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.TestWarningsSource;
+import org.elasticsearch.core.Releasables;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.IntConsumer;
 
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -244,6 +248,45 @@ public class RateDoubleGroupingAggregatorFunctionTests extends ComputeTestCase {
         } finally {
             aggregator.close();
             page.releaseBlocks();
+            driverContext.finish();
+        }
+    }
+
+    public void testFinalEvaluationPreparesAllGroups() {
+        BlockFactory blockFactory = blockFactory();
+        DriverContext driverContext = driverContext();
+        try (
+            var aggregator = new RateDoubleGroupingAggregatorFunction.FunctionSupplier(true, false, TestWarningsSource.INSTANCE)
+                .groupingAggregator(driverContext, List.of(0, 1, 2, 3));
+            var context = lookbackContext(driverContext, new long[] { 0, 10_000 }, new long[] { 10_000, 20_000 });
+            var selected = blockFactory.newIntRangeVector(0, 2)
+        ) {
+            for (int group = 0; group < 2; group++) {
+                try (
+                    var groupIds = blockFactory.newConstantIntVector(group, 1);
+                    var page = new Page(
+                        BlockUtils.fromArrayRow(
+                            blockFactory,
+                            group == 0 ? List.of(5000L, 1000L) : List.of(11_000L, 11_000L, 19_000L, 19_000L),
+                            group == 0 ? List.of(50.0, 10.0) : List.of(80.0, 80.0, 90.0, 90.0),
+                            2L,
+                            0.0
+                        )
+                    )
+                ) {
+                    aggregator.addIntermediateInput(0, groupIds, page);
+                }
+            }
+            try (var prepared = aggregator.prepareEvaluateFinal(selected, context); var firstPage = selected.slice(0, 1)) {
+                Block[] blocks = new Block[1];
+                try {
+                    prepared.evaluate(blocks, 0, firstPage);
+                    assertThat(((DoubleBlock) blocks[0]).getDouble(0), closeTo(7.5, 0.0001));
+                } finally {
+                    Releasables.close(blocks);
+                }
+            }
+        } finally {
             driverContext.finish();
         }
     }

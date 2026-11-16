@@ -17,7 +17,6 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.core.Strings;
 
-import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 
 /**
@@ -66,8 +65,8 @@ public class ParseIp {
     }
 
     /**
-     * Parse an IP address, rejecting v4 addresses with leading 0s. This aligns
-     * exactly with {@link InetAddresses#forString(String)}.
+     * Parse an IP address, rejecting v4 addresses with leading 0s the same way
+     * {@link InetAddresses#forString(String)} does.
      * <ul>
      *     <li>192.168.1.1 : valid</li>
      *     <li>192.168.0.1 : valid</li>
@@ -81,13 +80,12 @@ public class ParseIp {
         @Fixed(includeInToString = false, scope = Fixed.Scope.THREAD_LOCAL) BreakingBytesRefBuilder scratch
     ) {
         /*
-         * If this is an ipv6 address then delegate to InetAddresses.forString
-         * because we don't have anything nice for parsing those.
+         * The loop below only parses ipv4 addresses, so ipv6 addresses go to
+         * InetAddresses.encodeAsIpv6, which parses the utf-8 bytes in place.
          */
         int end = string.offset + string.length;
         if (isV6(string, end)) {
-            InetAddress inetAddress = InetAddresses.forString(string.utf8ToString());
-            return new BytesRef(InetAddressPoint.encode(inetAddress));
+            return new BytesRef(InetAddresses.encodeAsIpv6(string.bytes, string.offset, string.length));
         }
 
         System.arraycopy(IPV4_PREFIX, 0, scratch.bytes(), 0, IPV4_PREFIX.length);
@@ -109,12 +107,16 @@ public class ParseIp {
             int v = digit(string, offset++);
             while (offset < end && string.bytes[offset] != '.') {
                 v = v * 10 + digit(string, offset++);
+                if (v > 255) {
+                    throw invalid(string);
+                }
             }
             offset++;
-            if (v > 255) {
-                throw invalid(string);
-            }
             scratch.bytes()[dest] = (byte) v;
+        }
+        if (offset <= end) {
+            // The fourth octet ended at a '.' rather than at the end of the string
+            throw invalid(string);
         }
         return scratch.bytesRefView();
     }
@@ -137,13 +139,12 @@ public class ParseIp {
         @Fixed(includeInToString = false, scope = Fixed.Scope.THREAD_LOCAL) BreakingBytesRefBuilder scratch
     ) {
         /*
-         * If this is an ipv6 address then delegate to InetAddresses.forString
-         * because we don't have anything nice for parsing those.
+         * The loop below only parses ipv4 addresses, so ipv6 addresses go to
+         * InetAddresses.encodeAsIpv6, which parses the utf-8 bytes in place.
          */
         int end = string.offset + string.length;
         if (isV6(string, end)) {
-            InetAddress inetAddress = InetAddresses.forString(string.utf8ToString());
-            return new BytesRef(InetAddressPoint.encode(inetAddress));
+            return new BytesRef(InetAddresses.encodeAsIpv6(string.bytes, string.offset, string.length));
         }
 
         System.arraycopy(IPV4_PREFIX, 0, scratch.bytes(), 0, IPV4_PREFIX.length);
@@ -155,12 +156,16 @@ public class ParseIp {
             int v = digit(string, offset++);
             while (offset < end && string.bytes[offset] != '.') {
                 v = v * 10 + digit(string, offset++);
+                if (v > 255) {
+                    throw invalid(string);
+                }
             }
             offset++;
-            if (v > 255) {
-                throw invalid(string);
-            }
             scratch.bytes()[dest] = (byte) v;
+        }
+        if (offset <= end) {
+            // The fourth octet ended at a '.' rather than at the end of the string
+            throw invalid(string);
         }
         return scratch.bytesRefView();
     }
@@ -183,13 +188,12 @@ public class ParseIp {
         @Fixed(includeInToString = false, scope = Fixed.Scope.THREAD_LOCAL) BreakingBytesRefBuilder scratch
     ) {
         /*
-         * If this is an ipv6 address then delegate to InetAddresses.forString
-         * because we don't have anything nice for parsing those.
+         * The loop below only parses ipv4 addresses, so ipv6 addresses go to
+         * InetAddresses.encodeAsIpv6, which parses the utf-8 bytes in place.
          */
         int end = string.offset + string.length;
         if (isV6(string, end)) {
-            InetAddress inetAddress = InetAddresses.forString(string.utf8ToString());
-            return new BytesRef(InetAddressPoint.encode(inetAddress));
+            return new BytesRef(InetAddresses.encodeAsIpv6(string.bytes, string.offset, string.length));
         }
 
         System.arraycopy(IPV4_PREFIX, 0, scratch.bytes(), 0, IPV4_PREFIX.length);
@@ -205,6 +209,9 @@ public class ParseIp {
                 v = 0;
                 while (offset < end && string.bytes[offset] != '.') {
                     v = v * 8 + octalDigit(string, offset++);
+                    if (v > 255) {
+                        throw invalid(string);
+                    }
                 }
                 offset++;
             } else {
@@ -212,13 +219,17 @@ public class ParseIp {
                 v = digit(string, offset++);
                 while (offset < end && string.bytes[offset] != '.') {
                     v = v * 10 + digit(string, offset++);
+                    if (v > 255) {
+                        throw invalid(string);
+                    }
                 }
                 offset++;
             }
-            if (v > 255) {
-                throw invalid(string);
-            }
             scratch.bytes()[dest] = (byte) v;
+        }
+        if (offset <= end) {
+            // The fourth octet ended at a '.' rather than at the end of the string
+            throw invalid(string);
         }
         return scratch.bytesRefView();
     }

@@ -281,16 +281,26 @@ public class HierarchicalKMeans<V> {
     }
 
     private KMeansLocal<V> buildKmeansLocalFinal(int numVectors, int localSampleSize) {
+        return buildKmeansLocalFinal(numVectors, localSampleSize, maxIterations);
+    }
+
+    /**
+     * Builds the neighborhood-aware k-means used for final refinement over all centroids. Unlike
+     * {@link #buildKmeansLocal}, whose balanced variant materializes mini-batch by centroid-count
+     * matrices (quadratic in the number of centroids), this one only considers each vector's
+     * neighborhood, so its memory stays linear in the number of centroids.
+     */
+    private KMeansLocal<V> buildKmeansLocalFinal(int numVectors, int localSampleSize, int iterations) {
         int numWorkers = Math.min(this.numWorkers, numVectors / MIN_VECTORS_PER_THREAD);
         // if there is no executor or there is no enough vectors for more than one thread, use the serial version
         if (USE_BALANCING) {
             return executor == null || numWorkers <= 1
-                ? new BalancedASKMeansLocalSerial<>(ops, localSampleSize, maxIterations)
-                : new BalancedASKMeansLocalConcurrent<>(ops, executor, numWorkers, localSampleSize, maxIterations);
+                ? new BalancedASKMeansLocalSerial<>(ops, localSampleSize, iterations)
+                : new BalancedASKMeansLocalConcurrent<>(ops, executor, numWorkers, localSampleSize, iterations);
         } else {
             return executor == null || numWorkers <= 1
-                ? new LloydKMeansLocalSerial<>(ops, localSampleSize, maxIterations)
-                : new LloydKMeansLocalConcurrent<>(ops, executor, numWorkers, localSampleSize, maxIterations);
+                ? new LloydKMeansLocalSerial<>(ops, localSampleSize, iterations)
+                : new LloydKMeansLocalConcurrent<>(ops, executor, numWorkers, localSampleSize, iterations);
         }
     }
 
@@ -881,8 +891,10 @@ public class HierarchicalKMeans<V> {
 
         // Neighborhood-aware refinement + SOAR with minimal iteration.
         // One pass is sufficient since the initial assignment is already good.
+        // splitOversizedClusters leaves the centroid count unbounded here, so the refinement must be
+        // neighborhood-aware: the global balanced solver from buildKmeansLocal is quadratic in it.
         if (kMeansResult.centroids().length > 1 && kMeansResult.centroids().length < vectors.size()) {
-            KMeansLocal<V> refinementKMeans = buildKmeansLocal(vectors.size(), vectors.size(), 1);
+            KMeansLocal<V> refinementKMeans = buildKmeansLocalFinal(vectors.size(), vectors.size(), 1);
             NeighborHood[] neighborhoods = refinementKMeans.cluster(vectors, kMeansResult, clustersPerNeighborhood);
             OverspillAssignments overspill = computeSoar(vectors, kMeansResult, neighborhoods);
             return new KMeansWithOverspill<>(kMeansResult, overspill);

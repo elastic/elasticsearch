@@ -10,6 +10,7 @@ import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -28,18 +29,8 @@ import java.util.TreeSet;
  * @param metricType   {@code counter}, {@code gauge} or {@code histogram} when the mapping declares {@code time_series_metric}
  * @param unit         {@code meta.unit}; comma-separated when the indices disagree
  * @param description  {@code meta.description}; comma-separated when the indices disagree
- * @param searchable   whether every index can filter on the field
- * @param aggregatable whether every index can group or aggregate on the field
  */
-public record FieldSemantics(
-    String field,
-    Role role,
-    @Nullable String metricType,
-    @Nullable String unit,
-    @Nullable String description,
-    boolean searchable,
-    boolean aggregatable
-) {
+public record FieldSemantics(String field, Role role, @Nullable String metricType, @Nullable String unit, @Nullable String description) {
 
     /**
      * How a field is meant to be used. Declared roles ({@link #DIMENSION}, {@link #METRIC}) come from
@@ -75,8 +66,6 @@ public record FieldSemantics(
     public static FieldSemantics from(String field, List<IndexFieldCapabilities> fcs) {
         Role role = null;
         String metricType = null;
-        boolean searchable = true;
-        boolean aggregatable = true;
         TreeSet<String> units = new TreeSet<>();
         TreeSet<String> descriptions = new TreeSet<>();
         for (IndexFieldCapabilities fc : fcs) {
@@ -86,20 +75,10 @@ public record FieldSemantics(
                 String type = fc.metricType().toString();
                 metricType = metricType == null || metricType.equals(type) ? type : "mixed";
             }
-            searchable &= fc.isSearchable();
-            aggregatable &= fc.isAggregatable();
             addMeta(fc.meta(), "unit", units);
             addMeta(fc.meta(), "description", descriptions);
         }
-        return new FieldSemantics(
-            field,
-            role == null ? Role.OTHER : role,
-            metricType,
-            join(units),
-            join(descriptions),
-            searchable,
-            aggregatable
-        );
+        return new FieldSemantics(field, role == null ? Role.OTHER : role, metricType, join(units), join(descriptions));
     }
 
     private static Role role(String field, IndexFieldCapabilities fc) {
@@ -139,5 +118,21 @@ public record FieldSemantics(
 
     private static String join(TreeSet<String> values) {
         return values.isEmpty() ? null : String.join(",", values);
+    }
+
+    /**
+     * The {@code _meta.field} entry of a result column.
+     */
+    public Map<String, Object> toColumnMetadata() {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("name", field);
+        map.put("role", role.label());
+        if (metricType != null) {
+            map.put("metric_type", metricType);
+        }
+        if (description != null) {
+            map.put("description", description);
+        }
+        return map;
     }
 }

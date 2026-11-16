@@ -8,7 +8,6 @@
  */
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -733,14 +732,10 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
         if (state == SnapshotState.FAILED) {
             return RestStatus.INTERNAL_SERVER_ERROR;
         }
-        if (shardFailures.size() == 0) {
+        if (shardFailures.isEmpty()) {
             return RestStatus.OK;
         }
-        return RestStatus.status(
-            successfulShards,
-            totalShards,
-            shardFailures.toArray(new ShardOperationFailedException[shardFailures.size()])
-        );
+        return RestStatus.status(successfulShards, totalShards, shardFailures);
     }
 
     /**

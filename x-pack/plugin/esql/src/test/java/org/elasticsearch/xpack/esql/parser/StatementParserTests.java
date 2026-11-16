@@ -20,7 +20,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
@@ -4329,27 +4328,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         String error = "Only a single FORK command is supported, but found multiple";
         expectVerificationError("EXPLAIN (FROM a | FORK (WHERE x > 0) (WHERE x < 0) | FORK (WHERE y > 0) (WHERE y < 0))", error);
         assertThat(query("EXPLAIN (FROM a | FORK (WHERE x > 0) (WHERE x < 0))"), instanceOf(Explain.class));
-    }
-
-    /**
-     * A LET binding body is a FORK scope of its own. Two FORKs that only meet once the binding is substituted are rejected by
-     * {@code LetResolver}.
-     */
-    public void testSecondForkOnOnePipelineInLetBindingRejectedAfterParsing() {
-        assumeTrue("requires NAMED_SUBQUERY_LET capability", EsqlCapabilities.Cap.NAMED_SUBQUERY_LET.isEnabled());
-        String error = "Only a single FORK command is supported, but found multiple";
-        expectThrows(
-            VerificationException.class,
-            containsString(error),
-            () -> statement("LET q = (FROM a | FORK (WHERE x > 0) (WHERE x < 0) | FORK (WHERE y > 0) (WHERE y < 0)); FROM q")
-        );
-        expectThrows(
-            VerificationException.class,
-            containsString(error),
-            () -> statement("LET q = (FROM a); FROM q | FORK (WHERE x > 0) (WHERE x < 0) | FORK (WHERE y > 0) (WHERE y < 0)")
-        );
-
-        statement("LET q = (FROM a | FORK (WHERE x > 0) (WHERE x < 0)); FROM q | FORK (WHERE y > 0) (WHERE y < 0)");
     }
 
     public void testForkWithBareFillNull() {

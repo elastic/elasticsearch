@@ -377,7 +377,7 @@ public class MockAzureBlobStore {
                     leaseId = proposedLeaseId != null ? proposedLeaseId : UUID.randomUUID().toString();
                     validateLeaseDuration(leaseDurationSeconds);
                     this.leaseDurationSeconds = leaseDurationSeconds;
-                    logger.debug("Granting lease, prior state={}, leaseId={}, expires={}", prevState, leaseId);
+                    logger.debug("Granting lease, prior state={}, leaseId={}, expires={}", prevState, leaseId, leaseDurationSeconds);
                 }
                 case Leased -> {
                     if (leaseId.equals(proposedLeaseId) == false) {

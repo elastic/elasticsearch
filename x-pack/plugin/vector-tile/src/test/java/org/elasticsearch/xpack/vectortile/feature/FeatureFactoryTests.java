@@ -204,6 +204,25 @@ public class FeatureFactoryTests extends ESTestCase {
         }
     }
 
+    public void testDegeneratedPolygon() throws IOException, ParseException {
+        final Geometry polygon = WellKnownText.fromWKT(
+            StandardValidator.NOOP,
+            false,
+            "POLYGON ((-1.3905166645205914E-268 0.0, -1.3905166645205914E-268 1.401298464324817E-45, "
+                + "0.0 1.401298464324817E-45, 0.0 0.0, -1.3905166645205914E-268 0.0))"
+        );
+        for (int i = 0; i < 10; i++) {
+            final int z = randomIntBetween(1, 10);
+            // one of the four tiles touching the origin
+            final int x = (1 << (z - 1)) - randomIntBetween(0, 1);
+            final int y = (1 << (z - 1)) - randomIntBetween(0, 1);
+            final int extent = randomIntBetween(128, 8012);
+            final int padPixels = randomIntBetween(0, extent);
+            final FeatureFactory builder = new FeatureFactory(z, x, y, extent, padPixels);
+            assertThat(builder.getFeatures(polygon), iterableWithSize(0));
+        }
+    }
+
     public void testTileInsidePolygon() throws Exception {
         final int z = randomIntBetween(0, 4);
         final int x = randomIntBetween(0, (1 << z) - 1);

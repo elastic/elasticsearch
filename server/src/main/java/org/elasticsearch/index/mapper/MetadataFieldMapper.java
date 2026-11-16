@@ -52,17 +52,12 @@ public abstract class MetadataFieldMapper extends FieldMapper {
      * ignored by the update merge.  Instead, we use an {@link Explicit} object that
      * will serialize its value if it has been configured, no matter what the value is.
      */
-    public static Parameter<Explicit<Boolean>> updateableBoolParam(
-        String name,
-        Function<FieldMapper, Explicit<Boolean>> initializer,
-        boolean defaultValue
-    ) {
+    public static Parameter<Explicit<Boolean>> updateableBoolParam(String name, boolean defaultValue) {
         return new Parameter<>(
             name,
             true,
             defaultValue ? () -> Explicit.IMPLICIT_TRUE : () -> Explicit.IMPLICIT_FALSE,
             (n, c, o) -> Explicit.explicitBoolean(XContentMapValues.nodeBooleanValue(o)),
-            initializer,
             (b, n, v) -> b.field(n, v.value()),
             v -> Boolean.toString(v.value())
         );
@@ -216,11 +211,6 @@ public abstract class MetadataFieldMapper extends FieldMapper {
 
     protected MetadataFieldMapper(MappedFieldType mappedFieldType) {
         super(mappedFieldType.name(), mappedFieldType, BuilderParams.empty());
-    }
-
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new ConstantBuilder(this);
     }
 
     /**

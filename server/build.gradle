@@ -112,6 +112,8 @@ dependencies {
   heapPressureTestImplementation project(':test:test-clusters')
   // The pausable field the heap pressure tests use to hold requests in flight.
   clusterModules project(':test:external-modules:test-pausable-field')
+  // Registers index.queries.cache.everything for the heap pressure tests that need every filter clause cached.
+  clusterModules project(':test:external-modules:test-cache-everything')
   // Mapping-level keyword runtime fields need a script engine.
   clusterModules project(':modules:lang-painless')
 }

@@ -15,13 +15,13 @@
 #### Interfaces
 
 class java.time.temporal.Temporal {
-  Temporal minus(long,TemporalUnit)
-  Temporal minus(TemporalAmount)
-  Temporal plus(long,TemporalUnit)
-  Temporal plus(TemporalAmount)
+  Temporal minus(long,TemporalUnit) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="temporalBytes"]
+  Temporal minus(TemporalAmount) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="temporalBytes"]
+  Temporal plus(long,TemporalUnit) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="temporalBytes"]
+  Temporal plus(TemporalAmount) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="temporalBytes"]
   long until(Temporal,TemporalUnit)
-  Temporal with(TemporalAdjuster)
-  Temporal with(TemporalField,long)
+  Temporal with(TemporalAdjuster) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="temporalBytes"]
+  Temporal with(TemporalField,long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="temporalBytes"]
 }
 
 class java.time.temporal.TemporalAccessor {
@@ -29,25 +29,25 @@ class java.time.temporal.TemporalAccessor {
   long getLong(TemporalField)
   boolean isSupported(TemporalField)
   def query(TemporalQuery)
-  ValueRange range(TemporalField)
+  ValueRange range(TemporalField) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="valueRangeBytes"]
   # An easy method to convert temporalAccessors to millis since epoch similar to Instant#toEpochMilli.
   long org.elasticsearch.painless.api.Augmentation toEpochMilli()
   long org.elasticsearch.painless.api.Augmentation getMillis()
 }
 
 class java.time.temporal.TemporalAdjuster {
-  Temporal adjustInto(Temporal)
+  Temporal adjustInto(Temporal) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="temporalBytes"]
 }
 
 class java.time.temporal.TemporalAmount {
-  Temporal addTo(Temporal)
+  Temporal addTo(Temporal) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="temporalBytes"]
   long get(TemporalUnit)
   List getUnits()
-  Temporal subtractFrom(Temporal)
+  Temporal subtractFrom(Temporal) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="temporalBytes"]
 }
 
 class java.time.temporal.TemporalField {
-  Temporal adjustInto(Temporal,long)
+  Temporal adjustInto(Temporal,long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="temporalBytes"]
   TemporalUnit getBaseUnit()
   String getDisplayName(Locale)
   long getFrom(TemporalAccessor)
@@ -56,7 +56,7 @@ class java.time.temporal.TemporalField {
   boolean isSupportedBy(TemporalAccessor)
   boolean isTimeBased()
   ValueRange range()
-  ValueRange rangeRefinedBy(TemporalAccessor)
+  ValueRange rangeRefinedBy(TemporalAccessor) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="valueRangeBytes"]
   TemporalAccessor resolve(Map,TemporalAccessor,ResolverStyle)
   String toString()
 }
@@ -66,7 +66,7 @@ class java.time.temporal.TemporalQuery {
 }
 
 class java.time.temporal.TemporalUnit {
-  Temporal addTo(Temporal,long)
+  Temporal addTo(Temporal,long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="temporalBytes"]
   long between(Temporal,Temporal)
   Duration getDuration()
   boolean isDateBased()
@@ -131,9 +131,9 @@ class java.time.temporal.ValueRange {
   boolean isIntValue()
   boolean isValidIntValue(long)
   boolean isValidValue(long)
-  ValueRange of(long,long)
-  ValueRange of(long,long,long)
-  ValueRange of(long,long,long,long)
+  ValueRange of(long,long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="valueRangeBytes"]
+  ValueRange of(long,long,long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="valueRangeBytes"]
+  ValueRange of(long,long,long,long) @allocates[class="org.elasticsearch.painless.TimeAllocationEstimators", method="valueRangeBytes"]
 }
 
 class java.time.temporal.WeekFields {

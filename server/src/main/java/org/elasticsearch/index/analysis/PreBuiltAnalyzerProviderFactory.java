@@ -10,6 +10,7 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.util.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
@@ -28,6 +29,7 @@ import java.util.function.Supplier;
 public class PreBuiltAnalyzerProviderFactory extends PreConfiguredAnalysisComponent<AnalyzerProvider<?>> implements Closeable {
 
     private final Function<IndexVersion, Analyzer> create;
+    private final boolean versionInvariant;
     private final PreBuiltAnalyzerProvider current;
 
     /**
@@ -36,15 +38,44 @@ public class PreBuiltAnalyzerProviderFactory extends PreConfiguredAnalysisCompon
     PreBuiltAnalyzerProviderFactory(String name, PreBuiltAnalyzers preBuiltAnalyzer) {
         super(name, new PreBuiltAnalyzersDelegateCache(name, preBuiltAnalyzer));
         this.create = preBuiltAnalyzer::getAnalyzer;
+        this.versionInvariant = true;
         Analyzer analyzer = preBuiltAnalyzer.getAnalyzer(IndexVersion.current());
         current = new PreBuiltAnalyzerProvider(name, AnalyzerScope.INDICES, analyzer);
     }
 
+    /**
+     * For analyzers whose behavior does not depend on the index version; instances are shared across indices by name.
+     */
     public PreBuiltAnalyzerProviderFactory(String name, PreBuiltCacheFactory.CachingStrategy cache, Supplier<Analyzer> create) {
+        this(name, PreBuiltCacheFactory.getCache(cache), version -> create.get(), true);
+    }
+
+    private PreBuiltAnalyzerProviderFactory(
+        String name,
+        PreBuiltCacheFactory.PreBuiltCache<AnalyzerProvider<?>> cache,
+        Function<IndexVersion, Analyzer> create,
+        boolean versionInvariant
+    ) {
         super(name, cache);
-        this.create = version -> create.get();
-        Analyzer analyzer = create.get();
-        this.current = new PreBuiltAnalyzerProvider(name, AnalyzerScope.INDICES, analyzer);
+        this.create = create;
+        this.versionInvariant = versionInvariant;
+        this.current = newProvider(name, create.apply(IndexVersion.current()), versionInvariant);
+        if (versionInvariant == false) {
+            cache.put(IndexVersion.current(), current);
+        }
+    }
+
+    /**
+     * For analyzers whose behavior depends on the Lucene version the index was created with. One provider is cached per Lucene
+     * version, and providers for different Lucene versions are never shared between indices.
+     */
+    public static PreBuiltAnalyzerProviderFactory luceneVersion(String name, Function<Version, Analyzer> create) {
+        return new PreBuiltAnalyzerProviderFactory(
+            name,
+            PreBuiltCacheFactory.getCache(PreBuiltCacheFactory.CachingStrategy.LUCENE),
+            create.compose(IndexVersion::luceneVersion),
+            false
+        );
     }
 
     @Override
@@ -61,14 +92,41 @@ public class PreBuiltAnalyzerProviderFactory extends PreConfiguredAnalysisCompon
     @Override
     protected AnalyzerProvider<?> create(IndexVersion version) {
         assert IndexVersion.current().equals(version) == false;
-        Analyzer analyzer = create.apply(version);
-        return new PreBuiltAnalyzerProvider(getName(), AnalyzerScope.INDICES, analyzer);
+        return newProvider(name, create.apply(version), versionInvariant);
+    }
+
+    private static PreBuiltAnalyzerProvider newProvider(String name, Analyzer analyzer, boolean versionInvariant) {
+        return versionInvariant
+            ? new PreBuiltAnalyzerProvider(name, AnalyzerScope.INDICES, analyzer)
+            : new CacheKeyedPreBuiltAnalyzerProvider(name, analyzer);
     }
 
     @Override
     public void close() throws IOException {
         List<Closeable> closeables = cache.values().stream().<Closeable>map(AnalyzerProvider::get).toList();
-        IOUtils.close(current.get(), () -> IOUtils.close(closeables));
+        if (versionInvariant == false) {
+            IOUtils.close(closeables);
+        } else {
+            IOUtils.close(current.get(), () -> IOUtils.close(closeables));
+        }
+    }
+
+    /**
+     * {@link PreBuiltAnalyzerProvider#sharingKey()} compares by analyzer name only, which would let indices created on different
+     * Lucene versions share one analyzer. The cache holds one provider per Lucene version, so provider identity is the sharing key
+     * here. Keeping this behavior on a distinct provider type matches {@link AnalysisRegistry.FactoryKey}, which isolates sharing
+     * keys by their provider class.
+     */
+    private static final class CacheKeyedPreBuiltAnalyzerProvider extends PreBuiltAnalyzerProvider {
+
+        private CacheKeyedPreBuiltAnalyzerProvider(String name, Analyzer analyzer) {
+            super(name, AnalyzerScope.INDICES, analyzer);
+        }
+
+        @Override
+        public Object sharingKey() {
+            return this;
+        }
     }
 
     /**

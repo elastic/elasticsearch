@@ -279,13 +279,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
 
             long attributed = executor.getAttributedTaskExecutionTime();
             long total = executor.getTotalTaskExecutionTime();
-            runTask(executor, 2, () -> TaskLoadAttribution.attribute(TaskLoadAttribution.CHARGED_BY_TASK));
-            assertThat(executor.getAttributedTaskExecutionTime() - attributed, equalTo(executor.getTotalTaskExecutionTime() - total));
-            assertThat(second.get(), equalTo(0L));
-
-            attributed = executor.getAttributedTaskExecutionTime();
-            total = executor.getTotalTaskExecutionTime();
-            runTask(executor, 3, () -> {});
+            runTask(executor, 2, () -> {});
             assertThat(executor.getAttributedTaskExecutionTime(), equalTo(attributed));
             assertThat(executor.getTotalTaskExecutionTime(), greaterThan(total));
 
@@ -293,7 +287,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             first.set(0);
             attributed = executor.getAttributedTaskExecutionTime();
             total = executor.getTotalTaskExecutionTime();
-            runTask(executor, 4, () -> {
+            runTask(executor, 3, () -> {
                 TaskLoadAttribution.attribute(firstTarget);
                 TaskLoadAttribution.charge(secondTarget, 1, System.nanoTime());
             });

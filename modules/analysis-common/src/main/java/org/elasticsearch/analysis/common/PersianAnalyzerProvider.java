@@ -38,7 +38,12 @@ public class PersianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Stopw
 
     PersianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
-        CharArraySet stopWords = Analysis.parseStopWords(env, settings, PersianAnalyzer.getDefaultStopSet());
+        CharArraySet stopWords = Analysis.parseStopWords(
+            indexSettings.getIndexVersionCreated(),
+            env,
+            settings,
+            PersianAnalyzer.getDefaultStopSet()
+        );
         boolean modernPersian = indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
         if (modernPersian) {
             // since Lucene 10 this analyzer contains stemming by default

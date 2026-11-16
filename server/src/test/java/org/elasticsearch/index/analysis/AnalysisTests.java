@@ -10,10 +10,16 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.CharArraySet;
+import org.apache.lucene.analysis.en.EnglishAnalyzer;
+import org.apache.lucene.analysis.th.ThaiAnalyzer;
+import org.apache.lucene.util.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.BufferedWriter;
 import java.io.FileNotFoundException;
@@ -216,5 +222,59 @@ public class AnalysisTests extends ESTestCase {
             ),
             wordList
         );
+    }
+
+    /**
+     * Lucene 10.6 shrank the default Thai stop list from 115 to 87 words. {@code _thai_} must keep resolving to the old list for
+     * indices created on a Lucene version before {@link Version#LUCENE_10_6_0}, or queries on those indices would stop removing
+     * words that were removed when their documents were indexed.
+     */
+    public void testThaiNamedStopWordsFollowIndexCreatedVersion() {
+        IndexVersion legacy = IndexVersionUtils.randomWriteVersionBeforeLucene(Version.LUCENE_10_6_0);
+        IndexVersion current = IndexVersionUtils.randomWriteVersionOnOrAfterLucene(Version.LUCENE_10_6_0);
+        Settings stopwords = Settings.builder().put("stopwords", "_thai_").build();
+
+        CharArraySet legacySet = Analysis.parseStopWords(legacy, null, stopwords, CharArraySet.EMPTY_SET);
+        assertEquals(115, legacySet.size());
+        assertEquals(ThaiLucene105StopWords.defaultStopSet(), legacySet);
+        // Dropped from the Lucene list in apache/lucene#16718, so only the legacy set stops them.
+        for (String word : List.of("ไป", "ผ่าน", "มา")) {
+            assertTrue(word, legacySet.contains(word));
+        }
+
+        CharArraySet currentSet = Analysis.parseStopWords(current, null, stopwords, CharArraySet.EMPTY_SET);
+        assertEquals(87, currentSet.size());
+        assertEquals(ThaiAnalyzer.getDefaultStopSet(), currentSet);
+        assertFalse(currentSet.contains("ไป"));
+
+        Settings commonWords = Settings.builder().put("common_words", "_thai_").build();
+        assertEquals(legacySet, Analysis.parseCommonWords(legacy, null, commonWords, null, false));
+        assertEquals(currentSet, Analysis.parseCommonWords(current, null, commonWords, null, false));
+    }
+
+    /** Lucene versions, rather than index version ordering, select the Thai stopword generation. */
+    public void testThaiNamedStopWordsFollowLuceneVersion() {
+        Settings stopwords = Settings.builder().put("stopwords", "_thai_").build();
+        IndexVersion backportWithCurrentLucene = new IndexVersion(IndexVersions.UPGRADE_TO_LUCENE_10_6_0.id() - 1, Version.LUCENE_10_6_0);
+        IndexVersion laterIndexWithLegacyLucene = new IndexVersion(IndexVersions.UPGRADE_TO_LUCENE_10_6_0.id() + 1, Version.LUCENE_10_5_2);
+
+        assertEquals(
+            ThaiAnalyzer.getDefaultStopSet(),
+            Analysis.parseStopWords(backportWithCurrentLucene, null, stopwords, CharArraySet.EMPTY_SET)
+        );
+        assertEquals(
+            ThaiLucene105StopWords.defaultStopSet(),
+            Analysis.parseStopWords(laterIndexWithLegacyLucene, null, stopwords, CharArraySet.EMPTY_SET)
+        );
+    }
+
+    /** Only {@code _thai_} is gated; every other named set and any explicit word resolves the same on both sides. */
+    public void testOtherNamedStopWordsIgnoreThaiGate() {
+        IndexVersion legacy = IndexVersionUtils.randomWriteVersionBeforeLucene(Version.LUCENE_10_6_0);
+        Settings settings = Settings.builder().putList("stopwords", "_english_", "foo").build();
+        CharArraySet legacySet = Analysis.parseStopWords(legacy, null, settings, CharArraySet.EMPTY_SET);
+        CharArraySet currentSet = Analysis.parseStopWords(IndexVersion.current(), null, settings, CharArraySet.EMPTY_SET);
+        assertEquals(currentSet, legacySet);
+        assertEquals(EnglishAnalyzer.getDefaultStopSet().size() + 1, legacySet.size());
     }
 }

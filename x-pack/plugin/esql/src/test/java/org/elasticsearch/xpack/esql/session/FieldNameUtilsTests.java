@@ -4873,6 +4873,22 @@ public class FieldNameUtilsTests extends ESTestCase {
             """, Set.of("_index", "emp_no", "emp_no.*", "xx_dense_vector", "xx_dense_vector.*"));
     }
 
+    /** A parent path is only a parent path when the query asks for it neither by name nor by pattern. */
+    public void testParentPaths() {
+        Set<String> parents = includePrefixFields ? Set.of("f") : Set.of();
+        assertParentPaths("from test | keep f.raw", parents);
+        assertParentPaths("from test | keep f, f.raw", Set.of());
+        assertParentPaths("from test | keep f*, f.raw", Set.of());
+        assertParentPaths("from test | keep a.b.c", includePrefixFields ? Set.of("a", "a.b") : Set.of());
+    }
+
+    private void assertParentPaths(String query, Set<String> expected) {
+        var parsed = InSubqueryResolver.resolve(TEST_PARSER.parseQuery(query));
+        var preAnalysisResult = FieldNameUtils.resolveFieldNames(parsed, false, includePrefixFields);
+        assertThat("Parent paths", preAnalysisResult.parentPaths(), equalTo(expected));
+        assertThat("Parent paths are requested", preAnalysisResult.fieldNames().containsAll(expected), equalTo(true));
+    }
+
     private void assertFieldNames(String query, Set<String> expected) {
         assertFieldNames(query, false, expected, Set.of());
     }

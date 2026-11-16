@@ -788,6 +788,47 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         EsqlDatafeedQueryValidator.checkRequiredColumns(columns, TIME_FIELD, SUMMARY_COUNT_FIELD, null);
     }
 
+    public void testIntegerSummaryCountColumnShouldPassColumnCheck() {
+        EsqlDatafeedQueryValidator.checkRequiredColumns(
+            List.of(mockColumn(TIME_FIELD, "date"), mockColumn(SUMMARY_COUNT_FIELD, "integer")),
+            TIME_FIELD,
+            SUMMARY_COUNT_FIELD,
+            null
+        );
+    }
+
+    public void testDoubleSummaryCountColumnShouldFailColumnCheck() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> EsqlDatafeedQueryValidator.checkRequiredColumns(
+                List.of(mockColumn(TIME_FIELD, "date"), mockColumn(SUMMARY_COUNT_FIELD, "double")),
+                TIME_FIELD,
+                SUMMARY_COUNT_FIELD,
+                null
+            )
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo(Messages.getMessage(Messages.DATAFEED_ESQL_DELAYED_DATA_SUMMARY_COUNT_NOT_INTEGER, SUMMARY_COUNT_FIELD, "double"))
+        );
+    }
+
+    public void testKeywordSummaryCountColumnShouldFailColumnCheck() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> EsqlDatafeedQueryValidator.checkRequiredColumns(
+                List.of(mockColumn(TIME_FIELD, "date"), mockColumn(SUMMARY_COUNT_FIELD, "keyword")),
+                TIME_FIELD,
+                SUMMARY_COUNT_FIELD,
+                null
+            )
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo(Messages.getMessage(Messages.DATAFEED_ESQL_DELAYED_DATA_SUMMARY_COUNT_NOT_INTEGER, SUMMARY_COUNT_FIELD, "keyword"))
+        );
+    }
+
     public void testNoSummaryCountFieldRequiredShouldSucceedColumnCheck() {
         List<ColumnInfo> columns = List.of(mockColumn(TIME_FIELD, "date"));
         EsqlDatafeedQueryValidator.checkRequiredColumns(columns, TIME_FIELD, null, null);

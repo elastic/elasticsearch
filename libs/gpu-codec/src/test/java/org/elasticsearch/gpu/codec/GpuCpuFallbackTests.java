@@ -80,9 +80,7 @@ public class GpuCpuFallbackTests extends ESTestCase {
 
     public void testBBQFallback() throws Exception {
         // a graph threshold of 0, so that the small flushed segments get a graph rather than the default bbq threshold skipping it
-        testFallback(
-            new ES97GpuHnswBBQVectorsFormat(AlwaysFailingResourceManager::new, 0, DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, false, 0, false)
-        );
+        testFallback(new ES97GpuHnswBBQVectorsFormat(AlwaysFailingResourceManager::new, 0, DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, 0));
     }
 
     /**

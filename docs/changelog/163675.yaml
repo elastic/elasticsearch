@@ -1,0 +1,20 @@
+area: Analysis
+breaking:
+  area: Analysis
+  details: >-
+    Newly created indices use improved Thai analysis. The built-in `thai` analyzer now normalizes Thai text, handles repetition
+    marks, uses an updated default stop word list, and avoids splitting words at whitespace near internal tokenizer chunk boundaries.
+    Existing indices continue to use the Thai analysis behavior from when they were created for both indexing and search, including
+    for documents added later.
+  impact: >-
+    Existing indices retain their previous behavior. To use the improved behavior for existing data, reindex it into a new index.
+    Applications that depend on the exact tokens produced by the built-in `thai` analyzer, the `thai` tokenizer, or the `_thai_` stop
+    word list should test their analysis output before creating or rolling over to a new index. Analyze API requests that do not
+    specify an index use the improved behavior.
+  notable: false
+  title: Thai analysis is improved for newly created indices
+issues:
+ - 160854
+pr: 163675
+summary: Thai analysis is improved for newly created indices
+type: breaking

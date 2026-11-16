@@ -449,6 +449,63 @@ public class IndexingIT extends AbstractRollingUpgradeTestCase {
     }
 
     /**
+     * Lucene 10.6 normalizes Thai text before tokenizing, so a doubled sara e ({@code เเ}) is indexed as sara ae ({@code แ}). Every
+     * copy of a shard analyzes documents and queries for itself, so old and new nodes must agree on how an index created before the
+     * upgrade analyzes Thai text or its copies diverge. Each phase indexes a document and then queries every node's copy separately.
+     */
+    public void testThaiAnalyzerBWC() throws IOException {
+        assumeTrue(
+            "Don't run this test if both versions already normalize Thai text",
+            getOldClusterIndexVersion().luceneVersion().onOrAfter(org.apache.lucene.util.Version.LUCENE_10_6_0) == false
+        );
+        final String indexName = "test_thai_normalization";
+        if (isOldCluster()) {
+            Request createIndex = new Request("PUT", "/" + indexName);
+            createIndex.setJsonEntity(Strings.format("""
+                {
+                  "settings": {
+                    "index.number_of_shards": 1,
+                    "index.number_of_replicas": %d
+                  },
+                  "mappings": {
+                    "properties": {
+                      "textfield": {
+                        "type": "text",
+                        "analyzer": "thai"
+                      }
+                    }
+                  }
+                }
+                """, NODE_NUM - 1));
+            client().performRequest(createIndex);
+        }
+        ensureGreen(indexName);
+
+        Request indexDoc = new Request("POST", "/" + indexName + "/_doc");
+        indexDoc.addParameter("refresh", "true");
+        indexDoc.setJsonEntity("{\"textfield\": \"เเมว\"}");
+        client().performRequest(indexDoc);
+        int docs = (Integer) entityAsMap(client().performRequest(new Request("GET", "/" + indexName + "/_count"))).get("count");
+
+        Map<?, ?> nodes = (Map<?, ?>) entityAsMap(client().performRequest(new Request("GET", "/_nodes"))).get("nodes");
+        assertEquals(NODE_NUM, nodes.size());
+        for (Object nodeId : nodes.keySet()) {
+            // the doubled sara e form is neither normalized at index time nor at query time, on any copy
+            assertThaiMatches(indexName, nodeId.toString(), "เเมว", docs);
+            assertThaiMatches(indexName, nodeId.toString(), "แมว", 0);
+        }
+    }
+
+    private static void assertThaiMatches(String index, String nodeId, String text, int expectedHits) throws IOException {
+        Request search = new Request("POST", "/" + index + "/_search");
+        search.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
+        search.addParameter("preference", "_only_nodes:" + nodeId);
+        search.setJsonEntity("{\"query\": {\"match\": {\"textfield\": \"" + text + "\"}}}");
+        Map<?, ?> hits = (Map<?, ?>) entityAsMap(client().performRequest(search)).get("hits");
+        assertEquals("match [" + text + "] on node [" + nodeId + "]", expectedHits, hits.get("total"));
+    }
+
+    /**
      * Returns {@code true} when the cluster advertises support for {@code index.mode: columnar}.
      * Columnar mode is gated by a feature flag first available in 9.5.0 and by a transport version
      * that all nodes in the cluster must understand. Checking the REST capability is the

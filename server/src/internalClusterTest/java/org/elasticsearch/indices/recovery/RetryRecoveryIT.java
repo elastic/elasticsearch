@@ -435,7 +435,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
     }
 
     public void testRetryOnAlreadyClosedExceptionDuringBootstrapNewHistoryFromExistingStore() throws Exception {
-        internalCluster().startMasterOnlyNode();
+        String master = internalCluster().startMasterOnlyNode();
         String node1 = internalCluster().startNode();
         final var indexName = randomIndexName();
 
@@ -457,7 +457,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         // Only one data node remains; drop replicas so allocate_stale_primary can go green
         updateIndexSettings(Settings.builder().put("index.number_of_replicas", 0), indexName);
 
-        MockTransportService transportService = MockTransportService.getInstance(node1);
+        MockTransportService transportService = MockTransportService.getInstance(master);
         try {
             failTestIfReceiveShardFailure(transportService);
 

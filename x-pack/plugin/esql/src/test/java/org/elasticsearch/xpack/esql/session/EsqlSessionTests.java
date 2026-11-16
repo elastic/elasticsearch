@@ -12,10 +12,15 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -65,6 +70,7 @@ import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -77,6 +83,7 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -1444,5 +1451,72 @@ public class EsqlSessionTests extends ESTestCase {
         Map<String, Object> composed = new HashMap<>(record.safeMetadata());
         composed.putAll(statistics);
         return composed;
+    }
+
+    // -- maxIndexedValues: how long a terms query the indices an IN subquery reads accept --
+
+    public void testMaxIndexedValuesIsTheSmallestMaxTermsCountOfTheLocalIndices() {
+        ProjectMetadata metadata = projectWithMaxTermsCount(Map.of("wide", 5_000, "narrow", 150, "middle", 1_000));
+        EsRelation relation = relationOver(Map.of("", List.of("wide", "narrow", "middle")));
+
+        assertThat(EsqlSession.maxIndexedValues(relation, metadata), equalTo(150));
+    }
+
+    public void testMaxIndexedValuesUsesTheDefaultMaxTermsCount() {
+        int defaultMaxTermsCount = IndexSettings.MAX_TERMS_COUNT_SETTING.getDefault(Settings.EMPTY);
+        ProjectMetadata metadata = projectWithMaxTermsCount(Map.of("idx", defaultMaxTermsCount));
+        Settings noSetting = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
+        metadata = ProjectMetadata.builder(metadata)
+            .put(IndexMetadata.builder("unset").settings(noSetting).numberOfShards(1).numberOfReplicas(0))
+            .build();
+
+        assertThat(EsqlSession.maxIndexedValues(relationOver(Map.of("", List.of("unset"))), metadata), equalTo(defaultMaxTermsCount));
+    }
+
+    /**
+     * A remote cluster's limit is not known here, and one lower than the list makes its shards fail the query, so any remote index
+     * leaves the limit unknown, whatever the local indices say and in whatever order the clusters come.
+     */
+    public void testMaxIndexedValuesIsUnknownWhenAnIndexIsOnARemoteCluster() {
+        ProjectMetadata metadata = projectWithMaxTermsCount(Map.of("idx", 5_000));
+
+        assertThat(EsqlSession.maxIndexedValues(relationOver(Map.of("cluster-a", List.of("idx"))), metadata), equalTo(0));
+
+        Map<String, List<String>> localFirst = new LinkedHashMap<>();
+        localFirst.put("", List.of("idx"));
+        localFirst.put("cluster-a", List.of("idx"));
+        assertThat(EsqlSession.maxIndexedValues(relationOver(localFirst), metadata), equalTo(0));
+
+        Map<String, List<String>> remoteFirst = new LinkedHashMap<>();
+        remoteFirst.put("cluster-a", List.of("idx"));
+        remoteFirst.put("", List.of("idx"));
+        assertThat(EsqlSession.maxIndexedValues(relationOver(remoteFirst), metadata), equalTo(0));
+    }
+
+    public void testMaxIndexedValuesIsUnknownWhenTheMetadataHasNoSuchIndex() {
+        ProjectMetadata metadata = projectWithMaxTermsCount(Map.of("idx", 5_000));
+
+        assertThat(EsqlSession.maxIndexedValues(relationOver(Map.of("", List.of("idx", "gone"))), metadata), equalTo(0));
+    }
+
+    public void testMaxIndexedValuesIsUnknownWithoutMetadataOrIndices() {
+        assertThat(EsqlSession.maxIndexedValues(relationOver(Map.of("", List.of("idx"))), null), equalTo(0));
+        assertThat(EsqlSession.maxIndexedValues(relationOver(Map.of()), projectWithMaxTermsCount(Map.of("idx", 5_000))), equalTo(0));
+    }
+
+    private static ProjectMetadata projectWithMaxTermsCount(Map<String, Integer> maxTermsCountByIndex) {
+        ProjectMetadata.Builder project = ProjectMetadata.builder(ProjectId.DEFAULT);
+        maxTermsCountByIndex.forEach((index, maxTermsCount) -> {
+            Settings settings = Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                .put(IndexSettings.MAX_TERMS_COUNT_SETTING.getKey(), maxTermsCount)
+                .build();
+            project.put(IndexMetadata.builder(index).settings(settings).numberOfShards(1).numberOfReplicas(0));
+        });
+        return project.build();
+    }
+
+    private static EsRelation relationOver(Map<String, List<String>> concreteIndices) {
+        return new EsRelation(Source.EMPTY, "idx", IndexMode.STANDARD, Map.of(), concreteIndices, Map.of(), List.of());
     }
 }

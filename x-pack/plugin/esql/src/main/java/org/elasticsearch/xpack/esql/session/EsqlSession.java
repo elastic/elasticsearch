@@ -1695,20 +1695,26 @@ public class EsqlSession {
         return pragmaValue >= 0 ? pragmaValue : plannerSettings.inSubqueryHashJoinThreshold();
     }
 
+    private int maxIndexedInSubqueryValues(EsRelation relation) {
+        return maxIndexedValues(relation, projectMetadata);
+    }
+
     /**
      * The smallest {@code index.max_terms_count} of the indices {@code relation} reads, as shards reject a longer {@code terms} query.
-     * {@code 0} when unknown: an index on a remote cluster, or one this node holds no metadata for.
+     * {@code 0} when unknown: an index on a remote cluster, or one the metadata does not hold.
      */
-    private int maxIndexedInSubqueryValues(EsRelation relation) {
+    static int maxIndexedValues(EsRelation relation, @Nullable ProjectMetadata projectMetadata) {
         if (projectMetadata == null) {
             return 0;
         }
-        int max = Integer.MAX_VALUE;
-        for (Map.Entry<String, List<String>> cluster : relation.concreteIndices().entrySet()) {
-            if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(cluster.getKey()) == false) {
+        for (String cluster : relation.concreteIndices().keySet()) {
+            if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(cluster) == false) {
                 return 0;
             }
-            for (String index : cluster.getValue()) {
+        }
+        int max = Integer.MAX_VALUE;
+        for (List<String> indices : relation.concreteIndices().values()) {
+            for (String index : indices) {
                 IndexMetadata metadata = projectMetadata.index(index);
                 if (metadata == null) {
                     return 0;

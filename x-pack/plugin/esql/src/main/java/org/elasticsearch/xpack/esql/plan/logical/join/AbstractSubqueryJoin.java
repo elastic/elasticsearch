@@ -175,7 +175,8 @@ public abstract class AbstractSubqueryJoin extends Join implements SortPreservin
     /**
      * The relation whose index the filter path would query, or {@code null} when the IN list would be evaluated per row. This is a
      * prediction made without the shards: the key must be a plain field that {@link LucenePushdownPredicates#DEFAULT} treats as
-     * indexed, on the relation or on a single {@link Filter} over it, which {@link #filterOnLeft} merges with the IN filter.
+     * queryable (indexed, or doc values only), on the relation or on a single {@link Filter} over it, which {@link #filterOnLeft}
+     * merges with the IN filter.
      */
     private EsRelation indexedFilterSource() {
         if (filterPathNarrowsSourceScan() == false || config().leftFields().size() != 1) {

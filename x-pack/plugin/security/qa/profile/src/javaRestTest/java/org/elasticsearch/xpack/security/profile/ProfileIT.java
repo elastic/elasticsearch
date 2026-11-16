@@ -17,7 +17,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -53,9 +52,13 @@ import static org.hamcrest.Matchers.nullValue;
 public class ProfileIT extends ESRestTestCase {
 
     @ClassRule
-    public static ElasticsearchCluster cluster = createCluster();
+    public static ElasticsearchCluster cluster = createCluster(false);
 
-    private static ElasticsearchCluster createCluster() {
+    /**
+     * Builds the test cluster. With {@code literalUsername}, profiles in {@code my_domain} get uids made from the literal
+     * username plus a suffix instead of generated ones; {@link ProfileLiteralUsernameIT} runs every test in that mode.
+     */
+    static ElasticsearchCluster createCluster(boolean literalUsername) {
         LocalClusterSpecBuilder<ElasticsearchCluster> clusterBuilder = ElasticsearchCluster.local()
             .nodes(2)
             .distribution(DistributionType.DEFAULT)
@@ -74,7 +77,7 @@ public class ProfileIT extends ESRestTestCase {
             .setting("xpack.security.authz.store.roles.has_privileges.cache.max_size", "100")
             .user("test-admin", "x-pack-test-password")
             .user("rac-user", "x-pack-test-password", "rac_user_role", false);
-        if (Booleans.parseBoolean(System.getProperty("test.literalUsername"))) {
+        if (literalUsername) {
             clusterBuilder.setting("xpack.security.authc.domains.my_domain.uid_generation.literal_username", "true")
                 .setting("xpack.security.authc.domains.my_domain.uid_generation.suffix", "es");
         }

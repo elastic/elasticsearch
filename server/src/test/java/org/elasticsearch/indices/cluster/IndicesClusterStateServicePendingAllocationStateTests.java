@@ -462,6 +462,7 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
             true,
             ShardRoutingState.INITIALIZING
         );
+        assertNotEquals(shardRouting.allocationId().getId(), newAllocation.allocationId().getId());
         applyState(stateWithShardRouting(newAllocation));
 
         // Master has already replaced the allocation, so the entry is stale, and there is no need to report the failure.

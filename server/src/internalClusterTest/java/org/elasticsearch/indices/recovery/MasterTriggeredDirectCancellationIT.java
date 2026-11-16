@@ -280,9 +280,10 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
             safeAwait(responseHeld);
             assertThat(cancelledInQueue.get(), equalTo(Set.of(new CancelRecoveriesAction.CancelledInQueue(shardId, allocationId))));
 
-            // The data node removes the cancelled shard as soon as it receives the cancellation
+            // The data node has already removed the cancelled shard: the response is only sent once cancelRecoveries has returned, and
+            // the failure handling it triggers is synchronous
             final var indicesService = internalCluster().getInstance(IndicesService.class, initialReplicaNode);
-            assertBusy(() -> assertNull(indicesService.getShardOrNull(shardId)));
+            assertNull(indicesService.getShardOrNull(shardId));
 
             // Apply more cluster states which, as the master has not heard back, still assign the cancelled allocation to
             // initialReplicaNode. The data node must not recreate the shard.

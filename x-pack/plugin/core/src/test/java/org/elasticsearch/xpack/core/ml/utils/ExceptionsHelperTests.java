@@ -15,6 +15,8 @@ import org.elasticsearch.indices.IndexCreationException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.List;
+
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -24,7 +26,7 @@ public class ExceptionsHelperTests extends ESTestCase {
         SearchPhaseExecutionException searchPhaseExecutionException = new SearchPhaseExecutionException(
             "test-phase",
             "partial shards failure",
-            new ShardSearchFailure[] { new ShardSearchFailure(new ElasticsearchException("for the cause!")) }
+            List.of(new ShardSearchFailure(new ElasticsearchException("for the cause!")))
         );
 
         Throwable rootCauseException = ExceptionsHelper.findSearchExceptionRootCause(

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.parquet.filter2.predicate.FilterPredicate;
+import org.apache.parquet.filter2.predicate.Operators;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
@@ -2319,13 +2320,12 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
 
     // -----------------------------------------------------------------------------------
     // Nested STRUCT pushdown — dotted column names (e.g. event.action) flow through the
-    // same FilterPredicate translation as top-level names. The resolveNestedPrimitive
-    // helper walks the dotted path; FilterApi.binaryColumn / intColumn / longColumn etc.
-    // internally store the name as a multi-segment ColumnPath via ColumnPath.fromDotString,
-    // which is then compared against the multi-segment ColumnDescriptor.getPath() at row
-    // group filter time — so the dotted name must reappear verbatim in the predicate's
-    // toString. A literal top-level field literally named
-    // "event.action" wins over a nested resolution of the same dotted path.
+    // same FilterPredicate translation as top-level names. resolveNestedPrimitive walks
+    // the file schema; ParquetFilterColumns mints a ColumnPath from those segments, not
+    // from FilterApi.fromDotString (which would split a leaf named "event.action").
+    // Assert the segment array, not toString(): both ["event.action"] and ["event","action"]
+    // print as "event.action". A literal top-level field named "event.action" wins over
+    // nested event.action.
     // -----------------------------------------------------------------------------------
     // Nested STRUCT type-shape helpers: each builds a single event-group schema with the
     // requested leaf primitive and logical-type annotation.
@@ -2401,11 +2401,10 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
 
         FilterPredicate fp = new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema);
         assertNotNull(fp);
-        // parquet-mr renders the column path with dots in toString — verify the dotted name
-        // round-trips end-to-end through FilterApi.binaryColumn -> ColumnPath.fromDotString.
-        // Note: the BytesRef literal is rendered as raw byte values (Binary{N constant bytes,
-        // [108, ...]}) rather than the ASCII text, so we cannot assert on "login" here.
-        assertThat(fp.toString(), containsString("event.action"));
+        // Nested struct event.action is the path ["event","action"]. toString() also prints
+        // "event.action", so it cannot distinguish this from a one-segment leaf named "event.action".
+        assertArrayEquals(new String[] { "event", "action" }, columnPath(fp));
+        assertEquals(Operators.BinaryColumn.class, firstColumn(fp).getClass());
     }
 
     public void testToFilterPredicateNestedLongRange() {
@@ -2550,7 +2549,7 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
 
         FilterPredicate fp = new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema);
         assertNotNull(fp);
-        assertThat(fp.toString(), containsString("a.b.c.d"));
+        assertArrayEquals(new String[] { "a", "b", "c", "d" }, columnPath(fp));
         assertThat(fp.toString(), containsString("42"));
     }
 
@@ -2596,7 +2595,72 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         Expression keywordEq = eq("event.action", DataType.KEYWORD, new BytesRef("login"));
         FilterPredicate keywordPred = new ParquetPushedExpressions(List.of(keywordEq)).toFilterPredicate(schema);
         assertNotNull("literal BINARY 'event.action' wins → KEYWORD pushdown valid", keywordPred);
-        assertThat(keywordPred.toString(), containsString("event.action"));
+        // The predicate must target the one-segment leaf, not the nested INT64 event.action.
+        // FilterApi.binaryColumn("event.action") splits on '.' and would miss this leaf.
+        assertArrayEquals(new String[] { "event.action" }, columnPath(keywordPred));
+        assertEquals(Operators.BinaryColumn.class, firstColumn(keywordPred).getClass());
+    }
+
+    public void testLiteralDottedNameEqIsOneSegmentPath() {
+        // Flat parquet leaf whose name contains a dot. ES|QL writes this as source.ip (quotes
+        // optional — the parser joins `source.ip` and source.ip to the same name). The pushed
+        // ColumnPath must be one segment or RowGroupFilter looks for nested source → ip and
+        // drops every row group.
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("source.ip")
+            .named("test");
+        FilterPredicate fp = predicateFor(schema, eq("source.ip", DataType.KEYWORD, new BytesRef("188.166.20.77")));
+        assertNotNull(fp);
+        assertArrayEquals(new String[] { "source.ip" }, columnPath(fp));
+        assertEquals(Operators.BinaryColumn.class, firstColumn(fp).getClass());
+    }
+
+    public void testLiteralDottedNameInAndRangeAndStartsWithAreOneSegmentPath() {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("source.ip")
+            .required(INT32)
+            .named("destination.port")
+            .named("test");
+
+        FilterPredicate inPred = predicateFor(
+            schema,
+            new In(
+                Source.EMPTY,
+                attr("source.ip", DataType.KEYWORD),
+                List.of(lit(new BytesRef("188.166.20.77"), DataType.KEYWORD), lit(new BytesRef("1.2.3.4"), DataType.KEYWORD))
+            )
+        );
+        assertNotNull(inPred);
+        assertArrayEquals(new String[] { "source.ip" }, columnPath(inPred));
+        assertEquals(Operators.BinaryColumn.class, firstColumn(inPred).getClass());
+
+        FilterPredicate rangePred = predicateFor(
+            schema,
+            new Range(
+                Source.EMPTY,
+                attr("destination.port", DataType.INTEGER),
+                lit(442, DataType.INTEGER),
+                false,
+                lit(444, DataType.INTEGER),
+                false,
+                ZoneOffset.UTC
+            )
+        );
+        assertNotNull(rangePred);
+        assertArrayEquals(new String[] { "destination.port" }, columnPath(rangePred));
+        assertEquals(Operators.IntColumn.class, firstColumn(rangePred).getClass());
+
+        FilterPredicate startsPred = predicateFor(
+            schema,
+            new StartsWith(Source.EMPTY, attr("source.ip", DataType.KEYWORD), lit(new BytesRef("188."), DataType.KEYWORD))
+        );
+        assertNotNull(startsPred);
+        assertArrayEquals(new String[] { "source.ip" }, columnPath(startsPred));
+        assertEquals(Operators.BinaryColumn.class, firstColumn(startsPred).getClass());
     }
 
     public void testResolveNestedPrimitiveLiteralWinsOverPath() {
@@ -3071,6 +3135,97 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
     /** The predicate {@code expr} alone would push, or {@code null} when it declines. */
     private static FilterPredicate predicateFor(MessageType schema, Expression expr) {
         return new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema);
+    }
+
+    /**
+     * Physical {@link org.apache.parquet.hadoop.metadata.ColumnPath} segments of the first leaf
+     * in {@code fp}. {@code toString()} joins with '.', so it cannot tell {@code ["source.ip"]}
+     * from {@code ["source","ip"]}.
+     */
+    private static String[] columnPath(FilterPredicate fp) {
+        return firstColumn(fp).getColumnPath().toArray();
+    }
+
+    private static Operators.Column<?> firstColumn(FilterPredicate fp) {
+        return fp.accept(new FilterPredicate.Visitor<Operators.Column<?>>() {
+            @Override
+            public <T extends Comparable<T>> Operators.Column<?> visit(Operators.Eq<T> eq) {
+                return eq.getColumn();
+            }
+
+            @Override
+            public <T extends Comparable<T>> Operators.Column<?> visit(Operators.NotEq<T> notEq) {
+                return notEq.getColumn();
+            }
+
+            @Override
+            public <T extends Comparable<T>> Operators.Column<?> visit(Operators.Lt<T> lt) {
+                return lt.getColumn();
+            }
+
+            @Override
+            public <T extends Comparable<T>> Operators.Column<?> visit(Operators.LtEq<T> ltEq) {
+                return ltEq.getColumn();
+            }
+
+            @Override
+            public <T extends Comparable<T>> Operators.Column<?> visit(Operators.Gt<T> gt) {
+                return gt.getColumn();
+            }
+
+            @Override
+            public <T extends Comparable<T>> Operators.Column<?> visit(Operators.GtEq<T> gtEq) {
+                return gtEq.getColumn();
+            }
+
+            @Override
+            public <T extends Comparable<T>> Operators.Column<?> visit(Operators.In<T> in) {
+                return in.getColumn();
+            }
+
+            @Override
+            public <T extends Comparable<T>> Operators.Column<?> visit(Operators.NotIn<T> notIn) {
+                return notIn.getColumn();
+            }
+
+            @Override
+            public <T extends Comparable<T>> Operators.Column<?> visit(Operators.Contains<T> contains) {
+                throw new AssertionError("unexpected Contains");
+            }
+
+            @Override
+            public Operators.Column<?> visit(Operators.And and) {
+                return and.getLeft().accept(this);
+            }
+
+            @Override
+            public Operators.Column<?> visit(Operators.Or or) {
+                return or.getLeft().accept(this);
+            }
+
+            @Override
+            public Operators.Column<?> visit(Operators.Not not) {
+                return not.getPredicate().accept(this);
+            }
+
+            @Override
+            public <
+                T extends Comparable<T>,
+                U extends org.apache.parquet.filter2.predicate.UserDefinedPredicate<T>> Operators.Column<?> visit(
+                    Operators.UserDefined<T, U> udp
+                ) {
+                throw new AssertionError("unexpected UserDefined");
+            }
+
+            @Override
+            public <
+                T extends Comparable<T>,
+                U extends org.apache.parquet.filter2.predicate.UserDefinedPredicate<T>> Operators.Column<?> visit(
+                    Operators.LogicalNotUserDefined<T, U> udp
+                ) {
+                throw new AssertionError("unexpected LogicalNotUserDefined");
+            }
+        });
     }
 
     private static Expression eq(String name, DataType type, Object value) {

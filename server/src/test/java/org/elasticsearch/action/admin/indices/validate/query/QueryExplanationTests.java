@@ -45,7 +45,19 @@ public class QueryExplanationTests extends AbstractXContentSerializingTestCase<Q
 
     @Override
     protected QueryExplanation mutateInstance(QueryExplanation instance) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+        String index = instance.getIndex();
+        int shard = instance.getShard();
+        boolean valid = instance.isValid();
+        String explanation = instance.getExplanation();
+        String error = instance.getError();
+        switch (randomIntBetween(0, 4)) {
+            case 0 -> index = randomValueOtherThan(index, () -> "index_" + randomInt(1000));
+            case 1 -> shard = randomValueOtherThan(shard, () -> randomInt(100));
+            case 2 -> valid = valid == false;
+            case 3 -> explanation = randomValueOtherThan(explanation, () -> randomAlphaOfLength(randomIntBetween(10, 100)));
+            default -> error = randomValueOtherThan(error, () -> randomAlphaOfLength(randomIntBetween(10, 100)));
+        }
+        return new QueryExplanation(index, shard, valid, explanation, error);
     }
 
     @Override

@@ -27,10 +27,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
-/**
- * Indexes documents with a {@code flattened} field into every strictly columnar index mode, so that a test can read the stored layout
- * back in each of them.
- */
 public abstract class AbstractFlattenedColumnarArrayOrderTestCase extends MapperServiceTestCase {
 
     protected static final String FIELD = "crew";
@@ -41,15 +37,6 @@ public abstract class AbstractFlattenedColumnarArrayOrderTestCase extends Mapper
         .filter(IndexMode::isStrictColumnar)
         .toList();
 
-    /**
-     * A single segment holding the indexed documents.
-     *
-     * @param sequenceByDoc the position in the indexed list of the document stored under each Lucene doc id, because an index sort can
-     *                      reorder the documents
-     */
-    /**
-     * The {@code preserve_leaf_arrays} mapping variants: the explicit {@code exact} setting and the mapping default.
-     */
     protected enum LeafArrays {
         EXACT("exact"),
         DEFAULT(null);

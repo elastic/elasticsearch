@@ -182,49 +182,6 @@ public class RootFlattenedFromKeyedFieldDataTests extends ESTestCase {
         }
     }
 
-    public void testRandomized() throws IOException {
-        int docCount = randomIntBetween(1, 20);
-
-        try (Directory dir = newDirectory()) {
-            try (RandomIndexWriter writer = newRandomIndexWriter(dir, layout)) {
-                Set<List<String>> expectedValuesPerDoc = new HashSet<>();
-                for (int d = 0; d < docCount; d++) {
-                    int fieldCount = randomIntBetween(1, 10);
-                    String[] keyedValues = new String[fieldCount];
-                    Set<String> uniqueValues = new HashSet<>();
-                    for (int f = 0; f < fieldCount; f++) {
-                        String key = "key" + randomIntBetween(0, 100);
-                        String value = randomAlphaOfLengthBetween(1, 20);
-                        keyedValues[f] = key + "\0" + value;
-                        uniqueValues.add(value);
-                    }
-                    addDoc(writer, layout, keyedValues);
-
-                    // values should be sorted lexicographically
-                    expectedValuesPerDoc.add(uniqueValues.stream().sorted().toList());
-                }
-
-                try (IndexReader reader = openReader(writer)) {
-                    SortableBinaryDocValues values = loadRootValues(reader, layout);
-
-                    // Merge policies may reorder documents, so collect values
-                    // as a set of sorted lists without assuming document order.
-                    Set<List<String>> actualValuesPerDoc = new HashSet<>();
-                    for (int d = 0; d < docCount; d++) {
-                        assertTrue("doc " + d + " should have values", values.advanceExact(d));
-                        List<String> actual = new ArrayList<>();
-                        for (int i = 0; i < values.docValueCount(); i++) {
-                            actual.add(values.nextValue().utf8ToString());
-                        }
-                        actualValuesPerDoc.add(actual);
-                    }
-
-                    assertEquals(expectedValuesPerDoc, actualValuesPerDoc);
-                }
-            }
-        }
-    }
-
     public void testNullSlotsAreIgnored() throws IOException {
         assumeTrue("only the array order layout keeps null slots", layout == Layout.ARRAY_ORDER_INLINE_NULL);
         try (Directory dir = newDirectory()) {
@@ -273,8 +230,39 @@ public class RootFlattenedFromKeyedFieldDataTests extends ESTestCase {
         }
     }
 
-    public void testRandomizedWithNullSlots() throws IOException {
-        assumeTrue("only the array order layout keeps null slots", layout == Layout.ARRAY_ORDER_INLINE_NULL);
+    public void testValuesAreOrderedByTheirUtf8Bytes() throws IOException {
+        List<String> values = List.of("a", "\u00e9", "\uff5e", "\ud83d\ude00", "\u0000b");
+        TreeSet<BytesRef> expected = new TreeSet<>();
+        for (String value : values) {
+            expected.add(new BytesRef(value));
+        }
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = newRandomIndexWriter(dir, layout)) {
+                addDoc(
+                    writer,
+                    layout,
+                    "k1\0" + values.get(3),
+                    "k2\0" + values.get(1),
+                    "k3\0" + values.get(4),
+                    "k4\0" + values.get(0),
+                    "k5\0" + values.get(2)
+                );
+
+                try (IndexReader reader = openReader(writer)) {
+                    SortableBinaryDocValues dv = loadRootValues(reader, layout);
+                    assertTrue(dv.advanceExact(0));
+                    List<String> actual = new ArrayList<>();
+                    for (int i = 0; i < dv.docValueCount(); i++) {
+                        actual.add(dv.nextValue().utf8ToString());
+                    }
+                    assertEquals(expected.stream().map(BytesRef::utf8ToString).toList(), actual);
+                }
+            }
+        }
+    }
+
+    public void testRandomized() throws IOException {
+        boolean arrayOrder = layout == Layout.ARRAY_ORDER_INLINE_NULL;
         int docCount = randomIntBetween(1, 20);
         try (Directory dir = newDirectory()) {
             try (RandomIndexWriter writer = newRandomIndexWriter(dir, layout)) {
@@ -285,13 +273,13 @@ public class RootFlattenedFromKeyedFieldDataTests extends ESTestCase {
                     TreeSet<String> uniqueValues = new TreeSet<>((a, b) -> new BytesRef(a).compareTo(new BytesRef(b)));
                     for (int f = 0; f < slots.length; f++) {
                         String key = "key" + randomIntBetween(0, 100);
-                        String value = rarely() ? null : randomRealisticUnicodeOfLengthBetween(0, 20);
+                        String value = arrayOrder && rarely() ? null : randomRealisticUnicodeOfLengthBetween(arrayOrder ? 0 : 1, 20);
                         slots[f] = new Slot(key, value);
                         if (value != null) {
                             uniqueValues.add(value);
                         }
                     }
-                    addArrayOrderDoc(writer, slots);
+                    addSlots(writer, layout, slots);
                     if (uniqueValues.isEmpty()) {
                         expectedWithoutValues++;
                     } else {
@@ -301,6 +289,9 @@ public class RootFlattenedFromKeyedFieldDataTests extends ESTestCase {
 
                 try (IndexReader reader = openReader(writer)) {
                     SortableBinaryDocValues values = loadRootValues(reader, layout);
+
+                    // Merge policies may reorder documents, so collect values
+                    // as a set of sorted lists without assuming document order.
                     Set<List<String>> actualValuesPerDoc = new HashSet<>();
                     int actualWithoutValues = 0;
                     for (int d = 0; d < docCount; d++) {
@@ -361,6 +352,18 @@ public class RootFlattenedFromKeyedFieldDataTests extends ESTestCase {
                 addArrayOrderDoc(writer, slots);
             }
         }
+    }
+
+    private static void addSlots(RandomIndexWriter writer, Layout layout, Slot... slots) throws IOException {
+        if (layout == Layout.ARRAY_ORDER_INLINE_NULL) {
+            addArrayOrderDoc(writer, slots);
+            return;
+        }
+        String[] keyedValues = new String[slots.length];
+        for (int i = 0; i < slots.length; i++) {
+            keyedValues[i] = slots[i].key() + "\0" + slots[i].value();
+        }
+        addDoc(writer, layout, keyedValues);
     }
 
     private static void addArrayOrderDoc(RandomIndexWriter writer, Slot... slots) throws IOException {

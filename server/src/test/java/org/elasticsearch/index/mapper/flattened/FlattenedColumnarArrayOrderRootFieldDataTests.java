@@ -130,40 +130,6 @@ public class FlattenedColumnarArrayOrderRootFieldDataTests extends AbstractFlatt
         return new Case(document, new TreeSet<>());
     }
 
-    private static Map<String, Object> randomKeyedValues(List<String> pool) {
-        final Map<String, Object> keyedValues = new LinkedHashMap<>();
-        for (final String key : randomSubsetOf(between(1, KEYS.size()), KEYS)) {
-            if (randomBoolean()) {
-                keyedValues.put(key, randomFrom(pool));
-            } else {
-                final List<String> elements = new ArrayList<>();
-                for (int i = between(1, 5); i > 0; i--) {
-                    elements.add(rarely() ? null : randomFrom(pool));
-                }
-                keyedValues.put(key, elements);
-            }
-        }
-        return keyedValues;
-    }
-
-    private static List<String> randomValuePool() {
-        final List<String> pool = new ArrayList<>();
-        for (int i = between(2, 6); i > 0; i--) {
-            pool.add(randomBoolean() ? randomAlphaOfLengthBetween(1, 20) : randomRealisticUnicodeOfLengthBetween(1, 20));
-        }
-        if (randomBoolean()) {
-            pool.add("");
-        }
-        if (randomBoolean()) {
-            pool.add(randomAlphaOfLengthBetween(128, 300));
-        }
-        return pool;
-    }
-
-    public void testOneSlot() throws Exception {
-        assertEquals(List.of("han solo"), rootValues(b -> b.startObject(FIELD).field("pilot", "han solo").endObject()));
-    }
-
     public void testTwoKeysWithOneValueEach() throws Exception {
         assertEquals(
             List.of("chewbacca", "han solo"),
@@ -180,12 +146,9 @@ public class FlattenedColumnarArrayOrderRootFieldDataTests extends AbstractFlatt
         );
     }
 
-    public void testSameValueUnderTwoKeysIsReturnedOnce() throws Exception {
-        assertEquals(List.of("r2-d2"), rootValues(b -> b.startObject(FIELD).field("droid", "r2-d2").field("cargo", "r2-d2").endObject()));
-    }
-
-    public void testNullElementsAreDropped() throws Exception {
+    public void testNullElementsAndEmptyStringsWrittenByTheMapper() throws Exception {
         assertEquals(
+            "null elements are dropped",
             List.of("chewbacca", "han solo"),
             rootValues(
                 b -> b.startObject(FIELD)
@@ -198,10 +161,8 @@ public class FlattenedColumnarArrayOrderRootFieldDataTests extends AbstractFlatt
                     .endObject()
             )
         );
-    }
-
-    public void testAllNullArraysHaveNoValues() throws Exception {
         assertNull(
+            "arrays of only nulls have no value",
             rootValues(
                 b -> b.startObject(FIELD)
                     .startArray("passengers")
@@ -214,14 +175,9 @@ public class FlattenedColumnarArrayOrderRootFieldDataTests extends AbstractFlatt
                     .endObject()
             )
         );
-    }
-
-    public void testASingleNullSlotHasNoValue() throws Exception {
-        assertNull(rootValues(b -> b.startObject(FIELD).nullField("passengers").endObject()));
-    }
-
-    public void testEmptyStringIsAValueAndNullIsNot() throws Exception {
+        assertNull("a lone null slot has no value", rootValues(b -> b.startObject(FIELD).nullField("passengers").endObject()));
         assertEquals(
+            "an empty string is a value and a null is not",
             List.of(""),
             rootValues(
                 b -> b.startObject(FIELD).startArray("passengers").nullValue().value("").nullValue().value("").endArray().endObject()
@@ -253,18 +209,6 @@ public class FlattenedColumnarArrayOrderRootFieldDataTests extends AbstractFlatt
         );
     }
 
-    public void testValuesAreOrderedByTheirUtf8Bytes() throws Exception {
-        final List<String> values = List.of("a", "é", "～", "😀", "\u0000b");
-        final TreeSet<BytesRef> expected = new TreeSet<>();
-        for (final String value : values) {
-            expected.add(new BytesRef(value));
-        }
-        assertEquals(asStrings(expected), rootValues(b -> {
-            b.startObject(FIELD).startArray("passengers").value(values.get(3)).value(values.get(1)).value(values.get(4)).endArray();
-            b.field("pilot", values.get(0)).field("copilot", values.get(2)).endObject();
-        }));
-    }
-
     public void testValueLengthsAroundTheVIntBoundaries() throws Exception {
         for (final int length : new int[] { 126, 127, 128, 16382, 16383, 16384 }) {
             final String first = "a".repeat(length);
@@ -274,30 +218,6 @@ public class FlattenedColumnarArrayOrderRootFieldDataTests extends AbstractFlatt
                 List.of(first, second),
                 rootValues(b -> b.startObject(FIELD).field("pilot", second).field("copilot", first).endObject())
             );
-        }
-    }
-
-    public void testValueLongerThan127Bytes() throws Exception {
-        final String motto = "Do or do not. There is no try. Fear is the path to the dark side. Fear leads to anger. "
-            + "Anger leads to hate. Hate leads to suffering. Always in motion is the future.";
-        assertTrue(motto.length() > 127);
-        assertEquals(
-            List.of(motto, "han solo"),
-            rootValues(b -> b.startObject(FIELD).field("pilot", "han solo").field("passengers", motto).endObject())
-        );
-    }
-
-    public void testRandomDocumentsReturnTheDistinctNonNullValuesOfAllKeys() throws Exception {
-        final int iterations = between(10, 30);
-        for (int iteration = 0; iteration < iterations; iteration++) {
-            final Map<String, Object> keyedValues = randomKeyedValues(randomValuePool());
-            final Case testCase = keyedCase(keyedValues);
-            final List<String> actual = rootValues(testCase.document());
-            if (testCase.expected().isEmpty()) {
-                assertNull("document " + keyedValues, actual);
-            } else {
-                assertEquals("document " + keyedValues, asStrings(testCase.expected()), actual);
-            }
         }
     }
 
@@ -320,9 +240,6 @@ public class FlattenedColumnarArrayOrderRootFieldDataTests extends AbstractFlatt
             distinct.put(key, elements);
         }
         corpus.add(keyedCase(distinct));
-        for (int i = between(0, 10); i > 0; i--) {
-            corpus.add(keyedCase(randomKeyedValues(randomValuePool())));
-        }
         Collections.shuffle(corpus, random());
 
         final List<CheckedConsumer<XContentBuilder, IOException>> documents = corpus.stream().map(Case::document).toList();

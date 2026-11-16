@@ -62,6 +62,9 @@ import java.util.Optional;
  *  them before pushing. This can happen due to an external ESFilter (i.e., outside the ES|QL query), or simply to a previously pushed down
  *  WHERE clause.
  *  If the queries cannot be merged, the rule will not be applied.
+ *
+ *  A merged query goes on matching only the documents with a single value for the field, if any of the queries it replaces did:
+ *  a multivalued field has no bucket, and does not pass a comparison of the ES|QL query either.
  */
 public class PushCountQueryAndTagsToSource extends PhysicalOptimizerRules.OptimizerRule<AggregateExec> {
     @Override
@@ -171,6 +174,15 @@ public class PushCountQueryAndTagsToSource extends PhysicalOptimizerRules.Optimi
      * inclusive, returns a {@link TermQueryBuilder}; otherwise returns the original range.
      */
     private static Optional<EsQueryExec.QueryBuilderAndTags> trySimplifyRange(EsQueryExec.QueryBuilderAndTags qbt) {
+        if (qbt.query() instanceof SingleValueQuery.AbstractBuilder single) {
+            // Simplify the range inside the check for a single value, and keep the check around the result
+            Optional<EsQueryExec.QueryBuilderAndTags> simplified = trySimplifyRange(qbt.withQuery(single.next()));
+            if (simplified.isEmpty()) {
+                return simplified;
+            }
+            QueryBuilder next = simplified.get().query();
+            return Optional.of(next == single.next() ? qbt : qbt.withQuery(single.withNext(next)));
+        }
         if (qbt.query() instanceof RangeQueryBuilder rqb && rqb.from() != null && rqb.to() != null) {
             int comparison = StatValueComparator.compare(rqb.from(), rqb.to());
             if (comparison == StatValueComparator.INCOMPARABLE) {
@@ -197,29 +209,44 @@ public class PushCountQueryAndTagsToSource extends PhysicalOptimizerRules.Optimi
      * cannot be merged, returns the original query.
      */
     private static Optional<EsQueryExec.QueryBuilderAndTags> tryMergeBoolQuery(EsQueryExec.QueryBuilderAndTags qbt) {
-        if (qbt.query() instanceof BoolQueryBuilder bqb && bqb.filter().size() == 2) {
+        // Any other clause of the query would be lost with the two filters that are merged or dropped
+        if (qbt.query() instanceof BoolQueryBuilder bqb && hasOnlyFilters(bqb, 2)) {
             QueryBuilder filter1 = bqb.filter().get(0);
             var range1 = tryExtractSingleRangeQuery(filter1);
             QueryBuilder filter2 = bqb.filter().get(1);
-            if (range1 != null
-                && filter2 instanceof BoolQueryBuilder internalQuery
-                && internalQuery.mustNot().size() == 1
-                && internalQuery.mustNot().get(0) instanceof ExistsQueryBuilder) {
-                // Simple "must not exist" cases can be dropped since they never match anything when combined with a range.
-                return Optional.empty();
+            // Whatever its other clauses, a query that excludes the values of the range never matches when combined with it
+            if (range1 != null && filter2 instanceof BoolQueryBuilder internalQuery && internalQuery.mustNot().size() == 1) {
+                QueryBuilder mustNot = internalQuery.mustNot().get(0);
+                if (mustNot instanceof ExistsQueryBuilder exists && exists.fieldName().equals(range1.fieldName())) {
+                    // Simple "must not exist" cases can be dropped since they never match anything when combined with a range
+                    // on the same field.
+                    return Optional.empty();
+                }
+                if (mustNot instanceof SingleValueQuery.AbstractBuilder single
+                    && single.next() instanceof ExistsQueryBuilder
+                    && single.field().equals(range1.fieldName())
+                    && trySingleValueCheck(filter1) != null) {
+                    // "must not have a single value", combined with a range that only matches single values, never matches either.
+                    // A range that also matches multivalued fields, as the ones of the query DSL do, does: those have no bucket.
+                    return Optional.empty();
+                }
             }
             var range2 = tryExtractSingleRangeQuery(filter2);
-            return Optional.of(mergeRanges(qbt, range1, range2));
+            if (range1 == null || range2 == null) {
+                return Optional.of(qbt);
+            }
+            Optional<QueryBuilder> merged = merge(range1, range2);
+            if (merged.isEmpty()) {
+                return Optional.of(qbt);
+            }
+            // The check of the query comes first: it is the one that warns when the query is not pushed down.
+            SingleValueQuery.AbstractBuilder single = trySingleValueCheck(filter1);
+            if (single == null) {
+                single = trySingleValueCheck(filter2);
+            }
+            return Optional.of(qbt.withQuery(single == null ? merged.get() : single.withNext(merged.get())));
         }
         return Optional.of(qbt);
-    }
-
-    private static EsQueryExec.QueryBuilderAndTags mergeRanges(
-        EsQueryExec.QueryBuilderAndTags original,
-        RangeQueryBuilder range1,
-        RangeQueryBuilder range2
-    ) {
-        return range1 == null || range2 == null ? original : merge(range1, range2).map(original::withQuery).orElse(original);
     }
 
     /** Returns {@link Optional#empty()} if the queries cannot be merged. */
@@ -264,9 +291,29 @@ public class PushCountQueryAndTagsToSource extends PhysicalOptimizerRules.Optimi
         return switch (qb) {
             case RangeQueryBuilder rqb -> rqb;
             case SingleValueQuery.Builder single -> tryExtractSingleRangeQuery(single.next());
-            case BoolQueryBuilder bqb when bqb.filter().size() == 1 -> tryExtractSingleRangeQuery(bqb.filter().getFirst());
+            case BoolQueryBuilder bqb when hasOnlyFilters(bqb, 1) -> tryExtractSingleRangeQuery(bqb.filter().getFirst());
             default -> null;
         };
+    }
+
+    /**
+     * The check for a single value around the range that {@link #tryExtractSingleRangeQuery} extracts, or {@code null} if the
+     * range also matches multivalued fields.
+     */
+    private static @Nullable SingleValueQuery.AbstractBuilder trySingleValueCheck(QueryBuilder qb) {
+        return switch (qb) {
+            case SingleValueQuery.Builder single -> single;
+            case BoolQueryBuilder bqb when hasOnlyFilters(bqb, 1) -> trySingleValueCheck(bqb.filter().getFirst());
+            default -> null;
+        };
+    }
+
+    /**
+     * Whether the query is nothing but the given number of filters. A query with any other clause is not the same as
+     * its filters, and can not be replaced by a query made from them.
+     */
+    private static boolean hasOnlyFilters(BoolQueryBuilder bool, int filters) {
+        return bool.filter().size() == filters && bool.must().isEmpty() && bool.should().isEmpty() && bool.mustNot().isEmpty();
     }
 
     enum BoundType {

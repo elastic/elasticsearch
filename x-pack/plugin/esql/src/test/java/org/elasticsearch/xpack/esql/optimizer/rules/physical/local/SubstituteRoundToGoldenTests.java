@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
 
 import java.util.EnumSet;
@@ -301,14 +302,25 @@ public class SubstituteRoundToGoldenTests extends GoldenTestCase {
         }
     }
 
-    private static final EsqlTestUtils.TestSearchStatsWithMinMax STATS = new EsqlTestUtils.TestSearchStatsWithMinMax(
-        Map.of("date", dateTimeToLong("2023-10-20T12:15:03.360Z")),
-        Map.of("date", dateTimeToLong("2023-10-23T13:55:01.543Z"))
-    );
+    /**
+     * The date is single valued, as dates mostly are, so its buckets are told apart with the simplest queries.
+     */
+    private static class SingleValuedDateStats extends EsqlTestUtils.TestSearchStatsWithMinMax {
+        SingleValuedDateStats(boolean supportsBlockLoaderConfig) {
+            super(
+                Map.of("date", dateTimeToLong("2023-10-20T12:15:03.360Z")),
+                Map.of("date", dateTimeToLong("2023-10-23T13:55:01.543Z")),
+                supportsBlockLoaderConfig
+            );
+        }
 
-    private static final EsqlTestUtils.TestSearchStatsWithMinMax STATS_NO_BLOCK_LOADER = new EsqlTestUtils.TestSearchStatsWithMinMax(
-        Map.of("date", dateTimeToLong("2023-10-20T12:15:03.360Z")),
-        Map.of("date", dateTimeToLong("2023-10-23T13:55:01.543Z")),
-        false
-    );
+        @Override
+        public boolean isSingleValue(FieldAttribute.FieldName field) {
+            return true;
+        }
+    }
+
+    private static final EsqlTestUtils.TestSearchStatsWithMinMax STATS = new SingleValuedDateStats(true);
+
+    private static final EsqlTestUtils.TestSearchStatsWithMinMax STATS_NO_BLOCK_LOADER = new SingleValuedDateStats(false);
 }

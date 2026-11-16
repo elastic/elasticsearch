@@ -403,11 +403,15 @@ public final class PlainCompressionCodecFactory implements CompressionCodecFacto
             requireDestCapacity(dest, destLen);
             ByteBuffer input = compressed.toByteBuffer();
             int written;
-            if (input.hasArray()) {
-                written = lz4.decompress(input.array(), input.arrayOffset() + input.position(), input.remaining(), dest, 0, destLen);
-            } else {
-                byte[] in = compressed.toByteArray();
-                written = lz4.decompress(in, 0, in.length, dest, 0, destLen);
+            try {
+                if (input.hasArray()) {
+                    written = lz4.decompress(input.array(), input.arrayOffset() + input.position(), input.remaining(), dest, 0, destLen);
+                } else {
+                    byte[] in = compressed.toByteArray();
+                    written = lz4.decompress(in, 0, in.length, dest, 0, destLen);
+                }
+            } catch (MalformedInputException e) {
+                throw new IOException("LZ4_RAW decompression failed", e);
             }
             requireExactUncompressedSize(written, destLen, "LZ4_RAW");
         }
@@ -417,7 +421,12 @@ public final class PlainCompressionCodecFactory implements CompressionCodecFacto
             int origLimit = input.limit();
             int origPos = input.position();
             input.limit(origPos + compressedSize);
-            lz4.decompress(input, output);
+            try {
+                lz4.decompress(input, output);
+            } catch (MalformedInputException e) {
+                input.limit(origLimit);
+                throw new IOException("LZ4_RAW decompression failed", e);
+            }
             input.limit(origLimit);
             input.position(origPos + compressedSize);
         }

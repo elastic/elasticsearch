@@ -107,9 +107,9 @@ public class IcebergTableCatalog implements TableCatalog {
     }
 
     /**
-     * Extract S3 configuration from the config map. Secret values may arrive as
-     * {@link org.elasticsearch.common.settings.SecureString} (dataset path) or {@link String}
-     * (inline {@code EXTERNAL}); {@link Object#toString()} via {@link #stringOrNull} handles both.
+     * Extract S3 configuration from the config map. Secret values arrive as
+     * {@link org.elasticsearch.common.settings.SecureString}; {@link Object#toString()} via {@link #stringOrNull}
+     * converts them.
      * The plaintext {@link String} the SDK consumes lives on the heap until GC — bounding that
      * lifetime is out of scope here.
      */

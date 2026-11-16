@@ -131,33 +131,5 @@ public final class AzureFixtureUtils {
             AzureFixtureUtils.loadFixturesFromResources(getAddress());
         }
 
-        /**
-         * Inject Azure endpoint and credentials into the query.
-         *
-         * @param query the ESQL query containing an EXTERNAL command
-         * @return the query with Azure parameters injected
-         */
-        public String injectParams(String query) {
-            String trimmed = query.trim();
-            int pipeIndex = FixtureUtils.findFirstPipeAfterExternal(trimmed);
-
-            String externalPart;
-            String restOfQuery;
-
-            if (pipeIndex == -1) {
-                externalPart = trimmed;
-                restOfQuery = "";
-            } else {
-                externalPart = trimmed.substring(0, pipeIndex).trim();
-                restOfQuery = " " + trimmed.substring(pipeIndex);
-            }
-
-            StringBuilder entries = new StringBuilder();
-            entries.append("\"endpoint\": \"").append(getAddress()).append("\", ");
-            entries.append("\"account\": \"").append(ACCOUNT).append("\", ");
-            entries.append("\"key\": \"").append(KEY).append("\"");
-
-            return FixtureUtils.injectWithEntries(externalPart, entries.toString()) + restOfQuery;
-        }
     }
 }

@@ -43,7 +43,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
-import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
@@ -91,7 +90,6 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
-import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
@@ -1013,76 +1011,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public LogicalPlan visitTimeSeriesCommand(EsqlBaseParser.TimeSeriesCommandContext ctx) {
         return visitRelation(source(ctx), SourceCommand.TS, ctx.indexPatternAndMetadataFields());
-    }
-
-    @Override
-    public LogicalPlan visitExternalCommand(EsqlBaseParser.ExternalCommandContext ctx) {
-        Source source = source(ctx);
-        Expression tablePath = expression(ctx.stringOrParameter());
-
-        MapExpression options = visitCommandNamedParameters(ctx.commandNamedParameters());
-        Map<String, Object> config = options != null ? foldOptionLiterals(options.keyFoldedMap()) : Map.of();
-
-        // TEMPORARY SHIM — delete when the inline EXTERNAL command is retired in favour of
-        // FROM <dataset>. External metadata is otherwise purely request-driven: a column appears
-        // only when the user names it in a METADATA clause (the FROM path) and surfaces only when
-        // KEEP'd by name. The legacy EXTERNAL command has no METADATA clause, so to preserve its
-        // historical behaviour (_file.* resolvable in WHERE / STATS BY / KEEP) we inject the
-        // _file.* names as if the user had written `METADATA _file.path, _file.name, ...`.
-        // ResolveExternalRelations.bindMetadataFields binds them to ExternalMetadataAttributes; the
-        // surfacing rule still hides them from default output unless explicitly KEEP'd. The schema
-        // auto-attach that used to glue _file.* onto every external source is gone (it leaked the
-        // columns through DROP / wildcard).
-        List<NamedExpression> metadataFields = new ArrayList<>(FileMetadataColumns.NAMES.size());
-        for (String name : FileMetadataColumns.NAMES) {
-            // _file.record_ref is a FROM-only, request-driven column (it drives _id and forces the
-            // reader's row-position channel). The legacy EXTERNAL auto-attach is limited to the
-            // historical per-file constant _file.* columns, so it is deliberately excluded here.
-            if (FileMetadataColumns.RECORD_REF.equals(name)) {
-                continue;
-            }
-            metadataFields.add(new UnresolvedAttribute(source, name));
-        }
-        return new UnresolvedExternalRelation(source, tablePath, config, metadataFields);
-    }
-
-    /**
-     * Folds {@link MapExpression} entries to plain values for the {@code EXTERNAL} options carrier.
-     * Every option value must be a {@link Literal} after parameter substitution; non-literal entries
-     * (or {@code Literal(null)}) throw {@link ParsingException} at the offending entry's source.
-     * {@link BytesRef} normalizes to {@link String} so the carrier matches the dataset path's shape.
-     */
-    private static Map<String, Object> foldOptionLiterals(Map<String, Expression> entries) {
-        if (entries.isEmpty()) {
-            return Map.of();
-        }
-        Map<String, Object> folded = new LinkedHashMap<>(entries.size());
-        for (Map.Entry<String, Expression> entry : entries.entrySet()) {
-            Expression value = entry.getValue();
-            if (value instanceof Literal literal) {
-                Object literalValue = literal.value();
-                if (literalValue == null) {
-                    throw new ParsingException(
-                        value.source(),
-                        "EXTERNAL option [{}] has null value; null is not a valid option value",
-                        entry.getKey()
-                    );
-                }
-                if (literalValue instanceof BytesRef bytesRef) {
-                    folded.put(entry.getKey(), BytesRefs.toString(bytesRef));
-                } else {
-                    folded.put(entry.getKey(), literalValue);
-                }
-            } else {
-                throw new ParsingException(
-                    value.source(),
-                    "EXTERNAL options must be literal values; option [{}] has expression [{}]",
-                    entry.getKey(),
-                    value.sourceText()
-                );
-            }
-        }
-        return folded;
     }
 
     @Override

@@ -21,10 +21,11 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXTERNAL_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -75,13 +76,15 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractExternalData
      * starts, so the count is exact even though the file is fanned out into multiple splits.
      */
     public void testCountWithQuotedMultilineFieldStraddlingMacroSplitNullField() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
 
         Path csvFile = writeCsvFile();
         try {
-            String query = "EXTERNAL \""
-                + StoragePath.fileUri(csvFile)
-                + "\" WITH {\"header_row\":false,\"error_mode\":\"null_field\",\"target_split_size\":\"1kb\"} | STATS c = COUNT(*)";
+            String dataset = registerDataset(
+                "macro_split_null_field",
+                StoragePath.fileUri(csvFile),
+                Map.of("header_row", false, "error_mode", "null_field", "target_split_size", "1kb")
+            );
+            String query = "FROM " + dataset + " | STATS c = COUNT(*)";
 
             var request = syncEsqlQueryRequest(query);
             request.profile(true);
@@ -115,13 +118,15 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractExternalData
      * mode (a valid file rejected purely because of how it was split). Proven boundaries prevent it.
      */
     public void testCountWithQuotedMultilineFieldStraddlingMacroSplitStrict() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
 
         Path csvFile = writeCsvFile();
         try {
-            String query = "EXTERNAL \""
-                + StoragePath.fileUri(csvFile)
-                + "\" WITH {\"header_row\":false,\"target_split_size\":\"1kb\"} | STATS c = COUNT(*)";
+            String dataset = registerDataset(
+                "macro_split",
+                StoragePath.fileUri(csvFile),
+                Map.of("header_row", false, "target_split_size", "1kb")
+            );
+            String query = "FROM " + dataset + " | STATS c = COUNT(*)";
 
             var request = syncEsqlQueryRequest(query);
 
@@ -154,14 +159,16 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractExternalData
      * {@code AsyncExternalSourceOperatorFactoryTests}.
      */
     public void testStreamingBranchCountsCorrectlyWithParsingParallelism() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
         assumeTrue("external_parsing_parallelism pragma is snapshot-only", Build.current().isSnapshot());
 
         Path csvFile = writeCsvFile();
         try {
-            String query = "EXTERNAL \""
-                + StoragePath.fileUri(csvFile)
-                + "\" WITH {\"header_row\":false,\"target_split_size\":\"1kb\"} | STATS c = COUNT(*)";
+            String dataset = registerDataset(
+                "macro_split",
+                StoragePath.fileUri(csvFile),
+                Map.of("header_row", false, "target_split_size", "1kb")
+            );
+            String query = "FROM " + dataset + " | STATS c = COUNT(*)";
 
             var request = syncEsqlQueryRequest(query);
             // Explicit pragma: run(request, ...) does not apply getPragmas(), and the default parallelism is
@@ -204,7 +211,6 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractExternalData
      * The seed is logged so a failure reproduces deterministically via the standard {@code -Dtests.seed}.
      */
     public void testRandomizedQuotedCsvCountsExactlyAcrossSplits() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
         assumeTrue("external_parsing_parallelism pragma is snapshot-only", Build.current().isSnapshot());
 
         Path csvFile = createTempDir().resolve("random-quoted.csv");
@@ -226,14 +232,13 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractExternalData
                 errorMode == null ? "<default strict>" : errorMode
             );
 
-            String errorModeOption = errorMode == null ? "" : ",\"error_mode\":\"" + errorMode + "\"";
-            String query = "EXTERNAL \""
-                + StoragePath.fileUri(csvFile)
-                + "\" WITH {\"target_split_size\":\""
-                + targetSplitSize
-                + "\""
-                + errorModeOption
-                + "} | STATS c = COUNT(*), mn = MIN(a), mx = MAX(a)";
+            Map<String, Object> settings = new HashMap<>();
+            settings.put("target_split_size", targetSplitSize);
+            if (errorMode != null) {
+                settings.put("error_mode", errorMode);
+            }
+            String dataset = registerDataset("macro_split_randomized", StoragePath.fileUri(csvFile), settings);
+            String query = "FROM " + dataset + " | STATS c = COUNT(*), mn = MIN(a), mx = MAX(a)";
 
             var request = syncEsqlQueryRequest(query);
             request.pragmas(new QueryPragmas(Settings.builder().put("external_parsing_parallelism", parallelism).build()));

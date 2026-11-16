@@ -44,6 +44,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.alias;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerExternalTests.analyzeDataset;
 import static org.hamcrest.Matchers.hasSize;
 
 public class PushTopNIntoExternalSourceTests extends ESTestCase {
@@ -208,19 +209,21 @@ public class PushTopNIntoExternalSourceTests extends ESTestCase {
      *
      * <p>Verifies end-to-end that {@link PushTopNIntoExternalSource} fires and annotates the
      * {@link ExternalSourceExec} when the query is
-     * {@code EXTERNAL "..." | STATS count(*) BY user_id, region | SORT user_id ASC, region ASC | LIMIT 10}.
+     * {@code FROM my_dataset | STATS count(*) BY user_id, region | SORT user_id ASC, region ASC | LIMIT 10}.
      * Uses {@link LocalMapper} (the data-node path) so that {@code TopNExec → AggregateExec(INITIAL) →
      * ExternalSourceExec} appears in one contiguous plan tree where the rule can see both nodes.
      */
     public void testFullPipelineMultiKeySortPushesTopNAnnotation() {
-        assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
+        assumeTrue("requires FROM <dataset> capability", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
 
         String path = "file:///test.parquet";
         List<Attribute> schema = List.of(referenceAttribute("user_id", DataType.KEYWORD), referenceAttribute("region", DataType.KEYWORD));
 
-        LogicalPlan analyzed = EsqlTestUtils.analyzer()
-            .externalSourceUnresolved(path, schema)
-            .query("EXTERNAL \"" + path + "\" | STATS count(*) BY user_id, region | SORT user_id ASC, region ASC | LIMIT 10");
+        LogicalPlan analyzed = analyzeDataset(
+            EsqlTestUtils.analyzer().externalSourceUnresolved(path, schema),
+            path,
+            "FROM my_dataset | STATS count(*) BY user_id, region | SORT user_id ASC, region ASC | LIMIT 10"
+        );
 
         LogicalPlan logicallyOptimized = new LogicalPlanOptimizer(
             new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), TransportVersion.current())

@@ -6,16 +6,11 @@
  */
 package org.elasticsearch.xpack.esql.datasource.iceberg;
 
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
-
-import java.util.Map;
 import java.util.Objects;
 
 /**
  * Configuration for S3 access, including credentials and endpoint settings.
- * This class extracts and validates S3-related parameters from external source commands.
+ * Built from the settings of an external dataset or data source.
  */
 public class S3Configuration {
 
@@ -29,30 +24,6 @@ public class S3Configuration {
         this.secretKey = secretKey;
         this.endpoint = endpoint;
         this.region = region;
-    }
-
-    /**
-     * Parse S3 configuration from query parameters.
-     *
-     * @param params parameters from external source command
-     * @return S3Configuration instance, or null if no S3 credentials provided
-     */
-    public static S3Configuration fromParams(Map<String, Expression> params) {
-        if (params == null || params.isEmpty()) {
-            return null;
-        }
-
-        String accessKey = extractStringParam(params, "access_key");
-        String secretKey = extractStringParam(params, "secret_key");
-        String endpoint = extractStringParam(params, "endpoint");
-        String region = extractStringParam(params, "region");
-
-        // If no credentials are provided, return null (will use default AWS credentials chain)
-        if (accessKey == null && secretKey == null && endpoint == null && region == null) {
-            return null;
-        }
-
-        return new S3Configuration(accessKey, secretKey, endpoint, region);
     }
 
     /**
@@ -70,18 +41,6 @@ public class S3Configuration {
             return null;
         }
         return new S3Configuration(accessKey, secretKey, endpoint, region);
-    }
-
-    private static String extractStringParam(Map<String, Expression> params, String key) {
-        Expression expr = params.get(key);
-        if (expr instanceof org.elasticsearch.xpack.esql.core.expression.Literal literal) {
-            Object value = literal.value();
-            if (value instanceof BytesRef bytesRef) {
-                return BytesRefs.toString(bytesRef);
-            }
-            return value != null ? value.toString() : null;
-        }
-        return null;
     }
 
     public String accessKey() {

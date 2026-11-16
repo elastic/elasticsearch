@@ -2364,7 +2364,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             """;
         var object = new BytesStorageObject("memory://filter-only.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
         var reader = new NdJsonFormatReader(null, blockFactory);
-        // Models `EXTERNAL "..." | WHERE a > 0 | STATS c = COUNT(*)`: the optimizer keeps `a` in
+        // Models `FROM <dataset> | WHERE a > 0 | STATS c = COUNT(*)`: the optimizer keeps `a` in
         // projectedColumns for the filter, drops `b` and `c` since neither is referenced by the
         // aggregate. The decoder produces a single-block Page; the filter operator runs against
         // block[0] and the COUNT(*) aggregator counts rows that pass.

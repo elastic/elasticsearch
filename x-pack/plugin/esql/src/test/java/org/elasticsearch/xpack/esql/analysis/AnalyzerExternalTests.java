@@ -524,7 +524,7 @@ public class AnalyzerExternalTests extends ESTestCase {
      * {@code query}, rewrites {@code FROM <dataset>} into the {@code UnresolvedExternalRelation} that
      * {@code DatasetRewriter} produces in production, and analyzes the result with {@code testAnalyzer}.
      */
-    private static LogicalPlan analyzeDataset(TestAnalyzer testAnalyzer, String resource, String query) {
+    public static LogicalPlan analyzeDataset(TestAnalyzer testAnalyzer, String resource, String query) {
         LogicalPlan rewritten = DatasetRewriter.rewriteUnsecured(
             TEST_PARSER.parseQuery(query),
             datasetProject(resource),

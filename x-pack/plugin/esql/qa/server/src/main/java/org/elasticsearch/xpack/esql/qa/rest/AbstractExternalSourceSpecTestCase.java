@@ -38,7 +38,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -367,14 +366,8 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     /**
      * Override doTest() to transform templates and inject storage-specific parameters.
      * <p>
-     * A spec that declares {@code dataset:} sources runs via the native {@code FROM <dataset>} path on
-     * every storage backend: the datasets are registered and the spec's {@code FROM <name>} query is run
-     * verbatim (see {@link #runDatasetMode()}). There is no longer an {@code EXTERNAL}-rebuild fallback.
-     * <p>
-     * Specs with no {@code dataset:} directive are run as-is. This still covers raw {@code EXTERNAL}
-     * queries that cannot be expressed as a dataset because their backend registers no
-     * {@code DataSourceValidator} — today the Iceberg suite ({@code IcebergSpecTestCase}), which reaches
-     * its table via {@code EXTERNAL "s3://..." WITH { "format": "iceberg" }}.
+     * Every spec declares {@code dataset:} sources: the datasets are registered and the spec's
+     * {@code FROM <name>} query is run verbatim (see {@link #runDatasetMode()}).
      */
     @Override
     protected void doTest() throws Throwable {
@@ -385,62 +378,14 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             || testCase.datasetSources.stream().anyMatch(source -> source.resource().contains("{{clickbench}}"));
         assumeFalse("ClickBench templates require ClickBenchParquetSpecIT", clickBench);
 
-        if (testCase.datasetSources.isEmpty() == false && forceExternalRebuild() == false) {
-            runDatasetMode();
-            return;
-        }
-
-        // A multi-source FROM <dataset> has no single-EXTERNAL equivalent, so a suite that rebuilds specs
-        // into an EXTERNAL query cannot express it. Skip such specs here rather than failing in the rebuild.
-        // Unreachable while no suite overrides forceExternalRebuild(): only directive-free specs get this far,
-        // so datasetSources is empty. Kept paired with that hook -- see its javadoc.
-        assumeFalse(
-            "multi-source FROM <dataset> has no single-EXTERNAL equivalent; skipped on EXTERNAL-rebuild backends",
-            testCase.datasetSources.size() > 1
-        );
-
-        // A declared schema is a property of the DATASET, not of a query: EXTERNAL has no clause that carries one, and
-        // copying the directive's reserved `mappings` key into an EXTERNAL WITH would fail option validation instead of
-        // declaring anything, so such a case is skipped rather than rebuilt. Unreachable for the same reason as the
-        // guard above.
-        assumeFalse(
-            "a declared schema cannot be expressed as an EXTERNAL ... WITH query; skipped on EXTERNAL-rebuild backends",
-            declaresMappings()
-        );
-
         // Pick the Azure URI form once per test so wildcard expansion sees a single, consistent form.
         useAzureHadoopForm = storageBackend == StorageBackend.AZURE && randomBoolean();
 
-        // Either a raw-EXTERNAL spec with no dataset: directive (the Iceberg holdout, left unchanged) or a
-        // holdout suite whose reader cannot be addressed via FROM <dataset>: in the latter case rebuild the
-        // EXTERNAL query from the single dataset directive so the suite's reader override still applies.
-        // A spec with no directive is returned as-is.
-        String query = rebuildExternalFromDatasets(testCase.query);
-
-        // The dataset path below matches on the bare suffix; this one matches on suffix + "}}" because it reads the
-        // rebuilt query text. HIVE_SHADOW_SUFFIX therefore needs naming explicitly: it contains HIVE_SUFFIX but does
-        // not end with it, so "_hive}}" does not match "{{employees_hive_shadow}}".
-        if (query.contains(MULTIFILE_SUFFIX) || query.contains(HIVE_SUFFIX + "}}") || query.contains(HIVE_SHADOW_SUFFIX + "}}")) {
-            // HTTP does not support directory listing, so skip multi-file/Hive-partitioned glob tests
-            assumeTrue("HTTP backend does not support multi-file glob patterns", storageBackend != StorageBackend.HTTP);
+        if (testCase.datasetSources.isEmpty() == false) {
+            runDatasetMode();
+            return;
         }
-
-        // Transform templates like {{employees}} to actual paths
-        query = transformTemplates(query);
-
-        // Inject endpoint and credentials for the raw-EXTERNAL path (Iceberg).
-        if (isExternalQuery(query)) {
-            query = switch (storageBackend) {
-                case StorageBackend.S3 -> s3Fixture.injectParams(query);
-                case StorageBackend.GCS -> gcsFixture.injectParams(query);
-                case StorageBackend.AZURE -> azureFixture.injectParams(query);
-                default -> query;
-            };
-            query = injectReaderParam(query);
-        }
-
-        logger.debug("Transformed query for {} backend: {}", storageBackend, query);
-        runColdThenWarm(query, isExternalQuery(query) && testCase.expectedDocumentsFound == null);
+        doTest(transformTemplates(testCase.query));
     }
 
     /**
@@ -470,8 +415,8 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     /**
      * Registers the {@code data_source} (once per backend) and every declared {@code dataset}, then runs
      * the spec's {@code FROM <name>} query verbatim — cold then warm via {@link #runColdThenWarm}, the
-     * same idiom the raw-EXTERNAL flow uses. Each source's resource template is resolved to the backend
-     * URI exactly as the EXTERNAL path resolves it. The format reader is selected by the resource's file
+     * same idiom as the other external-source flows. Each source's resource template is resolved to the backend
+     * URI. The format reader is selected by the resource's file
      * extension against the readers the cluster's installed datasource plugin registers; the dataset model
      * exposes no {@code reader}/{@code format} selector, so a reader that registers no file extension
      * is not reachable on this path.
@@ -559,35 +504,6 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         return "multifile_split";
     }
 
-    /**
-     * Override to specify a reader implementation for the EXTERNAL query.
-     * When non-null, a {@code "reader": "<name>"} parameter is injected into the WITH clause.
-     *
-     * @return the reader name (e.g. "java"), or null for the default reader
-     */
-    protected String readerName() {
-        return null;
-    }
-
-    /**
-     * Whether this suite must drive its specs through the raw {@code EXTERNAL} command rather than the
-     * {@code FROM <dataset>} path, rebuilding the EXTERNAL query from each spec's {@code dataset:} directive.
-     * <p>
-     * Defaults to {@code false}: every dataset-backed suite runs via {@code FROM <dataset>}. Override
-     * to {@code true} for a reader that registers no file extension and is therefore only reachable via
-     * {@code EXTERNAL ... WITH "reader": "<name>"}, making it a sanctioned EXTERNAL holdout like gRPC/Flight
-     * and Iceberg.
-     * <p>
-     * <b>No suite overrides this today.</b> The only one that did was the native parquet reader's, which has
-     * been removed, so {@link #doTest} now falls through to the EXTERNAL branch solely for specs that carry no
-     * {@code dataset:} directive at all (the Iceberg holdout). Consequently {@link #rebuildExternalFromDatasets}
-     * always returns its argument unchanged and the two dataset-shape guards in {@link #doTest} cannot fire.
-     * Kept as the hook for the next reader that is unaddressable via {@code FROM <dataset>}.
-     */
-    protected boolean forceExternalRebuild() {
-        return false;
-    }
-
     /** Whether any of this spec's {@code dataset:} directives declares a schema. Memoized: asked at two guard sites. */
     private boolean declaresMappings() {
         if (declaresMappingsMemo == null) {
@@ -629,45 +545,8 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     }
 
     /**
-     * Rebuilds a single-source {@code FROM <dataset>} spec into the equivalent {@code EXTERNAL "<resource>"
-     * WITH {...}} query so a {@link #forceExternalRebuild() holdout} suite can run it via the EXTERNAL command.
-     * A spec with no {@code dataset:} directive (a raw-EXTERNAL spec, e.g. Iceberg) is returned unchanged.
-     * Multi-source FROM has no single-EXTERNAL equivalent and is rejected.
-     */
-    protected final String rebuildExternalFromDatasets(String query) {
-        List<DatasetSource> sources = testCase.datasetSources;
-        if (sources.isEmpty()) {
-            return query;
-        }
-        if (sources.size() > 1) {
-            throw new AssertionError(
-                "Cannot rebuild a single EXTERNAL query for ["
-                    + sources.size()
-                    + "] dataset sources; multi-source FROM <dataset> has no EXTERNAL equivalent yet: "
-                    + query
-            );
-        }
-        DatasetSource source = sources.get(0);
-        int pipe = FixtureUtils.findFirstPipeAfterExternal(query);
-        String tail = pipe < 0 ? "" : " " + query.substring(pipe);
-        // source.resource() is decoded (quotes/escapes resolved by the parser); re-escape it back into the
-        // EXTERNAL string literal so a resource containing a backslash or quote round-trips correctly.
-        String literal = source.resource().replace("\\", "\\\\").replace("\"", "\\\"");
-        StringBuilder external = new StringBuilder("EXTERNAL \"").append(literal).append("\"");
-        // Apply the same WITH JSON the FROM path uses (adds trim_spaces for the column-aligned csv/tsv
-        // fixtures) so the EXTERNAL-holdout path reads them identically.
-        String withJson = withJsonForSource(source);
-        if (withJson != null) {
-            external.append(" WITH ").append(withJson);
-        }
-        external.append(tail);
-        return external.toString();
-    }
-
-    /**
-     * The {@code WITH}-clause JSON applied to a dataset source, both when registering the dataset
-     * ({@link #runDatasetMode()}) and when rebuilding an {@code EXTERNAL} query
-     * ({@link #rebuildExternalFromDatasets}).
+     * The {@code WITH}-clause JSON applied to a dataset source when registering the dataset
+     * ({@link #runDatasetMode()}).
      * <p>
      * Passed through as one blob: the reserved {@code mappings} key (a declared schema) is split out of it by
      * {@code DatasetRegistry}, not here. The injection below therefore has to land at the TOP level of the object even
@@ -710,75 +589,6 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         int close = withJson.lastIndexOf('}');
         String head = withJson.substring(0, close).trim();
         return head + (head.endsWith("{") ? "" : ", ") + "\"trim_spaces\": true}";
-    }
-
-    /**
-     * Inject the reader parameter into the query's WITH clause.
-     * If a WITH clause already exists, the reader param is appended; otherwise a new WITH clause is added.
-     */
-    private String injectReaderParam(String query) {
-        String reader = readerName();
-        if (reader == null) {
-            return query;
-        }
-        String readerEntry = "\"reader\": \"" + reader + "\"";
-        int pipeIndex = FixtureUtils.findFirstPipeAfterExternal(query);
-        // Only look for WITH { in the EXTERNAL part (before the first pipe),
-        // so we don't accidentally match a RERANK/COMPLETION WITH clause.
-        String externalPart = pipeIndex == -1 ? query : query.substring(0, pipeIndex);
-        int withIndex = externalPart.indexOf("WITH {");
-        if (withIndex >= 0) {
-            int closingBrace = findClosingBrace(query, query.indexOf('{', withIndex));
-            assert closingBrace >= 0 : "Malformed WITH clause in query: " + query;
-            return query.substring(0, closingBrace) + ", " + readerEntry + query.substring(closingBrace);
-        }
-        if (pipeIndex == -1) {
-            return query + " WITH { " + readerEntry + " }";
-        }
-        return query.substring(0, pipeIndex).trim() + " WITH { " + readerEntry + " } " + query.substring(pipeIndex);
-    }
-
-    /**
-     * Finds the closing brace matching the opening brace at {@code openIndex},
-     * skipping over quoted strings so braces inside string values are ignored.
-     * <p>
-     * Assumes ES|QL string-literal syntax: only {@code "..."} (with backslash escapes) is recognised.
-     * Single-quoted strings are not part of the ES|QL grammar so they are not handled here. Triple-quoted
-     * strings ({@code """..."""}) are not specifically parsed either; they happen to work in the current
-     * state machine because consecutive quotes toggle the {@code inQuotes} flag, but adding
-     * {@code """}-aware handling would be required if a spec ever embeds {@code }} inside a triple-quoted
-     * value. No EXTERNAL csv-spec uses that form today.
-     */
-    private static int findClosingBrace(String query, int openIndex) {
-        int depth = 0;
-        boolean inQuotes = false;
-        for (int i = openIndex; i < query.length(); i++) {
-            char c = query.charAt(i);
-            if (inQuotes) {
-                if (c == '\\') {
-                    i++;
-                } else if (c == '"') {
-                    inQuotes = false;
-                }
-            } else if (c == '"') {
-                inQuotes = true;
-            } else if (c == '{') {
-                depth++;
-            } else if (c == '}') {
-                depth--;
-                if (depth == 0) {
-                    return i;
-                }
-            }
-        }
-        return -1;
-    }
-
-    /**
-     * Check if query starts with EXTERNAL command.
-     */
-    private static boolean isExternalQuery(String query) {
-        return query.trim().toUpperCase(Locale.ROOT).startsWith("EXTERNAL");
     }
 
     /**

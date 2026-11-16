@@ -72,7 +72,7 @@ public class CountPushdownWiringTests extends ESTestCase {
     private static final ReferenceAttribute AGE = referenceAttribute("age", DataType.INTEGER);
 
     /**
-     * Core scenario: EXTERNAL "file" | STATS c = COUNT(*) with multiple row-group splits.
+     * Core scenario: FROM <dataset> over a file | STATS c = COUNT(*) with multiple row-group splits.
      * Each split carries per-row-group statistics. The optimizer should replace the
      * AggregateExec → ExternalSourceExec subtree with a LocalSourceExec.
      */

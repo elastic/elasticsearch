@@ -59,9 +59,8 @@ import static org.hamcrest.Matchers.hasSize;
  *
  * <p>Iceberg is intentionally <em>not</em> included here: see {@code BackendFixture}'s class-level
  * javadoc — iceberg has no production {@code DataSourceValidator} and so cannot today be reached
- * via {@code FROM <dataset>}. Adding iceberg coverage requires either a core-side validator
- * implementation or a separate test that targets the {@code EXTERNAL "s3://..." WITH
- * { "format": "iceberg" }} command shape.
+ * via {@code FROM <dataset>}. Adding iceberg coverage requires a core-side validator
+ * implementation.
  *
  * <p>Backend-specific wiring (auth shape, URI scheme, blob upload) is delegated to
  * {@link S3BackendFixture}, {@link GcsBackendFixture} and {@link AzureBackendFixture}; this class

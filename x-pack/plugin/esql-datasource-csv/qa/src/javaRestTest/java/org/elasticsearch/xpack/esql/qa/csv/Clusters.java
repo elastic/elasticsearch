@@ -94,8 +94,8 @@ public class Clusters {
      * a 503 {@code encryption_key_not_yet_available_exception}.
      *
      * <p>Kept as a separate factory (rather than folded into {@link #testCluster(Supplier)}) so the
-     * non-subquery spec suites that use the inline {@code EXTERNAL "..." WITH {creds}} form — which never
-     * persists secrets — keep their existing cluster configuration unchanged.
+     * non-subquery spec suites — which never persist secrets — keep their existing cluster configuration
+     * unchanged.
      */
     public static ElasticsearchCluster testClusterWithEncryption(Supplier<String> s3EndpointSupplier) {
         return testCluster(s3EndpointSupplier, DATASET_ENCRYPTION_CONFIG);

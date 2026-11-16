@@ -25,8 +25,7 @@ import java.util.Map;
  * <p><strong>Iceberg note:</strong> Iceberg deliberately is <em>not</em> a {@link BackendFixture}.
  * {@code IcebergDataSourcePlugin} registers only a {@code TableCatalogFactory} (no
  * {@code DataSourceValidator}), so {@code PUT /_query/data_source/<name>} with
- * {@code "type": "iceberg"} is unsupported in production today. Iceberg is reached exclusively via
- * the {@code EXTERNAL "s3://..." WITH { "format": "iceberg" }} command shape and so does not fit
+ * {@code "type": "iceberg"} is unsupported in production today. Iceberg therefore cannot be reached through
  * the dataset-registration contract this interface encodes. Adding an iceberg {@code BackendFixture}
  * requires first adding a core {@code DataSourceValidator} for {@code "iceberg"}.
  */

@@ -158,9 +158,8 @@ public final class CsvSpecReader {
     /**
      * A single external source declared by a {@code dataset:} preamble directive of the form
      * {@code dataset: <name>: "<resource>" [WITH {<json>}] [// comment]}. It carries everything the test
-     * harness needs to either (a) register a {@code data_source}/{@code dataset} pair and run the spec's
-     * {@code FROM <name>} query verbatim on dataset-capable backends, or (b) rebuild the equivalent
-     * {@code EXTERNAL "<resource>" WITH {<json>}} query on backends that cannot back a dataset.
+     * harness needs to either register a {@code data_source}/{@code dataset} pair and run the spec's
+     * {@code FROM <name>} query verbatim.
      *
      * @param name      the dataset name referenced by the {@code FROM} clause
      * @param resource  the decoded resource URI or {@code {{template}}} placeholder: surrounding quotes
@@ -538,8 +537,7 @@ public final class CsvSpecReader {
         /**
          * External sources declared via {@code dataset:} preamble directives, in declaration order.
          * Empty for the vast majority of tests. When non-empty the query is expected to read these
-         * via {@code FROM <name>}; the test harness registers the datasets (dataset-capable backends)
-         * or rebuilds the equivalent {@code EXTERNAL} query (other backends).
+         * via {@code FROM <name>}; the test harness registers the datasets.
          */
         public List<DatasetSource> datasetSources = List.of();
         /**

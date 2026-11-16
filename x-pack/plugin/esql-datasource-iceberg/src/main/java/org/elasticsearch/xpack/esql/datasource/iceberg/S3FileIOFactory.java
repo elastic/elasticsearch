@@ -114,21 +114,4 @@ public final class S3FileIOFactory {
         // Initialize S3FileIO with the pre-configured S3 client
         return new S3FileIO(s3ClientSupplier);
     }
-
-    /**
-     * Create and configure an S3FileIO instance from individual configuration values.
-     * <p>
-     * This is a convenience method for cases where the configuration values are
-     * available directly rather than through an S3Configuration object.
-     *
-     * @param accessKey S3 access key (nullable)
-     * @param secretKey S3 secret key (nullable)
-     * @param endpoint S3 endpoint URL (nullable)
-     * @param region AWS region (nullable)
-     * @return configured S3FileIO instance (caller should close when done)
-     */
-    public static S3FileIO create(String accessKey, String secretKey, String endpoint, String region) {
-        S3Configuration s3Config = S3Configuration.fromFields(accessKey, secretKey, endpoint, region);
-        return create(s3Config);
-    }
 }

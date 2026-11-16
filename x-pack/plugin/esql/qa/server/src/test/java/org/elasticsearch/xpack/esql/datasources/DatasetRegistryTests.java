@@ -21,8 +21,7 @@ import static org.hamcrest.Matchers.not;
  * Unit tests for the {@code PUT /_query/dataset/<name>} body {@link DatasetRegistry} builds.
  * {@link DatasetRegistry#ensureDataset} caches on a signature of {@code dataSource|resource|<raw withJson>},
  * not on this body -- the raw text is what keeps the JSON off the per-call parse path. Lives in the same qa/server project as the class
- * under test so it can be a plain {@link ESTestCase} unit test — no cluster, no client — alongside
- * {@link FixtureUtilsTests}.
+ * under test so it can be a plain {@link ESTestCase} unit test — no cluster, no client.
  */
 public class DatasetRegistryTests extends ESTestCase {
 

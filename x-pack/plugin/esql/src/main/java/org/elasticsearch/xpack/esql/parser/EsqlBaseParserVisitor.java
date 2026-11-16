@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.esql.parser;
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 
 import org.antlr.v4.runtime.tree.ParseTreeVisitor;
 
@@ -100,12 +99,6 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitTimeSeriesCommand(EsqlBaseParser.TimeSeriesCommandContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#externalCommand}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitExternalCommand(EsqlBaseParser.ExternalCommandContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#indexPatternAndMetadataFields}.
    * @param ctx the parse tree

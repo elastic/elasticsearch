@@ -35,6 +35,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerExternalTests.S3_PATH;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerExternalTests.analyzeDataset;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerExternalTests.external;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.EMBEDDING_INFERENCE_ID;
 import static org.hamcrest.Matchers.containsString;
@@ -625,7 +626,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
     }
 
     public void testEnrichRemoteRejected() {
-        assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
+        assumeTrue("requires FROM <dataset> capability", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
 
         var testAnalyzer = external().addEnrichPolicy(
             Enrich.Mode.REMOTE,
@@ -635,11 +636,12 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             "languages_idx",
             "mapping-languages.json"
         );
-        var err = error(testAnalyzer.query("EXTERNAL \"" + S3_PATH + "\"" + """
+        var err = error(analyzeDataset(testAnalyzer, S3_PATH, """
+            FROM my_dataset
             | EVAL x = TO_STRING(languages)
             | ENRICH _remote:languages_policy ON x
             """));
-        assertThat(err, containsString("ENRICH with remote policy can't be executed after [EXTERNAL"));
+        assertThat(err, containsString("ENRICH with remote policy can't be executed after [FROM my_dataset]"));
         assertThat(
             err,
             containsString("federated data sources execute entirely on the coordinating node and are incompatible with remote ENRICH")

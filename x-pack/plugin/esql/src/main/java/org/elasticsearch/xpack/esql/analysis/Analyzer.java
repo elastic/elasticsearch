@@ -3804,28 +3804,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static LogicalPlan planWithoutSyntheticAttributes(LogicalPlan plan) {
-            // Virtual columns (today: _file.* and the standard metadata names on external datasets)
-            // are kept out of default output, the same way the implicit `*` expansion drops them via
-            // excludeExternalMetadata. But once the user names one explicitly — KEEP _index,
-            // KEEP _file.path — it must reach the result, even when later commands (SORT, LIMIT, ...)
-            // sit above the KEEP and make the relation's output, not the projection, the plan's top
-            // node. We therefore strip a virtual attribute only when no explicit KEEP named it.
-            //
-            // Provenance matters: a DROP also resolves to a Project that carries surviving virtual
-            // columns forward via childOutput, but that is NOT the user keeping them — so we scan
-            // only Keep nodes (resolveKeep emits a Keep; resolveDrop emits a plain Project). A
-            // `KEEP *` runs its projections through excludeExternalMetadata, so its Keep node never
-            // lists a virtual column either. This is why we key off the Keep node identity rather
-            // than the namespace of the column name.
-            Set<String> explicitlyKept = explicitlyKeptVirtualNames(plan);
-            // External metadata is hidden from default output (and surfaced via KEEP) ONLY for the
-            // EXTERNAL command. Its shim auto-injects the whole _file.* family because EXTERNAL has
-            // no METADATA grammar to be selective, so KEEP is how the user picks what surfaces. On
-            // the FROM <dataset> path the user names metadata explicitly in a METADATA clause, so it
-            // must surface unconditionally — KEEP there is ordinary projection, not a metadata gate.
-            // The two are distinguishable on the relation: a FROM <dataset> leaf carries a
-            // datasetName; the EXTERNAL shim's leaf does not.
-            boolean hasExternalCommandRelation = plan.anyMatch(p -> p instanceof ExternalRelation er && er.datasetName() == null);
             List<Attribute> output = plan.output();
             List<Attribute> newOutput = new ArrayList<>(output.size());
             for (Attribute attr : output) {
@@ -3833,49 +3811,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (attr.synthetic() && attr != NO_FIELDS.getFirst()) {
                     continue;
                 }
-                // EXTERNAL command only: hide its shim-injected metadata from default output unless
-                // KEEP'd. Strip by VirtualAttribute type OR by well-known _file.* name (a defense
-                // layer: downstream rules — notably FORK's output re-derivation through
-                // toReferenceAttributesPreservingIds — can drop the VirtualAttribute marker). On the
-                // FROM path nothing is stripped: every metadata column there was explicitly named in
-                // METADATA and must reach the output.
-                if (hasExternalCommandRelation) {
-                    boolean isVirtual = attr instanceof VirtualAttribute || FileMetadataColumns.NAMES.contains(attr.name());
-                    if (isVirtual && explicitlyKept.contains(attr.name()) == false) {
-                        continue;
-                    }
-                }
                 newOutput.add(attr);
             }
 
             return newOutput.size() == output.size() ? plan : new Project(Source.EMPTY, plan, newOutput);
-        }
-
-        /**
-         * Names of every {@link VirtualAttribute} that appears in the projections of some
-         * {@link Keep} node — i.e. the virtual columns the user pulled in by name
-         * (KEEP _index, KEEP _file.path). Used to decide which virtual columns survive into the
-         * final output instead of being hidden as default-output noise.
-         * <p>
-         * Scanning {@link Keep} specifically (not every {@link Project}) is the provenance gate: a
-         * DROP resolves to a plain {@link Project} that carries surviving virtual columns forward —
-         * that must not count as "the user kept it". {@code resolveKeep} emits {@link Keep};
-         * {@code resolveDrop} emits {@link Project}. A {@code KEEP *} expansion routes through
-         * {@code excludeExternalMetadata}, so its {@link Keep} lists no {@link VirtualAttribute}.
-         */
-        private static Set<String> explicitlyKeptVirtualNames(LogicalPlan plan) {
-            Set<String> names = new HashSet<>();
-            plan.forEachDown(Keep.class, keep -> {
-                for (NamedExpression projection : keep.projections()) {
-                    // Pair with the strip: type-marker OR well-known _file.* name. KEEP _file.path on a
-                    // projection whose VirtualAttribute marker was dropped downstream still counts as
-                    // an explicit keep.
-                    if (projection instanceof VirtualAttribute || FileMetadataColumns.NAMES.contains(projection.name())) {
-                        names.add(projection.name());
-                    }
-                }
-            });
-            return names;
         }
     }
 

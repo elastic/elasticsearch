@@ -55,55 +55,50 @@
 
 [example_queries]
 
-🔍 EXAMPLE QUERIES (New WITH Syntax)
+🔍 EXAMPLE QUERIES (data source + dataset, queried with FROM)
 
-  Method 1: S3 Protocol with WITH clause (recommended)
-  ────────────────────────────────────────────────────
-  curl -X POST "{{es_url}}/_query?format=txt" \
+  Step 1: register a data source pointing at the S3 fixture
+  ─────────────────────────────────────────────────────────
+  curl -X PUT "{{es_url}}/_query/data_source/fixture_s3" \
     -H 'Content-Type: application/json' -d'{
-    "query": "EXTERNAL \"s3://{{bucket}}/{{warehouse}}/standalone/employees.parquet\" WITH { \"endpoint\": \"{{s3_endpoint}}\", \"access_key\": \"{{access_key}}\", \"secret_key\": \"{{secret_key}}\" } | LIMIT 5"
+    "type": "s3",
+    "settings": { "endpoint": "{{s3_endpoint}}", "auth": "anonymous" }
   }'
 
-  Method 2: HTTP Protocol with WITH clause (direct URL)
-  ──────────────────────────────────────────────────────
-  curl -X POST "{{es_url}}/_query?format=txt" \
+  Step 2: register a dataset over the standalone parquet file
+  ───────────────────────────────────────────────────────────
+  curl -X PUT "{{es_url}}/_query/dataset/employees" \
     -H 'Content-Type: application/json' -d'{
-    "query": "EXTERNAL \"{{fixture_url}}/{{bucket}}/{{warehouse}}/standalone/employees.parquet\" WITH { \"endpoint\": \"{{s3_endpoint}}\", \"access_key\": \"{{access_key}}\", \"secret_key\": \"{{secret_key}}\" } | LIMIT 5"
+    "data_source": "fixture_s3",
+    "resource": "s3://{{bucket}}/{{warehouse}}/standalone/employees.parquet"
   }'
 
-  Kibana Dev Console (S3 Protocol)
-  ─────────────────────────────────
+  Step 3: query the dataset
+  ─────────────────────────
+  curl -X POST "{{es_url}}/_query?format=txt" \
+    -H 'Content-Type: application/json' -d'{
+    "query": "FROM employees | LIMIT 5"
+  }'
+
+  Kibana Dev Console
+  ──────────────────
   POST /_query?format=txt
   {
-    "query": "EXTERNAL \"s3://{{bucket}}/{{warehouse}}/standalone/employees.parquet\" WITH { \"endpoint\": \"{{s3_endpoint}}\", \"access_key\": \"{{access_key}}\", \"secret_key\": \"{{secret_key}}\" } | LIMIT 5"
+    "query": "FROM employees | LIMIT 5"
   }
 
   More Examples
   ─────────────
   # Filter employees (multiline for readability)
-  EXTERNAL "s3://{{bucket}}/{{warehouse}}/standalone/employees.parquet"
-  WITH {
-    "endpoint": "{{s3_endpoint}}",
-    "access_key": "{{access_key}}",
-    "secret_key": "{{secret_key}}"
-  }
+  FROM employees
   | WHERE gender == "F" AND salary > 60000
   | KEEP first_name, last_name, salary
   | SORT salary DESC
   | LIMIT 10
 
   # Aggregate by gender
-  EXTERNAL "s3://{{bucket}}/{{warehouse}}/standalone/employees.parquet"
-  WITH {
-    "endpoint": "{{s3_endpoint}}",
-    "access_key": "{{access_key}}",
-    "secret_key": "{{secret_key}}"
-  }
+  FROM employees
   | STATS avg_salary = AVG(salary), count = COUNT(*) BY gender
-
-  # Using HTTP protocol (no S3 credentials needed for HTTP direct access)
-  EXTERNAL "{{fixture_url}}/{{bucket}}/{{warehouse}}/standalone/employees.parquet"
-  | LIMIT 5
 
 [wait_indefinite]
 

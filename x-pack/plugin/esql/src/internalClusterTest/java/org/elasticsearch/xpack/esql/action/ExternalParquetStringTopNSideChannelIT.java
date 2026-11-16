@@ -36,7 +36,6 @@ import java.util.Map;
 import java.util.function.IntFunction;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXTERNAL_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -142,7 +141,6 @@ public class ExternalParquetStringTopNSideChannelIT extends AbstractExternalData
      * completes and every returned value is well-formed UTF-8.
      */
     public void testSortOverInvalidUtf8DoesNotCrash() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
         byte[][] names = {
             { (byte) 0xF8, (byte) 0xFF },              // lead bytes that index past the 248-entry table
             { (byte) 0xC3, (byte) 0x28 },              // truncated 2-byte sequence
@@ -151,7 +149,8 @@ public class ExternalParquetStringTopNSideChannelIT extends AbstractExternalData
         };
         Path file = writeParquetFileRawNames(names);
         try {
-            String query = "EXTERNAL \"" + StoragePath.fileUri(file) + "\" | SORT name ASC | LIMIT 100 | KEEP name";
+            String dataset = registerDataset("string_topn_invalid_utf8", StoragePath.fileUri(file), Map.of());
+            String query = "FROM " + dataset + " | SORT name ASC | LIMIT 100 | KEEP name";
             try (var response = run(syncEsqlQueryRequest(query), LONG_TIMEOUT)) {
                 // Reaching this point at all is the regression check: the malformed lead bytes previously
                 // threw ArrayIndexOutOfBoundsException from the TopN Utf8 encoder before any rows returned.

@@ -100,40 +100,5 @@ public final class GcsFixtureUtils {
             return gcsServiceAccountJson;
         }
 
-        /**
-         * Inject GCS endpoint, credentials, and project_id into the query.
-         *
-         * @param query the ESQL query containing an EXTERNAL command
-         * @return the query with GCS parameters injected
-         */
-        public String injectParams(String query) {
-            String trimmed = query.trim();
-            int pipeIndex = FixtureUtils.findFirstPipeAfterExternal(trimmed);
-
-            String externalPart;
-            String restOfQuery;
-
-            if (pipeIndex == -1) {
-                externalPart = trimmed;
-                restOfQuery = "";
-            } else {
-                externalPart = trimmed.substring(0, pipeIndex).trim();
-                restOfQuery = " " + trimmed.substring(pipeIndex);
-            }
-
-            // Escape the service account JSON for embedding inside the WITH clause.
-            // The JSON is embedded as a string value, so internal double-quotes must be escaped.
-            String escapedCredentials = gcsServiceAccountJson.replace("\\", "\\\\").replace("\"", "\\\"");
-
-            String tokenUri = getAddress() + "/" + TOKEN;
-
-            StringBuilder entries = new StringBuilder();
-            entries.append("\"endpoint\": \"").append(getAddress()).append("\", ");
-            entries.append("\"credentials\": \"").append(escapedCredentials).append("\", ");
-            entries.append("\"project_id\": \"test\", ");
-            entries.append("\"token_uri\": \"").append(tokenUri).append("\"");
-
-            return FixtureUtils.injectWithEntries(externalPart, entries.toString()) + restOfQuery;
-        }
     }
 }

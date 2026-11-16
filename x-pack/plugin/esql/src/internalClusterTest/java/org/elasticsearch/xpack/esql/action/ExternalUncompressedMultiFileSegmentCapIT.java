@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXTERNAL_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -99,7 +98,6 @@ public class ExternalUncompressedMultiFileSegmentCapIT extends AbstractExternalD
     }
 
     public void testQuotedMultilineCsvCountsAllRowsAcrossSegmentBoundaries() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
         Path dir = createTempDir();
         // A single CSV larger than the 1 MiB segmenting floor whose quoted fields embed newlines. A
         // quote-unaware byte-range split would land inside a quoted field and either mis-count rows or fail

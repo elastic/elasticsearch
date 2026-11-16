@@ -15,7 +15,6 @@ import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelT
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
@@ -55,7 +54,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.esql.action.EsqlAsyncTestUtils.deleteAsyncId;
 import static org.elasticsearch.xpack.esql.action.EsqlAsyncTestUtils.startAsyncQueryWithPragmas;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXTERNAL_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -64,14 +62,14 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
- * Locks the cancel / STOP / DELETE contract for a long-running EXTERNAL query. The four sanctioned exits
+ * Locks the cancel / STOP / DELETE contract for a long-running external dataset query. The four sanctioned exits
  * are tested below; each diverges on whether the response body is partial, fully gone, or a hard error.
  * Backing the tests is a controllable {@code slowfile://} fixture that serves a fast leading prefix and
  * then trickles one byte at a time, so the query is observably mid-stream when STOP / cancel / DELETE
  * land. Follow-up to elastic/esql-planning#535.
  */
 @SuppressForbidden(reason = "test fixture uses local file paths via PathUtils.get to back the slowfile:// scheme")
-public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
+public class ExternalAsyncStopAndCancelIT extends AbstractExternalDataSourceIT {
 
     private static final String SCHEME = "slowfile";
     private static final int LEADING_ROWS = 20;
@@ -100,18 +98,6 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
     /** Diagnostic counter — number of {@link SlowFileStorageProvider} reads that were forced into the trickle path.
      *  Non-zero means the source was actually slow at STOP / cancel time, not just slow on paper. */
     static final AtomicInteger trickleBytesServed = new AtomicInteger();
-
-    /**
-     * Reopens {@code loadExtensions} so the SPI-registered {@link SlowFileDataSourcePlugin} reaches the format
-     * reader registry. The base test plugin suppresses extensions to keep heavy deps out of the standard IT
-     * classpath.
-     */
-    public static final class EsqlEnterpriseWithDatasourceExtensions extends EsqlPluginWithEnterpriseOrTrialLicense {
-        @Override
-        public void loadExtensions(ExtensiblePlugin.ExtensionLoader loader) {
-            super.loadExtensions(loader);
-        }
-    }
 
     /**
      * Registers a {@link StorageProvider} under the {@code slowfile} scheme. Reads delegate to the local file the test
@@ -385,13 +371,15 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
     }
 
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(EsqlPluginWithEnterpriseOrTrialLicense.class);
-        plugins.add(EsqlEnterpriseWithDatasourceExtensions.class);
+    protected Collection<Class<? extends Plugin>> formatPlugins() {
         // SlowFileDataSourcePlugin (slowfile scheme) is registered via META-INF/services, not here — see the class
         // Javadoc on SlowFileDataSourcePlugin for why.
-        plugins.add(CsvDataSourcePlugin.class);
+        return List.of(CsvDataSourcePlugin.class);
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         // Wires up the async-search DELETE action; without it deleteAsyncId / TransportDeleteAsyncResultAction
         // fail at action-lookup time.
         plugins.add(EsqlAsyncActionIT.LocalStateEsqlAsync.class);
@@ -443,9 +431,9 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * Long EXTERNAL query + async STOP must return what the source had already produced and flag the response
+     * Long external dataset query + async STOP must return what the source had already produced and flag the response
      * {@code is_partial=true}. Uses the default plan (no distribution pragma), so the test pins the contract for the
-     * shape the user actually gets — coordinator-only EXTERNAL by default, single split. STOP wires up two
+     * shape the user actually gets — coordinator-only external read by default, single split. STOP wires up two
      * complementary cut paths: the exchange-close cascade (covers distributed plans) and the per-task stop-hook list
      * fed by {@code AsyncExternalSourceOperatorFactory} (covers coordinator-only plans by flipping
      * {@code AsyncExternalSourceBuffer.noMoreInputs}). Pages already accepted into the buffer drain through normally;
@@ -461,14 +449,13 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
      * </ul>
      */
     public void testAsyncStopReturnsBufferedRowsAndMarksPartial() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
         assumeTrue("external_parsing_parallelism / page_size pragmas are snapshot-only", Build.current().isSnapshot());
 
         String uri = SCHEME + "://" + StoragePath.fileUri(slowFile).substring("file://".length());
         // LIMIT well above LEADING_ROWS so natural completion never wins the race with STOP. external_parsing_parallelism=1
         // pins the deterministic single-thread CSV path; page_size=5 keeps pages small so several pages emit from the
         // leading prefix and STOP's cut is observably below the total fixture row count.
-        String query = "EXTERNAL \"" + uri + "\" | LIMIT 1000000";
+        String query = "FROM " + registerDataset("stop_cancel", uri, Map.of()) + " | LIMIT 1000000";
 
         final String asyncId = startAsyncQueryWithPragmas(
             client(),
@@ -534,14 +521,13 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
      * after task teardown so the queryFuture has observably failed before we release the trickle.
      */
     public void testSyncTaskCancelHardFailsWithNoRows() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
         assumeTrue("external_parsing_parallelism pragma is snapshot-only", Build.current().isSnapshot());
 
         String uri = SCHEME + "://" + StoragePath.fileUri(slowFile).substring("file://".length());
         // Embed a unique marker in the query so findEsqlTask can latch onto this specific task even when other ES|QL
         // traffic (test-internal probes, background tasks) shows up in the listing.
         String marker = "stop_cancel_sync_" + System.nanoTime();
-        String query = "// " + marker + "\nEXTERNAL \"" + uri + "\" | LIMIT 1000000";
+        String query = "// " + marker + "\nFROM " + registerDataset("stop_cancel", uri, Map.of()) + " | LIMIT 1000000";
         EsqlQueryRequest request = syncEsqlQueryRequest(query).pragmas(
             new QueryPragmas(Settings.builder().put(QueryPragmas.PARSING_PARALLELISM.getKey(), 1).build())
         );
@@ -598,11 +584,10 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
      * post-DELETE GET to surface {@link org.elasticsearch.ResourceNotFoundException}.
      */
     public void testAsyncDeleteHardFailsWithNoRows() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
         assumeTrue("external_parsing_parallelism / page_size pragmas are snapshot-only", Build.current().isSnapshot());
 
         String uri = SCHEME + "://" + StoragePath.fileUri(slowFile).substring("file://".length());
-        String query = "EXTERNAL \"" + uri + "\" | LIMIT 1000000";
+        String query = "FROM " + registerDataset("stop_cancel", uri, Map.of()) + " | LIMIT 1000000";
 
         final String asyncId = startAsyncQueryWithPragmas(
             client(),
@@ -672,11 +657,10 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
      * the saved async result must surface as a hard failure or be wiped entirely on GET; never a partial body.
      */
     public void testAsyncTaskCancelHardFailsWithNoRows() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
         assumeTrue("external_parsing_parallelism / page_size pragmas are snapshot-only", Build.current().isSnapshot());
 
         String uri = SCHEME + "://" + StoragePath.fileUri(slowFile).substring("file://".length());
-        String query = "EXTERNAL \"" + uri + "\" | LIMIT 1000000";
+        String query = "FROM " + registerDataset("stop_cancel", uri, Map.of()) + " | LIMIT 1000000";
 
         final String asyncId = startAsyncQueryWithPragmas(
             client(),

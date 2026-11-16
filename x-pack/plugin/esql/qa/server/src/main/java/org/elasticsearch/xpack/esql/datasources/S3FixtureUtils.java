@@ -293,35 +293,6 @@ public final class S3FixtureUtils {
         }
 
         /**
-         * Inject S3 endpoint and credentials into the query.
-         *
-         * @param query the ESQL query containing an EXTERNAL command
-         * @return the query with S3 parameters injected
-         */
-        public String injectParams(String query) {
-            String trimmed = query.trim();
-            int pipeIndex = FixtureUtils.findFirstPipeAfterExternal(trimmed);
-
-            String externalPart;
-            String restOfQuery;
-
-            if (pipeIndex == -1) {
-                externalPart = trimmed;
-                restOfQuery = "";
-            } else {
-                externalPart = trimmed.substring(0, pipeIndex).trim();
-                restOfQuery = " " + trimmed.substring(pipeIndex);
-            }
-
-            StringBuilder entries = new StringBuilder();
-            entries.append("\"endpoint\": \"").append(getAddress()).append("\", ");
-            entries.append("\"access_key\": \"").append(ACCESS_KEY).append("\", ");
-            entries.append("\"secret_key\": \"").append(SECRET_KEY).append("\"");
-
-            return FixtureUtils.injectWithEntries(externalPart, entries.toString()) + restOfQuery;
-        }
-
-        /**
          * Get the fault-injecting handler wrapper for controlling fault injection during tests.
          */
         public FaultInjectingS3HttpHandler getFaultHandler() {

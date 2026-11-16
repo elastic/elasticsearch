@@ -2890,13 +2890,6 @@ public class EsqlCapabilities {
         STR_COMMANDS_ACCEPT_NULL,
 
         /**
-         * Support for the EXTERNAL command (datasource access). Snapshot-only: the grammar predicates in
-         * {@code EsqlBaseParser.g4}/{@code From.g4} read this capability directly to gate the EXTERNAL
-         * grammar surface, rather than this capability mirroring a separate build-type check.
-         */
-        EXTERNAL_COMMAND(Build.current().isSnapshot()),
-
-        /**
          * Support for the EXTERNAL command (datasource access).
          */
         EXTERNAL_CSV_IP_SUPPORT,
@@ -2926,7 +2919,7 @@ public class EsqlCapabilities {
          * {@code _file.size}, {@code _file.modified}) added to every external-source schema. Older coordinators do
          * not know these columns and fail verification with {@code Unknown column [_file.*]} when CCQ routes a query
          * against a remote cluster on a pre-feature build, so {@code fileMetadata*} csv-spec tests must be gated on
-         * this capability rather than on {@link #EXTERNAL_COMMAND}.
+         * this capability rather than on the removed EXTERNAL command.
          */
         EXTERNAL_SOURCE_FILE_METADATA_COLUMNS,
 

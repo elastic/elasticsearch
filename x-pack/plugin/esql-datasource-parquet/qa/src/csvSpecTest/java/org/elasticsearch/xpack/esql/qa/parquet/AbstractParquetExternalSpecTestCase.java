@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.qa.parquet;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
-import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.qa.rest.AbstractExternalSourceSpecTestCase;
 import org.junit.ClassRule;
 import org.junit.rules.TestRule;
@@ -53,10 +52,5 @@ abstract class AbstractParquetExternalSpecTestCase extends AbstractExternalSourc
     @Override
     protected boolean enableRoundingDoubleValuesOnAsserting() {
         return true;
-    }
-
-    @Override
-    protected String readerName() {
-        return FormatNameResolver.READER_JAVA;
     }
 }

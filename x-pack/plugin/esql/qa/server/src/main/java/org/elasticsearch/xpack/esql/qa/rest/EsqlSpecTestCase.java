@@ -47,7 +47,6 @@ import java.io.IOException;
 import java.net.URL;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
@@ -60,10 +59,8 @@ import static org.elasticsearch.xpack.esql.CsvAssert.assertMetadata;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.assumeFalseLogging;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.assumeTrueLogging;
-import static org.elasticsearch.xpack.esql.CsvTestUtils.csvFileTemplateResolver;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
-import static org.elasticsearch.xpack.esql.CsvTestUtils.substituteTemplates;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.createInferenceEndpoints;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.deleteViews;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
@@ -432,38 +429,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     protected final void doTest(String query) throws Throwable {
-        if (query.trim().toUpperCase(Locale.ROOT).contains("EXTERNAL \"{{")) {
-            // Multi-file glob templates ({{x_multifile}}, {{x_multifile_split}}, {{x_multifile_ubn}},
-            // {{x_multifile_type_drift}}), hive-partitioned templates ({{x_hive}}), and ClickBench
-            // templates ({{clickbench}}) are resolved by specialised subclasses against their own
-            // fixtures. Plain EsqlSpecTestCase subclasses (mixed-cluster, multi-cluster,
-            // single/multi-node, flight) share the same csv-spec files via the testFixtures classpath
-            // but have no resolver for these templates, so skip such tests here.
-            assumeFalseLogging(
-                "specialised EXTERNAL templates require dedicated test subclass",
-                query.contains("_multifile}}")
-                    || query.contains("_multifile_split}}")
-                    || query.contains("_multifile_ubn}}")
-                    || query.contains("_multifile_type_drift}}")
-                    || query.contains("_hive}}")
-                    || query.contains("{{clickbench}}")
-            );
-            // external-multivalue.csv-spec exercises native multi-value reads for non-CSV/TSV format
-            // ITs (Parquet/ORC/NDJSON/multi-node) which decode arrays from their format's native
-            // representation. Its queries use {{employees}} without a multi_value_syntax opt-in
-            // (the non-CSV format readers reject the unknown key via ConfigKeyValidator). On the
-            // EsqlSpecTestCase cluster the local CSV reader defaults to multi_value_syntax: none
-            // and would misalign columns on the bracket-MV employees.csv. CSV-side bracket-syntax
-            // coverage lives in csv-multivalue.csv-spec with the explicit "brackets" opt-in.
-            assumeFalseLogging(
-                "external-multivalue requires AbstractExternalSourceSpecTestCase (native multi-value formats)",
-                fileName.equals("external-multivalue.csv-spec")
-            );
-            Path path = getCsvDataPath();
-            if (path != null) {
-                query = substituteTemplates(query, csvFileTemplateResolver(path));
-            }
-        }
         query = maybeRandomizeQuery(query);
 
         RequestObjectBuilder builder = new RequestObjectBuilder(randomFrom(XContentType.values()));

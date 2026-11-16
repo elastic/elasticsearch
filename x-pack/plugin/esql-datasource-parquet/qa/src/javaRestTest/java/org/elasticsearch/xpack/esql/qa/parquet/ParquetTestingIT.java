@@ -68,7 +68,7 @@ import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.runEsqlSync;
  * Good-data tests download a parquet file from the
  * <a href="https://github.com/apache/parquet-testing">apache/parquet-testing</a> repository (pinned
  * to a specific commit), reads it with parquet-mr's row-oriented Group reader to produce ground truth,
- * then compares against the ESQL output from {@code EXTERNAL "<url>"}.
+ * then compares against the ESQL output from {@code FROM <dataset>}.
  * <p>
  * The parquet-mr Group reader is an independent code path from ESQL's optimized column reader, making
  * this a true cross-implementation validation.

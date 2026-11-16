@@ -111,6 +111,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
+import org.elasticsearch.xpack.esql.into.IntoPageWriter;
+import org.elasticsearch.xpack.esql.into.IntoStats;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalVerifier;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ExternalSourceAggregatePushdown;
@@ -125,6 +127,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.IntoExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.StreamingOutputExec;
@@ -1199,6 +1202,27 @@ public class ComputeService {
             // external blob-store pool after ExternalSourceResolver dispatches resolution there.
             EsqlPlugin.externalBlobStorePool()
         );
+        if (physicalPlan instanceof IntoExec into) {
+            IntoPageWriter.Factory sink = IntoPageWriter.Factory.createFactory(client, into.destination(), into.child().output());
+            physicalPlan = OutputExec.withFactory(into.source(), into.child(), sink);
+            listener = listener.delegateFailureAndWrap((l, result) -> {
+                Exception failure = sink.failure();
+                if (failure != null) {
+                    throw failure;
+                }
+                l.onResponse(
+                    new Result(
+                        IntoStats.ATTRIBUTES,
+                        List.of(sink.stats().toPage(blockFactory)),
+                        result.attributeMetadata(),
+                        result.configuration(),
+                        result.completionInfo(),
+                        result.executionInfo(),
+                        result.approximationApplied()
+                    )
+                );
+            });
+        }
         final SubPlan executionPlan;
         final Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses;
         final Runnable warnIndexCoordinatorOnce = newIndexCoordinatorWarningCallback(clusterService.localNode());
@@ -1216,6 +1240,9 @@ public class ComputeService {
         }
 
         final ActionListener<Result> dispatchListener = ActionListener.notifyOnce(listener);
+        if (completeIfStopped(execInfo, physicalPlan, configuration, null, dispatchListener)) {
+            return;
+        }
         try {
             switch (executionPlan) {
                 case SubPlan.Leaf leaf -> executePlan(
@@ -1261,6 +1288,33 @@ public class ComputeService {
     }
 
     /**
+     * Completes {@code listener} with an empty result when async STOP already landed, so the query does not
+     * start discovery, register an exchange, or run drivers. Returns {@code true} when the caller must return.
+     * <p>
+     * Only the dispatch entry ({@link #execute}) and the post-discovery hop call this, and only when
+     * {@link EsqlExecutionInfo#hasComputeStarted()} is still false. A later {@code execute()} for INLINE
+     * STATS or a subquery must still run so STOP can cut live work instead of replacing in-flight pages
+     * with an empty result.
+     */
+    static boolean completeIfStopped(
+        EsqlExecutionInfo execInfo,
+        PhysicalPlan plan,
+        Configuration configuration,
+        Supplier<ExchangeSink> exchangeSinkSupplier,
+        ActionListener<Result> listener
+    ) {
+        if (execInfo == null || execInfo.isStopped() == false || execInfo.hasComputeStarted()) {
+            return false;
+        }
+        execInfo.markPartial();
+        if (exchangeSinkSupplier == null) {
+            execInfo.markEndQuery();
+        }
+        listener.onResponse(new Result(plan.output(), List.of(), null, configuration, DriverCompletionInfo.EMPTY, execInfo, null));
+        return true;
+    }
+
+    /**
      * Runs one producer after split discovery, placing it with {@code placement} so sibling
      * UNION leaves rotate and hop instead of stacking on the coordinator.
      *
@@ -1298,6 +1352,9 @@ public class ComputeService {
         // threads. Those completions have no security user; SEARCH's executor would then
         // preserve the empty context into runCompute. Same pattern as ExternalSourceResolver.
         ActionListener<CollectedSplits> afterDiscovery = restoreContextOnCompletion(ActionListener.wrap(collected -> {
+            if (completeIfStopped(execInfo, collected.plan(), configuration, exchangeSinkSupplier, releasing)) {
+                return;
+            }
             // The discovery clock stops here: a wait for a worker below is not object-store time.
             final long discoveryEnd = System.nanoTime();
             final LongConsumer runAfterDiscovery = waitedNanos -> runOnSearch(
@@ -1357,6 +1414,10 @@ public class ComputeService {
         ExternalPlanningReservation.Run run,
         ActionListener<CollectedSplits> afterDiscovery
     ) {
+        if (execInfo != null && execInfo.isStopped()) {
+            afterDiscovery.onResponse(new CollectedSplits(physicalPlan, List.of()));
+            return;
+        }
         if (canSkipSplitDiscovery(physicalPlan, formatReaderRegistry)) {
             recordExternalWarmAggregates(execInfo, physicalPlan);
             afterDiscovery.onResponse(new CollectedSplits(physicalPlan, List.of()));
@@ -1468,7 +1529,9 @@ public class ComputeService {
         final PageStreamPublisher streamPublisher = coordinatorPlan instanceof StreamingOutputExec streaming
             ? streaming.pageStream()
             : null;
-        if (exchangeSinkSupplier == null && coordinatorPlan instanceof StreamingOutputExec == false) {
+        if (exchangeSinkSupplier == null
+            && coordinatorPlan instanceof StreamingOutputExec == false
+            && coordinatorPlan instanceof OutputExec == false) {
             coordinatorPlan = new OutputExec(coordinatorPlan, pageCollector);
         }
 
@@ -2026,6 +2089,9 @@ public class ComputeService {
         PlanTimeProfile planTimeProfile,
         ActionListener<DriverCompletionInfo> listener
     ) {
+        if (task instanceof EsqlQueryTask asyncTask && asyncTask.executionInfo() != null) {
+            asyncTask.executionInfo().markComputeStarted();
+        }
         QueryWarnings singleValueQueryWarnings = QueryWarnings.EMIT;
         Set<String> unmappedFieldNames = PlannerUtils.unmappedFieldNames(plan);
         boolean flattenedKeys = context.configuration().flattenedKeys();

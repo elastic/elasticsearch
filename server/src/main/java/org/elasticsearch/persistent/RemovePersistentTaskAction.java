@@ -52,6 +52,10 @@ public class RemovePersistentTaskAction {
             this.taskId = taskId;
         }
 
+        String getTaskId() {
+            return taskId;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);

@@ -28,7 +28,7 @@ import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 
 import static org.elasticsearch.compute.gen.EvaluatorImplementer.baseRamBytesUsed;
-import static org.elasticsearch.compute.gen.Methods.buildFromFactory;
+import static org.elasticsearch.compute.gen.Methods.buildResultFromFactory;
 import static org.elasticsearch.compute.gen.Methods.getMethod;
 import static org.elasticsearch.compute.gen.Types.ABSTRACT_CONVERT_FUNCTION_EVALUATOR;
 import static org.elasticsearch.compute.gen.Types.BLOCK;
@@ -186,9 +186,9 @@ public class ConvertEvaluatorImplementer {
 
         ClassName resultBuilderType = builderType(processFunction.resultDataType(true));
         builder.beginControlFlow(
-            "try ($T builder = driverContext.blockFactory().$L(positionCount))",
+            "try ($T builder = driverContext.blockFactory().$L)",
             resultBuilderType,
-            buildFromFactory(resultBuilderType)
+            buildResultFromFactory(resultBuilderType, true)
         );
         {
             builder.beginControlFlow("for (int p = 0; p < positionCount; p++)");
@@ -236,9 +236,9 @@ public class ConvertEvaluatorImplementer {
         builder.addStatement("int positionCount = block.getPositionCount()");
         TypeName resultBuilderType = builderType(processFunction.resultDataType(true));
         builder.beginControlFlow(
-            "try ($T builder = driverContext.blockFactory().$L(positionCount))",
+            "try ($T builder = driverContext.blockFactory().$L)",
             resultBuilderType,
-            buildFromFactory(resultBuilderType)
+            buildResultFromFactory(resultBuilderType, true)
         );
         String scratchPadName = argument.scratchType() != null ? "scratchPad" : null;
         if (scratchPadName != null) {

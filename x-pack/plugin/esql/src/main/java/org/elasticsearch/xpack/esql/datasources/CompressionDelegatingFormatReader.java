@@ -152,6 +152,11 @@ final class CompressionDelegatingFormatReader implements FormatReader {
     }
 
     @Override
+    public long schemaSampleBytes() {
+        return inner.schemaSampleBytes();
+    }
+
+    @Override
     public FormatReader withDeclaredProvenanceBinding(boolean declaredProvenanceBinding) {
         // Delegate to the wrapped text reader: a compressed .csv.gz binds its declared columns exactly like the plain
         // file. Without this the interface default would return the wrapper and every compressed read would silently

@@ -53,55 +53,32 @@ public class DeterministicTaskQueue {
 
     public static final String NODE_ID_LOG_CONTEXT_KEY = "nodeId";
 
-    /**
-     * A runnable task with its priority under {@link SelectionPolicy#RANDOM_PRIORITY}.
-     */
     private record RunnableTask(Runnable task, double priority) {}
 
     private final List<RunnableTask> runnableTasks = new ArrayList<>();
 
-    /**
-     * How {@link #runRandomTask()} chooses among the runnable tasks.
-     * <p>
-     * Example: task {@code L} must stay pending while the chain {@code C1 -> C2 -> ... -> Cm} runs, each link submitting the next,
-     * and the runnable tasks are {@code [L, C1, X, Y]}.
-     * <ul>
-     *     <li>{@link #UNIFORM}: picking {@code X} or {@code Y} decides nothing, so what matters is which of {@code L} and {@code C1}
-     *     is picked first, with probability 1/2 each. If {@code C1} wins it submits {@code C2}, and {@code L} faces a fresh coin
-     *     flip. {@code L} has to lose {@code m} flips in a row: {@code 2^-m}.</li>
-     *     <li>{@link #RANDOM_PRIORITY}: {@code L} draws its priority once, say 0.02, and keeps it. Each {@code Ci} draws its own
-     *     and runs before {@code L} if it drew higher. If {@code L} drew low, it keeps losing, so {@code L} outlasts the chain if
-     *     its draw is the lowest of the {@code m+1}: {@code 1/(m+1)}.</li>
-     * </ul>
-     * <pre>
-     *    m   UNIFORM   RANDOM_PRIORITY
-     *    1   1/2       1/2
-     *    5   1/32      1/6
-     *   10   1/1024    1/11
-     *   35   3e-11     1/36
-     * </pre>
-     */
-    public enum SelectionPolicy {
+    public enum TaskSelectionPolicy {
         /**
-         * Pick a runnable task uniformly at random. A task stays pending while a causal chain of {@code m} other tasks runs only
-         * if it loses {@code m} fair coin flips, with probability {@code 2^-m}, so orders in which one task lags far behind are
-         * practically never explored.
+         * Pick uniformly. A task is delayed by {@code m} tasks with probability {@code 2^-m}.
          */
         UNIFORM,
         /**
-         * Each task draws a random priority when it becomes runnable, and the highest-priority runnable task runs next. A task
-         * stays pending while a causal chain of {@code m} other tasks runs if its priority is the lowest of {@code m+1} draws,
-         * with probability {@code 1/(m+1)}. This is BasicPOS from Yuan, Yang and Gu, "Partial Order Aware Concurrency Sampling"
-         * (CAV 2018, Sect. 4.1), without the priority reassignment of full POS. It reaches only orders that {@link #UNIFORM} can
-         * also reach.
+         * Pick the highest of priorities drawn when tasks became runnable. A task is delayed by {@code m} tasks with
+         * probability {@code 1/(m+1)}. BasicPOS from
+         * <a href="https://www.cs.columbia.edu/~junfeng/papers/pos-cav18.pdf">Yuan, Yang, Gu, CAV 2018</a>.
          */
         RANDOM_PRIORITY
     }
 
-    private SelectionPolicy selectionPolicy = SelectionPolicy.UNIFORM;
-    // Separate generator so that priority draws neither shift the uniform policy's draws nor trip the test Random's thread check
-    // when a task is submitted from outside the test thread.
-    private Random priorityRandom;
+    // package-private so that tests can choose priorities
+    sealed interface TaskSelector {
+        record Uniform() implements TaskSelector {}
+
+        // separate from random, so that priority draws leave its sequence unchanged and work on any thread
+        record RandomPriority(Random priorityRandom) implements TaskSelector {}
+    }
+
+    private final TaskSelector selector;
 
     private final Random random;
     private List<DeferredTask> deferredTasks = new ArrayList<>();
@@ -110,8 +87,24 @@ public class DeterministicTaskQueue {
     private long executionDelayVariabilityMillis;
     private long latestDeferredExecutionTime;
 
-    public DeterministicTaskQueue(Random random) {
+    public DeterministicTaskQueue(Random random, TaskSelectionPolicy selectionPolicy) {
+        this(random, switch (selectionPolicy) {
+            case UNIFORM -> new TaskSelector.Uniform();
+            case RANDOM_PRIORITY -> new TaskSelector.RandomPriority(new Random(random.nextLong()));
+        });
+    }
+
+    DeterministicTaskQueue(Random random, TaskSelector selector) {
         this.random = random;
+        this.selector = selector;
+    }
+
+    public DeterministicTaskQueue(TaskSelectionPolicy selectionPolicy) {
+        this(ESTestCase.random(), selectionPolicy);
+    }
+
+    public DeterministicTaskQueue(Random random) {
+        this(random, TaskSelectionPolicy.UNIFORM);
     }
 
     public DeterministicTaskQueue() {
@@ -199,28 +192,10 @@ public class DeterministicTaskQueue {
      */
     public void runRandomTask() {
         assert hasRunnableTasks();
-        switch (selectionPolicy) {
-            case UNIFORM -> runTask(RandomNumbers.randomIntBetween(random, 0, runnableTasks.size() - 1));
-            case RANDOM_PRIORITY -> runTask(pickByPriority());
+        switch (selector) {
+            case TaskSelector.Uniform u -> runTask(RandomNumbers.randomIntBetween(random, 0, runnableTasks.size() - 1));
+            case TaskSelector.RandomPriority p -> runTask(pickByPriority());
         }
-    }
-
-    /**
-     * Opt in to a different {@link SelectionPolicy}. Call it before any task is runnable, typically at the start of a test that
-     * exercises fail-overs; tests that never call it keep {@link SelectionPolicy#UNIFORM} and their existing random sequences.
-     */
-    public void setSelectionPolicy(SelectionPolicy selectionPolicy) {
-        assert runnableTasks.isEmpty() : "selection policy must be chosen before any task is runnable";
-        this.selectionPolicy = selectionPolicy;
-        this.priorityRandom = switch (selectionPolicy) {
-            case UNIFORM -> null;
-            case RANDOM_PRIORITY -> createPriorityRandom();
-        };
-    }
-
-    // visible for testing, so that a test can choose each task's priority
-    Random createPriorityRandom() {
-        return new Random(random.nextLong());
     }
 
     private int pickByPriority() {
@@ -234,9 +209,9 @@ public class DeterministicTaskQueue {
     }
 
     private void addRunnable(final Runnable task) {
-        final double priority = switch (selectionPolicy) {
-            case UNIFORM -> 0.0;
-            case RANDOM_PRIORITY -> priorityRandom.nextDouble();
+        final double priority = switch (selector) {
+            case TaskSelector.Uniform u -> 0.0;
+            case TaskSelector.RandomPriority p -> p.priorityRandom().nextDouble();
         };
         runnableTasks.add(new RunnableTask(task, priority));
     }

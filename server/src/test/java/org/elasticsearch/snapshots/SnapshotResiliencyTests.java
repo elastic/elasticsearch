@@ -135,21 +135,15 @@ public class SnapshotResiliencyTests extends ESTestCase {
     @Before
     public void createServices() {
         tempDir = createTempDir();
-        deterministicTaskQueue = createDeterministicTaskQueue();
+        deterministicTaskQueue = createDeterministicTaskQueue(DeterministicTaskQueue.TaskSelectionPolicy.UNIFORM);
     }
 
-    protected DeterministicTaskQueue createDeterministicTaskQueue() {
-        return new DeterministicTaskQueue();
+    protected DeterministicTaskQueue createDeterministicTaskQueue(DeterministicTaskQueue.TaskSelectionPolicy selectionPolicy) {
+        return new DeterministicTaskQueue(selectionPolicy);
     }
 
-    /**
-     * Fail-over tests call this before setting up the cluster. Half of their runs then use
-     * {@link DeterministicTaskQueue.SelectionPolicy#RANDOM_PRIORITY}, which often lets one task, such as a publication completion
-     * listener, stay pending while hundreds of other tasks run. Uniform selection practically never explores those orders, and
-     * they are the ones in which a node acts on a state long after it changed.
-     */
     protected void randomizeSelectionPolicy() {
-        deterministicTaskQueue.setSelectionPolicy(randomFrom(DeterministicTaskQueue.SelectionPolicy.values()));
+        deterministicTaskQueue = createDeterministicTaskQueue(randomFrom(DeterministicTaskQueue.TaskSelectionPolicy.values()));
     }
 
     @After

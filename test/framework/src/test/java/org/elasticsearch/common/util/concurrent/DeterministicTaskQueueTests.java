@@ -88,8 +88,7 @@ public class DeterministicTaskQueueTests extends ESTestCase {
     }
 
     public void testRandomPriorityRunsEveryTask() {
-        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
-        taskQueue.setSelectionPolicy(DeterministicTaskQueue.SelectionPolicy.RANDOM_PRIORITY);
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue(DeterministicTaskQueue.TaskSelectionPolicy.RANDOM_PRIORITY);
         final Set<String> strings = new HashSet<>();
 
         taskQueue.scheduleNow(() -> {
@@ -111,8 +110,10 @@ public class DeterministicTaskQueueTests extends ESTestCase {
     }
 
     private List<String> getResultsOfRunningByPriority(Random random) {
-        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue(random);
-        taskQueue.setSelectionPolicy(DeterministicTaskQueue.SelectionPolicy.RANDOM_PRIORITY);
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue(
+            random,
+            DeterministicTaskQueue.TaskSelectionPolicy.RANDOM_PRIORITY
+        );
         final List<String> strings = new ArrayList<>();
         for (int i = 0; i < 20; i++) {
             final String s = Integer.toString(i);
@@ -123,8 +124,7 @@ public class DeterministicTaskQueueTests extends ESTestCase {
     }
 
     /**
-     * Task {@code L} must wait while the chain {@code C1 -> C2 -> ... -> Cm} runs, each link submitting the next. With chosen
-     * priorities, {@code L} runs right after the last of the leading links that drew higher than it did, wherever that is.
+     * Checks that task {@code L} runs before the first link of chain {@code C1 -> ... -> Cm} with a lower priority.
      */
     public void testRandomPriorityRunsTaskAfterChainLinksThatDrewHigher() {
         final int chainLength = between(1, 20);
@@ -157,15 +157,22 @@ public class DeterministicTaskQueueTests extends ESTestCase {
     }
 
     /**
-     * Runs task {@code L} and the chain {@code C1 -> C2 -> ... -> Cm} under {@link DeterministicTaskQueue.SelectionPolicy#RANDOM_PRIORITY},
-     * where {@code m} is one less than the number of priorities. Priorities are drawn when a task becomes runnable, so they go to
-     * {@code L}, {@code C1}, ..., {@code Cm} in that order.
+     * Runs task {@code L} and chain {@code C1 -> ... -> Cm}, each link submitting the next.
      *
+     * @param priorities priorities of {@code L}, {@code C1}, ..., {@code Cm}
      * @return the order in which the tasks ran
      */
     private List<String> runChainWithPriorities(double... priorities) {
-        final DeterministicTaskQueue taskQueue = new ScriptedPriorityTaskQueue(priorities);
-        taskQueue.setSelectionPolicy(DeterministicTaskQueue.SelectionPolicy.RANDOM_PRIORITY);
+        final PrimitiveIterator.OfDouble scripted = Arrays.stream(priorities).iterator();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue(
+            new Random(0),
+            new DeterministicTaskQueue.TaskSelector.RandomPriority(new Random(0) {
+                @Override
+                public double nextDouble() {
+                    return scripted.nextDouble();
+                }
+            })
+        );
         final List<String> order = new ArrayList<>();
         taskQueue.scheduleNow(() -> order.add("L"));
         taskQueue.scheduleNow(new Runnable() {
@@ -181,35 +188,6 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         });
         taskQueue.runAllRunnableTasks();
         return order;
-    }
-
-    /**
-     * A queue whose priority draws return the given values in order, so a test can choose each task's priority. Overriding the
-     * generator is needed because the real one is seeded from the queue's {@link Random}, so its values cannot be chosen.
-     */
-    private static class ScriptedPriorityTaskQueue extends DeterministicTaskQueue {
-        private final PrimitiveIterator.OfDouble priorities;
-
-        ScriptedPriorityTaskQueue(double... priorities) {
-            super(new Random(0));
-            this.priorities = Arrays.stream(priorities).iterator();
-        }
-
-        @Override
-        Random createPriorityRandom() {
-            return new Random(0) {
-                @Override
-                public double nextDouble() {
-                    return priorities.nextDouble();
-                }
-            };
-        }
-    }
-
-    public void testSelectionPolicyMustBeSetBeforeTasksAreRunnable() {
-        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
-        taskQueue.scheduleNow(() -> {});
-        expectThrows(AssertionError.class, () -> taskQueue.setSelectionPolicy(randomFrom(DeterministicTaskQueue.SelectionPolicy.values())));
     }
 
     public void testStartsAtTimeZero() {

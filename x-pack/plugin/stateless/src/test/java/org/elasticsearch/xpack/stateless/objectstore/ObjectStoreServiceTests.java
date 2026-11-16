@@ -1786,7 +1786,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             .put(ObjectStoreService.BUCKET_SETTING.getKey(), "bucket")
             .build();
         var mockConnectionPoolsSettings = ObjectStoreService.connectionPoolSettings(mockSettings, config);
-        assertTrue(mockConnectionPoolsSettings.isEmpty())
+        assertTrue(mockConnectionPoolsSettings.isEmpty());
     }
 
     public void testListBlobsIgnoresMergeBlobsWithoutWarning() throws Exception {

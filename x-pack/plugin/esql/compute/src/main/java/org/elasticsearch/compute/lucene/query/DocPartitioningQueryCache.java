@@ -46,6 +46,11 @@ final class DocPartitioningQueryCache implements QueryCache {
 
     @Override
     public Weight doCache(Weight weight, QueryCachingPolicy policy) {
+        // The searcher wraps an already cached weight in its accounting wrapper too; see through it, or the clause is cached twice.
+        if (weight instanceof IndicesQueryCache.CachePopulationAccountingWeight accounting
+            && accounting.wrapped() instanceof CachingWeightWrapper) {
+            weight = accounting.wrapped();
+        }
         if (weight instanceof CachingWeightWrapper) {
             return weight;
         }

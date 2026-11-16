@@ -981,6 +981,20 @@ public class PromqlParserTests extends ESTestCase {
         assertThat(function.groupingKeys().stream().map(key -> key.name()).toList(), equalTo(List.of("pod")));
     }
 
+    /** Folding must not erase the ON/GROUP overlap, including when the group list is a subset of the matching list. */
+    public void testOnAndGroupLabelsMustBeDisjointBeforeFolding() {
+        PromqlParser parser = new PromqlParser();
+        for (String grouping : List.of("group_left", "group_right")) {
+            for (String matching : List.of("on(instance)", "on(instance,job)")) {
+                for (String operands : List.of("foo + %s bar")) {
+                    String query = String.format(Locale.ROOT, operands, matching + " " + grouping + "(instance)");
+                    ParsingException e = expectThrows(ParsingException.class, () -> parser.createStatement(query));
+                    assertThat(e.getErrorMessage(), containsString("must not occur in ON and GROUP clause at once"));
+                }
+            }
+        }
+    }
+
     public void testNamedIdentifierParamsInOnAndGroupLeftLabelLists() {
         PromqlCommand promql = as(
             TEST_PARSER.parseQuery(

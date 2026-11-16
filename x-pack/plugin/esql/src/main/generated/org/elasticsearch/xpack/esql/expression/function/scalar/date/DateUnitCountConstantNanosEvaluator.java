@@ -70,7 +70,7 @@ public final class DateUnitCountConstantNanosEvaluator implements ExpressionEval
   }
 
   public LongBlock eval(int positionCount, LongBlock dateBlock) {
-    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (dateBlock.isNull(p)) {
           result.appendNull();

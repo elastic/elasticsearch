@@ -40,6 +40,8 @@ import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
+import org.elasticsearch.common.blobstore.fs.FsBlobStore;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -88,6 +90,7 @@ import org.elasticsearch.xpack.stateless.action.NewCommitNotificationResponse;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BccUploadMetrics;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.StaleCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
@@ -107,6 +110,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.HexFormat;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -136,11 +140,13 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
@@ -1709,7 +1715,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             safeAwait(waitForUploadLatch);
 
             final var measurements = meterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_HISTOGRAM, "es.stateless.bcc_multipart_upload.part_start.latency.histogram");
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, ObjectStoreService.BCC_MULTIPART_UPLOAD_PART_START_LATENCY_HISTOGRAM);
             // time since the start of the upload is 10, 10 + 20 (=30), and 10 + 20 + 30 (=60) milliseconds
             assertThat(
                 measurements.stream().map(Measurement::getLong).toList(),
@@ -1719,7 +1725,87 @@ public class ObjectStoreServiceTests extends ESTestCase {
                 measurements.stream().map(m -> m.attributes().get("multipart")).toList(),
                 equalTo(isMultipart ? List.of(true, true, true) : List.of(false))
             );
+
+            final var partDurations = meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, ObjectStoreService.BCC_UPLOAD_PART_DURATION_HISTOGRAM);
+            assertThat(partDurations.size(), equalTo((isMultipart ? 3 : 1) * (1 + retriesPerPart)));
+            assertTrue(partDurations.stream().allMatch(m -> m.getLong() >= 0L));
+            assertThat(
+                partDurations.stream().map(m -> m.attributes().get("multipart")).distinct().toList(),
+                equalTo(isMultipart ? List.of(true) : List.of(false))
+            );
+
+            final var objectStoreUploads = meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, BccUploadMetrics.BCC_OBJECT_STORE_UPLOAD_DURATION_HISTOGRAM_METRIC);
+            assertThat(objectStoreUploads.size(), equalTo(1));
+            assertThat(objectStoreUploads.getFirst().getLong(), greaterThanOrEqualTo(0L));
+            assertThat(objectStoreUploads.getFirst().attributes().get(BccUploadMetrics.BCC_UPLOAD_SUCCESS_ATTRIBUTE_KEY), equalTo(true));
+            assertThat(objectStoreUploads.getFirst().attributes().get(BccUploadMetrics.BCC_SIZE_ATTRIBUTE_KEY), notNullValue());
         }
+    }
+
+    public void testListBlobsIgnoresMergeBlobsWithoutWarning() throws Exception {
+        final var blobStorePath = PathUtils.get(createTempDir().toString());
+        final var blobContainer = new FsBlobContainer(
+            new FsBlobStore(randomIntBetween(1, 8) * 1024, blobStorePath, false),
+            BlobPath.EMPTY,
+            blobStorePath
+        );
+        final long primaryTerm = randomLongBetween(1L, 100L);
+        final var bccGenerations = new HashSet<Long>();
+        for (int i = randomIntBetween(1, 5); i > 0; i--) {
+            bccGenerations.add(randomLongBetween(1L, 1000L));
+        }
+        for (long generation : bccGenerations) {
+            writeRandomBlob(blobContainer, BatchedCompoundCommit.blobNameFromGeneration(generation));
+        }
+        final long maxBccGeneration = bccGenerations.stream().mapToLong(Long::longValue).max().getAsLong();
+        // a merge blob with a merge start generation above every BCC must neither be listed nor be the latest blob
+        final String mergeBlobName = randomMergeBlobName(maxBccGeneration + randomLongBetween(1L, 100L));
+        writeRandomBlob(blobContainer, mergeBlobName);
+        final String junkBlobName = randomAlphaOfLength(10);
+        writeRandomBlob(blobContainer, junkBlobName);
+
+        MockLog.assertThatLogger(() -> {
+            try {
+                final var blobs = ObjectStoreService.listBlobs(primaryTerm, blobContainer);
+                assertThat(blobs, aMapWithSize(bccGenerations.size()));
+                for (long generation : bccGenerations) {
+                    assertThat(blobs, hasKey(new PrimaryTermAndGeneration(primaryTerm, generation)));
+                }
+
+                final var latestBlob = ObjectStoreService.getLatestBlob(blobContainer);
+                assertThat(latestBlob, notNullValue());
+                assertThat(latestBlob.v1(), equalTo(maxBccGeneration));
+                assertThat(latestBlob.v2().name(), equalTo(BatchedCompoundCommit.blobNameFromGeneration(maxBccGeneration)));
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        },
+            ObjectStoreService.class,
+            new MockLog.UnseenEventExpectation(
+                "no warning for merge blob",
+                ObjectStoreService.class.getCanonicalName(),
+                Level.WARN,
+                "*" + mergeBlobName + "*"
+            ),
+            new MockLog.SeenEventExpectation(
+                "warning for unknown blob",
+                ObjectStoreService.class.getCanonicalName(),
+                Level.WARN,
+                "*" + junkBlobName + "*"
+            )
+        );
+    }
+
+    private static void writeRandomBlob(BlobContainer blobContainer, String blobName) throws IOException {
+        blobContainer.writeBlob(OperationPurpose.INDICES, blobName, new BytesArray(randomByteArrayOfLength(between(1, 64))), true);
+    }
+
+    // TODO(szybia): use MergeBlobFile.blobName (#162535)
+    private static String randomMergeBlobName(long mergeStartGeneration) {
+        return BatchedCompoundCommit.MERGE_BLOB_PREFIX + mergeStartGeneration + '_' + randomAlphanumericOfLength(between(1, 5)) + '_'
+            + HexFormat.of().toHexDigits(randomLong());
     }
 
     private void assertProjectObjectStoreNotFound(ObjectStoreService objectStoreService, ProjectId projectId) {

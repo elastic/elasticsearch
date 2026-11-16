@@ -51,7 +51,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerExternalTests.S3_PATH;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerExternalTests.external;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerExternalTests.externalCommand;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.EMBEDDING_INFERENCE_ID;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -1167,7 +1167,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
     public void testEnrichRemoteRejected() {
         assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
 
-        var testAnalyzer = external().addEnrichPolicy(
+        var testAnalyzer = externalCommand().addEnrichPolicy(
             Enrich.Mode.REMOTE,
             EnrichPolicy.MATCH_TYPE,
             "languages_policy",

@@ -138,6 +138,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
             }
         }
         settings.put("unsafely_incompatible_with_s3_conditional_writes", randomBoolean());
+        settings.put("max_copy_size_before_multipart", "5mb");
         AcknowledgedResponse putRepositoryResponse = clusterAdmin().preparePutRepository(
             TEST_REQUEST_TIMEOUT,
             TEST_REQUEST_TIMEOUT,

@@ -37,6 +37,7 @@ import java.io.ByteArrayInputStream;
 import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.file.NoSuchFileException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -45,6 +46,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
@@ -394,6 +397,73 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
             expectThrows(Exception.class, () -> blobStore.writeBlob(randomPurpose(), blobName, initialBlobBytes, true));
             return null;
         });
+    }
+
+    public void testConcurrentCopiesToSameTargetAreAtomic() throws Exception {
+        final int blobLength = randomIntBetween(100, 20 * 1024 * 1024);
+        final var repository = getRepository();
+        final var sourceBytesA = BytesReference.toBytes(randomBytesReference(blobLength));
+        final var sourceBytesB = BytesReference.toBytes(randomBytesReference(blobLength));
+        final var sourceNameA = randomIdentifier();
+        final var sourceNameB = randomIdentifier();
+        final var targetName = randomIdentifier();
+
+        final var sourceContainer = repository.blobStore().blobContainer(repository.basePath().add("source"));
+        final var targetContainer = repository.blobStore().blobContainer(repository.basePath().add("target"));
+        executeOnBlobStore(repository, ignored -> {
+            sourceContainer.writeBlob(randomPurpose(), sourceNameA, new ByteArrayInputStream(sourceBytesA), blobLength, true);
+            sourceContainer.writeBlob(randomPurpose(), sourceNameB, new ByteArrayInputStream(sourceBytesB), blobLength, true);
+            return null;
+        });
+
+        final int copiers = randomIntBetween(2, 8);
+        final int readers = randomIntBetween(1, 4);
+        final int copiesPerCopier = randomIntBetween(3, 10);
+        final var copiersRemaining = new AtomicInteger(copiers);
+        final var firstCopyDone = new AtomicBoolean();
+
+        startInParallel(copiers + readers, i -> {
+            try {
+                if (i < copiers) {
+                    for (int c = 0; c < copiesPerCopier; c++) {
+                        targetContainer.copyBlob(
+                            randomPurpose(),
+                            sourceContainer,
+                            randomBoolean() ? sourceNameA : sourceNameB,
+                            targetName,
+                            blobLength,
+                            null
+                        );
+                        firstCopyDone.set(true);
+                    }
+                    copiersRemaining.decrementAndGet();
+                } else {
+                    while (copiersRemaining.get() > 0) {
+                        final boolean copiedBeforeRead = firstCopyDone.get();
+                        final byte[] read;
+                        try (var input = targetContainer.readBlob(randomPurpose(), targetName)) {
+                            read = input.readAllBytes();
+                        } catch (NoSuchFileException e) {
+                            if (copiedBeforeRead) {
+                                throw new AssertionError("target disappeared after a copy completed", e);
+                            }
+                            continue;
+                        }
+                        if (Arrays.equals(read, sourceBytesA) == false && Arrays.equals(read, sourceBytesB) == false) {
+                            throw new AssertionError("read a torn blob of length [" + read.length + "], expected [" + blobLength + "]");
+                        }
+                    }
+                }
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        });
+
+        final var finalBytes = executeOnBlobStore(
+            repository,
+            ignored -> targetContainer.readBlob(randomPurpose(), targetName).readAllBytes()
+        );
+        assertTrue(Arrays.equals(finalBytes, sourceBytesA) || Arrays.equals(finalBytes, sourceBytesB));
     }
 
     protected void testReadFromPositionLargerThanBlobLength(Predicate<RequestedRangeNotSatisfiedException> responseCodeChecker) {

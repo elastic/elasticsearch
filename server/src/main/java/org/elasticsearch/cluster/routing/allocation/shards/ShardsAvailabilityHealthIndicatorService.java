@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.shards.LocalRecoveryRetriesHealthInfo.RecoveryKey;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -172,7 +173,15 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
         var state = clusterService.state();
         var shutdown = state.getMetadata().custom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY);
         var status = createNewStatus(state.getMetadata(), maxAffectedResourcesCount);
-        updateShardAllocationStatus(status, state, shutdown, verbose, primaryInactiveBufferTime, replicaInactiveBufferTime);
+        updateShardAllocationStatus(
+            status,
+            state,
+            shutdown,
+            verbose,
+            primaryInactiveBufferTime,
+            replicaInactiveBufferTime,
+            healthInfo.localRecoveryRetriesHealthInfoByNode()
+        );
         return createIndicator(
             status.getStatus(),
             status.getSymptom(),
@@ -188,7 +197,8 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
         NodesShutdownMetadata shutdown,
         boolean verbose,
         TimeValue primaryInactiveBufferTime,
-        TimeValue replicaInactiveBufferTime
+        TimeValue replicaInactiveBufferTime,
+        Map<String, LocalRecoveryRetriesHealthInfo> localRecoveryRetriesHealthInfoByNode
     ) {
         for (Map.Entry<ProjectId, RoutingTable> entries : state.globalRoutingTable().routingTables().entrySet()) {
             ProjectId projectId = entries.getKey();
@@ -197,9 +207,25 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
             for (IndexRoutingTable indexShardRouting : projectRoutingTable.indicesRouting().values()) {
                 for (int i = 0; i < indexShardRouting.size(); i++) {
                     IndexShardRoutingTable shardRouting = indexShardRouting.shard(i);
-                    status.addPrimary(projectId, shardRouting.primaryShard(), state, shutdown, verbose, primaryInactiveBufferTime);
+                    status.addPrimary(
+                        projectId,
+                        shardRouting.primaryShard(),
+                        state,
+                        shutdown,
+                        verbose,
+                        primaryInactiveBufferTime,
+                        localRecoveryRetriesHealthInfoByNode
+                    );
                     for (ShardRouting replicaShard : shardRouting.replicaShards()) {
-                        status.addReplica(projectId, replicaShard, state, shutdown, verbose, replicaInactiveBufferTime);
+                        status.addReplica(
+                            projectId,
+                            replicaShard,
+                            state,
+                            shutdown,
+                            verbose,
+                            replicaInactiveBufferTime,
+                            localRecoveryRetriesHealthInfoByNode
+                        );
                     }
                 }
             }
@@ -359,11 +385,19 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
             ClusterState state,
             NodesShutdownMetadata shutdowns,
             boolean verbose,
-            TimeValue inactiveBufferTime
+            TimeValue inactiveBufferTime,
+            Map<String, LocalRecoveryRetriesHealthInfo> localRecoveryRetriesHealthInfoByNode
         ) {
             ProjectIndexName projectIndex = new ProjectIndexName(projectId, routing.getIndexName());
             Settings indexSettings = state.metadata().getProject(projectId).index(routing.index()).getSettings();
-            boolean isProvisionallyInactive = isProvisionallyInactive(projectId, routing, state, inactiveBufferTime, Instant.now());
+            boolean isProvisionallyInactive = isProvisionallyInactive(
+                projectId,
+                routing,
+                state,
+                inactiveBufferTime,
+                localRecoveryRetriesHealthInfoByNode,
+                Instant.now()
+            );
             boolean shardHasNoActiveCopyOfThisType = hasNoActiveCopyOfThisType(projectId, routing, state);
             boolean isRestarting = isUnassignedDueToTimelyRestart(routing, shutdowns);
 
@@ -446,6 +480,7 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
         ShardRouting routing,
         ClusterState state,
         TimeValue inactiveBufferTime,
+        Map<String, LocalRecoveryRetriesHealthInfo> localRecoveryRetriesHealthInfoByNode,
         Instant now
     ) {
         if (routing.active()) {
@@ -453,13 +488,15 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
         }
         // If the primary is inactive for unexceptional events in the cluster lifecycle, both the primary and the replica are considered
         // provisionally inactive:
+        int localRecoveryRetries = localRecoveryRetries(routing, localRecoveryRetriesHealthInfoByNode);
         if (routing.primary()) {
-            if (getInactivePrimaryHealth(routing) == ClusterHealthStatus.YELLOW) {
+            if (getInactivePrimaryHealth(routing, localRecoveryRetries > 0) == ClusterHealthStatus.YELLOW) {
                 return true;
             }
         } else {
             ShardRouting primary = state.routingTable(projectId).shardRoutingTable(routing.shardId()).primaryShard();
-            if (!primary.active() && getInactivePrimaryHealth(primary) == ClusterHealthStatus.YELLOW) {
+            int localRecoveryRetriesForPrimary = localRecoveryRetries(primary, localRecoveryRetriesHealthInfoByNode);
+            if (!primary.active() && getInactivePrimaryHealth(primary, localRecoveryRetriesForPrimary > 0) == ClusterHealthStatus.YELLOW) {
                 return true;
             }
         }
@@ -472,10 +509,24 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
         UnassignedInfo unassignedInfo = routing.unassignedInfo();
         return unassignedInfo != null
             && unassignedInfo.failedAllocations() == 0
+            && localRecoveryRetries == 0
             && unassignedInfo.lastAllocationStatus() != UnassignedInfo.AllocationStatus.DECIDERS_NO
             && unassignedInfo.reason().isExpectedTransient()
             && (inactiveBufferTime.millis() > 0)
             && (now.toEpochMilli() - unassignedInfo.unassignedTimeMillis() <= inactiveBufferTime.millis());
+    }
+
+    private static int localRecoveryRetries(
+        ShardRouting routing,
+        Map<String, LocalRecoveryRetriesHealthInfo> localRecoveryRetriesHealthInfoByNode
+    ) {
+        if (routing.currentNodeId() == null) {
+            // Unassigned shards are not being recovered on any node, so cannot have local retries:
+            return 0;
+        }
+        return localRecoveryRetriesHealthInfoByNode.getOrDefault(routing.currentNodeId(), LocalRecoveryRetriesHealthInfo.EMPTY)
+            .localRetries()
+            .getOrDefault(RecoveryKey.of(routing), 0);
     }
 
     private static boolean isUnassignedDueToTimelyRestart(ShardRouting routing, NodesShutdownMetadata shutdowns) {
@@ -756,9 +807,18 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
             ClusterState state,
             NodesShutdownMetadata shutdowns,
             boolean verbose,
-            TimeValue primaryInactiveBufferTime
+            TimeValue primaryInactiveBufferTime,
+            Map<String, LocalRecoveryRetriesHealthInfo> localRecoveryRetriesHealthInfoByNode
         ) {
-            primaries.increment(projectId, routing, state, shutdowns, verbose, primaryInactiveBufferTime);
+            primaries.increment(
+                projectId,
+                routing,
+                state,
+                shutdowns,
+                verbose,
+                primaryInactiveBufferTime,
+                localRecoveryRetriesHealthInfoByNode
+            );
         }
 
         void addReplica(
@@ -767,9 +827,18 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
             ClusterState state,
             NodesShutdownMetadata shutdowns,
             boolean verbose,
-            TimeValue replicaInactiveBufferTime
+            TimeValue replicaInactiveBufferTime,
+            Map<String, LocalRecoveryRetriesHealthInfo> localRecoveryRetriesHealthInfoByNode
         ) {
-            replicas.increment(projectId, routing, state, shutdowns, verbose, replicaInactiveBufferTime);
+            replicas.increment(
+                projectId,
+                routing,
+                state,
+                shutdowns,
+                verbose,
+                replicaInactiveBufferTime,
+                localRecoveryRetriesHealthInfoByNode
+            );
         }
 
         void updateSearchableSnapshotsOfAvailableIndices() {

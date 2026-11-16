@@ -15,6 +15,7 @@ import io.opentelemetry.exporter.otlp.logs.OtlpGrpcLogRecordExporterBuilder;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 import io.opentelemetry.sdk.common.InternalTelemetryVersion;
+import io.opentelemetry.sdk.common.export.RetryPolicy;
 import io.opentelemetry.sdk.logs.SdkLoggerProvider;
 import io.opentelemetry.sdk.logs.export.BatchLogRecordProcessor;
 import io.opentelemetry.sdk.logs.export.LogRecordExporter;
@@ -43,6 +44,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -72,6 +74,10 @@ import javax.net.ssl.X509ExtendedTrustManager;
  * <p>gRPC (not HTTP) is required by the otel-delivery-gateway: HTTP clients reuse long-lived
  * connections, leading to uneven load distribution behind Kubernetes services.
  *
+ * <p>A rejected batch is retried for at least 60s ({@link OtelSdkSettings#TELEMETRY_LOGS_RETRY_POLICY}).
+ * The exporter timeout and the batch processor's export timeout are both
+ * {@link OtelSdkSettings#TELEMETRY_LOGS_EXPORT_TIMEOUT}, since each one covers every attempt.
+ *
  * <p>The exporter records {@code otel.sdk.exporter.log.exported} on the supplied {@link MeterProvider},
  * the system provider built for metrics export. A failure that never reaches the gateway (DNS, TLS,
  * timeouts) is visible from the sender, with {@code error.type} set once retries are exhausted.
@@ -92,6 +98,8 @@ public class OtelSdkExportLogsSupplier implements Closeable {
     private final Collection<TelemetryLoggingFilterProvider> filterProviders;
     private final String serviceName;
     private final Supplier<MeterProvider> meterProvider;
+    private final Duration exportTimeout;
+    private final RetryPolicy retryPolicy;
     private volatile SdkLoggerProvider loggerProvider;
     private SwappableLogRecordExporter exporter;
     private final List<Consumer<Configuration>> closeCallbacks = new ArrayList<>();
@@ -103,11 +111,37 @@ public class OtelSdkExportLogsSupplier implements Closeable {
         TelemetryLogResourceProvider logResourceProvider,
         Supplier<MeterProvider> meterProvider
     ) {
+        this(
+            settings,
+            configDir,
+            filterProviders,
+            logResourceProvider,
+            meterProvider,
+            OtelSdkSettings.TELEMETRY_LOGS_EXPORT_TIMEOUT,
+            OtelSdkSettings.TELEMETRY_LOGS_RETRY_POLICY
+        );
+    }
+
+    /**
+     * @param exportTimeout deadline for one batch, including every retry; applied to both the exporter and the batch processor
+     * @param retryPolicy   policy for retryable gateway and transport failures of one batch
+     */
+    OtelSdkExportLogsSupplier(
+        Settings settings,
+        Path configDir,
+        Collection<TelemetryLoggingFilterProvider> filterProviders,
+        TelemetryLogResourceProvider logResourceProvider,
+        Supplier<MeterProvider> meterProvider,
+        Duration exportTimeout,
+        RetryPolicy retryPolicy
+    ) {
         this.settings = settings;
         this.configDir = configDir;
         this.filterProviders = filterProviders;
         this.serviceName = logResourceProvider.serviceName();
         this.meterProvider = meterProvider;
+        this.exportTimeout = Objects.requireNonNull(exportTimeout, "exportTimeout is null");
+        this.retryPolicy = Objects.requireNonNull(retryPolicy, "retryPolicy is null");
     }
 
     // for tests
@@ -284,9 +318,9 @@ public class OtelSdkExportLogsSupplier implements Closeable {
             .setEndpoint(OtelSdkSettings.TELEMETRY_LOGS_ENDPOINT.get(settings))
             .setMeterProvider(meterProvider)
             .setInternalTelemetryVersion(InternalTelemetryVersion.LATEST)
-            .setTimeout(OtelSdkSettings.TELEMETRY_EXPORT_SEND_TIMEOUT.get(settings).toDuration())
+            .setTimeout(exportTimeout)
             .setConnectTimeout(OtelSdkSettings.TELEMETRY_EXPORT_CONNECT_TIMEOUT.get(settings).toDuration())
-            .setRetryPolicy(OtelSdkSettings.OTLP_RETRY_POLICY);
+            .setRetryPolicy(retryPolicy);
         List<String> cas = OtelSdkSettings.TELEMETRY_LOGS_SSL_CERTIFICATE_AUTHORITIES.get(settings);
         if (cas.isEmpty() == false || cert.isEmpty() == false) {
             try {
@@ -319,6 +353,7 @@ public class OtelSdkExportLogsSupplier implements Closeable {
                     .setMeterProvider(meterProvider)
                     .setInternalTelemetryVersion(InternalTelemetryVersion.LATEST)
                     .setMaxQueueSize(maxQueueSize)
+                    .setExporterTimeout(exportTimeout)
                     .build()
             )
             .build();

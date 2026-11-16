@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.stateless.cache.reader;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.common.ByteRange;
-import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInput;
 
 import java.io.InputStream;
@@ -61,6 +61,6 @@ public interface CacheBlobReader {
      * shard read pool) must override this.
      */
     default String executorName() {
-        return StatelessPlugin.SHARD_READ_THREAD_POOL;
+        return StatelessThreadPools.SHARD_READ_THREAD_POOL;
     }
 }

@@ -133,7 +133,7 @@ public abstract sealed class Int7uOSQVectorScorer extends RandomVectorScorer.Abs
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        this.query = MemorySegment.ofArray(quantizedQuery);
+        this.query = MemorySegmentUtils.nativeCopyOf(quantizedQuery);
         this.lowerInterval = lowerInterval;
         this.upperInterval = upperInterval;
         this.additionalCorrection = additionalCorrection;

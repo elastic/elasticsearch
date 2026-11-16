@@ -17,6 +17,7 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -52,7 +53,13 @@ public final class EngineTestUtils {
         }
         final MapperService mapperService = engine.getEngineConfig().getMapperService();
         final boolean columnarId = mapperService != null && mapperService.isUseColumnarId();
-        try (Engine.Searcher searcher = engine.acquireSearcher("test_get_doc_ids", Engine.SearcherScope.INTERNAL)) {
+        try (
+            Engine.Searcher searcher = engine.acquireSearcher(
+                "test_get_doc_ids",
+                Engine.SearcherScope.INTERNAL,
+                SplitShardCountSummary.IRRELEVANT
+            )
+        ) {
             List<DocIdSeqNoAndSource> docs = new ArrayList<>();
             for (LeafReaderContext leafContext : searcher.getIndexReader().leaves()) {
                 LeafReader reader = leafContext.reader();

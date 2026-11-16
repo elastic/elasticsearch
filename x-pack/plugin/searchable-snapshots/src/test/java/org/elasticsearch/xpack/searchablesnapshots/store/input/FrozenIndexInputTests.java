@@ -336,16 +336,20 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
     private static void assertCopiesIntoScratch(FrozenIndexInput indexInput, byte[] expected, int offset, int length) throws IOException {
         final AtomicBoolean copied = new AtomicBoolean();
         final AtomicBoolean invoked = new AtomicBoolean();
-        assertTrue(indexInput.withMemorySegmentSlice(offset, length, len -> {
-            copied.set(true);
-            return Arena.ofAuto().allocate(len);
-        }, ms -> {
-            invoked.set(true);
-            assertEquals(length, ms.byteSize());
-            for (int i = 0; i < length; i++) {
-                assertEquals("byte mismatch at offset " + (offset + i), expected[offset + i], ms.get(ValueLayout.JAVA_BYTE, i));
-            }
-        }));
+        // a confined arena, as used by callers that want deterministic release of the scratch segment: the read into it may be
+        // completed by another thread, which must not trip the arena's owner-thread check
+        try (Arena arena = Arena.ofConfined()) {
+            assertTrue(indexInput.withMemorySegmentSlice(offset, length, len -> {
+                copied.set(true);
+                return arena.allocate(len);
+            }, ms -> {
+                invoked.set(true);
+                assertEquals(length, ms.byteSize());
+                for (int i = 0; i < length; i++) {
+                    assertEquals("byte mismatch at offset " + (offset + i), expected[offset + i], ms.get(ValueLayout.JAVA_BYTE, i));
+                }
+            }));
+        }
         assertTrue("expected a copy into the scratch segment", copied.get());
         assertTrue(invoked.get());
     }
@@ -362,9 +366,39 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
     }
 
     /**
+     * Verifies that, when nothing is cached yet, a read into a segment of a thread-confined arena is completed by a cache fetch thread
+     * without that thread touching the arena, both for a range that is served through the blob cache index and for one that is not.
+     */
+    public void testWithMemorySegmentSliceColdCacheCopiesIntoConfinedScratch() throws IOException {
+        withInputWithoutMmap(false, (indexInput, fileData) -> {
+            final int bufferSize = indexInput.getBufferSize();
+            // starts at 0, so within the range that the blob cache index holds, as long as it ends before that range does
+            assertCopiesIntoScratch(indexInput, fileData, 0, bufferSize);
+        });
+    }
+
+    /**
+     * Same as {@link #testWithMemorySegmentSliceColdCacheCopiesIntoConfinedScratch} for a range that ends beyond the one that the blob
+     * cache index holds.
+     */
+    public void testWithMemorySegmentSliceColdCacheCopiesIntoConfinedScratchBeyondBlobCacheIndexRange() throws IOException {
+        withInputWithoutMmap(false, (indexInput, fileData) -> {
+            final int length = fileData.length - indexInput.getBufferSize();
+            assertCopiesIntoScratch(indexInput, fileData, indexInput.getBufferSize(), length);
+        });
+    }
+
+    /**
      * Populates a {@code .vec} file in a cache that is not mmap-backed, the default, then runs the check on it.
      */
     private void withCachedInputWithoutMmap(CheckedBiConsumer<FrozenIndexInput, byte[], IOException> check) throws IOException {
+        withInputWithoutMmap(true, check);
+    }
+
+    /**
+     * Runs the check on a {@code .vec} file in a cache that is not mmap-backed, the default, optionally populating the cache first.
+     */
+    private void withInputWithoutMmap(boolean populate, CheckedBiConsumer<FrozenIndexInput, byte[], IOException> check) throws IOException {
         final byte[] rawData = randomByteArrayOfLength(randomIntBetween(2000, 5000));
         final Tuple<String, byte[]> bytes = randomChecksumBytes(rawData);
         final byte[] fileData = bytes.v2();
@@ -420,10 +454,12 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
             final IndexInput indexInput = directory.openInput(fileName, randomIOContext());
             assertThat(indexInput, instanceOf(FrozenIndexInput.class));
 
-            // Read entire file to populate the SharedBlobCacheService
-            byte[] allData = new byte[(int) indexInput.length()];
-            indexInput.readBytes(allData, 0, allData.length);
-            assertArrayEquals(fileData, allData);
+            if (populate) {
+                // Read entire file to populate the SharedBlobCacheService
+                byte[] allData = new byte[(int) indexInput.length()];
+                indexInput.readBytes(allData, 0, allData.length);
+                assertArrayEquals(fileData, allData);
+            }
 
             check.accept((FrozenIndexInput) indexInput, fileData);
             indexInput.close();

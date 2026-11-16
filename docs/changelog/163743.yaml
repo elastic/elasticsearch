@@ -1,0 +1,5 @@
+area: Authorization
+issues: []
+pr: 163743
+summary: Let the AlertZero Threat Hunt, Rule Tuning and Rule Coverage roles read telemetry patterns on remote clusters
+type: bug

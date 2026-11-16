@@ -9,7 +9,6 @@
 package org.elasticsearch.snapshots;
 
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.regex.Regex;
 
@@ -24,8 +23,8 @@ import java.util.function.Predicate;
 /**
  * Discovers eligible recovery sources from a snapshot for the data recovery API.
  * <p>
- * It filters candidates (excluding system and backing indices, and indices without metadata), classifies source completeness,
- * applies a multi-target expression list, and returns a bounded result.
+ * It filters backing and failure-store indices, classifies source completeness, applies a multi-target expression list, and returns a
+ * bounded result. Callers must only pass snapshots that exclude system indices and system data streams.
  */
 public final class RecoverySourceDiscovery {
 
@@ -54,7 +53,7 @@ public final class RecoverySourceDiscovery {
 
     /**
      * Returns up to {@code size} eligible recovery sources from a snapshot, ordered by name.
-     * Excludes system resources, backing/failure-store indices, and incomplete indices or streams.
+     * Excludes backing/failure-store indices and incomplete indices or streams.
      * Expressions support wildcards and {@code -} negation; empty returns all eligible sources.
      *
      * @param snapshotInfo    the snapshot to evaluate
@@ -69,7 +68,7 @@ public final class RecoverySourceDiscovery {
 
     /**
      * Returns up to {@code size} recovery sources from a snapshot, ordered by name.
-     * Excludes system resources and backing/failure-store indices. Incomplete logical sources are included only when
+     * Excludes backing/failure-store indices. Incomplete logical sources are included only when
      * {@code includeIncompleteSources} is {@code true}, and their {@link RecoverySource#complete()} value is {@code false}.
      * Expressions support wildcards and {@code -} negation; empty returns all eligible sources.
      *
@@ -98,7 +97,7 @@ public final class RecoverySourceDiscovery {
 
     /**
      * Builds the full set of eligible candidates from the snapshot, sorted by name.
-     * Excludes system indices/streams, backing and failure-store indices, incomplete indices/streams, and indices without metadata.
+     * Excludes backing and failure-store indices and incomplete indices/streams.
      */
     static SortedSet<RecoverySource> buildCandidates(SnapshotInfo snapshotInfo, ProjectMetadata projectMetadata) {
         return buildCandidates(snapshotInfo, projectMetadata, false);
@@ -123,10 +122,6 @@ public final class RecoverySourceDiscovery {
             if (backingAndFailureIndexNames.contains(indexName)) {
                 continue;
             }
-            IndexMetadata meta = projectMetadata.index(indexName);
-            if (meta == null || meta.isSystem()) {
-                continue;
-            }
             final boolean complete = snapshotInfo.isIndexComplete(indexName);
             if (complete == false && includeIncompleteSources == false) {
                 continue;
@@ -136,7 +131,7 @@ public final class RecoverySourceDiscovery {
 
         for (String dsName : snapshotInfo.dataStreams()) {
             DataStream ds = dataStreams.get(dsName);
-            if (ds == null || ds.isSystem()) {
+            if (ds == null) {
                 continue;
             }
             final boolean complete = snapshotInfo.isDataStreamComplete(ds);

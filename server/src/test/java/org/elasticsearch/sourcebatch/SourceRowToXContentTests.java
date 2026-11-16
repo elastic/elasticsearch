@@ -189,6 +189,27 @@ public class SourceRowToXContentTests extends ESTestCase {
             ], "after": "x"}""");
     }
 
+    /**
+     * A scalar double is written back with the client's spelling when the column kept one, so a reader of the
+     * rebuilt source, a translog replay for instance, sees the same token the batch indexed. Only JSON can carry a raw
+     * token; the binary formats write the number and get the same double back.
+     */
+    public void testDoubleSpellingIsKeptInJsonOnly() throws IOException {
+        BytesReference source = new BytesArray("{\"d\":-1.90,\"c\":3.14,\"e\":1e3}");
+        try (EscfBatch batch = EscfEncoder.encode(List.of(source), XContentType.JSON)) {
+            assertEquals("{\"d\":-1.90,\"c\":3.14,\"e\":1e3}", writeRowToJson(batch, 0).utf8ToString());
+            for (XContentType binary : new XContentType[] { XContentType.CBOR, XContentType.SMILE }) {
+                BytesReference rebuilt;
+                try (XContentBuilder xcb = XContentBuilder.builder(binary.xContent())) {
+                    SourceRowToXContent.writeRow(batch.row(0), batch.schema(), xcb);
+                    rebuilt = BytesReference.bytes(xcb);
+                }
+                Map<String, Object> values = XContentHelper.convertToMap(rebuilt, false, binary).v2();
+                assertEquals(binary.toString(), Map.of("d", -1.9, "c", 3.14, "e", 1000.0), values);
+            }
+        }
+    }
+
     /** Encodes {@code json} with the production encoder, decodes it with {@code writeRow}, and expects the original back. */
     private static void assertRoundTrips(String json) throws IOException {
         BytesReference source = new BytesArray(json);

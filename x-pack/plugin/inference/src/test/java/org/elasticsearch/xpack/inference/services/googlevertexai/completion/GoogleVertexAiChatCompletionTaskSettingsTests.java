@@ -10,8 +10,10 @@ package org.elasticsearch.xpack.inference.services.googlevertexai.completion;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.InferenceSettingsTestCase;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -130,5 +132,17 @@ public class GoogleVertexAiChatCompletionTaskSettingsTests extends InferenceSett
     @Override
     protected GoogleVertexAiChatCompletionTaskSettings createTestInstance() {
         return new GoogleVertexAiChatCompletionTaskSettings(new ThinkingConfig(randomInt()), randomNonNegativeIntOrNull());
+    }
+
+    @Override
+    protected GoogleVertexAiChatCompletionTaskSettings mutateInstance(GoogleVertexAiChatCompletionTaskSettings instance)
+        throws IOException {
+        if (randomBoolean()) {
+            var thinkingConfig = randomValueOtherThan(instance.thinkingConfig(), () -> new ThinkingConfig(randomNonNegativeIntOrNull()));
+            return new GoogleVertexAiChatCompletionTaskSettings(thinkingConfig, instance.maxTokens());
+        } else {
+            var maxTokens = randomValueOtherThan(instance.maxTokens(), ESTestCase::randomNonNegativeIntOrNull);
+            return new GoogleVertexAiChatCompletionTaskSettings(instance.thinkingConfig(), maxTokens);
+        }
     }
 }

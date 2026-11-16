@@ -24,4 +24,4 @@ pr: 165786
 summary: "Always show `@timestamp` under field level security on time series indices\
   \ and data stream backing indices, which fixes a wrong `_id` in search results and\
   \ an ES|QL `METADATA _id` failure for roles that hide it"
-type: bug
+type: "breaking, bug"

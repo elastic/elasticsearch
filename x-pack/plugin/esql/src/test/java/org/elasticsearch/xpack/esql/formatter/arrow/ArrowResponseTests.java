@@ -33,6 +33,7 @@ import org.apache.arrow.vector.util.VectorSchemaRootAppender;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
@@ -61,12 +62,14 @@ import org.elasticsearch.compute.data.LongRangeBlock;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder.LongRange;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.spill.ResultPages;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
+import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -718,6 +721,122 @@ public class ArrowResponseTests extends ESTestCase {
         ) {
             assertAggregateMetricDoubleSchema((StructVector) root.getVector("metric"));
             compareEsqlAndArrow(testCase, root);
+        }
+    }
+
+    /**
+     * The same rejection for a result whose pages are in a run: the facts captured as the pages were collected say the
+     * metric does hold multivalues, and the response fails before the schema is sent, as it does over pages.
+     */
+    public void testSpilledAggregateMetricDoubleRejectsMultivaluedMetric() {
+        DoubleBlock min;
+        try (DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(1)) {
+            builder.beginPositionEntry().appendDouble(1.0).appendDouble(2.0).endPositionEntry();
+            min = builder.build();
+        }
+        AggregateMetricDoubleBlock block = blockFactory.newAggregateMetricDoubleBlock(
+            min,
+            blockFactory.newConstantDoubleBlockWith(2.0, 1),
+            blockFactory.newConstantDoubleBlockWith(3.0, 1),
+            blockFactory.newConstantIntBlockWith(2, 1)
+        );
+        List<Releasable> closeHooks = new ArrayList<>();
+        try (ResultPages result = ResultPages.resident(List.of(new Page(block))); ResultPages.Cursor cursor = result.open()) {
+            assertArrayEquals(new boolean[] { true }, result.doesHaveMultivaluedColumns());
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> ArrowResponse.spilled(
+                    List.of(new ArrowResponse.Column(DataType.AGGREGATE_METRIC_DOUBLE, "metric")),
+                    new boolean[1],
+                    result.multivaluedColumns(),
+                    result.doesHaveMultivaluedColumns(),
+                    cursor,
+                    closeHooks::add
+                )
+            );
+            assertEquals(
+                "Column [metric] of ES|QL type [aggregate_metric_double] has multivalued fields, "
+                    + "which the Arrow format does not support for this type",
+                e.getMessage()
+            );
+            assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
+            assertTrue("nothing to close for a response that was never built", closeHooks.isEmpty());
+        }
+    }
+
+    /**
+     * A metric with value indexes but one value per position, in a result whose pages are in a run: the facts say the
+     * column may hold multivalues and does not, and the response writes a plain struct, as it does over pages.
+     */
+    public void testSpilledAggregateMetricDoubleAcceptsSingleValuedMetricWithValueIndexes() throws IOException {
+        DoubleBlock min = blockFactory.newDoubleArrayBlock(
+            new double[] { 1.0, 2.0 },
+            2,
+            new int[] { 0, 1, 2 },
+            null,
+            randomFrom(Block.MvOrdering.values())
+        );
+        AggregateMetricDoubleBlock block = blockFactory.newAggregateMetricDoubleBlock(
+            min,
+            blockFactory.newConstantDoubleBlockWith(3.0, 2),
+            blockFactory.newConstantDoubleBlockWith(4.0, 2),
+            blockFactory.newConstantIntBlockWith(2, 2)
+        );
+        List<Releasable> closeHooks = new ArrayList<>();
+        try (ResultPages result = ResultPages.resident(List.of(new Page(block)))) {
+            assertArrayEquals(new boolean[] { true }, result.multivaluedColumns());
+            assertArrayEquals(new boolean[] { false }, result.doesHaveMultivaluedColumns());
+            ChunkedRestResponseBodyPart body = ArrowResponse.spilled(
+                List.of(new ArrowResponse.Column(DataType.AGGREGATE_METRIC_DOUBLE, "metric")),
+                new boolean[1],
+                result.multivaluedColumns(),
+                result.doesHaveMultivaluedColumns(),
+                result.open(),
+                closeHooks::add
+            );
+            try (
+                ReleasableBytesReference bytes = serializeParts(body);
+                ArrowStreamReader reader = new ArrowStreamReader(bytes.streamInput(), ALLOCATOR);
+                VectorSchemaRoot root = reader.getVectorSchemaRoot()
+            ) {
+                assertAggregateMetricDoubleSchema((StructVector) root.getVector("metric"));
+                int rows = 0;
+                while (reader.loadNextBatch()) {
+                    rows += root.getRowCount();
+                }
+                assertEquals(2, rows);
+            } finally {
+                Releasables.close(closeHooks);
+            }
+        }
+    }
+
+    /**
+     * The bytes of a response that comes in parts, each read to its end before the next is asked for.
+     */
+    private ReleasableBytesReference serializeParts(ChunkedRestResponseBodyPart first) throws IOException {
+        List<ReleasableBytesReference> ourEncoding = new ArrayList<>();
+        boolean success = false;
+        try {
+            ChunkedRestResponseBodyPart part = first;
+            while (true) {
+                while (part.isPartComplete() == false) {
+                    ourEncoding.add(part.encodeChunk(1500, bigArrays.bytesRefRecycler()));
+                }
+                if (part.isLastPart()) {
+                    break;
+                }
+                PlainActionFuture<ChunkedRestResponseBodyPart> next = new PlainActionFuture<>();
+                part.getNextPart(next);
+                part = next.actionGet();
+            }
+            BytesReference composite = CompositeBytesReference.of(ourEncoding.toArray(BytesReference[]::new));
+            success = true;
+            return new ReleasableBytesReference(composite, () -> Releasables.close(ourEncoding));
+        } finally {
+            if (success == false) {
+                Releasables.close(ourEncoding);
+            }
         }
     }
 

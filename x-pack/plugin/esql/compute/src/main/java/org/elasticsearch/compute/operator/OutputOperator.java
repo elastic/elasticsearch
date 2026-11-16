@@ -30,21 +30,18 @@ import java.util.function.Function;
 public class OutputOperator extends SinkOperator {
 
     /**
-     * A page consumer with a blocked state of its own, which the operator forwards: a consumer that writes pages out
-     * tells the driver, and through the exchange the data nodes, to wait rather than hand it more.
+     * A page consumer that may write pages out rather than keep them, and says how much it did, for the operator's
+     * status. Its blocked state is the {@link PageConsumer}'s, which the operator forwards: a consumer that writes
+     * pages out tells the driver, and through the exchange the data nodes, to wait rather than hand it more. It has
+     * to reach the operator as a {@link PageConsumer}, through {@link PageConsumer.Factory}: one handed over as a
+     * plain {@link Consumer} is wrapped, and the wrapper neither blocks nor reports.
      */
-    public interface BlockingPageConsumer extends Consumer<Page> {
-        IsBlockedResult isBlocked();
+    public interface SpillingPageConsumer extends PageConsumer {
+        /** Rows the consumer wrote out rather than kept. */
+        long rowsSpilled();
 
-        /** Rows the consumer wrote out rather than kept, for the operator's status. */
-        default long rowsSpilled() {
-            return 0;
-        }
-
-        /** The consumer's spill counters, for the operator's status. */
-        default SpillStatus spillStatus() {
-            return SpillStatus.NONE;
-        }
+        /** The consumer's spill counters. */
+        SpillStatus spillStatus();
     }
 
     /**
@@ -257,8 +254,8 @@ public class OutputOperator extends SinkOperator {
      */
     @Override
     public Status status() {
-        if (pageConsumer instanceof BlockingPageConsumer blocking) {
-            return new Status(pagesReceived, rowsReceived, blocking.rowsSpilled(), blocking.spillStatus());
+        if (pageConsumer instanceof SpillingPageConsumer spilling) {
+            return new Status(pagesReceived, rowsReceived, spilling.rowsSpilled(), spilling.spillStatus());
         }
         return null;
     }

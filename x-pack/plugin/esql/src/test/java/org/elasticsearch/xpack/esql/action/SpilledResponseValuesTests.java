@@ -66,11 +66,11 @@ public class SpilledResponseValuesTests extends ComputeTestCase {
                         digests.add(digest);
                         builder.appendTDigest(digest);
                     }
-                    collector.accept(new Page(builder.build()));
+                    collector.consume(new Page(builder.build()));
                 }
             }
             PlainActionFuture<ResultPages> finished = new PlainActionFuture<>();
-            collector.finish(finished);
+            collector.handOver(finished);
             ResultPages result = finished.get(30, TimeUnit.SECONDS);
             assertTrue("the result went to the run", result.spilled());
             EsqlQueryResponse response = new EsqlQueryResponse(

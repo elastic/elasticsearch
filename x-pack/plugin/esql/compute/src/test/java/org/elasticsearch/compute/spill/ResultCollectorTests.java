@@ -140,7 +140,7 @@ public class ResultCollectorTests extends ComputeTestCase {
                             multi.appendLong(r);
                         }
                     }
-                    collector.accept(new Page(keys.build(), nulls.build(), multi.build()));
+                    collector.consume(new Page(keys.build(), nulls.build(), multi.build()));
                 }
             }
             assertThat(collector.spilled(), equalTo(spill));
@@ -148,6 +148,7 @@ public class ResultCollectorTests extends ComputeTestCase {
                 assertThat(result.pageCount(), equalTo(pages));
                 assertArrayEquals(new boolean[] { false, true, false }, result.nullColumns());
                 assertArrayEquals(new boolean[] { false, false, true }, result.multivaluedColumns());
+                assertArrayEquals(new boolean[] { false, false, true }, result.doesHaveMultivaluedColumns());
             }
         } finally {
             closeSpillingScopes();
@@ -184,14 +185,14 @@ public class ResultCollectorTests extends ComputeTestCase {
                         Thread.sleep(1);
                     }
                 }
-                collector.accept(page(factory, p, between(1, 50), expected));
+                collector.consume(page(factory, p, between(1, 50), expected));
                 if (p == 0) {
                     assertTrue("the first page crossed the budget", collector.spilled());
                     assertFalse("the run is being created", collector.isBlocked().listener().isDone());
                 }
             }
             PlainActionFuture<ResultPages> finished = new PlainActionFuture<>();
-            collector.finish(finished);
+            collector.handOver(finished);
             releaseUntilDone(store, finished);
             try (ResultPages result = finished.get()) {
                 assertTrue(result.spilled());
@@ -239,7 +240,7 @@ public class ResultCollectorTests extends ComputeTestCase {
             int pages = between(1, 3);
             for (int p = 0; p < pages; p++) {
                 // the pages wait in memory while the store holds the run's creation
-                collector.accept(page(ctx.blockFactory(), p, between(1, 50), expected));
+                collector.consume(page(ctx.blockFactory(), p, between(1, 50), expected));
             }
             assertTrue(collector.spilled());
             assertFalse("the run is being created", collector.isBlocked().listener().isDone());
@@ -273,7 +274,7 @@ public class ResultCollectorTests extends ComputeTestCase {
             collector.close();
             assertTrue(released.get());
             PlainActionFuture<ResultPages> late = new PlainActionFuture<>();
-            collector.finish(late);
+            collector.handOver(late);
             expectThrows(IllegalStateException.class, late::actionGet);
         } finally {
             closeSpillingScopes();
@@ -296,14 +297,14 @@ public class ResultCollectorTests extends ComputeTestCase {
             Exception failure = null;
             for (int p = 0; p < 40 && failure == null; p++) {
                 try {
-                    collector.accept(page(factory, p, 1_000, expected));
+                    collector.consume(page(factory, p, 1_000, expected));
                 } catch (Exception e) {
                     failure = e;
                 }
             }
             if (failure == null) {
                 PlainActionFuture<ResultPages> finished = new PlainActionFuture<>();
-                collector.finish(finished);
+                collector.handOver(finished);
                 failure = expectThrows(Exception.class, finished::actionGet);
             }
             assertThat("the store's limit is the cause", ExceptionsHelper.stackTrace(failure), containsString("test.spill"));
@@ -342,10 +343,10 @@ public class ResultCollectorTests extends ComputeTestCase {
                         Thread.sleep(1);
                     }
                 }
-                collector.accept(page(factory, p, between(1, 50), expected));
+                collector.consume(page(factory, p, between(1, 50), expected));
             }
             PlainActionFuture<ResultPages> finished = new PlainActionFuture<>();
-            collector.finish(finished);
+            collector.handOver(finished);
             if (randomBoolean()) {
                 releaseUntilDone(store, finished);
             }
@@ -390,10 +391,10 @@ public class ResultCollectorTests extends ComputeTestCase {
             AtomicLong budget = new AtomicLong(Long.MAX_VALUE);
             ResultCollector collector = new ResultCollector(ctx.queryScope(), null, budget::get, "r");
             List<List<Object>> expected = new ArrayList<>();
-            collector.accept(page(ctx.blockFactory(), 0, between(1, 50), expected));
+            collector.consume(page(ctx.blockFactory(), 0, between(1, 50), expected));
             assertFalse("under a budget without bound", collector.spilled());
             budget.set(0);
-            collector.accept(page(ctx.blockFactory(), 1, between(1, 50), expected));
+            collector.consume(page(ctx.blockFactory(), 1, between(1, 50), expected));
             assertTrue("over the budget the next page saw", collector.spilled());
             try (ResultPages result = finish(collector)) {
                 assertThat(rows(result), equalTo(expected));
@@ -425,7 +426,7 @@ public class ResultCollectorTests extends ComputeTestCase {
         List<List<Object>> expected = new ArrayList<>();
         for (int p = 0; p < pages; p++) {
             assertTrue("an inline store never blocks the sink", collector.isBlocked().listener().isDone());
-            collector.accept(page(factory, p, between(1, maxRows), expected));
+            collector.consume(page(factory, p, between(1, maxRows), expected));
         }
         return expected;
     }
@@ -448,7 +449,7 @@ public class ResultCollectorTests extends ComputeTestCase {
 
     private static ResultPages finish(ResultCollector collector) {
         PlainActionFuture<ResultPages> future = new PlainActionFuture<>();
-        collector.finish(future);
+        collector.handOver(future);
         return future.actionGet();
     }
 

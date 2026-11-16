@@ -413,10 +413,10 @@ public class SpilledResponseBodyTests extends ESTestCase {
         QueryScope.Lease lease = scope.tryAcquire();
         ResultCollector collector = new ResultCollector(scope, lease, 0, "result");
         for (Page page : pages) {
-            collector.accept(page);
+            collector.consume(page);
         }
         PlainActionFuture<ResultPages> finished = new PlainActionFuture<>();
-        collector.finish(finished);
+        collector.handOver(finished);
         releaseUntilDone(store, finished);
         ResultPages result = finished.get();
         assertThat(result, instanceOf(ResultPages.Spilled.class));

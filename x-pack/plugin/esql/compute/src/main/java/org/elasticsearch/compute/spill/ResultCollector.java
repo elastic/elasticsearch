@@ -28,13 +28,13 @@ import static org.elasticsearch.compute.operator.Operator.NOT_BLOCKED;
  * collected so far go, in order, into one page run and every later page is appended, so that the memory held is the
  * writer's buffers and the appends in flight. The driver waits, through the sink's blocked state, for the run's
  * creation and for the appends over the bound, which is what gives the exchange, and so the data nodes, the
- * backpressure a list never provided. {@link #finish} hands the result over as {@link ResultPages}, in memory or in
+ * backpressure a list never provided. {@link #handOver} hands the result over as {@link ResultPages}, in memory or in
  * the run, once the run is sealed.
  * <p>
  * Pages arrive on the driver's thread and the bookkeeping is that thread's; the codec's completions update the
  * in-flight count under a lock. Without a scope that spills the collector is a list.
  */
-public final class ResultCollector implements OutputOperator.BlockingPageConsumer, Releasable {
+public final class ResultCollector implements OutputOperator.SpillingPageConsumer, Releasable {
 
     /** Payload bytes per chunk of the result run, and the reader's window. */
     static final int CHUNK_BYTES = 256 * 1024;
@@ -85,7 +85,7 @@ public final class ResultCollector implements OutputOperator.BlockingPageConsume
     /**
      * @param scope the query's scope, whose store and root view the run uses; null keeps every page in memory
      * @param onDone released once the result no longer needs the scope: with the result source when there is one,
-     *               else when the collector finishes or closes; the lease the collector's owner holds on the scope
+     *               else when the collector hands over or closes; the lease the collector's owner holds on the scope
      * @param budgetBytes the bytes of pages kept in memory before the run starts
      * @param runName the run's name hint
      */
@@ -105,7 +105,7 @@ public final class ResultCollector implements OutputOperator.BlockingPageConsume
     }
 
     @Override
-    public synchronized void accept(Page page) {
+    public synchronized void consume(Page page) {
         if (closed || finished) {
             page.releaseBlocks();
             return;
@@ -137,7 +137,7 @@ public final class ResultCollector implements OutputOperator.BlockingPageConsume
 
     /**
      * Takes the writer once its creation landed and sends the resident pages, in order; a failed creation keeps the
-     * pages in memory and fails the collector, which the next page or the finish reports.
+     * pages in memory and fails the collector, which the next page or the hand-over reports.
      */
     private void landWriter() {
         if (writer != null || creating == null || creating.isDone() == false) {
@@ -281,11 +281,26 @@ public final class ResultCollector implements OutputOperator.BlockingPageConsume
     }
 
     /**
+     * Nothing to do when a driver's sink finishes: the same collector takes the pages of every driver of the sink,
+     * and the result is handed over once, by {@link #handOver}, after the compute that fed it has completed.
+     */
+    @Override
+    public void finish() {}
+
+    /**
+     * Always: the run is sealed by {@link #handOver}, after the drivers, so no driver waits on the collector to end.
+     */
+    @Override
+    public boolean isFinished() {
+        return true;
+    }
+
+    /**
      * Hands the result over once no page is coming: the pages in memory as they are, or the run once sealed. Called
      * once, after the compute that fed the collector has completed; a failure of the run fails the result and releases
      * what the collector holds.
      */
-    public void finish(ActionListener<ResultPages> listener) {
+    public void handOver(ActionListener<ResultPages> listener) {
         SpillCompletion<FramedRunWriter> pending;
         List<Page> pages;
         Releasable lease;
@@ -363,8 +378,8 @@ public final class ResultCollector implements OutputOperator.BlockingPageConsume
 
     /**
      * Releases what the collector holds: the pages in memory, and the run through an abort of its writer, or of its
-     * creation once that lands. Idempotent, and what a failed query calls instead of {@link #finish}; after a finish
-     * it does nothing, since the result the finish handed over, or the failure it reported, owns everything by then.
+     * creation once that lands. Idempotent, and what a failed query calls instead of {@link #handOver}; after a
+     * hand-over it does nothing, since the result handed over, or the failure reported, owns everything by then.
      */
     @Override
     public synchronized void close() {

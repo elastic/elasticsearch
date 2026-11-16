@@ -161,6 +161,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntSupplier;
 import java.util.function.LongConsumer;
@@ -1258,9 +1259,13 @@ public class ComputeService {
         // The client's answer goes through the collector, which keeps its pages up to the result budget and sends the
         // rest to a run of the query's scope. An intermediate result the session consumes stays a list, as its cap is far
         // below any budget; so does a streamed result, which goes out as it comes, and one of a query that cannot spill.
-        final ResultCollector collector = role == EsqlSession.PlanRunner.Role.OUTPUT && physicalPlan instanceof StreamingOutputExec == false
-            ? resultCollector(sessionId)
-            : null;
+        // Nor does a plan that brings its own sink, an INTO's writer, whose pages never reach a collector.
+        final ResultCollector collector = role == EsqlSession.PlanRunner.Role.OUTPUT
+            && physicalPlan instanceof StreamingOutputExec == false
+            && physicalPlan instanceof OutputExec == false ? resultCollector(sessionId) : null;
+        // the session caps an intermediate result only, and only the client's answer has a collector
+        assert collector == null || maxResultSize == null : "a size cap on a result that spills";
+        final ActionListener<Result> resultListener = closingCollector(collector, dispatchListener);
         try {
             switch (executionPlan) {
                 case SubPlan.Leaf leaf -> executePlan(
@@ -1272,7 +1277,7 @@ public class ComputeService {
                     foldContext,
                     execInfo,
                     null,
-                    dispatchListener,
+                    resultListener,
                     null,
                     collector,
                     initialClusterStatuses,
@@ -1296,19 +1301,24 @@ public class ComputeService {
                     merge,
                     collector,
                     maxResultSize,
-                    dispatchListener
+                    resultListener
                 ).executePlan();
             }
         } catch (Exception e) {
             // executePlan does planning work outside its own try/catch (breakPlanBetweenCoordinatorAndDataNode, getIndices), so a
             // legitimate planning error lands here. SubPlansExecutor can also settle the listener from a finally and then throw out
             // of that same finally; notifyOnce drops that second completion.
-            if (collector != null) {
-                // nothing to do once the collector handed its result over; before that, what it holds goes with the failure
-                collector.close();
-            }
-            dispatchListener.onFailure(e);
+            resultListener.onFailure(e);
         }
+    }
+
+    /**
+     * Closes the collector with the query, whichever way it completes. Nothing to do once the collector handed its
+     * result over; before that, what it holds, its pages, its run and its lease on the scope, goes with the completion:
+     * a failure, or an answer that never reached the hand-over, as when a STOP lands between discovery and compute.
+     */
+    static ActionListener<Result> closingCollector(@Nullable ResultCollector collector, ActionListener<Result> listener) {
+        return collector == null ? listener : ActionListener.runBefore(listener, collector::close);
     }
 
     /**
@@ -1564,7 +1574,7 @@ public class ComputeService {
         if (exchangeSinkSupplier == null
             && coordinatorPlan instanceof StreamingOutputExec == false
             && coordinatorPlan instanceof OutputExec == false) {
-            coordinatorPlan = new OutputExec(coordinatorPlan, collector != null ? collector : pageCollector);
+            coordinatorPlan = outputSink(coordinatorPlan, collector, pageCollector);
         }
 
         PhysicalPlan dataNodePlan = coordinatorAndDataNode.v2();
@@ -2101,6 +2111,15 @@ public class ComputeService {
     }
 
     /**
+     * The sink of a result collected on the coordinator. The collector goes in as the page consumer it is, the same
+     * one for every driver of the sink, so that the output operator forwards its blocked state and reports what it
+     * spilled; handed over as a plain {@link Consumer} it would be wrapped, and neither block nor report.
+     */
+    static OutputExec outputSink(PhysicalPlan plan, @Nullable ResultCollector collector, Consumer<Page> pages) {
+        return collector != null ? OutputExec.withFactory(null, plan, driverContext -> collector) : new OutputExec(plan, pages);
+    }
+
+    /**
      * Hands the client's answer over: the pages the collector kept in memory go back to the list, as without it, and a
      * run, once sealed, goes as the result's source; without a collector the list is the result.
      */
@@ -2109,7 +2128,7 @@ public class ComputeService {
             listener.onResponse(null);
             return;
         }
-        collector.finish(listener.map(pages -> {
+        collector.handOver(listener.map(pages -> {
             if (pages.spilled()) {
                 return pages;
             }

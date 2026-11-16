@@ -25,7 +25,6 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
-import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.StreamingOutputExec;
 import org.elasticsearch.xpack.esql.planner.SubPlan;
@@ -177,7 +176,7 @@ final class SubPlansExecutor {
             rootPlan,
             rootPlan.plan() instanceof StreamingOutputExec
                 ? rootPlan.plan()
-                : new OutputExec(rootPlan.plan(), collector != null ? collector : pageCollector),
+                : ComputeService.outputSink(rootPlan.plan(), collector, pageCollector),
             "main.final",
             rootPlanTimeProfile,
             null,

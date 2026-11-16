@@ -146,20 +146,56 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
     }
 
     /**
+     * Per column, what its converter makes of the facts captured as the pages were collected, for the columns the
+     * response keeps: the decision {@link #multivalued(List, List, boolean[])} takes from the blocks, for pages that
+     * are in a run, with the same rejections and in the same order.
+     */
+    private static boolean[] multivalued(
+        List<Column> columns,
+        boolean[] dropColumns,
+        boolean[] mayHaveMultivalued,
+        boolean[] doesHaveMultivalued
+    ) {
+        boolean[] multivalued = new boolean[columns.size()];
+        if (columns.size() != dropColumns.length) {
+            return multivalued;
+        }
+        for (int blockIndex = 0; blockIndex < columns.size(); blockIndex++) {
+            if (dropColumns[blockIndex]) {
+                continue;
+            }
+            Column column = columns.get(blockIndex);
+            BlockArrowFormatter converter = ESQL_FORMATTERS.get(column.esqlType);
+            if (converter == null) {
+                return multivalued;
+            }
+            multivalued[blockIndex] = converter.isMultivalued(column.name, mayHaveMultivalued[blockIndex], doesHaveMultivalued[blockIndex]);
+        }
+        return multivalued;
+    }
+
+    /**
      * The body of a response whose pages are in a run: the schema first, then one part per page read through the
      * continuation, then the end. A page is released once its part is complete; the close hook handed to
      * {@code onClose} releases the cursor and the page in flight when the response closes.
      *
-     * @param multivalued per column, whether a value may hold several values, captured as the pages were collected
+     * @param mayHaveMultivalued per column, whether a value may hold several values, captured as the pages were
+     *                           collected
+     * @param doesHaveMultivalued per column, whether a value does hold several values, captured likewise
      */
     public static ChunkedRestResponseBodyPart spilled(
         List<Column> columns,
         boolean[] dropColumns,
-        boolean[] multivalued,
+        boolean[] mayHaveMultivalued,
+        boolean[] doesHaveMultivalued,
         ResultPages.Cursor cursor,
         Consumer<Releasable> onClose
     ) {
-        ArrowResponse shapes = new ArrowResponse(columns, dropColumns, multivalued);
+        ArrowResponse shapes = new ArrowResponse(
+            columns,
+            dropColumns,
+            multivalued(columns, dropColumns, mayHaveMultivalued, doesHaveMultivalued)
+        );
         Continuation continuation = new Continuation(shapes, cursor);
         onClose.accept(continuation::close);
         return continuation.part(new SchemaResponse(shapes), null, false);

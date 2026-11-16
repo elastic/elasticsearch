@@ -9,6 +9,7 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.spill.SpillStatus;
 import org.elasticsearch.compute.test.AnyOperatorTestCase;
 import org.elasticsearch.core.Nullable;
 import org.hamcrest.Matcher;
@@ -112,6 +113,74 @@ public class OutputOperatorTests extends AnyOperatorTestCase {
             assertFalse(operator.needsInput());
             consumer.pendingOps = 0;
             assertTrue(operator.isFinished());
+        }
+    }
+
+    /** A consumer that writes pages out: every row it is handed counts as spilled. */
+    private static class SpillingConsumer extends TrackingConsumer implements OutputOperator.SpillingPageConsumer {
+        long rows;
+
+        @Override
+        public void consume(Page page) {
+            rows += page.getPositionCount();
+            page.releaseBlocks();
+        }
+
+        @Override
+        public long rowsSpilled() {
+            return rows;
+        }
+
+        @Override
+        public SpillStatus spillStatus() {
+            return new SpillStatus(rows * Integer.BYTES, 0, 1, 0);
+        }
+    }
+
+    /**
+     * A consumer that writes pages out reaches the operator through its factory as the consumer it is: the operator
+     * forwards its blocked state and reports what it received and what the consumer spilled.
+     */
+    public void testSpillingConsumerBlocksAndReports() {
+        SpillingConsumer consumer = new SpillingConsumer();
+        PageConsumer.Factory factory = driverContext -> consumer;
+        DriverContext driverContext = driverContext();
+        try (
+            OutputOperator operator = (OutputOperator) new OutputOperator.OutputOperatorFactory(List.of("a"), p -> p, factory).get(
+                driverContext
+            )
+        ) {
+            int pages = between(1, 5);
+            long rows = 0;
+            for (int p = 0; p < pages; p++) {
+                int positions = between(1, 100);
+                rows += positions;
+                operator.addInput(new Page(driverContext.blockFactory().newConstantIntBlockWith(p, positions)));
+            }
+            OutputOperator.Status status = operator.status();
+            assertThat(status.pagesReceived(), equalTo(pages));
+            assertThat(status.rowsReceived(), equalTo(rows));
+            assertThat(status.rowsSpilled(), equalTo(rows));
+            assertThat(status.spill(), equalTo(new SpillStatus(rows * Integer.BYTES, 0, 1, 0)));
+
+            SubscribableListener<Void> listener = new SubscribableListener<>();
+            consumer.blocked = listener;
+            assertFalse(operator.needsInput());
+            assertFalse(operator.isBlocked().listener().isDone());
+            listener.onResponse(null);
+            assertTrue(operator.needsInput());
+        }
+    }
+
+    /**
+     * A plain consumer is wrapped on its way to the operator, so the operator has no spill to report for it: the
+     * reason a consumer that spills goes in through a factory.
+     */
+    public void testPlainConsumerReportsNoStatus() {
+        DriverContext driverContext = driverContext();
+        try (Operator operator = new OutputOperator.OutputOperatorFactory(List.of("a"), p -> p, Page::releaseBlocks).get(driverContext)) {
+            operator.addInput(new Page(driverContext.blockFactory().newConstantIntBlockWith(1, 3)));
+            assertThat(operator.status(), nullValue());
         }
     }
 }

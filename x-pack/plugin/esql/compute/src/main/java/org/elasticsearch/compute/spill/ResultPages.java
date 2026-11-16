@@ -9,6 +9,7 @@ package org.elasticsearch.compute.spill;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -44,6 +45,13 @@ public abstract class ResultPages implements Releasable {
 
     /** Per column, whether a value may hold several values; a copy. */
     public abstract boolean[] multivaluedColumns();
+
+    /**
+     * Per column, whether a value does hold several values, where {@link #multivaluedColumns} may say so of a column
+     * that holds none; a copy. For a renderer that cannot write several values of a type and has to tell a column it
+     * must reject from one it can write.
+     */
+    public abstract boolean[] doesHaveMultivaluedColumns();
 
     /** Whether the pages are in a run rather than in memory. */
     public abstract boolean spilled();
@@ -98,6 +106,8 @@ public abstract class ResultPages implements Releasable {
         private boolean[] nullColumns;
         @Nullable
         private boolean[] multivalued;
+        @Nullable
+        private boolean[] doesHaveMultivalued;
         private long rows;
         private int pages;
 
@@ -106,14 +116,19 @@ public abstract class ResultPages implements Releasable {
             if (nullColumns == null) {
                 nullColumns = new boolean[columns];
                 multivalued = new boolean[columns];
+                doesHaveMultivalued = new boolean[columns];
                 Arrays.fill(nullColumns, true);
             }
             for (int c = 0; c < columns; c++) {
-                if (nullColumns[c] && page.getBlock(c).areAllValuesNull() == false) {
+                Block block = page.getBlock(c);
+                if (nullColumns[c] && block.areAllValuesNull() == false) {
                     nullColumns[c] = false;
                 }
-                if (multivalued[c] == false && page.getBlock(c).mayHaveMultivaluedFields()) {
+                // the sure answer may walk the block's positions: asked only of a block that may hold multivalues, and
+                // of a column no earlier page settled
+                if (doesHaveMultivalued[c] == false && block.mayHaveMultivaluedFields()) {
                     multivalued[c] = true;
+                    doesHaveMultivalued[c] = block.doesHaveMultivaluedFields();
                 }
             }
             rows += page.getPositionCount();
@@ -134,6 +149,10 @@ public abstract class ResultPages implements Releasable {
 
         public boolean[] multivaluedColumns(int columns) {
             return multivalued == null ? new boolean[columns] : multivalued.clone();
+        }
+
+        public boolean[] doesHaveMultivaluedColumns(int columns) {
+            return doesHaveMultivalued == null ? new boolean[columns] : doesHaveMultivalued.clone();
         }
 
         private static boolean[] allNull(int columns) {
@@ -175,6 +194,11 @@ public abstract class ResultPages implements Releasable {
         @Override
         public boolean[] multivaluedColumns() {
             return facts.multivaluedColumns(columns);
+        }
+
+        @Override
+        public boolean[] doesHaveMultivaluedColumns() {
+            return facts.doesHaveMultivaluedColumns(columns);
         }
 
         @Override
@@ -274,6 +298,11 @@ public abstract class ResultPages implements Releasable {
         @Override
         public boolean[] multivaluedColumns() {
             return facts.multivaluedColumns(columns);
+        }
+
+        @Override
+        public boolean[] doesHaveMultivaluedColumns() {
+            return facts.doesHaveMultivaluedColumns(columns);
         }
 
         @Override

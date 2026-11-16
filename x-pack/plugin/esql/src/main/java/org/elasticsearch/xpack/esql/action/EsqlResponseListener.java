@@ -169,6 +169,7 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
                         columns,
                         dropColumns,
                         esqlResponse.result().multivaluedColumns(),
+                        esqlResponse.result().doesHaveMultivaluedColumns(),
                         esqlResponse.result().open(),
                         esqlResponse::addCloseHook
                     );

@@ -42,7 +42,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
-import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.ASYNC_ID_FIELD;
+import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.STREAM_ID_FIELD;
 import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.EXPIRATION_TIME_FIELD;
 import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.FIRST_ROW_FIELD;
 import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.PAGE_FIELD;
@@ -203,7 +203,7 @@ final class StoredResultWriter implements PageStreamPublisher.PageObserver {
         long[] written = new long[1];
         try {
             EscfRowBuffer row = chunk.builder.beginRow();
-            row.stringField(ASYNC_ID_FIELD, docIdBytes, 0, docIdBytes.length);
+            row.stringField(STREAM_ID_FIELD, docIdBytes, 0, docIdBytes.length);
             row.longField(PAGE_SEQ_FIELD, seq);
             row.longField(FIRST_ROW_FIELD, firstRow);
             row.longField(ROW_COUNT_FIELD, rowCount);

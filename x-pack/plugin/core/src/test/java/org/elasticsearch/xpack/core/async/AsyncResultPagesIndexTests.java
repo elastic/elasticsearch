@@ -20,12 +20,12 @@ import org.elasticsearch.transport.BytesRefRecycler;
 
 import java.nio.charset.StandardCharsets;
 
-import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.ASYNC_ID_FIELD;
 import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.EXPIRATION_TIME_FIELD;
 import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.FIRST_ROW_FIELD;
 import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.PAGE_FIELD;
 import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.PAGE_SEQ_FIELD;
 import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.ROW_COUNT_FIELD;
+import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.STREAM_ID_FIELD;
 import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.TRANSPORT_VERSION_FIELD;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -45,7 +45,7 @@ public class AsyncResultPagesIndexTests extends MapperServiceTestCase {
             for (int seq = 0; seq < 3; seq++) {
                 EscfRowBuffer row = builder.beginRow();
                 byte[] asyncId = "result-id".getBytes(StandardCharsets.UTF_8);
-                row.stringField(ASYNC_ID_FIELD, asyncId, 0, asyncId.length);
+                row.stringField(STREAM_ID_FIELD, asyncId, 0, asyncId.length);
                 row.longField(PAGE_SEQ_FIELD, seq);
                 row.longField(FIRST_ROW_FIELD, seq * 100L);
                 row.longField(ROW_COUNT_FIELD, 100);

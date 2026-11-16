@@ -39,9 +39,9 @@ public final class AsyncResultPagesIndex {
      */
     public static final FeatureFlag FEATURE_FLAG = new FeatureFlag("esql_stored_results");
 
-    public static final String INDEX = ".async-result-pages";
+    public static final String INDEX = ".async-stream-result";
 
-    public static final String ASYNC_ID_FIELD = "async_id";
+    public static final String STREAM_ID_FIELD = "stream_id";
     public static final String PAGE_SEQ_FIELD = "page_seq";
     public static final String FIRST_ROW_FIELD = "first_row";
     public static final String ROW_COUNT_FIELD = "row_count";
@@ -77,7 +77,7 @@ public final class AsyncResultPagesIndex {
                 MergePolicyConfig.INDEX_MERGE_POLICY_TYPE_SETTING.getKey(),
                 MergePolicyConfig.Type.TIME_BASED.name().toLowerCase(Locale.ROOT)
             )
-            .putList(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), ASYNC_ID_FIELD, PAGE_SEQ_FIELD)
+            .putList(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), STREAM_ID_FIELD, PAGE_SEQ_FIELD)
             .build();
     }
 
@@ -91,7 +91,7 @@ public final class AsyncResultPagesIndex {
                 .endObject()
                 .field("dynamic", "strict")
                 .startObject("properties")
-                .startObject(ASYNC_ID_FIELD)
+                .startObject(STREAM_ID_FIELD)
                 .field("type", "keyword")
                 .field("index", false)
                 .field("multi_value", false)

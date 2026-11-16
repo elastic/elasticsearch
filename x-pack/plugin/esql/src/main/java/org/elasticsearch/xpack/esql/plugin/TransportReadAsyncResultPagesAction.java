@@ -57,12 +57,12 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.ASYNC_ID_FIELD;
 import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.EXPIRATION_TIME_FIELD;
 import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.FIRST_ROW_FIELD;
 import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.PAGE_FIELD;
 import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.PAGE_SEQ_FIELD;
 import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.ROW_COUNT_FIELD;
+import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.STREAM_ID_FIELD;
 import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.TRANSPORT_VERSION_FIELD;
 
 /**
@@ -146,7 +146,7 @@ public class TransportReadAsyncResultPagesAction extends TransportSingleShardAct
             );
             MappedFieldType seqType = context.getFieldType(PAGE_SEQ_FIELD);
             Query query = new BooleanQuery.Builder().add(
-                context.getFieldType(ASYNC_ID_FIELD).termQuery(request.asyncDocId, context),
+                context.getFieldType(STREAM_ID_FIELD).termQuery(request.asyncDocId, context),
                 BooleanClause.Occur.FILTER
             )
                 .add(

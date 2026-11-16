@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.lucene.read;
 
 import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -48,7 +47,7 @@ final class OrdinalsBuilder implements BlockLoader.SortedSetOrdinalsBuilder, Rel
         this.blockFactory = blockFactory;
         this.docValues = docValues;
         this.mvOrdering = mvOrdering;
-        this.ordsBuilder = blockFactory.newIntBlockBuilder(count).mvOrdering(mvOrdering);
+        this.ordsBuilder = blockFactory.newIntBlockBuilder(count, true).mvOrdering(mvOrdering);
     }
 
     @Override
@@ -80,13 +79,11 @@ final class OrdinalsBuilder implements BlockLoader.SortedSetOrdinalsBuilder, Rel
 
     private BytesRefBlock buildBlock(IntBlock ordinals) {
         final int numOrds = maxOrd - minOrd + 1;
-        final long breakerSize = arraySize(numOrds);
-        blockFactory.adjustBreaker(breakerSize);
         BytesRefVector dict = null;
         IntBlock mappedOrds = null;
+        final int[] newOrds = blockFactory.acquireInts(numOrds);
         try {
-            final int[] newOrds = new int[numOrds];
-            Arrays.fill(newOrds, -1);
+            Arrays.fill(newOrds, 0, numOrds, -1);
             for (int p = 0; p < ordinals.getPositionCount(); p++) {
                 int count = ordinals.getValueCount(p);
                 if (count > 0) {
@@ -98,8 +95,8 @@ final class OrdinalsBuilder implements BlockLoader.SortedSetOrdinalsBuilder, Rel
                 }
             }
             int nextOrd = -1;
-            try (BytesRefVector.Builder dictBuilder = blockFactory.newBytesRefVectorBuilder(Math.min(newOrds.length, totalValueCount))) {
-                for (int i = 0; i < newOrds.length; i++) {
+            try (BytesRefVector.Builder dictBuilder = blockFactory.newBytesRefVectorBuilder(Math.min(numOrds, totalValueCount))) {
+                for (int i = 0; i < numOrds; i++) {
                     if (newOrds[i] != -1) {
                         newOrds[i] = ++nextOrd;
                         dictBuilder.appendBytesRef(docValues.lookupOrd(i + minOrd));
@@ -115,12 +112,12 @@ final class OrdinalsBuilder implements BlockLoader.SortedSetOrdinalsBuilder, Rel
             mappedOrds = null;
             return result;
         } finally {
-            Releasables.close(() -> blockFactory.adjustBreaker(-breakerSize), mappedOrds, dict);
+            Releasables.close(() -> blockFactory.recycleInts(newOrds), mappedOrds, dict);
         }
     }
 
     private IntBlock remapOrdinals(IntBlock ordinals, int[] newOrds, int shiftOrd) {
-        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(totalValueCount)) {
+        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(totalValueCount, true)) {
             for (int p = 0; p < ordinals.getPositionCount(); p++) {
                 int valueCount = ordinals.getValueCount(p);
                 switch (valueCount) {
@@ -179,9 +176,5 @@ final class OrdinalsBuilder implements BlockLoader.SortedSetOrdinalsBuilder, Rel
     @Override
     public Block.Builder mvOrdering(Block.MvOrdering mvOrdering) {
         throw new UnsupportedOperationException();
-    }
-
-    private static long arraySize(int ordsCount) {
-        return RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) ordsCount * Integer.BYTES;
     }
 }

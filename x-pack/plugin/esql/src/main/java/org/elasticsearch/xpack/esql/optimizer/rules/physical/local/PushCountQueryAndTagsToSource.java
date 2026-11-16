@@ -296,7 +296,8 @@ public class PushCountQueryAndTagsToSource extends PhysicalOptimizerRules.Optimi
             QueryBuilder filter1 = bqb.filter().get(0);
             var range1 = tryExtractSingleRangeQuery(filter1);
             QueryBuilder filter2 = bqb.filter().get(1);
-            if (range1 != null && filter2 instanceof BoolQueryBuilder internalQuery && hasOnlyMustNot(internalQuery)) {
+            // Whatever its other clauses, a query that excludes the values of the range never matches when combined with it
+            if (range1 != null && filter2 instanceof BoolQueryBuilder internalQuery && internalQuery.mustNot().size() == 1) {
                 QueryBuilder mustNot = internalQuery.mustNot().get(0);
                 if (mustNot instanceof ExistsQueryBuilder exists && exists.fieldName().equals(range1.fieldName())) {
                     // Simple "must not exist" cases can be dropped since they never match anything when combined with a range
@@ -395,10 +396,6 @@ public class PushCountQueryAndTagsToSource extends PhysicalOptimizerRules.Optimi
      */
     private static boolean hasOnlyFilters(BoolQueryBuilder bool, int filters) {
         return bool.filter().size() == filters && bool.must().isEmpty() && bool.should().isEmpty() && bool.mustNot().isEmpty();
-    }
-
-    private static boolean hasOnlyMustNot(BoolQueryBuilder bool) {
-        return bool.mustNot().size() == 1 && bool.filter().isEmpty() && bool.must().isEmpty() && bool.should().isEmpty();
     }
 
     enum BoundType {

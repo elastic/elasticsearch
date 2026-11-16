@@ -149,11 +149,11 @@ final class PageToEscfBatch {
                 yield stringColumn(block, i -> bref.getBytesRef(i, scratch), recycler);
             }
             case IP, VERSION, DATETIME, DATE_NANOS, GEO_POINT, GEO_SHAPE, CARTESIAN_POINT, CARTESIAN_SHAPE, GEOHASH, GEOTILE, GEOHEX,
-                AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, DATE_RANGE, DOUBLE_RANGE, HISTOGRAM, TSID_DATA_TYPE -> stringColumn(
-                    block,
-                    formatted(block, type),
-                    recycler
-                );
+                AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, DATE_RANGE, DOUBLE_RANGE, HISTOGRAM, TSID_DATA_TYPE -> {
+                ResponseValueUtils.BlockValueExtractor extractor = ResponseValueUtils.valueExtractorFor(type, ZoneOffset.UTC);
+                BytesRef scratch = new BytesRef();
+                yield stringColumn(block, i -> new BytesRef(extractor.extract(block, i, scratch).toString()), recycler);
+            }
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }
@@ -242,7 +242,6 @@ final class PageToEscfBatch {
 
     private static EscfColumnData boolColumn(BooleanBlock block, Recycler<BytesRef> recycler) {
         if (block.doesHaveMultivaluedFields()) {
-            // Multi-valued booleans need a UNION column; build with the instance API.
             try (EscfColumnBuilder builder = new EscfColumnBuilder(CollisionPolicy.SPLIT, recycler)) {
                 writeBooleans(builder, block);
                 return builder.finish(block.getPositionCount());
@@ -314,7 +313,7 @@ final class PageToEscfBatch {
         if (encoded < 0) {
             builder.addLong(NumericUtils.unsignedLongAsLongExact(encoded));
         } else {
-            builder.setString(builder.nextAppendRow(), new BytesRef(NumericUtils.unsignedLongAsBigInteger(encoded).toString()));
+            builder.setString(builder.nextAppendRow(), unsignedLongDecimal(encoded));
         }
     }
 
@@ -322,14 +321,12 @@ final class PageToEscfBatch {
         if (encoded < 0) {
             builder.appendLong(NumericUtils.unsignedLongAsLongExact(encoded));
         } else {
-            builder.appendString(new BytesRef(NumericUtils.unsignedLongAsBigInteger(encoded).toString()));
+            builder.appendString(unsignedLongDecimal(encoded));
         }
     }
 
-    private static IntFunction<BytesRef> formatted(Block block, DataType type) {
-        ResponseValueUtils.BlockValueExtractor extractor = ResponseValueUtils.valueExtractorFor(type, ZoneOffset.UTC);
-        BytesRef scratch = new BytesRef();
-        return i -> new BytesRef(extractor.extract(block, i, scratch).toString());
+    private static BytesRef unsignedLongDecimal(long encoded) {
+        return new BytesRef(NumericUtils.unsignedLongAsBigInteger(encoded).toString());
     }
 
     private static FixedBitSet buildValidity(Block block) {
@@ -350,6 +347,9 @@ final class PageToEscfBatch {
         return validity;
     }
 
+    // rowOffsets[p] is the first child index of row p and rowOffsets[docCount] is the child count,
+    // so row p's children are [rowOffsets[p], rowOffsets[p + 1]). Index 0 stays 0: a new int[] is
+    // zero-filled, and 0 is the start of row 0. The loop writes each row's exclusive end at p + 1.
     private static int[] arrayRowOffsets(Block block) {
         int docCount = block.getPositionCount();
         int[] rowOffsets = new int[docCount + 1];

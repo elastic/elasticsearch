@@ -20,6 +20,11 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -36,6 +41,10 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.test.ComputeTestCase;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
@@ -58,6 +67,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.esql.into.IntoPageWriter.Factory.BatchForm.INLINE;
+import static org.elasticsearch.xpack.esql.into.IntoPageWriter.Factory.BatchForm.PREBUILT;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -80,7 +91,6 @@ public class IntoPageWriterTests extends ComputeTestCase {
     private CapturingClient client;
     private BlockFactory blockFactory;
     private DriverContext driverContext;
-    private boolean usePreBuiltBatch;
     private IntoPageWriter.Factory sink;
     private IntoPageWriter writer;
 
@@ -90,8 +100,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
         client = new CapturingClient(threadPool);
         blockFactory = blockFactory();
         driverContext = new DriverContext(mockBigArrays(), blockFactory, null);
-        usePreBuiltBatch = randomBoolean();
-        sink = IntoPageWriter.Factory.createFactory(client, DESTINATION, COLUMNS, usePreBuiltBatch);
+        sink = IntoPageWriter.Factory.createFactory(client, DESTINATION, COLUMNS, randomBoolean() ? PREBUILT : INLINE);
         writer = sink.create(driverContext);
     }
 
@@ -191,7 +200,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
     }
 
     public void testEscfBatchProperties() throws IOException {
-        IntoPageWriter.Factory escfSink = IntoPageWriter.Factory.createFactory(client, DESTINATION, COLUMNS, true);
+        IntoPageWriter.Factory escfSink = IntoPageWriter.Factory.createFactory(client, DESTINATION, COLUMNS, PREBUILT);
         IntoPageWriter escfWriter = escfSink.create(new DriverContext(mockBigArrays(), blockFactory, null));
         try (
             BytesRefBlock.Builder host = blockFactory.newBytesRefBlockBuilder(2);
@@ -221,7 +230,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
     public void testEscfBatchBytesIncludeRecyclerOverhead() {
         BlockFactory limited = blockFactory();
         DriverContext escfContext = new DriverContext(mockBigArrays(), limited, null);
-        IntoPageWriter.Factory escfSink = IntoPageWriter.Factory.createFactory(client, DESTINATION, COLUMNS, true);
+        IntoPageWriter.Factory escfSink = IntoPageWriter.Factory.createFactory(client, DESTINATION, COLUMNS, PREBUILT);
         IntoPageWriter escfWriter = escfSink.create(escfContext);
         escfWriter.consume(page("h1"));
         long charged = escfContext.breaker().getUsed();
@@ -237,7 +246,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
         // which also needs pageSize. The catch must release the first column's bytes.
         long pageSize = driverContext.bigArrays().bytesRefRecycler().pageSize();
         BlockFactory limited = blockFactory(ByteSizeValue.ofBytes(pageSize + 100));
-        IntoPageWriter.Factory escfSink = IntoPageWriter.Factory.createFactory(client, DESTINATION, COLUMNS, true);
+        IntoPageWriter.Factory escfSink = IntoPageWriter.Factory.createFactory(client, DESTINATION, COLUMNS, PREBUILT);
         IntoPageWriter escfWriter = escfSink.create(new DriverContext(mockBigArrays(), limited, null));
         expectThrows(CircuitBreakingException.class, () -> escfWriter.consume(page("h1")));
         assertThat(limited.breaker().getUsed(), equalTo(0L));
@@ -267,15 +276,6 @@ public class IntoPageWriterTests extends ComputeTestCase {
         writer.consume(page("h1", "h2"));
         long charged = driverContext.breaker().getUsed();
         assertThat(charged, greaterThan(0L));
-
-        if (usePreBuiltBatch == false) {
-            long sourceBytes = client.bulks.getFirst()
-                .requests()
-                .stream()
-                .mapToLong(r -> ((IndexRequest) r).indexSource().byteLength())
-                .sum();
-            assertThat(charged, equalTo(sourceBytes));
-        }
 
         client.answer(Outcome.CREATED, Outcome.CREATED);
         assertThat(driverContext.breaker().getUsed(), equalTo(0L));
@@ -367,6 +367,80 @@ public class IntoPageWriterTests extends ComputeTestCase {
         assertThat(sink.stats(), equalTo(new IntoStats(0, 0)));
     }
 
+    public void testInlineSourceBytesMatchTheCharge() {
+        IntoPageWriter inlineWriter = IntoPageWriter.Factory.createFactory(client, DESTINATION, COLUMNS, INLINE).create(driverContext);
+        inlineWriter.consume(page("h1", "h2"));
+        long sourceBytes = client.bulks.getFirst().requests().stream().mapToLong(r -> ((IndexRequest) r).indexSource().byteLength()).sum();
+        assertThat(driverContext.breaker().getUsed(), equalTo(sourceBytes));
+        client.answer(Outcome.CREATED, Outcome.CREATED);
+        assertThat(driverContext.breaker().getUsed(), equalTo(0L));
+    }
+
+    public void testConcreteIndexWithoutRoutingPathIsEligible() {
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(IndexMetadata.builder("dest").settings(indexSettings(IndexVersion.current(), 1, 0)))
+            .build();
+        assertPreBuilt(project, true);
+    }
+
+    public void testIndexWithDefaultPipelineIsNotEligible() {
+        IndexMetadata index = IndexMetadata.builder("dest")
+            .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "my-pipeline"))
+            .build();
+        assertPreBuilt(ProjectMetadata.builder(randomProjectIdOrDefault()).put(index, true).build(), false);
+    }
+
+    public void testIndexWithFinalPipelineIsNotEligible() {
+        IndexMetadata index = IndexMetadata.builder("dest")
+            .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexSettings.FINAL_PIPELINE.getKey(), "my-final-pipeline"))
+            .build();
+        assertPreBuilt(ProjectMetadata.builder(randomProjectIdOrDefault()).put(index, true).build(), false);
+    }
+
+    public void testConcreteIndexWithRoutingPathIsNotEligible() {
+        IndexMetadata index = IndexMetadata.builder("dest")
+            .settings(
+                indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim.host")
+                    .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB)
+            )
+            .build();
+        assertPreBuilt(ProjectMetadata.builder(randomProjectIdOrDefault()).put(index, true).build(), false);
+    }
+
+    // Before the E6 fix, project.index("my-alias") returned null so routesFromSource returned false.
+    public void testAliasWhoseWriteIndexHasRoutingPathIsNotEligible() {
+        IndexMetadata backing = IndexMetadata.builder("backing-000001")
+            .settings(
+                indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim.host")
+                    .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB)
+            )
+            .putAlias(AliasMetadata.builder("my-alias").writeIndex(true))
+            .build();
+        assertPreBuilt(ProjectMetadata.builder(randomProjectIdOrDefault()).put(backing, true).build(), "my-alias", false);
+    }
+
+    public void testDataStreamWhoseWriteIndexHasRoutingPathIsNotEligible() {
+        IndexMetadata backing = IndexMetadata.builder(".ds-metrics-000001")
+            .settings(
+                indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim.host")
+                    .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB)
+            )
+            .build();
+        Index backingIndex = backing.getIndex();
+        DataStream ds = DataStream.builder("metrics", List.of(backingIndex)).build();
+        assertPreBuilt(ProjectMetadata.builder(randomProjectIdOrDefault()).put(backing, true).put(ds).build(), "metrics", false);
+    }
+
+    public void testMissingNameMatchingV2TemplateIsNotEligible() {
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder().indexPatterns(List.of("metrics-*")).build();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).put("my-template", template).build();
+        assertPreBuilt(project, "metrics-logs-123", false);
+    }
+
+    public void testMissingIndexWithNoTemplateIsEligible() {
+        assertPreBuilt(ProjectMetadata.builder(randomProjectIdOrDefault()).build(), "new-dest", true);
+    }
+
     public void testTwoWritersAreIndependent() {
         IntoPageWriter writerB = sink.create(driverContext);
 
@@ -381,6 +455,14 @@ public class IntoPageWriterTests extends ComputeTestCase {
         client.answer(Outcome.CREATED);
         client.answer(Outcome.CREATED);
         assertThat(driverContext.breaker().getUsed(), equalTo(0L));
+    }
+
+    private static void assertPreBuilt(ProjectMetadata project, boolean eligible) {
+        assertPreBuilt(project, "dest", eligible);
+    }
+
+    private static void assertPreBuilt(ProjectMetadata project, String target, boolean eligible) {
+        assertThat(IntoPageWriter.Factory.canUsePreBuiltBatch(project, target), equalTo(eligible));
     }
 
     private static BigArrays mockBigArrays() {

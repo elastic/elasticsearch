@@ -69,19 +69,24 @@ public final class IntoPageWriter implements PageConsumer {
         private final String destination;
         private final List<String> columns;
         private final List<DataType> types;
-        private final boolean usePreBuiltBatch;
+        private final BatchForm batchForm;
         private final AtomicLong total = new AtomicLong();
         private final AtomicLong created = new AtomicLong();
         private final AtomicReference<Exception> failure = new AtomicReference<>();
 
-        public static Factory createFactory(Client client, String destination, List<Attribute> output, boolean usePreBuiltBatch) {
+        public enum BatchForm {
+            PREBUILT,
+            INLINE
+        }
+
+        public static Factory createFactory(Client client, String destination, List<Attribute> output, BatchForm batchForm) {
             return new Factory(
                 client,
                 client.threadPool().getThreadContext().newRestorableContext(false),
                 destination,
                 Expressions.names(output),
                 output.stream().map(Attribute::dataType).toList(),
-                usePreBuiltBatch
+                batchForm
             );
         }
 
@@ -91,14 +96,14 @@ public final class IntoPageWriter implements PageConsumer {
             String destination,
             List<String> columns,
             List<DataType> types,
-            boolean usePreBuiltBatch
+            BatchForm batchForm
         ) {
             this.client = client;
             this.caller = caller;
             this.destination = destination;
             this.columns = columns;
             this.types = types;
-            this.usePreBuiltBatch = usePreBuiltBatch;
+            this.batchForm = batchForm;
         }
 
         @Override
@@ -168,13 +173,12 @@ public final class IntoPageWriter implements PageConsumer {
 
     private ReservedBulk bulkFor(Page page) {
         BulkRequest bulk = new BulkRequest();
-        // convert may throw; on the ESCF path it releases its own charges before throwing.
         PageToEscfBatch.ConvertResult result = PageToEscfBatch.convert(
             page,
             sink.columns,
             sink.types,
             recycler,
-            sink.usePreBuiltBatch ? breaker : null
+            sink.batchForm == Factory.BatchForm.PREBUILT ? breaker : null
         );
         bulk.setPreBuiltBatches(Map.of(sink.destination, result.batch()));
         long reserved = result.charged();
@@ -182,7 +186,7 @@ public final class IntoPageWriter implements PageConsumer {
             for (int row = 0; row < result.batch().docCount(); row++) {
                 IndexRequest request = new IndexRequest(sink.destination).opType(DocWriteRequest.OpType.CREATE);
                 request.indexSource().setSourceRow(result.batch(), row, XContentType.JSON);
-                if (sink.usePreBuiltBatch == false) {
+                if (sink.batchForm == Factory.BatchForm.INLINE) {
                     inline(request);
                     long rowBytes = request.indexSource().byteLength();
                     breaker.addEstimateBytesAndMaybeBreak(rowBytes, BREAKER_LABEL);
@@ -190,7 +194,7 @@ public final class IntoPageWriter implements PageConsumer {
                 }
                 bulk.add(request);
             }
-            if (sink.usePreBuiltBatch == false) {
+            if (sink.batchForm == Factory.BatchForm.INLINE) {
                 bulk.releasePreBuiltBatches();
             }
             return new ReservedBulk(bulk, reserved);

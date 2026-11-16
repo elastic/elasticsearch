@@ -30,7 +30,6 @@ import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -42,35 +41,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public class PageToEscfBatchTests extends ComputeTestCase {
-    private MockBigArrays bigArrays;
+    private final MockBigArrays bigArrays;
 
-    @Before
-    public void setUpRecycler() {
+    public PageToEscfBatchTests() {
         bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), ByteSizeValue.ofGb(1));
-    }
-
-    private List<Map<String, Object>> rows(List<DataType> types, Block... blocks) throws IOException {
-        Page page = new Page(blocks);
-        List<String> names = new ArrayList<>(types.size());
-        for (int i = 0; i < types.size(); i++) {
-            names.add("c" + i);
-        }
-        try (EscfBatch batch = PageToEscfBatch.convert(page, names, types, bigArrays.bytesRefRecycler(), null).batch()) {
-            return toMaps(batch);
-        } finally {
-            page.releaseBlocks();
-        }
-    }
-
-    private static List<Map<String, Object>> toMaps(EscfBatch batch) throws IOException {
-        List<Map<String, Object>> result = new ArrayList<>();
-        for (int row = 0; row < batch.docCount(); row++) {
-            IndexSource src = new IndexSource();
-            src.setSourceRow(batch, row, XContentType.JSON);
-            src.ensureInlineSource();
-            result.add(XContentHelper.convertToMap(src.bytes(), false, XContentType.JSON).v2());
-        }
-        return result;
     }
 
     public void testLong() throws IOException {
@@ -254,5 +228,29 @@ public class PageToEscfBatchTests extends ComputeTestCase {
 
     public void testEmptyPage() throws IOException {
         assertThat(rows(List.of(DataType.LONG), blockFactory().newConstantNullBlock(0)), equalTo(List.of()));
+    }
+
+    private List<Map<String, Object>> rows(List<DataType> types, Block... blocks) throws IOException {
+        Page page = new Page(blocks);
+        List<String> names = new ArrayList<>(types.size());
+        for (int i = 0; i < types.size(); i++) {
+            names.add("c" + i);
+        }
+        try (EscfBatch batch = PageToEscfBatch.convert(page, names, types, bigArrays.bytesRefRecycler(), null).batch()) {
+            return toMaps(batch);
+        } finally {
+            page.releaseBlocks();
+        }
+    }
+
+    private static List<Map<String, Object>> toMaps(EscfBatch batch) throws IOException {
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (int row = 0; row < batch.docCount(); row++) {
+            IndexSource src = new IndexSource();
+            src.setSourceRow(batch, row, XContentType.JSON);
+            src.ensureInlineSource();
+            result.add(XContentHelper.convertToMap(src.bytes(), false, XContentType.JSON).v2());
+        }
+        return result;
     }
 }

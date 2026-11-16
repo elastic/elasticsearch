@@ -561,6 +561,17 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         }
     }
 
+    public void testCaptureCoordinatorInferenceResults() {
+        assumeTrue("requires an inference endpoint", inferenceResultType != InferenceResultType.NONE);
+        var original = new SemanticQueryBuilder(SEMANTIC_TEXT_FIELD, "query text");
+        assertTrue(original.getInferenceResults().isEmpty());
+        var rewritten = (SemanticQueryBuilder) rewriteAndFetch(original, createQueryRewriteContext());
+        assertFalse(rewritten.getInferenceResults().isEmpty());
+        assertTrue(original.getInferenceResults().isEmpty());
+        // Logging still uses the query text; capture consumers access the inference results directly.
+        assertEquals(original.toString(), rewritten.toString());
+    }
+
     public void testToXContent() throws IOException {
         QueryBuilder queryBuilder = new SemanticQueryBuilder("foo", "bar");
         checkGeneratedJson("""

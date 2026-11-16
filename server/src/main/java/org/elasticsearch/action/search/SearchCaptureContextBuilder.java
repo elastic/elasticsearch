@@ -11,14 +11,22 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.activity.QueryCaptureContextBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
 
 public class SearchCaptureContextBuilder extends QueryCaptureContextBuilder<SearchCaptureContext, SearchRequest, SearchResponse> {
     private final NamedWriteableRegistry namedWriteableRegistry;
+    private volatile SearchSourceBuilder rewrittenSource;
 
     public SearchCaptureContextBuilder(Task task, NamedWriteableRegistry namedWriteableRegistry, SearchRequest request) {
         super(task, request);
         this.namedWriteableRegistry = namedWriteableRegistry;
+    }
+
+    // Retain the completed coordinator rewrite without changing the original query used for logging.
+    void captureRewrittenSource(@Nullable SearchSourceBuilder rewrittenSource) {
+        this.rewrittenSource = rewrittenSource;
     }
 
     @Override
@@ -26,11 +34,11 @@ public class SearchCaptureContextBuilder extends QueryCaptureContextBuilder<Sear
         // response's getTook() is actually in millis, so we get 0 if it took less than 1ms.
         // That's why we have to involve elapsed() here.
         long tookInNanos = Math.max(response.getTook().nanos(), elapsed());
-        return new SearchCaptureContext(task, namedWriteableRegistry, request, tookInNanos, response);
+        return new SearchCaptureContext(task, namedWriteableRegistry, request, rewrittenSource, response, tookInNanos, null);
     }
 
     @Override
     public SearchCaptureContext build(Exception e) {
-        return new SearchCaptureContext(task, namedWriteableRegistry, request, elapsed(), e);
+        return new SearchCaptureContext(task, namedWriteableRegistry, request, rewrittenSource, null, elapsed(), e);
     }
 }

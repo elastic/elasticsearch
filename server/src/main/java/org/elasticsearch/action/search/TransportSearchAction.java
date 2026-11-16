@@ -434,7 +434,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         queryInterceptor.wrapAndRun(
             listener,
             searchCaptureContextBuilder,
-            l -> executeRequest((SearchTask) task, searchRequest, l, AsyncSearchActionProvider::new, true)
+            l -> executeRequest(
+                (SearchTask) task,
+                searchRequest,
+                l,
+                AsyncSearchActionProvider::new,
+                true,
+                // If the listener was not wrapped there are no downsteam consumers to retain the capture for.
+                l == listener ? null : searchCaptureContextBuilder
+            )
         );
     }
 
@@ -444,7 +452,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ActionListener<SearchResponse> originalListener,
         Function<ActionListener<SearchResponse>, SearchPhaseProvider> searchPhaseProvider
     ) {
-        executeRequest(task, original, originalListener, searchPhaseProvider, false);
+        executeRequest(task, original, originalListener, searchPhaseProvider, false, null);
     }
 
     private void executeRequest(
@@ -452,7 +460,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchRequest original,
         ActionListener<SearchResponse> originalListener,
         Function<ActionListener<SearchResponse>, SearchPhaseProvider> searchPhaseProvider,
-        boolean collectSearchTelemetry
+        boolean collectSearchTelemetry,
+        @Nullable SearchCaptureContextBuilder captureContextBuilder
     ) {
         boolean resolvesCrossProject = crossProjectModeDecider.resolvesCrossProject(original);
         final long relativeStartNanos = System.nanoTime();
@@ -529,13 +538,17 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             closePIT(client, original.source().pointInTimeBuilder(), () -> delegate.onFailure(e));
                         }
                     };
-                    executeRequest(task, original, pitListener, searchPhaseProvider, true);
+                    executeRequest(task, original, pitListener, searchPhaseProvider, true, captureContextBuilder);
                 })
             );
             return;
         }
 
         ActionListener<SearchRequest> rewriteListener = originalListener.delegateFailureAndWrap((delegate, rewritten) -> {
+            // Semantic query builders now hold inference results, before shard rewrites turn them into native vector queries.
+            if (captureContextBuilder != null && rewritten != original) {
+                captureContextBuilder.captureRewrittenSource(rewritten.source());
+            }
             if (ccsCheckCompatibility) {
                 checkCCSVersionCompatibility(rewritten);
             }

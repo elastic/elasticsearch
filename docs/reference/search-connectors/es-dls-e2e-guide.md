@@ -390,6 +390,7 @@ If you’re building a frontend application, use the `encoded` field to pass the
 
 Here’s what this workflow looks like in a sequence diagram:
 
+% Candidate for removal: low value. It is a sequence diagram that restates the four numbered steps in the preceding list, and the lead-in sentence can go with it.
 :::{image} images/dls-api-key-workflow.png
 :alt: DLS API key and search application client workflow
 :class: screenshot

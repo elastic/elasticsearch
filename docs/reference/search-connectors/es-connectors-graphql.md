@@ -28,7 +28,7 @@ This connector is in **technical preview** and is subject to change. The design 
 
 ## Usage [es-connectors-graphql-connector-usage]
 
-To set up this connector in the UI, select the **GraphQL** tile when creating a new connector under **Search → Connectors**.
+To set up this connector in the UI, select the **GraphQL** tile when creating a new connector in **{{connectors-app}}**.
 
 If you’re already familiar with how connectors work, you can also use the [Connector APIs](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-connector).
 

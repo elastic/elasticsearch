@@ -39,6 +39,7 @@ There are two types of sync rule:
 * **Basic sync rules** - these rules are represented in a table-like view. Basic sync rules are identical for all connectors.
 * **Advanced sync rules** - these rules cover complex query-and-filter scenarios that cannot be expressed with basic sync rules. Advanced sync rules are defined through a *source-specific* DSL JSON snippet.
 
+% Candidate for removal: low value. It shows the removed Enterprise Search app with its old navigation and labels, and the page already defines both rule types in prose.
 :::{image} images/filtering-rules-zero-state.png
 :alt: Sync rules tab
 :class: screenshot
@@ -145,6 +146,7 @@ For example, if a value of `[A-Z]{{2}}` might make sense for a `regex` rule, but
 
 Exclude all documents that have an `ID` field with the value greater than 1000.
 
+% Candidate for removal: low value. It crops one rule row, and the sentence before it already states the policy, field, rule, and value.
 :::{image} images/simple-rule-greater.png
 :alt: Simple greater than rule
 :class: screenshot
@@ -155,6 +157,7 @@ Exclude all documents that have an `ID` field with the value greater than 1000.
 
 Exclude all documents that have a `state` field that matches a specified regex.
 
+% Candidate for removal: low value. It crops one rule row, and the sentence before it already states the policy, field, rule, and regular expression.
 :::{image} images/simple-rule-regex.png
 :alt: Simple regex rule
 :class: screenshot
@@ -264,8 +267,9 @@ The first 3 conditions can be handled by basic sync rules, but we’ll need to u
 
 #### Basic sync rules examples [es-example-interplay-basic-rules]
 
-To create a new basic sync rule, navigate to the *Sync Rules* tab and select **Draft new sync rules**:
+To create a new basic sync rule, go to the **Sync rules** tab and select **Draft new sync rules**:
 
+% Candidate for removal: low value. It shows old page chrome with the old tab order and a test index name, and the sentence before it already names the Draft new sync rules button.
 :::{image} images/sync-rules-draft-new-rules.png
 :alt: Draft new rules
 :class: screenshot
@@ -331,6 +335,7 @@ To create these advanced sync rules navigate to the sync rules creation dialog a
 
 Once validated, apply these rules. The following screenshot shows the applied sync rules, which will be executed in the next sync:
 
+% Candidate for removal: low value. It does not match the page example because it shows one basic rule instead of three, and it shows description lines the UI no longer uses.
 :::{image} images/sync-rules-advanced-rules-appeared.png
 :alt: Advanced sync rules appeared
 :class: screenshot

@@ -28,7 +28,7 @@ This connector is in **technical preview** and is subject to change. The design 
 
 ## Usage [es-connectors-redis-connector-usage]
 
-To set up this connector in the UI, select the **Redis** tile when creating a new connector under **Search → Connectors**.
+To set up this connector in the UI, select the **Redis** tile when creating a new connector in **{{connectors-app}}**.
 
 For additional operations, see [*Connectors UI in {{kib}}*](/reference/search-connectors/connectors-ui-in-kibana.md).
 

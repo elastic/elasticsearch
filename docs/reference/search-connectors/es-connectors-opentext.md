@@ -28,7 +28,7 @@ To use this connector, satisfy all [self-managed connector prerequisites](/refer
 
 ## Usage [es-connectors-opentext-documentum-connector-usage]
 
-To set up this connector in the UI, select the **OpenText Documentum** tile when creating a new connector under **Search → Connectors**.
+To set up this connector in the UI, select the **OpenText Documentum** tile when creating a new connector in **{{connectors-app}}**.
 
 If you’re already familiar with how connectors work, you can also use the [Connector APIs](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-connector).
 

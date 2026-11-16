@@ -29,7 +29,7 @@ This connector is in **beta** and is subject to change. The design and code is l
 
 ### Usage [es-connectors-notion-client-connector-usage]
 
-To use this connector in the UI, select the **Notion** tile when creating a new connector under **Search → Connectors**.
+To use this connector in the UI, select the **Notion** tile when creating a new connector in **{{connectors-app}}**.
 
 For additional operations, see [*Connectors UI in {{kib}}*](/reference/search-connectors/connectors-ui-in-kibana.md).
 

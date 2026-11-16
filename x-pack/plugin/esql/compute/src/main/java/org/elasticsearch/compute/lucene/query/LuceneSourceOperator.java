@@ -194,7 +194,7 @@ public class LuceneSourceOperator extends LuceneOperator {
         /**
          * The {@link DataPartitioning.AutoStrategy#DEFAULT default} strategy, without a cost threshold: a no-limit scan
          * parallelizes with {@link PartitioningStrategy#DOC} unless costly, a limited scan keeps the low-overhead
-         * {@link PartitioningStrategy#SHARD}. The production non-time-series source uses {@link #autoStrategy(long, int, boolean)}
+         * {@link PartitioningStrategy#SHARD}. The production non-time-series source uses {@link #autoStrategy(long, boolean)}
          * instead, which also folds cheap no-limit scans onto {@link PartitioningStrategy#SEGMENT}.
          */
         public static BiFunction<ShardContext, Query, PartitioningStrategy> autoStrategy(int limit) {
@@ -205,8 +205,8 @@ public class LuceneSourceOperator extends LuceneOperator {
          * Cost-aware {@link DataPartitioning#AUTO} strategy for the unsorted source. A no-limit scan (e.g. {@code STATS})
          * visits every matching doc, so it shares the {@link #autoPartitioning} rule with count and TopN: costly →
          * SEGMENT, cheap ({@code cost < minCostForDoc}) → SEGMENT, else DOC. The difference is a costly clause under
-         * {@code wideRows}, or a point range that matches at least {@code minCostForDoc * taskConcurrency} docs in a
-         * single segment: both are DOC; see {@link #unlimitedScanAutoStrategy}.
+         * {@code wideRows}, or a point range that matches at least {@code minCostForDoc * POINT_RANGE_MIN_SLICES} docs in
+         * a single segment: both are DOC; see {@link #unlimitedScanAutoStrategy}.
          * <p>
          * A query with a {@code limit} keeps {@link PartitioningStrategy#SHARD} unless it is a guaranteed full scan:
          * costly-to-build clauses (BKD point ranges, multi-term) keep {@code SHARD} because a single shard-level walk
@@ -219,8 +219,8 @@ public class LuceneSourceOperator extends LuceneOperator {
          * doc-values-only field with no BKD index) is promoted to {@link PartitioningStrategy#DOC}, because those scans
          * visit {@code ~maxDoc} regardless of match density and the limit is never reached early.
          */
-        public static DataPartitioning.AutoStrategy autoStrategy(long minCostForDoc, int taskConcurrency, boolean wideRows) {
-            long minCostForPointRangeDoc = minCostForDoc * Math.max(1, taskConcurrency);
+        public static DataPartitioning.AutoStrategy autoStrategy(long minCostForDoc, boolean wideRows) {
+            long minCostForPointRangeDoc = minCostForDoc * POINT_RANGE_MIN_SLICES;
             return limit -> limit == NO_LIMIT
                 ? (ctx, query) -> unlimitedScanAutoStrategy(ctx, query, minCostForDoc, minCostForPointRangeDoc, wideRows)
                 : (ctx, query) -> limitedScanAutoStrategy(ctx, query, minCostForDoc);
@@ -229,12 +229,20 @@ public class LuceneSourceOperator extends LuceneOperator {
         /**
          * Estimated bytes per row, as the planner counts them for the rows the source emits (every loaded field and every
          * {@code EVAL} until the first aggregation), from which a scan is treated as having wide, expensive rows. That is
-         * about twenty keyword fields.
+         * about ten keyword fields.
          */
-        public static final int WIDE_ROW_ESTIMATED_BYTES = 1024;
+        public static final int WIDE_ROW_ESTIMATED_BYTES = 512;
 
         /**
-         * The no-limit branch of {@link #autoStrategy(long, int, boolean)}. It follows {@link #autoPartitioning}, except for
+         * A point range is promoted to {@link PartitioningStrategy#DOC} when one segment alone is estimated to match this
+         * many minimum-size slices of docs ({@code minCostForDoc} each). The bar does not depend on the number of cores:
+         * what it protects is the cost of {@code DOC} rebuilding the point scorer in every slice, and that grows with the
+         * matches in the same way as the scan it saves.
+         */
+        public static final int POINT_RANGE_MIN_SLICES = 10;
+
+        /**
+         * The no-limit branch of {@link #autoStrategy(long, boolean)}. It follows {@link #autoPartitioning}, except for
          * a query with a costly clause, which {@link #autoPartitioning} sends to {@link PartitioningStrategy#SEGMENT}.
          * {@code SEGMENT} never cuts a segment and sizes its slices by the docs of their segments, not by the docs that
          * match. When the matches sit in few segments, which is what a selective filter over recent data gives, one

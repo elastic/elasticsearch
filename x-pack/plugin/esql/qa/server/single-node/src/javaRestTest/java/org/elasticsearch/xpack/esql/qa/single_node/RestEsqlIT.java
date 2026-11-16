@@ -1486,8 +1486,8 @@ public class RestEsqlIT extends RestEsqlTestCase {
         indexTimestampData(1);
         assumeTrue("require pragmas", Build.current().isSnapshot());
         String query = fromIndex() + " | WHERE value >= 100 AND value < 900 | STATS AVG(value)";
-        // The range matches 800 docs. With min_docs_per_slice=10 and task_concurrency=4 it needs about 40 to take DOC.
-        Map<String, Object> result = runWithLuceneSourceProfile(query, 4);
+        // The range matches 800 docs. With min_docs_per_slice=10 it needs about 100 docs in the segment to take DOC.
+        Map<String, Object> result = runWithLuceneSourceProfile(query, 10);
         assertResultMap(
             result,
             getResultMatcher(result).entry("profile", getProfileMatcher()),
@@ -1495,8 +1495,8 @@ public class RestEsqlIT extends RestEsqlTestCase {
             equalTo(List.of(List.of(499.5d)))
         );
         assertLuceneSourceStrategy(result, "DOC");
-        // With task_concurrency=1000 it needs about 10_000 docs, which is more than the index has.
-        assertLuceneSourceStrategy(runWithLuceneSourceProfile(query, 1000), "SEGMENT");
+        // With min_docs_per_slice=200 it needs about 2,000 docs, which is more than the index has.
+        assertLuceneSourceStrategy(runWithLuceneSourceProfile(query, 200), "SEGMENT");
     }
 
     /**
@@ -1507,7 +1507,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
     public void testAutoPartitioningWideRows() throws IOException {
         indexTimestampData(1);
         assumeTrue("require pragmas", Build.current().isSnapshot());
-        int fields = 30; // about 50 estimated bytes each, so the rows are wider than LuceneSourceOperator.Factory.WIDE_ROW_ESTIMATED_BYTES
+        int fields = 14; // about 50 estimated bytes each, so the rows are wider than LuceneSourceOperator.Factory.WIDE_ROW_ESTIMATED_BYTES
         StringBuilder evals = new StringBuilder();
         StringBuilder aggs = new StringBuilder();
         for (int i = 0; i < fields; i++) {
@@ -1515,20 +1515,19 @@ public class RestEsqlIT extends RestEsqlTestCase {
             aggs.append(i == 0 ? "" : ", ").append("m").append(i).append(" = MIN(k").append(i).append(")");
         }
         String range = fromIndex() + " | WHERE value >= 100 AND value < 900";
-        // task_concurrency=1000 puts the match threshold of the range above the index, so only the wide rows can take DOC.
-        assertLuceneSourceStrategy(runWithLuceneSourceProfile(range + " | EVAL " + evals + " | STATS " + aggs, 1000), "DOC");
-        assertLuceneSourceStrategy(runWithLuceneSourceProfile(range + " | STATS m = MIN(value)", 1000), "SEGMENT");
+        // min_docs_per_slice=200 puts the match bar of the range above the index, so only the wide rows can take DOC.
+        assertLuceneSourceStrategy(runWithLuceneSourceProfile(range + " | EVAL " + evals + " | STATS " + aggs, 200), "DOC");
+        assertLuceneSourceStrategy(runWithLuceneSourceProfile(range + " | STATS m = MIN(value)", 200), "SEGMENT");
     }
 
-    private Map<String, Object> runWithLuceneSourceProfile(String query, int taskConcurrency) throws IOException {
+    private Map<String, Object> runWithLuceneSourceProfile(String query, int minDocsPerSlice) throws IOException {
         RequestObjectBuilder builder = requestObjectBuilder().query(query);
         builder.profile(true);
         builder.pragmas(
             Settings.builder()
                 .put("data_partitioning", "auto")
                 .put("esql.docs_threshold_auto_partitioning", 20)
-                .put("min_docs_per_slice", 10)
-                .put("task_concurrency", taskConcurrency)
+                .put("min_docs_per_slice", minDocsPerSlice)
                 .build()
         );
         return runEsql(builder);

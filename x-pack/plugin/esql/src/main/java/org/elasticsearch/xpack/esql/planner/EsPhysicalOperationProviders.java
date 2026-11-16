@@ -633,7 +633,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             boolean wideRows = rowEstimatedSize >= LuceneSourceOperator.Factory.WIDE_ROW_ESTIMATED_BYTES;
             var autoStrategy = context.timeSeries()
                 ? context.autoPartitioningStrategy()
-                : LuceneSourceOperator.Factory.autoStrategy(minCostForDoc, taskConcurrency, wideRows);
+                : LuceneSourceOperator.Factory.autoStrategy(minCostForDoc, wideRows);
             luceneFactory = new LuceneSourceOperator.Factory(
                 shardContexts,
                 querySupplier(esQueryExec.queryBuilderAndTags()),

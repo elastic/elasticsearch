@@ -11,7 +11,9 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -77,6 +79,14 @@ public class PackDimension extends UnaryScalarFunction {
             case LONG -> ctx -> new PackValuesEvaluator(
                 toEvaluator.apply(field).get(ctx),
                 block -> InternalPacks.packLongValues(ctx, (LongBlock) block)
+            );
+            case DOUBLE -> ctx -> new PackValuesEvaluator(
+                toEvaluator.apply(field).get(ctx),
+                block -> InternalPacks.packDoubleValues(ctx, (DoubleBlock) block)
+            );
+            case FLOAT -> ctx -> new PackValuesEvaluator(
+                toEvaluator.apply(field).get(ctx),
+                block -> InternalPacks.packFloatValues(ctx, (FloatBlock) block)
             );
             case INT -> ctx -> new PackValuesEvaluator(
                 toEvaluator.apply(field).get(ctx),

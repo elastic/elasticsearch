@@ -30,9 +30,9 @@ public record SearchRecoveryTimeout(TimeValue timeout, TimeoutContext timeoutCon
     /// [#extendable()]: whether the slice of a plan with this context may be followed by another one. When `false`, the re-evaluation loop
     /// completes the recovery wait with a timeout immediately on first expiry without re-reading the cluster state or rescheduling,
     /// regardless of the node-level re-evaluation setting. Whether a given re-evaluated plan may follow the previous one is decided
-    /// separately, see [SearchRecoveryTimeout#shouldExtendAfter] and [#mayFollow()].
+    /// separately, see [SearchRecoveryTimeout#shouldExtendAfter] and [MayFollow].
     ///
-    /// [#phase()] and [#mayFollow()]: the rule for a re-evaluated plan following the previous one lives in these attributes of the
+    /// `phase` and `mayFollow`: the rule for a re-evaluated plan following the previous one lives in these attributes of the
     /// contexts, so a new context only has to state its own.
     public enum TimeoutContext {
         SKIP("", false, Phase.OTHER, MayFollow.NO_PLAN, false),
@@ -74,27 +74,13 @@ public record SearchRecoveryTimeout(TimeValue timeout, TimeoutContext timeoutCon
             true
         );
 
-        /// What a plan was computed for, as far as the rule of [MayFollow#PLAN_OF_ANOTHER_PHASE] is concerned: the relocation source is
-        /// shutting down ([#SOURCE_SHUTTING_DOWN]), it is not and the plan only knows that shutdown metadata is present
-        /// ([#CLUSTER_SHUTDOWN_METADATA_PRESENT]), or neither ([#OTHER]).
-        public enum Phase {
+        private enum Phase {
             SOURCE_SHUTTING_DOWN,
             CLUSTER_SHUTDOWN_METADATA_PRESENT,
             OTHER
         }
 
-        /// Which plans a re-evaluated plan of the context may follow.
-        ///
-        /// [#NO_PLAN]: timed out or not applicable.
-        ///
-        /// [#ANY_PLAN]: any plan. What a re-evaluation hands out on top of the previous plan is decided by the calculation, from the time
-        /// saved by the shards that finished earlier than planned.
-        ///
-        /// [#PLAN_OF_ANOTHER_PHASE]: only a plan that was computed for another [Phase], as the first of its own. A full data-volume share
-        /// is only handed out as the first plan once the source started shutting down: within the shutdown phase only the time saved by
-        /// shards that finished earlier than planned is handed out, and the calculation service never produces a data-volume plan then, so
-        /// this is a safeguard.
-        public enum MayFollow {
+        private enum MayFollow {
             NO_PLAN,
             ANY_PLAN,
             PLAN_OF_ANOTHER_PHASE
@@ -121,19 +107,6 @@ public record SearchRecoveryTimeout(TimeValue timeout, TimeoutContext timeoutCon
         public boolean extendable() {
             return extendable;
         }
-
-        public Phase phase() {
-            return phase;
-        }
-
-        public MayFollow mayFollow() {
-            return mayFollow;
-        }
-
-        /// Whether the plan is an equal-share one.
-        public boolean equalShare() {
-            return equalShare;
-        }
     }
 
     public static SearchRecoveryTimeout skip() {
@@ -148,15 +121,15 @@ public record SearchRecoveryTimeout(TimeValue timeout, TimeoutContext timeoutCon
     /// already checked that `previous` is [#extendable()], so only rules about this plan and the transition between the two live here.
     public boolean shouldExtendAfter(SearchRecoveryTimeout previous) {
         assert previous.extendable();
-        return switch (timeoutContext.mayFollow()) {
+        return switch (timeoutContext.mayFollow) {
             case NO_PLAN -> false;
             case ANY_PLAN -> true;
-            case PLAN_OF_ANOTHER_PHASE -> previous.timeoutContext.phase() != timeoutContext.phase();
+            case PLAN_OF_ANOTHER_PHASE -> previous.timeoutContext.phase != timeoutContext.phase;
         };
     }
 
     public boolean isEqualSharePlan() {
-        return timeoutContext.equalShare();
+        return timeoutContext.equalShare;
     }
 
     /// When `true`, recovery should use [SharedBlobCacheWarmingService#searchRecoveryWarmingListener]

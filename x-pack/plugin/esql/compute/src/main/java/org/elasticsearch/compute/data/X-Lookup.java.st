@@ -130,15 +130,30 @@ $endif$
         if (count > 0 && batchSlots + slotCount > ArrayUtil.MAX_ARRAY_LENGTH) {
             return false;
         }
+$if(BytesRef)$
+        if (valuesForPos == 0) {
+            posFixedLength = mergeFixedLength(posFixedLength, 0);
+        }
+$endif$
+        // Flush a long all-null prefix as a ConstantNullBlock before the first non-null match forces an oversized array.
+        if (count >= Operator.MIN_TARGET_PAGE_SIZE && batchValues == 0 && valuesForPos > 0) {
+            long prospectiveBytes = computeOutputBytes(
+                batchSlots + slotCount,
+                count + 1,
+                batchHasMultiValues || valuesForPos > 1$if(BytesRef)$,
+                batchValueBytes + posValueBytes,
+                posFixedLength$endif$
+            );
+            if (prospectiveBytes >= targetByteSize) {
+                return false;
+            }
+        }
         batchValues += valuesForPos;
         batchSlots += slotCount;
         if (valuesForPos > 1) {
             batchHasMultiValues = true;
         }
 $if(BytesRef)$
-        if (valuesForPos == 0) {
-            posFixedLength = mergeFixedLength(posFixedLength, 0);
-        }
         batchValueBytes += posValueBytes;
         batchFixedLength = posFixedLength;
 $endif$
@@ -146,15 +161,25 @@ $endif$
     }
 
     private long batchOutputBytes(int count) {
+        return computeOutputBytes(batchSlots, count, batchHasMultiValues$if(BytesRef)$, batchValueBytes, batchFixedLength$endif$);
+    }
+
+    private static long computeOutputBytes(
+        long slots,
+        int count,
+        boolean hasMultiValues$if(BytesRef)$,
+        long valueBytes,
+        int fixedLength$endif$
+    ) {
 $if(BytesRef)$
-        long outputBytes = BytesRefArrayBlock.BASE_RAM_BYTES_USED + batchValueBytes;
-        if (batchFixedLength == VARIABLE_LENGTH) {
-            outputBytes += (batchSlots + 1L) * Integer.BYTES;
+        long outputBytes = BytesRefArrayBlock.BASE_RAM_BYTES_USED + valueBytes;
+        if (fixedLength == VARIABLE_LENGTH) {
+            outputBytes += (slots + 1L) * Integer.BYTES;
         }
 $else$
-        long outputBytes = RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + batchSlots * $BYTES$;
+        long outputBytes = RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + slots * $BYTES$;
 $endif$
-        if (batchHasMultiValues) {
+        if (hasMultiValues) {
             outputBytes += RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (count + 1L) * Integer.BYTES;
         }
         return outputBytes;

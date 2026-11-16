@@ -99,6 +99,13 @@ public final class IntLookup implements ReleasableIterator<IntBlock> {
         if (count > 0 && batchSlots + slotCount > ArrayUtil.MAX_ARRAY_LENGTH) {
             return false;
         }
+        // Flush a long all-null prefix as a ConstantNullBlock before the first non-null match forces an oversized array.
+        if (count >= Operator.MIN_TARGET_PAGE_SIZE && batchValues == 0 && valuesForPos > 0) {
+            long prospectiveBytes = computeOutputBytes(batchSlots + slotCount, count + 1, batchHasMultiValues || valuesForPos > 1);
+            if (prospectiveBytes >= targetByteSize) {
+                return false;
+            }
+        }
         batchValues += valuesForPos;
         batchSlots += slotCount;
         if (valuesForPos > 1) {
@@ -108,8 +115,12 @@ public final class IntLookup implements ReleasableIterator<IntBlock> {
     }
 
     private long batchOutputBytes(int count) {
-        long outputBytes = RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + batchSlots * Integer.BYTES;
-        if (batchHasMultiValues) {
+        return computeOutputBytes(batchSlots, count, batchHasMultiValues);
+    }
+
+    private static long computeOutputBytes(long slots, int count, boolean hasMultiValues) {
+        long outputBytes = RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + slots * Integer.BYTES;
+        if (hasMultiValues) {
             outputBytes += RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (count + 1L) * Integer.BYTES;
         }
         return outputBytes;

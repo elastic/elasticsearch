@@ -118,13 +118,26 @@ public final class BytesRefLookup implements ReleasableIterator<BytesRefBlock> {
         if (count > 0 && batchSlots + slotCount > ArrayUtil.MAX_ARRAY_LENGTH) {
             return false;
         }
+        if (valuesForPos == 0) {
+            posFixedLength = mergeFixedLength(posFixedLength, 0);
+        }
+        // Flush a long all-null prefix as a ConstantNullBlock before the first non-null match forces an oversized array.
+        if (count >= Operator.MIN_TARGET_PAGE_SIZE && batchValues == 0 && valuesForPos > 0) {
+            long prospectiveBytes = computeOutputBytes(
+                batchSlots + slotCount,
+                count + 1,
+                batchHasMultiValues || valuesForPos > 1,
+                batchValueBytes + posValueBytes,
+                posFixedLength
+            );
+            if (prospectiveBytes >= targetByteSize) {
+                return false;
+            }
+        }
         batchValues += valuesForPos;
         batchSlots += slotCount;
         if (valuesForPos > 1) {
             batchHasMultiValues = true;
-        }
-        if (valuesForPos == 0) {
-            posFixedLength = mergeFixedLength(posFixedLength, 0);
         }
         batchValueBytes += posValueBytes;
         batchFixedLength = posFixedLength;
@@ -132,11 +145,15 @@ public final class BytesRefLookup implements ReleasableIterator<BytesRefBlock> {
     }
 
     private long batchOutputBytes(int count) {
-        long outputBytes = BytesRefArrayBlock.BASE_RAM_BYTES_USED + batchValueBytes;
-        if (batchFixedLength == VARIABLE_LENGTH) {
-            outputBytes += (batchSlots + 1L) * Integer.BYTES;
+        return computeOutputBytes(batchSlots, count, batchHasMultiValues, batchValueBytes, batchFixedLength);
+    }
+
+    private static long computeOutputBytes(long slots, int count, boolean hasMultiValues, long valueBytes, int fixedLength) {
+        long outputBytes = BytesRefArrayBlock.BASE_RAM_BYTES_USED + valueBytes;
+        if (fixedLength == VARIABLE_LENGTH) {
+            outputBytes += (slots + 1L) * Integer.BYTES;
         }
-        if (batchHasMultiValues) {
+        if (hasMultiValues) {
             outputBytes += RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (count + 1L) * Integer.BYTES;
         }
         return outputBytes;

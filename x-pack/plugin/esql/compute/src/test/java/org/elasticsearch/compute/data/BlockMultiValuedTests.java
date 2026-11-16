@@ -190,6 +190,38 @@ public class BlockMultiValuedTests extends ESTestCase {
         }
     }
 
+    public void testLookupNullPrefixFlushesConstantNullBlockBeforeMatch() {
+        if (nullAllowed) {
+            return;
+        }
+        var b = RandomBlock.randomBlock(blockFactory(), elementType, between(2, 50), false, 1, 1, 0, 0);
+        int nullPrefix = 16 * 1024 - 1;
+        try (IntBlock.Builder builder = blockFactory().newIntBlockBuilder(nullPrefix + 1)) {
+            for (int p = 0; p < nullPrefix; p++) {
+                builder.appendNull();
+            }
+            builder.appendInt(0);
+            try (
+                IntBlock positions = builder.build();
+                ReleasableIterator<? extends Block> lookup = b.block().lookup(positions, ByteSizeValue.ofKb(10))
+            ) {
+                assertThat(lookup.hasNext(), equalTo(true));
+                try (Block first = lookup.next()) {
+                    assertThat(first, instanceOf(ConstantNullBlock.class));
+                    assertThat(first.getPositionCount(), equalTo(nullPrefix));
+                }
+                assertThat(lookup.hasNext(), equalTo(true));
+                try (Block second = lookup.next()) {
+                    assertThat(second.getPositionCount(), equalTo(1));
+                    assertThat(valuesAtPositions(second, 0, 1).get(0), equalTo(b.values().get(0)));
+                }
+                assertThat(lookup.hasNext(), equalTo(false));
+            }
+        } finally {
+            b.block().close();
+        }
+    }
+
     public void testLookupSplitBlocksHaveNoSpareCapacity() {
         if (nullAllowed) {
             return;

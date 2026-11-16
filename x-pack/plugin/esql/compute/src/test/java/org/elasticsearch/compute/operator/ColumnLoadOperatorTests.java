@@ -9,13 +9,17 @@ package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.ConstantNullBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongRangeArrayBlock;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestBlockFactory;
@@ -32,6 +36,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class ColumnLoadOperatorTests extends OperatorTestCase {
@@ -365,6 +370,133 @@ public class ColumnLoadOperatorTests extends OperatorTestCase {
         Page input = new Page(context.blockFactory().newIntArrayVector(new int[] { 0, -2 }, 2).asBlock());
         var e = expectThrows(IllegalArgumentException.class, () -> new TestDriverRunner().builder(context).input(input).run(factory));
         assertThat(e.getMessage(), containsString("invalid position [-2]"));
+    }
+
+    public void testSingleEntryOrdinalBytesRefSplitsOversizedLoad() {
+        BlockFactory nonBreaking = TestBlockFactory.getNonBreakingInstance();
+        BytesRefVector dict = nonBreaking.newConstantBytesRefVector(new BytesRef("x".repeat(2048)), 1);
+        IntBlock ords = nonBreaking.newIntArrayVector(new int[] { 0, 0, 0, 0, 0 }, 5).asBlock();
+        dict.incRef();
+        ords.incRef();
+        OrdinalBytesRefBlock col0 = new OrdinalBytesRefBlock(ords, dict);
+        dict.incRef();
+        ords.incRef();
+        OrdinalBytesRefBlock col1 = new OrdinalBytesRefBlock(ords, dict);
+        try {
+            ColumnLoadOperator.Factory factory = new ColumnLoadOperator.Factory(
+                List.of(new ColumnLoadOperator.Values("o0", col0), new ColumnLoadOperator.Values("o1", col1)),
+                0
+            );
+            BlockFactory tightFactory = blockFactory(ByteSizeValue.ofMb(8));
+            DriverContext context = new DriverContext(tightFactory.bigArrays(), tightFactory, null);
+            int positionCount = 8192;
+            Page input;
+            try (IntVector.FixedBuilder builder = tightFactory.newIntVectorFixedBuilder(positionCount)) {
+                for (int p = 0; p < positionCount; p++) {
+                    builder.appendInt(p % 5);
+                }
+                input = new Page(builder.build().asBlock());
+            }
+            int pages = 0;
+            int rows = 0;
+            try (Operator op = factory.get(context)) {
+                op.addInput(input);
+                op.finish();
+                Page out;
+                while ((out = op.getOutput()) != null) {
+                    pages++;
+                    rows += out.getPositionCount();
+                    out.releaseBlocks();
+                }
+            }
+            assertThat(pages, greaterThan(1));
+            assertThat(rows, equalTo(positionCount));
+        } finally {
+            col0.close();
+            col1.close();
+            ords.close();
+            dict.close();
+        }
+    }
+
+    public void testSplitBatchSkipsConstantColumnOnTrailingBatch() {
+        BlockFactory nonBreaking = TestBlockFactory.getNonBreakingInstance();
+        Block constStr = nonBreaking.newConstantBytesRefVector(new BytesRef("z".repeat(100)), 1).asBlock();
+        Block twoLongs = nonBreaking.newLongArrayVector(new long[] { 10L, 20L }, 2).asBlock();
+        try {
+            DriverContext context = driverContext();
+            int positionCount = 33_000;
+            Page input;
+            try (IntVector.FixedBuilder builder = context.blockFactory().newIntVectorFixedBuilder(positionCount)) {
+                builder.appendInt(1);
+                for (int p = 1; p < positionCount; p++) {
+                    builder.appendInt(0);
+                }
+                input = new Page(builder.build().asBlock());
+            }
+            List<Page> results = new TestDriverRunner().builder(context)
+                .input(input)
+                .run(
+                    new ColumnLoadOperator.Factory(
+                        List.of(new ColumnLoadOperator.Values("s", constStr), new ColumnLoadOperator.Values("l", twoLongs)),
+                        0
+                    )
+                );
+            try {
+                assertThat(results, hasSize(2));
+                assertThat(results.get(0).getPositionCount() + results.get(1).getPositionCount(), equalTo(positionCount));
+            } finally {
+                for (Page p : results) {
+                    p.releaseBlocks();
+                }
+            }
+        } finally {
+            constStr.close();
+        }
+    }
+
+    public void testMultiColumnNullPrefixFlushesBeforeMatch() {
+        BlockFactory nonBreaking = TestBlockFactory.getNonBreakingInstance();
+        List<ColumnLoadOperator.Values> values = new ArrayList<>(10);
+        for (int c = 0; c < 10; c++) {
+            values.add(
+                new ColumnLoadOperator.Values("v" + c, nonBreaking.newLongArrayVector(new long[] { 100L + c, 200L + c }, 2).asBlock())
+            );
+        }
+        DriverContext context = driverContext();
+        int nullPrefix = 40_000;
+        Page input;
+        try (IntBlock.Builder builder = context.blockFactory().newIntBlockBuilder(nullPrefix + 1)) {
+            for (int p = 0; p < nullPrefix; p++) {
+                builder.appendNull();
+            }
+            builder.appendInt(1);
+            input = new Page(builder.build());
+        }
+        try (Operator op = new ColumnLoadOperator.Factory(values, 0).get(context)) {
+            op.addInput(input);
+            op.finish();
+            Page first = op.getOutput();
+            try {
+                assertThat(first.getPositionCount(), equalTo(nullPrefix));
+                for (int c = 1; c <= 10; c++) {
+                    assertThat(first.getBlock(c), instanceOf(ConstantNullBlock.class));
+                }
+            } finally {
+                first.releaseBlocks();
+            }
+            Page second = op.getOutput();
+            try {
+                assertThat(second.getPositionCount(), equalTo(1));
+                for (int c = 0; c < 10; c++) {
+                    LongBlock col = second.getBlock(1 + c);
+                    assertThat(col.getLong(0), equalTo(200L + c));
+                }
+            } finally {
+                second.releaseBlocks();
+            }
+            assertThat(op.getOutput(), equalTo(null));
+        }
     }
 
     @Override

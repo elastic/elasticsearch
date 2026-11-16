@@ -117,7 +117,7 @@ class CiPartsPluginSpec extends AbstractProjectBuilderPluginSpec {
         (names(1) + names(2) + names(3)) == [":lib:test", ":lib:internalClusterTest", ":lib:yamlRestTest", ":lib:precommitThing"] as Set
     }
 
-    def "the other tasks of a requested part should run after its run-first tasks, longest first"() {
+    def "the other test tasks of a requested part should run after its run-first tasks, longest first"() {
         given:
         new File(workspace, CiPartsPlugin.ASSIGNMENT_FILE).text = new CiPartAssignment(
             3,
@@ -142,7 +142,9 @@ class CiPartsPluginSpec extends AbstractProjectBuilderPluginSpec {
         // only the ordering this plugin adds; the java plugin has test tasks run after jar
         added("yamlRestTest") == [] as Set
         added("internalClusterTest") == [":lib:yamlRestTest"] as Set
-        added("precommitThing") == [":lib:yamlRestTest"] as Set
+        // non-test work is not ordered: it includes build steps (compileJava, processResources, ...) that run-first
+        // tests of other projects depend on, and ordering those after the tests broke Gradle's task graph calculation
+        added("precommitThing") == [] as Set
         // part 1 was not requested, so its tasks are not reordered
         added("test") == [] as Set
         // the other project's task is left to that project

@@ -49,7 +49,7 @@ import javax.inject.Inject;
  * (including {@code check} and reproducing a failure) runs the whole task.
  *
  * <p>Gradle starts ready tasks in path order, so a long test task whose path sorts late can start long after
- * the part began and end it late. When part tasks are requested, the other tasks of a part should run after
+ * the part began and end it late. When part tasks are requested, the other test tasks of a part should run after
  * the part's {@link CiPartAssignment#runFirst() run-first} test tasks, and those after the longer ones. That is a
  * soft ordering: it moves long tasks (and what they depend on) forward in the execution plan, but a worker that has
  * nothing else ready still takes a short task.
@@ -182,11 +182,16 @@ public abstract class CiPartsPlugin implements Plugin<Project> {
     }
 
     /**
-     * Makes each of {@code selected} (one project's share of a part) run after the part's run-first tasks that are
-     * longer than it: all of them for a task that is not run-first itself. Run-first tasks that do not exist (for
-     * example ones removed since the assignment was generated) are skipped, and so are selected tasks of other
+     * Makes each test task of {@code selected} (one project's share of a part) run after the part's run-first tasks
+     * that are longer than it: all of them for a task that is not run-first itself. Run-first tasks that do not exist
+     * (for example ones removed since the assignment was generated) are skipped, and so are selected tasks of other
      * projects or builds (the root project's {@code check} reaches tasks of included builds, which have already run
      * by now and whose ordering can no longer change); their own project orders them.
+     *
+     * <p>Other tasks are not ordered. A project's share includes build steps such as {@code compileJava} and
+     * {@code processResources} that run-first tests of other projects depend on, so ordering them after those tests
+     * contradicts the dependencies. Gradle should drop such contradictory orderings, but on some graphs its task graph
+     * calculation failed instead with a {@code NoSuchElementException}.
      */
     static void orderLongestFirst(Project project, List<Task> selected, List<String> runFirst, CiPartsBuildService service) {
         List<TaskProvider<Task>> longTasks = new ArrayList<>();
@@ -198,7 +203,7 @@ public abstract class CiPartsPlugin implements Plugin<Project> {
             });
         }
         for (Task task : selected) {
-            if (task.getProject() != project) {
+            if (task.getProject() != project || (task instanceof Test) == false) {
                 continue;
             }
             int index = longPaths.indexOf(task.getPath());

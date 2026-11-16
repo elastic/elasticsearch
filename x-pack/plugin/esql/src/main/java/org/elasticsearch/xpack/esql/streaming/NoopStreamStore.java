@@ -9,15 +9,25 @@ package org.elasticsearch.xpack.esql.streaming;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 
 import java.util.List;
+import java.util.Map;
 
 public class NoopStreamStore implements StreamStorage {
 
     public static final StreamStorage INSTANCE = new NoopStreamStore();
 
     @Override
-    public void create(String streamId, long expirationMillis, ActionListener<Void> listener) {
+    public void create(
+        String streamId,
+        TaskId taskId,
+        Map<String, String> headers,
+        List<ColumnInfo> columns,
+        long expirationMillis,
+        ActionListener<Void> listener
+    ) {
         listener.onResponse(null);
     }
 
@@ -27,17 +37,17 @@ public class NoopStreamStore implements StreamStorage {
     }
 
     @Override
-    public void appendPage(String streamingId, int offset, Page page, ActionListener<Void> listener) {
+    public void appendPage(String streamId, long offset, Page page, ActionListener<Void> listener) {
         listener.onResponse(null);
     }
 
     @Override
-    public void markComplete(String streamId, int totalRows, int totalPages, ActionListener<Void> listener) {
+    public void markComplete(String streamId, boolean isPartial, long totalRows, long totalPages, ActionListener<Void> listener) {
         listener.onResponse(null);
     }
 
     @Override
-    public void markFailed(String streamId, ActionListener<Void> listener) {
+    public void markFailed(String streamId, Exception exception, ActionListener<Void> listener) {
         listener.onResponse(null);
     }
 
@@ -47,7 +57,7 @@ public class NoopStreamStore implements StreamStorage {
     }
 
     @Override
-    public void getPages(String streamId, int offset, int rows, ActionListener<List<Page>> listener) {
+    public void getPages(String streamId, long offset, long rows, ActionListener<List<Page>> listener) {
         listener.onResponse(List.of());
     }
 

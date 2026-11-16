@@ -11,6 +11,8 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -32,9 +34,17 @@ public class InMemoryStreamStore implements StreamStorage {
     private final Map<String, Stream> streams = new ConcurrentHashMap<>();
 
     @Override
-    public void create(String streamId, long expirationMillis, ActionListener<Void> listener) {
+    public void create(
+        String streamId,
+        TaskId taskId,
+        Map<String, String> headers,
+        List<ColumnInfo> columns,
+        long expirationMillis,
+        ActionListener<Void> listener
+    ) {
         ActionListener.completeWith(listener, () -> {
-            if (streams.putIfAbsent(streamId, new Stream(streamId, Instant.ofEpochMilli(expirationMillis))) != null) {
+            var stream = new Stream(streamId, taskId, headers, columns, Instant.ofEpochMilli(expirationMillis));
+            if (streams.putIfAbsent(streamId, stream) != null) {
                 throw new IllegalStateException("stream [" + streamId + "] already exists");
             }
             return null;
@@ -50,10 +60,10 @@ public class InMemoryStreamStore implements StreamStorage {
     }
 
     @Override
-    public void appendPage(String streamingId, int offset, Page page, ActionListener<Void> listener) {
+    public void appendPage(String streamId, long offset, Page page, ActionListener<Void> listener) {
         ActionListener.completeWith(listener, () -> {
             try {
-                get(streamingId).append(offset, page);
+                get(streamId).append(offset, page);
             } catch (RuntimeException e) {
                 // The store takes ownership of the page even when the append is rejected.
                 page.releaseBlocks();
@@ -64,17 +74,17 @@ public class InMemoryStreamStore implements StreamStorage {
     }
 
     @Override
-    public void markComplete(String streamId, int totalRows, int totalPages, ActionListener<Void> listener) {
+    public void markComplete(String streamId, boolean isPartial, long totalRows, long totalPages, ActionListener<Void> listener) {
         ActionListener.completeWith(listener, () -> {
-            get(streamId).markComplete(totalRows, totalPages);
+            get(streamId).markComplete(isPartial, totalRows, totalPages);
             return null;
         });
     }
 
     @Override
-    public void markFailed(String streamId, ActionListener<Void> listener) {
+    public void markFailed(String streamId, Exception exception, ActionListener<Void> listener) {
         ActionListener.completeWith(listener, () -> {
-            get(streamId).markFailed();
+            get(streamId).markFailed(exception);
             return null;
         });
     }
@@ -92,7 +102,7 @@ public class InMemoryStreamStore implements StreamStorage {
      * Returns fewer rows if the stream does not have them (yet).
      */
     @Override
-    public void getPages(String streamId, int offset, int rows, ActionListener<List<Page>> listener) {
+    public void getPages(String streamId, long offset, long rows, ActionListener<List<Page>> listener) {
         ActionListener.completeWith(listener, () -> get(streamId).getPages(offset, rows));
     }
 
@@ -120,7 +130,7 @@ public class InMemoryStreamStore implements StreamStorage {
     }
 
     /** A page together with the position of its first row in the overall result. */
-    private record Entry(int offset, Page page) {
+    private record Entry(long offset, Page page) {
         int size() {
             return page.getPositionCount();
         }
@@ -132,16 +142,24 @@ public class InMemoryStreamStore implements StreamStorage {
      */
     private static class Stream {
         private final String streamId;
+        private final TaskId taskId;
+        private final Map<String, String> headers;
+        private final List<ColumnInfo> columns;
         private final List<Entry> pages = new ArrayList<>();
         private Instant ttl;
         private StreamMetadata.Status status = StreamMetadata.Status.RUNNING;
+        private boolean partial;
+        private Exception exception;
         /** Rows appended so far. */
         private int rows;
         /** Set once the stream is deleted. A writer or reader that looked the stream up before the delete must not touch its pages. */
         private boolean closed;
 
-        Stream(String streamId, Instant ttl) {
+        Stream(String streamId, TaskId taskId, Map<String, String> headers, List<ColumnInfo> columns, Instant ttl) {
             this.streamId = streamId;
+            this.taskId = taskId;
+            this.headers = headers;
+            this.columns = columns;
             this.ttl = ttl;
         }
 
@@ -150,7 +168,7 @@ public class InMemoryStreamStore implements StreamStorage {
             this.ttl = ttl;
         }
 
-        synchronized void append(int offset, Page page) {
+        synchronized void append(long offset, Page page) {
             ensureOpen();
             if (status != StreamMetadata.Status.RUNNING) {
                 throw new IllegalStateException("stream [" + streamId + "] is already " + status);
@@ -166,7 +184,7 @@ public class InMemoryStreamStore implements StreamStorage {
             rows += entry.size();
         }
 
-        synchronized void markComplete(int totalRows, int totalPages) {
+        synchronized void markComplete(boolean isPartial, long totalRows, long totalPages) {
             ensureOpen();
             if (pages.size() != totalPages || rows != totalRows) {
                 throw new IllegalArgumentException(
@@ -183,12 +201,14 @@ public class InMemoryStreamStore implements StreamStorage {
                         + "] pages"
                 );
             }
-            status = StreamMetadata.Status.COMPLETE;
+            this.partial = isPartial;
+            this.status = StreamMetadata.Status.COMPLETE;
         }
 
-        synchronized void markFailed() {
+        synchronized void markFailed(Exception exception) {
             ensureOpen();
-            status = StreamMetadata.Status.FAILED;
+            this.status = StreamMetadata.Status.FAILED;
+            this.exception = exception;
         }
 
         @Nullable
@@ -196,31 +216,33 @@ public class InMemoryStreamStore implements StreamStorage {
             if (closed) {
                 return null;
             }
-            // Totals are only known once the writer completes the stream.
-            boolean complete = status == StreamMetadata.Status.COMPLETE;
-            return new StreamMetadata(streamId, ttl, status, complete ? rows : null, complete ? pages.size() : null);
+            // Completion info is only available once the stream is no longer running.
+            StreamMetadata.StreamCompletionInfo completionInfo = status == StreamMetadata.Status.RUNNING
+                ? null
+                : new StreamMetadata.StreamCompletionInfo(partial, 0L, pages.size(), rows, exception);
+            return new StreamMetadata(streamId, ttl, taskId, headers, columns, status, List.of(), completionInfo);
         }
 
-        synchronized List<Page> getPages(int offset, int rows) {
+        synchronized List<Page> getPages(long offset, long rows) {
             ensureOpen();
-            long end = (long) offset + rows;
+            long end = offset + rows;
             List<Page> result = new ArrayList<>();
             try {
                 for (Entry entry : pages) {
-                    int pageStart = entry.offset();
-                    int pageEnd = pageStart + entry.size();
+                    long pageStart = entry.offset();
+                    long pageEnd = pageStart + entry.size();
                     if (pageEnd <= offset) {
                         continue;
                     }
                     if (pageStart >= end) {
                         break;
                     }
-                    int from = Math.max(offset, pageStart) - pageStart;
-                    int to = (int) Math.min(end, pageEnd) - pageStart;
+                    long from = Math.max(offset, pageStart) - pageStart;
+                    long to = Math.min(end, pageEnd) - pageStart;
                     if (from == 0 && to == entry.size()) {
                         result.add(entry.page().shallowCopy());
                     } else {
-                        result.add(entry.page().slice(from, to));
+                        result.add(entry.page().slice(Math.toIntExact(from), Math.toIntExact(to)));
                     }
                 }
             } catch (RuntimeException e) {

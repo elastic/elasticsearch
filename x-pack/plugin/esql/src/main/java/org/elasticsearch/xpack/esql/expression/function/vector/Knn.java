@@ -396,7 +396,6 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
         Failures failures
     ) {
         super.fieldVerifier(plan, function, field, analysisRegistry, failures);
-        verifyNotUnderNested(failures);
         if (false == isRuntimeSearch()) {
             if (options() != null && queryOptions().get(SIMILARITY_FUNCTION_OPTION) != null) {
                 failures.add(

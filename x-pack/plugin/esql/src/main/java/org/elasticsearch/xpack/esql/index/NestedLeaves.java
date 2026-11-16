@@ -19,9 +19,11 @@ import java.util.Map;
  * A field under a {@code nested} object holds the values of all of the parent's objects, which Lucene stores as separate child
  * documents. ES|QL reads it as an ordinary multivalued column of the parent, like a field under a plain object.
  * <p>
- * The parent's index holds none of these values, so nothing about them is pushed to Lucene. Full-text searches
- * ({@code MATCH}, {@code MATCH_PHRASE} and the {@code :} operator) on such a field are rejected for now: they would run as a
- * Lucene query on the parents and miss every parent whose objects match.
+ * The parent's index holds none of these values, so nothing about them is pushed to Lucene. Searches on such a field
+ * ({@code MATCH}, {@code MATCH_PHRASE}, the {@code :} operator and {@code KNN}) are rejected for now: they would run as a
+ * Lucene query on the parents and miss every parent whose objects match. {@code QSTR} and {@code KQL} name their fields inside
+ * the query string, so they can't be checked: a query string naming a field under a nested object matches no parent, as it
+ * does where these fields aren't read at all.
  * <p>
  * A field without doc values reads its object from the parent's {@code _source}. Where the mapping's {@code includes} or
  * {@code excludes} filtered {@code _source} as it was stored, it is null with a warning: filtering drops the objects it empties,

@@ -187,12 +187,25 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
         return fieldAsFieldAttribute(field);
     }
 
+    @Override
+    protected void fieldVerifier(
+        LogicalPlan plan,
+        FullTextFunction function,
+        Expression field,
+        @Nullable AnalysisRegistry analysisRegistry,
+        Failures failures
+    ) {
+        super.fieldVerifier(plan, function, field, analysisRegistry, failures);
+        verifyNotUnderNested(failures);
+    }
+
     /**
      * Rejects a search on a field under a {@code nested} object. Its values are in the child documents, which a Lucene query
      * on the parents doesn't see, so the search would silently miss parents that match. Until searching them is supported,
-     * this fails rather than return wrong results.
+     * this fails rather than return wrong results. Every function searching one field gets this check, whether or not it
+     * verifies anything else about the field.
      */
-    protected void verifyNotUnderNested(Failures failures) {
+    private void verifyNotUnderNested(Failures failures) {
         FieldAttribute fieldAttribute = fieldAsFieldAttribute();
         if (fieldAttribute != null && fieldAttribute.field().isUnderNested()) {
             failures.add(

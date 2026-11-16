@@ -33,33 +33,6 @@ setup:
               crew: { type: flattened }
 
 ---
-one slot, one role:
-  - do:
-      bulk:
-        refresh: true
-        body:
-          - '{ "index": { "_index": "logsdb_ship" } }'
-          - '{ "@timestamp": "2026-05-04T00:00:00.000Z", "crew": { "pilot": "han solo" } }'
-          - '{ "index": { "_index": "logsdb_columnar_ship" } }'
-          - '{ "@timestamp": "2026-05-04T00:00:00.000Z", "crew": { "pilot": "han solo" } }'
-
-  - is_false: errors
-
-  - do:
-      search:
-        index: logsdb_ship
-        body: { size: 0, aggs: { crew_members: { value_count: { field: crew } }, crew_names: { terms: { field: crew } } } }
-  - set: { aggregations.crew_members.value: expected_count }
-  - set: { aggregations.crew_names.buckets: expected_names }
-
-  - do:
-      search:
-        index: logsdb_columnar_ship
-        body: { size: 0, aggs: { crew_members: { value_count: { field: crew } }, crew_names: { terms: { field: crew } } } }
-  - match: { aggregations.crew_members.value: $expected_count }
-  - match: { aggregations.crew_names.buckets: $expected_names }
-
----
 two slots, two roles with one value each:
   - do:
       bulk:

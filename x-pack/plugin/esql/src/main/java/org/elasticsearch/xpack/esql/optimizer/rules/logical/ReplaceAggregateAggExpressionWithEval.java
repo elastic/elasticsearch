@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
-import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
@@ -177,22 +176,10 @@ public class ReplaceAggregateAggExpressionWithEval extends OptimizerRules.Optimi
     }
 
     /**
-     * Collects the aliases used to compare the aggregate functions of the aggregate being optimized, starting from {@code plan}.
-     * Functions that are equal once their arguments are resolved through these aliases are computed only once, so an alias
-     * {@code x = e} may only be collected if {@code x} equals {@code e} on every row that reaches the aggregate.
-     * <p>
-     * Aliases from per-row commands such as {@code EVAL} and {@code RENAME} hold on every row. The walk skips these parts of the
-     * plan, where they do not:
-     * <ul>
-     *     <li>Any {@link Aggregate} below {@code plan}, and everything below it. Its aggregate values depend on the rows it
-     *     aggregated: in {@code STATS c = COUNT(*) BY g | STATS d = COUNT(*) BY c}, {@code c} and {@code d} are both
-     *     {@code COUNT(*)} but count different rows. Its grouping keys keep their ids but not their values: a key that is
-     *     multi-valued below that aggregate holds a single value per group above it.</li>
-     *     <li>The right-hand side of a {@link Join}. A {@code LEFT} join fills its columns with nulls on unmatched rows, and an
-     *     {@link InlineJoin} computes them per group, so a row whose join key is multi-valued gets them from several groups.
-     *     The left-hand side is walked unless the join is a {@code RIGHT} or {@code FULL} join, which fill its columns with nulls
-     *     on unmatched rows.</li>
-     * </ul>
+     * Collects the aliases that hold on every row reaching the aggregate being optimized, the only ones safe for comparing its
+     * aggregate functions. It stops at other {@link Aggregate}s, whose outputs depend on the rows they aggregated, and skips join
+     * sides whose columns can be null-filled or computed per group: the right-hand side, plus the left-hand side of {@code RIGHT}
+     * and {@code FULL} joins.
      */
     private static void collectAliases(LogicalPlan plan, Consumer<Alias> consumer) {
         List<LogicalPlan> children = plan instanceof Join join ? joinSidesToWalk(join) : plan.children();

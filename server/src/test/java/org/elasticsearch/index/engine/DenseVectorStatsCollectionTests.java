@@ -25,9 +25,18 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class DenseVectorStatsStatelessTests extends EngineTestCase {
+/**
+ * Verifies that {@link Engine#denseVectorStats} actually collects counts and off-heap sizes for a
+ * dense_vector field, using a real {@link InternalEngine}. Counts and off-heap sizes both come from
+ * field metadata via {@code KnnVectorsReader#getVectorCount}/{@code #getOffHeapByteSize}, so neither
+ * opens the vector values; there is no stateless-specific code path left to test here. The stateless
+ * variant below is kept as a regression guard against reintroducing a "skip counts on stateless"
+ * shortcut, not because behaviour currently differs.
+ */
+public class DenseVectorStatsCollectionTests extends EngineTestCase {
 
     @Override
     protected String defaultMapping() {
@@ -45,14 +54,17 @@ public class DenseVectorStatsStatelessTests extends EngineTestCase {
     }
 
     public void testCountsAreCollectedWhenNotStateless() throws Exception {
-        final DenseVectorStats stats = denseVectorStats(Settings.EMPTY);
-        assertThat(stats.getValueCount(), greaterThan(0L));
+        final int numDocs = randomIntBetween(4, 16);
+        final DenseVectorStats stats = denseVectorStats(Settings.EMPTY, numDocs);
+        assertThat(stats.getValueCount(), equalTo((long) numDocs));
         assertThat(offHeapSize(stats), greaterThan(0L));
     }
 
-    public void testCountsAreSkippedOnStatelessButOffHeapIsNot() throws Exception {
-        final DenseVectorStats stats = denseVectorStats(Settings.builder().put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true).build());
-        assertEquals(0L, stats.getValueCount());
+    public void testCountsAreCollectedOnStatelessToo() throws Exception {
+        final int numDocs = randomIntBetween(4, 16);
+        final Settings nodeSettings = Settings.builder().put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true).build();
+        final DenseVectorStats stats = denseVectorStats(nodeSettings, numDocs);
+        assertThat(stats.getValueCount(), equalTo((long) numDocs));
         assertThat(offHeapSize(stats), greaterThan(0L));
     }
 
@@ -62,10 +74,10 @@ public class DenseVectorStatsStatelessTests extends EngineTestCase {
     }
 
     /**
-     * Indexes documents carrying a dense vector into an engine configured with the given node settings, and returns the
-     * stats it reports for them.
+     * Indexes {@code numDocs} documents, each carrying a single dense vector, into an engine configured with the given
+     * node settings, and returns the stats it reports for them.
      */
-    private DenseVectorStats denseVectorStats(Settings nodeSettings) throws IOException {
+    private DenseVectorStats denseVectorStats(Settings nodeSettings, int numDocs) throws IOException {
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(defaultSettings.getIndex(), indexSettings(), nodeSettings);
         assertEquals(nodeSettings.isEmpty() == false, DiscoveryNode.isStateless(indexSettings.getNodeSettings()));
 
@@ -73,13 +85,21 @@ public class DenseVectorStatsStatelessTests extends EngineTestCase {
             final EngineConfig config = config(indexSettings, store, createTempDir(), NoMergePolicy.INSTANCE);
             final DocumentMapper documentMapper = config.getMapperService().documentMapper();
             try (InternalEngine engine = createEngine(config)) {
-                for (int i = 0; i < randomIntBetween(4, 16); i++) {
-                    final String source = Strings.format("{\"dv\":[%s,%s,%s]}", randomFloat() + 1, randomFloat() + 1, randomFloat() + 1);
-                    engine.index(indexForDoc(documentMapper.parse(new SourceToParse("d_" + i, new BytesArray(source), XContentType.JSON))));
-                }
+                indexDenseVectorDocs(engine, documentMapper, numDocs);
                 engine.refresh("test");
                 return engine.denseVectorStats(config.getMapperService().mappingLookup());
             }
+        }
+    }
+
+    /**
+     * Indexes {@code numDocs} documents into the given engine, each with a single, distinct value for the {@code dv} field,
+     * so that the resulting vector count is known exactly.
+     */
+    private void indexDenseVectorDocs(InternalEngine engine, DocumentMapper documentMapper, int numDocs) throws IOException {
+        for (int i = 0; i < numDocs; i++) {
+            final String source = Strings.format("{\"dv\":[%s,%s,%s]}", randomFloat() + 1, randomFloat() + 1, randomFloat() + 1);
+            engine.index(indexForDoc(documentMapper.parse(new SourceToParse("d_" + i, new BytesArray(source), XContentType.JSON))));
         }
     }
 }

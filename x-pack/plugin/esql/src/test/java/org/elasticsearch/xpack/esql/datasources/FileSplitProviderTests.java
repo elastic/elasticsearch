@@ -8230,6 +8230,23 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     /**
+     * A LIMIT behind a Filter cannot stop on footer row counts, but it also must not open every
+     * footer. The first {@code taskConcurrency} files get a real plan; the rest are whole-file
+     * splits with no object-store I/O. Runtime then ramps readers and stops on the observed limiter.
+     */
+    public void testFilteredLimitPlansOnlyAFirstWaveOfFooters() throws Exception {
+        int files = 8;
+        int taskConcurrency = 2;
+        AtomicInteger opened = new AtomicInteger();
+        FileSplitProvider provider = rangeAwareProvider(countingRowCountReader(opened, 10), EsExecutors.DIRECT_EXECUTOR_SERVICE);
+
+        SplitDiscoveryResult result = provider.discoverSplits(contextWithFilteredLimit(files, taskConcurrency));
+
+        assertEquals("only the first wave opens a footer", taskConcurrency, opened.get());
+        assertEquals("the rest still produce a whole-file split so a selective filter can continue", files, result.splits().size());
+    }
+
+    /**
      * A unit that cannot say how many records it holds makes the running total a floor rather than a count, so the
      * budget gives up and every file is planned. The reader here reports ranges without statistics, which is what
      * every format that is not row-group or stripe based does.
@@ -8371,6 +8388,30 @@ public class FileSplitProviderTests extends ESTestCase {
             base.retainedPartitionKeys(),
             rowLimit,
             null
+        );
+    }
+
+    private static SplitDiscoveryContext contextWithFilteredLimit(int fileCount, int taskConcurrency) {
+        SplitDiscoveryContext base = rangeAwareContext(fileCount);
+        return new SplitDiscoveryContext(
+            base.metadata(),
+            base.fileList(),
+            base.schemaMap(),
+            base.config(),
+            base.partitionInfo(),
+            base.filterHints(),
+            base.querySchema(),
+            base.unifiedSchema(),
+            base.maxRecordBytes(),
+            base.isCancelled(),
+            base.declaredReadSpec(),
+            base.metadataColumnNames(),
+            base.retainedPartitionKeys(),
+            FormatReader.NO_LIMIT,
+            null,
+            taskConcurrency,
+            TransportVersion.current(),
+            true
         );
     }
 

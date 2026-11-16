@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.slm.history;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
@@ -19,14 +21,18 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
@@ -224,6 +230,90 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
             assertEquals("Should have retried 3 times total", 3, attemptCount.get());
         } finally {
             retryHistoryStore.close();
+        }
+    }
+
+    public void testPerItemFailureLoggedAtErrorWhenNodeNotShuttingDown() throws Exception {
+        runPerItemFailureAndAssertLogLevel(false, Level.ERROR);
+    }
+
+    public void testPerItemFailureLoggedAtWarnWhenNodeShuttingDown() throws Exception {
+        runPerItemFailureAndAssertLogLevel(true, Level.WARN);
+    }
+
+    /**
+     * Indexes a history item whose bulk response contains a per-item {@link NodeClosedException} failure and asserts that the
+     * resulting "failures" message is logged at the expected level.
+     */
+    private void runPerItemFailureAndAssertLogLevel(boolean localNodeShuttingDown, Level expectedLevel) throws Exception {
+        if (localNodeShuttingDown) {
+            String localNodeId = clusterService.localNode().getId();
+            ClusterState state = clusterService.state();
+            ClusterServiceUtils.setState(
+                clusterService,
+                ClusterState.builder(state)
+                    .metadata(
+                        Metadata.builder(state.metadata())
+                            .putCustom(
+                                NodesShutdownMetadata.TYPE,
+                                new NodesShutdownMetadata(
+                                    Map.of(
+                                        localNodeId,
+                                        SingleNodeShutdownMetadata.builder()
+                                            .setNodeId(localNodeId)
+                                            .setNodeEphemeralId(localNodeId)
+                                            .setReason("shut down for test")
+                                            .setStartedAtMillis(randomNonNegativeLong())
+                                            .setType(SingleNodeShutdownMetadata.Type.SIGTERM)
+                                            .setGracePeriod(TimeValue.timeValueMinutes(1))
+                                            .build()
+                                    )
+                                )
+                            )
+                    )
+                    .build()
+            );
+        }
+
+        SnapshotLifecyclePolicy policy = randomSnapshotLifecyclePolicy(randomAlphaOfLength(5));
+        SnapshotHistoryItem record = SnapshotHistoryItem.creationSuccessRecord(
+            randomNonNegativeLong(),
+            policy,
+            generateSnapshotName(policy.getName())
+        );
+
+        CountDownLatch responseLatch = new CountDownLatch(1);
+        SnapshotHistoryStore store = new SnapshotHistoryStore(
+            client,
+            clusterService,
+            threadPool,
+            ActionListener.wrap(response -> responseLatch.countDown(), e -> fail(e)),
+            TimeValue.timeValueMillis(100)
+        );
+        try (MockLog mockLog = MockLog.capture(SnapshotHistoryStore.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "per-item failure logged at " + expectedLevel,
+                    SnapshotHistoryStore.class.getCanonicalName(),
+                    expectedLevel,
+                    "failures: [{*NodeClosedException*}]"
+                )
+            );
+            client.setVerifier((action, request, listener) -> {
+                assertThat(action, sameInstance(TransportBulkAction.TYPE));
+                BulkItemResponse failedItem = BulkItemResponse.failure(
+                    0,
+                    DocWriteRequest.OpType.CREATE,
+                    new BulkItemResponse.Failure(SLM_HISTORY_DATA_STREAM, "doc-id", new NodeClosedException(clusterService.localNode()))
+                );
+                return new BulkResponse(new BulkItemResponse[] { failedItem }, 0L);
+            });
+
+            store.putAsync(record);
+            assertTrue("bulk response should have been processed", responseLatch.await(10, TimeUnit.SECONDS));
+            mockLog.assertAllExpectationsMatched();
+        } finally {
+            store.close();
         }
     }
 

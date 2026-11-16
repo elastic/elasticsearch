@@ -256,6 +256,55 @@ public class PromqlBuiltinFunctionDefinitions {
         .stack(PromqlFunctionDefinition.STACK_GA_9_6)
         .name("sort_desc");
 
+    /**
+     * Behavior shared by {@code sort_by_label} and {@code sort_by_label_desc}, shown on each function's own page.
+     */
+    private static final String SORT_BY_LABEL_BEHAVIOR = "Ordering is observable only on instant queries. Range queries "
+        + "return the series in their input order, without applying the requested ordering. Label comparison uses "
+        + "natural order, with sequences of digits compared numerically.";
+
+    /**
+     * Prometheus divergences shared by {@code sort_by_label} and {@code sort_by_label_desc}. One bullet per divergence
+     * so the generated "Differences from Prometheus" section stays scannable.
+     */
+    private static final String SORT_BY_LABEL_DIFFERENCES = "- A call below the top level of the query, such as "
+        + "`abs(sort_by_label(x, \"job\"))`, isn't supported yet. {{prom}} applies the ordering there too.\n"
+        + "- When the requested labels are equal, ties are broken by series identity, approximating {{prom}} "
+        + "`labels.Compare`. The order can differ in edge cases, such as a series missing a label or labels of "
+        + "non-string types.\n"
+        + "- On a range query the ordering is discarded in both, but {{prom}} returns the series ordered by their "
+        + "labels, where {{es}} returns them in input order.\n"
+        + "- Sequences of digits that are numerically equal but differ in leading zeros (for example, `item1` and "
+        + "`item01`), and empty label values, get a stable order rather than {{prom}}'s unstable natural sort order.\n"
+        + "- Sequences of digits longer than about 20 digits are still compared numerically, where {{prom}} falls back "
+        + "to text comparison.";
+
+    public static final PromqlFunctionDefinition SORT_BY_LABEL = PromqlFunctionDefinition.def()
+        .resultOrderingByLabel()
+        .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)
+        .description(
+            "Sorts instant-vector series by the values of the given labels in natural ascending order. "
+                + "Missing labels compare as the empty string."
+        )
+        .example("sort_by_label(http_requests_total, \"job\", \"instance\")")
+        .extendedDescription(SORT_BY_LABEL_BEHAVIOR)
+        .stdDivergence(SORT_BY_LABEL_DIFFERENCES)
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_7)
+        .name("sort_by_label");
+
+    public static final PromqlFunctionDefinition SORT_BY_LABEL_DESC = PromqlFunctionDefinition.def()
+        .resultOrderingByLabel()
+        .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)
+        .description(
+            "Sorts instant-vector series by the values of the given labels in natural descending order. "
+                + "Missing labels compare as the empty string."
+        )
+        .example("sort_by_label_desc(http_requests_total, \"job\", \"instance\")")
+        .extendedDescription(SORT_BY_LABEL_BEHAVIOR)
+        .stdDivergence(SORT_BY_LABEL_DIFFERENCES)
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_7)
+        .name("sort_by_label_desc");
+
     public static final PromqlFunctionDefinition VECTOR = PromqlFunctionDefinition.def()
         .vectorConversion()
         .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)

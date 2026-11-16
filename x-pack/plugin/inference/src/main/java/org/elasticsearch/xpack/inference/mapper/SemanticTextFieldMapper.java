@@ -447,8 +447,6 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
                 builderParams,
                 indexVersionCreated,
                 indexSettings.getMode(),
-                modelRegistry,
-                vectorsFormatProviders,
                 sourceColumnarStored
             );
         }
@@ -465,20 +463,9 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
         BuilderParams builderParams,
         IndexVersion indexCreatedVersion,
         IndexMode indexMode,
-        ModelRegistry modelRegistry,
-        List<VectorsFormatProvider> vectorsFormatProviders,
         boolean sourceColumnarStored
     ) {
-        super(
-            simpleName,
-            mappedFieldType,
-            builderParams,
-            indexCreatedVersion,
-            indexMode,
-            modelRegistry,
-            vectorsFormatProviders,
-            sourceColumnarStored
-        );
+        super(simpleName, mappedFieldType, builderParams, indexCreatedVersion, indexMode, sourceColumnarStored);
     }
 
     @Override

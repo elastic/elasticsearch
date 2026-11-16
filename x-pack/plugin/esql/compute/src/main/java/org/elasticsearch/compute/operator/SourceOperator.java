@@ -88,6 +88,9 @@ public abstract class SourceOperator implements Operator {
      * autoscaling signal, not billing. That time is attributed to shards according to the
      * load snapshot returned by {@link #shardLoadDelta(long)} for the same interval.</p>
      *
+     * <p>It also adds the rows each shard emitted to its {@link ShardContext#addRowsEmitted(long)}, which splits the time of the
+     * node reduce between the shards.</p>
+     *
      * <p>Attribution rules:
      * <ul>
      *   <li>If exactly one shard contributed load, the full {@code extraDriverNanos} is
@@ -113,13 +116,16 @@ public abstract class SourceOperator implements Operator {
 
         if (size == 1) {
             // Single shard: attribute all processing to it
-            TaskLoadAttribution.charge(delta.getFirst().context().stats().searchLoadTarget(), extraDriverNanos, now);
+            ShardLoad load = delta.getFirst();
+            load.context().addRowsEmitted(load.rowsEmitted());
+            TaskLoadAttribution.charge(load.context().stats().searchLoadTarget(), extraDriverNanos, now);
             return true;
         }
 
         long totalProcess = 0L;
         long totalRows = 0L;
         for (var load : delta) {
+            load.context().addRowsEmitted(load.rowsEmitted());
             totalProcess += load.processTimeNanos();
             totalRows += load.rowsEmitted();
         }

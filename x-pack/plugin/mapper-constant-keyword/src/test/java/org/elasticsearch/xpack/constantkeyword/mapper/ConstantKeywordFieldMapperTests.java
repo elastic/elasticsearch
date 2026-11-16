@@ -16,6 +16,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.index.IndexSortConfig;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
@@ -235,6 +237,24 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
         }));
         ConstantKeywordFieldType ft = (ConstantKeywordFieldType) mapperService.fieldType("field");
         assertEquals("74", ft.value());
+    }
+
+    public void testIndexSortRejected() throws IOException {
+        Settings settings = Settings.builder().put("index.sort.field", "field").build();
+        MapperService mapperService = createMapperService(settings, fieldMapping(b -> {
+            b.field("type", "constant_keyword");
+            if (randomBoolean()) {
+                b.field("value", "foo");
+            }
+        }));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new IndexSortConfig(mapperService.getIndexSettings()).buildIndexSort(
+                mapperService::fieldType,
+                (ft, s) -> ft.fielddataBuilder(FieldDataContext.noRuntimeFields("index", "test")).build(null, null)
+            )
+        );
+        assertThat(e.getMessage(), equalTo("invalid index sort field:[field]"));
     }
 
     public void testUpdate() throws IOException {

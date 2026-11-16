@@ -245,6 +245,18 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * skips parallel parse; STATS / full scans keep {@link #maxConcurrentOpenSegments}.
      */
     static final int FILTERED_LIMIT_SEGMENT_WINDOW = 2;
+    /**
+     * Initial concurrent producers for a filtered LIMIT. Driver count is already
+     * {@code task_concurrency}; this ramps start inside {@link #startSliceQueueRead}. A
+     * match on the first split must not open one reader per driver. The cap doubles when a
+     * unit finishes and the observed limiter still has remaining rows, so a filter that
+     * matches nothing early still reaches full parallelism.
+     */
+    static final int FILTERED_LIMIT_READER_RAMP = 1;
+    private final Object filteredLimitRampLock = new Object();
+    private int filteredLimitRunning;
+    private int filteredLimitCap = FILTERED_LIMIT_READER_RAMP;
+    private final ArrayDeque<ParkedProducer> filteredLimitParked = new ArrayDeque<>();
     private final int maxRecordBytes;
     /** Canonical-stripe grid for per-stripe stats accounting; {@code <= 0} disables. Accounting overlay only. */
     private final long statsStripeSize;
@@ -1684,7 +1696,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         FormatReader operatorReader,
         @Nullable FormatReadCounters formatCounters
     ) {
-        ActionListener<Void> completionListener = ActionListener.assertOnce(ActionListener.wrap(v -> {
+        ActionListener<Void> finishBuffer = ActionListener.assertOnce(ActionListener.wrap(v -> {
             buffer.finish(false);
             driverContext.removeAsyncAction();
             releaseOperator();
@@ -1696,13 +1708,124 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         buffer.setSplitsTotal(sliceQueue.totalSlices());
         ProducerState state = new ProducerState(sliceQueue, null, null, buffer, driverContext, operatorReader, formatCounters);
         try {
-            // Initial submit is not force-execution: a saturated esql_worker can reject start-of-slice.
-            // Park resumes (executeProducer) are force-execution; T8 covers resume only.
-            executeProducer(state, completionListener, () -> runProducerLoop(state, completionListener), false);
+            submitSliceQueueProducer(state, finishBuffer);
         } catch (Exception e) {
-            completionListener.onFailure(e);
+            finishBuffer.onFailure(e);
         }
     }
+
+    /**
+     * Starts the producer immediately, parks it until a filtered-LIMIT slot opens, or completes
+     * it without I/O once the observed limiter is exhausted. Pushed LIMIT and full scans skip
+     * the ramp: every {@link #get(DriverContext)} submits as before.
+     */
+    private void submitSliceQueueProducer(ProducerState state, ActionListener<Void> finishBuffer) {
+        if (filteredLimitRamp() == false) {
+            // Initial submit is not force-execution: a saturated esql_worker can reject start-of-slice.
+            // Park resumes (executeProducer) are force-execution; T8 covers resume only.
+            executeProducer(state, finishBuffer, () -> runProducerLoop(state, finishBuffer), false);
+            return;
+        }
+        ActionListener<Void> started = ActionListener.runAfter(finishBuffer, this::onFilteredLimitProducerFinished);
+        boolean startNow;
+        ParkedProducer skipped = null;
+        synchronized (filteredLimitRampLock) {
+            if (noFurtherCandidates() || state.buffer.noMoreInputs()) {
+                skipped = new ParkedProducer(state, finishBuffer);
+                startNow = false;
+            } else if (filteredLimitRunning < filteredLimitCap) {
+                filteredLimitRunning++;
+                startNow = true;
+            } else {
+                filteredLimitParked.add(new ParkedProducer(state, finishBuffer));
+                startNow = false;
+            }
+        }
+        if (startNow) {
+            try {
+                executeProducer(state, started, () -> runProducerLoop(state, started), false);
+            } catch (Exception e) {
+                started.onFailure(e);
+            }
+            return;
+        }
+        if (skipped != null) {
+            skipped.finishBuffer().onResponse(null);
+        }
+    }
+
+    private boolean filteredLimitRamp() {
+        return sourceLimiter == null && observedLimiter != null;
+    }
+
+    private void onFilteredLimitProducerFinished() {
+        if (filteredLimitRamp() == false) {
+            return;
+        }
+        List<ParkedProducer> toStart = new ArrayList<>();
+        List<ParkedProducer> toSkip = new ArrayList<>();
+        synchronized (filteredLimitRampLock) {
+            filteredLimitRunning--;
+            drainParkedLocked(toStart, toSkip);
+        }
+        dispatchParked(toStart, toSkip);
+    }
+
+    /**
+     * A unit finished and the observed limiter still wants rows, so open more of the parked
+     * drivers. Doubling (rather than +1) is what lets a selective filter reach
+     * {@code task_concurrency} without waiting out one split per extra reader.
+     */
+    private void maybeRampAfterUnit() {
+        if (filteredLimitRamp() == false || noFurtherCandidates()) {
+            return;
+        }
+        List<ParkedProducer> toStart = new ArrayList<>();
+        List<ParkedProducer> toSkip = new ArrayList<>();
+        synchronized (filteredLimitRampLock) {
+            if (filteredLimitCap < Integer.MAX_VALUE / 2) {
+                filteredLimitCap *= 2;
+            } else {
+                filteredLimitCap = Integer.MAX_VALUE;
+            }
+            drainParkedLocked(toStart, toSkip);
+        }
+        dispatchParked(toStart, toSkip);
+    }
+
+    private void drainParkedLocked(List<ParkedProducer> toStart, List<ParkedProducer> toSkip) {
+        if (noFurtherCandidates()) {
+            while (filteredLimitParked.isEmpty() == false) {
+                toSkip.add(filteredLimitParked.poll());
+            }
+            return;
+        }
+        while (filteredLimitRunning < filteredLimitCap && filteredLimitParked.isEmpty() == false) {
+            ParkedProducer parked = filteredLimitParked.poll();
+            if (parked.state().buffer.noMoreInputs() || noFurtherCandidates()) {
+                toSkip.add(parked);
+                continue;
+            }
+            filteredLimitRunning++;
+            toStart.add(parked);
+        }
+    }
+
+    private void dispatchParked(List<ParkedProducer> toStart, List<ParkedProducer> toSkip) {
+        for (ParkedProducer parked : toSkip) {
+            parked.finishBuffer().onResponse(null);
+        }
+        for (ParkedProducer parked : toStart) {
+            ActionListener<Void> started = ActionListener.runAfter(parked.finishBuffer(), this::onFilteredLimitProducerFinished);
+            try {
+                executeProducer(parked.state(), started, () -> runProducerLoop(parked.state(), started), false);
+            } catch (Exception e) {
+                started.onFailure(e);
+            }
+        }
+    }
+
+    private record ParkedProducer(ProducerState state, ActionListener<Void> finishBuffer) {}
 
     /**
      * Multi-file read path (legacy, non-slice-queue). Per-file {@link ColumnMapping} still arrives
@@ -1984,6 +2107,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     state.buffer.incSplitsProcessed();
                     state.buffer.finishInFlightBytes();
                     clearCurrentIterator(state);
+                    maybeRampAfterUnit();
                     runProducerLoop(state, completionListener);
                 }
                 case BLOCKED -> {

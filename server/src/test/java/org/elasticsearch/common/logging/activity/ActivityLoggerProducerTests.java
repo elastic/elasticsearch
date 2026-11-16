@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.common.logging.activity.ActivityLogProducer.EVENT_ACTION_FIELD;
 import static org.elasticsearch.common.logging.activity.ActivityLogProducer.EVENT_DURATION_FIELD;
 import static org.elasticsearch.common.logging.activity.ActivityLogProducer.EVENT_OUTCOME_FIELD;
 import static org.elasticsearch.common.logging.activity.ActivityLogProducer.PARENT_NODE_ID_FIELD;
@@ -53,6 +54,7 @@ public class ActivityLoggerProducerTests extends ESTestCase {
     private static QueryCaptureContext makeSuccessContext() {
         QueryCaptureContext context = mock(QueryCaptureContext.class);
         when(context.getType()).thenReturn("testType");
+        when(context.getAction()).thenReturn("testType-query");
         when(context.getOpaqueId()).thenReturn("test_task");
         when(context.getTraceId()).thenReturn("test_trace_id");
         when(context.getTookInNanos()).thenReturn(1_000_000L);
@@ -65,6 +67,7 @@ public class ActivityLoggerProducerTests extends ESTestCase {
     private static QueryCaptureContext makeFailContext() {
         QueryCaptureContext context = mock(QueryCaptureContext.class);
         when(context.getType()).thenReturn("failType");
+        when(context.getAction()).thenReturn("failType-query");
         when(context.getOpaqueId()).thenReturn("test_task2");
         when(context.getTraceId()).thenReturn("test_trace_id2");
         when(context.getTookInNanos()).thenReturn(1_000L);
@@ -92,6 +95,7 @@ public class ActivityLoggerProducerTests extends ESTestCase {
         assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "took"), equalTo("1000000"));
         assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "took_millis"), equalTo(String.valueOf(TimeUnit.NANOSECONDS.toMillis(1_000_000L))));
         assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "type"), equalTo("testType"));
+        assertThat(message.get(EVENT_ACTION_FIELD), equalTo("testType-query"));
         assertThat(message.get("foo"), equalTo("bar"));
         assertNull(message.get("error.type"));
         assertNull(message.get("error.message"));
@@ -110,6 +114,7 @@ public class ActivityLoggerProducerTests extends ESTestCase {
         assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "took"), equalTo("1000"));
         assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "took_millis"), equalTo(String.valueOf(TimeUnit.NANOSECONDS.toMillis(1_000L))));
         assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "type"), equalTo("failType"));
+        assertThat(message.get(EVENT_ACTION_FIELD), equalTo("failType-query"));
         assertThat(message.get("error.type"), equalTo("SomeError"));
         assertThat(message.get("error.message"), equalTo("Something went wrong"));
         assertThat(message.get("foo"), equalTo("bar"));

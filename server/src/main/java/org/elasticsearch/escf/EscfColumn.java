@@ -76,7 +76,12 @@ public abstract class EscfColumn implements SliceableColumn {
         FixedBitSet validity = windowValidity(col.validity(), 0, docCount);
         return switch (col.kind()) {
             case EscfColumnKind.LONG -> new EscfLongColumn(docCount, validity, col.data());
-            case EscfColumnKind.DOUBLE -> new EscfDoubleColumn(docCount, validity, col.data());
+            case EscfColumnKind.DOUBLE -> new EscfDoubleColumn(
+                docCount,
+                validity,
+                col.data(),
+                col.lexicalForms() == null ? null : (EscfStringColumn) from(col.lexicalForms())
+            );
             case EscfColumnKind.BOOL -> new EscfBoolColumn(docCount, validity, windowBitSet(col.values(), 0, docCount));
             case EscfColumnKind.STRING -> new EscfStringColumn(docCount, validity, col.data(), new IntsRef(col.offsets(), 0, docCount + 1));
             case EscfColumnKind.BINARY -> new EscfBinaryColumn(docCount, validity, col.data(), new IntsRef(col.offsets(), 0, docCount + 1));
@@ -226,7 +231,11 @@ public abstract class EscfColumn implements SliceableColumn {
         return (float) getDoubleValue(row);
     }
 
-    /** Returns the string value at {@code row}. The column kind must be {@link EscfColumnKind#STRING}. */
+    /**
+     * Returns the string value at {@code row}. The column kind must be {@link EscfColumnKind#STRING} or
+     * {@link EscfColumnKind#DOUBLE}; a DOUBLE column answers with the value's stored spelling when it has one and
+     * with its canonical {@code Double.toString} rendering otherwise.
+     */
     public Text getStringValue(int row) {
         throw notA("string");
     }

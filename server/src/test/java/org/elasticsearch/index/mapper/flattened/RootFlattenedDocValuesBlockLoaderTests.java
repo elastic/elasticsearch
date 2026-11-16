@@ -17,9 +17,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.BlockLoader;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
@@ -43,11 +41,9 @@ public class RootFlattenedDocValuesBlockLoaderTests extends ESTestCase {
                 LeafReaderContext leaf = reader.leaves().get(0);
                 var blockLoader = new RootFlattenedDocValuesBlockLoader(
                     FIELD,
-                    new Mapper.IgnoreAbove(null, IndexMode.STANDARD),
                     false,
                     false,
                     List.of(),
-                    false,
                     FlattenedFieldMapper.PreserveLeafArrays.LOSSY
                 );
                 BlockLoader.ColumnAtATimeReader columnReader = blockLoader.reader(NoopCircuitBreaker.INSTANCE, leaf);

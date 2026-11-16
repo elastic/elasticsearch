@@ -67,7 +67,7 @@ public final class DateExtractConstantNanosEvaluator implements ExpressionEvalua
   }
 
   public LongBlock eval(int positionCount, LongBlock valueBlock) {
-    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (valueBlock.isNull(p)) {
           result.appendNull();

@@ -23,6 +23,7 @@ public class ChildMemoryCircuitBreakerTests extends ESTestCase {
 
     public void testCategoryForKnownCategories() {
         assertEquals(ChildMemoryCircuitBreaker.CATEGORY_QUERY, ChildMemoryCircuitBreaker.categoryFor("query"));
+        assertEquals(ChildMemoryCircuitBreaker.CATEGORY_QUERY_TOKENS, ChildMemoryCircuitBreaker.categoryFor("query_tokens"));
         assertEquals(ChildMemoryCircuitBreaker.CATEGORY_WILDCARD, ChildMemoryCircuitBreaker.categoryFor("wildcard"));
         assertEquals(ChildMemoryCircuitBreaker.CATEGORY_REGEXP, ChildMemoryCircuitBreaker.categoryFor("regexp"));
         assertEquals(ChildMemoryCircuitBreaker.CATEGORY_RANGE, ChildMemoryCircuitBreaker.categoryFor("range"));

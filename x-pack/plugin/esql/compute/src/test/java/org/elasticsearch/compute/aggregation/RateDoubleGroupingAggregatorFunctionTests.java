@@ -353,8 +353,8 @@ public class RateDoubleGroupingAggregatorFunctionTests extends ComputeTestCase {
                 }
                 // boundary buckets
                 if (randomInt(100) < 5) {
-                    intervals = between(1, 2);
-                    for (int s = 0; s < intervals; s++) {
+                    final int end = intervals + between(2, 5);
+                    for (int s = intervals; s < end; s++) {
                         rows.add(new Row(tsid, bucket, s, between(1, 3)));
                     }
                 }

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.test.index;
 
+import org.apache.lucene.util.Version;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -16,8 +17,10 @@ import org.elasticsearch.index.KnownIndexVersions;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
+import java.util.List;
 import java.util.NavigableSet;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public class IndexVersionUtils {
@@ -127,5 +130,29 @@ public class IndexVersionUtils {
     /** Returns a random {@code IndexVersion} greater than or equal to {@code version} */
     public static IndexVersion randomVersionOnOrAfter(IndexVersion version) {
         return randomVersionBetween(version, IndexVersion.current());
+    }
+
+    /**
+     * Returns a random {@code IndexVersion} that can be written to and whose Lucene version is before {@code luceneVersion}. Use this,
+     * rather than index version ordering, for behavior that is gated on {@link IndexVersion#luceneVersion()}: index version ids are
+     * not monotonic in the Lucene version across backports.
+     */
+    public static IndexVersion randomWriteVersionBeforeLucene(Version luceneVersion) {
+        return randomWriteVersionMatchingLucene(v -> v.onOrAfter(luceneVersion) == false, "before", luceneVersion);
+    }
+
+    /** Returns a random {@code IndexVersion} that can be written to and whose Lucene version is on or after {@code luceneVersion}. */
+    public static IndexVersion randomWriteVersionOnOrAfterLucene(Version luceneVersion) {
+        return randomWriteVersionMatchingLucene(v -> v.onOrAfter(luceneVersion), "on or after", luceneVersion);
+    }
+
+    private static IndexVersion randomWriteVersionMatchingLucene(Predicate<Version> predicate, String relation, Version luceneVersion) {
+        List<IndexVersion> versions = ALL_WRITE_VERSIONS.stream().filter(v -> predicate.test(v.luceneVersion())).toList();
+        if (versions.isEmpty()) {
+            throw new IllegalArgumentException(
+                "couldn't find any write-compatible index versions with a Lucene version " + relation + " [" + luceneVersion + "]"
+            );
+        }
+        return ESTestCase.randomFrom(versions);
     }
 }

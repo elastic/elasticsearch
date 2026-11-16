@@ -25,7 +25,12 @@ public class StopAnalyzerProvider extends AbstractIndexAnalyzerProvider<StopAnal
 
     public StopAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
-        CharArraySet stopWords = Analysis.parseStopWords(env, settings, EnglishAnalyzer.ENGLISH_STOP_WORDS_SET);
+        CharArraySet stopWords = Analysis.parseStopWords(
+            indexSettings.getIndexVersionCreated(),
+            env,
+            settings,
+            EnglishAnalyzer.ENGLISH_STOP_WORDS_SET
+        );
         this.stopAnalyzer = new StopAnalyzer(stopWords);
         this.sharingKey = new Key(Analysis.stableStopWords(settings, stopWords));
     }

@@ -17,9 +17,13 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
+import java.io.IOException;
 import java.io.Reader;
 
 /**
@@ -33,7 +37,11 @@ import java.io.Reader;
 public class FactorySharingKeyTests extends ESTestCase {
 
     private IndexSettings indexSettings() {
-        Settings idx = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
+        return indexSettings(IndexVersion.current());
+    }
+
+    private IndexSettings indexSettings(IndexVersion version) {
+        Settings idx = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         return IndexSettingsModule.newIndexSettings("test", idx);
     }
 
@@ -100,6 +108,46 @@ public class FactorySharingKeyTests extends ESTestCase {
         StopTokenFilterFactory keep = new StopTokenFilterFactory(is, env, "a", Settings.builder().put("remove_trailing", true).build());
         StopTokenFilterFactory remove = new StopTokenFilterFactory(is, env, "b", Settings.builder().put("remove_trailing", false).build());
         assertNotEquals(keep.sharingKey(), remove.sharingKey());
+    }
+
+    // ---- PreBuiltAnalyzerProviderFactory ----
+
+    /**
+     * A Lucene-versioned prebuilt analyzer keeps one provider per Lucene version, and providers for different Lucene versions have
+     * different sharing keys so indices created on them never share an analyzer.
+     */
+    public void testLuceneVersionPrebuiltAnalyzerDoesNotShareAcrossLuceneVersions() throws IOException {
+        Environment env = env();
+        IndexVersion old = IndexVersions.UPGRADE_TO_LUCENE_10_4_0;
+        assertNotEquals(old.luceneVersion(), IndexVersion.current().luceneVersion());
+        try (
+            PreBuiltAnalyzerProviderFactory factory = PreBuiltAnalyzerProviderFactory.luceneVersion(
+                "versioned",
+                luceneVersion -> new StandardAnalyzer()
+            )
+        ) {
+            AnalyzerProvider<?> oldProvider = factory.get(indexSettings(old), env, "versioned", Settings.EMPTY);
+            AnalyzerProvider<?> currentProvider = factory.get(indexSettings(), env, "versioned", Settings.EMPTY);
+            assertSame(oldProvider, factory.get(indexSettings(old), env, "versioned", Settings.EMPTY));
+            assertSame(currentProvider, factory.get(indexSettings(), env, "versioned", Settings.EMPTY));
+            assertNotEquals(oldProvider.sharingKey(), currentProvider.sharingKey());
+        }
+    }
+
+    /** Prebuilt analyzers registered with a plain supplier are version-invariant and keep sharing by name across versions. */
+    public void testSupplierPrebuiltAnalyzerSharesAcrossVersions() throws IOException {
+        Environment env = env();
+        try (
+            PreBuiltAnalyzerProviderFactory factory = new PreBuiltAnalyzerProviderFactory(
+                "invariant",
+                CachingStrategy.INDEX,
+                StandardAnalyzer::new
+            )
+        ) {
+            AnalyzerProvider<?> current = factory.get(indexSettings(), env, "invariant", Settings.EMPTY);
+            AnalyzerProvider<?> old = factory.get(indexSettings(IndexVersionUtils.getPreviousVersion()), env, "invariant", Settings.EMPTY);
+            assertEquals(current.sharingKey(), old.sharingKey());
+        }
     }
 
     // ---- ShingleTokenFilterFactory ----

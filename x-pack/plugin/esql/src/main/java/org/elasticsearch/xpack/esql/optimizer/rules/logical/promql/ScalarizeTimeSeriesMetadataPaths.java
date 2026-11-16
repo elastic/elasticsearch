@@ -919,27 +919,7 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
                 calls.push(under);
                 under = under.children().getFirst();
             }
-            Parts parts;
-            if (under instanceof Attribute attribute && containers.containsKey(attribute.id())) {
-                Parts below = containers.get(attribute.id());
-                parts = new Parts(below.container);
-                parts.without.addAll(below.without);
-                parts.labels.putAll(below.labels);
-            } else if (under instanceof Attribute attribute && isLabelContainer(attribute)) {
-                // a container no node below defines: it is whole
-                parts = new Parts(attribute);
-            } else if (isSource(under)) {
-                if (source == null) {
-                    throw new IllegalStateException("the source's label container is read outside of its aggregate");
-                }
-                // every label of the series; what it is without is left out where the aggregate loads it
-                parts = new Parts(under);
-            } else if (under instanceof Literal) {
-                // the empty container
-                parts = new Parts(null);
-            } else {
-                throw new IllegalStateException("unexpected label container [" + definition + "]");
-            }
+            Parts parts = start(under, definition);
             for (Expression call : calls) {
                 switch (call) {
                     // TS_UNSET: neither the container nor a promoted label holds the names any more
@@ -987,6 +967,33 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
             }
             containers.put(id, parts);
             return parts;
+        }
+
+        /** What the container {@code under}, at the bottom of the {@code ts_*} calls of {@code definition}, is. */
+        private Parts start(Expression under, Expression definition) {
+            if (under instanceof Attribute attribute && containers.containsKey(attribute.id())) {
+                Parts below = containers.get(attribute.id());
+                Parts parts = new Parts(below.container);
+                parts.without.addAll(below.without);
+                parts.labels.putAll(below.labels);
+                return parts;
+            }
+            if (under instanceof Attribute attribute && isLabelContainer(attribute)) {
+                // a container no node below defines: it is whole
+                return new Parts(attribute);
+            }
+            if (isSource(under)) {
+                if (source == null) {
+                    throw new IllegalStateException("the source's label container is read outside of its aggregate");
+                }
+                // every label of the series; what it is without is left out where the aggregate loads it
+                return new Parts(under);
+            }
+            if (under instanceof Literal) {
+                // the empty container
+                return new Parts(null);
+            }
+            throw new IllegalStateException("unexpected label container [" + definition + "]");
         }
 
         /**

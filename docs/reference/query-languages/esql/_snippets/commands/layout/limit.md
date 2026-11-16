@@ -41,7 +41,7 @@ Precede `LIMIT <N> BY` with a `SORT` to keep the top N for each group.
 
 {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview` To remove
 duplicate rows, use [`DEDUP`](/reference/query-languages/esql/commands/dedup.md)
-instead. It is equivalent to `LIMIT 1 BY` every column in scope, without having
+instead. It is equivalent to `LIMIT 1 BY` for every column in scope, without having
 to list the columns.
 
 :::{include} ../../common/result-set-size-limitation.md

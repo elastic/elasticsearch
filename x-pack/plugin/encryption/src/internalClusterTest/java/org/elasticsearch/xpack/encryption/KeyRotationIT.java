@@ -89,6 +89,12 @@ public class KeyRotationIT extends SecurityIntegTestCase {
         return false;
     }
 
+    // assertOnCommit reloads state from every data path, unwrapping each key with PBKDF2; extra paths can time out the setup wipe
+    @Override
+    protected boolean forceSingleDataPath() {
+        return true;
+    }
+
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));

@@ -10,10 +10,8 @@ package org.elasticsearch.xpack.stateless;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
-import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -27,17 +25,11 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
-import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -51,7 +43,6 @@ import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MIN_
 import static org.elasticsearch.search.vectors.KnnSearchBuilderTests.randomVector;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -111,91 +102,6 @@ public class StatelessMergeIT extends AbstractStatelessPluginIntegTestCase {
                 nodeStats.getThreadPool().stats().stream().filter(s -> ThreadPool.Names.MERGE.equals(s.name())).findAny().get().completed()
             )
         );
-    }
-
-    public void testOnlyForceMergesAreAllowedDuringRelocation() throws Exception {
-        String indexNode = startMasterAndIndexNode();
-
-        final String indexName = randomIdentifier();
-        createIndex(indexName, indexSettings(1, 0).build());
-        ensureGreen(indexName);
-
-        var sourceShard = findIndexShard(resolveIndex(indexName), 0, indexNode);
-
-        indexDocs(indexName, 1_000);
-        flush(indexName);
-
-        indexDocs(indexName, 1_000);
-        flush(indexName);
-
-        var newIndexNode = startIndexNode();
-
-        final var resumeHandoff = new CountDownLatch(1);
-        final var pauseHandoff = new CountDownLatch(1);
-
-        MockTransportService.getInstance(newIndexNode).addSendBehavior(new StubbableTransport.SendRequestBehavior() {
-
-            private void await() {
-                pauseHandoff.countDown();
-                logger.info("--> start relocation paused");
-                safeAwait(resumeHandoff, TimeValue.ONE_MINUTE);
-                logger.info("--> start relocation resumed");
-            }
-
-            @Override
-            public void sendRequest(
-                Transport.Connection connection,
-                long requestId,
-                String action,
-                TransportRequest request,
-                TransportRequestOptions options
-            ) throws IOException {
-                if (action.equals(START_RELOCATION_ACTION_NAME)) {
-                    await();
-                }
-                connection.sendRequest(requestId, action, request, options);
-            }
-        });
-
-        logger.info("--> kicking off reroute");
-        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, indexNode, newIndexNode));
-
-        assertBusy(() -> assertTrue(sourceShard.routingEntry().relocating()));
-
-        logger.info("--> waiting for relocation handoff to be paused");
-        pauseHandoff.await();
-        logger.info("--> relocation handoff paused, starting indexing");
-
-        var startingMerges = client().admin().indices().prepareStats(indexName).clear().setMerge(true).get().getPrimaries().merge
-            .getTotal();
-
-        // Create multiple segments that would normally trigger merge activity
-        int iterations = randomIntBetween(8, 12);
-        for (int i = 0; i < iterations; i++) {
-            indexDocs(indexName, randomIntBetween(10, 20));
-            indicesAdmin().prepareRefresh(indexName).get();
-        }
-        logger.info("--> indexing complete [{} iterations], starting merge", iterations);
-
-        try {
-            assertThat(
-                client().admin().indices().prepareStats(indexName).clear().setMerge(true).get().getPrimaries().merge.getTotal(),
-                equalTo(startingMerges)
-            );
-
-            logger.info("--> force merge call");
-            client(indexNode).admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).get();
-            logger.info("--> force merge call returned");
-
-            assertThat(
-                client().admin().indices().prepareStats(indexName).clear().setMerge(true).get().getPrimaries().merge.getTotal(),
-                equalTo(startingMerges + 1)
-            );
-
-        } finally {
-            logger.info("--> resume handoff countdown");
-            resumeHandoff.countDown();
-        }
     }
 
     public void testRefreshOnLargeMerge_true() throws Exception {

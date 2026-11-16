@@ -51,10 +51,11 @@ public class PromqlBuiltinFunctionDefinitions {
             + "column of the `PROMQL` command, aren't supported yet.\n\n"
             + "{applies_to}`stack: ga =9.6` A call over an aggregation, such as `label_replace(sum by (job) (x), ...)`, "
             + "isn't supported yet.\n\n"
-            + "{applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` A call over anything other than a `by(...)` aggregation, "
-            + "such as `sum(x)`, a `without(...)` aggregation, `topk`, or a binary operator, and a call that overwrites a "
-            + "grouping label, such as `label_replace(sum by (job) (x), \"job\", \"$1\", \"job\", \"(.*)\")`, aren't "
-            + "supported yet. Write a new label instead.\n\n";
+            + "{applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` A call over anything other than a `by(...)` aggregation "
+            + "or `count_values`, such as `sum(x)`, a `without(...)` aggregation, `topk`, or a binary operator, and a call that "
+            + "overwrites a grouping label or the `count_values` label, such as "
+            + "`label_replace(sum by (job) (x), \"job\", \"$1\", \"job\", \"(.*)\")`, aren't supported yet. Write a new label "
+            + "instead.\n\n";
 
     private static final String SORT_DIVERGENCE =
         "A call below the top level of the query, such as `abs(sort(x))`, isn't supported yet. {{prom}} applies the "
@@ -142,6 +143,35 @@ public class PromqlBuiltinFunctionDefinitions {
         .name("limit_ratio");
 
     /**
+     * {@code count_values(label, v)} counts the elements sharing each distinct sample value and exposes that value as the
+     * label {@code label}. The value label is minted and the two-level grouping is built by {@code CountValuesAggregate},
+     * which translates the call directly, so the builder here is never called.
+     */
+    public static final PromqlFunctionDefinition COUNT_VALUES = PromqlFunctionDefinition.def()
+        .acrossSeriesBinary(
+            PromqlFunctionDefinition.PromqlParamInfo.of("label", PromqlDataType.SCALAR, "Name of the label holding each sample value."),
+            (source, field, filter, window, label) -> {
+                throw new UnsupportedOperationException("count_values is translated directly, not built via the generic function builder");
+            }
+        )
+        .description(
+            "Counts the elements that have the same sample value, returning one series per distinct value with the value as "
+                + "the label `label`. When used with `by`, `count_values` counts independently within each group."
+        )
+        .example("count_values(\"version\", build_version)")
+        .stack(PromqlFunctionDefinition.STACK_GA_9_7)
+        .stdDivergence(
+            "`without(...)`, such as `count_values without (instance) (\"v\", x)`, and native histogram samples aren't "
+                + "supported yet. A label named `step` or `_timeseries`, or with the same name as the value column (set by "
+                + "`name=(...)`), such as `value=(count_values(\"value\", x))`, isn't supported: the `PROMQL` command reserves "
+                + "these names for its own columns. A binary operator between `count_values` and a vector that isn't "
+                + "aggregated, such as `count_values(\"v\", vector(1)) / x`, isn't supported yet. The `or` operator with a vector "
+                + "that has a label of the same name mapped as a type other than `keyword`, such as "
+                + "`sum by (shard) (x) or count_values(\"shard\", x)` where `shard` is a `long` field, isn't supported yet."
+        )
+        .name("count_values");
+
+    /**
      * {@code label_replace(v, dst_label, replacement, src_label, regex)} matches {@code regex} (fully anchored) against the
      * value of {@code src_label} and, on a match, sets {@code dst_label} to the expanded {@code replacement}. It manipulates
      * only labels/identity, never sample values, so it has no ES|QL function to build: it resolves into a dedicated node and
@@ -180,7 +210,8 @@ public class PromqlBuiltinFunctionDefinitions {
                 + "expressions use the RE2 engine (RE2 syntax including `(?P<name>)`, `$1`/`$name`/`${name}` replacement "
                 + "expansion, no backreferences, fully anchored as `^(?s:regex)$`), matching Prometheus.\n\n"
                 + "{applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` A call over a `by(...)` aggregation, directly or under "
-                + "`topk`, `bottomk`, `limitk`, or `limit_ratio`, is supported when the destination is a new label, such as "
+                + "`topk`, `bottomk`, `limitk`, or `limit_ratio`, or over `count_values`, is supported when the destination is a "
+                + "new label, such as "
                 + "`label_replace(sum by (job) (x), \"dst\", \"$1\", \"job\", \"(.*)\")`."
         )
         .stdDivergence(
@@ -220,7 +251,8 @@ public class PromqlBuiltinFunctionDefinitions {
         .extendedDescription(
             "The destination can be a new label or an existing stored label (a dimension or `__name__`).\n\n"
                 + "{applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` A call over a `by(...)` aggregation, directly or under "
-                + "`topk`, `bottomk`, `limitk`, or `limit_ratio`, is supported when the destination is a new label, such as "
+                + "`topk`, `bottomk`, `limitk`, or `limit_ratio`, or over `count_values`, is supported when the destination is a "
+                + "new label, such as "
                 + "`label_replace(sum by (job) (x), \"dst\", \"$1\", \"job\", \"(.*)\")`."
         )
         .stdDivergence(
@@ -255,6 +287,55 @@ public class PromqlBuiltinFunctionDefinitions {
         .stdDivergence(SORT_DIVERGENCE)
         .stack(PromqlFunctionDefinition.STACK_GA_9_6)
         .name("sort_desc");
+
+    /**
+     * Behavior shared by {@code sort_by_label} and {@code sort_by_label_desc}, shown on each function's own page.
+     */
+    private static final String SORT_BY_LABEL_BEHAVIOR = "Ordering is observable only on instant queries. Range queries "
+        + "return the series in their input order, without applying the requested ordering. Label comparison uses "
+        + "natural order, with sequences of digits compared numerically.";
+
+    /**
+     * Prometheus divergences shared by {@code sort_by_label} and {@code sort_by_label_desc}. One bullet per divergence
+     * so the generated "Differences from Prometheus" section stays scannable.
+     */
+    private static final String SORT_BY_LABEL_DIFFERENCES = "- A call below the top level of the query, such as "
+        + "`abs(sort_by_label(x, \"job\"))`, isn't supported yet. {{prom}} applies the ordering there too.\n"
+        + "- When the requested labels are equal, ties are broken by series identity, approximating {{prom}} "
+        + "`labels.Compare`. The order can differ in edge cases, such as a series missing a label or labels of "
+        + "non-string types.\n"
+        + "- On a range query the ordering is discarded in both, but {{prom}} returns the series ordered by their "
+        + "labels, where {{es}} returns them in input order.\n"
+        + "- Sequences of digits that are numerically equal but differ in leading zeros (for example, `item1` and "
+        + "`item01`), and empty label values, get a stable order rather than {{prom}}'s unstable natural sort order.\n"
+        + "- Sequences of digits longer than about 20 digits are still compared numerically, where {{prom}} falls back "
+        + "to text comparison.";
+
+    public static final PromqlFunctionDefinition SORT_BY_LABEL = PromqlFunctionDefinition.def()
+        .resultOrderingByLabel()
+        .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)
+        .description(
+            "Sorts instant-vector series by the values of the given labels in natural ascending order. "
+                + "Missing labels compare as the empty string."
+        )
+        .example("sort_by_label(http_requests_total, \"job\", \"instance\")")
+        .extendedDescription(SORT_BY_LABEL_BEHAVIOR)
+        .stdDivergence(SORT_BY_LABEL_DIFFERENCES)
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_7)
+        .name("sort_by_label");
+
+    public static final PromqlFunctionDefinition SORT_BY_LABEL_DESC = PromqlFunctionDefinition.def()
+        .resultOrderingByLabel()
+        .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)
+        .description(
+            "Sorts instant-vector series by the values of the given labels in natural descending order. "
+                + "Missing labels compare as the empty string."
+        )
+        .example("sort_by_label_desc(http_requests_total, \"job\", \"instance\")")
+        .extendedDescription(SORT_BY_LABEL_BEHAVIOR)
+        .stdDivergence(SORT_BY_LABEL_DIFFERENCES)
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_7)
+        .name("sort_by_label_desc");
 
     public static final PromqlFunctionDefinition VECTOR = PromqlFunctionDefinition.def()
         .vectorConversion()

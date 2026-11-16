@@ -149,7 +149,6 @@ import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
@@ -470,8 +469,8 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
 
             // The cancelled fetch must fail the scroll rather than complete it.
             final var e = expectThrows(SearchPhaseExecutionException.class, () -> scrollFuture.actionGet(10, TimeUnit.SECONDS));
-            assertEquals(1, e.shardFailures().length);
-            assertNotNull(ExceptionsHelper.unwrap(e.shardFailures()[0].getCause(), TaskCancelledException.class));
+            assertEquals(1, e.shardFailures().size());
+            assertNotNull(ExceptionsHelper.unwrap(e.shardFailures().getFirst().getCause(), TaskCancelledException.class));
         } finally {
             ParkedScrollQueryBuilder.release.set(true);
             opened.decRef();
@@ -497,7 +496,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                 SearchPhaseExecutionException.class,
                 () -> client().prepareSearchScroll(opened.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).get()
             );
-            assertNotNull(ExceptionsHelper.unwrap(e.shardFailures()[0].getCause(), TaskCancelledException.class));
+            assertNotNull(ExceptionsHelper.unwrap(e.shardFailures().getFirst().getCause(), TaskCancelledException.class));
         } finally {
             client().prepareClearScroll().addScrollId(opened.getScrollId()).get();
             opened.decRef();
@@ -3438,7 +3437,6 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             new FetchPhase(Collections.emptyList()),
             getInstanceFromNode(CircuitBreakerService.class),
             getInstanceFromNode(ExecutorSelector.class),
-            Tracer.NOOP,
             OnlinePrewarmingService.NOOP,
             getInstanceFromNode(TransportService.class).getTaskManager()
         );

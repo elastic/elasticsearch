@@ -381,7 +381,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         }
     }
 
-    public void testRetryOnAlreadyClosedExceptionDuringCreateEmptyFromEmptyStore() {
+    public void testRetryOnExceptionFromTempWriterDuringCreateEmptyFromEmptyStore() {
         String node = internalCluster().startNode();
         String indexName = randomIndexName();
 
@@ -389,7 +389,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         try {
             failTestIfReceiveShardFailure(transportService);
 
-            RetryRecoveryTestPlugin.armDirectoryAce();
+            RetryRecoveryTestPlugin.armDirectoryException();
 
             // Recover from empty store; Store.createEmpty hits a one-shot AlreadyClosedException
             createIndex(indexName, indexSettings(1, 0).build());
@@ -401,7 +401,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         }
     }
 
-    public void testRetryOnAlreadyClosedExceptionDuringAddIndicesFromLocalShards() {
+    public void testRetryOnExceptionFromTempWriterDuringAddIndicesFromLocalShards() {
         String node = internalCluster().startNode();
         final var sourceIndexName = randomIndexName();
         final var targetIndexName = randomIndexName();
@@ -418,7 +418,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         try {
             failTestIfReceiveShardFailure(transportService);
 
-            RetryRecoveryTestPlugin.armDirectoryAce();
+            RetryRecoveryTestPlugin.armDirectoryException();
 
             // Recover from local shards; addIndices' temporary IndexWriter hits ACE once
             ResizeIndexTestUtils.executeResize(ResizeType.CLONE, sourceIndexName, targetIndexName, indexSettings(1, 0));
@@ -431,7 +431,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         }
     }
 
-    public void testRetryOnAlreadyClosedExceptionDuringBootstrapNewHistoryFromExistingStore() throws Exception {
+    public void testRetryOnExceptionFromTempWriterDuringBootstrapNewHistoryFromExistingStore() throws Exception {
         String master = internalCluster().startMasterOnlyNode();
         String node1 = internalCluster().startNode();
         final var indexName = randomIndexName();
@@ -458,7 +458,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         try {
             failTestIfReceiveShardFailure(transportService);
 
-            RetryRecoveryTestPlugin.armDirectoryAce();
+            RetryRecoveryTestPlugin.armDirectoryException();
 
             // Force stale primary → bootstrapNewHistory temporary IndexWriter hits ACE once
             ClusterRerouteUtils.reroute(client(), new AllocateStalePrimaryAllocationCommand(indexName, 0, node1, true));
@@ -827,9 +827,9 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             throwAceOnCreateOutput.set(false);
         }
 
-        /// Arm the Directory wrapper so the next [IndexOutput] create throws [AlreadyClosedException].
+        /// Arm the Directory wrapper so the next [IndexOutput] create throws [AlreadyClosedException]/[IOException].
         /// Used to fail temporary IndexWriters used in StoreRecovery once, then allow retry to succeed.
-        public static void armDirectoryAce() {
+        public static void armDirectoryException() {
             throwAceOnCreateOutput.set(true);
         }
 
@@ -839,7 +839,11 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                 @Override
                 public IndexOutput createOutput(String name, IOContext context) throws IOException {
                     if (throwAceOnCreateOutput.compareAndSet(true, false)) {
-                        throw new AlreadyClosedException("test createEmpty ACE");
+                        if (randomBoolean()) {
+                            throw new AlreadyClosedException("test exception on temp writer");
+                        } else {
+                            throw new IOException("test exception on temp writer");
+                        }
                     }
                     return super.createOutput(name, context);
                 }

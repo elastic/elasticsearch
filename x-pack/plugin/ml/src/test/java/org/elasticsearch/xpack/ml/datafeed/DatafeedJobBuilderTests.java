@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.datafeed.TransportStartDatafeedAction;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry.ExtractorType;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.RestartTimeInfo;
@@ -48,11 +49,14 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.test.NodeRoles.nonRemoteClusterClientNode;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.doReturn;
@@ -113,18 +117,52 @@ public class DatafeedJobBuilderTests extends ESTestCase {
                     .build()
             );
 
-        datafeedJobBuilder = new DatafeedJobBuilder(
+        datafeedJobBuilder = newDatafeedJobBuilder(System::currentTimeMillis);
+    }
+
+    private DatafeedJobBuilder newDatafeedJobBuilder(Supplier<Long> currentTimeSupplier) {
+        return new DatafeedJobBuilder(
             client,
             xContentRegistry(),
             auditor,
             annotationPersister,
-            System::currentTimeMillis,
+            currentTimeSupplier,
             jobResultsPersister,
             Settings.EMPTY,
             clusterService,
             CloudCredentialManager.Noop::new,
             DatafeedSearchTelemetry.NOOP
         );
+    }
+
+    public void testBuildShouldWireBucketSpanQueryDelayAndExtractorTypeIntoHorizonLag() throws Exception {
+        // lastEnd is 3_800_000 + 3_600_000 - 1 (latest bucket start plus the 1h bucket span, minus 1);
+        // now = lastEnd + 5m query delay + 2 bucket spans, so the ratio is exactly 2.0
+        long now = 14_899_999L;
+        DatafeedJobBuilder builder = newDatafeedJobBuilder(() -> now);
+        Job.Builder jobBuilder = DatafeedRunnerTests.createDatafeedJob();
+        DatafeedConfig.Builder datafeed = DatafeedRunnerTests.createDatafeedConfig("datafeed1", jobBuilder.getId());
+        datafeed.setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig());
+        datafeed.setQueryDelay(TimeValue.timeValueMinutes(5));
+        datafeed.setFrequency(TimeValue.timeValueMinutes(10));
+        DatafeedContext datafeedContext = new DatafeedContext(
+            datafeed.build(),
+            jobBuilder.build(),
+            new RestartTimeInfo(3_800_000L, 3_600_000L, false),
+            new DatafeedTimingStats(jobBuilder.getId())
+        );
+        AtomicReference<DatafeedJob> built = new AtomicReference<>();
+
+        builder.buildWithExtractorFactory(
+            newDatafeedTask("datafeed1"),
+            datafeedContext,
+            mock(DataExtractorFactory.class),
+            ActionTestUtils.assertNoFailureListener(built::set)
+        );
+
+        assertBusy(() -> assertThat(built.get(), is(notNullValue())));
+        assertThat(built.get().horizonLagRatio(), equalTo(2.0));
+        assertThat(built.get().extractorType(), equalTo(ExtractorType.SCROLL));
     }
 
     public void testBuild_GivenScrollDatafeedAndNewJob() throws Exception {

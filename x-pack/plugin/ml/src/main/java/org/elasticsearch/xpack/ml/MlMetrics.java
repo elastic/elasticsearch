@@ -22,10 +22,12 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
+import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator;
@@ -197,6 +199,14 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
                 "Count of datafeeds in the stopping state cluster-wide.",
                 "datafeeds",
                 measurement -> measurement.record(mlTaskStatusCounts.datafeedStoppingCount, isMasterMap)
+            )
+        );
+        metrics.add(
+            meterRegistry.registerLongAsyncGauge(
+                "es.ml.datafeeds.realtime_expected.current",
+                "Count of started real-time datafeeds whose anomaly detection job is opened cluster-wide.",
+                "datafeeds",
+                measurement -> measurement.record(mlTaskStatusCounts.datafeedRealtimeExpectedCount, isMasterMap)
             )
         );
         metrics.add(
@@ -417,6 +427,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
         int datafeedStartingCount = 0;
         int datafeedStartedCount = 0;
         int datafeedStoppingCount = 0;
+        int datafeedRealtimeExpectedCount = 0;
         int dfaStartingCount = 0;
         int dfaStartedCount = 0;
         int dfaReindexingCount = 0;
@@ -437,7 +448,12 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
                 case DATAFEED_TASK_NAME:
                     switch (MlTasks.getDatafeedState(task)) {
                         case STARTING -> ++datafeedStartingCount;
-                        case STARTED -> ++datafeedStartedCount;
+                        case STARTED -> {
+                            ++datafeedStartedCount;
+                            if (isRealtimeDatafeedWithOpenedJob(task, tasks)) {
+                                ++datafeedRealtimeExpectedCount;
+                            }
+                        }
                         case STOPPING -> ++datafeedStoppingCount;
                     }
                     break;
@@ -466,6 +482,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
             datafeedStartingCount,
             datafeedStartedCount,
             datafeedStoppingCount,
+            datafeedRealtimeExpectedCount,
             dfaStartingCount,
             dfaStartedCount,
             dfaReindexingCount,
@@ -473,6 +490,16 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
             dfaStoppingCount,
             dfaFailedCount
         );
+    }
+
+    /** True for a real-time datafeed (no end time) whose job state is OPENED. */
+    private static boolean isRealtimeDatafeedWithOpenedJob(
+        PersistentTasksCustomMetadata.PersistentTask<?> datafeedTask,
+        PersistentTasksCustomMetadata tasks
+    ) {
+        StartDatafeedAction.DatafeedParams params = (StartDatafeedAction.DatafeedParams) datafeedTask.getParams();
+        // Assignment is not consulted, so an unassigned task still counts; a task removed on failure leaves the count.
+        return params.getEndTime() == null && params.getJobId() != null && MlTasks.getJobState(params.getJobId(), tasks) == JobState.OPENED;
     }
 
     /**
@@ -572,6 +599,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
         int datafeedStartingCount,
         int datafeedStartedCount,
         int datafeedStoppingCount,
+        int datafeedRealtimeExpectedCount,
         int dfaStartingCount,
         int dfaStartedCount,
         int dfaReindexingCount,
@@ -579,7 +607,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
         int dfaStoppingCount,
         int dfaFailedCount
     ) {
-        static final MlTaskStatusCounts EMPTY = new MlTaskStatusCounts(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        static final MlTaskStatusCounts EMPTY = new MlTaskStatusCounts(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     }
 
     record TrainedModelAllocationCounts(

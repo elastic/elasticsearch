@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
@@ -60,9 +61,11 @@ import static org.elasticsearch.persistent.PersistentTasksService.WaitForPersist
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
-public class DatafeedRunner {
+public class DatafeedRunner extends AbstractLifecycleComponent {
 
     private static final Logger logger = LogManager.getLogger(DatafeedRunner.class);
+
+    private static final TimeValue HORIZON_LAG_REPORT_INTERVAL = TimeValue.timeValueMinutes(1);
 
     private final Client client;
     private final ClusterService clusterService;
@@ -75,6 +78,8 @@ public class DatafeedRunner {
     private final TaskRunner taskRunner = new TaskRunner();
     private final AutodetectProcessManager autodetectProcessManager;
     private final DatafeedContextProvider datafeedContextProvider;
+    private final DatafeedHorizonTelemetry horizonTelemetry;
+    private volatile Scheduler.Cancellable horizonLagReporter;
 
     public DatafeedRunner(
         ThreadPool threadPool,
@@ -95,6 +100,7 @@ public class DatafeedRunner {
         this.datafeedJobBuilder = Objects.requireNonNull(datafeedJobBuilder);
         this.autodetectProcessManager = Objects.requireNonNull(autodetectProcessManager);
         this.datafeedContextProvider = Objects.requireNonNull(datafeedContextProvider);
+        this.horizonTelemetry = new DatafeedHorizonTelemetry(meterRegistry);
         meterRegistry.registerLongAsyncGauge(
             "es.ml.datafeeds.cps.with_unavailable_projects.current",
             "Count of datafeeds running on this node whose last search cycle saw at least one skipped or unavailable linked project.",
@@ -102,6 +108,32 @@ public class DatafeedRunner {
             this::countDatafeedsWithUnavailableProjects
         );
         clusterService.addListener(taskRunner);
+    }
+
+    @Override
+    protected void doStart() {
+        horizonLagReporter = threadPool.scheduleWithFixedDelay(
+            this::reportHorizonLag,
+            HORIZON_LAG_REPORT_INTERVAL,
+            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
+        );
+    }
+
+    @Override
+    protected void doStop() {
+        Scheduler.Cancellable reporter = horizonLagReporter;
+        if (reporter != null) {
+            reporter.cancel();
+        }
+    }
+
+    @Override
+    protected void doClose() {}
+
+    void reportHorizonLag() {
+        for (Holder holder : runningDatafeedsOnThisNode.values()) {
+            holder.reportHorizonLag(horizonTelemetry);
+        }
     }
 
     long countDatafeedsWithUnavailableProjects() {
@@ -639,6 +671,18 @@ public class DatafeedRunner {
 
         public boolean isLookbackFinished() {
             return lookbackFinished;
+        }
+
+        void reportHorizonLag(DatafeedHorizonTelemetry telemetry) {
+            // Lookback moves lastEndTimeMs in bursts and lookback-only tasks never reach real time, so neither says anything
+            // about real-time lag.
+            if (lookbackFinished == false || task.isLookbackOnly() || isRunning() == false || isIsolated()) {
+                return;
+            }
+            Double ratio = datafeedJob.horizonLagRatio();
+            if (ratio != null) {
+                telemetry.recordHorizonLagRatio(datafeedJob.extractorType(), ratio);
+            }
         }
 
         private Long executeLookBack(long startTime, Long endTime) throws Exception {

@@ -1851,7 +1851,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                     cacheService,
                     threadPool,
                     clusterSettings,
-                    // A watcher of the throttle settings, the node's instance is not reachable from here.
+                    // Separate instance, since this override cannot reach the node's DataNodeRecoveryThrottlingLimits.
                     new DataNodeRecoveryThrottlingLimits(clusterSettings, nodeSettings, JvmInfo.jvmInfo().getMem().getHeapMax())
                 )
             );

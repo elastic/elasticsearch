@@ -11,8 +11,6 @@ package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.routing.allocation.decider.ConcurrentRebalanceAllocationDecider;
-import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -20,17 +18,16 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
 
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.IntConsumer;
+import java.util.function.Predicate;
 
 /// Central class to define the data node recovery throttling (DNRT) settings that bound the number of shard recoveries
 /// on a node, and to hold the node's current effective limits derived from them.
 ///
 /// A single instance is created per node and is the only watcher of these settings. Components read the current limits
-/// through the getters ([#incomingRecoveryLimits()], [#outgoingRecoveryLimit()], [#isDataNodeRecoveryThrottlingEnabled()]),
+/// through the getters ([#incomingRecoveryLimits()], [#outgoingRecoveryLimit()], [#isDataNodeRecoveryThrottlingEnabled]),
 /// or register with [#addIncomingRecoveryLimitsConsumer] and [#addOutgoingRecoveryLimitConsumer] to react when the limits
 /// change (e.g. to start queued recoveries when a limit increases). Plugins get the instance from
 /// [org.elasticsearch.plugins.Plugin.PluginServices#dataNodeRecoveryThrottlingLimits()].
@@ -194,21 +191,6 @@ public final class DataNodeRecoveryThrottlingLimits {
         INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING
     );
 
-    /// The master-side recovery throttle settings, with the values for which the master is fully unthrottled and leaves
-    /// recovery throttling to the data nodes (see [#isDataNodeRecoveryThrottlingEnabled()]).
-    private static final Map<Setting<Integer>, Integer> MASTER_RECOVERY_THROTTLING_DISABLED_VALUES = Map.of(
-        ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING,
-        Integer.MAX_VALUE,
-        ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING,
-        Integer.MAX_VALUE,
-        ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
-        Integer.MAX_VALUE,
-        ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING,
-        Integer.MAX_VALUE,
-        ConcurrentRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING,
-        -1
-    );
-
     /// Effective target (incoming) side recovery limits of a data node, derived from the incoming throttle settings and
     /// the node's max heap.
     ///
@@ -235,11 +217,11 @@ public final class DataNodeRecoveryThrottlingLimits {
     private volatile IncomingRecoveryLimits incomingRecoveryLimits;
     /// The current effective source (outgoing) side limit, see [#outgoingRecoveryLimit()].
     private volatile int outgoingRecoveryLimit;
-    /// Whether the master currently leaves recovery throttling to the data nodes, see [#isDataNodeRecoveryThrottlingEnabled()].
-    private volatile boolean masterRecoveryThrottlingDisabled;
 
-    private final List<Consumer<IncomingRecoveryLimits>> incomingRecoveryLimitsListeners = new CopyOnWriteArrayList<>();
-    private final List<IntConsumer> outgoingRecoveryLimitListeners = new CopyOnWriteArrayList<>();
+    private final ClusterSettings clusterSettings;
+
+    private final List<Consumer<IncomingRecoveryLimits>> incomingRecoveryLimitsConsumers = new CopyOnWriteArrayList<>();
+    private final List<IntConsumer> outgoingRecoveryLimitConsumers = new CopyOnWriteArrayList<>();
 
     /// Starts watching the throttle settings in `clusterSettings`.
     ///
@@ -248,6 +230,7 @@ public final class DataNodeRecoveryThrottlingLimits {
     /// If the throttle settings are not registered (see the class documentation), the limits stay unbounded, i.e.
     /// [IncomingRecoveryLimits#UNBOUNDED] and [Integer#MAX_VALUE].
     public DataNodeRecoveryThrottlingLimits(ClusterSettings clusterSettings, Settings nodeSettings, ByteSizeValue maxHeap) {
+        this.clusterSettings = clusterSettings;
         // TODO: remove the unregistered branch once the settings are also registered in stateful.
         final List<Setting<?>> registeredSettings = settings().stream().filter(s -> clusterSettings.isDynamicSetting(s.getKey())).toList();
         if (registeredSettings.size() == settings().size()) {
@@ -268,7 +251,7 @@ public final class DataNodeRecoveryThrottlingLimits {
                     applyHeapBasedLimit
                 );
                 this.incomingRecoveryLimits = limits;
-                incomingRecoveryLimitsListeners.forEach(listener -> listener.accept(limits));
+                incomingRecoveryLimitsConsumers.forEach(consumer -> consumer.accept(limits));
             }, INCOMING_RECOVERY_LIMITS_SETTINGS);
 
             this.outgoingRecoveryLimit = computeEffectiveMaxConcurrentRecoveries(
@@ -285,7 +268,7 @@ public final class DataNodeRecoveryThrottlingLimits {
                     true
                 );
                 this.outgoingRecoveryLimit = limit;
-                outgoingRecoveryLimitListeners.forEach(listener -> listener.accept(limit));
+                outgoingRecoveryLimitConsumers.forEach(consumer -> consumer.accept(limit));
             }, OUTGOING_RECOVERY_LIMIT_SETTINGS);
         } else {
             assert registeredSettings.isEmpty()
@@ -295,12 +278,6 @@ public final class DataNodeRecoveryThrottlingLimits {
             this.incomingRecoveryLimits = IncomingRecoveryLimits.UNBOUNDED;
             this.outgoingRecoveryLimit = Integer.MAX_VALUE;
         }
-
-        this.masterRecoveryThrottlingDisabled = masterRecoveryThrottlingDisabled(clusterSettings::get);
-        clusterSettings.addSettingsUpdateConsumer(
-            settings -> this.masterRecoveryThrottlingDisabled = masterRecoveryThrottlingDisabled(setting -> setting.get(settings)),
-            List.copyOf(MASTER_RECOVERY_THROTTLING_DISABLED_VALUES.keySet())
-        );
     }
 
     /// Returns the node's current effective target (incoming) side recovery limits.
@@ -313,16 +290,18 @@ public final class DataNodeRecoveryThrottlingLimits {
         return outgoingRecoveryLimit;
     }
 
-    /// Returns whether recoveries are currently throttled by the data nodes. DNRT is considered enabled when the master
-    /// limits are all disabled or infinite (see [#MASTER_RECOVERY_THROTTLING_DISABLED_VALUES]) and this node bounds its
-    /// incoming and outgoing recoveries ([IncomingRecoveryLimits#maxConcurrentRecoveries()] and `outgoingRecoveryLimit`
-    /// are both finite).
+    /// Returns whether recoveries are currently throttled by the data nodes. DNRT is considered enabled when
+    /// `masterRecoveryThrottlingDisabled` holds for the current cluster settings, and this node bounds its incoming and
+    /// outgoing recoveries ([IncomingRecoveryLimits#maxConcurrentRecoveries()] and `outgoingRecoveryLimit` are both finite).
+    ///
+    /// `masterRecoveryThrottlingDisabled` checks that every master decider throttling the caller's recoveries, including
+    /// plugin ones such as `StatelessThrottlingConcurrentRecoveriesAllocationDecider`, leaves throttling to the data nodes.
     ///
     /// This is conservative. When either side does not match, the master is assumed to still throttle, as it did before DNRT.
     /// Note that this reflects the cluster settings as last applied on this node, which may be different from the master's
     /// current settings view.
-    public boolean isDataNodeRecoveryThrottlingEnabled() {
-        return masterRecoveryThrottlingDisabled
+    public boolean isDataNodeRecoveryThrottlingEnabled(Predicate<ClusterSettings> masterRecoveryThrottlingDisabled) {
+        return masterRecoveryThrottlingDisabled.test(clusterSettings)
             && incomingRecoveryLimits.maxConcurrentRecoveries() < Integer.MAX_VALUE
             && outgoingRecoveryLimit < Integer.MAX_VALUE;
     }
@@ -335,7 +314,7 @@ public final class DataNodeRecoveryThrottlingLimits {
     /// [IncomingRecoveryLimits#UNBOUNDED].
     public void addIncomingRecoveryLimitsConsumer(Consumer<IncomingRecoveryLimits> consumer) {
         consumer.accept(incomingRecoveryLimits);
-        incomingRecoveryLimitsListeners.add(consumer);
+        incomingRecoveryLimitsConsumers.add(consumer);
     }
 
     /// Calls `consumer` with the node's current [#outgoingRecoveryLimit()], then again whenever a cluster settings update
@@ -346,13 +325,7 @@ public final class DataNodeRecoveryThrottlingLimits {
     /// [Integer#MAX_VALUE].
     public void addOutgoingRecoveryLimitConsumer(IntConsumer consumer) {
         consumer.accept(outgoingRecoveryLimit);
-        outgoingRecoveryLimitListeners.add(consumer);
-    }
-
-    private static boolean masterRecoveryThrottlingDisabled(Function<Setting<Integer>, Integer> currentValue) {
-        return MASTER_RECOVERY_THROTTLING_DISABLED_VALUES.entrySet()
-            .stream()
-            .allMatch(disabledValue -> disabledValue.getValue().equals(currentValue.apply(disabledValue.getKey())));
+        outgoingRecoveryLimitConsumers.add(consumer);
     }
 
     /// The heap-based incoming recovery limit does not apply to stateless search nodes. This matches master behavior which only

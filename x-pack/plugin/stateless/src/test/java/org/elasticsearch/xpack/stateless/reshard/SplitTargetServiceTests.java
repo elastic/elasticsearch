@@ -290,8 +290,19 @@ public class SplitTargetServiceTests extends ESTestCase {
         };
 
         var sts = new SplitTargetService(Settings.EMPTY, failingClient, clusterService, reshardIndexService);
+
+        var sourceNode = new DiscoveryNode(
+            "node1",
+            "node_1",
+            new TransportAddress(TransportAddress.META_ADDRESS, 10000),
+            Map.of(),
+            Set.of(),
+            null
+        );
+
         var action = sts.createInitiateSplitWithSourceShardAction(
-            dummySplit(),
+            dummySplitMetadata(),
+            new SplitTargetService.ActiveSourceShard(sourceNode, 2),
             new AtomicBoolean(false),
             TimeValue.timeValueMillis(5000),
             new ActionListener<>() {
@@ -322,7 +333,7 @@ public class SplitTargetServiceTests extends ESTestCase {
         var sts = new SplitTargetService(Settings.EMPTY, new NoOpClient(threadPool), clusterService, reshardIndexService);
 
         var failures = new ArrayList<Exception>();
-        var action = sts.createDeleteUnownedAction(mock(IndexShard.class), new ActionListener<>() {
+        var action = sts.createDeleteUnownedAction(mock(IndexShard.class), new AtomicBoolean(true), new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {
                 fail("a cancelled action must not succeed");
@@ -332,7 +343,7 @@ public class SplitTargetServiceTests extends ESTestCase {
             public void onFailure(Exception e) {
                 failures.add(e);
             }
-        }, new AtomicBoolean(true));
+        });
         action.run();
 
         verify(reshardIndexService, never()).deleteUnownedDocuments(any(ShardId.class), any());
@@ -498,5 +509,19 @@ public class SplitTargetServiceTests extends ESTestCase {
             null
         );
         return new SplitTargetService.Split(targetShardId, sourceNode, targetNode, 2, 2);
+    }
+
+    private static SplitTargetService.SplitMetadata dummySplitMetadata() {
+        var targetShardId = new ShardId("index", "1", 1);
+        var sourceShardId = new ShardId("index", "1", 0);
+        var targetNode = new DiscoveryNode(
+            "node2",
+            "node_2",
+            new TransportAddress(TransportAddress.META_ADDRESS, 10001),
+            Map.of(),
+            Set.of(),
+            null
+        );
+        return new SplitTargetService.SplitMetadata(targetShardId, sourceShardId, targetNode, 2);
     }
 }

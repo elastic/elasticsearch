@@ -18,6 +18,7 @@ import org.elasticsearch.action.admin.cluster.state.AwaitClusterStateVersionAppl
 import org.elasticsearch.action.admin.cluster.state.TransportAwaitClusterStateVersionAppliedAction;
 import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -35,13 +36,11 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
-import org.elasticsearch.index.shard.IndexShardNotStartedException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.transport.ActionTransportException;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -55,6 +54,7 @@ import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -204,15 +204,7 @@ public class SplitTargetService {
             throw new IllegalStateException("No ongoing split for target shard" + handoffRequest.shardId());
         }
 
-        var splitFromRequest = new Split(
-            handoffRequest.shardId(),
-            handoffRequest.sourceNode(),
-            handoffRequest.targetNode(),
-            handoffRequest.sourcePrimaryTerm(),
-            handoffRequest.targetPrimaryTerm()
-        );
-
-        stateMachine.acceptHandoff(splitFromRequest, listener);
+        stateMachine.acceptHandoff(handoffRequest, listener);
     }
 
     // only for tests
@@ -232,7 +224,7 @@ public class SplitTargetService {
         );
     }
 
-    /// This function needs to be called from [IndexEventListener#afterIndexShardClosed(ShardId, IndexShard, Settings)] event handler
+    /// This function needs to be called from [org.elasticsearch.index.shard.IndexEventListener#afterIndexShardClosed] event handler
     /// so that it runs _after_ the shard state is set to `CLOSED` and not before.
     /// We rely on this fact in [#registerStateMachine(IndexShard, StateMachine)] to handle the possible race
     /// of this function and adding a new state machine to the `onGoingSplits` map.
@@ -258,6 +250,7 @@ public class SplitTargetService {
     record Split(ShardId shardId, DiscoveryNode sourceNode, DiscoveryNode targetNode, long sourcePrimaryTerm, long targetPrimaryTerm) {}
 
     private class StateMachine {
+        // TODO remove, it's redundant
         private final Split split;
         private final SplitMetadata splitMetadata;
         private final IndexShard shard;
@@ -278,6 +271,7 @@ public class SplitTargetService {
             State initialState
         ) {
             this.split = split;
+            this.splitMetadata = splitMetadata;
             this.shard = shard;
             this.onCompleted = onCompleted;
             this.cancelled = new AtomicBoolean(false);
@@ -330,6 +324,14 @@ public class SplitTargetService {
         private void advanceInternal(State newState) {
             switch (newState) {
                 case State.Clone clone -> {
+                    resolveSourceShard(
+                        new StateAdvancingListener<>(
+                            clone,
+                            activeSourceShard -> new State.ReadyForSplit(activeSourceShard, clone.recoveryListener)
+                        )
+                    );
+                }
+                case State.ReadyForSplit readyForSplit -> {
                     // Start split RPC won't complete until the entire handoff sequence completes.
                     // So we advance to waiting for handoff immediately after sending the start split request.
                     // Once the handoff successfully completes, start split completes as well
@@ -338,14 +340,29 @@ public class SplitTargetService {
                     // Advance beforehand to eliminate theoretical race conditions with sending
                     // a request to the source shard.
                     // This can be done since the advancement does nothing anyway.
-                    advance(new State.WaitingForHandoff());
-                    initiateSplitWithSourceShard(clone);
+                    advance(new State.WaitingForHandoff(readyForSplit.activeSourceShard));
+                    initiateSplitWithSourceShard(readyForSplit.activeSourceShard, new ActionListener<>() {
+                        @Override
+                        public void onResponse(Void unused) {
+                            advance(new State.StartSplitRpcComplete(readyForSplit.recoveryListener));
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            advance(new State.StartSplitFailed(e, readyForSplit.recoveryListener));
+                        }
+                    });
                 }
                 case State.WaitingForHandoff ignored -> {
                     /// This is a special state since we are not doing any action
                     /// but waiting for the source shard to initiate handoff.
                     /// It is useful to have this state for validation purposes.
                     /// See also [StateMachine#changeStateToHandoff].
+
+                    /// If start_split RPC fails, it means something happened to the source shard.
+                    /// We need to retry.
+
+                    // TODO how though?
                 }
                 case State.HandoffReceived handoffReceived -> {
                     changeStateToHandoff(handoffReceived);
@@ -356,34 +373,34 @@ public class SplitTargetService {
                     // We fork recovery and then wait for the shard to be started
                     // so that it is ready for the next steps.
                     clusterService.threadPool().generic().submit(() -> startSplitRpcComplete.recoveryListener.onResponse(null));
-                    waitForShardStarted(new StateAdvancingListener<>(new State.Handoff()));
+                    waitForShardStarted(new StateAdvancingListener<>(startSplitRpcComplete, new State.Handoff()));
                 }
                 case State.Handoff ignored -> {
                     waitUntilSearchShardsAreOnline();
                 }
-                case State.SearchShardsOnline ignored -> {
-                    changeStateToSplit();
+                case State.SearchShardsOnline searchShardsOnline -> {
+                    changeStateToSplit(new StateAdvancingListener<>(searchShardsOnline, new State.Split()));
                 }
-                case State.Split ignored -> {
-                    awaitSplitApplied(new StateAdvancingListener<>(new State.SplitApplied()));
+                case State.Split split -> {
+                    awaitSplitApplied(new StateAdvancingListener<>(split, new State.SplitApplied()));
                 }
                 case State.SplitApplied splitApplied -> {
                     logger.info("notifying of split completion for target shard {}", shard.shardId());
                     reshardIndexService.notifySplitCompletion(shard);
-                    deleteUnownedData();
+                    deleteUnownedData(new StateAdvancingListener<>(splitApplied, new State.UnownedDataDeleted()));
                 }
-                case State.UnownedDataDeleted ignored -> {
-                    changeStateToDone();
+                case State.UnownedDataDeleted unownedDataDeleted -> {
+                    changeStateToDone(new StateAdvancingListener<>(unownedDataDeleted, new State.Done()));
                 }
                 case State.Done ignored -> {
                     reshardIndexService.stopTrackingSplit(shard);
                     onCompleted.run();
                 }
 
-                case State.RecoveringInHandoff ignored -> {
-                    waitForShardStarted(new StateAdvancingListener<>(new State.Handoff()));
+                case State.RecoveringInHandoff recoveringInHandoff -> {
+                    waitForShardStarted(new StateAdvancingListener<>(recoveringInHandoff, new State.Handoff()));
                 }
-                case State.RecoveringInSplit ignored -> {
+                case State.RecoveringInSplit recoveringInSplit -> {
                     /// We need to confirm that coordinators are aware of SPLIT state before proceeding further.
                     /// If they are not we can return stale search results from the source shard
                     /// after a successful write to the target shard and refresh.
@@ -392,9 +409,48 @@ public class SplitTargetService {
                     /// As such it's okay to have the shard start here before awaiting SPLIT application.
                     SubscribableListener.newForked(this::waitForShardStarted)
                         .andThen(this::awaitSplitApplied)
-                        .addListener(new StateAdvancingListener<>(new State.SplitApplied()));
+                        .addListener(new StateAdvancingListener<>(recoveringInSplit, new State.SplitApplied()));
                 }
+                case State.StartSplitFailed startSplitFailed -> {
+                    if (cancelled.get()) {
+                        // We need to release the recovery listener so that the shard can be properly closed.
+                        // Technically it doesn't matter if this is success or failure since the shard is closed anyway.
+                        // We only use failure here to short-circuit any following work (like reading shard state)
+                        // which we know is unnecessary.
+                        startSplitFailed.recoveryListener.onFailure(startSplitFailed.exception);
+                        return;
+                    }
 
+                    /// We apply internal retries if the source shard is not started
+                    /// or not ready (tearing down a previous start split attempt).
+                    /// This is because allocation only performs a limited number of retries (at the time of writing)
+                    /// when a shard fails in recovery (which is what happens if start split RPC fails).
+                    /// As such it is possible to exhaust this limited number of retries if f.e. source shard is relocating.
+                    /// Recovering from this state requires manual intervention which is of course undesirable.
+                    ///
+                    /// Note that there are scenarios that _require_ a new allocation of the target shard.
+                    /// For example, target shard primary term has to be >= source shard primary term.
+                    /// So if a source shard recovers on a higher primary term, target primary term should be updated as well
+                    /// and that can only be done by the master node.
+                    /// This is also the reason we don't retry forever.
+                    ///
+                    /// See corresponding source shard code in
+                    /// [SplitSourceService#setupTargetShard(CancellableTask, ShardId, long, long, ActionListener)].
+                    Throwable cause = ExceptionsHelper.unwrapCause(startSplitFailed.exception);
+
+                    if (TransportActions.isShardNotAvailableException(cause)
+                        // Connection errors and such.
+                        || cause instanceof ActionTransportException) {
+                        logger.debug("Start split failed with retryable error, will retry.", cause);
+                        // We need to re-resolve the source shard because it may have relocated
+                        // or advanced its primary term.
+                        advance(new State.Clone(startSplitFailed.recoveryListener));
+                    } else {
+                        logger.info("Start split failed with non-retryable error: ", cause);
+                        // Nothing we can do here, fail the recovery.
+                        advance(new State.FailedInRecovery(startSplitFailed.exception, startSplitFailed.recoveryListener));
+                    }
+                }
                 case State.FailedInRecovery failedInRecovery -> {
                     failedInRecovery.recoveryListener.onFailure(failedInRecovery.exception);
                 }
@@ -405,7 +461,7 @@ public class SplitTargetService {
 
                     logger.warn("Failed to complete split target shard sequence", failed.exception);
 
-                    if (failed.destinationState instanceof State.Split) {
+                    if (failed.fromState instanceof State.SearchShardsOnline) {
                         reshardIndexService.notifySplitFailure(shard, failed.exception);
                         /// Transition to SPLIT failed in some unexpected way and now we are failing all incoming refresh requests
                         /// due to the `notifySplitFailure` call above.
@@ -459,8 +515,10 @@ public class SplitTargetService {
 
         private static final Map<Class<? extends State>, Set<Class<? extends State>>> newStateToValidCurrentStates = new HashMap<>() {
             {
-                put(State.Clone.class, Set.of(State.Clone.class));
-                put(State.WaitingForHandoff.class, Set.of(State.Clone.class));
+                // StartSplitFailed -> Clone happens during retries.
+                put(State.Clone.class, Set.of(State.Clone.class, State.StartSplitFailed.class));
+                put(State.ReadyForSplit.class, Set.of(State.Clone.class));
+                put(State.WaitingForHandoff.class, Set.of(State.ReadyForSplit.class));
                 // Target can receive multiple HANDOFF requests due to retries by source shard
                 put(State.HandoffReceived.class, Set.of(State.WaitingForHandoff.class, State.HandoffReceived.class));
                 put(State.StartSplitRpcComplete.class, Set.of(State.HandoffReceived.class));
@@ -473,6 +531,8 @@ public class SplitTargetService {
 
                 put(State.RecoveringInHandoff.class, Set.of(State.RecoveringInHandoff.class));
                 put(State.RecoveringInSplit.class, Set.of(State.RecoveringInSplit.class));
+
+                put(State.StartSplitFailed.class, Set.of(State.WaitingForHandoff.class, State.HandoffReceived.class));
 
                 put(State.FailedInRecovery.class, Set.of(State.WaitingForHandoff.class, State.HandoffReceived.class));
                 put(
@@ -491,13 +551,15 @@ public class SplitTargetService {
         /// All the possible states that a target shard state machine can be in.
         /// State transitions are always performed in the order of definition except for the failure states.
         /// E.g. we always transition SearchShardsOnline -> Split.
-        sealed interface State permits State.Clone, State.WaitingForHandoff, State.HandoffReceived, State.StartSplitRpcComplete,
-            State.Handoff, State.SearchShardsOnline, State.Split, State.SplitApplied, State.UnownedDataDeleted, State.Done,
-            State.RecoveringInHandoff, State.RecoveringInSplit, State.FailedInRecovery, State.Failed {
+        sealed interface State permits State.Clone, State.ReadyForSplit, State.WaitingForHandoff, State.HandoffReceived,
+            State.StartSplitRpcComplete, State.Handoff, State.SearchShardsOnline, State.Split, State.SplitApplied, State.UnownedDataDeleted,
+            State.Done, State.RecoveringInHandoff, State.RecoveringInSplit, State.StartSplitFailed, State.FailedInRecovery, State.Failed {
             // Corresponds to CLONE state of a target shard.
             record Clone(ActionListener<Void> recoveryListener) implements State {}
 
-            record WaitingForHandoff() implements State {}
+            record ReadyForSplit(ActiveSourceShard activeSourceShard, ActionListener<Void> recoveryListener) implements State {}
+
+            record WaitingForHandoff(ActiveSourceShard activeSourceShard) implements State {}
 
             record HandoffReceived(ActionListener<Void> handoffRpcListener) implements State {}
 
@@ -531,47 +593,143 @@ public class SplitTargetService {
             // since it is required for delete unowned logic to work.
             record RecoveringInSplit() implements State {}
 
+            record StartSplitFailed(Exception exception, ActionListener<Void> recoveryListener) implements State {}
+
             // We distinguish these failed states because the shard state is different
             // (it's not started during recovery) and failure handling is different as a result.
             record FailedInRecovery(Exception exception, ActionListener<Void> recoveryListener) implements State {}
 
-            /// @param destinationState next state that we attempted to transition to but failed
-            record Failed(Exception exception, State destinationState) implements State {}
+            /// @param fromState current state that we attempted to transition from but failed
+            record Failed(Exception exception, State fromState) implements State {}
         }
 
-        void acceptHandoff(Split splitFromRequest, ActionListener<Void> handoffRpcListener) {
+        void acceptHandoff(TransportReshardSplitAction.Request handoffRequest, ActionListener<Void> handoffRpcListener) {
             // Due to retries from the source shard, we have to relax this check
             if (currentState instanceof State.WaitingForHandoff == false && currentState instanceof State.HandoffReceived == false) {
                 throw new IllegalStateException("Received an unexpected handoff request from the source shard");
             }
 
-            if (split.equals(splitFromRequest) == false) {
-                logger.debug("Received a stale split handoff request: {}", splitFromRequest);
-                throw new IllegalStateException("Received a stale split handoff request for shard " + splitFromRequest.shardId());
+            // TODO this is weird, we should always be able to perform this validation
+            // but ActiveSourceShard in HandoffReceived state can be stale (??)
+            // probably need to to model handoff failure better
+            if (currentState instanceof State.WaitingForHandoff waitingForHandoff) {
+                ActiveSourceShard activeSourceShard = waitingForHandoff.activeSourceShard;
+
+                if (handoffRequest.shardId().equals(splitMetadata.shardId) == false
+                    || handoffRequest.targetNode().equals(splitMetadata.localNode) == false
+                    || handoffRequest.targetPrimaryTerm() != splitMetadata.targetPrimaryTerm
+                    || handoffRequest.sourceNode().equals(activeSourceShard.sourceShardNode) == false
+                    || handoffRequest.sourcePrimaryTerm() != activeSourceShard.sourcePrimaryTerm) {
+                    logger.debug("Received a stale split handoff request: {}", handoffRequest);
+                    throw new IllegalStateException("Received a stale split handoff request for shard " + handoffRequest.shardId());
+                }
             }
+
             advance(new State.HandoffReceived(handoffRpcListener));
         }
 
-        private void initiateSplitWithSourceShard(State.Clone state) {
-            var action = new InitiateSplitWithSourceShardAction(
+        private void resolveSourceShard(ActionListener<ActiveSourceShard> listener) {
+            // Resolve current nodeId of the source shard.
+            // It can change between retries due to failures or relocations.
+            Predicate<ClusterState> predicate = state -> {
+                if (isCancelled()) {
+                    return true;
+                }
+
+                return getStartedSourceShardRouting(state, splitMetadata).isPresent();
+            };
+
+            // We specifically use waitForState because it won't wait for the next cluster state version
+            // if predicate already matches (which is most of the time).
+            ClusterStateObserver.waitForState(
                 clusterService,
-                client,
-                split,
-                cancelled,
-                startSplitRetryTimeout,
-                new ActionListener<>() {
+                clusterService.threadPool().getThreadContext(),
+                new ClusterStateObserver.Listener() {
                     @Override
-                    public void onResponse(Void ignored) {
-                        advance(new State.StartSplitRpcComplete(state.recoveryListener));
+                    public void onNewClusterState(ClusterState state) {
+                        if (isCancelled()) {
+                            // It's very important to now leak the recovery listener here.
+                            listener.onFailure(new CancellationException());
+                        }
+
+                        // Both of these have to be present, it's checked in the predicate.
+                        ShardRouting routing = getStartedSourceShardRouting(state, splitMetadata).get();
+                        IndexMetadata indexMetadata = state.metadata().findIndex(splitMetadata.shardId.getIndex()).get();
+
+                        var result = new ActiveSourceShard(
+                            state.nodes().get(routing.currentNodeId()),
+                            indexMetadata.primaryTerm(splitMetadata.sourceShardId.id())
+                        );
+                        listener.onResponse(result);
                     }
 
                     @Override
-                    public void onFailure(Exception e) {
-                        advance(new State.FailedInRecovery(e, state.recoveryListener));
+                    public void onClusterServiceClose() {
+                        // Nothing to do, shard will be closed when the node closes.
+                        var ff = 0;
                     }
-                }
+
+                    @Override
+                    public void onTimeout(TimeValue timeout) {
+                        // There is no timeout except for cancellation logic.
+                    }
+                },
+                predicate,
+                // We can't proceed with this split without being able to reach the source shard.
+                // So we keep trying.
+                null,
+                logger
             );
-            action.run();
+        }
+
+        private static Optional<ShardRouting> getStartedSourceShardRouting(ClusterState clusterState, SplitMetadata splitMetadata) {
+            Index index = splitMetadata.shardId.getIndex();
+
+            // We return empty on deleted project/index since the shard should be closed soon as a result of the deletion,
+            // and we'll stop retries via the cancelled flag.
+            return clusterState.metadata().lookupProject(index).flatMap(pm -> {
+                var sourceShardRouting = clusterState.routingTable(pm.id()).shardRoutingTable(splitMetadata.sourceShardId).primaryShard();
+
+                return Optional.ofNullable(sourceShardRouting);
+            })
+                // If it is relocating, just wait it out.
+                .filter(sr -> sr.relocating() == false)
+                .filter(ShardRouting::started);
+        }
+
+        private void initiateSplitWithSourceShard(ActiveSourceShard activeSourceShard, ActionListener<Void> listener) {
+
+            var request = new TransportReshardSplitAction.SplitRequest(
+                splitMetadata.shardId,
+                activeSourceShard.sourceShardNode,
+                splitMetadata.localNode,
+                activeSourceShard.sourcePrimaryTerm,
+                splitMetadata.targetPrimaryTerm
+            );
+
+            client.execute(TransportReshardSplitAction.TYPE, request, listener.map(ignored -> null));
+
+            // var action = new InitiateSplitWithSourceShardAction(
+            // clusterService,
+            // client,
+            // splitMetadata,
+            // readyForSplit.activeSourceShard,
+            // cancelled,
+            // startSplitRetryTimeout,
+            // new ActionListener<>() {
+            // @Override
+            // public void onResponse(Void ignored) {
+            // advance(new State.StartSplitRpcComplete(readyForSplit.recoveryListener));
+            // }
+            //
+            // @Override
+            // public void onFailure(Exception e) {
+            // // TODO this is wrong
+            // advance(new State.FailedInRecovery(e, readyForSplit.recoveryListener));
+            // }
+            // }
+            // );
+            // action.run();
         }
 
         private void changeStateToHandoff(State.HandoffReceived handoffReceived) {
@@ -639,14 +797,14 @@ public class SplitTargetService {
             );
         }
 
-        private void changeStateToSplit() {
+        private void changeStateToSplit(ActionListener<Void> listener) {
             ChangeState changeState = new ChangeState(
                 clusterService,
                 client,
                 split,
                 IndexReshardingState.Split.TargetShardState.SPLIT,
                 cancelled,
-                new StateAdvancingListener<>(new State.Split())
+                listener.map(ignored -> null)
             );
             changeState.run();
         }
@@ -721,25 +879,19 @@ public class SplitTargetService {
                 .flatMap(indexMetadata -> Optional.ofNullable(indexMetadata.getReshardingMetadata()));
         }
 
-        private void deleteUnownedData() {
-            var deleteUnowned = new DeleteUnowned(
-                clusterService,
-                reshardIndexService,
-                shard,
-                new StateAdvancingListener<>(new State.UnownedDataDeleted()),
-                cancelled
-            );
+        private void deleteUnownedData(ActionListener<Void> listener) {
+            var deleteUnowned = new DeleteUnowned(clusterService, reshardIndexService, shard, cancelled, listener);
             deleteUnowned.run();
         }
 
-        private void changeStateToDone() {
+        private void changeStateToDone(ActionListener<Void> listener) {
             ChangeState changeState = new ChangeState(
                 clusterService,
                 client,
                 split,
                 IndexReshardingState.Split.TargetShardState.DONE,
                 cancelled,
-                new StateAdvancingListener<>(new State.Done())
+                listener.map(ignored -> null)
             );
             changeState.run();
         }
@@ -787,21 +939,30 @@ public class SplitTargetService {
             );
         }
 
-        private class StateAdvancingListener<T> implements ActionListener<T> {
-            private final State nextState;
+        // StartSplitRetryAwareListener ???
 
-            private StateAdvancingListener(State nextState) {
-                this.nextState = nextState;
+        private class StateAdvancingListener<T, TState extends State> implements ActionListener<T> {
+            private final State currentState;
+            private final Function<T, State> nextStateTransition;
+
+            private StateAdvancingListener(State currentState, Function<T, State> nextStateTransition) {
+                this.currentState = currentState;
+                this.nextStateTransition = nextStateTransition;
+            }
+
+            private StateAdvancingListener(State currentState, State nextState) {
+                this.currentState = currentState;
+                this.nextStateTransition = (ignored) -> nextState;
             }
 
             @Override
             public void onResponse(T t) {
-                advance(nextState);
+                advance(nextStateTransition.apply(t));
             }
 
             @Override
             public void onFailure(Exception e) {
-                advance(new State.Failed(e, nextState));
+                advance(new State.Failed(e, currentState));
             }
         }
 
@@ -865,24 +1026,35 @@ public class SplitTargetService {
 
     // visible for tests
     RetryableAction<Void> createInitiateSplitWithSourceShardAction(
-        Split split,
+        SplitMetadata splitMetadata,
+        ActiveSourceShard activeSourceShard,
         AtomicBoolean cancelled,
         TimeValue retryTimeout,
         ActionListener<Void> listener
     ) {
-        return new InitiateSplitWithSourceShardAction(clusterService, client, split, cancelled, retryTimeout, listener);
+        return new InitiateSplitWithSourceShardAction(
+            clusterService,
+            client,
+            splitMetadata,
+            activeSourceShard,
+            cancelled,
+            retryTimeout,
+            listener
+        );
     }
 
     private static class InitiateSplitWithSourceShardAction extends RetryableAction<Void> {
         private final ClusterService clusterService;
         private final Client client;
         private final SplitMetadata splitMetadata;
+        private final ActiveSourceShard activeSourceShard;
         private final AtomicBoolean cancelled;
 
         InitiateSplitWithSourceShardAction(
             ClusterService clusterService,
             Client client,
-            Split split,
+            SplitMetadata splitMetadata,
+            ActiveSourceShard activeSourceShard,
             AtomicBoolean cancelled,
             TimeValue retryTimeout,
             ActionListener<Void> listener
@@ -900,122 +1072,55 @@ public class SplitTargetService {
             );
             this.clusterService = clusterService;
             this.client = client;
-            // TODO fix
-            this.splitMetadata = null;
+            this.splitMetadata = splitMetadata;
+            this.activeSourceShard = activeSourceShard;
             this.cancelled = cancelled;
         }
 
         @Override
         public void tryAction(ActionListener<Void> listener) {
-            SubscribableListener.<ActiveSourceShard>newForked(l -> {
-                // Resolve nodeId where the source shard is assigned.
-                // It can change between retries due to failures or relocations.
-                Predicate<ClusterState> predicate = state -> {
-                    if (isCancelled()) {
-                        return true;
-                    }
 
-                    return getStartedSourceShardRouting(state).isPresent();
-                };
+            var request = new TransportReshardSplitAction.SplitRequest(
+                splitMetadata.shardId,
+                activeSourceShard.sourceShardNode,
+                splitMetadata.localNode,
+                activeSourceShard.sourcePrimaryTerm,
+                splitMetadata.targetPrimaryTerm
+            );
 
-                // We specifically use waitForState because it won't wait for the next cluster state version
-                // if predicate already matches (which is most of the time).
-                ClusterStateObserver.waitForState(
-                    clusterService,
-                    clusterService.threadPool().getThreadContext(),
-                    new ClusterStateObserver.Listener() {
-                        @Override
-                        public void onNewClusterState(ClusterState state) {
-                            // Both of these have to be present, it's checked in the predicate.
-                            ShardRouting routing = getStartedSourceShardRouting(state).get();
-                            IndexMetadata indexMetadata = state.metadata().findIndex(splitMetadata.shardId.getIndex()).get();
-
-                            var result = new ActiveSourceShard(
-                                state.nodes().get(routing.currentNodeId()),
-                                indexMetadata.primaryTerm(splitMetadata.sourceShardId.id())
-                            );
-
-                            l.onResponse(result);
-                        }
-
-                        @Override
-                        public void onClusterServiceClose() {
-                            // Nothing to do, shard will be closed when the node closes.
-                        }
-
-                        @Override
-                        public void onTimeout(TimeValue timeout) {
-                            // There is no timeout except for cancellation logic
-                        }
-                    },
-                    predicate,
-                    null,
-                    logger
-                );
-            }
-
-            ).<Void>andThen((l, activeSourceShard) -> {
-                // TODO fix this BS, there is no need for Split indirection
-                var request = new TransportReshardSplitAction.SplitRequest(
-                    new Split(
-                        splitMetadata.shardId,
-                        activeSourceShard.sourceShardNode,
-                        splitMetadata.localNode,
-                        activeSourceShard.sourcePrimaryTerm,
-                        splitMetadata.targetPrimaryTerm
-                    )
-                );
-
-                client.execute(TransportReshardSplitAction.TYPE, request, l.map(ignored -> null));
-            }).addListener(listener);
+            client.execute(TransportReshardSplitAction.TYPE, request, listener.map(ignored -> null));
         }
 
         @Override
         public boolean shouldRetry(Exception e) {
             if (cancelled.get()) {
+                // TODO cancelled exception
                 return false;
             }
 
-            // TODO adapt this comment
-
-            /// We apply internal retries if the source shard is not present/started.
+            /// We apply internal retries if the source shard is not started or not ready (tearing down a previous start split attempt).
             /// This is because allocation only performs a limited number of retries (at the time of writing)
             /// when a shard fails in recovery (which is what happens if start split RPC fails).
             /// As such it is possible to exhaust this limited number of retries if f.e. source shard is relocating.
             /// Recovering from this state requires manual intervention which is of course undesirable.
             ///
-            /// Note that it is possible that we observe one of the *NotFound exceptions if the source shard
-            /// was moved from this node.
-            /// This is fine, eventually we'll stop retrying when we reach the retry timeout and retry the entire recovery sequence.
+            /// Note that there are scenarios that _require_ a new allocation of the target shard.
+            /// For example, target shard primary term has to be >= source shard primary term.
+            /// So if a source shard recovers on a higher primary term, target primary term should be updated as well
+            /// and that can only be done by the master node.
+            /// This is also the reason we don't retry forever.
+            ///
             /// See corresponding source shard code in
             /// [SplitSourceService#setupTargetShard(CancellableTask, ShardId, long, long, ActionListener)].
             Throwable cause = ExceptionsHelper.unwrapCause(e);
 
-            return (cause instanceof IndexShardNotStartedException
-                || cause instanceof IndexNotFoundException
-                || cause instanceof ShardNotFoundException);
+            return (TransportActions.isShardNotAvailableException(cause)
+                // Connection errors and such.
+                || cause instanceof ActionTransportException);
         }
 
         private boolean isCancelled() {
             return cancelled.get();
-        }
-
-        private Optional<ShardRouting> getStartedSourceShardRouting(ClusterState clusterState) {
-            Index index = splitMetadata.shardId.getIndex();
-
-            // This throws `IndexNotFoundException` which we retry.
-            // This is fine, since given that the project/index is deleted
-            // the shard should be closed soon as a result,
-            // and we'll tear everything down using cancelled flag.
-
-            // TODO this shouldn't throw
-            ProjectMetadata projectMetadata = clusterState.metadata().projectFor(index);
-
-            var sourceShardRouting = clusterState.routingTable(projectMetadata.id())
-                .shardRoutingTable(splitMetadata.sourceShardId)
-                .primaryShard();
-
-            return Optional.ofNullable(sourceShardRouting).filter(ShardRouting::started);
         }
     }
 
@@ -1071,8 +1176,8 @@ public class SplitTargetService {
     }
 
     // visible for tests
-    RetryableAction<Void> createDeleteUnownedAction(IndexShard shard, ActionListener<Void> listener, AtomicBoolean cancelled) {
-        return new DeleteUnowned(clusterService, reshardIndexService, shard, listener, cancelled);
+    RetryableAction<Void> createDeleteUnownedAction(IndexShard shard, AtomicBoolean cancelled, ActionListener<Void> listener) {
+        return new DeleteUnowned(clusterService, reshardIndexService, shard, cancelled, listener);
     }
 
     // visible for tests
@@ -1187,8 +1292,8 @@ public class SplitTargetService {
             ClusterService clusterService,
             ReshardIndexService reshardIndexService,
             IndexShard shard,
-            ActionListener<Void> listener,
-            AtomicBoolean cancelled
+            AtomicBoolean cancelled,
+            ActionListener<Void> listener
         ) {
             super(
                 logger,

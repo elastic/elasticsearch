@@ -9,12 +9,18 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.NodeDisconnectedException;
 import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -184,6 +190,45 @@ public class DataNodeComputeHandlerExternalErrorTests extends ESTestCase {
                 ExternalException.Condition.WORKER_NOT_READY
             )
         );
+    }
+
+    /**
+     * A worker that left after its request was sent is retried on another resolved worker only when it
+     * streamed no pages. Cancellation and circuit breaks are query-wide; a generic I/O error is not a
+     * leave and is not retried. Cluster-state lag is waited out on the worker, not hopped here.
+     */
+    public void testDisconnectWithoutPagesReroutesWhenAnotherWorkerRemains() {
+        DiscoveryNode node = createNodes(1).get("node-0");
+        Exception disconnected = new NodeDisconnectedException(node, "indices:data/read/esql/data");
+        Exception wrapped = new RemoteTransportException("worker", disconnected);
+
+        assertTrue(DataNodeComputeHandler.shouldRerouteExternalWorker(disconnected, 0, true));
+        assertTrue(DataNodeComputeHandler.shouldRerouteExternalWorker(wrapped, 0, true));
+        assertTrue(DataNodeComputeHandler.shouldRerouteExternalWorker(new NodeNotConnectedException(node, "gone"), 0, true));
+        assertTrue(DataNodeComputeHandler.shouldRerouteExternalWorker(new NodeClosedException(node), 0, true));
+        assertFalse(
+            "cluster-state lag waits on the worker, it is not a leave hop",
+            DataNodeComputeHandler.shouldRerouteExternalWorker(DataNodeComputeHandler.workerNotReady(""), 0, true)
+        );
+
+        assertFalse("pages already fetched cannot be replayed", DataNodeComputeHandler.shouldRerouteExternalWorker(disconnected, 1, true));
+        assertFalse("last worker has nowhere to go", DataNodeComputeHandler.shouldRerouteExternalWorker(disconnected, 0, false));
+        assertFalse(DataNodeComputeHandler.shouldRerouteExternalWorker(new TaskCancelledException("cancelled"), 0, true));
+        assertFalse(
+            DataNodeComputeHandler.shouldRerouteExternalWorker(
+                new CircuitBreakingException("over limit", CircuitBreaker.Durability.TRANSIENT),
+                0,
+                true
+            )
+        );
+        assertFalse(DataNodeComputeHandler.shouldRerouteExternalWorker(new IOException("boom"), 0, true));
+    }
+
+    public void testRemainingExternalWorkersFailedKeepsTheDisconnect() {
+        NodeDisconnectedException disconnected = new NodeDisconnectedException(createNodes(1).get("node-0"), "indices:data/read/esql/data");
+        IllegalStateException failure = DataNodeComputeHandler.remainingExternalWorkersFailed(disconnected);
+        assertThat(failure.getMessage(), containsString("failed after dispatch"));
+        assertThat(failure.getCause(), instanceOf(NodeDisconnectedException.class));
     }
 
     private static Exception roundTrip(Exception e) throws IOException {

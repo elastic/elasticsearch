@@ -26,6 +26,8 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -157,20 +159,31 @@ public class SearchShardResponseCircuitBreakerIT extends ESIntegTestCase {
         long tripsBefore = breaker.getTrippedCount();
         PlainActionFuture<SearchResponse> search = new PlainActionFuture<>();
         AtomicReference<Thread> sender = new AtomicReference<>();
+        AtomicReference<Runnable> firstRequest = new AtomicReference<>();
         AtomicBoolean heldSecondRequest = new AtomicBoolean();
         MockTransportService transportService = MockTransportService.getInstance(coordinator);
+        // The first request is only sent from the hold below. Otherwise its response could trip before the sender thread checks for a
+        // trip ahead of the second request, and the second request would never be sent.
         transportService.addSendBehavior((connection, requestId, action, request, options) -> {
-            if (action.equals(SearchTransportService.DFS_ACTION_NAME)) {
-                sender.compareAndSet(null, Thread.currentThread());
+            if (action.equals(SearchTransportService.DFS_ACTION_NAME) && sender.compareAndSet(null, Thread.currentThread())) {
+                firstRequest.set(() -> {
+                    try {
+                        connection.sendRequest(requestId, action, request, options);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                });
+                return;
             }
             connection.sendRequest(requestId, action, request, options);
         });
-        // The thread that sent the first request holds up the next one, after its trip check. Every response trips, so it waits
-        // for the first to, then up to 1s for a search that fails at once to complete. With the fix that wait always times
-        // out; it only bounds how long the bug has to show. The unit tests in SearchQueryThenFetchAsyncActionTests cover the
-        // same order without timing.
+        // The thread that sent the first request holds up the next one, after its trip check. Every response trips, so this thread
+        // sends the first request, waits for it to trip, then waits up to 1s for a search that fails immediately to complete. With the
+        // fix that wait always times out; it only bounds how long a regression has to show. The unit tests in
+        // SearchQueryThenFetchAsyncActionTests cover the same order without timing.
         transportService.addGetConnectionBehavior((connectionManager, node) -> {
             if (Thread.currentThread() == sender.get() && heldSecondRequest.compareAndSet(false, true)) {
+                firstRequest.get().run();
                 waitUntil(() -> breaker.getTrippedCount() > tripsBefore);
                 waitUntil(search::isDone, 1, TimeUnit.SECONDS);
             }

@@ -23,6 +23,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
@@ -59,6 +60,7 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.FieldSemantics;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.index.NestedLeaves;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 import org.elasticsearch.xpack.esql.view.IndexViewOrigins;
 
@@ -535,6 +537,14 @@ public class IndexResolver {
             );
         }
 
+        /**
+         * Whether a field under a nested object is a column. An older data node would load null for it, so it needs every node
+         * to read the children.
+         */
+        boolean flattenedLeaves() {
+            return NestedLeaves.ENABLED && minTransportVersion != null && minTransportVersion.supports(NestedLeaves.VERSION);
+        }
+
         /** Whether an object is not a leaf, so it neither maps its name nor gives a column its type. */
         boolean objectsAreNotLeaves() {
             return minTransportVersion != null && minTransportVersion.supports(ESQL_OBJECTS_ARE_NOT_LEAVES);
@@ -601,7 +611,8 @@ public class IndexResolver {
             fieldsInfo.caps,
             trackUnmappedFieldIndices,
             fieldsInfo.objectsAreNotLeaves(),
-            fieldsInfo.keyNames()
+            fieldsInfo.keyNames(),
+            fieldsInfo.flattenedLeaves()
         );
         Map<String, IndexFieldCapabilitiesWithSourceHash> fieldsCaps = collectedFieldCaps.fieldsCaps;
 
@@ -708,12 +719,14 @@ public class IndexResolver {
     /**
      * @param objectsAreNotLeaves whether an object neither maps its name nor gives a column its type
      * @param keyNames the names that an index maps as the keys of a {@code flattened} field they are under
+     * @param flattenedLeaves whether a field under a nested object is a column; otherwise it is left out
      */
     private static CollectedFieldCaps collectFieldCaps(
         FieldCapabilitiesResponse fieldCapsResponse,
         boolean trackUnmappedFieldIndices,
         boolean objectsAreNotLeaves,
-        Set<String> keyNames
+        Set<String> keyNames,
+        boolean flattenedLeaves
     ) {
         Map<String, Integer> indexMappingHashToDuplicateCount = new HashMap<>();
         Map<String, IndexFieldCapabilitiesWithSourceHash> fieldsCaps = new HashMap<>();
@@ -722,7 +735,16 @@ public class IndexResolver {
         for (FieldCapabilitiesIndexResponse response : fieldCapsResponse.getIndexResponses()) {
             boolean isNew = indexMappingHashToDuplicateCount.compute(response.getIndexMappingHash(), (k, v) -> v == null ? 1 : v + 1) <= 1;
             String indexName = response.getIndexName();
-            for (IndexFieldCapabilities fc : response.get().values()) {
+            for (IndexFieldCapabilities mapped : response.get().values()) {
+                if (mapped.type().equals(NestedObjectMapper.CONTENT_TYPE)) {
+                    // Like an object, a nested object only shapes the fields under it
+                    continue;
+                }
+                boolean underNested = NestedLeaves.pathFor(mapped.name(), response.get()) != null;
+                if (underNested && flattenedLeaves == false) {
+                    continue;
+                }
+                IndexFieldCapabilities fc = underNested ? flattened(mapped) : mapped;
                 if (fc.isMetadatafield()) {
                     // ESQL builds the metadata fields if they are asked for without using the resolution.
                     continue;
@@ -1051,6 +1073,29 @@ public class IndexResolver {
         return null;
     }
 
+    /**
+     * A field under a nested object holds the values of all of the parent's objects, which are separate documents, so the
+     * parent's index and doc values hold none of them: queries and aggregations must not be pushed to Lucene.
+     */
+    private static IndexFieldCapabilities flattened(IndexFieldCapabilities fc) {
+        return new IndexFieldCapabilities(
+            fc.name(),
+            fc.type(),
+            fc.isMetadatafield(),
+            fc.isSearchable(),
+            false,
+            fc.isInference(),
+            fc.isDimension(),
+            fc.metricType(),
+            fc.isPassthrough(),
+            fc.meta(),
+            fc.indexAnalyzer(),
+            fc.indexAnalyzerPositionIncrementGap(),
+            fc.indexLocalAnalyzer(),
+            false
+        );
+    }
+
     /** Whether the field holds the names below it: an object, a passthrough object included, or a field that holds them as keys. */
     private static boolean holdsNamesBelow(IndexFieldCapabilities fc) {
         return isObject(fc) || holdsKeys(fc);
@@ -1113,7 +1158,12 @@ public class IndexResolver {
         // also because this way security doesn't throw authorization exceptions but rather honors ignore_unavailable
         request.indicesOptions(options);
         // we ignore the nested data type fields starting with https://github.com/elastic/elasticsearch/pull/111495
-        if (includeAllDimensions) {
+        // Snapshot builds read the fields under a nested object as columns where every node can; see FieldsInfo#flattenedLeaves
+        if (NestedLeaves.ENABLED) {
+            if (includeAllDimensions) {
+                request.filters("+dimension");
+            }
+        } else if (includeAllDimensions) {
             request.filters("-nested", "+dimension");
         } else {
             request.filters("-nested");

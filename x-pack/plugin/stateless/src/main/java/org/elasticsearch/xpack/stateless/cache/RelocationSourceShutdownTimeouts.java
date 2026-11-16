@@ -207,9 +207,12 @@ class RelocationSourceShutdownTimeouts {
     }
 
     /// The slots known to be available to the relocations to the target: the data node limit, or, while the master throttles and reserves
-    /// no slots, only the ones in use by the relocations in flight.
+    /// no slots, only the ones in use by the relocations in flight. The data node limit is enforced by the target whoever else throttles,
+    /// so the relocations in flight beyond it are queued on the target and do not use slots.
     private int knownRelocationSlots(final int allRelocationsToTarget) {
-        return dataNodeRecoveryThrottlingEnabled() ? maxConcurrentRelocationRecoveries : allRelocationsToTarget;
+        return dataNodeRecoveryThrottlingEnabled()
+            ? maxConcurrentRelocationRecoveries
+            : Math.min(maxConcurrentRelocationRecoveries, allRelocationsToTarget);
     }
 
     /// The data nodes throttle the relocations, and not the master, when their non-critical limit is finite and the master does not

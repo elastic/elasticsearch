@@ -1482,7 +1482,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     // Do NOT clear the filter entirely: YES-pushed conjuncts (LIKE-family) were
                     // removed from FilterExec and must still be enforced by the reader. Re-push only
                     // the YES conjuncts from the original list so they reach the evaluator, while the
-                    // RECHECK conjuncts remain in FilterExec.
+                    // RECHECK conjuncts remain in FilterExec. (A YES conjunct on the cast column itself
+                    // is the one case the reader cannot answer here; PushFiltersToSource keeps those in
+                    // the FilterExec as well, so the reader's "no constraint" answer is re-checked.)
                     List<Expression> yesConjuncts = pushedExpressions.stream()
                         .filter(e -> pushdownSupport.canPush(e) == FilterPushdownSupport.Pushability.YES)
                         .toList();

@@ -2655,8 +2655,12 @@ final class ParquetPushedExpressions {
      * prevented at plan time by {@link ParquetFilterPushdownSupport#canPush}, which probes
      * {@link org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern#createAutomaton}
      * up front and falls back to RECHECK if it throws. The Parquet KEYWORD reader always produces
-     * one of the two supported block types, so the block-type {@code null} sentinel is unreachable
-     * on the YES path in practice.
+     * one of the two supported block types for a column the file stores as a string, so the
+     * block-type {@code null} sentinel is reached only through a {@code union_by_name} file that
+     * stores the keyword-reconciled column at another type (the cast to keyword runs above the
+     * reader, and this method sees e.g. a {@code LongBlock}). For those columns
+     * {@code PushFiltersToSource} keeps the conjunct in the {@code FilterExec} on top of pushing
+     * it, so the all-survive answer is re-checked there and YES stays exact.
      */
     private WordMask evaluateWildcardLike(
         WildcardLike wl,
@@ -2724,8 +2728,10 @@ final class ParquetPushedExpressions {
      * output) and the pattern is determinizable (KEYWORD inputs guarantee valid UTF-8 and
      * {@link org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern}'s
      * automaton build only throws {@code TooComplexToDeterminize} for pathological patterns
-     * far beyond {@code "*google*"}). If a future change broadens the YES-eligible set, this
-     * contract must be revisited.
+     * far beyond {@code "*google*"}) -- or, for a {@code union_by_name} column some file stores
+     * at a non-string type, the planner has kept the conjunct in the {@code FilterExec} as well
+     * (see {@link #evaluateWildcardLike}). If a future change broadens the YES-eligible set,
+     * this contract must be revisited.
      *
      * <p>Unlike {@link #evaluateNotContains} / {@link #evaluateNotEndsWith}, this method is an
      * instance method because it delegates to {@link #evaluateWildcardLike}, which reads the

@@ -18,10 +18,12 @@ import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.TrackingCircuitBreaker;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -69,10 +71,13 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 
 public class ExchangeServiceTests extends ESTestCase {
 
@@ -100,7 +105,7 @@ public class ExchangeServiceTests extends ESTestCase {
         for (int i = 0; i < pages.length; i++) {
             pages[i] = new Page(blockFactory.newConstantIntBlockWith(i, 2));
         }
-        ExchangeSinkHandler sinkExchanger = new ExchangeSinkHandler(blockFactory, 2, threadPool.relativeTimeInMillisSupplier());
+        ExchangeSinkHandler sinkExchanger = new ExchangeSinkHandler(2, threadPool.relativeTimeInMillisSupplier());
         AtomicInteger pagesAddedToSink = new AtomicInteger();
         ExchangeSink sink1 = sinkExchanger.createExchangeSink(pagesAddedToSink::incrementAndGet);
         ExchangeSink sink2 = sinkExchanger.createExchangeSink(pagesAddedToSink::incrementAndGet);
@@ -392,7 +397,6 @@ public class ExchangeServiceTests extends ESTestCase {
     }
 
     public void testConcurrentWithHandlers() {
-        BlockFactory blockFactory = blockFactory();
         var sourceExchanger = new ExchangeSourceHandler(randomExchangeBuffer(), threadPool.executor(ESQL_TEST_EXECUTOR));
         PlainActionFuture<Void> remoteSinksFuture = new PlainActionFuture<>();
         try (RefCountingListener refs = new RefCountingListener(remoteSinksFuture)) {
@@ -402,7 +406,7 @@ public class ExchangeServiceTests extends ESTestCase {
                 if (sinkHandlers.isEmpty() == false && randomBoolean()) {
                     sinkHandler = randomFrom(sinkHandlers);
                 } else {
-                    sinkHandler = new ExchangeSinkHandler(blockFactory, randomExchangeBuffer(), threadPool.relativeTimeInMillisSupplier());
+                    sinkHandler = new ExchangeSinkHandler(randomExchangeBuffer(), threadPool.relativeTimeInMillisSupplier());
                     sourceExchanger.addRemoteSink(
                         sinkHandler::fetchPageAsync,
                         randomBoolean(),
@@ -430,7 +434,6 @@ public class ExchangeServiceTests extends ESTestCase {
     }
 
     public void testExchangeSourceContinueOnFailure() {
-        BlockFactory blockFactory = blockFactory();
         var exchangeSourceHandler = new ExchangeSourceHandler(randomExchangeBuffer(), threadPool.executor(ESQL_TEST_EXECUTOR));
         final int maxInputSeqNo = rarely() ? -1 : randomIntBetween(0, 50_000);
         final int maxOutputSeqNo = rarely() ? -1 : randomIntBetween(0, 50_000);
@@ -442,7 +445,7 @@ public class ExchangeServiceTests extends ESTestCase {
         PlainActionFuture<Void> remoteSinksFuture = new PlainActionFuture<>();
         try (RefCountingListener refs = new RefCountingListener(remoteSinksFuture)) {
             Supplier<ExchangeSink> exchangeSink = () -> {
-                var sinkHandler = new ExchangeSinkHandler(blockFactory, randomExchangeBuffer(), threadPool.relativeTimeInMillisSupplier());
+                var sinkHandler = new ExchangeSinkHandler(randomExchangeBuffer(), threadPool.relativeTimeInMillisSupplier());
                 int failAfter = randomBoolean() ? Integer.MAX_VALUE : randomIntBetween(0, 100);
                 AtomicInteger fetched = new AtomicInteger();
                 int instance = randomIntBetween(1, 3);
@@ -470,7 +473,7 @@ public class ExchangeServiceTests extends ESTestCase {
                                     }
                                 }
                             }
-                            l.onResponse(new ExchangeResponse(blockFactory, page, r.finished()));
+                            l.onResponse(new ExchangeResponse(page, r.finished()));
                         }));
                     }
                 }, false, () -> {}, instance, ActionListener.wrap(r -> {
@@ -509,7 +512,7 @@ public class ExchangeServiceTests extends ESTestCase {
         IntBlock block2 = blockFactory.newConstantIntBlockWith(1, 2);
         Page p1 = new Page(block1);
         Page p2 = new Page(block2);
-        ExchangeSinkHandler sinkExchanger = new ExchangeSinkHandler(blockFactory, 2, threadPool.relativeTimeInMillisSupplier());
+        ExchangeSinkHandler sinkExchanger = new ExchangeSinkHandler(2, threadPool.relativeTimeInMillisSupplier());
         ExchangeSink sink = sinkExchanger.createExchangeSink(() -> {});
         sink.addPage(p1);
         sink.addPage(p2);
@@ -523,7 +526,7 @@ public class ExchangeServiceTests extends ESTestCase {
         assertTrue(sink.isFinished());
     }
 
-    public void testFinishEarly() throws Exception {
+    public void testFinishEarly() {
         ExchangeSourceHandler sourceHandler = new ExchangeSourceHandler(20, threadPool.generic());
         Semaphore permits = new Semaphore(between(1, 5));
         BlockFactory blockFactory = blockFactory();
@@ -535,7 +538,7 @@ public class ExchangeServiceTests extends ESTestCase {
             if (allSourcesFinished) {
                 sinkClosed.set(true);
                 permits.release(10);
-                listener.onResponse(new ExchangeResponse(blockFactory, null, sinkClosed.get()));
+                listener.onResponse(new ExchangeResponse(null, sinkClosed.get()));
             } else {
                 try {
                     if (permits.tryAcquire(between(0, 100), TimeUnit.MICROSECONDS)) {
@@ -547,9 +550,9 @@ public class ExchangeServiceTests extends ESTestCase {
                         } else {
                             page = null;
                         }
-                        listener.onResponse(new ExchangeResponse(blockFactory, page, closed));
+                        listener.onResponse(new ExchangeResponse(page, closed));
                     } else {
-                        listener.onResponse(new ExchangeResponse(blockFactory, null, sinkClosed.get()));
+                        listener.onResponse(new ExchangeResponse(null, sinkClosed.get()));
                     }
                 } catch (Exception e) {
                     throw new AssertionError(e);
@@ -630,7 +633,6 @@ public class ExchangeServiceTests extends ESTestCase {
         AbstractSimpleTransportTestCase.connectToNode(node0, node1.getLocalNode());
         final int maxSeqNo = randomIntBetween(1000, 5000);
         final int disconnectOnSeqNo = randomIntBetween(100, 500);
-        BlockFactory blockFactory = blockFactory();
         node1.addRequestHandlingBehavior(ExchangeService.EXCHANGE_ACTION_NAME, new StubbableTransport.RequestHandlingBehavior<>() {
             @Override
             public void messageReceived(
@@ -654,7 +656,7 @@ public class ExchangeServiceTests extends ESTestCase {
                                 }
                             }
                         }
-                        try (var newRespRef = ReleasableRef.of(new ExchangeResponse(blockFactory, page, origResp.finished()))) {
+                        try (var newRespRef = ReleasableRef.of(new ExchangeResponse(page, origResp.finished()))) {
                             super.sendResponse(newRespRef.get());
                         }
                     }
@@ -694,6 +696,155 @@ public class ExchangeServiceTests extends ESTestCase {
             sinkHandler.addCompletionListener(sinkCompletionFuture);
             safeGet(sinkCompletionFuture);
         }
+    }
+
+    /**
+     * A remote sink reserves no estimate before its first fetch, so the coordinator charges the first page while it arrives, on top of
+     * the blocks it reads from it.
+     */
+    public void testCoordinatorChargesFirstPageWhileItArrives() throws Exception {
+        TrackingCircuitBreaker coordinatorBreaker = new TrackingCircuitBreaker();
+        BlockFactory dataNodeFactory = blockFactory();
+        Page page = intPage(dataNodeFactory, 10_000);
+        long blockBytes = page.ramBytesUsedByBlocks();
+        long serializedBytes = serializedSize(page);
+        try (Page ignored = fetchFirstPage(trackingBlockFactory(coordinatorBreaker), dataNodeFactory, page).actionGet()) {
+            assertThat(coordinatorBreaker.peak(), greaterThanOrEqualTo(blockBytes + serializedBytes));
+            assertThat(coordinatorBreaker.getUsed(), equalTo(blockBytes));
+        }
+        assertThat(coordinatorBreaker.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * After the first page, each fetch reserves an estimate of the page before it is sent, so only the bytes beyond it are charged as
+     * they arrive. The second page is much larger than the first, whose size is the estimate, and arrives in several pieces.
+     */
+    public void testCoordinatorChargesOnlyBytesBeyondTheEstimate() throws Exception {
+        TrackingCircuitBreaker coordinatorBreaker = new TrackingCircuitBreaker();
+        BlockFactory dataNodeFactory = blockFactory();
+        // Both pages stay below the size at which blocks move to big arrays, so their blocks are charged to the breaker too.
+        Page first = intPage(dataNodeFactory, 30_000);
+        Page second = intPage(dataNodeFactory, 120_000);
+        long estimate = first.ramBytesUsedByBlocks();
+        long secondBlockBytes = second.ramBytesUsedByBlocks();
+        long secondSerializedBytes = serializedSize(second);
+        List<PlainActionFuture<Page>> fetched = fetchPages(trackingBlockFactory(coordinatorBreaker), dataNodeFactory, true, first, second);
+        // Rethrows a failed fetch. The pages were released as they arrived.
+        for (PlainActionFuture<Page> future : fetched) {
+            future.actionGet();
+        }
+        assertThat(fetched, hasSize(2));
+        // While the second page is read, its blocks are charged, and its wire bytes, partly as the estimate reserved before the fetch.
+        assertThat(coordinatorBreaker.peak(), greaterThanOrEqualTo(secondBlockBytes + secondSerializedBytes));
+        // Charging every byte that arrives on top of the estimate would count the estimate twice.
+        assertThat(coordinatorBreaker.peak(), lessThan(secondBlockBytes + secondSerializedBytes + estimate / 2));
+        assertThat(coordinatorBreaker.getUsed(), equalTo(0L));
+    }
+
+    public void testCoordinatorRejectsFirstPageWhileItArrives() {
+        TrackingCircuitBreaker coordinatorBreaker = new TrackingCircuitBreaker(ByteSizeValue.ofKb(1).getBytes());
+        BlockFactory dataNodeFactory = blockFactory();
+        Page page = intPage(dataNodeFactory, 10_000);
+        PlainActionFuture<Page> fetched = fetchFirstPage(trackingBlockFactory(coordinatorBreaker), dataNodeFactory, page);
+        Exception e = expectThrows(Exception.class, fetched::actionGet);
+        CircuitBreakingException trip = (CircuitBreakingException) ExceptionsHelper.unwrap(e, CircuitBreakingException.class);
+        assertNotNull(e.toString(), trip);
+        assertThat(trip.getMessage(), containsString("fetch page"));
+        assertThat(coordinatorBreaker.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * The data node charges the page it sends as it serializes it, through the channel, so a page that does not fit is rejected there.
+     */
+    public void testDataNodeChargesPageWhileSendingIt() throws Exception {
+        BlockFactory pageFactory = blockFactory();
+        Page page = intPage(pageFactory, 10_000);
+        // Room for less than the serialized page.
+        TrackingCircuitBreaker dataNodeBreaker = new TrackingCircuitBreaker(serializedSize(page) / 2);
+        PlainActionFuture<Page> fetched = fetchFirstPage(blockFactory(), trackingBlockFactory(dataNodeBreaker), page);
+        Exception e = expectThrows(Exception.class, fetched::actionGet);
+        CircuitBreakingException trip = (CircuitBreakingException) ExceptionsHelper.unwrap(e, CircuitBreakingException.class);
+        assertNotNull(e.toString(), trip);
+        assertThat(trip.getMessage(), containsString("RecyclerBytesStreamOutput"));
+        assertBusy(() -> assertThat(dataNodeBreaker.getUsed(), equalTo(0L)));
+    }
+
+    /**
+     * Starts a coordinator and a data node, adds {@code page} to a sink on the data node and fetches it from the coordinator.
+     */
+    private PlainActionFuture<Page> fetchFirstPage(BlockFactory coordinatorFactory, BlockFactory dataNodeFactory, Page page) {
+        return fetchPages(coordinatorFactory, dataNodeFactory, false, page).getFirst();
+    }
+
+    /**
+     * Starts a coordinator and a data node, adds {@code pages} to a sink on the data node and fetches them one after another from the
+     * coordinator. If {@code releaseEach}, each page is released as soon as it arrives.
+     */
+    private List<PlainActionFuture<Page>> fetchPages(
+        BlockFactory coordinatorFactory,
+        BlockFactory dataNodeFactory,
+        boolean releaseEach,
+        Page... pages
+    ) {
+        MockTransportService node0 = newTransportService();
+        ExchangeService exchange0 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, coordinatorFactory);
+        exchange0.registerTransportHandler(node0);
+        MockTransportService node1 = newTransportService();
+        ExchangeService exchange1 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, dataNodeFactory);
+        exchange1.registerTransportHandler(node1);
+        AbstractSimpleTransportTestCase.connectToNode(node0, node1.getLocalNode());
+        List<PlainActionFuture<Page>> fetched = new ArrayList<>();
+        try (exchange0; exchange1; node0; node1) {
+            String exchangeId = "exchange";
+            ExchangeSinkHandler sinkHandler = exchange1.createSinkHandler(exchangeId, pages.length);
+            ExchangeSink sink = sinkHandler.createExchangeSink(() -> {});
+            for (Page page : pages) {
+                sink.addPage(page);
+            }
+            Task task = new Task(1, "", "", "", null, Collections.emptyMap());
+            RemoteSink remoteSink = exchange0.newRemoteSink(task, exchangeId, node0, node0.getConnection(node1.getLocalNode()));
+            for (Page ignored : pages) {
+                PlainActionFuture<Page> future = new PlainActionFuture<>();
+                fetched.add(future);
+                // The response is released once the listener returns, so take its page as the exchange source does.
+                remoteSink.fetchPageAsync(false, future.map(response -> {
+                    Page page = response.takePage();
+                    if (releaseEach && page != null) {
+                        page.releaseBlocks();
+                    }
+                    return page;
+                }));
+                try {
+                    future.get(30, TimeUnit.SECONDS);
+                } catch (Exception e) {
+                    // checked by the caller
+                    break;
+                }
+            }
+            sink.finish();
+            exchange1.finishSinkHandler(exchangeId, null);
+        }
+        return fetched;
+    }
+
+    private static Page intPage(BlockFactory blockFactory, int positions) {
+        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                builder.appendInt(i);
+            }
+            return new Page(builder.build());
+        }
+    }
+
+    private static long serializedSize(Page page) throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            page.writeTo(out);
+            return out.size();
+        }
+    }
+
+    private static BlockFactory trackingBlockFactory(CircuitBreaker breaker) {
+        return BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
     }
 
     public void testNoCyclicException() throws Exception {
@@ -739,7 +890,7 @@ public class ExchangeServiceTests extends ESTestCase {
      * run, and the next compute lookup must observe the close instead of a missing exchange. A second close is a
      * finished response.
      */
-    public void testSourcesFinishedUnregistersSink() throws Exception {
+    public void testSourcesFinishedUnregistersSink() {
         MockTransportService node0 = newTransportService();
         ExchangeService exchange0 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
         exchange0.registerTransportHandler(node0);

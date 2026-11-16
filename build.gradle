@@ -570,7 +570,8 @@ tasks.register("validateBuildGradleScripts", ValidateBuildGradleScriptsTask).con
     'execution-closure-project-reference': [
       'build.gradle::6',
       'modules/lang-painless/build.gradle::4',
-      'qa/vector/build.gradle::1'
+      'qa/vector/build.gradle::1',
+      'x-pack/plugin/esql-datasource-parquet-rs/qa/build.gradle::90'
     ],
   ])
 }

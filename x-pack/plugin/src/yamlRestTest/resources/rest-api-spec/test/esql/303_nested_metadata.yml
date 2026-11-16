@@ -1,0 +1,306 @@
+# A reduction reads its parent's own objects whatever the query does to the visible columns: overwriting, renaming or
+# dropping _source and _index, copying rows, or joining a lookup index that maps fields with the same names.
+# Execute with -Desql.nested_reductions.test_execution=true. A capability skip is not a pass.
+---
+setup:
+- requires:
+    test_runner_features:
+    - capabilities
+    - contains
+    capabilities:
+    - method: POST
+      path: /_query
+      parameters: []
+      capabilities:
+      - nested_reductions
+    reason: "Completed per-parent nested reductions; capability stays unadvertised unless -Desql.nested_reductions.test_execution=true"
+- do:
+    indices.create:
+      index: nm_orders
+      body:
+        settings: { number_of_shards: 1, number_of_replicas: 0 }
+        mappings:
+          dynamic: strict
+          properties:
+            order_id: { type: keyword }
+            items: { type: nested, properties: { price: { type: long }, quantity: { type: long } } }
+- do:
+    indices.create:
+      index: nm_prices
+      body:
+        settings: { number_of_shards: 1, number_of_replicas: 0, index.mode: lookup }
+        mappings:
+          dynamic: strict
+          properties:
+            order_id: { type: keyword }
+            items: { type: nested, properties: { price: { type: long }, quantity: { type: long } } }
+- do:
+    indices.create:
+      index: nm_prices_keyword
+      body:
+        settings: { number_of_shards: 1, number_of_replicas: 0, index.mode: lookup }
+        mappings:
+          dynamic: strict
+          properties:
+            order_id: { type: keyword }
+            items: { type: nested, properties: { price: { type: keyword }, quantity: { type: long } } }
+- do:
+    indices.create:
+      index: nm_offers
+      body:
+        settings: { number_of_shards: 1, number_of_replicas: 0, index.mode: lookup }
+        mappings:
+          dynamic: strict
+          properties:
+            order_id: { type: keyword }
+            offers: { type: nested, properties: { price: { type: long } } }
+- do:
+    bulk:
+      refresh: true
+      body:
+      - { index: { _index: nm_orders } }
+      - { order_id: a, items: [{ price: 3, quantity: 2 }, { price: 9, quantity: 2 }] }
+      - { index: { _index: nm_orders } }
+      - { order_id: b, items: [] }
+      - { index: { _index: nm_prices } }
+      - { order_id: a, items: [{ price: 999, quantity: 2 }] }
+      - { index: { _index: nm_prices_keyword } }
+      - { order_id: a, items: [{ price: "999", quantity: 2 }] }
+      - { index: { _index: nm_offers } }
+      - { order_id: a, offers: [{ price: 999 }] }
+
+---
+overwriting _source and _index does not change the reduction:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: |
+          FROM nm_orders
+          | EVAL _source = "user source", _index = "user index"
+          | EVAL total = NESTED(SUM(items.price * items.quantity))
+          | KEEP order_id, _source, _index, total
+          | SORT order_id
+          | LIMIT 10
+- match:
+    values:
+    - [a, "user source", "user index", 24]
+    - [b, "user source", "user index", null]
+
+---
+boolean combinations of existence checks:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nm_orders | WHERE NESTED_ANY(items.price > 5) OR NESTED_ANY(items.price > 100) | KEEP order_id | LIMIT 10'
+- match:
+    values:
+    - [a]
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nm_orders | WHERE NOT NESTED_ANY(items.price > 5) | KEEP order_id | SORT order_id | LIMIT 10'
+- match:
+    values:
+    - [b]
+
+---
+existence after _source is replaced:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nm_orders | EVAL _source = "user source" | WHERE NESTED_ANY(items.price > 5) | KEEP order_id | LIMIT 10'
+- match:
+    values:
+    - [a]
+
+---
+a reduction may be named _index:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: |
+          FROM nm_orders
+          | EVAL _index = NESTED(SUM(items.price * items.quantity))
+          | EVAL second = NESTED(SUM(items.price))
+          | KEEP order_id, _index, second
+          | SORT order_id
+          | LIMIT 10
+- match:
+    values:
+    - [a, 24, 12]
+    - [b, null, null]
+
+---
+copied parent rows reduce independently:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: |
+          FROM nm_orders
+          | EVAL copies = [10, 20]
+          | MV_EXPAND copies
+          | EVAL total = NESTED(SUM(items.price * items.quantity))
+          | STATS n = COUNT(*), amount = SUM(total)
+          | LIMIT 10
+- match:
+    values:
+    - [4, 48]
+
+---
+renaming and replacing _index metadata:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: |
+          FROM nm_orders METADATA _index
+          | RENAME _index AS origin
+          | EVAL _index = "replacement"
+          | EVAL total = NESTED(SUM(items.price * items.quantity))
+          | KEEP order_id, origin, _index, total
+          | SORT order_id
+          | LIMIT 10
+- match:
+    values:
+    - [a, nm_orders, replacement, 24]
+    - [b, nm_orders, replacement, null]
+
+---
+dropping _index metadata:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nm_orders METADATA _index | DROP _index | EVAL total = NESTED(SUM(items.price * items.quantity)) | KEEP order_id, total | SORT order_id | LIMIT 10'
+- match:
+    values:
+    - [a, 24]
+    - [b, null]
+
+---
+keeping only parent fields before the reduction:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nm_orders | KEEP order_id | EVAL total = NESTED(SUM(items.price * items.quantity)) | SORT order_id | LIMIT 10'
+- match:
+    values:
+    - [a, 24]
+    - [b, null]
+
+---
+fork branches may change _index independently:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: |
+          FROM nm_orders
+          | FORK (EVAL _index = "left" | EVAL total = NESTED(SUM(items.price * items.quantity)))
+                 (EVAL _index = "right" | EVAL total = NESTED(SUM(items.price * items.quantity)))
+          | STATS n = COUNT(*), amount = SUM(total)
+          | LIMIT 10
+- match:
+    values:
+    - [4, 48]
+
+---
+a lookup index mapping the same nested field does not change the reduction:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: |
+          FROM nm_orders
+          | LOOKUP JOIN nm_prices ON order_id
+          | EVAL total = NESTED(SUM(items.price * items.quantity))
+          | KEEP order_id, total
+          | SORT order_id
+          | LIMIT 10
+- match:
+    values:
+    - [a, 24]
+    - [b, null]
+
+---
+a later lookup does not change an earlier reduction:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: |
+          FROM nm_orders
+          | EVAL total = NESTED(SUM(items.price * items.quantity))
+          | LOOKUP JOIN nm_prices ON order_id
+          | KEEP order_id, total
+          | SORT order_id
+          | LIMIT 10
+- match:
+    values:
+    - [a, 24]
+    - [b, null]
+
+---
+a lookup index mapping another nested field does not change the reduction:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: |
+          FROM nm_orders
+          | LOOKUP JOIN nm_offers ON order_id
+          | EVAL total = NESTED(SUM(items.price * items.quantity))
+          | KEEP order_id, total
+          | SORT order_id
+          | LIMIT 10
+- match:
+    values:
+    - [a, 24]
+    - [b, null]
+
+---
+a lookup index typing the field differently does not change the reduction:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: |
+          FROM nm_orders
+          | LOOKUP JOIN nm_prices_keyword ON order_id
+          | EVAL total = NESTED(SUM(items.price * items.quantity))
+          | KEEP order_id, total
+          | SORT order_id
+          | LIMIT 10
+- match:
+    values:
+    - [a, 24]
+    - [b, null]
+
+---
+a nested field of the lookup index is rejected:
+- do:
+    catch: bad_request
+    esql.query:
+      body:
+        query: 'FROM nm_orders | LOOKUP JOIN nm_offers ON order_id | EVAL total = NESTED(SUM(offers.price)) | LIMIT 10'
+- match:
+    error.type: verification_exception
+- contains:
+    error.reason: lookup-side nested scope
+
+---
+a reduction after an aggregation is rejected:
+- do:
+    catch: bad_request
+    esql.query:
+      body:
+        query: 'FROM nm_orders | STATS n = COUNT(*) | EVAL total = NESTED(SUM(items.price * items.quantity)) | LIMIT 10'
+- match:
+    error.type: verification_exception

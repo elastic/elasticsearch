@@ -1,0 +1,270 @@
+# WHERE NESTED_ANY(<predicate>) runs in Lucene as a nested query when the predicate translates exactly, so only matching
+# parents leave the index: documents_found counts them. Otherwise the reduction filters in memory and every parent is read.
+# Execute with -Desql.nested_reductions.test_execution=true. A capability skip is not a pass.
+---
+setup:
+- requires:
+    test_runner_features:
+    - capabilities
+    capabilities:
+    - method: POST
+      path: /_query
+      parameters: []
+      capabilities:
+      - nested_reductions
+    reason: "Completed per-parent nested reductions; capability stays unadvertised unless -Desql.nested_reductions.test_execution=true"
+- do:
+    indices.create:
+      index: nr_push
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              properties:
+                price:
+                  type: long
+                qty:
+                  type: long
+                sku:
+                  type: keyword
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: nr_push
+          _id: a
+      - id: a
+        items:
+        - { price: 20, qty: 2, sku: book }
+        - { price: 5, qty: 1, sku: pen }
+      - index:
+          _index: nr_push
+          _id: b
+      - id: b
+        items:
+        - { price: 1, qty: 1, sku: book }
+      - index:
+          _index: nr_push
+          _id: c
+      - id: c
+      - index:
+          _index: nr_push
+          _id: d
+      - id: d
+        items:
+        - { price: 20, qty: 1, sku: cup }
+
+---
+a nested predicate is pushed to Lucene:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_push | WHERE NESTED_ANY(items.price > 10) | KEEP id | SORT id | LIMIT 10
+- match:
+    values:
+    - [a]
+    - [d]
+- match: { documents_found: 2 }
+
+---
+a pushed conjunction matches within one nested object:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_push | WHERE NESTED_ANY(items.price > 10 AND items.qty == 1) | KEEP id | SORT id | LIMIT 10
+- match:
+    values:
+    - [d]
+- match: { documents_found: 1 }
+
+---
+a pushed keyword predicate:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_push | WHERE NESTED_ANY(items.sku == "book") | KEEP id | SORT id | LIMIT 10
+- match:
+    values:
+    - [a]
+    - [b]
+- match: { documents_found: 2 }
+
+---
+a nested predicate is pushed beside a parent filter:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_push | WHERE id != "d" AND NESTED_ANY(items.price > 10) | KEEP id | SORT id | LIMIT 10
+- match:
+    values:
+    - [a]
+- match: { documents_found: 1 }
+
+---
+an untranslatable nested predicate filters in memory:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_push | WHERE NESTED_ANY(items.price + items.qty >= 21) | KEEP id | SORT id | LIMIT 10
+- match:
+    values:
+    - [a]
+    - [d]
+- match: { documents_found: 4 }
+
+---
+a negated nested predicate filters in memory:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_push | WHERE NOT NESTED_ANY(items.price > 10) | KEEP id | SORT id | LIMIT 10
+- match:
+    values:
+    - [b]
+    - [c]
+- match: { documents_found: 4 }
+
+---
+a nested predicate in a disjunction filters in memory:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_push | WHERE id == "b" OR NESTED_ANY(items.price > 10) | KEEP id | SORT id | LIMIT 10
+- match:
+    values:
+    - [a]
+    - [b]
+    - [d]
+- match: { documents_found: 4 }
+
+---
+a nested existence predicate matches the child fields:
+- do:
+    indices.create:
+      index: nr_push_exists
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              properties:
+                price:
+                  type: long
+                qty:
+                  type: long
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index: { _index: nr_push_exists, _id: mixed }
+      - { id: mixed, items: [ { price: 1 }, { qty: 1 } ] }
+      - index: { _index: nr_push_exists, _id: priced }
+      - { id: priced, items: [ { price: 2 } ] }
+      - index: { _index: nr_push_exists, _id: unpriced }
+      - { id: unpriced, items: [ { qty: 1 } ] }
+      - index: { _index: nr_push_exists, _id: empty }
+      - { id: empty }
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_push_exists | WHERE NESTED_ANY(items.price IS NOT NULL) | KEEP id | SORT id | LIMIT 10
+- match:
+    values:
+    - [mixed]
+    - [priced]
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_push_exists | WHERE NESTED_ANY(items.price IS NULL) | KEEP id | SORT id | LIMIT 10
+- match:
+    values:
+    - [mixed]
+    - [unpriced]
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_push_exists | WHERE NESTED_ALL(items.price IS NOT NULL) | KEEP id | SORT id | LIMIT 10
+- match:
+    values:
+    - [empty]
+    - [priced]
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_push_exists | WHERE NESTED_ALL(items.price IS NULL) | KEEP id | SORT id | LIMIT 10
+- match:
+    values:
+    - [empty]
+    - [unpriced]
+
+---
+a nested keyword with a normalizer filters in memory:
+# Lucene compares normalized terms: it would match "A" against the indexed "a", and reject "a" for a bound "B" normalized to "b".
+- do:
+    indices.create:
+      index: nr_push_normalized
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+          analysis:
+            normalizer:
+              lower:
+                type: custom
+                filter: [lowercase]
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              properties:
+                sku:
+                  type: keyword
+                  normalizer: lower
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index: { _index: nr_push_normalized, _id: n1 }
+      - { id: n1, items: [ { sku: a } ] }
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_push_normalized | WHERE NESTED_ANY(items.sku == "A") | KEEP id | LIMIT 10
+- length: { values: 0 }
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_push_normalized | WHERE NESTED_ANY(items.sku > "B") | KEEP id | LIMIT 10
+- match:
+    values:
+    - [n1]

@@ -1,0 +1,134 @@
+# Every child field one NESTED expression reads must belong to the same nested object, so the reduction cannot mix
+# objects of different nested fields, or parent fields, row by row.
+# Execute with -Desql.nested_reductions.test_execution=true. A capability skip is not a pass.
+---
+setup:
+- requires:
+    test_runner_features:
+    - capabilities
+    - contains
+    capabilities:
+    - method: POST
+      path: /_query
+      parameters: []
+      capabilities:
+      - nested_reductions
+    reason: "Completed per-parent nested reductions; capability stays unadvertised unless -Desql.nested_reductions.test_execution=true"
+- do:
+    indices.create:
+      index: nr_nested_parents
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings: {"dynamic": "strict", "properties": {"id": {"type": "keyword"}, "rate": {"type": "long"}, "items": {"type": "nested", "properties": {"price": {"type": "long"}, "quantity": {"type": "long"}, "details": {"type": "object", "properties": {"tax": {"type": "long"}}}}}, "shipping": {"type": "nested", "properties": {"cost": {"type": "long"}}}}}
+- do:
+    bulk:
+      refresh: true
+      body:
+      - {"index": {"_index": "nr_nested_parents", "_id": "one"}}
+      - {"id": "one", "rate": 7, "items": [{"price": 3, "quantity": 2, "details": {"tax": 1}}, {"price": 5, "quantity": 4, "details": {"tax": 2}}], "shipping": [{"cost": 10}]}
+
+---
+same nested parent arithmetic:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_parents | EVAL picked = NESTED(SUM(items.price * items.quantity)) | KEEP id, picked | LIMIT 10'
+- match:
+    columns.1.type: long
+- match:
+    values:
+    - ["one", 26]
+
+---
+ordinary object descendants share nested parent:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_parents | EVAL picked = NESTED(SUM(items.price + items.details.tax)) | KEEP id, picked | LIMIT 10'
+- match:
+    columns.1.type: long
+- match:
+    values:
+    - ["one", 11]
+
+---
+cast cannot conceal a second nested parent:
+- do:
+    catch: bad_request
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_parents | EVAL picked = NESTED(SUM(items.price + shipping.cost::long)) | KEEP id, picked | LIMIT 10'
+- match:
+    error.type: verification_exception
+- contains:
+    error.reason: "one nested path"
+
+---
+selection value and key require same nested parent:
+- do:
+    catch: bad_request
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_parents | EVAL picked = NESTED(LAST(items.price, shipping.cost)) | KEEP id, picked | LIMIT 10'
+- match:
+    error.type: verification_exception
+- contains:
+    error.reason: "one nested path"
+
+---
+predicate requires same nested parent:
+- do:
+    catch: bad_request
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_parents | EVAL picked = NESTED_ANY(items.price > 0 AND shipping.cost > 0) | KEEP id, picked | LIMIT 10'
+- match:
+    error.type: verification_exception
+- contains:
+    error.reason: "one nested path"
+
+---
+ordinary parent field capture rejected:
+- do:
+    catch: bad_request
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_parents | EVAL picked = NESTED(SUM(items.price * rate)) | KEEP id, picked | LIMIT 10'
+- match:
+    error.type: verification_exception
+- contains:
+    error.reason: "outside the nested scope"
+
+---
+ordinary parent alias capture rejected:
+- do:
+    catch: bad_request
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_parents | EVAL parent_alias = rate | EVAL picked = NESTED(SUM(items.quantity * parent_alias)) | KEEP id, picked | LIMIT 10'
+- match:
+    error.type: verification_exception
+- contains:
+    error.reason: "outside the nested scope"
+
+---
+separate wrappers may use different nested parents:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_parents | EVAL picked = NESTED_ANY(items.price > 0) AND NESTED_ANY(shipping.cost > 0) | KEEP id, picked | LIMIT 10'
+- match:
+    columns.1.type: boolean
+- match:
+    values:
+    - ["one", true]

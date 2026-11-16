@@ -86,6 +86,11 @@ public class SingleValueQuery extends Query {
         this.useSyntheticSourceDelegate = useSyntheticSourceDelegate;
     }
 
+    /** The query that runs before the single-value check. */
+    public Query next() {
+        return next;
+    }
+
     @Override
     protected AbstractBuilder asBuilder() {
         return switch (useSyntheticSourceDelegate) {

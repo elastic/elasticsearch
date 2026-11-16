@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
@@ -59,8 +60,8 @@ public final class PushDownAndCombineLimitBy extends OptimizerRules.Parameterize
                 } else {
                     return unary.replaceChild(limitBy.replaceChild(unary.child()));
                 }
-            } else if (unary instanceof MvExpand) {
-                if (groupingAttrsDefinedByChild(limitBy, unary)) {
+            } else if (unary instanceof MvExpand || unary instanceof NestedExpand) {
+                if (unary instanceof NestedExpand || groupingAttrsDefinedByChild(limitBy, unary)) {
                     return limitBy;
                 }
                 return duplicateLimitByAsFirstGrandchild(limitBy);

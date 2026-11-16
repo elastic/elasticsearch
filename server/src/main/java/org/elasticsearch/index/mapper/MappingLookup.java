@@ -727,13 +727,16 @@ public final class MappingLookup {
             return patchLoader == null ? loader : new SourceLoader.SyntheticVectors(loader, patchLoader);
         }
         var syntheticVectorsLoader = syntheticVectorsLoader(filter);
+        SourceLoader loader;
         if (syntheticVectorsLoader != null) {
-            return new SourceLoader.SyntheticVectors(removeExcludedSyntheticVectorFields(filter), syntheticVectorsLoader);
+            loader = new SourceLoader.SyntheticVectors(removeExcludedSyntheticVectorFields(filter), syntheticVectorsLoader);
+        } else {
+            loader = filter == null ? SourceLoader.FROM_STORED_SOURCE : new SourceLoader.Stored(filter);
         }
         if (nestedDocuments != null && nestedLookup != NestedLookup.EMPTY) {
-            return new NestedStoredSourceLoader(filter, nestedDocuments);
+            return new NestedStoredSourceLoader(loader, nestedDocuments);
         }
-        return filter == null ? SourceLoader.FROM_STORED_SOURCE : new SourceLoader.Stored(filter);
+        return loader;
     }
 
     private SourceFilter removeExcludedSyntheticVectorFields(@Nullable SourceFilter filter) {

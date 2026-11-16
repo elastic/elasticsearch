@@ -1,0 +1,328 @@
+# NESTED(LAST(value, key)) picks the value of the object with the largest key. Null keys never win, ties may return any
+# tied candidate, and a multivalued value or key is rejected unless it is reduced to one value first.
+# Execute with -Desql.nested_reductions.test_execution=true. A capability skip is not a pass.
+---
+setup:
+- requires:
+    test_runner_features:
+    - capabilities
+    - contains
+    capabilities:
+    - method: POST
+      path: /_query
+      parameters: []
+      capabilities:
+      - nested_reductions
+    reason: "Completed per-parent nested reductions; capability stays unadvertised unless -Desql.nested_reductions.test_execution=true"
+- do:
+    indices.create:
+      index: nr_nested_selection
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings: {"dynamic": "strict", "properties": {"id": {"type": "keyword"}, "items": {"type": "nested", "properties": {"sku": {"type": "keyword"}, "rank": {"type": "long"}, "seq": {"type": "integer"}, "score": {"type": "double"}, "active": {"type": "boolean"}}}}}
+- do:
+    bulk:
+      refresh: true
+      body:
+      - {"index": {"_index": "nr_nested_selection", "_id": "regular"}}
+      - {"id": "regular", "items": [{"sku": "high", "rank": 20, "seq": 2, "score": 9.5, "active": true}, {"sku": "low", "rank": 10, "seq": 1, "score": 1.5, "active": false}]}
+      - {"index": {"_index": "nr_nested_selection", "_id": "null_value"}}
+      - {"id": "null_value", "items": [{"sku": "usable", "rank": 20}, {"sku": null, "rank": 30}]}
+      - {"index": {"_index": "nr_nested_selection", "_id": "null_keys"}}
+      - {"id": "null_keys", "items": [{"sku": "a", "rank": null}, {"sku": "b"}]}
+      - {"index": {"_index": "nr_nested_selection", "_id": "ties"}}
+      - {"id": "ties", "items": [{"sku": "a", "rank": 20}, {"sku": "b", "rank": 20}, {"sku": "low", "rank": 10}]}
+      - {"index": {"_index": "nr_nested_selection", "_id": "mv_rank"}}
+      - {"id": "mv_rank", "items": [{"sku": "a", "rank": [10, 30]}, {"sku": "b", "rank": 20}]}
+      - {"index": {"_index": "nr_nested_selection", "_id": "mv_value"}}
+      - {"id": "mv_value", "items": [{"sku": ["a", "z"], "rank": 30}, {"sku": "b", "rank": 20}]}
+      - {"index": {"_index": "nr_nested_selection", "_id": "empty"}}
+      - {"id": "empty", "items": []}
+      - {"index": {"_index": "nr_nested_selection", "_id": "negative_keys"}}
+      - {"id": "negative_keys", "items": [{"sku": "none", "rank": null}, {"sku": "min", "rank": -9223372036854775808}]}
+
+---
+keyword return:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_selection | WHERE id == "regular" | EVAL picked = NESTED(LAST(items.sku, items.rank)) | KEEP id, picked | LIMIT 10'
+- match:
+    columns.1.type: keyword
+- match:
+    values:
+    - ["regular", "high"]
+
+---
+double return:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_selection | WHERE id == "regular" | EVAL picked = NESTED(LAST(items.score, items.rank)) | KEEP id, picked | LIMIT 10'
+- match:
+    columns.1.type: double
+- match:
+    values:
+    - ["regular", 9.5]
+
+---
+boolean return:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_selection | WHERE id == "regular" | EVAL picked = NESTED(LAST(items.active, items.rank)) | KEEP id, picked | LIMIT 10'
+- match:
+    columns.1.type: boolean
+- match:
+    values:
+    - ["regular", true]
+
+---
+integer key:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_selection | WHERE id == "regular" | EVAL picked = NESTED(LAST(items.sku, items.seq)) | KEEP id, picked | LIMIT 10'
+- match:
+    columns.1.type: keyword
+- match:
+    values:
+    - ["regular", "high"]
+
+---
+literal null return:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_selection | WHERE id == "regular" | EVAL picked = NESTED(LAST(null, items.rank)) | KEEP id, picked | LIMIT 10'
+- match:
+    columns.1.type: "null"
+- match:
+    values:
+    - ["regular", null]
+
+---
+typed null return:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_selection | WHERE id == "regular" | EVAL picked = NESTED(LAST(null::keyword, items.rank)) | KEEP id, picked | LIMIT 10'
+- match:
+    columns.1.type: keyword
+- match:
+    values:
+    - ["regular", null]
+
+---
+null value at maximum key:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_selection | WHERE id == "null_value" | EVAL picked = NESTED(LAST(items.sku, items.rank)) | KEEP id, picked | LIMIT 10'
+- match:
+    columns.1.type: keyword
+- match:
+    values:
+    - ["null_value", null]
+
+---
+all null keys:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_selection | WHERE id == "null_keys" | EVAL picked = NESTED(LAST(items.sku, items.rank)) | KEEP id, picked | LIMIT 10'
+- match:
+    columns.1.type: keyword
+- match:
+    values.0.0: "null_keys"
+- match:
+    values.0.1: '/^(a|b)$/'
+
+---
+maximum key tie:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_selection | WHERE id == "ties" | EVAL picked = NESTED(LAST(items.sku, items.rank)) | KEEP id, picked | LIMIT 10'
+- match:
+    columns.1.type: keyword
+- match:
+    values.0.0: "ties"
+- match:
+    values.0.1: '/^(a|b)$/'
+
+---
+constant key:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_selection | WHERE id == "ties" | EVAL picked = NESTED(LAST(items.sku, 1)) | KEEP id, picked | LIMIT 10'
+- match:
+    columns.1.type: keyword
+- match:
+    values.0.0: "ties"
+- match:
+    values.0.1: '/^(a|b|low)$/'
+
+---
+literal null key:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_selection | WHERE id == "ties" | EVAL picked = NESTED(LAST(items.sku, null)) | KEEP id, picked | LIMIT 10'
+- match:
+    columns.1.type: keyword
+- match:
+    values.0.0: "ties"
+- match:
+    values.0.1: '/^(a|b|low)$/'
+
+---
+multivalued return rejected:
+- do:
+    catch: bad_request
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_selection | WHERE id == "mv_value" | EVAL picked = NESTED(LAST(items.sku, items.rank)) | KEEP id, picked | LIMIT 10'
+- contains:
+    error.reason: "scalar child values"
+
+---
+multivalued key rejected:
+- do:
+    catch: bad_request
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_selection | WHERE id == "mv_rank" | EVAL picked = NESTED(LAST(items.sku, items.rank)) | KEEP id, picked | LIMIT 10'
+- contains:
+    error.reason: "scalar child values"
+
+---
+scalarized multivalued key:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_selection | WHERE id == "mv_rank" | EVAL picked = NESTED(LAST(items.sku, MV_MAX(items.rank))) | KEEP id, picked | LIMIT 10'
+- match:
+    columns.1.type: keyword
+- match:
+    values:
+    - ["mv_rank", "a"]
+
+---
+scalarized multivalued return:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_selection | WHERE id == "mv_value" | EVAL picked = NESTED(LAST(MV_MIN(items.sku), items.rank)) | KEEP id, picked | LIMIT 10'
+- match:
+    columns.1.type: keyword
+- match:
+    values:
+    - ["mv_value", "a"]
+
+---
+double key rejected:
+- do:
+    catch: bad_request
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_selection | WHERE id == "regular" | EVAL picked = NESTED(LAST(items.sku, items.score)) | KEEP id, picked | LIMIT 10'
+- match:
+    error.type: verification_exception
+
+---
+empty scope selection:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_selection | WHERE id == "empty" | EVAL picked = NESTED(LAST(items.sku, items.rank)) | KEEP id, picked | LIMIT 10'
+- match:
+    columns.1.type: keyword
+- match:
+    values:
+    - ["empty", null]
+
+---
+minimum long key beats null:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_selection | WHERE id == "negative_keys" | EVAL picked = NESTED(LAST(items.sku, items.rank)) | KEEP id, picked | LIMIT 10'
+- match:
+    columns.1.type: keyword
+- match:
+    values:
+    - ["negative_keys", "min"]
+
+---
+statically null return does not need key selection:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_selection | WHERE id == "mv_rank" | EVAL picked = NESTED(LAST(null, items.rank)) | KEEP id, picked | LIMIT 10'
+- match:
+    columns.1.type: "null"
+- match:
+    values:
+    - ["mv_rank", null]
+
+---
+statically null SUM body:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_selection | WHERE id == "regular" | EVAL picked = NESTED(SUM(CASE(items.rank > 0, null, null))) | KEEP id, picked | LIMIT 10'
+- match:
+    columns.1.type: "null"
+- match:
+    values:
+    - ["regular", null]
+
+---
+null-propagating value expression:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_selection | WHERE id == "regular" | EVAL picked = NESTED(LAST(COALESCE(null::keyword, items.sku), items.rank)) | KEEP id, picked | LIMIT 10'
+- match:
+    columns.1.type: keyword
+- match:
+    values:
+    - ["regular", "high"]
+
+---
+null-propagating ordering expression:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_selection | WHERE id == "regular" | EVAL picked = NESTED(LAST(items.sku, COALESCE(null::long, items.rank))) | KEEP id, picked | LIMIT 10'
+- match:
+    columns.1.type: keyword
+- match:
+    values:
+    - ["regular", "high"]

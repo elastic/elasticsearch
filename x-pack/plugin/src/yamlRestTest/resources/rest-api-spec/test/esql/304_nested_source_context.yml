@@ -1,0 +1,318 @@
+# A child field without doc values reads its value from source, as a top-level field does. Each child must read its own
+# object, whatever builds the parent's source: stored _source, stored _source with vectors patched back in, synthetic
+# source, or the columnar_stored source of a columnar index.
+# Execute with -Desql.nested_reductions.test_execution=true. A capability skip is not a pass.
+---
+setup:
+- requires:
+    test_runner_features:
+    - capabilities
+    capabilities:
+    - method: POST
+      path: /_query
+      parameters: []
+      capabilities:
+      - nested_reductions
+    reason: "Completed per-parent nested reductions; capability stays unadvertised unless -Desql.nested_reductions.test_execution=true"
+
+---
+keyword child without doc values under stored source:
+- do:
+    indices.create:
+      index: nsc_stored
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              properties:
+                price:
+                  type: long
+                sku:
+                  type: keyword
+                  doc_values: false
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: nsc_stored
+      - id: a
+        items:
+        - { price: 1, sku: red }
+        - { price: 2 }
+        - { price: 3, sku: blue }
+      - index:
+          _index: nsc_stored
+      - id: b
+        items:
+        - { price: 4, sku: green }
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nsc_stored | NESTED_EXPAND items | KEEP id, items.price, items.sku | SORT id, items.price | LIMIT 10
+- match:
+    values:
+    - [a, 1, red]
+    - [a, 2, null]
+    - [a, 3, blue]
+    - [b, 4, green]
+
+---
+text child beside a vector whose source is patched back in:
+# New indices leave dense vectors out of the stored _source and rebuild them on read, so the source loader is not a plain
+# stored one even though _source is stored.
+- do:
+    indices.create:
+      index: nsc_vectors
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+          index.mapping.exclude_source_vectors: true
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            embedding:
+              type: dense_vector
+              dims: 3
+            items:
+              type: nested
+              properties:
+                price:
+                  type: long
+                note:
+                  type: text
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: nsc_vectors
+      - id: a
+        embedding: [1.0, 2.0, 3.0]
+        items:
+        - { price: 1, note: red }
+        - { price: 2 }
+        - { price: 3, note: blue }
+      - index:
+          _index: nsc_vectors
+      - id: b
+        embedding: [4.0, 5.0, 6.0]
+        items:
+        - { price: 4, note: green }
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nsc_vectors | NESTED_EXPAND items | KEEP id, items.price, items.note | SORT id, items.price | LIMIT 10
+- match:
+    values:
+    - [a, 1, red]
+    - [a, 2, null]
+    - [a, 3, blue]
+    - [b, 4, green]
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: |
+          FROM nsc_vectors
+          | EVAL notes = NESTED(COUNT(items.note)), blue = NESTED_ANY(items.note == "blue" AND items.price == 3)
+          | KEEP id, notes, blue
+          | SORT id
+          | LIMIT 10
+- match:
+    values:
+    - [a, 2, true]
+    - [b, 1, false]
+
+---
+text child under synthetic source:
+- do:
+    indices.create:
+      index: nsc_synthetic_text
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+          index.mapping.source.mode: synthetic
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              properties:
+                price:
+                  type: long
+                note:
+                  type: text
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: nsc_synthetic_text
+      - id: a
+        items:
+        - { price: 1, note: red }
+        - { price: 2 }
+        - { price: 3, note: blue }
+      - index:
+          _index: nsc_synthetic_text
+      - id: b
+        items:
+        - { price: 4, note: green }
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nsc_synthetic_text | NESTED_EXPAND items | KEEP id, items.price, items.note | SORT id, items.price | LIMIT 10
+- match:
+    values:
+    - [a, 1, red]
+    - [a, 2, null]
+    - [a, 3, blue]
+    - [b, 4, green]
+
+---
+keyword child without doc values under synthetic source:
+- do:
+    indices.create:
+      index: nsc_synthetic_keyword
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+          index.mapping.source.mode: synthetic
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              properties:
+                price:
+                  type: long
+                sku:
+                  type: keyword
+                  doc_values: false
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: nsc_synthetic_keyword
+      - id: a
+        items:
+        - { price: 1, sku: red }
+        - { price: 2 }
+        - { price: 3, sku: blue }
+      - index:
+          _index: nsc_synthetic_keyword
+      - id: b
+        items:
+        - { price: 4, sku: green }
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nsc_synthetic_keyword | NESTED_EXPAND items | KEEP id, items.price, items.sku | SORT id, items.price | LIMIT 10
+- match:
+    values:
+    - [a, 1, red]
+    - [a, 2, null]
+    - [a, 3, blue]
+    - [b, 4, green]
+
+---
+text and keyword children in a columnar index:
+# Columnar indices keep doc values on every field and rebuild _source from them; vectors are patched back in.
+- requires:
+    test_runner_features: [ capabilities ]
+    capabilities:
+    - method: PUT
+      path: /{index}
+      capabilities: [ columnar_index_modes ]
+    reason: "columnar index modes are required"
+- do:
+    indices.create:
+      index: nsc_columnar_index
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+          index.mode: columnar
+          index.mapping.source.mode: columnar_stored
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            embedding:
+              type: dense_vector
+              dims: 3
+            items:
+              type: nested
+              properties:
+                price:
+                  type: long
+                note:
+                  type: text
+                sku:
+                  type: keyword
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: nsc_columnar_index
+      - id: a
+        embedding: [1.0, 2.0, 3.0]
+        items:
+        - { price: 1, note: red, sku: r1 }
+        - { price: 2 }
+        - { price: 3, note: blue, sku: b3 }
+      - index:
+          _index: nsc_columnar_index
+      - id: b
+        embedding: [4.0, 5.0, 6.0]
+        items:
+        - { price: 4, note: green, sku: g4 }
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nsc_columnar_index | NESTED_EXPAND items | KEEP id, items.price, items.note, items.sku | SORT id, items.price | LIMIT 10
+- match:
+    values:
+    - [a, 1, red, r1]
+    - [a, 2, null, null]
+    - [a, 3, blue, b3]
+    - [b, 4, green, g4]
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: |
+          FROM nsc_columnar_index
+          | EVAL notes = NESTED(COUNT(items.note)), blue = NESTED_ANY(items.note == "blue" AND items.sku == "b3")
+          | KEEP id, notes, blue
+          | SORT id
+          | LIMIT 10
+- match:
+    values:
+    - [a, 2, true]
+    - [b, 1, false]

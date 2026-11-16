@@ -11,6 +11,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
@@ -4843,6 +4844,33 @@ public class EsqlCapabilities {
          * {@code column_metadata} reports the field a column reads as {@code _meta.field} and its unit as {@code _meta.unit}.
          */
         COLUMN_METADATA_FIELD_SEMANTICS(Build.current().isSnapshot()),
+
+        /**
+         * Test-only execution of the nested-reductions proof of concept. Stays unadvertised, including on snapshot
+         * builds, unless the node is started with {@code -Desql.nested_reductions.test_execution=true}. The REST
+         * contracts use that switch; leaving it off is what keeps a default run from treating a skip as success.
+         */
+        NESTED_REDUCTIONS(Booleans.parseBoolean(System.getProperty("esql.nested_reductions.test_execution"), false)),
+
+        /**
+         * Test-only execution of the {@code NESTED_EXPAND} command, which turns each object of a mapped nested field into a row.
+         * Stays unadvertised under the same switch as {@link #NESTED_REDUCTIONS}.
+         */
+        NESTED_EXPAND(Booleans.parseBoolean(System.getProperty("esql.nested_reductions.test_execution"), false)),
+
+        /**
+         * Test-only execution of the {@code NESTED_FLATTEN} command, which reads each child field of a mapped nested field as
+         * one multivalued column per parent. Stays unadvertised under the same switch as {@link #NESTED_REDUCTIONS}.
+         */
+        NESTED_FLATTEN(Booleans.parseBoolean(System.getProperty("esql.nested_reductions.test_execution"), false)),
+
+        /**
+         * A {@code WHERE} on the columns {@code NESTED_EXPAND} adds narrows the parents Lucene returns with a nested query
+         * over their child documents. The row filter remains; no parent copy of the child values is required.
+         * {@code NESTED_EXPAND} and {@code NESTED_FLATTEN} only run on the data nodes. Stays unadvertised under the same switch as
+         * {@link #NESTED_REDUCTIONS}.
+         */
+        NESTED_EXPAND_PUSHDOWN(Booleans.parseBoolean(System.getProperty("esql.nested_reductions.test_execution"), false)),
 
         /**
          * Under {@code unmapped_fields="LOAD_ALL"}, a {@code FROM} subquery branch, or a {@code FORK} branch, that lacks a column which

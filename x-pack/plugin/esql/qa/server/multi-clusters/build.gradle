@@ -62,8 +62,21 @@ def remoteDatasetInvisibleTest = tasks.register("remoteDatasetInvisibleTest", St
     includeTestsMatching remoteDatasetInvisibleTestPattern
   }
 }
+// The nested functions over a remote cluster need both clusters current; the bwc runners only check that an older
+// remote is rejected.
+def nestedReductionsTest = tasks.register("nestedReductionsTest", StandaloneRestIntegTestTask) {
+  systemProperty("tests.version.remote_cluster", currentVersion)
+  systemProperty("tests.version.local_cluster", currentVersion)
+  maxParallelForks = 1
+  testClassesDirs = sourceSets.javaRestTest.output.classesDirs
+  classpath = sourceSets.javaRestTest.runtimeClasspath
+  filter {
+    includeTestsMatching "org.elasticsearch.xpack.esql.ccq.NestedReductionsMultiClustersIT"
+  }
+}
 tasks.named("check").configure {
   dependsOn remoteDatasetInvisibleTest
+  dependsOn nestedReductionsTest
   dependsOn currentToCurrent
 }
 

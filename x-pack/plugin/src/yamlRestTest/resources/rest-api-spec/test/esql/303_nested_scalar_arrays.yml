@@ -1,0 +1,244 @@
+# A child field holding an array behaves like a multivalued top-level field: SUM adds every value, arithmetic over a
+# multivalue is null with a warning, and predicates and selections need one value per object.
+# Execute with -Desql.nested_reductions.test_execution=true. A capability skip is not a pass.
+---
+setup:
+- requires:
+    test_runner_features:
+    - capabilities
+    - contains
+    - warnings
+    capabilities:
+    - method: POST
+      path: /_query
+      parameters: []
+      capabilities:
+      - nested_reductions
+    reason: "Completed per-parent nested reductions; capability stays unadvertised unless -Desql.nested_reductions.test_execution=true"
+- do:
+    indices.create:
+      index: nr_nested_scalar_arrays
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings: {"dynamic": "strict", "properties": {"id": {"type": "keyword"}, "items": {"type": "nested", "properties": {"price": {"type": "long"}, "quantity": {"type": "long"}, "sku": {"type": "keyword"}, "rank": {"type": "long"}, "active": {"type": "boolean"}, "score": {"type": "double"}, "seq": {"type": "integer"}}}}}
+- do:
+    bulk:
+      refresh: true
+      body:
+      - {"index": {"_index": "nr_nested_scalar_arrays", "_id": "values"}}
+      - {"id": "values", "items": [{"price": [[2, null], [3, 2]], "quantity": 2, "sku": [["a"], ["z"]], "rank": [[5], [30]], "active": [[true], [false]], "score": [[1.5], [2.5]], "seq": [[1], [3]]}, {"price": [[7]], "quantity": 1, "sku": [["b"]], "rank": [[20]], "active": [[false]], "score": [[0.5]], "seq": [[2]]}]}
+      - {"index": {"_index": "nr_nested_scalar_arrays", "_id": "empty_arrays"}}
+      - {"id": "empty_arrays", "items": [{"price": [[], [null, ""]], "quantity": 2, "sku": [[], [null]], "rank": [[], null], "active": [null, []]}, {"price": [[4]], "quantity": 3, "sku": [["c"]], "rank": [[10]], "active": [[true]]}]}
+      - {"index": {"_index": "nr_nested_scalar_arrays", "_id": "all_empty"}}
+      - {"id": "all_empty", "items": [{"price": [[], [null, ""]], "quantity": 1, "sku": [[], [null]], "rank": [null, []], "active": [[], null]}]}
+      - {"index": {"_index": "nr_nested_scalar_arrays", "_id": "no_items"}}
+      - {"id": "no_items", "items": []}
+
+---
+nested numeric arrays preserve duplicates:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_scalar_arrays | WHERE id == "values" | EVAL picked = NESTED(SUM(items.price)) | KEEP id, picked | LIMIT 10'
+- match:
+    columns.1.type: long
+- match:
+    values:
+    - ["values", 14]
+
+---
+ordinary multivalue arithmetic remains null per child:
+- do:
+    warnings:
+    - "Line 1:80: evaluation of [items.price * items.quantity] failed, treating result as null. Only first 20 failures recorded."
+    - "Line 1:80: java.lang.IllegalArgumentException: single-value function encountered multi-value"
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_scalar_arrays | WHERE id == "values" | EVAL picked = NESTED(SUM(items.price * items.quantity)) | KEEP id, picked | LIMIT 10'
+- match:
+    columns.1.type: long
+- match:
+    values:
+    - ["values", 7]
+
+---
+explicit per-object multivalue sum:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_scalar_arrays | WHERE id == "values" | EVAL picked = NESTED(SUM(MV_SUM(items.price) * items.quantity)) | KEEP id, picked | LIMIT 10'
+- match:
+    columns.1.type: long
+- match:
+    values:
+    - ["values", 21]
+
+---
+reduced field remains associated with its object:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_scalar_arrays | WHERE id == "values" | EVAL picked = NESTED_ANY(MV_MAX(items.price) == 3 AND items.quantity == 2) | KEEP id, picked | LIMIT 10'
+- match:
+    columns.1.type: boolean
+- match:
+    values:
+    - ["values", true]
+
+---
+reduced fields cannot match across objects:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_scalar_arrays | WHERE id == "values" | EVAL picked = NESTED_ANY(MV_MAX(items.price) == 7 AND items.quantity == 2) | KEEP id, picked | LIMIT 10'
+- match:
+    columns.1.type: boolean
+- match:
+    values:
+    - ["values", false]
+
+---
+scalarized nested keyword and key arrays:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_scalar_arrays | WHERE id == "values" | EVAL picked = NESTED(LAST(MV_MIN(items.sku), MV_MAX(items.rank))) | KEEP id, picked | LIMIT 10'
+- match:
+    columns.1.type: keyword
+- match:
+    values:
+    - ["values", "a"]
+
+---
+raw multivalued selection remains rejected:
+- do:
+    catch: bad_request
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_scalar_arrays | WHERE id == "values" | EVAL picked = NESTED(LAST(items.sku, items.rank)) | KEEP id, picked | LIMIT 10'
+- contains:
+    error.reason: "scalar child values"
+
+---
+explicit reduction of Boolean arrays:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_scalar_arrays | WHERE id == "values" | EVAL picked = NESTED_ANY(MV_MAX(items.active)) | KEEP id, picked | LIMIT 10'
+- match:
+    columns.1.type: boolean
+- match:
+    values:
+    - ["values", true]
+
+---
+raw multivalued Boolean predicate remains rejected:
+- do:
+    catch: bad_request
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_scalar_arrays | WHERE id == "values" | EVAL picked = NESTED_ANY(items.active) | KEEP id, picked | LIMIT 10'
+- contains:
+    error.reason: "scalar predicate result"
+
+---
+empty scalar arrays contribute no values:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_scalar_arrays | WHERE id == "empty_arrays" | EVAL picked = NESTED(SUM(items.price)) | KEEP id, picked | LIMIT 10'
+- match:
+    columns.1.type: long
+- match:
+    values:
+    - ["empty_arrays", 4]
+
+---
+empty scalar arrays do not remove their object:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_scalar_arrays | WHERE id == "empty_arrays" | EVAL picked = NESTED_ANY(items.price IS NULL) | KEEP id, picked | LIMIT 10'
+- match:
+    columns.1.type: boolean
+- match:
+    values:
+    - ["empty_arrays", true]
+
+---
+nested double arrays:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_scalar_arrays | WHERE id == "values" | EVAL picked = NESTED(SUM(items.score)) | KEEP id, picked | LIMIT 10'
+- match:
+    columns.1.type: double
+- match:
+    values:
+    - ["values", 4.5]
+
+---
+nested integer ordering arrays:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_scalar_arrays | WHERE id == "values" | EVAL picked = NESTED(LAST(MV_MIN(items.sku), MV_MAX(items.seq))) | KEEP id, picked | LIMIT 10'
+- match:
+    columns.1.type: keyword
+- match:
+    values:
+    - ["values", "a"]
+
+---
+all empty scalar arrays sum to null:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_scalar_arrays | WHERE id == "all_empty" | EVAL picked = NESTED(SUM(items.price)) | KEEP id, picked | LIMIT 10'
+- match:
+    columns.1.type: long
+- match:
+    values:
+    - ["all_empty", null]
+
+---
+all empty scalar arrays still have a child object:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_scalar_arrays | WHERE id == "all_empty" | EVAL picked = NESTED_ANY(items.price IS NULL) | KEEP id, picked | LIMIT 10'
+- match:
+    columns.1.type: boolean
+- match:
+    values:
+    - ["all_empty", true]
+
+---
+no child objects remain distinct from empty fields:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_scalar_arrays | WHERE id == "no_items" | EVAL picked = NESTED_ANY(items.price IS NULL) | KEEP id, picked | LIMIT 10'
+- match:
+    columns.1.type: boolean
+- match:
+    values:
+    - ["no_items", false]

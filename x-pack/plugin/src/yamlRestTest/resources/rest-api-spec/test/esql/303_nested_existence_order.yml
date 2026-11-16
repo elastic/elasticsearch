@@ -1,0 +1,198 @@
+# NESTED_ANY needs one Boolean per object: a multivalued result is rejected wherever it appears, even after a match.
+# Execute with -Desql.nested_reductions.test_execution=true. A capability skip is not a pass.
+---
+setup:
+- requires:
+    test_runner_features:
+    - capabilities
+    - contains
+    - warnings
+    capabilities:
+    - method: POST
+      path: /_query
+      parameters: []
+      capabilities:
+      - nested_reductions
+    reason: "Completed per-parent nested reductions; capability stays unadvertised unless -Desql.nested_reductions.test_execution=true"
+- do:
+    indices.create:
+      index: nr_nested_existence
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings: {"dynamic": "strict", "properties": {"id": {"type": "keyword"}, "items": {"type": "nested", "properties": {"active": {"type": "boolean"}}}}}
+- do:
+    bulk:
+      refresh: true
+      body:
+      - {"index": {"_index": "nr_nested_existence", "_id": "late_mv"}}
+      - {"id": "late_mv", "items": [{"active": true}, {"active": [true, false]}]}
+      - {"index": {"_index": "nr_nested_existence", "_id": "early_mv"}}
+      - {"id": "early_mv", "items": [{"active": [true, false]}, {"active": true}]}
+      - {"index": {"_index": "nr_nested_existence", "_id": "mv_only"}}
+      - {"id": "mv_only", "items": [{"active": [true, false]}]}
+      - {"index": {"_index": "nr_nested_existence", "_id": "no_true"}}
+      - {"id": "no_true", "items": [{"active": false}, {"active": null}]}
+      - {"index": {"_index": "nr_nested_existence", "_id": "all_unknown"}}
+      - {"id": "all_unknown", "items": [{"active": null}, {}]}
+      - {"index": {"_index": "nr_nested_existence", "_id": "empty"}}
+      - {"id": "empty", "items": []}
+      - {"index": {"_index": "nr_nested_existence", "_id": "valid"}}
+      - {"id": "valid", "items": [{"active": false}, {"active": true}, {"active": null}]}
+
+---
+"raw multivalue rejected: late_mv":
+- do:
+    catch: bad_request
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_existence | WHERE id == "late_mv" | EVAL picked = NESTED_ANY(items.active) | KEEP id, picked | LIMIT 10'
+- contains:
+    error.reason: "scalar predicate result"
+
+---
+"raw multivalue rejected: early_mv":
+- do:
+    catch: bad_request
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_existence | WHERE id == "early_mv" | EVAL picked = NESTED_ANY(items.active) | KEEP id, picked | LIMIT 10'
+- contains:
+    error.reason: "scalar predicate result"
+
+---
+"raw multivalue rejected: mv_only":
+- do:
+    catch: bad_request
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_existence | WHERE id == "mv_only" | EVAL picked = NESTED_ANY(items.active) | KEEP id, picked | LIMIT 10'
+- contains:
+    error.reason: "scalar predicate result"
+
+---
+"explicit scalar reduction: late_mv":
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_existence | WHERE id == "late_mv" | EVAL picked = NESTED_ANY(MV_MAX(items.active)) | KEEP id, picked | LIMIT 10'
+- match:
+    columns.1.type: boolean
+- match:
+    values:
+    - ["late_mv", true]
+
+---
+"explicit scalar reduction: early_mv":
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_existence | WHERE id == "early_mv" | EVAL picked = NESTED_ANY(MV_MAX(items.active)) | KEEP id, picked | LIMIT 10'
+- match:
+    columns.1.type: boolean
+- match:
+    values:
+    - ["early_mv", true]
+
+---
+"explicit scalar reduction: mv_only":
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_existence | WHERE id == "mv_only" | EVAL picked = NESTED_ANY(MV_MAX(items.active)) | KEEP id, picked | LIMIT 10'
+- match:
+    columns.1.type: boolean
+- match:
+    values:
+    - ["mv_only", true]
+
+---
+scalar comparison after true child:
+- do:
+    warnings:
+    - "Line 1:77: evaluation of [items.active == true] failed, treating result as null. Only first 20 failures recorded."
+    - "Line 1:77: java.lang.IllegalArgumentException: single-value function encountered multi-value"
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_existence | WHERE id == "late_mv" | EVAL picked = NESTED_ANY(items.active == true) | KEEP id, picked | LIMIT 10'
+- match:
+    columns.1.type: boolean
+- match:
+    values:
+    - ["late_mv", true]
+
+---
+comparison is not multivalue membership:
+- do:
+    warnings:
+    - "Line 1:77: evaluation of [items.active == true] failed, treating result as null. Only first 20 failures recorded."
+    - "Line 1:77: java.lang.IllegalArgumentException: single-value function encountered multi-value"
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_existence | WHERE id == "mv_only" | EVAL picked = NESTED_ANY(items.active == true) | KEEP id, picked | LIMIT 10'
+- match:
+    columns.1.type: boolean
+- match:
+    values:
+    - ["mv_only", false]
+
+---
+"ordinary existence: no_true":
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_existence | WHERE id == "no_true" | EVAL picked = NESTED_ANY(items.active) | KEEP id, picked | LIMIT 10'
+- match:
+    columns.1.type: boolean
+- match:
+    values:
+    - ["no_true", false]
+
+---
+"ordinary existence: all_unknown":
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_existence | WHERE id == "all_unknown" | EVAL picked = NESTED_ANY(items.active) | KEEP id, picked | LIMIT 10'
+- match:
+    columns.1.type: boolean
+- match:
+    values:
+    - ["all_unknown", false]
+
+---
+"ordinary existence: empty":
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_existence | WHERE id == "empty" | EVAL picked = NESTED_ANY(items.active) | KEEP id, picked | LIMIT 10'
+- match:
+    columns.1.type: boolean
+- match:
+    values:
+    - ["empty", false]
+
+---
+"ordinary existence: valid":
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nr_nested_existence | WHERE id == "valid" | EVAL picked = NESTED_ANY(items.active) | KEEP id, picked | LIMIT 10'
+- match:
+    columns.1.type: boolean
+- match:
+    values:
+    - ["valid", true]

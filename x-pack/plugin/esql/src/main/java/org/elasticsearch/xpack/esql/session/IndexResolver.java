@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.esql.core.type.IndexAnalyzerGroup;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedTsField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.NestedScopeField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedSingleTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.SupportedVersion;
@@ -664,6 +665,16 @@ public class IndexResolver {
             fields.put(name, field);
         }
 
+        EsField nestedNamespace = NestedScopeField.namespace(indexResponses);
+        if (nestedNamespace != null) {
+            if (rootFields.containsKey(NestedScopeField.NAMESPACE)) {
+                throw new VerificationException(
+                    "NESTED internal namespace conflicts with mapped field [" + NestedScopeField.NAMESPACE + "]"
+                );
+            }
+            rootFields.put(NestedScopeField.NAMESPACE, nestedNamespace);
+        }
+
         boolean allEmpty = true;
         Map<String, IndexProperties> indexProperties = Maps.newMapWithExpectedSize(indexResponses.size());
         Map<String, List<String>> concreteIndices = Maps.newHashMapWithExpectedSize(8);
@@ -723,6 +734,9 @@ public class IndexResolver {
             boolean isNew = indexMappingHashToDuplicateCount.compute(response.getIndexMappingHash(), (k, v) -> v == null ? 1 : v + 1) <= 1;
             String indexName = response.getIndexName();
             for (IndexFieldCapabilities fc : response.get().values()) {
+                if (NestedScopeField.pathFor(fc.name(), response.get()) != null) {
+                    continue;
+                }
                 if (fc.isMetadatafield()) {
                     // ESQL builds the metadata fields if they are asked for without using the resolution.
                     continue;
@@ -1105,7 +1119,8 @@ public class IndexResolver {
     ) {
         FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
         request.indices(Strings.commaDelimitedListToStringArray(index));
-        request.fields(fieldNames.toArray(String[]::new));
+        boolean nestedScope = fieldNames.contains(NestedScopeField.REQUEST_MARKER);
+        request.fields(fieldNames.stream().filter(name -> name.equals(NestedScopeField.REQUEST_MARKER) == false).toArray(String[]::new));
         request.includeUnmapped(true);
         request.indexFilter(requestFilter);
         request.returnLocalAll(false);
@@ -1113,10 +1128,12 @@ public class IndexResolver {
         // also because this way security doesn't throw authorization exceptions but rather honors ignore_unavailable
         request.indicesOptions(options);
         // we ignore the nested data type fields starting with https://github.com/elastic/elasticsearch/pull/111495
-        if (includeAllDimensions) {
-            request.filters("-nested", "+dimension");
-        } else {
-            request.filters("-nested");
+        if (nestedScope == false) {
+            if (includeAllDimensions) {
+                request.filters("-nested", "+dimension");
+            } else {
+                request.filters("-nested");
+            }
         }
         request.setMergeResults(false);
         request.includeResolvedTo(includeResolvedTo);

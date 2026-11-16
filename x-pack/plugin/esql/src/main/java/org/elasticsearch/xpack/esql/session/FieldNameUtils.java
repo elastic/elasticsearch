@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedPattern;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
+import org.elasticsearch.xpack.esql.core.type.NestedScopeField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
@@ -50,6 +51,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
@@ -62,6 +64,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetadata;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedSourceRelation;
+import org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightSupport;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
@@ -79,6 +82,8 @@ import java.util.function.BiConsumer;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 
 public class FieldNameUtils {
+
+    private static final Set<String> NESTED_FUNCTIONS = Set.of("nested", "nested_any", "nested_all", "nested_json", "nested_object");
 
     private static final Set<String> FUNCTIONS_REQUIRING_TIMESTAMP = Set.of(
         TBucket.NAME.toLowerCase(Locale.ROOT),
@@ -103,6 +108,46 @@ public class FieldNameUtils {
     }
 
     public static PreAnalysisResult resolveFieldNames(LogicalPlan parsed, boolean hasEnriches, boolean includePrefixFields) {
+        PreAnalysisResult result = collectFieldNames(parsed, hasEnriches, includePrefixFields);
+        var nested = new boolean[1];
+        // NESTED_JSON and NESTED_EXPAND read every child field of the collection they name, and a NESTED_OBJECT reference
+        // can name any child field later.
+        Set<String> collections = new HashSet<>();
+        parsed.forEachExpressionDown(UnresolvedFunction.class, f -> {
+            String name = f.name().toLowerCase(Locale.ROOT);
+            if (NESTED_FUNCTIONS.contains(name)) {
+                nested[0] = true;
+                if ((name.equals("nested_json") || name.equals("nested_object"))
+                    && f.children().isEmpty() == false
+                    && f.children().getFirst() instanceof UnresolvedAttribute collection) {
+                    collections.add(collection.name());
+                }
+            }
+        });
+        parsed.forEachDown(NestedExpand.class, expand -> {
+            nested[0] = true;
+            collections.add(expand.target().name());
+        });
+        if (nested[0] == false) {
+            return result;
+        }
+        Set<String> fieldNames = new HashSet<>(result.fieldNames());
+        fieldNames.add(NestedScopeField.REQUEST_MARKER);
+        if (result.fieldNames().contains(WILDCARD) == false) {
+            // Field caps reports the nested path of a field on one of its parents.
+            for (String name : result.fieldNames()) {
+                fieldNames.addAll(parentPrefixes(name));
+            }
+            for (String collection : collections) {
+                fieldNames.add(collection);
+                fieldNames.addAll(parentPrefixes(collection));
+                fieldNames.add(collection + ".*");
+            }
+        }
+        return new PreAnalysisResult(fieldNames, result.parentPaths(), result.wildcardJoinIndices());
+    }
+
+    private static PreAnalysisResult collectFieldNames(LogicalPlan parsed, boolean hasEnriches, boolean includePrefixFields) {
 
         // The EQL command's output is the whole mapping: its query references fields the ES|QL field-name walk
         // cannot see, and a narrow set risks a zero-column schema for `EQL x "q" | STATS COUNT(*)`, so resolve all
@@ -552,7 +597,7 @@ public class FieldNameUtils {
     }
 
     /**
-     * Parse-time mirror of {@link org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightSupport#deriveFields}.
+     * Parse-time mirror of {@link HighlightSupport#deriveFields}.
      * {@code MATCH(...)} / {@code MATCH_PHRASE(...)} are still {@link UnresolvedFunction}s here; {@code :} is already {@link Match}.
      */
     private static boolean collectHighlightQueryReferences(Expression query, AttributeSet.Builder refs) {

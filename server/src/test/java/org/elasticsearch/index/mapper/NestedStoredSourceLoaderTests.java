@@ -16,6 +16,8 @@ import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.search.join.QueryBitSetProducer;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
@@ -68,6 +70,62 @@ public class NestedStoredSourceLoaderTests extends MapperServiceTestCase {
             }
         }
         """;
+
+    private static final String VECTOR_MAPPING = """
+        {
+            "_doc": {
+                "properties": {
+                    "name": { "type": "keyword" },
+                    "embedding": { "type": "dense_vector", "dims": 3 },
+                    "children": {
+                        "type": "nested",
+                        "properties": {
+                            "value": { "type": "keyword" }
+                        }
+                    }
+                }
+            }
+        }
+        """;
+
+    /**
+     * When vectors are left out of the stored {@code _source} and patched back in on read, a child still yields its own slice
+     * of the root's source, and the root still gets its vectors.
+     */
+    public void testNestedChildWithVectorsPatchedIntoSource() throws IOException {
+        MapperService mapperService = createMapperService(
+            Settings.builder().put(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), true).build(),
+            VECTOR_MAPPING
+        );
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
+            b.field("name", "root");
+            b.array("embedding", 1.0f, 2.0f, 3.0f);
+            b.startArray("children");
+            b.startObject().field("value", "child1").endObject();
+            b.endArray();
+        }));
+
+        // doc 0 = nested child, doc 1 = root
+        withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), reader -> {
+            SourceLoader loader = nestedLoader(mapperService);
+            SourceLoader.Leaf leaf = loader.leaf(reader.leaves().get(0), null);
+            LeafStoredFieldLoader leafLoader = storedFieldLoader(loader).getLoader(reader.leaves().get(0), null);
+
+            leafLoader.advanceTo(0);
+            Source childSource = leaf.source(leafLoader, 0);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> childrenMap = (Map<String, Object>) childSource.source().get("children");
+            assertNotNull(childSource.source().toString(), childrenMap);
+            assertEquals("child1", childrenMap.get("value"));
+            assertNull(childSource.source().get("name"));
+
+            leafLoader.advanceTo(1);
+            Source rootSource = leaf.source(leafLoader, 1);
+            assertEquals("root", rootSource.source().get("name"));
+            assertEquals(3, ((List<?>) rootSource.source().get("embedding")).size());
+        });
+    }
 
     /**
      * A nested child (lower doc ID) is visited before its root parent (higher doc ID), which is

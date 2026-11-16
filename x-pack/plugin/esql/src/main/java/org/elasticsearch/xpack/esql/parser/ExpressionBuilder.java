@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpres
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCounter;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGauge;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedGroupings;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.DeferredRegexExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLikeList;
@@ -754,6 +755,16 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         if (ctx.mapExpression() != null) {
             MapExpression mapArg = visitMapExpression(ctx.mapExpression());
             args.add(mapArg);
+        }
+        if (ctx.functionGrouping() != null) {
+            if ("nested".equals(EsqlFunctionRegistry.normalizeName(name)) == false) {
+                throw new ParsingException(source(ctx.functionGrouping()), "BY is only allowed inside NESTED");
+            }
+            List<Expression> keys = new ArrayList<>();
+            for (var key : ctx.functionGrouping().booleanExpression()) {
+                keys.add(typedParsing(this, key, Expression.class));
+            }
+            args.add(new NestedGroupings(source(ctx.functionGrouping()), keys));
         }
         if ("is_null".equals(EsqlFunctionRegistry.normalizeName(name))) {
             throw new ParsingException(

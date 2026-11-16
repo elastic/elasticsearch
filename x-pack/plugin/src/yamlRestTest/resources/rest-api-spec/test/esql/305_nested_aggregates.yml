@@ -1,0 +1,156 @@
+# NESTED(MIN), NESTED(MAX) and NESTED(AVG) reduce each parent's objects as STATS reduces a group: a multivalued child adds
+# each of its values, nulls are skipped, and a parent without values gets null.
+# Execute with -Desql.nested_reductions.test_execution=true. A capability skip is not a pass.
+---
+setup:
+- requires:
+    test_runner_features:
+    - capabilities
+    capabilities:
+    - method: POST
+      path: /_query
+      parameters: []
+      capabilities:
+      - nested_reductions
+    reason: "Completed per-parent nested reductions; capability stays unadvertised unless -Desql.nested_reductions.test_execution=true"
+- do:
+    indices.create:
+      index: na_orders
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              properties:
+                price:
+                  type: long
+                qty:
+                  type: integer
+                score:
+                  type: double
+                sku:
+                  type: keyword
+                at:
+                  type: date
+                ok:
+                  type: boolean
+                ip:
+                  type: ip
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: na_orders
+      - id: a
+        items:
+        - { price: 3, qty: 2, score: 1.5, sku: b, at: "2024-01-02T00:00:00Z", ok: true, ip: 10.0.0.2 }
+        - { price: 1, qty: 5, score: 4.0, sku: a, at: "2024-01-01T00:00:00Z", ok: false, ip: 10.0.0.1 }
+        - { price: [10, 2], sku: c }
+      - index:
+          _index: na_orders
+      - id: b
+        items: []
+      - index:
+          _index: na_orders
+      - id: c
+        items:
+        - { sku: x }
+
+---
+MIN and MAX of numbers and dates:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: |
+          FROM na_orders
+          | EVAL lo = NESTED(MIN(items.price)), hi = NESTED(MAX(items.price)), qlo = NESTED(MIN(items.qty)),
+                 shi = NESTED(MAX(items.score)), early = NESTED(MIN(items.at)), late = NESTED(MAX(items.at))
+          | KEEP id, lo, hi, qlo, shi, early, late
+          | SORT id
+          | LIMIT 10
+- match: { columns.1.type: long }
+- match: { columns.3.type: integer }
+- match: { columns.4.type: double }
+- match: { columns.5.type: date }
+- match:
+    values:
+    - [a, 1, 10, 2, 4.0, "2024-01-01T00:00:00.000Z", "2024-01-02T00:00:00.000Z"]
+    - [b, null, null, null, null, null, null]
+    - [c, null, null, null, null, null, null]
+
+---
+MIN and MAX of keywords, booleans and IPs:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: |
+          FROM na_orders
+          | EVAL lo = NESTED(MIN(items.sku)), hi = NESTED(MAX(items.sku)), no = NESTED(MIN(items.ok)), yes = NESTED(MAX(items.ok)),
+                 ip = NESTED(MIN(items.ip))
+          | KEEP id, lo, hi, no, yes, ip
+          | SORT id
+          | LIMIT 10
+- match:
+    values:
+    - [a, a, c, false, true, 10.0.0.1]
+    - [b, null, null, null, null, null]
+    - [c, x, x, null, null, null]
+
+---
+AVG counts every value and is null without any:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: |
+          FROM na_orders
+          | EVAL price = NESTED(AVG(items.price)), qty = NESTED(AVG(items.qty)), score = NESTED(AVG(items.score))
+          | KEEP id, price, qty, score
+          | SORT id
+          | LIMIT 10
+- match: { columns.1.type: double }
+- match: { columns.2.type: double }
+- match:
+    values:
+    - [a, 4.0, 3.5, 2.75]
+    - [b, null, null, null]
+    - [c, null, null, null]
+
+---
+the same reduction twice and beside AVG:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: |
+          FROM na_orders
+          | EVAL n = NESTED(COUNT(items.price)), again = NESTED(COUNT(items.price)), total = NESTED(SUM(items.price)),
+                 avg = NESTED(AVG(items.price))
+          | KEEP id, n, again, total, avg
+          | SORT id
+          | LIMIT 10
+- match:
+    values:
+    - [a, 4, 4, 16, 4.0]
+    - [b, 0, 0, null, null]
+    - [c, 0, 0, null, null]
+
+---
+AVG and MAX filter parents in WHERE:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM na_orders | WHERE NESTED(AVG(items.price)) > 3 AND NESTED(MAX(items.qty)) == 5 | KEEP id | LIMIT 10
+- match:
+    values:
+    - [a]

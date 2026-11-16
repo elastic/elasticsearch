@@ -177,6 +177,10 @@ import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedChildren;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedExpandOperator;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedReduceOperator;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedReduction;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
@@ -191,6 +195,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.HighlightOptions;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 import org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightAnalyzers;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -224,6 +229,8 @@ import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MMRExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
+import org.elasticsearch.xpack.esql.plan.physical.NestedExpandExec;
+import org.elasticsearch.xpack.esql.plan.physical.NestedReduceExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PackDimsExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -501,6 +508,8 @@ public class LocalExecutionPlanner {
             return planLimit(limit, context);
         } else if (node instanceof MvExpandExec mvExpand) {
             return planMvExpand(mvExpand, context);
+        } else if (node instanceof NestedExpandExec nestedExpand) {
+            return planNestedExpand(nestedExpand, context);
         } else if (node instanceof TimeSeriesCollapseExec tsCollapse) {
             return planTimeSeriesCollapse(tsCollapse, context);
         } else if (node instanceof HighlightExec highlight) {
@@ -1505,14 +1514,20 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planEval(EvalExec eval, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(eval.child(), context);
-        if (eval.fields().isEmpty()) {
+        List<Alias> fields = eval.fields();
+        if (eval instanceof NestedReduceExec) {
+            Set<NameId> reduced = new HashSet<>();
+            source = planNestedReductions(fields, source, reduced, context);
+            fields = fields.stream().filter(f -> reduced.contains(f.id()) == false).toList();
+        }
+        if (fields.isEmpty()) {
             return source;
         }
         Layout layout = source.layout;
         Layout.Builder outputLayout = layout.builder();
         Set<NameId> pendingAliases = new HashSet<>();
-        List<OperatorFactory> operatorFactories = new ArrayList<>(eval.fields().size());
-        for (Alias field : eval.fields()) {
+        List<OperatorFactory> operatorFactories = new ArrayList<>(fields.size());
+        for (Alias field : fields) {
             // don't rebuild the layout for every Alias (which comes with a memory baggage and additional operations), but only when
             // an Alias references a previous one (in the same EVAL), for example EVAL x = salary + 1, y = coalesce(x, 0), or after
             // all Aliases of the EVAL have been iterated over
@@ -1532,6 +1547,64 @@ public class LocalExecutionPlanner {
             operatorFactories.add(new EvalOperatorFactory(evaluatorSupplier));
         }
         return source.with(operatorFactories, outputLayout.build());
+    }
+
+    /**
+     * Plans the fields of {@code fields} that are a reduction, adding them to {@code reduced}. The reductions over one nested
+     * field share one read of its children, of all the child fields they read. They reference no other field of the EVAL.
+     */
+    private PhysicalOperation planNestedReductions(
+        List<Alias> fields,
+        PhysicalOperation source,
+        Set<NameId> reduced,
+        LocalExecutionPlannerContext context
+    ) {
+        Map<String, List<Alias>> byPath = new LinkedHashMap<>();
+        Map<NameId, NestedReduction.ReducerFactory> reducers = new HashMap<>();
+        for (Alias field : fields) {
+            if (field.child() instanceof NestedReduction reduction) {
+                var reducer = reduction.reducer(context.foldCtx());
+                if (reducer != null) {
+                    byPath.computeIfAbsent(reduction.path(), p -> new ArrayList<>()).add(field);
+                    reducers.put(field.id(), reducer);
+                }
+            }
+        }
+        if (byPath.isEmpty()) {
+            return source;
+        }
+        Layout.Builder layout = source.layout.builder();
+        List<NestedReduceOperator.Group> groups = new ArrayList<>(byPath.size());
+        for (var entry : byPath.entrySet()) {
+            List<String> paths = new ArrayList<>();
+            List<DataType> types = new ArrayList<>();
+            Map<String, Integer> columns = new HashMap<>();
+            List<NestedReduction.ReducerFactory> groupReducers = new ArrayList<>();
+            List<int[]> channels = new ArrayList<>();
+            for (Alias field : entry.getValue()) {
+                NestedReduction reduction = (NestedReduction) field.child();
+                int[] fieldChannels = new int[1 + reduction.paths().size()];
+                for (int i = 0; i < reduction.paths().size(); i++) {
+                    String path = reduction.paths().get(i);
+                    DataType type = reduction.types().get(i);
+                    fieldChannels[i + 1] = 1 + columns.computeIfAbsent(path + "/" + type.typeName(), k -> {
+                        paths.add(path);
+                        types.add(type);
+                        return paths.size() - 1;
+                    });
+                }
+                groupReducers.add(reducers.get(field.id()));
+                channels.add(fieldChannels);
+                layout.append(field.toAttribute());
+                reduced.add(field.id());
+            }
+            var children = NestedChildren.factory(context.shardContexts, entry.getKey(), paths, types);
+            if (children == null) {
+                throw new IllegalStateException("NESTED reads the child documents of the shards on this node, and none are local");
+            }
+            groups.add(new NestedReduceOperator.Group(children, groupReducers, channels));
+        }
+        return source.with(new NestedReduceOperator.Factory(groups), layout.build());
     }
 
     private static boolean refersToPendingAlias(Expression expression, Set<NameId> pendingAliases) {
@@ -2863,6 +2936,24 @@ public class LocalExecutionPlanner {
         layout.replace(mvExpandExec.target().id(), mvExpandExec.expanded().id());
         return source.with(
             new MvExpandOperator.Factory(source.layout.get(mvExpandExec.target().id()).channel(), blockSize),
+            layout.build()
+        );
+    }
+
+    private PhysicalOperation planNestedExpand(NestedExpandExec expand, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(expand.child(), context);
+        Layout.Builder layout = source.layout.builder();
+        expand.expanded().forEach(layout::append);
+        Attribute doc = expand.child().output().stream().filter(EsQueryExec::isDocAttribute).findFirst().orElse(null);
+        List<DataType> types = expand.expanded().stream().map(Attribute::dataType).toList();
+        var children = NestedChildren.factory(context.shardContexts, expand.path(), expand.paths(), types);
+        if (doc == null || source.layout.get(doc.id()) == null || children == null) {
+            throw new IllegalStateException(
+                NestedExpand.commandName(expand.flatten()) + " reads the child documents of the parents' shards on this node"
+            );
+        }
+        return source.with(
+            new NestedExpandOperator.Factory(source.layout.get(doc.id()).channel(), children, expand.path(), types, expand.flatten()),
             layout.build()
         );
     }

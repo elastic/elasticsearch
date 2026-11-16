@@ -1,0 +1,275 @@
+# NESTED over several indices, whether listed in FROM or inside each subquery of a union, reduces each parent with the
+# mapping of the index the parent came from. The union itself runs on the coordinator, so a reduction after it is
+# rejected. Inside a subquery over one index, a nested field that index does not map is an unknown column, as an
+# ordinary field is. A child field an index does not map is null there, and an index that does not map
+# the nested field gives its parents no objects, even when their _source holds an array under that name.
+# Execute with -Desql.nested_reductions.test_execution=true. A capability skip is not a pass.
+---
+setup:
+- requires:
+    test_runner_features:
+    - capabilities
+    - contains
+    capabilities:
+    - method: POST
+      path: /_query
+      parameters: []
+      capabilities:
+      - nested_reductions
+      - subquery_in_from_command
+    reason: "Completed per-parent nested reductions; capability stays unadvertised unless -Desql.nested_reductions.test_execution=true"
+- do:
+    indices.create:
+      index: nb_alpha
+      body:
+        settings: { number_of_shards: 1, number_of_replicas: 0 }
+        mappings:
+          dynamic: strict
+          properties:
+            id: { type: keyword }
+            items: { type: nested, properties: { price: { type: long }, quantity: { type: long } } }
+- do:
+    indices.create:
+      index: nb_beta
+      body:
+        settings: { number_of_shards: 1, number_of_replicas: 0 }
+        mappings:
+          dynamic: strict
+          properties:
+            id: { type: keyword }
+            items: { type: nested, properties: { price: { type: long }, quantity: { type: long } } }
+- do:
+    indices.create:
+      index: nb_beta_no_quantity
+      body:
+        settings: { number_of_shards: 1, number_of_replicas: 0 }
+        mappings:
+          dynamic: false
+          properties:
+            id: { type: keyword }
+            items: { type: nested, dynamic: false, properties: { price: { type: long } } }
+- do:
+    indices.create:
+      index: nb_beta_keyword
+      body:
+        settings: { number_of_shards: 1, number_of_replicas: 0 }
+        mappings:
+          dynamic: strict
+          properties:
+            id: { type: keyword }
+            items: { type: nested, properties: { price: { type: keyword }, quantity: { type: long } } }
+- do:
+    indices.create:
+      index: nb_gamma
+      body:
+        settings: { number_of_shards: 1, number_of_replicas: 0 }
+        mappings:
+          dynamic: false
+          properties:
+            id: { type: keyword }
+- do:
+    bulk:
+      refresh: true
+      body:
+      - { index: { _index: nb_alpha } }
+      - { id: alpha, items: [{ price: 3, quantity: 2 }, { price: 5, quantity: 4 }] }
+      - { index: { _index: nb_beta } }
+      - { id: beta, items: [{ price: 7, quantity: 2 }] }
+      - { index: { _index: nb_beta_no_quantity } }
+      - { id: beta, items: [{ price: 7, quantity: 2 }] }
+      - { index: { _index: nb_beta_keyword } }
+      - { id: beta, items: [{ price: "7", quantity: 2 }] }
+      - { index: { _index: nb_gamma } }
+      - { id: gamma, items: [{ price: 999, quantity: 99 }] }
+
+---
+reductions inside each branch:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: |
+          FROM (FROM nb_alpha | EVAL total = NESTED(SUM(items.price * items.quantity))), (FROM nb_beta | EVAL total = NESTED(SUM(items.price * items.quantity)))
+          | KEEP id, total
+          | SORT id
+          | LIMIT 10
+- match:
+    values:
+    - [alpha, 26]
+    - [beta, 14]
+
+---
+a reduction after a union is rejected:
+- do:
+    catch: bad_request
+    esql.query:
+      body:
+        query: 'FROM (FROM nb_alpha), (FROM nb_beta) | EVAL total = NESTED(SUM(items.price * items.quantity)) | KEEP id, total | LIMIT 10'
+- match:
+    error.type: verification_exception
+- contains:
+    error.reason: "NESTED(SUM(items.price * items.quantity)) must run on the data nodes, so it cannot follow [(FROM nb_alpha), (FROM nb_beta)]"
+
+---
+a child field one index does not map is null there:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: |
+          FROM nb_alpha, nb_beta_no_quantity
+          | EVAL total = NESTED(SUM(items.price * items.quantity)), price = NESTED(SUM(items.price)), missing = NESTED_ANY(items.quantity IS NULL)
+          | KEEP id, total, price, missing
+          | SORT id
+          | LIMIT 10
+- match:
+    values:
+    - [alpha, 26, 8, false]
+    - [beta, null, 7, true]
+
+---
+an index without the nested field gives no objects:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: |
+          FROM nb_alpha, nb_gamma
+          | EVAL total = NESTED(SUM(items.price * items.quantity)), present = NESTED_ANY(items.price > 0)
+          | KEEP id, total, present
+          | SORT id
+          | LIMIT 10
+- match:
+    values:
+    - [alpha, 26, true]
+    - [gamma, null, false]
+
+---
+a repeated branch is counted again:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: |
+          FROM (FROM nb_alpha | EVAL total = NESTED(SUM(items.price * items.quantity))), (FROM nb_beta | EVAL total = NESTED(SUM(items.price * items.quantity))), (FROM nb_alpha | EVAL total = NESTED(SUM(items.price * items.quantity)))
+          | STATS n = COUNT(*), amount = SUM(total)
+          | LIMIT 10
+- match:
+    values:
+    - [3, 66]
+
+---
+a nested union keeps each index's mapping:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: |
+          FROM (FROM (FROM nb_alpha | EVAL total = NESTED(SUM(items.price * items.quantity))), (FROM nb_beta | EVAL total = NESTED(SUM(items.price * items.quantity)))), (FROM nb_gamma)
+          | STATS n = COUNT(*), amount = SUM(total)
+          | LIMIT 10
+- match:
+    values:
+    - [3, 40]
+
+---
+several indices in FROM:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: |
+          FROM nb_alpha, nb_beta_no_quantity, nb_gamma
+          | EVAL total = NESTED(SUM(items.price * items.quantity)), missing = NESTED_ANY(items.quantity IS NULL)
+          | KEEP id, total, missing
+          | SORT id
+          | LIMIT 10
+- match:
+    values:
+    - [alpha, 26, false]
+    - [beta, null, true]
+    - [gamma, null, false]
+
+---
+a type conflict on a field the reduction does not read is ignored:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: |
+          FROM nb_alpha, nb_beta_keyword
+          | EVAL quantity = NESTED(SUM(items.quantity))
+          | KEEP id, quantity
+          | SORT id
+          | LIMIT 10
+- match:
+    values:
+    - [alpha, 6]
+    - [beta, 2]
+
+---
+reductions converted inside each branch can be combined:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: |
+          FROM (FROM nb_alpha | EVAL total = NESTED(SUM(items.price)) | KEEP total),
+               (FROM nb_beta_keyword | EVAL total = NESTED(SUM(items.price::long)) | KEEP total)
+          | STATS n = COUNT(*), amount = SUM(total)
+          | LIMIT 10
+- match:
+    values:
+    - [2, 15]
+
+---
+an ordinary column may use a name like the nested namespace:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nb_alpha | EVAL `$$nested_reductions.items.price` = "ordinary" | KEEP `$$nested_reductions.items.price` | LIMIT 10'
+- match:
+    values:
+    - [ordinary]
+
+---
+nested arrays keep each object's fields together:
+- do:
+    indices.create:
+      index: nb_arrays
+      body:
+        settings: { number_of_shards: 1, number_of_replicas: 0 }
+        mappings:
+          dynamic: strict
+          properties:
+            id: { type: keyword }
+            items: { type: nested, properties: { price: { type: long }, quantity: { type: long } } }
+- do:
+    bulk:
+      refresh: true
+      body:
+      - { index: { _index: nb_arrays } }
+      - { id: arrays, items: [null, [{ price: 5, quantity: 4 }, null], [{ price: 3, quantity: 2 }]] }
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nb_arrays | EVAL total = NESTED(SUM(items.price * items.quantity)), picked = NESTED(LAST(items.price, items.quantity)) | KEEP id, total, picked | LIMIT 10'
+- match:
+    values:
+    - [arrays, 26, 5]
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nb_arrays | WHERE NESTED_ANY(items.price == 5 AND items.quantity == 4) | KEEP id | LIMIT 10'
+- match:
+    values:
+    - [arrays]
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: 'FROM nb_arrays | WHERE NESTED_ANY(items.price == 3 AND items.quantity == 4) | KEEP id | LIMIT 10'
+- length: { values: 0 }

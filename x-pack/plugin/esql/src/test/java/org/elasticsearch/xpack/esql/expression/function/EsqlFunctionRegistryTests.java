@@ -23,6 +23,11 @@ import org.elasticsearch.xpack.esql.expression.OnlySurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FoldablesConvertFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedAll;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedAny;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedJson;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedObject;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedStats;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -264,6 +269,15 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
         EsqlFunctionRegistry registry = TEST_FUNCTION_REGISTRY.snapshotRegistry();
         Set<String> errors = new TreeSet<>();
         for (FunctionDefinition def : registry.listFunctions()) {
+            if (def.clazz() == NestedStats.class
+                || def.clazz() == NestedAny.class
+                || def.clazz() == NestedAll.class
+                || def.clazz() == NestedJson.class
+                || def.clazz() == NestedObject.class) {
+                // These syntax markers need analyzer context and never execute or serialize unlowered. The nested YAML REST
+                // tests cover them.
+                continue;
+            }
             checkFunctionTestExists(errors, def, "Tests", AbstractFunctionTestCase.class);
             if (takesParameters(def)) {
                 checkFunctionTestExists(errors, def, "ErrorTests", ErrorsForCasesWithoutExamplesTestCase.class);

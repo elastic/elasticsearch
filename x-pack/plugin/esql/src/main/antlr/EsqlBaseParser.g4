@@ -86,6 +86,7 @@ processingCommand
     | dedupCommand
     | {this.isDevVersion()}? fillNullCommand
     | {this.isDevVersion()}? describeCommand
+    | {this.isDevVersion()}? nestedExpandCommand
     | {this.isDevVersion()}? intoCommand
     ;
 
@@ -304,6 +305,10 @@ grokCommand
 
 mvExpandCommand
     : MV_EXPAND qualifiedName
+    ;
+
+nestedExpandCommand
+    : kind=(DEV_NESTED_EXPAND | DEV_NESTED_FLATTEN) qualifiedName
     ;
 
 explainCommand

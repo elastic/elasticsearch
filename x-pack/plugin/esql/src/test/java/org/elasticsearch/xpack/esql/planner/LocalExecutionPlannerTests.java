@@ -45,6 +45,7 @@ import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.ColumnLoadOperator;
 import org.elasticsearch.compute.operator.DistinctByOperator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.FilterOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator;
 import org.elasticsearch.compute.operator.Operator;
@@ -67,6 +68,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -112,12 +114,16 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.TableCatalog;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedReduceOperator;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedReduction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
@@ -139,6 +145,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
+import org.elasticsearch.xpack.esql.plan.physical.NestedReduceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.StreamingOutputExec;
@@ -155,6 +162,7 @@ import org.junit.After;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -1565,6 +1573,91 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             assertThat(rows.get(1).get(columns + i), equalTo(-1L));
             assertThat(rows.get(2).get(columns + i), equalTo(2L * i));
         }
+    }
+
+    /**
+     * The reductions of an EVAL over one nested field share one read of its children, of the union of the child fields they
+     * read, whatever the order of the fields. A field that uses a reduction's value is planned after the reductions.
+     */
+    public void testNestedReductionsOverOneFieldShareOneRead() throws IOException {
+        Attribute price = new ReferenceAttribute(Source.EMPTY, "price", DataType.LONG);
+        Attribute note = new ReferenceAttribute(Source.EMPTY, "note", DataType.TEXT);
+        Attribute qty = new ReferenceAttribute(Source.EMPTY, "qty", DataType.LONG);
+        Alias count = new Alias(Source.EMPTY, "count", nestedReduction("items", new Count(Source.EMPTY, price), List.of(price)));
+        Alias otherCount = new Alias(Source.EMPTY, "other_count", nestedReduction("other", new Count(Source.EMPTY, qty), List.of(qty)));
+        Alias any = new Alias(
+            Source.EMPTY,
+            "any",
+            nestedReduction(
+                "items",
+                new Equals(Source.EMPTY, note, new Literal(Source.EMPTY, new BytesRef("n2"), DataType.KEYWORD)),
+                List.of(note)
+            )
+        );
+        Alias sum = new Alias(Source.EMPTY, "sum", nestedReduction("items", new Sum(Source.EMPTY, price), List.of(price)));
+        Alias plus = new Alias(Source.EMPTY, "plus", add(count.toAttribute(), literal(1)));
+        ReferenceAttribute x = new ReferenceAttribute(Source.EMPTY, "x", DataType.LONG);
+        var blockFactory = TestBlockFactory.getNonBreakingInstance();
+        Page input = new Page(blockFactory.newLongArrayVector(new long[] { 1 }, 1).asBlock());
+        PhysicalPlan plan = new NestedReduceExec(
+            Source.EMPTY,
+            new LocalSourceExec(Source.EMPTY, List.of(x), LocalSupplier.of(input)),
+            List.of(count, otherCount, any, sum, plus)
+        );
+
+        MapperService mapperService = createMapperService(topMapping(b -> {
+            b.startObject("properties");
+            b.startObject("items").field("type", "nested").startObject("properties");
+            b.startObject("price").field("type", "long").endObject();
+            b.startObject("note").field("type", "text").endObject();
+            b.endObject().endObject();
+            b.startObject("other").field("type", "nested").startObject("properties");
+            b.startObject("qty").field("type", "long").endObject();
+            b.endObject().endObject();
+            b.endObject();
+        }));
+        var shard = new EsPhysicalOperationProviders.DefaultShardContext(
+            0,
+            new NoOpReleasable(),
+            createSearchExecutionContext(mapperService, newSearcher(reader())),
+            AliasFilter.EMPTY
+        );
+        var operation = planner().plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            plan,
+            new IndexedByShardIdFromList<>(List.of(shard)),
+            false
+        ).driverFactories.get(0).driverSupplier().physicalOperation();
+
+        assertThat(
+            operation.intermediateOperatorFactories.stream().map(Object::getClass).toList(),
+            contains(NestedReduceOperator.Factory.class, EvalOperator.EvalOperatorFactory.class)
+        );
+        var groups = ((NestedReduceOperator.Factory) operation.intermediateOperatorFactories.get(0)).groups();
+        assertThat(groups, hasSize(2));
+        assertThat(groups.get(0).reducers(), hasSize(3));
+        assertThat(groups.get(0).channels().stream().map(Arrays::toString).toList(), contains("[0, 1]", "[0, 2]", "[0, 1]"));
+        assertThat(groups.get(1).reducers(), hasSize(1));
+        assertThat(groups.get(1).channels().stream().map(Arrays::toString).toList(), contains("[0, 1]"));
+        List<Alias> channelOrder = List.of(count, any, sum, otherCount, plus);
+        for (int i = 0; i < channelOrder.size(); i++) {
+            assertThat(operation.layout().get(channelOrder.get(i).id()).channel(), equalTo(1 + i));
+        }
+    }
+
+    private static NestedReduction nestedReduction(String path, Expression body, List<Attribute> inputs) {
+        return new NestedReduction(
+            Source.EMPTY,
+            path,
+            body,
+            List.of(),
+            false,
+            false,
+            inputs,
+            inputs.stream().map(Attribute::name).toList()
+        );
     }
 
     public void testScorePredicateInFilterSeesItsSearchScore() throws IOException {

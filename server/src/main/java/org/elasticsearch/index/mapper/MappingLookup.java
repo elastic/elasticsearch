@@ -743,7 +743,7 @@ public final class MappingLookup {
      */
     public SourceLoader newNestedChildSourceLoader(NestedDocuments nestedDocuments) {
         SourceLoader parentLoader = newSourceLoader(null, SourceFieldMetrics.NOOP, null);
-        return nestedLookup == NestedLookup.EMPTY ? parentLoader : new NestedChildSourceLoader(parentLoader, nestedDocuments);
+        return nestedLookup == NestedLookup.EMPTY ? parentLoader : new NestedChildSourceLoader(parentLoader, nestedDocuments, nestedLookup);
     }
 
     private SourceFilter removeExcludedSyntheticVectorFields(@Nullable SourceFilter filter) {

@@ -2881,7 +2881,8 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         assertThat(literal.dataType(), equalTo(DataType.DOUBLE));
         assertWarnings(
             "Field [partial_ip] of type [ip] cannot be converted to [DOUBLE] and will be null in those indices.",
-            "Field [partial_ip] of type [keyword] due to loading from _source cannot be converted to [DOUBLE] and will be null in those indices."
+            "Field [partial_ip] of type [keyword] due to loading from _source cannot be converted to [DOUBLE] "
+                + "and will be null in those indices."
         );
     }
 

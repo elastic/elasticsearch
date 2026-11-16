@@ -518,42 +518,27 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
          * if any branch has one, and each label step 1 asked every branch for.
          */
         private LogicalPlan rewriteUnionAll(UnionAll union, List<LogicalPlan> children) {
-            var evals = new ArrayList<List<Alias>>();
-            var projections = new ArrayList<List<NamedExpression>>();
-            for (int j = 0; j < children.size(); j++) {
-                evals.add(new ArrayList<>());
-                projections.add(new ArrayList<>());
-            }
-            var output = new ArrayList<Attribute>();
-            // The union output of each list of branch attributes: a page holds each attribute once, so a branch projecting the
-            // same attribute twice would leave the union an output short.
-            var outputs = new HashMap<List<NameId>, Attribute>();
+            var parts = new UnionParts(children.size());
             // the parts of each container position, as union outputs: recorded once every position has read its branches
             var containers = new HashMap<NameId, Attribute>();
             var gone = new HashMap<NameId, Set<String>>();
             var labels = new HashMap<NameId, SortedMap<String, Expression>>();
             for (int i = 0; i < union.output().size(); i++) {
                 Attribute out = union.output().get(i);
+                var branches = new ArrayList<NameId>();
+                for (LogicalPlan child : union.children()) {
+                    branches.add(child.output().get(i).id());
+                }
                 if (isContainer(out) == false) {
-                    output.add(out);
-                    for (int j = 0; j < children.size(); j++) {
-                        projections.get(j).add(union.children().get(j).output().get(i));
-                    }
+                    parts.passThrough(out, union.children(), i);
                     continue;
                 }
                 Source at = out.source();
-                var branches = new ArrayList<NameId>();
-                for (int j = 0; j < children.size(); j++) {
-                    NameId branch = union.children().get(j).output().get(i).id();
-                    if (promoted.containsKey(branch)) {
-                        materialize(branch, evals.get(j));
+                for (int j = 0; j < branches.size(); j++) {
+                    if (promoted.containsKey(branches.get(j))) {
+                        materialize(branches.get(j), parts.evals.get(j));
                     }
-                    branches.add(branch);
                 }
-                // what every branch returns for this position: the name of each part, its type, and the part of each branch
-                var names = new ArrayList<String>();
-                var types = new ArrayList<DataType>();
-                var parts = new ArrayList<List<Expression>>();
                 // The union's container is without a label only where every branch's is. A branch without a container
                 // returns one holding its promoted labels, as the other branches' containers hold theirs.
                 var outGone = new TreeSet<String>();
@@ -573,88 +558,46 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
                         outGone.removeAll(promoted.getOrDefault(branch, new TreeMap<>()).keySet());
                     }
                 }
+                // Union outputs are named apart: the container's own name for the container, prefixed for its labels.
                 if (container) {
-                    var branchParts = new ArrayList<Expression>();
-                    for (NameId branch : branches) {
-                        branchParts.add(timeseries.containsKey(branch) ? timeseries.get(branch) : whole(branch, at));
-                    }
-                    // Union outputs are named apart: the container's own name for the container, prefixed for its labels.
-                    names.add(out.name());
-                    types.add(typed ? DataType.TIME_SERIES_METADATA_DATA_TYPE : DataType.KEYWORD);
-                    parts.add(branchParts);
+                    List<Expression> whole = branches.stream()
+                        .map(branch -> timeseries.containsKey(branch) ? timeseries.get(branch) : whole(branch, at))
+                        .toList();
+                    containers.put(
+                        out.id(),
+                        parts.part(out.name(), typed ? DataType.TIME_SERIES_METADATA_DATA_TYPE : DataType.KEYWORD, whole)
+                    );
                 }
-                var outLabels = new ArrayList<String>();
+                SortedMap<String, Expression> outPromoted = new TreeMap<>();
                 for (String name : need(out.id())) {
-                    var branchParts = new ArrayList<Expression>();
-                    for (NameId branch : branches) {
-                        branchParts.add(
-                            label(
+                    List<Expression> values = branches.stream()
+                        .map(
+                            branch -> label(
                                 timeseries.get(branch),
                                 without.getOrDefault(branch, Set.of()),
                                 promoted.getOrDefault(branch, new TreeMap<>()),
                                 name,
                                 at
                             )
-                        );
-                    }
-                    if (branchParts.stream().allMatch(ScalarizeTimeSeriesMetadataPaths::isAbsent)) {
-                        // no branch holds the label: the container is without it
-                        outGone.add(name);
-                    } else {
-                        outLabels.add(name);
-                        names.add(out.name() + "." + name);
-                        types.add(DataType.KEYWORD);
-                        parts.add(branchParts);
-                    }
-                }
-                SortedMap<String, Expression> outPromoted = new TreeMap<>();
-                for (int p = 0; p < parts.size(); p++) {
-                    String name = names.get(p);
-                    var attributes = new ArrayList<Attribute>();
-                    for (int j = 0; j < children.size(); j++) {
-                        attributes.add(attribute(parts.get(p).get(j), name, evals.get(j)));
-                    }
-                    List<NameId> key = attributes.stream().map(Attribute::id).toList();
-                    Attribute part = outputs.get(key);
-                    if (part == null) {
-                        part = new ReferenceAttribute(
-                            parts.get(p).getFirst().source(),
-                            null,
-                            name,
-                            types.get(p),
-                            Nullability.TRUE,
-                            null,
-                            false
-                        );
-                        output.add(part);
-                        outputs.put(key, part);
-                        for (int j = 0; j < children.size(); j++) {
-                            Attribute attribute = attributes.get(j);
-                            projections.get(j)
-                                .add(attribute.name().equals(name) ? attribute : new Alias(attribute.source(), name, attribute));
-                        }
-                    }
-                    if (container && p == 0) {
-                        containers.put(out.id(), part);
-                    } else {
-                        outPromoted.put(outLabels.get(container ? p - 1 : p), part);
-                    }
+                        )
+                        .toList();
+                    outPromoted.put(name, parts.part(out.name() + "." + name, DataType.KEYWORD, values));
                 }
                 gone.put(out.id(), outGone);
                 labels.put(out.id(), outPromoted);
             }
             var branches = new ArrayList<LogicalPlan>();
             for (int j = 0; j < children.size(); j++) {
-                LogicalPlan child = evaluate(children.get(j), evals.get(j));
-                branches.add(new Project(child.source(), child, projections.get(j)));
+                LogicalPlan child = evaluate(children.get(j), parts.evals.get(j));
+                branches.add(new Project(child.source(), child, parts.projections.get(j)));
             }
-            UnionAll unionAll = new UnionAll(union.source(), branches, output);
+            UnionAll unionAll = new UnionAll(union.source(), branches, parts.output);
             // The parts leave the union under ids of their own: the analyzer pushes a conversion of a union output, such as the
             // rendering of the label container, into the branches, and would leave its attribute in the command's output.
             var renamed = new HashMap<NameId, Attribute>();
             var leaving = new ArrayList<NamedExpression>();
-            for (Attribute attribute : output) {
-                if (outputs.containsValue(attribute)) {
+            for (Attribute attribute : parts.output) {
+                if (parts.outputs.containsValue(attribute)) {
                     Alias alias = new Alias(attribute.source(), attribute.name(), attribute);
                     renamed.put(attribute.id(), alias.toAttribute());
                     leaving.add(alias);
@@ -673,6 +616,47 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
                 promoted.put(id, outPromoted);
             });
             return new Project(union.source(), unionAll, leaving);
+        }
+
+        /** The outputs of a union and what each branch projects to them. */
+        private static final class UnionParts {
+            private final List<List<Alias>> evals = new ArrayList<>();
+            private final List<List<NamedExpression>> projections = new ArrayList<>();
+            private final List<Attribute> output = new ArrayList<>();
+            // The union output of each list of branch attributes: a page holds each attribute once, so a branch projecting the
+            // same attribute twice would leave the union an output short.
+            private final Map<List<NameId>, Attribute> outputs = new HashMap<>();
+
+            UnionParts(int branches) {
+                for (int j = 0; j < branches; j++) {
+                    evals.add(new ArrayList<>());
+                    projections.add(new ArrayList<>());
+                }
+            }
+
+            void passThrough(Attribute out, List<LogicalPlan> branches, int position) {
+                output.add(out);
+                for (int j = 0; j < branches.size(); j++) {
+                    projections.get(j).add(branches.get(j).output().get(position));
+                }
+            }
+
+            /** The union output named {@code name} that takes from each branch its part in {@code values}. */
+            Attribute part(String name, DataType type, List<Expression> values) {
+                var attributes = new ArrayList<Attribute>();
+                for (int j = 0; j < values.size(); j++) {
+                    attributes.add(attribute(values.get(j), name, evals.get(j)));
+                }
+                return outputs.computeIfAbsent(attributes.stream().map(Attribute::id).toList(), key -> {
+                    Attribute part = new ReferenceAttribute(values.getFirst().source(), null, name, type, Nullability.TRUE, null, false);
+                    output.add(part);
+                    for (int j = 0; j < attributes.size(); j++) {
+                        Attribute attribute = attributes.get(j);
+                        projections.get(j).add(attribute.name().equals(name) ? attribute : new Alias(attribute.source(), name, attribute));
+                    }
+                    return part;
+                });
+            }
         }
 
         /**

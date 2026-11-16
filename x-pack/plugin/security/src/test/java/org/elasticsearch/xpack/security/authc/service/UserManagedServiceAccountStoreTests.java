@@ -68,7 +68,6 @@ import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.SecurityFeatures;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
-import org.elasticsearch.xpack.security.authc.service.UserManagedServiceAccountStore.Details;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.Before;
@@ -509,7 +508,9 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
             ACCOUNT_ID,
             List.of(ROLE_B, ROLE_A, ROLE_B),
             false,
-            new Details("Deploys things", "Deploy Bot", "DB"),
+            "Deploys things",
+            "Deploy Bot",
+            "DB",
             authentication,
             RefreshPolicy.WAIT_UNTIL,
             future
@@ -558,7 +559,17 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         final ServiceAccountAuthor author = ServiceAccountAuthor.fromAuthentication(authentication);
 
         final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
-        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, randomDetails(), authentication, RefreshPolicy.NONE, future);
+        store.putAccount(
+            ACCOUNT_ID,
+            List.of(ROLE_A),
+            true,
+            randomOptionalText(),
+            randomOptionalText(),
+            randomOptionalInitials(),
+            authentication,
+            RefreshPolicy.NONE,
+            future
+        );
         future.actionGet();
 
         final Map<String, Object> upsert = upsertDocument();
@@ -585,7 +596,7 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         respondWithUpdateResult(DocWriteResponse.Result.CREATED);
 
         final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
-        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, Details.NONE, authentication, RefreshPolicy.NONE, future);
+        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, null, null, null, authentication, RefreshPolicy.NONE, future);
         future.actionGet();
 
         @SuppressWarnings("unchecked")
@@ -617,7 +628,17 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         respondWithUpdateResult(DocWriteResponse.Result.CREATED);
 
         final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
-        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, randomDetails(), authentication, RefreshPolicy.NONE, future);
+        store.putAccount(
+            ACCOUNT_ID,
+            List.of(ROLE_A),
+            true,
+            randomOptionalText(),
+            randomOptionalText(),
+            randomOptionalInitials(),
+            authentication,
+            RefreshPolicy.NONE,
+            future
+        );
         assertThat(future.actionGet(), is(UserManagedServiceAccountStore.PutResult.CREATED));
 
         for (Map<String, Object> document : List.of(upsertDocument(), changesDocument())) {
@@ -637,7 +658,7 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         respondWithUpdateResult(DocWriteResponse.Result.CREATED);
 
         final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
-        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, Details.NONE, authentication, RefreshPolicy.NONE, future);
+        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, null, null, null, authentication, RefreshPolicy.NONE, future);
         assertThat(future.actionGet(), is(UserManagedServiceAccountStore.PutResult.CREATED));
 
         assertThat(upsertDocument(), not(hasKey("description")));
@@ -654,7 +675,7 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         respondWithUpdateResult(DocWriteResponse.Result.UPDATED);
 
         final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
-        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, Details.NONE, authentication, RefreshPolicy.NONE, future);
+        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, null, null, null, authentication, RefreshPolicy.NONE, future);
         assertThat(future.actionGet(), is(UserManagedServiceAccountStore.PutResult.UPDATED));
 
         final Map<String, Object> upsert = upsertDocument();
@@ -686,15 +707,7 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         respondWithUpdateResult(DocWriteResponse.Result.UPDATED);
 
         final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
-        store.putAccount(
-            ACCOUNT_ID,
-            List.of(ROLE_A),
-            true,
-            new Details(null, "Deploy Bot", null),
-            authentication,
-            RefreshPolicy.NONE,
-            future
-        );
+        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, null, "Deploy Bot", null, authentication, RefreshPolicy.NONE, future);
         assertThat(future.actionGet(), is(UserManagedServiceAccountStore.PutResult.UPDATED));
 
         final Map<String, Object> upsert = upsertDocument();
@@ -713,15 +726,7 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         when(featureService.clusterHasFeature(any(), eq(SecurityFeatures.USER_MANAGED_SERVICE_ACCOUNT_INITIALS))).thenReturn(false);
 
         final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
-        store.putAccount(
-            ACCOUNT_ID,
-            List.of(ROLE_A),
-            true,
-            new Details(null, "Deploy Bot", "DB"),
-            authentication,
-            RefreshPolicy.NONE,
-            future
-        );
+        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, null, "Deploy Bot", "DB", authentication, RefreshPolicy.NONE, future);
 
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
         assertThat(
@@ -743,7 +748,7 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         respondWithUpdateResult(DocWriteResponse.Result.UPDATED);
 
         final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
-        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, Details.NONE, authentication, RefreshPolicy.NONE, future);
+        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, null, null, null, authentication, RefreshPolicy.NONE, future);
         assertThat(future.actionGet(), is(UserManagedServiceAccountStore.PutResult.UPDATED));
 
         @SuppressWarnings("unchecked")
@@ -771,7 +776,7 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
             requests.clear();
 
             final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
-            store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, Details.NONE, authentication, RefreshPolicy.NONE, future);
+            store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, null, null, null, authentication, RefreshPolicy.NONE, future);
             assertThat(future.actionGet(), is(UserManagedServiceAccountStore.PutResult.UPDATED));
 
             // Apply the same recursive merge used by UpdateHelper for a partial document update.
@@ -786,7 +791,17 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         respondWithUpdateResult(randomFrom(DocWriteResponse.Result.UPDATED, DocWriteResponse.Result.NOOP));
 
         final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
-        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, randomDetails(), authentication, RefreshPolicy.NONE, future);
+        store.putAccount(
+            ACCOUNT_ID,
+            List.of(ROLE_A),
+            true,
+            randomOptionalText(),
+            randomOptionalText(),
+            randomOptionalInitials(),
+            authentication,
+            RefreshPolicy.NONE,
+            future
+        );
         assertThat(future.actionGet(), is(UserManagedServiceAccountStore.PutResult.UPDATED));
         assertThat(clearedCacheKeys, contains(PRINCIPAL));
     }
@@ -797,11 +812,9 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
             new ServiceAccountId(reservedNamespace(), "deploy bot"),
             List.of("a role name that is far too long".repeat(32)),
             true,
-            new Details(
-                randomAlphaOfLength(Validation.UserManagedServiceAccounts.MAX_DESCRIPTION_LENGTH + 1),
-                "a".repeat(Validation.UserManagedServiceAccounts.MAX_FULL_NAME_LENGTH + 1),
-                "ABC"
-            ),
+            randomAlphaOfLength(Validation.UserManagedServiceAccounts.MAX_DESCRIPTION_LENGTH + 1),
+            "a".repeat(Validation.UserManagedServiceAccounts.MAX_FULL_NAME_LENGTH + 1),
+            "ABC",
             authentication,
             RefreshPolicy.NONE,
             future
@@ -824,7 +837,9 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
             ACCOUNT_ID,
             List.of(ROLE_A),
             true,
-            new Details(randomAlphaOfLength(max + 1), null, null),
+            randomAlphaOfLength(max + 1),
+            null,
+            null,
             authentication,
             RefreshPolicy.NONE,
             future
@@ -840,15 +855,7 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
     public void testPutAccountRejectsAnOverlongFullName() {
         final int max = Validation.UserManagedServiceAccounts.MAX_FULL_NAME_LENGTH;
         final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
-        store.putAccount(
-            ACCOUNT_ID,
-            List.of(ROLE_A),
-            true,
-            new Details(null, "a".repeat(max + 1), null),
-            authentication,
-            RefreshPolicy.NONE,
-            future
-        );
+        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, null, "a".repeat(max + 1), null, authentication, RefreshPolicy.NONE, future);
 
         final ValidationException e = expectThrows(ValidationException.class, future::actionGet);
         assertThat(
@@ -864,7 +871,17 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
             ? IntStream.range(0, max + 1).mapToObj(i -> "role-" + i).toList()
             : Collections.nCopies(max + 1, "role-a");
         final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
-        store.putAccount(ACCOUNT_ID, tooMany, true, randomDetails(), authentication, RefreshPolicy.NONE, future);
+        store.putAccount(
+            ACCOUNT_ID,
+            tooMany,
+            true,
+            randomOptionalText(),
+            randomOptionalText(),
+            randomOptionalInitials(),
+            authentication,
+            RefreshPolicy.NONE,
+            future
+        );
 
         final ValidationException e = expectThrows(ValidationException.class, future::actionGet);
         assertThat(
@@ -877,7 +894,17 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         when(featureService.clusterHasFeature(any(), eq(SecurityFeatures.USER_MANAGED_SERVICE_ACCOUNTS))).thenReturn(false);
 
         final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
-        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, randomDetails(), authentication, RefreshPolicy.NONE, future);
+        store.putAccount(
+            ACCOUNT_ID,
+            List.of(ROLE_A),
+            true,
+            randomOptionalText(),
+            randomOptionalText(),
+            randomOptionalInitials(),
+            authentication,
+            RefreshPolicy.NONE,
+            future
+        );
 
         final IllegalStateException e = expectThrows(IllegalStateException.class, future::actionGet);
         assertThat(
@@ -1432,12 +1459,12 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         return source;
     }
 
-    private static Details randomDetails() {
-        return new Details(
-            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20),
-            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20),
-            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 2)
-        );
+    private static String randomOptionalText() {
+        return randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20);
+    }
+
+    private static String randomOptionalInitials() {
+        return randomBoolean() ? null : randomAlphaOfLengthBetween(1, 2);
     }
 
     @SuppressWarnings("unchecked")

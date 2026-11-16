@@ -62,7 +62,12 @@ final class UserManagedServiceAccount implements ServiceAccount {
     private final ServiceAccountId id;
     private final List<String> roles;
     private final boolean enabled;
-    private final UserManagedServiceAccountStore.Details details;
+    @Nullable
+    private final String description;
+    @Nullable
+    private final String fullName;
+    @Nullable
+    private final String initials;
     @Nullable
     private final ServiceAccountAuthor createdBy;
     @Nullable
@@ -73,15 +78,24 @@ final class UserManagedServiceAccount implements ServiceAccount {
     private final Instant updatedAt;
     private final User user;
 
-    UserManagedServiceAccount(ServiceAccountId id, List<String> roles, boolean enabled, UserManagedServiceAccountStore.Details details) {
-        this(id, roles, enabled, details, null, null, null, null);
+    UserManagedServiceAccount(
+        ServiceAccountId id,
+        List<String> roles,
+        boolean enabled,
+        @Nullable String description,
+        @Nullable String fullName,
+        @Nullable String initials
+    ) {
+        this(id, roles, enabled, description, fullName, initials, null, null, null, null);
     }
 
     UserManagedServiceAccount(
         ServiceAccountId id,
         List<String> roles,
         boolean enabled,
-        UserManagedServiceAccountStore.Details details,
+        @Nullable String description,
+        @Nullable String fullName,
+        @Nullable String initials,
         @Nullable ServiceAccountAuthor createdBy,
         @Nullable Instant createdAt,
         @Nullable ServiceAccountAuthor updatedBy,
@@ -90,7 +104,9 @@ final class UserManagedServiceAccount implements ServiceAccount {
         this.id = Objects.requireNonNull(id, "service account id cannot be null");
         this.roles = List.copyOf(Objects.requireNonNull(roles, "roles cannot be null"));
         this.enabled = enabled;
-        this.details = Objects.requireNonNull(details, "details cannot be null");
+        this.description = description;
+        this.fullName = fullName;
+        this.initials = initials;
         this.createdBy = createdBy;
         this.createdAt = createdAt;
         this.updatedBy = updatedBy;
@@ -98,7 +114,7 @@ final class UserManagedServiceAccount implements ServiceAccount {
         this.user = new User(
             id.asPrincipal(),
             this.roles.toArray(String[]::new),
-            details.fullName() != null ? details.fullName() : "User-managed service account - " + id,
+            fullName != null ? fullName : "User-managed service account - " + id,
             null,
             Map.of(ServiceAccountSettings.USER_MANAGED_SERVICE_ACCOUNT_FIELD, true),
             enabled
@@ -123,23 +139,19 @@ final class UserManagedServiceAccount implements ServiceAccount {
         return enabled;
     }
 
-    UserManagedServiceAccountStore.Details details() {
-        return details;
-    }
-
     @Nullable
     String description() {
-        return details.description();
+        return description;
     }
 
     @Nullable
     String fullName() {
-        return details.fullName();
+        return fullName;
     }
 
     @Nullable
     String initials() {
-        return details.initials();
+        return initials;
     }
 
     @Nullable
@@ -170,8 +182,12 @@ final class UserManagedServiceAccount implements ServiceAccount {
             + roles
             + ", enabled="
             + enabled
-            + ", details="
-            + details
+            + ", description="
+            + description
+            + ", fullName="
+            + fullName
+            + ", initials="
+            + initials
             + ", createdBy="
             + createdBy
             + ", createdAt="

@@ -218,7 +218,9 @@ public class ServiceAccountService {
         ServiceAccountId accountId,
         List<String> roles,
         boolean enabled,
-        UserManagedServiceAccountStore.Details details,
+        @Nullable String description,
+        @Nullable String fullName,
+        @Nullable String initials,
         Authentication authentication,
         WriteRequest.RefreshPolicy refreshPolicy,
         ActionListener<UserManagedServiceAccountStore.PutResult> listener
@@ -229,7 +231,17 @@ public class ServiceAccountService {
         }
         userManagedServiceAccountStore.getByPrincipal(accountId.asPrincipal(), listener.delegateFailureAndWrap((delegate, account) -> {
             if (account != null) {
-                userManagedServiceAccountStore.putAccount(accountId, roles, enabled, details, authentication, refreshPolicy, delegate);
+                userManagedServiceAccountStore.putAccount(
+                    accountId,
+                    roles,
+                    enabled,
+                    description,
+                    fullName,
+                    initials,
+                    authentication,
+                    refreshPolicy,
+                    delegate
+                );
                 return;
             }
             indexServiceAccountTokenStore.hasTokensFor(accountId, delegate.delegateFailureAndWrap((inner, hasTokens) -> {
@@ -242,7 +254,17 @@ public class ServiceAccountService {
                         )
                     );
                 } else {
-                    userManagedServiceAccountStore.putAccount(accountId, roles, enabled, details, authentication, refreshPolicy, inner);
+                    userManagedServiceAccountStore.putAccount(
+                        accountId,
+                        roles,
+                        enabled,
+                        description,
+                        fullName,
+                        initials,
+                        authentication,
+                        refreshPolicy,
+                        inner
+                    );
                 }
             }));
         }));

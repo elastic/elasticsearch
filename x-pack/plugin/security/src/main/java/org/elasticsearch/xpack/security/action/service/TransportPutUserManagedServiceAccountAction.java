@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.core.security.action.service.PutUserManagedServic
 import org.elasticsearch.xpack.core.security.action.service.PutUserManagedServiceAccountRequest;
 import org.elasticsearch.xpack.core.security.action.service.PutUserManagedServiceAccountResponse;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
-import org.elasticsearch.xpack.security.authc.service.UserManagedServiceAccountStore.Details;
 import org.elasticsearch.xpack.security.authc.service.UserManagedServiceAccountStore.PutResult;
 
 /**
@@ -62,7 +61,9 @@ public class TransportPutUserManagedServiceAccountAction extends HandledTranspor
             request.getAccountId(),
             request.getRoles(),
             request.isEnabled(),
-            new Details(request.getDescription(), request.getFullName(), request.getInitials()),
+            request.getDescription(),
+            request.getFullName(),
+            request.getInitials(),
             securityContext.getAuthentication(),
             request.getRefreshPolicy(),
             listener.map(result -> new PutUserManagedServiceAccountResponse(result == PutResult.CREATED))

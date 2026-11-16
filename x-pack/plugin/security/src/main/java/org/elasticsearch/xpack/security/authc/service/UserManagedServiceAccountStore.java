@@ -386,7 +386,7 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
     }
 
     /**
-     * Creates the account, or replaces it wholesale if it already exists. Each {@code null} field of {@code details}
+     * Creates the account, or replaces it wholesale if it already exists. Each {@code null} one of {@code description}, {@code fullName} and {@code initials}
      * leaves the account without that field.
      * <p>
      * The write is a single update with an upsert, so that which of the two happened is decided by the index rather
@@ -403,12 +403,13 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
         ServiceAccountId accountId,
         List<String> roles,
         boolean enabled,
-        Details details,
+        @Nullable String description,
+        @Nullable String fullName,
+        @Nullable String initials,
         Authentication authentication,
         WriteRequest.RefreshPolicy refreshPolicy,
         ActionListener<PutResult> listener
     ) {
-        Objects.requireNonNull(details, "details cannot be null");
         if (featureService.clusterHasFeature(clusterService.state(), SecurityFeatures.USER_MANAGED_SERVICE_ACCOUNTS) == false) {
             listener.onFailure(
                 new IllegalStateException(
@@ -417,7 +418,7 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
             );
             return;
         }
-        final ValidationException validationException = validatePutRequest(accountId, roles, details);
+        final ValidationException validationException = validatePutRequest(accountId, roles, description, fullName, initials);
         if (validationException != null) {
             listener.onFailure(validationException);
             return;
@@ -426,7 +427,7 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
             clusterService.state(),
             SecurityFeatures.USER_MANAGED_SERVICE_ACCOUNT_INITIALS
         );
-        if (writeInitials == false && details.initials() != null) {
+        if (writeInitials == false && initials != null) {
             listener.onFailure(
                 new IllegalArgumentException(
                     "cannot set the initials of a user-managed service account because not all nodes in the cluster support them yet"
@@ -442,8 +443,8 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
         final Instant now = clock.instant();
         final List<String> distinctRoles = sortedDistinct(roles);
         try (
-            XContentBuilder upsert = newAccountDocument(accountId, distinctRoles, enabled, details, author, now);
-            XContentBuilder doc = accountChanges(distinctRoles, enabled, details, writeInitials, author, now)
+            XContentBuilder upsert = newAccountDocument(accountId, distinctRoles, enabled, description, fullName, initials, author, now);
+            XContentBuilder doc = accountChanges(distinctRoles, enabled, description, fullName, initials, writeInitials, author, now)
         ) {
             final UpdateRequest updateRequest = client.prepareUpdate(SECURITY_MAIN_ALIAS, docIdForPrincipal(accountId.asPrincipal()))
                 .setDoc(doc)
@@ -547,7 +548,13 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
     }
 
     @Nullable
-    private static ValidationException validatePutRequest(ServiceAccountId accountId, @Nullable List<String> roles, Details details) {
+    private static ValidationException validatePutRequest(
+        ServiceAccountId accountId,
+        @Nullable List<String> roles,
+        @Nullable String description,
+        @Nullable String fullName,
+        @Nullable String initials
+    ) {
         final ValidationException validationException = new ValidationException();
         addIfError(validationException, Validation.UserManagedServiceAccounts.validateNamespace(accountId.namespace()));
         addIfError(validationException, Validation.UserManagedServiceAccounts.validateServiceName(accountId.serviceName()));
@@ -557,9 +564,9 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
             roles.forEach(role -> addIfError(validationException, NativeRealmValidationUtil.validateRoleName(role, true)));
             addIfError(validationException, Validation.UserManagedServiceAccounts.validateRoles(roles));
         }
-        addIfError(validationException, Validation.UserManagedServiceAccounts.validateDescription(details.description()));
-        addIfError(validationException, Validation.UserManagedServiceAccounts.validateFullName(details.fullName()));
-        addIfError(validationException, Validation.UserManagedServiceAccounts.validateInitials(details.initials()));
+        addIfError(validationException, Validation.UserManagedServiceAccounts.validateDescription(description));
+        addIfError(validationException, Validation.UserManagedServiceAccounts.validateFullName(fullName));
+        addIfError(validationException, Validation.UserManagedServiceAccounts.validateInitials(initials));
         return validationException.validationErrors().isEmpty() ? null : validationException;
     }
 
@@ -587,7 +594,9 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
         ServiceAccountId accountId,
         List<String> roles,
         boolean enabled,
-        Details details,
+        @Nullable String description,
+        @Nullable String fullName,
+        @Nullable String initials,
         @Nullable ServiceAccountAuthor createdBy,
         Instant now
     ) throws IOException {
@@ -598,14 +607,14 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
             .field("username", accountId.asPrincipal())
             .field("roles", roles)
             .field("enabled", enabled);
-        if (details.description() != null) {
-            builder.field("description", details.description());
+        if (description != null) {
+            builder.field("description", description);
         }
-        if (details.fullName() != null) {
-            builder.field("full_name", details.fullName());
+        if (fullName != null) {
+            builder.field("full_name", fullName);
         }
-        if (details.initials() != null) {
-            builder.field("initials", details.initials());
+        if (initials != null) {
+            builder.field("initials", initials);
         }
         if (createdBy != null) {
             addAuthor(builder, "creator", createdBy);
@@ -624,21 +633,23 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
     private static XContentBuilder accountChanges(
         List<String> roles,
         boolean enabled,
-        Details details,
+        @Nullable String description,
+        @Nullable String fullName,
+        @Nullable String initials,
         boolean writeInitials,
         @Nullable ServiceAccountAuthor updatedBy,
         Instant now
     ) throws IOException {
-        assert writeInitials || details.initials() == null : "initials must be refused before the cluster supports them";
+        assert writeInitials || initials == null : "initials must be refused before the cluster supports them";
         final XContentBuilder builder = XContentFactory.jsonBuilder()
             .startObject()
             .field("version", UserManagedServiceAccount.Version.CURRENT.id())
             .field("roles", roles)
             .field("enabled", enabled)
-            .field("description", details.description())
-            .field("full_name", details.fullName());
+            .field("description", description)
+            .field("full_name", fullName);
         if (writeInitials) {
-            builder.field("initials", details.initials());
+            builder.field("initials", initials);
         }
         if (updatedBy != null) {
             addAuthor(builder, "updated_by", updatedBy);
@@ -723,7 +734,9 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
                     ServiceAccountId.fromPrincipal(expectedPrincipal),
                     roles,
                     enabled,
-                    new Details((String) descriptionValue, (String) fullNameValue, (String) initialsValue),
+                    (String) descriptionValue,
+                    (String) fullNameValue,
+                    (String) initialsValue,
                     parseAuthor(source.get("creator"), "creator"),
                     parseTimestamp(source.get("creation_time"), "creation_time"),
                     parseAuthor(source.get("updated_by"), "updated_by"),
@@ -870,15 +883,5 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
     public enum PutResult {
         CREATED,
         UPDATED
-    }
-
-    /**
-     * The optional text an account carries for its callers: a description, a full name and initials. Bundled because
-     * all three are nullable strings that would otherwise travel side by side, where swapping two of them would go
-     * unnoticed.
-     */
-    public record Details(@Nullable String description, @Nullable String fullName, @Nullable String initials) {
-
-        public static final Details NONE = new Details(null, null, null);
     }
 }

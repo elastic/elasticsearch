@@ -47,7 +47,6 @@ import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenSt
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.ValidationTests;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.authc.service.UserManagedServiceAccountStore.Details;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.stubbing.Answer;
@@ -690,7 +689,9 @@ public class ServiceAccountServiceTests extends ESTestCase {
             USER_MANAGED_ACCOUNT_ID,
             List.of("deploy_bot_role_a", "deploy_bot_role_b"),
             true,
-            new Details("Deploys things", null, null)
+            "Deploys things",
+            null,
+            null
         );
         stubUserManagedAccount(account);
         stubIndexTokenAuthentication(true);
@@ -717,12 +718,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
      */
     public void testUserManagedAccountAuthenticatesUnderItsFullName() {
         stubUserManagedAccount(
-            new UserManagedServiceAccount(
-                USER_MANAGED_ACCOUNT_ID,
-                List.of("deploy_bot_role_a"),
-                true,
-                new Details("Deploys things", "Deploy Bot", "DB")
-            )
+            new UserManagedServiceAccount(USER_MANAGED_ACCOUNT_ID, List.of("deploy_bot_role_a"), true, "Deploys things", "Deploy Bot", "DB")
         );
         stubIndexTokenAuthentication(true);
 
@@ -742,7 +738,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
      */
     public void testUserManagedAccountWithoutAFullNameAuthenticatesUnderTheFixedName() {
         stubUserManagedAccount(
-            new UserManagedServiceAccount(USER_MANAGED_ACCOUNT_ID, List.of("deploy_bot_role_a"), true, new Details(null, null, "DB"))
+            new UserManagedServiceAccount(USER_MANAGED_ACCOUNT_ID, List.of("deploy_bot_role_a"), true, null, null, "DB")
         );
         stubIndexTokenAuthentication(true);
 
@@ -768,7 +764,9 @@ public class ServiceAccountServiceTests extends ESTestCase {
      * effect immediately, rather than once the token cache expires.
      */
     public void testDisablingAnAccountDeniesItsTokensWithoutConsultingTheTokenStore() {
-        stubUserManagedAccount(new UserManagedServiceAccount(USER_MANAGED_ACCOUNT_ID, List.of("deploy_bot_role_a"), false, Details.NONE));
+        stubUserManagedAccount(
+            new UserManagedServiceAccount(USER_MANAGED_ACCOUNT_ID, List.of("deploy_bot_role_a"), false, null, null, null)
+        );
 
         final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
         serviceAccountService.authenticateToken(newTokenFor(USER_MANAGED_ACCOUNT_ID), randomAlphaOfLengthBetween(3, 8), future);
@@ -866,7 +864,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
         for (boolean enabled : List.of(true, false)) {
             clearInvocations(indexServiceAccountTokenStore);
             stubUserManagedAccount(
-                new UserManagedServiceAccount(USER_MANAGED_ACCOUNT_ID, List.of("deploy_bot_role_a"), enabled, Details.NONE)
+                new UserManagedServiceAccount(USER_MANAGED_ACCOUNT_ID, List.of("deploy_bot_role_a"), enabled, null, null, null)
             );
 
             final Authentication authentication = AuthenticationTestHelper.builder().serviceAccount().build();
@@ -912,7 +910,9 @@ public class ServiceAccountServiceTests extends ESTestCase {
         stubHasTokensFor(false);
         final List<String> roles = randomList(1, 3, () -> randomAlphaOfLengthBetween(3, 8));
         final boolean enabled = randomBoolean();
-        final Details details = randomDetails();
+        final String description = randomOptionalText();
+        final String fullName = randomOptionalText();
+        final String initials = randomOptionalInitials();
         final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
         stubPutAccount(UserManagedServiceAccountStore.PutResult.CREATED);
 
@@ -921,7 +921,9 @@ public class ServiceAccountServiceTests extends ESTestCase {
             USER_MANAGED_ACCOUNT_ID,
             roles,
             enabled,
-            details,
+            description,
+            fullName,
+            initials,
             authentication,
             refreshPolicy,
             future
@@ -932,7 +934,9 @@ public class ServiceAccountServiceTests extends ESTestCase {
             eq(USER_MANAGED_ACCOUNT_ID),
             eq(roles),
             eq(enabled),
-            eq(details),
+            eq(description),
+            eq(fullName),
+            eq(initials),
             eq(authentication),
             eq(refreshPolicy),
             any()
@@ -941,18 +945,15 @@ public class ServiceAccountServiceTests extends ESTestCase {
 
     public void testPutUserManagedAccountDelegatesToTheAccountStoreWhenReplacingAnExistingAccount() {
         stubUserManagedAccount(
-            new UserManagedServiceAccount(
-                USER_MANAGED_ACCOUNT_ID,
-                List.of("old_role"),
-                true,
-                new Details("old description", "Old Name", "ON")
-            )
+            new UserManagedServiceAccount(USER_MANAGED_ACCOUNT_ID, List.of("old_role"), true, "old description", "Old Name", "ON")
         );
         stubHasTokensFor(true);
         final List<String> roles = randomList(1, 3, () -> randomAlphaOfLengthBetween(3, 8));
         final boolean enabled = randomBoolean();
         // A replacement carries whatever details the caller gave, including none: the old ones are not kept.
-        final Details details = randomDetails();
+        final String description = randomOptionalText();
+        final String fullName = randomOptionalText();
+        final String initials = randomOptionalInitials();
         final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
         stubPutAccount(UserManagedServiceAccountStore.PutResult.UPDATED);
 
@@ -961,7 +962,9 @@ public class ServiceAccountServiceTests extends ESTestCase {
             USER_MANAGED_ACCOUNT_ID,
             roles,
             enabled,
-            details,
+            description,
+            fullName,
+            initials,
             authentication,
             refreshPolicy,
             future
@@ -972,7 +975,9 @@ public class ServiceAccountServiceTests extends ESTestCase {
             eq(USER_MANAGED_ACCOUNT_ID),
             eq(roles),
             eq(enabled),
-            eq(details),
+            eq(description),
+            eq(fullName),
+            eq(initials),
             eq(authentication),
             eq(refreshPolicy),
             any()
@@ -987,7 +992,9 @@ public class ServiceAccountServiceTests extends ESTestCase {
             USER_MANAGED_ACCOUNT_ID,
             List.of("a_role"),
             true,
-            Details.NONE,
+            null,
+            null,
+            null,
             authentication,
             RefreshPolicy.NONE,
             future
@@ -1002,7 +1009,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
                     + "] because it has leftover service tokens; delete the tokens first"
             )
         );
-        verify(userManagedServiceAccountStore, never()).putAccount(any(), any(), anyBoolean(), any(), any(), any(), any());
+        verify(userManagedServiceAccountStore, never()).putAccount(any(), any(), anyBoolean(), any(), any(), any(), any(), any(), any());
     }
 
     public void testPutUserManagedAccountFailsWhereTheAccountStoreIsNotConfigured() {
@@ -1012,7 +1019,9 @@ public class ServiceAccountServiceTests extends ESTestCase {
             USER_MANAGED_ACCOUNT_ID,
             List.of("a_role"),
             true,
-            Details.NONE,
+            null,
+            null,
+            null,
             authentication,
             RefreshPolicy.NONE,
             future
@@ -1020,7 +1029,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
 
         final IllegalStateException e = expectThrows(IllegalStateException.class, future::actionGet);
         assertThat(e.getMessage(), equalTo("user-managed service accounts are not available in this cluster configuration"));
-        verify(userManagedServiceAccountStore, never()).putAccount(any(), any(), anyBoolean(), any(), any(), any(), any());
+        verify(userManagedServiceAccountStore, never()).putAccount(any(), any(), anyBoolean(), any(), any(), any(), any(), any(), any());
     }
 
     /**
@@ -1086,7 +1095,9 @@ public class ServiceAccountServiceTests extends ESTestCase {
             USER_MANAGED_ACCOUNT_ID,
             List.of("role_a", "role_b"),
             true,
-            new Details("Deploys things", "Deploy Bot", "DB"),
+            "Deploys things",
+            "Deploy Bot",
+            "DB",
             createdBy,
             createdAt,
             updatedBy,
@@ -1096,7 +1107,9 @@ public class ServiceAccountServiceTests extends ESTestCase {
             new ServiceAccountId("engineering", "audit_bot"),
             List.of(),
             false,
-            Details.NONE
+            null,
+            null,
+            null
         );
         stubListAccounts(List.of(enabled, disabled));
 
@@ -1141,13 +1154,17 @@ public class ServiceAccountServiceTests extends ESTestCase {
             USER_MANAGED_ACCOUNT_ID,
             List.of("role_a", "role_b"),
             true,
-            new Details("Deploys things", "Deploy Bot", "DB")
+            "Deploys things",
+            "Deploy Bot",
+            "DB"
         );
         final UserManagedServiceAccount disabled = new UserManagedServiceAccount(
             new ServiceAccountId("engineering", "audit_bot"),
             List.of(),
             false,
-            Details.NONE
+            null,
+            null,
+            null
         );
         final SearchSourceBuilder searchSource = SearchSourceBuilder.searchSource().size(2).sort("username");
         doAnswer(invocation -> {
@@ -1297,7 +1314,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
     }
 
     private UserManagedServiceAccount enabledAccount() {
-        return new UserManagedServiceAccount(USER_MANAGED_ACCOUNT_ID, List.of("deploy_bot_role_a"), true, Details.NONE);
+        return new UserManagedServiceAccount(USER_MANAGED_ACCOUNT_ID, List.of("deploy_bot_role_a"), true, null, null, null);
     }
 
     private ServiceAccountToken newTokenFor(ServiceAccountId accountId) {
@@ -1403,18 +1420,18 @@ public class ServiceAccountServiceTests extends ESTestCase {
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             final ActionListener<UserManagedServiceAccountStore.PutResult> listener = (ActionListener<
-                UserManagedServiceAccountStore.PutResult>) invocation.getArguments()[6];
+                UserManagedServiceAccountStore.PutResult>) invocation.getArguments()[8];
             listener.onResponse(result);
             return null;
-        }).when(userManagedServiceAccountStore).putAccount(any(), any(), anyBoolean(), any(), any(), any(), any());
+        }).when(userManagedServiceAccountStore).putAccount(any(), any(), anyBoolean(), any(), any(), any(), any(), any(), any());
     }
 
-    private static Details randomDetails() {
-        return new Details(
-            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20),
-            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20),
-            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 2)
-        );
+    private static String randomOptionalText() {
+        return randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20);
+    }
+
+    private static String randomOptionalInitials() {
+        return randomBoolean() ? null : randomAlphaOfLengthBetween(1, 2);
     }
 
     private void stubDeleteAccount(boolean found) {

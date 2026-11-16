@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
-import org.elasticsearch.xpack.security.authc.service.UserManagedServiceAccountStore.Details;
 import org.elasticsearch.xpack.security.authc.service.UserManagedServiceAccountStore.PutResult;
 import org.junit.Before;
 
@@ -87,7 +86,9 @@ public class TransportPutUserManagedServiceAccountActionTests extends ESTestCase
             eq(new ServiceAccountId("engineering", "deploy_bot")),
             eq(roles),
             eq(enabled),
-            eq(new Details(description, fullName, initials)),
+            eq(description),
+            eq(fullName),
+            eq(initials),
             eq(authentication),
             eq(refreshPolicy),
             any()
@@ -110,9 +111,9 @@ public class TransportPutUserManagedServiceAccountActionTests extends ESTestCase
     private void stubPutResult(PutResult result) {
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            final ActionListener<PutResult> listener = (ActionListener<PutResult>) invocation.getArguments()[6];
+            final ActionListener<PutResult> listener = (ActionListener<PutResult>) invocation.getArguments()[8];
             listener.onResponse(result);
             return null;
-        }).when(serviceAccountService).putUserManagedAccount(any(), any(), anyBoolean(), any(), any(), any(), any());
+        }).when(serviceAccountService).putUserManagedAccount(any(), any(), anyBoolean(), any(), any(), any(), any(), any(), any());
     }
 }

@@ -10,6 +10,7 @@ package org.elasticsearch.compute.aggregation.table;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -47,6 +48,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 //@TestLogging(value = "org.elasticsearch.compute:TRACE", reason = "debug")
 public class RowInTableLookupRandomizedTests extends ESTestCase {
@@ -133,32 +135,110 @@ public class RowInTableLookupRandomizedTests extends ESTestCase {
                 ByteSizeValue target = ByteSizeValue.ofKb(between(1, 100));
                 try (
                     ToLookup toLookup = toLookup(blockFactory, table);
-                    ReleasableIterator<IntBlock> actual = offsetInTable.lookup(toLookup.rows, target);
+                    ReleasableIterator<IntBlock> actual = offsetInTable.lookup(toLookup.rows, blockFactory, target);
                 ) {
-                    int expectedIdx = 0;
-                    while (actual.hasNext()) {
-                        try (IntBlock lookedup = actual.next()) {
-                            assertThat(lookedup.ramBytesUsed(), lessThan(target.getBytes() * 2));
-                            if (keysPerPosition == 1) {
-                                assertThat(lookedup.asVector(), not(nullValue()));
-                            }
-                            for (int p = 0; p < lookedup.getPositionCount(); p++) {
-                                assertThat(lookedup.isNull(p), equalTo(false));
-                                int start = lookedup.getFirstValueIndex(p);
-                                int end = start + lookedup.getValueCount(p);
-                                Set<Integer> actualRows = new TreeSet<>();
-                                for (int i = start; i < end; i++) {
-                                    actualRows.add(lookedup.getInt(i));
-                                }
-                                assertThat(actualRows, equalTo(toLookup.expected.get(expectedIdx)));
-                                expectedIdx++;
-                            }
-                        }
-                    }
-                    assertThat(expectedIdx, equalTo(toLookup.expected.size()));
+                    assertLookup(actual, blockFactory, toLookup, target);
                 }
             }
         }
+    }
+
+    public void testConcurrentLookups() {
+        MockBlockFactory tableFactory = newLimitedBlockFactory();
+        int threads = between(2, 8);
+        int triesPerThread = TRIES / 10;
+        // Each thread probes with a factory of its own, as drivers do, so nothing a lookup allocates may land on the table's breaker.
+        List<MockBlockFactory> probeFactories = IntStream.range(0, threads).mapToObj(t -> newLimitedBlockFactory()).toList();
+        try (Table table = randomTable(tableFactory); RowInTableLookup offsetInTable = RowInTableLookup.build(tableFactory, table.blocks)) {
+            assertThat(offsetInTable, expectedImplementation);
+            long tableBytes = tableFactory.breaker().getUsed();
+            // Every input is built before the threads start, so they only run lookups concurrently.
+            List<List<ToLookup>> inputs = new ArrayList<>(threads);
+            List<List<ByteSizeValue>> targets = new ArrayList<>(threads);
+            for (int t = 0; t < threads; t++) {
+                List<ToLookup> threadInputs = new ArrayList<>(triesPerThread);
+                List<ByteSizeValue> threadTargets = new ArrayList<>(triesPerThread);
+                for (int i = 0; i < triesPerThread; i++) {
+                    threadInputs.add(toLookup(probeFactories.get(t), table));
+                    threadTargets.add(ByteSizeValue.ofKb(between(1, 100)));
+                }
+                inputs.add(threadInputs);
+                targets.add(threadTargets);
+            }
+            try {
+                startInParallel(threads, t -> {
+                    for (int i = 0; i < triesPerThread; i++) {
+                        ToLookup toLookup = inputs.get(t).get(i);
+                        ByteSizeValue target = targets.get(t).get(i);
+                        MockBlockFactory probeFactory = probeFactories.get(t);
+                        try (ReleasableIterator<IntBlock> actual = offsetInTable.lookup(toLookup.rows, probeFactory, target)) {
+                            assertLookup(actual, probeFactory, toLookup, target);
+                            assertThat(tableFactory.breaker().getUsed(), equalTo(tableBytes));
+                        }
+                    }
+                });
+            } finally {
+                Releasables.close(inputs.stream().flatMap(List::stream).toList());
+            }
+        }
+        tableFactory.ensureAllBlocksAreReleased();
+        probeFactories.forEach(MockBlockFactory::ensureAllBlocksAreReleased);
+    }
+
+    public void testLookupWithCranky() {
+        MockBlockFactory tableFactory = newLimitedBlockFactory();
+        CrankyCircuitBreakerService cranky = new CrankyCircuitBreakerService();
+        MockBlockFactory probeFactory = new MockBlockFactory(
+            BlockFactory.builder(new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, cranky))
+        );
+        try (Table table = randomTable(tableFactory); RowInTableLookup offsetInTable = RowInTableLookup.build(tableFactory, table.blocks)) {
+            for (int t = 0; t < TRIES; t++) {
+                ToLookup toLookup;
+                try {
+                    toLookup = toLookup(probeFactory, table);
+                } catch (CircuitBreakingException e) {
+                    continue;
+                }
+                ByteSizeValue target = ByteSizeValue.ofKb(between(1, 100));
+                try (toLookup; ReleasableIterator<IntBlock> actual = offsetInTable.lookup(toLookup.rows, probeFactory, target)) {
+                    assertLookup(actual, probeFactory, toLookup, target);
+                } catch (CircuitBreakingException e) {
+                    assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+                }
+            }
+        }
+        probeFactory.ensureAllBlocksAreReleased();
+        assertThat(cranky.getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
+    }
+
+    private static MockBlockFactory newLimitedBlockFactory() {
+        CircuitBreakerService breakerService = newLimitedBreakerService(ByteSizeValue.ofGb(1));
+        return new MockBlockFactory(BlockFactory.builder(new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breakerService)));
+    }
+
+    private void assertLookup(ReleasableIterator<IntBlock> actual, BlockFactory blockFactory, ToLookup toLookup, ByteSizeValue target) {
+        int expectedIdx = 0;
+        while (actual.hasNext()) {
+            try (IntBlock lookedup = actual.next()) {
+                assertThat(lookedup.blockFactory(), sameInstance(blockFactory));
+                assertThat(lookedup.ramBytesUsed(), lessThan(target.getBytes() * 2));
+                if (keysPerPosition == 1) {
+                    assertThat(lookedup.asVector(), not(nullValue()));
+                }
+                for (int p = 0; p < lookedup.getPositionCount(); p++) {
+                    assertThat(lookedup.isNull(p), equalTo(false));
+                    int start = lookedup.getFirstValueIndex(p);
+                    int end = start + lookedup.getValueCount(p);
+                    Set<Integer> actualRows = new TreeSet<>();
+                    for (int i = start; i < end; i++) {
+                        actualRows.add(lookedup.getInt(i));
+                    }
+                    assertThat(actualRows, equalTo(toLookup.expected.get(expectedIdx)));
+                    expectedIdx++;
+                }
+            }
+        }
+        assertThat(expectedIdx, equalTo(toLookup.expected.size()));
     }
 
     private record Table(List<List<Object>> keys, Map<List<Object>, Integer> keyToRow, Block[] blocks) implements Releasable {

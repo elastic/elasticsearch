@@ -997,6 +997,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             @Override
             public void onResponse(BccUploadResult uploadResult) {
                 maybeLogSlowBccUpload(virtualBcc, uploadResult);
+                metrics.recordBccUploadCompleted(virtualBcc.getTotalSizeInBytes(), uploadResult);
                 final BatchedCompoundCommit uploadedBcc = uploadResult.batchedCompoundCommit();
                 logger.debug(
                     "{} uploaded BCC [{}] (last cc generation [{}]), marking as uploaded",

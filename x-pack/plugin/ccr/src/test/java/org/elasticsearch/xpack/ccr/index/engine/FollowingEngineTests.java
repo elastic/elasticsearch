@@ -1066,7 +1066,8 @@ public class FollowingEngineTests extends ESTestCase {
     /**
      * A CCR follower receives the leader's doc-values updates with PRIMARY origin, but must treat them as replayed operations: it keeps the
      * leader's sequence number and resolves the delta against the live document, exactly as a replica does, instead of assigning a new
-     * sequence number and patching unconditionally. An in-order delta therefore applies in place and preserves the leader's sequence number.
+     * sequence number and patching unconditionally. An in-order delta therefore applies in place and keeps the leader's sequence
+     * number.
      */
     public void testFollowerDocValuesUpdateAppliesInOrderKeepingLeaderSeqNo() throws Exception {
         assumeTrue("doc_values updatable feature flag must be enabled", FieldMapper.DOC_VALUES_UPDATABLE_FEATURE_FLAG.isEnabled());

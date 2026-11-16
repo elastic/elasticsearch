@@ -11,6 +11,9 @@ import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.AbstractScriptFieldType;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 
 import java.util.Map;
@@ -45,6 +48,20 @@ public final class NestedLeaves {
      */
     public static boolean enabled(@Nullable TransportVersion minTransportVersion) {
         return ENABLED && minTransportVersion != null && minTransportVersion.supports(VERSION);
+    }
+
+    /**
+     * The nested object whose child documents hold the values of {@code name} in this shard's mapping, or {@code null} where the
+     * parent does. An alias holds the values of its target, and a key of a {@code flattened} field those of the field. A runtime
+     * field runs its script on the document it is asked for, so even one named under a nested object is read from the parent.
+     */
+    @Nullable
+    public static String childPath(MappingLookup lookup, String name) {
+        MappedFieldType type = lookup.getFieldType(name);
+        if (type == null || type instanceof AbstractScriptFieldType<?>) {
+            return null;
+        }
+        return lookup.nestedLookup().getNestedParent(type.name());
     }
 
     /** The nested object {@code name} is under in this index, from its mapping rather than from the dots in the name. */

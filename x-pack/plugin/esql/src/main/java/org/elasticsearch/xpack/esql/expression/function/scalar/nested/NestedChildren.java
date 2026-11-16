@@ -97,32 +97,32 @@ public final class NestedChildren implements Releasable {
         List<ValuesSourceReaderOperator.FieldInfo> infos = new ArrayList<>(fields.size());
         for (int f = 0; f < fields.size(); f++) {
             String name = fields.get(f);
-            infos.add(
-                new ValuesSourceReaderOperator.FieldInfo(name, PlannerUtils.toElementType(types.get(f)), false, (driverContext, shard) -> {
-                    var context = (EsPhysicalOperationProviders.DefaultShardContext) shardContexts.get(shard);
-                    BlockLoader loader = context.nestedChildBlockLoader(
-                        name,
-                        new BlockLoaderWarnings(driverContext, Source.EMPTY),
-                        settings.blockLoaderSizeOrdinals(),
-                        settings.blockLoaderSizeScript()
+            DataType type = types.get(f);
+            infos.add(new ValuesSourceReaderOperator.FieldInfo(name, PlannerUtils.toElementType(type), false, (driverContext, shard) -> {
+                var context = (EsPhysicalOperationProviders.DefaultShardContext) shardContexts.get(shard);
+                BlockLoader loader = context.nestedChildBlockLoader(
+                    name,
+                    new BlockLoaderWarnings(driverContext, Source.EMPTY),
+                    settings.blockLoaderSizeOrdinals(),
+                    settings.blockLoaderSizeScript()
+                );
+                if (loader instanceof FallbackSyntheticSourceBlockLoader fallback) {
+                    // The child's own _ignored_source misses the values the nested object or an object above it keeps whole.
+                    // The source holds them under the name of the field, not of an alias to it.
+                    loader = new NestedChildSourceBlockLoader(fallback, context.fieldType(name).name());
+                }
+                if (loader.rowStrideStoredFieldSpec().requiresSource() && context.storesFilteredSource()) {
+                    driverContext.addWarning(
+                        Strings.format(
+                            "Field [%s] cannot be retrieved from the filtered _source of index [%s]; returning null",
+                            name,
+                            context.executionContext().getFullyQualifiedIndex().getName()
+                        )
                     );
-                    if (loader instanceof FallbackSyntheticSourceBlockLoader fallback) {
-                        // The child's own _ignored_source misses the values the nested object or an object above it keeps whole
-                        loader = new NestedChildSourceBlockLoader(fallback, name);
-                    }
-                    if (loader.rowStrideStoredFieldSpec().requiresSource() && context.storesFilteredSource()) {
-                        driverContext.addWarning(
-                            Strings.format(
-                                "Field [%s] cannot be retrieved from the filtered _source of index [%s]; returning null",
-                                name,
-                                context.executionContext().getFullyQualifiedIndex().getName()
-                            )
-                        );
-                        loader = ConstantNull.INSTANCE;
-                    }
-                    return ValuesSourceReaderOperator.load(loader);
-                })
-            );
+                    loader = ConstantNull.INSTANCE;
+                }
+                return ValuesSourceReaderOperator.load(loader);
+            }));
         }
         var readers = shardContexts.map(
             s -> new ValuesSourceReaderOperator.ShardContext(

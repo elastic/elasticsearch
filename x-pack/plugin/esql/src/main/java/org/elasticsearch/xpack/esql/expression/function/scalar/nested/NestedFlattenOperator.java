@@ -27,6 +27,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.index.NestedLeaves;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -91,7 +92,7 @@ public final class NestedFlattenOperator extends AbstractPageMappingOperator {
             return null;
         }
         SearchExecutionContext context = ((EsPhysicalOperationProviders.DefaultShardContext) shard).executionContext();
-        return context.getMappingLookup().getFieldType(field) == null ? null : context.nestedLookup().getNestedParent(field);
+        return NestedLeaves.childPath(context.getMappingLookup(), field);
     }
 
     /** The leaves one read of the children of the nested object {@code path} loads, by index in {@link Factory#leaves}. */

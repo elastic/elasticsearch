@@ -1501,3 +1501,166 @@ a geo_point under a nested object agrees with the same field under a plain objec
       body:
         query: "FROM geo_* | STATS c = ST_CENTROID_AGG(items.location), n = COUNT(*) | EVAL x = ROUND(ST_X(c), 3), y = ROUND(ST_Y(c), 3) | KEEP x, y, n | LIMIT 10"
 - match: { values: [[2.0, 2.0, 2]] }
+
+---
+an alias under a nested object reads its target:
+- do:
+    indices.create:
+      index: al_nested
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+          index.mode: lookup
+        mappings:
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              properties:
+                note:
+                  type: text
+                sku:
+                  type: keyword
+                note_alias:
+                  type: alias
+                  path: items.note
+                sku_alias:
+                  type: alias
+                  path: items.sku
+- do:
+    indices.create:
+      index: al_synthetic
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+          index.mapping.source.mode: synthetic
+        mappings:
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              synthetic_source_keep: all
+              properties:
+                note:
+                  type: text
+                sku:
+                  type: keyword
+                  doc_values: false
+                note_alias:
+                  type: alias
+                  path: items.note
+                sku_alias:
+                  type: alias
+                  path: items.sku
+- do:
+    indices.create:
+      index: al_main
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          properties:
+            id:
+              type: keyword
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: al_nested
+      - id: a
+        items:
+        - { note: hello, sku: x }
+        - { note: bye, sku: y }
+      - index:
+          _index: al_synthetic
+      - id: a
+        items:
+        - { note: hello, sku: x }
+        - { note: bye, sku: y }
+      - index:
+          _index: al_main
+      - id: a
+- do:
+    esql.query:
+      body:
+        query: FROM al_nested, al_synthetic METADATA _index | KEEP _index, items.note_alias, items.sku_alias | SORT _index | LIMIT 10
+- match: { values: [[al_nested, [hello, bye], [x, y]], [al_synthetic, [hello, bye], [x, y]]] }
+- do:
+    esql.query:
+      body:
+        query: FROM al_main | LOOKUP JOIN al_nested ON id | KEEP items.note_alias, items.sku_alias | LIMIT 10
+- match: { values: [[[hello, bye], [x, y]]] }
+
+---
+a runtime field named under a nested object runs on the parent:
+# A runtime field's script runs on the document it is asked for, which is the parent, as under a plain object.
+- do:
+    indices.create:
+      index: rt_nested
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          runtime:
+            items.rt:
+              type: long
+              script:
+                source: "emit(doc['n'].value * 10)"
+          properties:
+            n:
+              type: long
+            items:
+              type: nested
+              properties:
+                price:
+                  type: long
+- do:
+    indices.create:
+      index: rt_object
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          runtime:
+            items.rt:
+              type: long
+              script:
+                source: "emit(doc['n'].value * 10)"
+          properties:
+            n:
+              type: long
+            items:
+              properties:
+                price:
+                  type: long
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: rt_nested
+      - n: 1
+        items:
+        - { price: 1 }
+        - { price: 2 }
+      - index:
+          _index: rt_object
+      - n: 2
+        items:
+        - { price: 3 }
+- do:
+    esql.query:
+      body:
+        query: FROM rt_* METADATA _index | KEEP _index, items.rt | SORT _index | LIMIT 10
+- match:
+    values:
+    - [rt_nested, 10]
+    - [rt_object, 20]

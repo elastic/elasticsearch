@@ -175,7 +175,7 @@ public class SearchContextStats implements SearchStats {
     }
 
     private static boolean isNestedSubfield(SearchExecutionContext context, String field) {
-        return context.nestedLookup().hasNestedParent(field);
+        return NestedLeaves.childPath(context.getMappingLookup(), field) != null;
     }
 
     /**

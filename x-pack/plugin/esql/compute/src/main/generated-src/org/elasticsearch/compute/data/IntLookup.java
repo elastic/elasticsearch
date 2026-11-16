@@ -23,6 +23,7 @@ public final class IntLookup implements ReleasableIterator<IntBlock> {
     private final IntBlock positions;
     private final long targetByteSize;
     private int position;
+    private long copiedBytes;
 
     private int first;
     private int valuesInPosition;
@@ -42,8 +43,10 @@ public final class IntLookup implements ReleasableIterator<IntBlock> {
 
     @Override
     public IntBlock next() {
-        try (IntBlock.Builder builder = positions.blockFactory().newIntBlockBuilder(positions.getTotalValueCount())) {
+        int remaining = positions.getPositionCount() - position;
+        try (IntBlock.Builder builder = positions.blockFactory().newIntBlockBuilder(remaining)) {
             int count = 0;
+            copiedBytes = 0;
             while (position < positions.getPositionCount()) {
                 int start = positions.getFirstValueIndex(position);
                 int end = start + positions.getValueCount(position);
@@ -58,7 +61,8 @@ public final class IntLookup implements ReleasableIterator<IntBlock> {
                 }
                 position++;
                 // TOOD what if the estimate is super huge? should we break even with less than MIN_TARGET?
-                if (++count > Operator.MIN_TARGET_PAGE_SIZE && builder.estimatedBytes() < targetByteSize) {
+                // Count copied bytes rather than builder.estimatedBytes(): the latter includes pre-sized capacity.
+                if (++count > Operator.MIN_TARGET_PAGE_SIZE && copiedBytes >= targetByteSize) {
                     break;
                 }
             }
@@ -75,6 +79,7 @@ public final class IntLookup implements ReleasableIterator<IntBlock> {
         for (int i = start; i < end; i++) {
             if (valuesInPosition == 0) {
                 first = values.getInt(i);
+                copiedBytes += Integer.BYTES;
                 valuesInPosition++;
                 continue;
             }
@@ -87,6 +92,7 @@ public final class IntLookup implements ReleasableIterator<IntBlock> {
                 throw new IllegalArgumentException("Found a single entry with " + valuesInPosition + " entries");
             }
             builder.appendInt(values.getInt(i));
+            copiedBytes += Integer.BYTES;
             valuesInPosition++;
         }
     }

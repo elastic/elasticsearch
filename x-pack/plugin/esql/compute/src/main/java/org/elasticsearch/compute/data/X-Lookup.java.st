@@ -30,6 +30,7 @@ $endif$
     private final IntBlock positions;
     private final long targetByteSize;
     private int position;
+    private long copiedBytes;
 
     private $type$ first;
     private int valuesInPosition;
@@ -49,8 +50,10 @@ $endif$
 
     @Override
     public $Type$Block next() {
-        try ($Type$Block.Builder builder = positions.blockFactory().new$Type$BlockBuilder(positions.getTotalValueCount())) {
+        int remaining = positions.getPositionCount() - position;
+        try ($Type$Block.Builder builder = positions.blockFactory().new$Type$BlockBuilder(remaining)) {
             int count = 0;
+            copiedBytes = 0;
             while (position < positions.getPositionCount()) {
                 int start = positions.getFirstValueIndex(position);
                 int end = start + positions.getValueCount(position);
@@ -65,7 +68,8 @@ $endif$
                 }
                 position++;
                 // TOOD what if the estimate is super huge? should we break even with less than MIN_TARGET?
-                if (++count > Operator.MIN_TARGET_PAGE_SIZE && builder.estimatedBytes() < targetByteSize) {
+                // Count copied bytes rather than builder.estimatedBytes(): the latter includes pre-sized capacity.
+                if (++count > Operator.MIN_TARGET_PAGE_SIZE && copiedBytes >= targetByteSize) {
                     break;
                 }
             }
@@ -83,8 +87,10 @@ $endif$
             if (valuesInPosition == 0) {
 $if(BytesRef)$
                 first = values.get$Type$(i, firstScratch);
+                copiedBytes += first.length + Integer.BYTES;
 $else$
                 first = values.get$Type$(i);
+                copiedBytes += $BYTES$;
 $endif$
                 valuesInPosition++;
                 continue;
@@ -98,9 +104,12 @@ $endif$
                 throw new IllegalArgumentException("Found a single entry with " + valuesInPosition + " entries");
             }
 $if(BytesRef)$
-            builder.append$Type$(values.get$Type$(i, valueScratch));
+            $type$ value = values.get$Type$(i, valueScratch);
+            copiedBytes += value.length + Integer.BYTES;
+            builder.append$Type$(value);
 $else$
             builder.append$Type$(values.get$Type$(i));
+            copiedBytes += $BYTES$;
 $endif$
             valuesInPosition++;
         }

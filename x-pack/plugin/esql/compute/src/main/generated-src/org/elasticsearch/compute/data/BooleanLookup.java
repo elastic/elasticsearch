@@ -23,6 +23,7 @@ public final class BooleanLookup implements ReleasableIterator<BooleanBlock> {
     private final IntBlock positions;
     private final long targetByteSize;
     private int position;
+    private long copiedBytes;
 
     private boolean first;
     private int valuesInPosition;
@@ -42,8 +43,10 @@ public final class BooleanLookup implements ReleasableIterator<BooleanBlock> {
 
     @Override
     public BooleanBlock next() {
-        try (BooleanBlock.Builder builder = positions.blockFactory().newBooleanBlockBuilder(positions.getTotalValueCount())) {
+        int remaining = positions.getPositionCount() - position;
+        try (BooleanBlock.Builder builder = positions.blockFactory().newBooleanBlockBuilder(remaining)) {
             int count = 0;
+            copiedBytes = 0;
             while (position < positions.getPositionCount()) {
                 int start = positions.getFirstValueIndex(position);
                 int end = start + positions.getValueCount(position);
@@ -58,7 +61,8 @@ public final class BooleanLookup implements ReleasableIterator<BooleanBlock> {
                 }
                 position++;
                 // TOOD what if the estimate is super huge? should we break even with less than MIN_TARGET?
-                if (++count > Operator.MIN_TARGET_PAGE_SIZE && builder.estimatedBytes() < targetByteSize) {
+                // Count copied bytes rather than builder.estimatedBytes(): the latter includes pre-sized capacity.
+                if (++count > Operator.MIN_TARGET_PAGE_SIZE && copiedBytes >= targetByteSize) {
                     break;
                 }
             }
@@ -75,6 +79,7 @@ public final class BooleanLookup implements ReleasableIterator<BooleanBlock> {
         for (int i = start; i < end; i++) {
             if (valuesInPosition == 0) {
                 first = values.getBoolean(i);
+                copiedBytes += Byte.BYTES;
                 valuesInPosition++;
                 continue;
             }
@@ -87,6 +92,7 @@ public final class BooleanLookup implements ReleasableIterator<BooleanBlock> {
                 throw new IllegalArgumentException("Found a single entry with " + valuesInPosition + " entries");
             }
             builder.appendBoolean(values.getBoolean(i));
+            copiedBytes += Byte.BYTES;
             valuesInPosition++;
         }
     }

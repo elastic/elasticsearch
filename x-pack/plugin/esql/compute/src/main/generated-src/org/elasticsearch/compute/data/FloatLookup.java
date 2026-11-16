@@ -23,6 +23,7 @@ public final class FloatLookup implements ReleasableIterator<FloatBlock> {
     private final IntBlock positions;
     private final long targetByteSize;
     private int position;
+    private long copiedBytes;
 
     private float first;
     private int valuesInPosition;
@@ -42,8 +43,10 @@ public final class FloatLookup implements ReleasableIterator<FloatBlock> {
 
     @Override
     public FloatBlock next() {
-        try (FloatBlock.Builder builder = positions.blockFactory().newFloatBlockBuilder(positions.getTotalValueCount())) {
+        int remaining = positions.getPositionCount() - position;
+        try (FloatBlock.Builder builder = positions.blockFactory().newFloatBlockBuilder(remaining)) {
             int count = 0;
+            copiedBytes = 0;
             while (position < positions.getPositionCount()) {
                 int start = positions.getFirstValueIndex(position);
                 int end = start + positions.getValueCount(position);
@@ -58,7 +61,8 @@ public final class FloatLookup implements ReleasableIterator<FloatBlock> {
                 }
                 position++;
                 // TOOD what if the estimate is super huge? should we break even with less than MIN_TARGET?
-                if (++count > Operator.MIN_TARGET_PAGE_SIZE && builder.estimatedBytes() < targetByteSize) {
+                // Count copied bytes rather than builder.estimatedBytes(): the latter includes pre-sized capacity.
+                if (++count > Operator.MIN_TARGET_PAGE_SIZE && copiedBytes >= targetByteSize) {
                     break;
                 }
             }
@@ -75,6 +79,7 @@ public final class FloatLookup implements ReleasableIterator<FloatBlock> {
         for (int i = start; i < end; i++) {
             if (valuesInPosition == 0) {
                 first = values.getFloat(i);
+                copiedBytes += Float.BYTES;
                 valuesInPosition++;
                 continue;
             }
@@ -87,6 +92,7 @@ public final class FloatLookup implements ReleasableIterator<FloatBlock> {
                 throw new IllegalArgumentException("Found a single entry with " + valuesInPosition + " entries");
             }
             builder.appendFloat(values.getFloat(i));
+            copiedBytes += Float.BYTES;
             valuesInPosition++;
         }
     }

@@ -23,6 +23,7 @@ public final class DoubleLookup implements ReleasableIterator<DoubleBlock> {
     private final IntBlock positions;
     private final long targetByteSize;
     private int position;
+    private long copiedBytes;
 
     private double first;
     private int valuesInPosition;
@@ -42,8 +43,10 @@ public final class DoubleLookup implements ReleasableIterator<DoubleBlock> {
 
     @Override
     public DoubleBlock next() {
-        try (DoubleBlock.Builder builder = positions.blockFactory().newDoubleBlockBuilder(positions.getTotalValueCount())) {
+        int remaining = positions.getPositionCount() - position;
+        try (DoubleBlock.Builder builder = positions.blockFactory().newDoubleBlockBuilder(remaining)) {
             int count = 0;
+            copiedBytes = 0;
             while (position < positions.getPositionCount()) {
                 int start = positions.getFirstValueIndex(position);
                 int end = start + positions.getValueCount(position);
@@ -58,7 +61,8 @@ public final class DoubleLookup implements ReleasableIterator<DoubleBlock> {
                 }
                 position++;
                 // TOOD what if the estimate is super huge? should we break even with less than MIN_TARGET?
-                if (++count > Operator.MIN_TARGET_PAGE_SIZE && builder.estimatedBytes() < targetByteSize) {
+                // Count copied bytes rather than builder.estimatedBytes(): the latter includes pre-sized capacity.
+                if (++count > Operator.MIN_TARGET_PAGE_SIZE && copiedBytes >= targetByteSize) {
                     break;
                 }
             }
@@ -75,6 +79,7 @@ public final class DoubleLookup implements ReleasableIterator<DoubleBlock> {
         for (int i = start; i < end; i++) {
             if (valuesInPosition == 0) {
                 first = values.getDouble(i);
+                copiedBytes += Double.BYTES;
                 valuesInPosition++;
                 continue;
             }
@@ -87,6 +92,7 @@ public final class DoubleLookup implements ReleasableIterator<DoubleBlock> {
                 throw new IllegalArgumentException("Found a single entry with " + valuesInPosition + " entries");
             }
             builder.appendDouble(values.getDouble(i));
+            copiedBytes += Double.BYTES;
             valuesInPosition++;
         }
     }

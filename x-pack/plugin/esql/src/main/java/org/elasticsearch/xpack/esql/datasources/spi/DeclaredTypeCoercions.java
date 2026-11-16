@@ -93,8 +93,8 @@ import java.util.function.IntFunction;
  *       {@code TIMESTAMP(MICROS|NANOS)} column (which infers as {@code date_nanos}) be declared
  *       {@code date}, the conventional dashboard type. The readable range is the declared type's own, not
  *       {@code date_nanos}': the pair is {@link #fusedInDecode fused}, so a reader that honors the predicate scales
- *       microseconds straight to milliseconds and never materialises the nanosecond intermediate that used to
- *       confine the value to 1677-09-21 .. 2262-04-11. This arm still runs for a reader that does not, and for a
+ *       microseconds straight to milliseconds and materialises no nanosecond intermediate, whose own domain
+ *       would confine the value to 1677-09-21 .. 2262-04-11. This arm still runs for a reader that does not, and for a
  *       {@code date_nanos} column the planner itself produced.
  *       Numeric sources follow the unit rule below
  *       ({@code date} = millis when no format is declared; a {@code double} rounds to the nearest

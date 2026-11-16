@@ -1151,8 +1151,9 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                 // RowRanges.all() lets every page through loadNextPage()'s page-skip check; the
                 // sparse loop drives skip/read by in-group position from there.
                 RowRanges.all(rgRowCount),
-                // A retyped view decodes a coercion in this loop, so the sink follows the policy exactly as the
-                // eager scan's does. It stays unused for a column decoded at its own type, which coerces nothing.
+                // A retyped view decodes a coercion in this loop, so the warning sink follows the policy as the
+                // eager scan's does; the eager scan additionally carries a failed-position sink, which this path
+                // does not -- see decodeList. Unused for a column decoded at its own type, which coerces nothing.
                 castBlockWarnings(),
                 warningSink
             )
@@ -1218,8 +1219,11 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                 }
                 int runLength = runEnd - runStart;
                 // A retyped view decodes a coercion in this loop, so the sink follows the policy. No failed-position
-                // sink: skip_row never defers a declared read, and without a declaration only widening pairs retype,
-                // which are total. The dropped-null-element notice is unconditional.
+                // sink: skip_row defers nothing once any column is declared, which covers every declared read. An
+                // inferred pair can still be partial -- commonType(long, unsigned_long) is unsigned_long and a
+                // negative long fails it -- so with no declared column under skip_row the cell nulls here where the
+                // eager scan drops the row, a divergence older than this change. The dropped-null-element notice is
+                // unconditional.
                 chunks.add(
                     ParquetColumnDecoding.readListColumn(
                         listReader,

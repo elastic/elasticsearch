@@ -72,25 +72,34 @@ final class ParquetColumnDecoding {
 
     // ---- Temporal helpers ----
 
-    static long convertTimestampToMillis(long raw, LogicalTypeAnnotation logicalType) {
+    static long convertTemporalToMillis(long raw, LogicalTypeAnnotation logicalType) {
+        LogicalTypeAnnotation.TimeUnit unit = temporalUnit(logicalType);
+        if (unit == null) {
+            return raw;
+        }
+        // floorDiv, not `/`: the two disagree by a millisecond below the epoch, and castBlock's narrowing and
+        // the pruning relation both floor.
+        return switch (unit) {
+            case MILLIS -> raw;
+            case MICROS -> Math.floorDiv(raw, 1_000L);
+            case NANOS -> Math.floorDiv(raw, 1_000_000L);
+        };
+    }
+
+    /**
+     * The unit of a {@code TIMESTAMP} or {@code TIME} annotation, or {@code null} for any other annotation and for
+     * none. A TIMESTAMP counts from the epoch and a TIME from midnight, but the scale is the unit's either way, so
+     * the two share one conversion.
+     */
+    @Nullable
+    private static LogicalTypeAnnotation.TimeUnit temporalUnit(@Nullable LogicalTypeAnnotation logicalType) {
         if (logicalType instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts) {
-            // floorDiv, not `/`: the two disagree by a millisecond below the epoch, and castBlock's narrowing and
-            // the pruning relation both floor.
-            return switch (ts.getUnit()) {
-                case MILLIS -> raw;
-                case MICROS -> Math.floorDiv(raw, 1_000L);
-                case NANOS -> Math.floorDiv(raw, 1_000_000L);
-            };
+            return ts.getUnit();
         }
-        // A TIME value counts from midnight rather than the epoch, but the scale is the unit's either way.
         if (logicalType instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation time) {
-            return switch (time.getUnit()) {
-                case MILLIS -> raw;
-                case MICROS -> Math.floorDiv(raw, 1_000L);
-                case NANOS -> Math.floorDiv(raw, 1_000_000L);
-            };
+            return time.getUnit();
         }
-        return raw;
+        return null;
     }
 
     // ---- date_nanos (epoch-nanoseconds) helpers ----
@@ -167,7 +176,7 @@ final class ParquetColumnDecoding {
             && time2.getUnit() != LogicalTypeAnnotation.TimeUnit.MICROS;
         return switch (declaredType) {
             // An identity read never nulls, and neither does a narrowing: floorDiv is total over the whole long
-            // domain. The MICROS decline is no longer forced by the DECLARED read, which is fused and total. It is
+            // domain. The DECLARED read is fused and total, so it does not force the MICROS decline. It is
             // not known to be safe to relax either: this arm is keyed on the declared type, and the same DATETIME
             // target is reachable over the same file without a declaration, where the read still nulls -- see
             // ParquetFormatReaderTests.testInferredDatetimeOverADateNanosFileNullsOnEveryRoute. Relaxing it means
@@ -247,7 +256,7 @@ final class ParquetColumnDecoding {
             // bound arithmetic. Sound against the footer because a TIME column's raw values compare chronologically
             // under signed comparison, the precondition decodeTemporalStat states for publishing their min/max.
             // Only a DATE_NANOS target gets a relation. A declared `date` over a TIME column is a fused pair, so it
-            // decodes in one step through convertTimestampToMillis' TIME arm: floorDiv(raw, 1000) for MICROS, which
+            // decodes in one step through convertTemporalToMillis' TIME arm: floorDiv(raw, 1000) for MICROS, which
             // is the ScaleDown(1000) the TIMESTAMP(MICROS) arm above already uses. An arm for it is expressible --
             // it is simply not written, and declining costs pruning rather than rows.
             //
@@ -632,12 +641,10 @@ final class ParquetColumnDecoding {
     /**
      * The millisecond value a {@code DATETIME} decode arm reads out of an {@code INT64} column: a {@code TIMESTAMP}
      * or {@code TIME} annotation's unit narrowed to millis, and a bare {@code INT64} unchanged. As with
-     * {@link #int32AsInferredLong}, reinterpreting the result as an epoch is the caller's step. Not the value the
-     * column's own INFERRED read produces for every annotation -- a {@code TIME(MICROS|NANOS)} column renders
-     * {@code date_nanos} and infers a nanosecond-of-day -- so read the name as naming the arm, not the inference.
+     * {@link #int32AsInferredLong}, reinterpreting the result as an epoch is the caller's step.
      */
-    static long int64AsInferredLong(long raw, @Nullable LogicalTypeAnnotation logical) {
-        return convertTimestampToMillis(raw, logical);
+    static long int64AsMillis(long raw, @Nullable LogicalTypeAnnotation logical) {
+        return convertTemporalToMillis(raw, logical);
     }
 
     // ---- Unsigned integer logical-type checks ----
@@ -1529,7 +1536,7 @@ final class ParquetColumnDecoding {
             Runnable appender = switch (decode) {
                 case DATE_DAYS -> () -> builder.appendLong(dateDaysToMillis(input.reader().getInteger()));
                 case INT32_EPOCH_MILLIS -> () -> builder.appendLong(int32AsInferredLong(input.reader().getInteger(), logical));
-                case INT64_EPOCH_MILLIS -> () -> builder.appendLong(int64AsInferredLong(input.reader().getLong(), logical));
+                case INT64_EPOCH_MILLIS -> () -> builder.appendLong(int64AsMillis(input.reader().getLong(), logical));
                 case INT96 -> () -> {
                     byte[] bytes = input.reader().getBinary().getBytes();
                     builder.appendLong(int96ToEpochMillis(bytes, 0, bytes.length));

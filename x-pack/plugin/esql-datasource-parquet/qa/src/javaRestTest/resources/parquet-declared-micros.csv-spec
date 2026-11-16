@@ -1,5 +1,5 @@
-// A Parquet TIMESTAMP(MICROS) column renders date_nanos. Declared `date`, it used to read through date_nanos and
-// null anything outside 1677-09-21 .. 2262-04-11; it scales straight to millis now.
+// A Parquet TIMESTAMP(MICROS) column renders date_nanos. Declared `date`, it scales straight to millis, so the
+// readable range is `date`'s own rather than date_nanos' 1677-09-21 .. 2262-04-11.
 //
 // {{micros_timestamp}} carries ts over seven rows: 1500-01-01 and the year 3000, outside that window; half a
 // millisecond after 1500-01-01 and one microsecond before the epoch, which separate flooring from truncation; the
@@ -93,4 +93,43 @@ id:integer | elements:long
 5          | -14831769600000
 6          | [32503680000000, -14831769600000]
 7          | null
+;
+
+// A filter over the newly readable range, which the scan-and-sort cases above do not exercise. Row-group pruning
+// derives its raw bound from decoded == floorDiv(raw, 1000), so a wrong bound here drops rows the scan returns.
+// The lower predicate straddles nothing; the upper one sits between rows 2 and 3, both pre-epoch and sub-millisecond
+// apart from the bound, which is where a truncating bound would disagree with a flooring one.
+declaredDateOverMicrosTimestampFiltersAcrossTheNanosecondDomain
+required_capability: dataset_in_from_command
+required_capability: parquet_declared_date_reads_micros_in_one_step
+dataset: micros_declared_filtered: "{{micros_timestamp}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "integer"}, "ts": {"type": "date"}}}}
+
+FROM micros_declared_filtered
+| WHERE ts < "1600-01-01T00:00:00.000Z" OR ts > "2500-01-01T00:00:00.000Z"
+| SORT id
+| KEEP id, ts
+;
+
+id:integer | ts:date
+1          | 1500-01-01T00:00:00.000Z
+2          | 1500-01-01T00:00:00.000Z
+6          | 3000-01-01T00:00:00.000Z
+;
+
+// The pre-epoch boundary on its own: a bound one microsecond above row 3's value keeps row 3 and drops row 4.
+declaredDateOverMicrosTimestampFiltersOnThePreEpochBoundary
+required_capability: dataset_in_from_command
+required_capability: parquet_declared_date_reads_micros_in_one_step
+dataset: micros_declared_boundary: "{{micros_timestamp}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "integer"}, "ts": {"type": "date"}}}}
+
+FROM micros_declared_boundary
+| WHERE ts < "1970-01-01T00:00:00.000Z"
+| SORT id
+| KEEP id, ts
+;
+
+id:integer | ts:date
+1          | 1500-01-01T00:00:00.000Z
+2          | 1500-01-01T00:00:00.000Z
+3          | 1969-12-31T23:59:59.999Z
 ;

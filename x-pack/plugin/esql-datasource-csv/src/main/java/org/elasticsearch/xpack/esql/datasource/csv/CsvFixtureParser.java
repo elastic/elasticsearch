@@ -377,14 +377,15 @@ public final class CsvFixtureParser {
             case "double", "scaled_float", "float", "half_float" -> tryParseDouble(value);
             case "boolean", "bool" -> tryParseBoolean(value);
             case "date", "datetime", "dt" -> tryParseDatetime(value);
-            // A header naming a sub-millisecond unit takes a plain count of that unit, so it parses as a LONG and
-            // not through tryParseDatetime: that method's ISO fallback returns epoch MILLIS, which the generators
-            // then write verbatim as the named unit -- silently off by 1e3 for date_micros and 1e6 for date_nanos,
-            // with no failure anywhere to say so. tryParseLong yields null for an ISO cell instead, so a fixture
-            // written in the wrong form reads as a null column rather than as the wrong instant. date_micros has
-            // no ESQL type of its own (it renders date_nanos), which is why the header names the unit; see
-            // ParquetFixtureGenerator's matching scalar and list arms.
-            case "date_nanos", "date_micros" -> tryParseLong(value);
+            // A header naming a sub-millisecond unit takes a plain count of THAT unit, so neither arm may go
+            // through tryParseDatetime: its ISO fallback returns epoch MILLIS, which the generators then write
+            // verbatim as the named unit -- silently off by 1e3 for date_micros and 1e6 for date_nanos, with no
+            // failure anywhere to say so. An ISO cell is still accepted, scaled to the header's own unit, because
+            // data/date_nanos.csv and data/all-types.csv write theirs that way and rejecting them would null a
+            // valid column just as silently. date_micros has no ESQL type of its own (it renders date_nanos),
+            // which is why the header names the unit; see ParquetFixtureGenerator's matching scalar and list arms.
+            case "date_nanos" -> tryParseSubMilliInstant(value, 1_000_000_000L);
+            case "date_micros" -> tryParseSubMilliInstant(value, 1_000_000L);
             // A parquet TIME column's value is a count of its own unit since midnight, so the fixture cell is a
             // plain number -- there is no date to parse. The unit lives in the type name because the annotation the
             // generator writes differs per unit, and the physical width with it (MILLIS is an INT32).
@@ -407,6 +408,27 @@ public final class CsvFixtureParser {
         try {
             return Integer.parseInt(value);
         } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /**
+     * A sub-millisecond temporal cell: a plain count of {@code unitsPerSecond}-ths of a second, or an ISO instant
+     * scaled to that unit. {@code tryParseDatetime} cannot serve these headers because it truncates to epoch
+     * millis, and the generators write whatever this returns verbatim as the named unit.
+     */
+    private static Long tryParseSubMilliInstant(String value, long unitsPerSecond) {
+        if (looksNumeric(value)) {
+            Long plain = tryParseLong(value);
+            if (plain != null) {
+                return plain;
+            }
+        }
+        try {
+            Instant instant = Instant.parse(value);
+            long nanosPerUnit = 1_000_000_000L / unitsPerSecond;
+            return Math.addExact(Math.multiplyExact(instant.getEpochSecond(), unitsPerSecond), instant.getNano() / nanosPerUnit);
+        } catch (Exception e) {
             return null;
         }
     }

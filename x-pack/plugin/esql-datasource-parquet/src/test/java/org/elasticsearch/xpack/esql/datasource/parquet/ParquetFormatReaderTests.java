@@ -8260,10 +8260,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
      * <p>This is the divergence class the fused guard cannot see: that one varies the pair only inside the fused
      * set, so it is blind to a defused pair handled on one route and not another.
      *
-     * <p><b>It is a standing guard, not evidence for any one change.</b> It passes against the revision before the
-     * deferred route was put on the decode loops' decision, because the routes agreed then too -- what that change
-     * removed was a duplicated decision, not a wrong answer. Read a green here as "the routes still agree", never
-     * as "this commit works".
+     * <p><b>It is a standing guard, not evidence for any one change.</b> A green here means the routes agree on the
+     * defused pairs it reaches; it says nothing about whether any particular commit is correct.
      *
      * <p>What it does NOT reach, measured rather than supposed:
      * <ul>
@@ -8323,7 +8321,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
         assertThat(
             "no defused supported pair was exercised, so this guard asserted nothing; supports and fusedInDecode "
-                + "have converged or the shaped-source list no longer reaches either",
+                + "have converged or the shaped-source list reaches neither",
             pairsChecked,
             greaterThan(0)
         );
@@ -8433,13 +8431,15 @@ public class ParquetFormatReaderTests extends ESTestCase {
                 ErrorPolicy.STRICT
             )
         ) {
-            Exception e = expectThrows(
-                Exception.class,
+            InvalidArgumentException e = expectThrows(
+                InvalidArgumentException.class,
                 () -> Releasables.close(
                     extractor.extract(new String[] { "v" }, new DataType[] { DataType.INTEGER }, new long[] { 0L }, blockFactory)
                 )
             );
-            assertThat(e.getMessage(), containsString("v"));
+            assertThat(e.getMessage(), containsString("column [v]"));
+            assertThat(e.getMessage(), containsString("cannot read [long] as [integer]"));
+            assertThat(e.getMessage(), containsString("out of range for an integer"));
         }
     }
 
@@ -11815,7 +11815,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
 
     /**
      * A microsecond timestamp outside the nanosecond domain, read as a declared {@code date}. {@code date} is
-     * milliseconds and represents both of these exactly, and the decode no longer materialises nanoseconds on the
+     * milliseconds and represents both of these exactly, and the decode materialises no nanoseconds on the
      * way. Asserted on every route: the eager readers consult {@code fusedInDecode} themselves while the extractor
      * retypes its column view, so fixing one without the other makes the answer depend on the plan's shape.
      */
@@ -12291,6 +12291,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             LongBlock l = (LongBlock) it.next().getBlock(0);
             eager = l.isNull(0) ? Long.MIN_VALUE : l.getLong(0);
         }
+        assertEquals("the eager route is the oracle, so pin it too", 1704067200000L, eager);
         try (
             ColumnExtractor extractor = new ParquetColumnExtractor(storageObject, reader, footerOf(storageObject), ErrorPolicy.PERMISSIVE)
         ) {
@@ -12368,11 +12369,6 @@ public class ParquetFormatReaderTests extends ESTestCase {
      * slots replay that value. {@code stitchAndGather} filters with {@code mayContainDuplicates}, so one bucket
      * position can serve several requested positions, and {@code SkipWarnings.MAX_ADDED_WARNINGS} must not be spent
      * at the rate a caller happens to repeat a row.
-     *
-     * <p><b>This holds on both sides of the move of the cast into the decode loop</b>, so it pins the contract and
-     * not that change: measured green against the revision before it as well. An earlier reading of
-     * {@code stitchAndGather} predicted the post-stitch cast would charge one detail per slot; running it says
-     * otherwise, and the running is what counts.
      */
     public void testDeferredCoercionWarnsOncePerDecodedValueNotPerCallerSlot() throws Exception {
         MessageType schema = Types.buildMessage()

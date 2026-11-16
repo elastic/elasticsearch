@@ -1778,7 +1778,7 @@ final class PageColumnReader implements Releasable {
                 if (logicalType instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation
                     || logicalType instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation) {
                     for (int i = 0; i < count; i++) {
-                        values[offset + i] = ParquetColumnDecoding.convertTimestampToMillis(values[offset + i], logicalType);
+                        values[offset + i] = ParquetColumnDecoding.convertTemporalToMillis(values[offset + i], logicalType);
                     }
                 }
             }

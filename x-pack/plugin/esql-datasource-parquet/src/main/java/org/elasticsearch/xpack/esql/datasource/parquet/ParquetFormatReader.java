@@ -4871,7 +4871,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     values[i] = switch (decode) {
                         case DATE_DAYS -> ParquetColumnDecoding.dateDaysToMillis(cr.getInteger());
                         case INT32_EPOCH_MILLIS -> ParquetColumnDecoding.int32AsInferredLong(cr.getInteger(), info.logicalType());
-                        case INT64_EPOCH_MILLIS -> ParquetColumnDecoding.int64AsInferredLong(cr.getLong(), info.logicalType());
+                        case INT64_EPOCH_MILLIS -> ParquetColumnDecoding.int64AsMillis(cr.getLong(), info.logicalType());
                         case INT96, STRING_PARSE -> throw new AssertionError("handled before the loop: " + decode);
                     };
                 }

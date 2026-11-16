@@ -291,14 +291,16 @@ public class PushCountQueryAndTagsToSource extends PhysicalOptimizerRules.Optimi
      * cannot be merged, returns the original query.
      */
     private static Optional<EsQueryExec.QueryBuilderAndTags> tryMergeBoolQuery(EsQueryExec.QueryBuilderAndTags qbt) {
-        if (qbt.query() instanceof BoolQueryBuilder bqb && bqb.filter().size() == 2) {
+        // Any other clause of the query would be lost with the two filters that are merged or dropped
+        if (qbt.query() instanceof BoolQueryBuilder bqb && hasOnlyFilters(bqb, 2)) {
             QueryBuilder filter1 = bqb.filter().get(0);
             var range1 = tryExtractSingleRangeQuery(filter1);
             QueryBuilder filter2 = bqb.filter().get(1);
-            if (range1 != null && filter2 instanceof BoolQueryBuilder internalQuery && internalQuery.mustNot().size() == 1) {
+            if (range1 != null && filter2 instanceof BoolQueryBuilder internalQuery && hasOnlyMustNot(internalQuery)) {
                 QueryBuilder mustNot = internalQuery.mustNot().get(0);
-                if (mustNot instanceof ExistsQueryBuilder) {
-                    // Simple "must not exist" cases can be dropped since they never match anything when combined with a range.
+                if (mustNot instanceof ExistsQueryBuilder exists && exists.fieldName().equals(range1.fieldName())) {
+                    // Simple "must not exist" cases can be dropped since they never match anything when combined with a range
+                    // on the same field.
                     return Optional.empty();
                 }
                 if (mustNot instanceof SingleValueQuery.AbstractBuilder single
@@ -370,7 +372,7 @@ public class PushCountQueryAndTagsToSource extends PhysicalOptimizerRules.Optimi
         return switch (qb) {
             case RangeQueryBuilder rqb -> rqb;
             case SingleValueQuery.Builder single -> tryExtractSingleRangeQuery(single.next());
-            case BoolQueryBuilder bqb when bqb.filter().size() == 1 -> tryExtractSingleRangeQuery(bqb.filter().getFirst());
+            case BoolQueryBuilder bqb when hasOnlyFilters(bqb, 1) -> tryExtractSingleRangeQuery(bqb.filter().getFirst());
             default -> null;
         };
     }
@@ -382,9 +384,21 @@ public class PushCountQueryAndTagsToSource extends PhysicalOptimizerRules.Optimi
     private static @Nullable SingleValueQuery.AbstractBuilder trySingleValueCheck(QueryBuilder qb) {
         return switch (qb) {
             case SingleValueQuery.Builder single -> single;
-            case BoolQueryBuilder bqb when bqb.filter().size() == 1 -> trySingleValueCheck(bqb.filter().getFirst());
+            case BoolQueryBuilder bqb when hasOnlyFilters(bqb, 1) -> trySingleValueCheck(bqb.filter().getFirst());
             default -> null;
         };
+    }
+
+    /**
+     * Whether the query is nothing but the given number of filters. A query with any other clause is not the same as
+     * its filters, and can not be replaced by a query made from them.
+     */
+    private static boolean hasOnlyFilters(BoolQueryBuilder bool, int filters) {
+        return bool.filter().size() == filters && bool.must().isEmpty() && bool.should().isEmpty() && bool.mustNot().isEmpty();
+    }
+
+    private static boolean hasOnlyMustNot(BoolQueryBuilder bool) {
+        return bool.mustNot().size() == 1 && bool.filter().isEmpty() && bool.must().isEmpty() && bool.should().isEmpty();
     }
 
     enum BoundType {

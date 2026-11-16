@@ -118,6 +118,44 @@ public class CountByDateTruncMultiValueIT extends AbstractEsqlIntegTestCase {
         assertThat(run(query, filter, true), equalTo(expected));
     }
 
+    /**
+     * A filter of the query DSL with more clauses than the range on the date. They all apply to the count of every bucket,
+     * whether the dates are single valued, where the range is merged with the range of each bucket, or not.
+     */
+    public void testRequestFilterWithOtherClauses() {
+        String singleValued = "sv_dates";
+        client().admin()
+            .indices()
+            .prepareCreate(singleValued)
+            .setSettings(Settings.builder().put("index.number_of_shards", 1))
+            .setMapping("d", "type=date")
+            .get();
+        BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        bulk.add(client().prepareIndex(singleValued).setSource("d", "2015-01-05T00:00:00Z"));
+        bulk.add(client().prepareIndex(singleValued).setSource("d", "2015-01-20T00:00:00Z"));
+        bulk.add(client().prepareIndex(singleValued).setSource("d", "2015-02-15T00:00:00Z"));
+        assertFalse(bulk.get().hasFailures());
+
+        QueryBuilder filter = QueryBuilders.boolQuery()
+            .filter(QueryBuilders.rangeQuery("d").gte("2015-01-01T00:00:00Z"))
+            .mustNot(QueryBuilders.rangeQuery("d").gte("2015-02-01T00:00:00Z"));
+
+        String query = """
+             | STATS c = COUNT(*) BY bucket = DATE_TRUNC(1 month, d)
+             | SORT bucket
+            """;
+        List<List<Object>> expected = new ArrayList<>();
+        expected.add(List.of(2L, "2015-01-01T00:00:00.000Z"));
+        assertThat(run("FROM " + singleValued + query, filter, false), equalTo(expected));
+        assertThat(run("FROM " + singleValued + query, filter, true), equalTo(expected));
+
+        expected = new ArrayList<>();
+        expected.add(List.of(1L, "2015-01-01T00:00:00.000Z"));
+        expected.add(Arrays.asList(1L, null));
+        assertThat(run("FROM " + INDEX + query, filter, false), equalTo(expected));
+        assertThat(run("FROM " + INDEX + query, filter, true), equalTo(expected));
+    }
+
     private List<List<Object>> run(String query, boolean pushDown) {
         return run(query, null, pushDown);
     }

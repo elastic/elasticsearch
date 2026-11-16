@@ -8336,9 +8336,10 @@ public class ParquetFormatReaderTests extends ESTestCase {
      * {@code readListColumn} must recurse at the file's element type and cast, on the deferred route as on the eager
      * ones, element by element.
      *
-     * <p>Pins the half of the retype that no other test reaches: skipping the retype for a repeated column leaves
-     * every flat case passing, which is how this arrived unpinned. Asserts the elements themselves rather than
-     * agreement, so a mutation that breaks all three routes alike still fails.
+     * <p>Skipping the retype for a repeated column leaves every flat case in this class passing, so that half of
+     * it is pinned by the list tests alone -- three others here red on the same mutation. What this one adds is the
+     * assertion on the decoded elements rather than on agreement between the routes, so a mutation that breaks all
+     * three routes alike still fails it.
      */
     public void testDeferredDefusedListPairAgreesWithTheEagerRoutes() throws Exception {
         Type listType = Types.optionalList().optionalElement(PrimitiveType.PrimitiveTypeName.INT64).named("v");
@@ -11898,7 +11899,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * A {@code TIMESTAMP(MICROS)} column — Arrow's and Spark's default timestamp unit — infers {@code date_nanos}, so
+     * A {@code TIMESTAMP(MICROS)} column — the unit pyarrow writes for a {@code datetime64[us]} column — infers {@code date_nanos}, so
      * declaring it {@code date} narrows through {@code castBlock}. A value before 1970 is an ordinary instant for
      * {@code date}, and it must read rather than fail the whole column: the 1970 floor belongs to the source type.
      * The coercion is shared, but the {@code date_nanos} decode beneath it is not -- one decoder scales its batch
@@ -12290,6 +12291,59 @@ public class ParquetFormatReaderTests extends ESTestCase {
             LongBlock l = (LongBlock) it.next().getBlock(0);
             eager = l.isNull(0) ? Long.MIN_VALUE : l.getLong(0);
         }
+        try (
+            ColumnExtractor extractor = new ParquetColumnExtractor(storageObject, reader, footerOf(storageObject), ErrorPolicy.PERMISSIVE)
+        ) {
+            Block[] blocks = extractor.extract(
+                new String[] { "ts" },
+                new DataType[] { DataType.DATETIME },
+                new long[] { 0L },
+                blockFactory
+            );
+            try {
+                LongBlock l = (LongBlock) blocks[0];
+                Object deferred = l.isNull(0) ? null : l.getLong(0);
+                assertEquals("eager=" + eager + " deferred=" + deferred, (Object) 1704067200000L, deferred);
+            } finally {
+                Releasables.close(blocks);
+            }
+        }
+    }
+
+    /**
+     * The numeric half of the same contract, and the one the string tests above cannot reach. A bare {@code INT64}
+     * declared {@code date} with a {@code format} is <b>defused</b> -- {@code fusedInDecode(LONG, DATETIME, true)}
+     * is false, because the native epoch-millis loop cannot honor a format -- so the decode has to recurse at the
+     * file's type and let {@code castBlock} parse through the format, which reads 1704067200 as SECONDS.
+     *
+     * <p>Drop the formatter from the retyped view and the decode loop sees {@code hasDeclaredFormat == false},
+     * fuses the pair, and reinterprets the same number as epoch MILLIS: 1704067200 instead of 1704067200000, a
+     * silently wrong instant rather than a failure. The deferred format tests beside this one all read BINARY
+     * string columns, which take {@code STRING_PARSE} and carry the formatter by a different route, so none of
+     * them observes the numeric defuse.
+     */
+    public void testDeferredDefusedLongWithAFormatCoercesThroughCastBlock() throws Exception {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("ts").named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            g.add("ts", 1704067200L);
+            return List.of(g);
+        });
+        StorageObject storageObject = createStorageObject(parquetData, "memory://defused_long_format_deferred.parquet");
+        ParquetFormatReader reader = (ParquetFormatReader) declaredReader("ts").withDeclaredDateFormats(Map.of("ts", "epoch_second"));
+        List<Attribute> asDatetime = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME));
+        // The eager scan is the oracle: it has always defused this pair.
+        long eager;
+        try (
+            CloseableIterator<Page> it = reader.readRange(
+                storageObject,
+                new RangeReadContext(List.of("ts"), 10, 0, parquetData.length, asDatetime, ErrorPolicy.PERMISSIVE)
+            )
+        ) {
+            LongBlock l = (LongBlock) it.next().getBlock(0);
+            eager = l.isNull(0) ? Long.MIN_VALUE : l.getLong(0);
+        }
+        assertEquals("the eager route must read the format as seconds", 1704067200000L, eager);
         try (
             ColumnExtractor extractor = new ParquetColumnExtractor(storageObject, reader, footerOf(storageObject), ErrorPolicy.PERMISSIVE)
         ) {

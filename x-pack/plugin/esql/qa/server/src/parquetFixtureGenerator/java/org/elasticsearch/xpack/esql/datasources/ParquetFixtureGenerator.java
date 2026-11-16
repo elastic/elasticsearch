@@ -385,7 +385,8 @@ public final class ParquetFixtureGenerator {
                 .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MILLIS));
             case "date_nanos" -> Types.optional(PrimitiveType.PrimitiveTypeName.INT64)
                 .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.NANOS));
-            // The microsecond timestamp unit, which Arrow and Spark write by default. It has no ESQL type of its
+            // The microsecond timestamp unit, which pyarrow writes for a datetime64[us] column and Spark writes under
+            // TIMESTAMP_MICROS. It has no ESQL type of its
             // own -- it renders date_nanos, as the nanosecond unit does -- so the header name says the unit rather
             // than the rendered type, and its values are epoch microseconds.
             case "date_micros" -> Types.optional(PrimitiveType.PrimitiveTypeName.INT64)

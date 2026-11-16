@@ -76,9 +76,8 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.MinAndMax;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.MockLog;
-import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
@@ -534,14 +533,13 @@ public class SearchServiceTests extends IndexShardTestCase {
 
             ThreadPool threadPool = null;
             final Settings nodeSettings = Settings.builder()
-                .put("node.name", "testPrewarmingBasedOnQueuedItems")
                 .put("thread_pool." + threadPoolName + ".size", size)
                 .put("thread_pool." + threadPoolName + ".queue_size", queueSize)
                 .build();
             final CountDownLatch blockThreadPoolToQueueItems = new CountDownLatch(1);
 
             try {
-                threadPool = new ThreadPool(nodeSettings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
+                threadPool = new TestThreadPool("testPrewarmingBasedOnQueuedItems", nodeSettings);
                 ExecutorService executor = threadPool.executor(threadPoolName);
 
                 // these tasks will consume the thread pool causing further

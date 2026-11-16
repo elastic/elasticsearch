@@ -196,7 +196,6 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 "",
                 "",
                 "logs-1",
-                false,
                 EsqlExecutionInfo.Cluster.Status.SUCCESSFUL,
                 10,
                 10,
@@ -212,7 +211,6 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 "remote1",
                 "remote1",
                 "remote1:logs-1",
-                true,
                 EsqlExecutionInfo.Cluster.Status.SUCCESSFUL,
                 12,
                 12,
@@ -232,6 +230,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 || t == DataType.TIME_DURATION
                 || t == DataType.AGGREGATE_METRIC_DOUBLE
                 || t == DataType.TSID_DATA_TYPE
+                || t == DataType.TIME_SERIES_METADATA_DATA_TYPE
                 || t == DataType.DATE_RANGE
                 || t == DataType.PARTIAL_AGG,
             () -> randomFrom(DataType.types())
@@ -640,7 +639,6 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 clusterAlias,
                 clusterAlias,
                 indexExpression,
-                true,
                 EsqlExecutionInfo.Cluster.Status.valueOf(status.toUpperCase(Locale.ROOT)),
                 totalShardsFinal,
                 successfulShardsFinal,

@@ -11,6 +11,7 @@ package org.elasticsearch.search.internal;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.collapse.CollapseContext;
 import org.elasticsearch.search.fetch.FetchSearchResult;
@@ -18,6 +19,7 @@ import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -50,17 +52,52 @@ public class SubSearchContext extends FilteredSearchContext {
     private boolean version;
     private boolean seqNoAndPrimaryTerm;
 
-    @SuppressWarnings("this-escape")
     public SubSearchContext(SearchContext context) {
+        this(context, true);
+    }
+
+    @SuppressWarnings("this-escape")
+    private SubSearchContext(SearchContext context, boolean releaseWithSource) {
         super(context);
-        context.addReleasable(this);
+        if (releaseWithSource) {
+            context.addReleasable(this);
+        }
         this.fetchSearchResult = new FetchSearchResult();
         addReleasable(fetchSearchResult::decRef);
         this.querySearchResult = new QuerySearchResult();
     }
 
     public SubSearchContext(SubSearchContext subSearchContext) {
-        this((SearchContext) subSearchContext);
+        this(subSearchContext, true);
+    }
+
+    /**
+     * Copies {@code source} for a caller that makes many copies, like a {@code top_hits} that fetches the hits of each bucket. The
+     * source does not keep the copy, so the caller must close it. The copy uses the given execution and inner hits contexts.
+     */
+    public static SubSearchContext copyClosedByCaller(
+        SubSearchContext source,
+        SearchExecutionContext searchExecutionContext,
+        InnerHitsContext innerHits
+    ) {
+        return new SubSearchContext(source, false) {
+            @Override
+            public SearchExecutionContext getSearchExecutionContext() {
+                return searchExecutionContext;
+            }
+
+            @Override
+            public InnerHitsContext innerHits() {
+                return innerHits;
+            }
+        };
+    }
+
+    /**
+     * Copies {@code subSearchContext}. With {@code releaseWithSource}, the source releases the copy and keeps it referenced until then.
+     */
+    private SubSearchContext(SubSearchContext subSearchContext, boolean releaseWithSource) {
+        this((SearchContext) subSearchContext, releaseWithSource);
         this.from = subSearchContext.from;
         this.size = subSearchContext.size;
         this.sort = subSearchContext.sort;

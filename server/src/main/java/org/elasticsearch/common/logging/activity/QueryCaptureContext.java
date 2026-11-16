@@ -69,6 +69,10 @@ public abstract class QueryCaptureContext {
         return type;
     }
 
+    public String getAction() {
+        return type + "-query";
+    }
+
     public String getErrorMessage() {
         return error == null ? "" : error.getMessage();
     }

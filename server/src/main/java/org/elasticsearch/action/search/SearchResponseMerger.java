@@ -44,7 +44,6 @@ import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.transport.LeakTracker;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -321,7 +320,6 @@ public final class SearchResponseMerger implements Releasable {
             InternalAggregations reducedAggs = aggs.isEmpty()
                 ? InternalAggregations.EMPTY
                 : InternalAggregations.topLevelReduce(aggs, aggReduceContextBuilder.forFinalReduction(topHitsToRelease));
-            ShardSearchFailure[] shardFailures = failures.toArray(ShardSearchFailure.EMPTY_ARRAY);
             SearchProfileResults searchProfileResults = shardProfileResults.isEmpty()
                 ? null
                 : new SearchProfileResults(shardProfileResults);
@@ -331,7 +329,7 @@ public final class SearchResponseMerger implements Releasable {
             }
 
             // make failures ordering consistent between ordinary search and CCS by looking at the shard they come from
-            Arrays.sort(shardFailures, FAILURES_COMPARATOR);
+            failures.sort(FAILURES_COMPARATOR);
             long tookInMillis = searchTimeProvider.buildTookInMillis();
             SearchResponse mergedResponse = new SearchResponse(
                 mergedSearchHits,
@@ -346,7 +344,7 @@ public final class SearchResponseMerger implements Releasable {
                 successfulShards,
                 skippedShards,
                 tookInMillis,
-                shardFailures,
+                failures,
                 clusters,
                 null,
                 topHitsToRelease,

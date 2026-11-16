@@ -118,13 +118,56 @@ public class EsqlDatafeedQueryParserTests extends ESTestCase {
         assertThat(query.filtersOn("a"), is(true));
     }
 
-    public void testForkShouldEndTopLevelPipeline() {
+    public void testForkShouldSkipBranchesButKeepSharedPrefix() {
         ParsedEsqlQuery query = parser.parse("FROM t | WHERE b > 1 | FORK (WHERE a > 1 | LIMIT 5) (WHERE a < 1) | LIMIT 3");
+        assertThat(query.outputLimit(), equalTo(OptionalInt.of(3)));
+        assertThat(query.filtersOn("a"), is(false));
+        assertThat(query.filtersOn("b"), is(true));
+        assertThat(query.indexPatterns(), contains("t"));
+        assertThat(query.sourceWithPipeline("LIMIT 0"), equalTo("FROM t\n| LIMIT 0"));
+    }
+
+    public void testStatsBeforeForkShouldCountAsAggregation() {
+        ParsedEsqlQuery query = parser.parse("FROM t | STATS c = COUNT(*) BY h | FORK (WHERE c > 1) (WHERE c < 1)");
+        assertThat(query.aggregates(), is(true));
+    }
+
+    public void testLimitBeforeForkShouldNotCapOutput() {
+        ParsedEsqlQuery query = parser.parse("FROM t | LIMIT 10 | FORK (WHERE a > 1) (WHERE a < 1)");
+        assertThat(query.outputLimit(), equalTo(OptionalInt.empty()));
+    }
+
+    public void testSingleBranchForkShouldSkipEverythingBelow() {
+        ParsedEsqlQuery query = parser.parse("FROM t | WHERE b > 1 | FORK (WHERE a > 1) | LIMIT 3");
         assertThat(query.outputLimit(), equalTo(OptionalInt.of(3)));
         assertThat(query.filtersOn("a"), is(false));
         assertThat(query.filtersOn("b"), is(false));
         assertThat(query.indexPatterns(), contains("t"));
-        assertThat(query.sourceWithPipeline("LIMIT 0"), equalTo("FROM t\n| LIMIT 0"));
+    }
+
+    public void testLimitBeforeMvExpandShouldNotCapOutput() {
+        assertThat(parser.parse("FROM t | LIMIT 10 | MV_EXPAND x").outputLimit(), equalTo(OptionalInt.empty()));
+        assertThat(parser.parse("FROM t | MV_EXPAND x | LIMIT 5").outputLimit(), equalTo(OptionalInt.of(5)));
+    }
+
+    public void testLimitBeforeLookupJoinShouldNotCapOutput() {
+        assertThat(parser.parse("FROM t | LIMIT 10 | LOOKUP JOIN l ON k").outputLimit(), equalTo(OptionalInt.empty()));
+    }
+
+    public void testLimitBeforeMvExpandAndStatsShouldStillLimitAggregation() {
+        ParsedEsqlQuery query = parser.parse("FROM t | LIMIT 500 | MV_EXPAND x | STATS c = COUNT(*)");
+        assertThat(query.limitBeforeAggregation(), equalTo(OptionalInt.of(500)));
+        assertThat(query.outputLimit(), equalTo(OptionalInt.empty()));
+    }
+
+    public void testParsedCollectionsShouldBeUnmodifiable() {
+        ParsedEsqlQuery query = parser.parse("FROM t | WHERE a > 1");
+        expectThrows(UnsupportedOperationException.class, () -> query.indexPatterns().add("x"));
+    }
+
+    public void testExclusionPatternShouldBeReportedAsWritten() {
+        ParsedEsqlQuery query = parser.parse("FROM logs-*, -logs-secret");
+        assertThat(query.indexPatterns(), containsInAnyOrder("logs-*", "-logs-secret"));
     }
 
     public void testLimitBeforeStatsShouldNotCapOutput() {

@@ -23,19 +23,23 @@ import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
+import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.ParsedEsqlQuery;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -49,12 +53,15 @@ import java.util.stream.Collectors;
 /** {@link EsqlQueryParser} for ES|QL datafeeds, backed by {@link EsqlParser}. It parses only: nothing is resolved against mappings. */
 public class EsqlDatafeedQueryParser implements EsqlQueryParser {
 
-    private final EsqlParser parser = new EsqlParser(new EsqlConfig(new EsqlFunctionRegistry()));
-    private final PreAnalyzer preAnalyzer = new PreAnalyzer();
+    /** Built on first use, so loading this provider at node startup does not build a function registry. */
+    private static final class Holder {
+        static final EsqlParser PARSER = new EsqlParser(new EsqlConfig(new EsqlFunctionRegistry()));
+        static final PreAnalyzer PRE_ANALYZER = new PreAnalyzer();
+    }
 
     @Override
     public ParsedEsqlQuery parse(String query) {
-        EsqlStatement statement = parser.parse(
+        EsqlStatement statement = Holder.PARSER.parse(
             query,
             new QueryParams(),
             new InferenceSettings(Settings.EMPTY),
@@ -64,7 +71,7 @@ public class EsqlDatafeedQueryParser implements EsqlQueryParser {
         LogicalPlan plan = statement.plan();
         TopLevelPipeline pipeline = TopLevelPipeline.of(plan);
         Set<String> indexPatterns = new TreeSet<>();
-        preAnalyzer.preAnalyze(plan)
+        Holder.PRE_ANALYZER.preAnalyze(plan)
             .indexes()
             .keySet()
             .forEach(pattern -> indexPatterns.addAll(List.of(Strings.splitStringByCommaToArray(pattern.indexPattern()))));
@@ -104,23 +111,27 @@ public class EsqlDatafeedQueryParser implements EsqlQueryParser {
 
     /** What datafeeds ask of the commands after the source, collected in one walk from the last command to the source. */
     private static final class TopLevelPipeline {
-        private final List<int[]> limitsWithAggregationsAbove = new ArrayList<>();
+        private record LimitPosition(int value, int aggregatesAbove, boolean rowsExpandedAbove) {}
+
+        private final List<LimitPosition> limits = new ArrayList<>();
         private final Set<String> filterFields = new LinkedHashSet<>();
         private final Set<String> sortFields = new LinkedHashSet<>();
         private LogicalPlan source;
         private int aggregates;
+        private boolean rowsExpanded;
 
         static TopLevelPipeline of(LogicalPlan plan) {
             TopLevelPipeline pipeline = new TopLevelPipeline();
-            boolean topLevel = true;
             LogicalPlan node = plan;
-            // FROM with subqueries is the source command and FORK ends the top-level pipeline; both lead on through the first child.
+            // FROM with subqueries is the source command and leads on through the first child. FORK branches are skipped: the walk
+            // continues at the input all branches share.
             while (node instanceof UnionAll == false && node.children().isEmpty() == false) {
-                if (node instanceof MergePlan) {
-                    topLevel = false;
-                } else if (topLevel) {
-                    pipeline.visit(node);
+                if (node instanceof Fork fork) {
+                    pipeline.rowsExpanded = true;
+                    node = sharedInput(fork);
+                    continue;
                 }
+                pipeline.visit(node);
                 node = node instanceof InlineStats inline && inline.child() instanceof Aggregate aggregate
                     ? aggregate.child()
                     : node.children().getFirst();
@@ -129,9 +140,27 @@ public class EsqlDatafeedQueryParser implements EsqlQueryParser {
             return pipeline;
         }
 
+        /** The plan all branches of {@code fork} read, or the source of the first branch when it cannot be found (one branch). */
+        private static LogicalPlan sharedInput(Fork fork) {
+            List<LogicalPlan> branches = fork.children();
+            Set<LogicalPlan> second = Collections.newSetFromMap(new IdentityHashMap<>());
+            if (branches.size() > 1) {
+                for (LogicalPlan n = branches.get(1); n != null; n = n.children().isEmpty() ? null : n.children().getFirst()) {
+                    second.add(n);
+                }
+            }
+            LogicalPlan n = branches.getFirst();
+            while (second.contains(n) == false && n.children().isEmpty() == false) {
+                n = n.children().getFirst();
+            }
+            return n;
+        }
+
         private void visit(LogicalPlan node) {
             switch (node) {
-                case Limit limit -> limitsWithAggregationsAbove.add(new int[] { limitValue(limit), aggregates });
+                case Limit limit -> limits.add(new LimitPosition(limitValue(limit), aggregates, rowsExpanded));
+                case MvExpand ignored -> rowsExpanded = true;
+                case LookupJoin ignored -> rowsExpanded = true;
                 case Aggregate ignored -> aggregates++;
                 case Filter filter -> addFields(filter, filterFields);
                 case OrderBy orderBy -> addFields(orderBy, sortFields);
@@ -152,16 +181,19 @@ public class EsqlDatafeedQueryParser implements EsqlQueryParser {
 
         /** Limits after the last STATS of the query, or all limits when there is no STATS. */
         OptionalInt outputLimit() {
-            return minLimit(0);
+            return minLimit(0, false);
         }
 
         /** Limits before the first STATS of the query. */
         OptionalInt limitBeforeAggregation() {
-            return aggregates == 0 ? OptionalInt.empty() : minLimit(aggregates);
+            return aggregates == 0 ? OptionalInt.empty() : minLimit(aggregates, true);
         }
 
-        private OptionalInt minLimit(int aggregatesAbove) {
-            return limitsWithAggregationsAbove.stream().filter(limit -> limit[1] == aggregatesAbove).mapToInt(limit -> limit[0]).min();
+        private OptionalInt minLimit(int aggregatesAbove, boolean ignoreRowExpanders) {
+            return limits.stream()
+                .filter(limit -> limit.aggregatesAbove() == aggregatesAbove && (ignoreRowExpanders || limit.rowsExpandedAbove() == false))
+                .mapToInt(LimitPosition::value)
+                .min();
         }
     }
 
@@ -178,6 +210,13 @@ public class EsqlDatafeedQueryParser implements EsqlQueryParser {
         Set<String> filterFields,
         Set<String> sortFields
     ) implements ParsedEsqlQuery {
+
+        Parsed {
+            settings = Collections.unmodifiableMap(settings);
+            indexPatterns = Collections.unmodifiableSet(indexPatterns);
+            filterFields = Collections.unmodifiableSet(filterFields);
+            sortFields = Collections.unmodifiableSet(sortFields);
+        }
 
         @Override
         public Optional<String> setting(String name) {

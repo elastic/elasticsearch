@@ -12,15 +12,18 @@ import java.util.OptionalInt;
 import java.util.Set;
 
 /**
- * A parsed ES|QL datafeed query. Top-level means the commands after the source, up to a {@code FORK}; subqueries and branches are
- * not considered. Names are as written: nothing is checked against mappings and {@code EVAL} or {@code RENAME} are not followed.
+ * A parsed ES|QL datafeed query. Top-level means the commands from the source to the end; FORK branch bodies and several-subquery FROM
+ * bodies are skipped, while commands before a FORK count. A single-branch FORK skips all below it. Names are as written, not resolved.
  */
 public interface ParsedEsqlQuery {
 
     /** Whether the query reads indices with {@code FROM} or {@code TS}, as opposed to {@code ROW} or {@code SHOW}. */
     boolean readsIndices();
 
-    /** Index patterns the query reads, one pattern per entry, including subqueries. Lookup indices are not included. */
+    /**
+     * Index patterns the query reads, one pattern per entry, as written (exclusions such as {@code -logs-secret} included), including
+     * subqueries. Lookup indices are not included.
+     */
     Set<String> indexPatterns();
 
     /** The value of {@code SET name=value;}, as text. */
@@ -29,7 +32,10 @@ public interface ParsedEsqlQuery {
     /** Whether the top-level pipeline has a {@code STATS}. */
     boolean aggregates();
 
-    /** The smallest {@code LIMIT} that caps the output rows: one after the last {@code STATS}, or any without {@code STATS}. */
+    /**
+     * The smallest {@code LIMIT} that caps the output rows: one after the last {@code STATS}, or any without {@code STATS}. A
+     * {@code LIMIT} followed by {@code FORK}, {@code MV_EXPAND} or {@code LOOKUP JOIN} does not cap the output, as these can add rows.
+     */
     OptionalInt outputLimit();
 
     /** The smallest {@code LIMIT} that runs before the first {@code STATS}, so it restricts the aggregated source rows. */

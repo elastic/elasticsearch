@@ -1,7 +1,8 @@
 #!/bin/bash
 #
 # Validates that the configuration cache entry for the given Gradle tasks is reused.
-# The tasks are run three times:
+# The task graph is configured three times with --dry-run, so test failures cannot
+# prevent us from checking configuration cache reuse:
 #   1. without the configuration cache, to warm up (workaround for
 #      https://github.com/gradle/gradle/issues/28159, precompiled script plugins
 #      require an additional run before their configuration cache entry is reusable)
@@ -19,6 +20,10 @@ if [[ $# -eq 0 ]]; then
   exit 1
 fi
 
+# Without a seed, TestSeedValueSource generates a new value on every invocation
+# and invalidates the configuration cache even though no tests run in --dry-run.
+export TESTS_SEED="${TESTS_SEED:-DEADBEEF}"
+
 readonly CONFIGURATION_CACHE_ARGS=(
   --configuration-cache
   "-Dorg.gradle.configuration-cache.inputs.unsafe.ignore.file-system-checks=build/*.tar.bz2"
@@ -26,17 +31,17 @@ readonly CONFIGURATION_CACHE_ARGS=(
 
 # Note: run-gradle.sh launches Gradle through the Tooling API, which rejects daemon
 # options such as --no-daemon.
-echo "--- Warm-up run without configuration cache: $*"
-.ci/scripts/run-gradle.sh "$@"
+echo "--- Warm-up dry run without configuration cache: $*"
+.ci/scripts/run-gradle.sh --dry-run "$@"
 
-echo "--- First run with configuration cache (stores the entry): $*"
-.ci/scripts/run-gradle.sh "${CONFIGURATION_CACHE_ARGS[@]}" "$@"
+echo "--- First dry run with configuration cache (stores the entry): $*"
+.ci/scripts/run-gradle.sh --dry-run "${CONFIGURATION_CACHE_ARGS[@]}" "$@"
 
 tmpOutputFile=$(mktemp)
 trap 'rm -f "$tmpOutputFile"' EXIT
 
-echo "--- Second run with configuration cache (must reuse the entry): $*"
-.ci/scripts/run-gradle.sh "${CONFIGURATION_CACHE_ARGS[@]}" "$@" | tee "$tmpOutputFile"
+echo "--- Second dry run with configuration cache (must reuse the entry): $*"
+.ci/scripts/run-gradle.sh --dry-run "${CONFIGURATION_CACHE_ARGS[@]}" "$@" | tee "$tmpOutputFile"
 
 if grep -q "Configuration cache entry reused." "$tmpOutputFile"; then
   echo "Gradle configuration cache reused"

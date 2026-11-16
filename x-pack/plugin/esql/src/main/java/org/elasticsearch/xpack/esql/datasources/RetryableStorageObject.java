@@ -105,8 +105,10 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
      * storage-classified fault — a transport {@link IOException} or an {@link ExternalUnavailableException}), a
      * throttled error when that fault was a provider throttle, and — always, regardless of fault type — the
      * cumulative backoff spent getting there as a read stall. Shared by the sync give-up ({@link #storageTelemetry})
-     * and both async terminal branches (retry exhausted, and the scheduler-rejected retry). Each terminal path
-     * calls this once, so a single failure is never double-counted.
+     * and both async terminal branches (retry exhausted, and the scheduler-rejected retry). The scheduler-rejected
+     * branch records the store fault that caused the retry, not the refusal itself: a refusal is not a storage
+     * error, and classifying it would skip the counters. Each terminal path calls this once, so a single failure
+     * is never double-counted.
      */
     private void recordTerminalFailure(Throwable failure, long backoffMillis) {
         try {
@@ -519,10 +521,13 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
                         executor
                     );
                 } catch (Exception rejected) {
-                    // Scheduler/executor rejected the retry (e.g. shutdown or saturated queue) — a terminal failure.
-                    // Record it (mirroring the give-up branch: error + accumulated read-stall; the pending backoff
-                    // was never actually slept) and surface it so the listener is always completed, never dropped.
-                    recordTerminalFailure(rejected, accumulatedBackoffMillis);
+                    // Scheduler refused the retry (shutdown or saturated queue). Surface the refusal so the
+                    // listener completes with 429, but attach and record the store fault that caused the retry —
+                    // otherwise the only record of the outage is dropped, and the error counters ignore the
+                    // refusal type. Suppression rather than cause: EsRejectedExecutionException has no
+                    // cause-taking constructor, and query classification uses the primary type (not suppressed).
+                    rejected.addSuppressed(e);
+                    recordTerminalFailure(e, accumulatedBackoffMillis);
                     listener.onFailure(rejected);
                 }
             }

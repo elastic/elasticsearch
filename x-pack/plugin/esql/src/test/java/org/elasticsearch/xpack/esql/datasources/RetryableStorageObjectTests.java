@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -58,6 +59,7 @@ import java.util.function.BooleanSupplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
@@ -260,6 +262,117 @@ public class RetryableStorageObjectTests extends ESTestCase {
         assertNotNull("async read should deliver a buffer after the scheduled retry", result.get());
         assertEquals("the single transient failure must reschedule exactly one retry continuation", 1, scheduledDelays.size());
         assertEquals("the read must succeed on the second attempt", 2, attempts.get());
+    }
+
+    /**
+     * When the retry scheduler refuses the continuation, the caller still sees that refusal (429 / shutdown)
+     * but the store fault that caused the retry stays reachable as a suppressed exception. The listener is
+     * completed exactly once — the property the branch already had and must keep.
+     */
+    public void testASchedulerRefusalKeepsTheStorageFailure() {
+        ExternalUnavailableException store = storeUnavailable("S3 store unavailable");
+        RetryableStorageObject object = new RetryableStorageObject(
+            new AlwaysFailingStorageObject(StoragePath.of("s3://b/x"), store),
+            new RetryPolicy(3, 5, 50),
+            refusingScheduler()
+        );
+
+        AtomicInteger completions = new AtomicInteger();
+        PlainActionFuture<DirectReadBuffer> future = new PlainActionFuture<>();
+        object.readBytesAsync(
+            0,
+            16,
+            len -> new DirectReadBuffer(ByteBuffer.allocate(len), () -> {}),
+            Runnable::run,
+            ActionListener.runAfter(future, completions::incrementAndGet)
+        );
+
+        EsRejectedExecutionException thrown = expectThrows(EsRejectedExecutionException.class, future::actionGet);
+        assertTrue("the refusal is a shutdown rejection", thrown.isExecutorShutdown());
+        assertThat(Arrays.asList(thrown.getSuppressed()), hasItem(store));
+        assertThat(thrown.getMessage(), containsString("rejected"));
+        assertEquals("the listener must complete exactly once", 1, completions.get());
+    }
+
+    /**
+     * The scheduler-refusal give-up must be counted as the store fault, not the refusal. A refusal is
+     * neither an {@link IOException} nor an {@link ExternalUnavailableException}, so recording it would
+     * skip {@code storage.errors} / {@code storage.throttled} for a read that really ended in a store outage.
+     */
+    public void testASchedulerRefusalCountsAStorageError() {
+        assertSchedulerRefusalTelemetry(storeUnavailable("S3 store unavailable"), false);
+        assertSchedulerRefusalTelemetry(
+            new ExternalUnavailableException(Condition.STORE_THROTTLED, StoragePath.of("s3://b/x"), "HTTP 429 SlowDown", "", true, 0L),
+            true
+        );
+    }
+
+    /**
+     * The sibling of the scheduler-refusal branch: exhausting the retry budget still surfaces the store
+     * fault itself, never a scheduler exception, and still counts it as a storage error.
+     */
+    public void testRetryExhaustedStillReportsTheStorageFailure() {
+        ExternalUnavailableException store = storeUnavailable("S3 store unavailable");
+        RecordingMeterRegistry registry = new RecordingMeterRegistry();
+        RetryableStorageObject object = new RetryableStorageObject(
+            new AlwaysFailingStorageObject(StoragePath.of("s3://b/x"), store),
+            RetryPolicy.NONE,
+            (command, delayMillis, executor) -> fail("exhausted budget must not schedule a retry")
+        );
+        object.attachMetrics(new ExternalSourceMetrics(registry), "s3");
+
+        PlainActionFuture<DirectReadBuffer> future = new PlainActionFuture<>();
+        object.readBytesAsync(0, 16, len -> new DirectReadBuffer(ByteBuffer.allocate(len), () -> {}), Runnable::run, future);
+
+        ExternalUnavailableException thrown = expectThrows(ExternalUnavailableException.class, future::actionGet);
+        assertSame(store, thrown);
+        Measurement error = single(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_ERRORS_TOTAL);
+        assertThat(error.getLong(), equalTo(1L));
+        assertThat(error.attributes().get(ExternalSourceMetrics.ERROR_TYPE_ATTRIBUTE), equalTo("storage_unavailable"));
+        assertThat(measurements(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_THROTTLED_TOTAL), hasSize(0));
+    }
+
+    private static void assertSchedulerRefusalTelemetry(ExternalUnavailableException store, boolean throttled) {
+        RecordingMeterRegistry registry = new RecordingMeterRegistry();
+        RetryableStorageObject object = new RetryableStorageObject(
+            new AlwaysFailingStorageObject(StoragePath.of("s3://b/x"), store),
+            new RetryPolicy(3, 5, 50),
+            refusingScheduler()
+        );
+        object.attachMetrics(new ExternalSourceMetrics(registry), "s3");
+
+        PlainActionFuture<DirectReadBuffer> future = new PlainActionFuture<>();
+        object.readBytesAsync(0, 16, len -> new DirectReadBuffer(ByteBuffer.allocate(len), () -> {}), Runnable::run, future);
+        expectThrows(EsRejectedExecutionException.class, future::actionGet);
+
+        Measurement error = single(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_ERRORS_TOTAL);
+        assertThat(error.getLong(), equalTo(1L));
+        assertThat(
+            error.attributes().get(ExternalSourceMetrics.ERROR_TYPE_ATTRIBUTE),
+            equalTo(throttled ? "storage_throttled" : "storage_unavailable")
+        );
+        if (throttled) {
+            assertThat(single(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_THROTTLED_TOTAL).getLong(), equalTo(1L));
+        } else {
+            assertThat(measurements(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_THROTTLED_TOTAL), hasSize(0));
+        }
+    }
+
+    private static ExternalUnavailableException storeUnavailable(String detail) {
+        ExternalUnavailableException store = new ExternalUnavailableException(
+            Condition.STORE_UNAVAILABLE,
+            StoragePath.of("s3://b/x"),
+            "",
+            "",
+            false,
+            0L
+        );
+        store.setDetail(detail);
+        return store;
+    }
+
+    private static RetryScheduler refusingScheduler() {
+        return (command, delayMillis, executor) -> { throw new EsRejectedExecutionException("rejected", true); };
     }
 
     /**
@@ -2718,6 +2831,17 @@ public class RetryableStorageObjectTests extends ESTestCase {
         @Override
         public int readBytes(long position, ByteBuffer target) {
             throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void readBytesAsync(
+            long position,
+            long length,
+            DirectBufferFactory factory,
+            Executor executor,
+            ActionListener<DirectReadBuffer> listener
+        ) {
+            listener.onFailure(failure);
         }
 
         @Override

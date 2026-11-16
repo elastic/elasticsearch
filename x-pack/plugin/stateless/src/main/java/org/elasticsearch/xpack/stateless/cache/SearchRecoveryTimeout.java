@@ -30,36 +30,84 @@ public record SearchRecoveryTimeout(TimeValue timeout, TimeoutContext timeoutCon
     /// [#extendable()]: whether the slice of a plan with this context may be followed by another one. When `false`, the re-evaluation loop
     /// completes the recovery wait with a timeout immediately on first expiry without re-reading the cluster state or rescheduling,
     /// regardless of the node-level re-evaluation setting. Whether a given re-evaluated plan may follow the previous one is decided
-    /// separately, see [SearchRecoveryTimeout#shouldExtendAfter].
+    /// separately, see [SearchRecoveryTimeout#shouldExtendAfter] and [MayFollow].
+    ///
+    /// `phase` and `mayFollow`: the rule for a re-evaluated plan following the previous one lives in these attributes of the
+    /// contexts, so a new context only has to state its own.
     public enum TimeoutContext {
-        SKIP("", false),
-        NON_RELOCATION_ANOTHER_ACTIVE_COPY("not a relocation, another active shard copy", true),
-        RESHARD_SPLIT_TARGET("reshard split target", false),
-        RELOCATION_SOURCE_NOT_SHUTTING_DOWN_NO_CLUSTER_SHUTDOWN("relocation source not shutting down, no cluster shutdown", true),
+        SKIP("", false, Phase.OTHER, MayFollow.NO_PLAN, false),
+        NON_RELOCATION_ANOTHER_ACTIVE_COPY("not a relocation, another active shard copy", true, Phase.OTHER, MayFollow.ANY_PLAN, false),
+        RESHARD_SPLIT_TARGET("reshard split target", false, Phase.OTHER, MayFollow.NO_PLAN, false),
+        RELOCATION_SOURCE_NOT_SHUTTING_DOWN_NO_CLUSTER_SHUTDOWN(
+            "relocation source not shutting down, no cluster shutdown",
+            true,
+            Phase.OTHER,
+            MayFollow.ANY_PLAN,
+            false
+        ),
         RELOCATION_SOURCE_NOT_SHUTTING_DOWN_CLUSTER_SHUTDOWN_METADATA_PRESENT(
             "relocation source not shutting down, cluster shutdown metadata present",
-            true
+            true,
+            Phase.CLUSTER_SHUTDOWN_METADATA_PRESENT,
+            MayFollow.PLAN_OF_ANOTHER_PHASE,
+            false
         ),
-        RELOCATION_SOURCE_SHUTTING_DOWN_GRACE_ELAPSED("relocation source shutting down (grace period elapsed)", false),
+        RELOCATION_SOURCE_SHUTTING_DOWN_GRACE_ELAPSED(
+            "relocation source shutting down (grace period elapsed)",
+            false,
+            Phase.SOURCE_SHUTTING_DOWN,
+            MayFollow.NO_PLAN,
+            false
+        ),
+        // A full data-volume or warm-amount share is only handed out as the first plan once the source started shutting down. Within the
+        // shutdown phase only the time saved by shards that finished earlier than planned is handed out; the calculation service never
+        // produces a data-volume or warm-amount plan then, so this is a safeguard.
         RELOCATION_SOURCE_SHUTTING_DOWN_DATA_VOLUME(
             "relocation source shutting down (data volume proportional share of remaining time to capped grace deadline)",
+            false,
+            Phase.SOURCE_SHUTTING_DOWN,
+            MayFollow.PLAN_OF_ANOTHER_PHASE,
             false
         ),
         RELOCATION_SOURCE_SHUTTING_DOWN_WARM_AMOUNT(
             "relocation source shutting down (warm amount share of remaining time to capped grace deadline)",
+            false,
+            Phase.SOURCE_SHUTTING_DOWN,
+            MayFollow.PLAN_OF_ANOTHER_PHASE,
             false
         ),
         RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE(
             "relocation source shutting down (equal share of remaining time to capped grace deadline)",
+            true,
+            Phase.SOURCE_SHUTTING_DOWN,
+            MayFollow.ANY_PLAN,
             true
         );
 
+        private enum Phase {
+            SOURCE_SHUTTING_DOWN,
+            CLUSTER_SHUTDOWN_METADATA_PRESENT,
+            OTHER
+        }
+
+        private enum MayFollow {
+            NO_PLAN,
+            ANY_PLAN,
+            PLAN_OF_ANOTHER_PHASE
+        }
+
         private final String description;
         private final boolean extendable;
+        private final Phase phase;
+        private final MayFollow mayFollow;
+        private final boolean equalShare;
 
-        TimeoutContext(String description, boolean extendable) {
+        TimeoutContext(String description, boolean extendable, Phase phase, MayFollow mayFollow, boolean equalShare) {
             this.description = description;
             this.extendable = extendable;
+            this.phase = phase;
+            this.mayFollow = mayFollow;
+            this.equalShare = equalShare;
         }
 
         public String description() {
@@ -68,17 +116,6 @@ public record SearchRecoveryTimeout(TimeValue timeout, TimeoutContext timeoutCon
 
         public boolean extendable() {
             return extendable;
-        }
-
-        /// Whether the plan was computed for a relocation whose source node is shutting down, i.e. against the grace deadline.
-        public boolean sourceShuttingDown() {
-            return switch (this) {
-                case RELOCATION_SOURCE_SHUTTING_DOWN_GRACE_ELAPSED, RELOCATION_SOURCE_SHUTTING_DOWN_DATA_VOLUME,
-                    RELOCATION_SOURCE_SHUTTING_DOWN_WARM_AMOUNT, RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE -> true;
-                case SKIP, NON_RELOCATION_ANOTHER_ACTIVE_COPY, RESHARD_SPLIT_TARGET,
-                    RELOCATION_SOURCE_NOT_SHUTTING_DOWN_NO_CLUSTER_SHUTDOWN,
-                    RELOCATION_SOURCE_NOT_SHUTTING_DOWN_CLUSTER_SHUTDOWN_METADATA_PRESENT -> false;
-            };
         }
     }
 
@@ -94,23 +131,15 @@ public record SearchRecoveryTimeout(TimeValue timeout, TimeoutContext timeoutCon
     /// already checked that `previous` is [#extendable()], so only rules about this plan and the transition between the two live here.
     public boolean shouldExtendAfter(SearchRecoveryTimeout previous) {
         assert previous.extendable();
-        return switch (timeoutContext) {
-            // A full data-volume or warm-amount share is only handed out as the first plan once the source started shutting down.
-            // Within the shutdown phase only the time saved by shards that finished earlier than planned is handed out; the calculation
-            // service never produces a data-volume or warm-amount plan then, so this is a safeguard.
-            case RELOCATION_SOURCE_SHUTTING_DOWN_DATA_VOLUME, RELOCATION_SOURCE_SHUTTING_DOWN_WARM_AMOUNT -> previous.timeoutContext
-                .sourceShuttingDown() == false;
-            case RELOCATION_SOURCE_NOT_SHUTTING_DOWN_CLUSTER_SHUTDOWN_METADATA_PRESENT ->
-                previous.timeoutContext != TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_CLUSTER_SHUTDOWN_METADATA_PRESENT;
-            // timed out or not applicable
-            case SKIP, RELOCATION_SOURCE_SHUTTING_DOWN_GRACE_ELAPSED, RESHARD_SPLIT_TARGET -> false;
-            case NON_RELOCATION_ANOTHER_ACTIVE_COPY, RELOCATION_SOURCE_NOT_SHUTTING_DOWN_NO_CLUSTER_SHUTDOWN,
-                RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE -> true;
+        return switch (timeoutContext.mayFollow) {
+            case NO_PLAN -> false;
+            case ANY_PLAN -> true;
+            case PLAN_OF_ANOTHER_PHASE -> previous.timeoutContext.phase != timeoutContext.phase;
         };
     }
 
     public boolean isEqualSharePlan() {
-        return timeoutContext == TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE;
+        return timeoutContext.equalShare;
     }
 
     /// When `true`, recovery should use [SharedBlobCacheWarmingService#searchRecoveryWarmingListener]

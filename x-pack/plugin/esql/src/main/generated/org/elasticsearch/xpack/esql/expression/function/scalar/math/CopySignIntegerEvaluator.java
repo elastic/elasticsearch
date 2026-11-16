@@ -71,7 +71,7 @@ public final class CopySignIntegerEvaluator implements ExpressionEvaluator {
   }
 
   public IntBlock eval(int positionCount, IntBlock magnitudeBlock, DoubleBlock signBlock) {
-    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (magnitudeBlock.isNull(p)) {
           result.appendNull();

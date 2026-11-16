@@ -89,19 +89,17 @@ public class ESNextDiskASHVectorsWriterTests extends ESTestCase {
 
     public void testInheritsProjectionOnlyWhenThereIsSomethingToInherit() {
         // without reduction and without Procrustes iterations the projection is the same seeded rotation everywhere
-        int smallDims = randomIntBetween(1, 511);
-        assertFalse(ESNextDiskASHVectorsWriter.inheritsProjection(IvfSegmentConfig.AshConfig.forDims(smallDims, null, 4), smallDims));
+        int dims = randomIntBetween(2, 4096);
         var fullRotation = IvfSegmentConfig.AshConfig.of(2, 4, 1.0f, Integer.MAX_VALUE);
-        assertFalse(ESNextDiskASHVectorsWriter.inheritsProjection(fullRotation, 768));
+        assertFalse(ESNextDiskASHVectorsWriter.inheritsProjection(fullRotation, dims));
 
         // Procrustes iterations refine even a full rotation
         var refinedRotation = new IvfSegmentConfig.AshConfig(1.0f, Integer.MAX_VALUE, 2, 4, 2, 10);
-        assertTrue(ESNextDiskASHVectorsWriter.inheritsProjection(refinedRotation, 768));
+        assertTrue(ESNextDiskASHVectorsWriter.inheritsProjection(refinedRotation, dims));
 
         // a reduced projection is learned from the data
-        int dims = randomIntBetween(512, 4096);
-        assertTrue(ESNextDiskASHVectorsWriter.inheritsProjection(IvfSegmentConfig.AshConfig.forDims(dims, null, 4), dims));
-        assertTrue(ESNextDiskASHVectorsWriter.inheritsProjection(IvfSegmentConfig.AshConfig.defaults(), 768));
+        var halfProjection = IvfSegmentConfig.AshConfig.of(2, 4, 0.5f, Integer.MAX_VALUE);
+        assertTrue(ESNextDiskASHVectorsWriter.inheritsProjection(halfProjection, dims));
     }
 
     public void testReturnsNullWhenAllDimensionMismatch() {

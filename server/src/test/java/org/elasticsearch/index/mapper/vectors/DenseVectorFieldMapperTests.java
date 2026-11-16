@@ -48,6 +48,7 @@ import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibrationProfile;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
 import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
@@ -1209,21 +1210,14 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     public void testAshBitsDerivedFromDimsWhenUnset() throws IOException {
         assumeTrue("ash requires a snapshot build", Build.current().isSnapshot());
 
-        // dims -> expected bits and default oversample (null for none); null dims are not known until the first document
-        record Case(Integer dims, int bits, Float oversample) {}
-        List<Case> cases = List.of(
-            new Case(null, 2, 1.5f),
-            new Case(384, 1, DenseVectorFieldMapper.DEFAULT_OVERSAMPLE),
-            new Case(511, 1, DenseVectorFieldMapper.DEFAULT_OVERSAMPLE),
-            new Case(512, 2, 1.5f),
-            new Case(2047, 2, 1.5f),
-            new Case(2048, 2, 1.5f),
-            new Case(2049, 4, null),
-            new Case(3072, 4, null)
-        );
-        for (Case c : cases) {
-            Integer dims = c.dims();
+        // The bits for a dimension come from the ASH tier table, which IvfSegmentConfigTests pins; this only checks that the
+        // mapper derives them from it and defaults the oversample for them. The dims straddle the current tier bounds, and
+        // null dims are not known until the first document.
+        for (Integer dims : Arrays.asList(null, 384, 511, 512, 2047, 2048, 2049, 3072)) {
             String message = "dims [" + dims + "]";
+            int expectedBits = dims == null
+                ? IvfSegmentConfig.AshConfig.DEFAULT_BITS_PER_DIM
+                : IvfSegmentConfig.AshConfig.defaultBitsPerDim(dims);
             MapperService mapperService = createMapperService(EXPERIMENTAL_FEATURES_ENABLED, ashMapping(dims, null, null));
             var indexOptions = getIndexOptions(mapperService, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class);
             assertNull(message, indexOptions.getBits());
@@ -1234,15 +1228,10 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             assertThat(message, mappingSource, not(containsString("\"bits\"")));
             assertThat(message, mappingSource, not(containsString("rescore_vector")));
 
-            assertEquals(message, c.bits(), indexOptions.resolve(dims).bits());
-            DenseVectorFieldMapper.RescoreVector rescoreVector = indexOptions.resolve(dims).rescoreVector();
-            if (c.oversample() == null) {
-                assertNull(message, rescoreVector);
-            } else {
-                assertEquals(message, c.oversample(), rescoreVector.oversample(), 0f);
-            }
+            assertEquals(message, expectedBits, indexOptions.resolve(dims).bits());
+            assertDefaultRescoreVector(message, expectedBits, indexOptions.resolve(dims).rescoreVector());
             if (dims != null) {
-                assertEquals(message, c.bits(), indexOptions.ashConfigResolver().resolve(dims).bitsPerDim());
+                assertEquals(message, expectedBits, indexOptions.ashConfigResolver().resolve(dims).bitsPerDim());
             }
 
             // reparsing the stored mapping must keep the bits unset
@@ -1300,11 +1289,12 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         assumeTrue("ash requires a snapshot build", Build.current().isSnapshot());
 
         int dims = 3072;
+        int derivedBits = IvfSegmentConfig.AshConfig.defaultBitsPerDim(dims);
         MapperService mapperService = createMapperService(EXPERIMENTAL_FEATURES_ENABLED, ashMapping(dims, null, null));
         var indexOptions = getIndexOptions(mapperService, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class);
         assertNull(indexOptions.getBits());
-        assertEquals(4, indexOptions.resolve(dims).bits());
-        assertNull(indexOptions.resolve(dims).rescoreVector());
+        assertEquals(derivedBits, indexOptions.resolve(dims).bits());
+        assertDefaultRescoreVector("derived", derivedBits, indexOptions.resolve(dims).rescoreVector());
 
         // setting the bits pins them, and with them the default oversample for those bits, in the mapping
         merge(mapperService, ashMapping(dims, 2, null));
@@ -1321,7 +1311,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         indexOptions = getIndexOptions(mapperService, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class);
         assertNull(indexOptions.getBits());
         assertNull(indexOptions.rescoreVector);
-        assertEquals(4, indexOptions.resolve(dims).bits());
+        assertEquals(derivedBits, indexOptions.resolve(dims).bits());
         mappingSource = mapperService.documentMapper().mappingSource().toString();
         assertThat(mappingSource, not(containsString("\"bits\"")));
         assertThat(mappingSource, not(containsString("rescore_vector")));
@@ -1333,7 +1323,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         MapperService mapperService = createMapperService(EXPERIMENTAL_FEATURES_ENABLED, ashMapping(3072, null, 2.5f));
         var indexOptions = getIndexOptions(mapperService, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class);
         assertNull(indexOptions.getBits());
-        assertEquals(4, indexOptions.resolve(3072).bits());
+        assertEquals(IvfSegmentConfig.AshConfig.defaultBitsPerDim(3072), indexOptions.resolve(3072).bits());
         assertEquals(2.5f, indexOptions.resolve(3072).rescoreVector().oversample(), 0f);
     }
 
@@ -1351,8 +1341,24 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         assertEquals(3072, mapper.fieldType().getVectorDimensions());
         var indexOptions = (DenseVectorFieldMapper.BBQIVFIndexOptions) mapper.fieldType().getIndexOptions();
         assertNull(indexOptions.getBits());
-        assertEquals(4, indexOptions.resolve(mapper.fieldType().getVectorDimensions()).bits());
+        assertEquals(
+            IvfSegmentConfig.AshConfig.defaultBitsPerDim(3072),
+            indexOptions.resolve(mapper.fieldType().getVectorDimensions()).bits()
+        );
         assertThat(mapperService.documentMapper().mappingSource().toString(), not(containsString("\"bits\"")));
+    }
+
+    /**
+     * Asserts that {@code rescoreVector} is the oversample the mapper defaults for {@code bits}: 3x for 1 bit, 1.5x for 2
+     * bits and none above that.
+     */
+    private static void assertDefaultRescoreVector(String message, int bits, @Nullable DenseVectorFieldMapper.RescoreVector rescoreVector) {
+        switch (bits) {
+            case 1 -> assertEquals(message, DenseVectorFieldMapper.DEFAULT_OVERSAMPLE, rescoreVector.oversample(), 0f);
+            case 2 -> assertEquals(message, 1.5f, rescoreVector.oversample(), 0f);
+            case 3, 4, 8 -> assertNull(message, rescoreVector);
+            default -> throw new AssertionError("unexpected ASH bits [" + bits + "]");
+        }
     }
 
     private static XContentBuilder ashMapping(@Nullable Integer dims, @Nullable Integer bits, @Nullable Float oversample)

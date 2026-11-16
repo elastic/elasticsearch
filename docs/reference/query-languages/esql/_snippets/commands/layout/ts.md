@@ -205,7 +205,7 @@ which store them in `exemplars-*` data streams next to the `metrics-*` data stre
 
 With the [`exemplars`](/reference/query-languages/esql/directives/set.md#esql-exemplars) setting, a `TS ... | STATS`
 query returns the exemplars that are relevant to it instead of its result. This lets tools such as Kibana show the
-exemplars of an existing metrics query without a second, hand-written query:
+exemplars of an existing metrics query by issuing the same query again with the exemplars setting enabled:
 
 ```esql
 SET exemplars=true;
@@ -281,7 +281,8 @@ TS metrics-cpu | STATS AVG(cpu_time) BY attributes.cpu
   rejected. A query with neither returns no exemplars.
 - **Views**: Queries that use [views](/reference/query-languages/esql/esql-views.md) are rejected.
 - **No processing of exemplars**: Commands after the metrics query are part of the metrics query, so they can't
-  filter or transform the returned exemplars. To process exemplars, query the exemplar data streams with `FROM`.
+  filter or transform the returned exemplars: For example, filters on `trace_id` or the exemplar value are not possible.
+  To process exemplars, query the exemplar data streams with `FROM`.
 - **Filtered aliases**: Exemplar data streams are found by the names of the metrics data streams, not by alias.
   The filter of a [filtered alias](docs-content://manage-data/data-store/aliases.md) over the metrics doesn't apply to
   their exemplars. A user who can only read the metrics through such an alias gets no exemplars, unless they are

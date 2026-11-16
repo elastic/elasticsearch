@@ -10,6 +10,7 @@
 package org.elasticsearch.search;
 
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
@@ -28,6 +29,8 @@ import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -66,6 +69,28 @@ public class SearchQueryMemoryIT extends ESIntegTestCase {
         long with = memoryWhilePaused(prepareSearch("test").setSize(0).setQuery(new AllocatingQueryBuilder(BYTES)).addAggregation(terms));
         assertThat(without, greaterThanOrEqualTo(BYTES));
         assertThat(with - without, greaterThanOrEqualTo(preallocated));
+    }
+
+    /**
+     * A multi-search keeps the aggregations it buffers charged on the node's breaker after its searches complete, so no
+     * query is left holding them.
+     */
+    public void testMultiSearchLeavesNoQueryTracked() throws Exception {
+        createIndex();
+        assertResponse(
+            client().prepareMultiSearch().add(prepareSearch("test").setSize(0).addAggregation(AggregationBuilders.terms("k").field("k"))),
+            response -> {
+                for (MultiSearchResponse.Item item : response) {
+                    assertNoFailures(item.getResponse());
+                }
+            }
+        );
+        // a search forgets its query once its listener returns, which can be just after the response is sent
+        assertBusy(() -> {
+            for (SearchService searchService : internalCluster().getInstances(SearchService.class)) {
+                assertThat(searchService.queryScheduler().queries(), equalTo(0));
+            }
+        });
     }
 
     private void createIndex() {

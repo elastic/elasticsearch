@@ -2364,14 +2364,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 && task.getProgressListener() == SearchProgressListener.NOOP) {
                 task.setProgressListener(new CCSSingleCoordinatorSearchProgressListener());
             }
-            // the results charge the query's breaker until the search completes
+            // the results charge the query's breaker. A multi-search keeps the results it buffers charged after the search
+            // completes, on the node's breaker, so they charge that breaker from the start.
             QueryScheduler.QueryPart coordination = searchService.coordinate(task);
             final ActionListener<SearchResponse> listener = ActionListener.releaseAfter(this.listener, coordination);
             final SearchPhaseResults<SearchPhaseResult> queryResultConsumer;
             try {
                 queryResultConsumer = searchPhaseController.newSearchPhaseResults(
                     executor,
-                    coordination.breaker(),
+                    searchRequest.bufferSubSearchResponseForMultiSearch() ? circuitBreaker : coordination.breaker(),
                     task::isCancelled,
                     task.getProgressListener(),
                     searchRequest,

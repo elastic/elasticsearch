@@ -635,3 +635,54 @@ setup:
       esql.query:
         body:
           query: 'FROM ne_two | NESTED_EXPAND items | NESTED_EXPAND items'
+
+---
+"unmapped_fields LOAD cannot load an unmapped name in a nested field":
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [optional_fields_fix_load_partially_mapped]
+      reason: "SET unmapped_fields=load"
+  - do:
+      indices.create:
+        index: ne_unmapped
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            dynamic: false
+            properties:
+              items:
+                type: nested
+                dynamic: false
+                properties:
+                  qty:
+                    type: long
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "ne_unmapped", "_id": "a" } }
+          - { "note": "p", "items": [ { "qty": 1, "extra": "x" }, { "qty": 2, "extra": "y" } ] }
+  # The row's _source has the values of every object, so loading the name would not give each child its own
+  - do:
+      catch: /unmapped_fields cannot load \[items\.extra\] in the nested field \[items\]/
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM ne_unmapped | NESTED_EXPAND items | KEEP items.qty, items.extra'
+  - do:
+      catch: /unmapped_fields cannot load \[items\.extra\] in the nested field \[items\]/
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM ne_unmapped | EVAL e = items.extra | NESTED_EXPAND items | KEEP items.qty, e'
+  # An unmapped name outside the nested field still loads
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM ne_unmapped | NESTED_EXPAND items | KEEP items.qty, note | SORT items.qty | LIMIT 10'
+  - length: { values: 2 }
+  - match: { values.0: [1, "p"] }
+  - match: { values.1: [2, "p"] }

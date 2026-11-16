@@ -10,10 +10,12 @@ package org.elasticsearch.xpack.esql.analysis.rules;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
+import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -27,6 +29,7 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedPattern;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.NestedScopeField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
@@ -400,6 +403,7 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
     private static LogicalPlan loadIntoSources(LogicalPlan plan, Set<UnresolvedAttribute> toLoad) {
         return ViewUtils.transformUpOutsideViews(plan, p -> {
             if (p instanceof EsRelation esr) {
+                failOnNestedNames(esr, toLoad);
                 List<FieldAttribute> fieldsToLoad = fieldsToLoad(toLoad, Expressions.names(esr.output()));
                 return withAdditionalAttributesUnlessLookup(esr, fieldsToLoad, true);
             }
@@ -408,6 +412,29 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
             }
             return p;
         });
+    }
+
+    /**
+     * A name in a nested field belongs to the nested documents, so loading it from the row's {@code _source} would give each
+     * row the values of all of its nested objects. The private nested scope is only there when the query uses NESTED_EXPAND.
+     */
+    private static void failOnNestedNames(EsRelation relation, Set<UnresolvedAttribute> toLoad) {
+        if (relation.indexMode() == IndexMode.LOOKUP) {
+            return;
+        }
+        for (Attribute attribute : relation.output()) {
+            if (attribute instanceof FieldAttribute field
+                && field.field() instanceof NestedScopeField scope
+                && scope.kind() == NestedScopeField.Kind.COLLECTION) {
+                for (UnresolvedAttribute ua : toLoad) {
+                    if (ua.name().equals(scope.path()) || ua.name().startsWith(scope.path() + ".")) {
+                        throw new VerificationException(
+                            List.of(Failure.fail(ua, "unmapped_fields cannot load [{}] in the nested field [{}]", ua.name(), scope.path()))
+                        );
+                    }
+                }
+            }
+        }
     }
 
     /**

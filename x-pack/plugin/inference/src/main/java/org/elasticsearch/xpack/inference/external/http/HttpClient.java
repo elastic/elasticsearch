@@ -100,6 +100,15 @@ public class HttpClient implements Closeable {
         clientBuilder.disableConnectionState();
 
         /*
+          Retries are owned by RetryingHttpSender, which is bounded by the inference timeout and lets each service's response
+          handler decide what is retryable. The 5.x default retry strategy (absent in the 4.x client) would instead retry 429 and
+          503 responses itself after sleeping for the server's Retry-After, with no upper bound. The response would never reach ES,
+          the request would be re-sent after the caller had given up, and the pooled connection would stay leased for the whole
+          sleep, starving other requests to the same host.
+         */
+        clientBuilder.disableAutomaticRetries();
+
+        /*
           By default, if a keep-alive header is not returned by the server then the connection will be kept alive
           indefinitely. In this situation the default keep alive strategy will return -1. Since we use a connection eviction thread,
           connections that are idle past the max idle time will be closed when the eviction thread executes. If that functionality proves
@@ -127,8 +136,15 @@ public class HttpClient implements Closeable {
         client.start();
     }
 
-    public void send(HttpRequest request, HttpClientContext context, ActionListener<HttpResult> listener) {
-        client.execute(
+    /**
+     * Sends the request asynchronously.
+     *
+     * @return an action aborting the exchange. Aborting removes a request still waiting for a pooled connection from the pool's
+     * pending queue, or tears down an exchange that is already in flight (the connection is then discarded instead of reused).
+     * It is a no-op once the exchange has completed.
+     */
+    public Runnable send(HttpRequest request, HttpClientContext context, ActionListener<HttpResult> listener) {
+        var exchange = client.execute(
             SimpleRequestProducer.create(request.httpRequest()),
             SimpleResponseConsumer.create(),
             context,
@@ -149,6 +165,7 @@ public class HttpClient implements Closeable {
                 }
             }
         );
+        return () -> FutureUtils.cancel(exchange);
     }
 
     private void failRequestUsingResponseThread(HttpRequest request, Exception ex, ActionListener<?> listener) {
@@ -197,7 +214,13 @@ public class HttpClient implements Closeable {
         return new IllegalStateException("Http client is not running, please retry the request", exception);
     }
 
-    public void stream(HttpRequest request, HttpClientContext context, ActionListener<StreamingHttpResult> listener) {
+    /**
+     * Sends the request asynchronously and streams the response body.
+     *
+     * @return an action aborting the exchange, see {@link #send(HttpRequest, HttpClientContext, ActionListener)}. It is the same
+     * action the streamed body uses when its subscriber abandons it.
+     */
+    public Runnable stream(HttpRequest request, HttpClientContext context, ActionListener<StreamingHttpResult> listener) {
         var notifyOnceListener = ActionListener.notifyOnce(listener);
 
         /*
@@ -247,7 +270,13 @@ public class HttpClient implements Closeable {
             public void failed(Exception ex) {
                 // Only reachable before the response head arrives; BasicFuture.failed returns false once completed,
                 // so this callback cannot fire after completed() has already delivered the head.
-                failRequestUsingResponseThread(request, ex, notifyOnceListener);
+                if (abortRequested.get()) {
+                    // Aborting an exchange that is still waiting for a pooled connection surfaces here as an InterruptedIOException,
+                    // report it as the cancellation it is instead of warning about a failed request
+                    cancelRequestUsingResponseThread(request, notifyOnceListener);
+                } else {
+                    failRequestUsingResponseThread(request, ex, notifyOnceListener);
+                }
             }
 
             @Override
@@ -287,6 +316,7 @@ public class HttpClient implements Closeable {
         if (abortRequested.get()) {
             FutureUtils.cancel(exchangeFuture);
         }
+        return abortExchange;
     }
 
     @Override

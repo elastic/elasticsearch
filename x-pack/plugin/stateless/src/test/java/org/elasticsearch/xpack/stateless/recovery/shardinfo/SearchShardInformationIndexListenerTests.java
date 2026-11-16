@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.client.internal.support.AbstractClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -144,7 +145,7 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
     public void testRelocatingNodeIdIsSet() {
         IndexShard indexShard = mock(IndexShard.class);
         ShardRouting shardRouting = createSearchOnlyShard(shardId, "search_node_1").moveToStarted(1)
-            .relocate("relocating_node_id", 1, ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO);
+            .relocate("relocating_node_id", 1, RecoveryPriority.RELOCATION_CAN_REMAIN_NO);
         when(indexShard.routingEntry()).thenReturn(shardRouting);
         when(indexShard.shardId()).thenReturn(shardId);
 
@@ -481,7 +482,7 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
             RecoverySource.PeerRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
             ShardRouting.Role.SEARCH_ONLY,
-            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+            RecoveryPriority.UNASSIGNED_EXPECTED
         ).initialize(nodeId, null, randomNonNegativeLong());
     }
 

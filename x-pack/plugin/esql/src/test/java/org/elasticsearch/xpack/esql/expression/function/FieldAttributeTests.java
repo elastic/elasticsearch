@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.AbstractNamedExpressionSerializationTests;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentableInExpression;
 import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomSerializableEsField;
 
 public class FieldAttributeTests extends AbstractNamedExpressionSerializationTests<FieldAttribute> {
@@ -30,7 +30,10 @@ public class FieldAttributeTests extends AbstractNamedExpressionSerializationTes
     }
 
     private static EsField randomRepresentableEsField(int maxDepth) {
-        return randomValueOtherThanMany(f -> false == isRepresentable(f.getDataType()), () -> randomSerializableEsField(maxDepth));
+        return randomValueOtherThanMany(
+            f -> false == isRepresentableInExpression(f.getDataType()),
+            () -> randomSerializableEsField(maxDepth)
+        );
     }
 
     @Override

@@ -23,3 +23,9 @@ Requires a counter input; non-counter inputs are automatically coerced with `to_
 ```
 irate(http_requests_total[5m])
 ```
+
+:::{note}
+**Differences from {{prom}}**
+
+`irate` on native histograms, such as `irate(h[5m])`, isn't supported yet.
+:::

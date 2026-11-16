@@ -74,9 +74,10 @@ public final class LetResolver {
      * @param plan        the parsed main query plan
      * @param letBindings the ordered list of {@code LET} bindings (may be empty)
      * @param maxPlanNodesCount the maximum number of plan nodes the substituted plan, and each substituted binding, may reach
+     * @param maxPlanNodesSource the pragma or cluster setting that supplied {@code maxPlanNodesCount}, named in the error
      * @return the plan with all resolvable {@code LET} name references substituted
      */
-    public static LogicalPlan resolve(LogicalPlan plan, List<LetBinding> letBindings, int maxPlanNodesCount) {
+    public static LogicalPlan resolve(LogicalPlan plan, List<LetBinding> letBindings, int maxPlanNodesCount, String maxPlanNodesSource) {
         if (letBindings.isEmpty()) {
             return plan;
         }
@@ -89,13 +90,18 @@ public final class LetResolver {
         var allBindings = letBindings.stream().map(LetBinding::name).collect(Collectors.toSet());
         for (LetBinding binding : letBindings) {
             // Substitute earlier bindings into this binding's body (sequential scoping).
-            PlanSize bindingSize = new PlanSize(PlanSize.countNodes(binding.plan()), maxPlanNodesCount);
+            PlanSize bindingSize = new PlanSize(binding.plan(), maxPlanNodesCount, maxPlanNodesSource);
             var current = substitute(binding.plan(), resolved, sizes, allBindings, bindingSize);
             resolved.put(binding.name(), current);
             sizes.put(binding.name(), bindingSize.size());
         }
         // Substitute the full map into the main query plan.
-        return substitute(plan, resolved, sizes, allBindings, new PlanSize(PlanSize.countNodes(plan), maxPlanNodesCount));
+        return substitute(plan, resolved, sizes, allBindings, new PlanSize(plan, maxPlanNodesCount, maxPlanNodesSource));
+    }
+
+    // Only for testing, it names the cluster setting as the source of maxPlanNodesCount
+    public static LogicalPlan resolve(LogicalPlan plan, List<LetBinding> letBindings, int maxPlanNodesCount) {
+        return resolve(plan, letBindings, maxPlanNodesCount, PlanSize.CLUSTER_SETTING_SOURCE);
     }
 
     /**

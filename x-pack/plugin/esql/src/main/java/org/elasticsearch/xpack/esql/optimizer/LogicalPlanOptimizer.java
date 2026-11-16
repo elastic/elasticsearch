@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.optimizer.rules.PruneInlineJoinOnEmptyRightSide;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.AddTopNPreFilterToAggregate;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.AlignMergeBranches;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.BooleanFunctionEqualsElimination;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.BooleanSimplification;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineBinaryComparisons;
@@ -46,6 +47,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneLiteralsInLimit
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantAggregateGroupings;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantOrderBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantSortClauses;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneUnusedIndexMode;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushAggregateThroughUnionAll;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineFilters;
@@ -63,6 +65,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownFiltersIntoF
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownInferencePlan;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownLimitAndOrderByIntoMergePlan;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownRegexExtract;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushLimitIntoEqlRelation;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushLimitToKnn;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.RemoveStatsOverride;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReorderLimitProjectAndOrderBy;
@@ -80,6 +83,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceSparklineAggr
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredOrNullAggWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStringCasingWithInsensitiveEquals;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceTrivialTypeConversions;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceTsInfoWithMetricsInfo;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.RewriteDateFunctionComparisons;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.RewriteSumOfExpressionPlusConstant;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SelectSlicesFromFilter;
@@ -95,8 +99,10 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateA
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateExpressions;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogatePlans;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteTransportVersionAwareExpressions;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.UseSinglePassTimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.WarnLostSortOrder;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.WarnUnfillableFillNull;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.fetch.PlanFetch;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.PruneLeftJoinOnNullMatchingField;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
@@ -146,8 +152,11 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new CombineProjections()
         ),
         new Batch<>("Skip Compute", new SkipQueryOnLimitZero(), new AddTopNPreFilterToAggregate()),
+        new Batch<>("Single Pass Time Series", Limiter.ONCE, new UseSinglePassTimeSeriesAggregate()),
         cleanup(),
         warnings(),
+        // Last, so no other rule meets a Fetch, and the plan already has the cut and the commands the mapper splits it at.
+        new Batch<>("Plan Fetch", Limiter.ONCE, new PlanFetch()),
         new Batch<>("Set as Optimized", Limiter.ONCE, new SetAsOptimized())
     );
 
@@ -183,6 +192,8 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         return new Batch<>(
             "Substitutions",
             Limiter.ONCE,
+            // Must run first: every other optimizer rule expects merge branches to line up with the merge's output.
+            new AlignMergeBranches(),
             new WarnUnfillableFillNull(),
             new SubstituteFillNull(),
             new SubstituteSurrogatePlans(),
@@ -243,6 +254,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new ConstantFolding(),
             new ReplaceDeferredRegex(),
             new PruneRedundantAggregateGroupings(),
+            new ReplaceTsInfoWithMetricsInfo(),
             /* Then deduplicate aggregations
                We need this after the constant folding
                because we could have expressions like
@@ -277,6 +289,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PushDownAndCombineLimits(),
             new PushDownAndCombineLimitBy(),
             new PushLimitToKnn(),
+            new PushLimitIntoEqlRelation(),
             new PushDownAndCombineFilters(),
             new PushDownConjunctionsToKnnPrefilters(),
             new PushDownAndCombineSample(),
@@ -305,6 +318,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         return new Batch<>(
             "Clean Up",
             new ReplaceLimitAndSortAsTopN(),
+            new PruneRedundantTopN(),
             new HoistRemoteEnrichTopN(),
             new ReplaceRowAsLocalRelation(),
             new CombineLimitTopN(),

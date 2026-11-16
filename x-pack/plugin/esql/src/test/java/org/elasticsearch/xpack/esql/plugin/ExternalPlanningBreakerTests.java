@@ -654,6 +654,7 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         TransportActionServices transport = new TransportActionServices(
+            null,
             transportService,
             null,
             exchangeService,
@@ -678,7 +679,9 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
             blockFactory,
             operators,
             readers,
-            null
+            null,
+            // Holds no node back, so every node of a state is a worker.
+            new ExternalWorkerReadiness(clusterService, null, threadPool, false)
         );
     }
 

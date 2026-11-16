@@ -255,8 +255,9 @@ public class ExternalSourceResolver {
     /** The schema, file-metadata and dataset-aggregate caches. Listing goes through {@link #listingService}. */
     private final ExternalSourceCacheService cacheService;
     /**
-     * Set while the first resolution pass runs: an object-changed failure then is retried by {@link #resolve}, so it is logged at
-     * DEBUG and not counted as a discovery failure. The second pass runs with it clear, so a failure that reaches the caller is.
+     * Set while the first resolution pass runs: a stale cached object (rewritten or deleted) is then retried by
+     * {@link #resolve}, so it is logged at DEBUG and not counted as a discovery failure. The second pass runs with it
+     * clear, so a failure that reaches the caller is.
      */
     private volatile boolean objectChangeRetryAhead;
     /** The listings and file-metadata entries this query read from the caches, so a failure can drop exactly those. */
@@ -781,10 +782,11 @@ public class ExternalSourceResolver {
      * predicates built from the TEMPORAL extract before {@code projectListingHints} drops
      * {@code @timestamp}. Absent path means grain INs only.
      * <p>
-     * An object rewritten after its listing was cached fails its conditional read with the object-changed condition. When
-     * that happens here, during resolution, nothing has run yet and the query's task is still live, so resolution drops
-     * the cache entries it used and runs once more: the second pass lists the object again and reads its new version. A
-     * second failure is returned as it is. A rewrite caught later, by a read during execution, is not retried here.
+     * An object rewritten or deleted after its listing was cached fails its read with {@code OBJECT_CHANGED} or
+     * {@code OBJECT_NOT_FOUND}. When that happens here, during resolution, nothing has run yet and the query's task is
+     * still live, so resolution drops the cache entries it used and runs once more: the second pass lists the store again.
+     * A second failure is returned as it is. The same conditions caught later, by a read during execution, are not retried
+     * here.
      * <p>
      * The first pass's planning-memory charges are held until the query ends, so the second pass runs with roughly twice the
      * listing and schema-map charge. A glob near the planning limit can then trip the request breaker, a retryable 429, where a
@@ -811,11 +813,11 @@ public class ExternalSourceResolver {
             folderRanges,
             ActionListener.runBefore(listener, () -> objectChangeRetryAhead = false).delegateResponse((l, e) -> {
                 objectChangeRetryAhead = false;
-                if (ExternalException.hasCondition(e, ExternalException.Condition.OBJECT_CHANGED) == false || isCancelled()) {
+                if (ExternalException.isStaleCachedObject(e) == false || isCancelled()) {
                     l.onFailure(e);
                     return;
                 }
-                LOGGER.debug("an external object changed during resolution; resolving {} again", paths);
+                LOGGER.debug("an external object was missing or rewritten during resolution; resolving {} again", paths);
                 invalidateUsedCacheEntries();
                 resolveOnce(paths, pathConfigs, filterHints, declaredMappings, pathsRequiringStats, pathsReadingNoRows, folderRanges, l);
             })
@@ -1145,11 +1147,10 @@ public class ExternalSourceResolver {
     // Package-private so the client-status recovery gate below can be tested directly.
     RuntimeException mapResolveFailure(String path, Exception e) {
         RuntimeException mapped = doMapResolveFailure(path, e);
-        // A cancellation is the query's outcome, not a discovery failure, and is not counted. Nor is an object change the retry
-        // in resolve() will handle: only the failure that reaches the caller counts.
-        boolean retriedObjectChange = objectChangeRetryAhead
-            && ExternalException.hasCondition(mapped, ExternalException.Condition.OBJECT_CHANGED);
-        if (ExceptionsHelper.unwrap(mapped, TaskCancelledException.class) == null && retriedObjectChange == false) {
+        // A cancellation is the query's outcome, not a discovery failure, and is not counted. Nor is a stale cached
+        // object the retry in resolve() will handle: only the failure that reaches the caller counts.
+        boolean retriedStaleObject = objectChangeRetryAhead && ExternalException.isStaleCachedObject(mapped);
+        if (ExceptionsHelper.unwrap(mapped, TaskCancelledException.class) == null && retriedStaleObject == false) {
             recordDiscoveryFailure(path, mapped);
         }
         return mapped;
@@ -1227,7 +1228,11 @@ public class ExternalSourceResolver {
         // an IllegalArgumentException, which would otherwise shadow the typed condition.
         ExternalClientException clientException = (ExternalClientException) ExceptionsHelper.unwrap(e, ExternalClientException.class);
         if (clientException != null) {
-            logClientResolveFailure(path, clientException.getMessage(), e);
+            if (objectChangeRetryAhead && ExternalException.isStaleCachedObject(clientException)) {
+                LOGGER.debug("External source [{}] was missing during resolution, resolving again: {}", path, clientException.getMessage());
+            } else {
+                logClientResolveFailure(path, clientException.getMessage(), e);
+            }
             return clientException.withoutCause();
         }
         IllegalArgumentException clientError = (IllegalArgumentException) ExceptionsHelper.unwrap(e, IllegalArgumentException.class);
@@ -4154,8 +4159,8 @@ public class ExternalSourceResolver {
      * Reads metadata from the files in {@code listing} with an async, bounded fan-out (see {@link #gatherPerFile}),
      * folding each file's column statistics as it completes. Responds with the folded stats map, or {@code null} if
      * any file lacks statistics. A read failure is treated as "could not aggregate" and responds with {@code null}
-     * so the caller marks stats partial — except cancellation, which is surfaced as a failure so the query aborts
-     * promptly instead of silently degrading.
+     * so the caller marks stats partial — except cancellation and a circuit-breaker trip, which are surfaced as
+     * failures so the query aborts promptly instead of silently degrading.
      */
     private void readAndAggregateAllFileStats(
         FileList listing,
@@ -4182,22 +4187,7 @@ public class ExternalSourceResolver {
                 collectInferredTypes(listing, allMeta, inferredTypesOut);
                 collectSlimStatistics(listing, allMeta, slimStatsOut);
                 listener.onResponse(fold.finish());
-            }, e -> {
-                // Cancellation is not a "could not aggregate stats" condition — propagate it so the query aborts promptly
-                // instead of silently degrading to partial stats and continuing. A read that failed *because* the query
-                // was cancelled mid-flight can arrive wrapped (the schema cache wraps loader failures), so consult the
-                // cancellation state directly rather than matching only on the exception type.
-                if (e instanceof TaskCancelledException) {
-                    listener.onFailure(e);
-                    return;
-                }
-                if (isCancelled()) {
-                    listener.onFailure(new TaskCancelledException(RESOLUTION_CANCELLED_MESSAGE));
-                    return;
-                }
-                LOGGER.debug(() -> "Failed to read per-file stats in parallel, will use partial stats: " + e.getMessage());
-                listener.onResponse(null);
-            })
+            }, e -> failOrDegradeStatsGather(e, listener))
         );
     }
 
@@ -4248,8 +4238,8 @@ public class ExternalSourceResolver {
     /**
      * Cache-aware gather for {@link #readAndAggregateAllFileStats}. Peeks the schema cache (keyed by path + mtime)
      * for each file so repeated multi-file resolves do not re-read footers, then folds each completion through
-     * {@code fold}. Responds with {@code null} if any file cannot be resolved or lacks statistics; a bare
-     * cancellation is surfaced as a failure so it is never masked as partial stats.
+     * {@code fold}. Responds with {@code null} if any file cannot be resolved or lacks statistics; cancellation
+     * and a circuit-breaker trip are surfaced as failures so they are never masked as partial stats.
      */
     private void readAndAggregateAllFileStatsWithCache(
         FileList listing,
@@ -4281,21 +4271,31 @@ public class ExternalSourceResolver {
                 collectInferredTypes(listing, allMeta, inferredTypesOut);
                 collectSlimStatistics(listing, allMeta, slimStatsOut);
                 listener.onResponse(fold.finish());
-            }, e -> {
-                // A bare cancellation, or a read that failed because the query was cancelled mid-flight (the cache wraps
-                // loader failures, so consult the state directly), must abort rather than degrade to partial stats.
-                if (e instanceof TaskCancelledException) {
-                    listener.onFailure(e);
-                    return;
-                }
-                if (isCancelled()) {
-                    listener.onFailure(new TaskCancelledException(RESOLUTION_CANCELLED_MESSAGE));
-                    return;
-                }
-                LOGGER.debug(() -> "Failed to get cached stats, will use partial stats: " + e.getMessage());
-                listener.onResponse(null);
-            })
+            }, e -> failOrDegradeStatsGather(e, listener))
         );
+    }
+
+    /**
+     * Cancellation and a circuit-breaker trip abort the FIRST_FILE_WINS stats gather instead of degrading to
+     * partial stats. Other per-file failures still respond {@code null} so the caller marks stats partial.
+     * Unwraps a breaker trip because the factory loop (and the schema cache) wrap loader failures;
+     * {@link #mapResolveFailure} unwraps the same way.
+     */
+    private void failOrDegradeStatsGather(Exception e, ActionListener<Map<String, Object>> listener) {
+        if (e instanceof TaskCancelledException) {
+            listener.onFailure(e);
+            return;
+        }
+        if (isCancelled()) {
+            listener.onFailure(new TaskCancelledException(RESOLUTION_CANCELLED_MESSAGE));
+            return;
+        }
+        if (ExceptionsHelper.unwrap(e, CircuitBreakingException.class) != null) {
+            listener.onFailure(e);
+            return;
+        }
+        LOGGER.debug(() -> "Failed to read per-file stats, will use partial stats: " + e.getMessage());
+        listener.onResponse(null);
     }
 
     private ExternalSourceMetadata buildUnifiedMetadata(

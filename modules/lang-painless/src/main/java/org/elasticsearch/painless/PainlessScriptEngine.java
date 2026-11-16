@@ -110,6 +110,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
                 CompilerSettings.MAX_ALLOCATION_BYTES.getConcreteSettingForNamespace(context.name).get(settings).getBytes()
             );
             contextDefaults.setAllocationMetricsEnabled(allocationMetricsEnabled);
+            contextDefaults.setScriptContextName(context.name);
 
             mutableContextsToCompilers.put(
                 context,
@@ -490,6 +491,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
             compilerSettings.setRegexLimitFactor(contextDefaults.getAppliedRegexLimitFactor());
             compilerSettings.setMaxAllocationBytes(contextDefaults.getMaxAllocationBytes());
             compilerSettings.setAllocationMetricsEnabled(contextDefaults.isAllocationMetricsEnabled());
+            compilerSettings.setScriptContextName(contextDefaults.getScriptContextName());
 
             Map<String, String> copy = new HashMap<>(params);
 

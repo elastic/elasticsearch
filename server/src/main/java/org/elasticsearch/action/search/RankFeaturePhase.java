@@ -151,9 +151,11 @@ public class RankFeaturePhase extends SearchPhase {
             @Override
             public void onFailure(Exception e) {
                 try {
-                    logger.debug(() -> "[" + contextId + "] Failed to execute rank phase", e);
-                    progressListener.notifyRankFeatureFailure(shardIndex, shardTarget, e);
-                    rankRequestCounter.onFailure(shardIndex, shardTarget, e);
+                    if (context.failedOnCoordinatorTrip() == false) {
+                        logger.debug(() -> "[" + contextId + "] Failed to execute rank phase", e);
+                        progressListener.notifyRankFeatureFailure(shardIndex, shardTarget, e);
+                        rankRequestCounter.onFailure(shardIndex, shardTarget, e);
+                    }
                 } finally {
                     releaseIrrelevantSearchContext(queryResult, context);
                 }
@@ -180,6 +182,7 @@ public class RankFeaturePhase extends SearchPhase {
                     entry
                 ),
                 context.getTask(),
+                context.newShardResponseReservation(NAME, ShardResponseReservation.BREAKER_LABEL),
                 listener,
                 context::trackPhaseResultBytesRead,
                 context::trackPhaseRequestBytesWritten

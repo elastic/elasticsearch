@@ -37,7 +37,7 @@ import java.util.Objects;
  * and delegates to the PromqlFunctionRegistry for validation and ESQL function construction.
  */
 public abstract sealed class PromqlFunctionCall extends UnaryPlan implements PromqlPlan permits AcrossSeriesAggregate,
-    AcrossSeriesReduction, HistogramFunctionCall, MetadataManipulationFunction, ScalarConversionFunction, SortFunction,
+    AcrossSeriesReduction, HistogramFunctionCall, MetadataManipulationFunction, ScalarConversionFunction, SortByLabelFunction, SortFunction,
     WithinSeriesAggregate, ValueTransformationFunction, VectorConversionFunction {
     // implements TelemetryAware {
 
@@ -168,7 +168,7 @@ public abstract sealed class PromqlFunctionCall extends UnaryPlan implements Pro
         if (child() instanceof RangeSelector rangeSelector) {
             window = context.cmd().resolveRangeWindow(rangeSelector.range());
         }
-        var promqlCtx = new PromqlContext(context.time(), window, child.step(), context.configuration());
+        var promqlCtx = new PromqlContext(context.time(), window, child.step(), context.configuration(), context.cmd().timestamp());
         return context.eval(child, TranslationContext.emptyRangeAsNull(buildEsqlFunction(child.value(), promqlCtx), context.time()));
     }
 }

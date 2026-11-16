@@ -186,7 +186,7 @@ public class RecoverySourceDiscoveryTests extends ESTestCase {
         assertEquals(idx("my-index"), result.first());
     }
 
-    public void testSystemIndexIsExcluded() {
+    public void testIndexSystemFlagIsNotChecked() {
         Map<String, SnapshotInfo.IndexSnapshotDetails> details = Map.of(".system-idx", successDetails());
         SnapshotInfo snap = successSnap(List.of(".system-idx"), List.of(), details);
 
@@ -195,10 +195,10 @@ public class RecoverySourceDiscoveryTests extends ESTestCase {
             projectMeta(List.of(systemIndex(".system-idx")), List.of())
         );
 
-        assertThat(result, empty());
+        assertThat(result, contains(idx(".system-idx")));
     }
 
-    public void testIndexWithoutMetadataIsExcluded() {
+    public void testIndexMetadataIsNotRequired() {
         Map<String, SnapshotInfo.IndexSnapshotDetails> details = Map.of(
             "with-metadata",
             successDetails(),
@@ -212,7 +212,7 @@ public class RecoverySourceDiscoveryTests extends ESTestCase {
             projectMeta(List.of(userIndex("with-metadata")), List.of())
         );
 
-        assertThat(result, contains(idx("with-metadata")));
+        assertThat(result, contains(idx("missing-metadata"), idx("with-metadata")));
     }
 
     public void testIncompleteIndexIsExcluded() {
@@ -286,7 +286,7 @@ public class RecoverySourceDiscoveryTests extends ESTestCase {
         assertEquals(ds("logs-app"), result.first());
     }
 
-    public void testSystemDataStreamIsExcluded() {
+    public void testDataStreamSystemFlagIsNotChecked() {
         String backing = ".ds-.system-stream-000001";
         DataStream ds = DataStream.builder(".system-stream", List.of(index(backing))).setSystem(true).setHidden(true).build();
         Map<String, SnapshotInfo.IndexSnapshotDetails> details = Map.of(backing, successDetails());
@@ -294,7 +294,7 @@ public class RecoverySourceDiscoveryTests extends ESTestCase {
 
         SortedSet<RecoverySource> result = RecoverySourceDiscovery.buildCandidates(snap, projectMeta(List.of(), List.of(ds)));
 
-        assertThat(result, empty());
+        assertThat(result, contains(ds(".system-stream")));
     }
 
     public void testIncompleteDataStreamIsExcluded() {

@@ -19,7 +19,9 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.SingleObjectCache;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.stats.IndexingPressureStats;
+import org.elasticsearch.indices.NodeIndicesStats;
 import org.elasticsearch.monitor.jvm.GcNames;
 import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.node.NodeService;
@@ -337,6 +339,20 @@ public class NodeMetrics extends AbstractLifecycleComponent {
                     .map(o -> o.getIndexing())
                     .map(o -> o.getTotal())
                     .map(o -> o.getIndexFailedDueToVersionConflictCount())
+                    .orElse(0L)
+            )
+        );
+
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.indexing.indexing.failed.too_many_docs.total",
+                "Total number of failed indexing operations due to the shard reaching the maximum number of documents",
+                "operations",
+                () -> Optional.ofNullable(stats.getOrRefresh())
+                    .map(NodeStats::getIndices)
+                    .map(NodeIndicesStats::getIndexing)
+                    .map(IndexingStats::getTotal)
+                    .map(IndexingStats.Stats::getIndexFailedDueToTooManyDocsCount)
                     .orElse(0L)
             )
         );

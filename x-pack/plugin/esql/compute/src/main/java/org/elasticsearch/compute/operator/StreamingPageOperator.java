@@ -120,6 +120,10 @@ public class StreamingPageOperator extends SinkOperator {
             "streaming_page",
             Status::new
         );
+        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.of(
+            Status.class,
+            (builder, status, params) -> status.writeProfile(builder)
+        ).required("pages_emitted", ProfileSchema.integer()).required("rows_emitted", ProfileSchema.integer()).build();
 
         private final int pagesEmitted;
         private final long rowsEmitted;
@@ -153,12 +157,16 @@ public class StreamingPageOperator extends SinkOperator {
             return rowsEmitted;
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        private XContentBuilder writeProfile(XContentBuilder builder) throws IOException {
             builder.startObject();
             builder.field("pages_emitted", pagesEmitted);
             builder.field("rows_emitted", rowsEmitted);
             return builder.endObject();
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return PROFILE_SCHEMA.write(builder, this, params);
         }
 
         @Override

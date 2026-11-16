@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
@@ -974,6 +975,38 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
 
         List<PartitionFilterHint> hints = extractFolded(plan).get(PATH);
         assertEquals(List.of(new PartitionFilterHint("year", Operator.EQUALS, List.of(2026L))), hints);
+    }
+
+    /**
+     * A partition picked relative to the time of the query, the way a dashboard asks for the current year. {@code NOW()}
+     * and the time span taken from it fold to the date that the query runs with, so the comparison becomes a hint that
+     * narrows the listing.
+     */
+    public void testPreprocessorFoldsDatesRelativeToNow() {
+        UnresolvedFunction now = new UnresolvedFunction(SRC, "NOW", List.of());
+        long thisYear = TEST_CFG.now().atZone(ZoneOffset.UTC).getYear();
+
+        LogicalPlan plan = filterAboveExternal(new Equals(SRC, unresolved("year"), yearFn(now)), PATH);
+        assertEquals(List.of(new PartitionFilterHint("year", Operator.EQUALS, List.of(thisYear))), extractFolded(plan).get(PATH));
+
+        Expression lastYear = new Sub(SRC, now, new Literal(SRC, Period.ofYears(1), DataType.DATE_PERIOD), TEST_CFG);
+        plan = filterAboveExternal(new Equals(SRC, unresolved("year"), yearFn(lastYear)), PATH);
+        assertEquals(List.of(new PartitionFilterHint("year", Operator.EQUALS, List.of(thisYear - 1))), extractFolded(plan).get(PATH));
+    }
+
+    /** A date that is parsed with a pattern, or given as milliseconds since the epoch, is a constant like any other. */
+    public void testPreprocessorFoldsParsedAndNumericDates() {
+        UnresolvedFunction parsed = new UnresolvedFunction(
+            SRC,
+            "DATE_PARSE",
+            List.of(keywordLiteral("yyyy/MM/dd"), keywordLiteral("2026/07/13"))
+        );
+        LogicalPlan plan = filterAboveExternal(new Equals(SRC, unresolved("month"), monthFn(parsed)), PATH);
+        assertEquals(List.of(new PartitionFilterHint("month", Operator.EQUALS, List.of(7L))), extractFolded(plan).get(PATH));
+
+        UnresolvedFunction epochMillis = new UnresolvedFunction(SRC, "TO_DATETIME", List.of(new Literal(SRC, DASHBOARD_TS, DataType.LONG)));
+        plan = filterAboveExternal(new Equals(SRC, unresolved("year"), yearFn(epochMillis)), PATH);
+        assertEquals(List.of(new PartitionFilterHint("year", Operator.EQUALS, List.of(2026L))), extractFolded(plan).get(PATH));
     }
 
     private static final String PATH = "s3://bucket/data/*.parquet";

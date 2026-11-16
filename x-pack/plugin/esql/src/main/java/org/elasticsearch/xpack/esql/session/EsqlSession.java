@@ -1980,7 +1980,13 @@ public class EsqlSession {
         );
         // The time range that the query itself restricts each index pattern to prunes index resolution like the request filter
         // does, and next to it: both must match, and the query is often narrower than the time picker.
-        Map<IndexPattern, QueryBuilder> queryTimeFilters = queryTimeFilters(parsed, unmappedResolution, viewSettings, configuration);
+        Map<IndexPattern, QueryBuilder> queryTimeFilters = queryTimeFilters(
+            parsed,
+            unmappedResolution,
+            viewSettings,
+            configuration,
+            functionRegistry
+        );
         String description = requestFilter == null && queryTimeFilters.isEmpty()
             ? "the only attempt without filter"
             : "first attempt with filter";
@@ -2022,7 +2028,8 @@ public class EsqlSession {
         LogicalPlan parsed,
         UnmappedResolution unmappedResolution,
         Map<String, ViewQuerySettings> viewSettings,
-        Configuration configuration
+        Configuration configuration,
+        EsqlFunctionRegistry functionRegistry
     ) {
         if (unmappedResolution.loadsUnmappedFields()) {
             return Map.of();
@@ -2032,7 +2039,7 @@ public class EsqlSession {
                 return Map.of();
             }
         }
-        return QueryTimeRangeExtractor.extract(parsed, configuration);
+        return QueryTimeRangeExtractor.extract(parsed, configuration, functionRegistry);
     }
 
     /**

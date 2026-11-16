@@ -18,6 +18,10 @@ import java.util.Map;
 /**
  * A field under a {@code nested} object holds the values of all of the parent's objects, which Lucene stores as separate child
  * documents. ES|QL reads it as an ordinary multivalued column of the parent, like a field under a plain object.
+ * <p>
+ * The parent's index holds none of these values, so nothing about them is pushed to Lucene. Full-text searches
+ * ({@code MATCH}, {@code MATCH_PHRASE} and the {@code :} operator) on such a field are rejected for now: they would run as a
+ * Lucene query on the parents and miss every parent whose objects match.
  */
 public final class NestedLeaves {
     /** Only snapshot builds read the fields under a nested object; elsewhere they are left out of the mapping. */

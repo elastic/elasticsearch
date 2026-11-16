@@ -11,6 +11,7 @@ import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.IndexAnalyzerGroup;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
+import org.elasticsearch.xpack.esql.index.NestedLeaves;
 
 import java.io.IOException;
 import java.util.List;
@@ -53,6 +54,23 @@ public class TextEsFieldTests extends AbstractEsFieldTypeTests<TextEsField> {
         }
     }
 
+    public void testUnderNestedSerialization() throws IOException {
+        var field = new TextEsField(
+            "items.note",
+            Map.of(),
+            false,
+            false,
+            EsField.TimeSeriesFieldType.NONE,
+            null,
+            TextEsField.DEFAULT_POSITION_INCREMENT_GAP,
+            TextEsField.UnknownAnalyzer.NOT_REPORTED,
+            null,
+            true
+        );
+        assertTrue(copyInstance(field, NestedLeaves.VERSION).isUnderNested());
+        assertFalse(copyInstance(field, TransportVersionUtils.getPreviousVersion(NestedLeaves.VERSION)).isUnderNested());
+    }
+
     @Override
     protected TextEsField createTestInstance() {
         return randomTextEsField(4);
@@ -69,7 +87,8 @@ public class TextEsFieldTests extends AbstractEsFieldTypeTests<TextEsField> {
         int positionIncrementGap = instance.positionIncrementGap();
         TextEsField.UnknownAnalyzer unknownAnalyzer = instance.unknownAnalyzer();
         List<IndexAnalyzerGroup> analyzerGroups = instance.analyzerGroups();
-        switch (between(0, 8)) {
+        boolean isUnderNested = instance.isUnderNested();
+        switch (between(0, 9)) {
             case 0 -> name = randomAlphaOfLength(name.length() + 1);
             case 1 -> properties = randomValueOtherThan(properties, () -> randomProperties(4));
             case 2 -> hasDocValues = false == hasDocValues;
@@ -105,6 +124,7 @@ public class TextEsFieldTests extends AbstractEsFieldTypeTests<TextEsField> {
                 unknownAnalyzer = TextEsField.UnknownAnalyzer.CONFLICT;
                 analyzerGroups = randomValueOtherThan(analyzerGroups, () -> randomBoolean() ? null : randomAnalyzerGroups());
             }
+            case 9 -> isUnderNested = false == isUnderNested;
             default -> throw new IllegalArgumentException();
         }
         return new TextEsField(
@@ -116,7 +136,8 @@ public class TextEsFieldTests extends AbstractEsFieldTypeTests<TextEsField> {
             analyzerName,
             positionIncrementGap,
             unknownAnalyzer,
-            analyzerGroups
+            analyzerGroups,
+            isUnderNested
         );
     }
 }

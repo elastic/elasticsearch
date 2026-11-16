@@ -98,8 +98,9 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          *  1160499b - added created index version
          *  1162302b - use the current index version (4-byte VInt per index)
          *  1169302b - added single valued flag to EsField (1 byte per field)
+         *  1176302b - added under-nested flag to EsField (1 byte per field)
          */
-        testManyTypeConflicts(false, ByteSizeValue.ofBytes(1169302L));
+        testManyTypeConflicts(false, ByteSizeValue.ofBytes(1176302L));
     }
 
     /**
@@ -129,8 +130,9 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          *  2312122b - added created index version
          *  2313925b - use the current index version (4-byte VInt per index)
          *  2320925b - added single valued flag to EsField (1 byte per field)
+         *  2327925b - added under-nested flag to EsField (1 byte per field)
          */
-        testManyTypeConflicts(true, ByteSizeValue.ofBytes(2320925L));
+        testManyTypeConflicts(true, ByteSizeValue.ofBytes(2327925L));
     }
 
     private void testManyTypeConflicts(boolean withParent, ByteSizeValue expected) throws IOException {
@@ -158,13 +160,14 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          *  43927171b - make IndexProperties Writeable: 0 indices, -1 for removed trailing map header
          *  44189316b - added passthrough flag to EsField
          *  44451460b - added single valued flag to EsField (1 byte per field)
+         *  44713604b - added under-nested flag to EsField (1 byte per field)
          */
 
         int depth = 6;
         int childrenPerLevel = 8;
 
         EsIndex index = deeplyNestedIndex(depth, childrenPerLevel);
-        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(44451460L));
+        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(44713604L));
     }
 
     /**
@@ -187,13 +190,14 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          *  354b - make IndexProperties Writeable: 0 indices, -1 for removed trailing map header
          *  356b - added passthrough flag to EsField
          *  357b - added single valued flag to EsField (1 byte per field)
+         *  358b - added under-nested flag to EsField (1 byte per field)
          */
 
         int depth = 6;
         int childrenPerLevel = 9;
 
         EsIndex index = deeplyNestedIndex(depth, childrenPerLevel);
-        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(357), false);
+        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(358), false);
     }
 
     /**

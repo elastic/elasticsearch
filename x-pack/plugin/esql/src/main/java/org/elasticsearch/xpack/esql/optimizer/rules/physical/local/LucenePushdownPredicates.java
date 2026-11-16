@@ -195,7 +195,8 @@ public interface LucenePushdownPredicates {
     }
 
     static boolean isPushableTextFieldAttribute(Expression exp) {
-        return exp instanceof FieldAttribute fa && fa.dataType() == DataType.TEXT;
+        // Under a nested object the parent's index holds none of the values
+        return exp instanceof FieldAttribute fa && fa.dataType() == DataType.TEXT && fa.field().isUnderNested() == false;
     }
 
     static boolean isPushableMetadataAttribute(Expression exp) {

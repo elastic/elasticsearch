@@ -11,6 +11,7 @@ import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.EsField.TimeSeriesFieldType;
+import org.elasticsearch.xpack.esql.index.NestedLeaves;
 
 import java.util.Map;
 
@@ -87,6 +88,12 @@ public class EsFieldTests extends AbstractEsFieldTypeTests<EsField> {
         );
     }
 
+    public void testUnderNestedSerialization() throws Exception {
+        EsField field = new EsField("items.price", DataType.LONG, Map.of(), false, false, TimeSeriesFieldType.NONE, false, false, true);
+        assertThat(copyInstance(field, NestedLeaves.VERSION).isUnderNested(), is(true));
+        assertThat(copyInstance(field, TransportVersionUtils.getPreviousVersion(NestedLeaves.VERSION)).isUnderNested(), is(false));
+    }
+
     @Override
     protected EsField mutateInstance(EsField instance) {
         String name = instance.getName();
@@ -97,7 +104,8 @@ public class EsFieldTests extends AbstractEsFieldTypeTests<EsField> {
         EsField.TimeSeriesFieldType tsType = instance.getTimeSeriesFieldType();
         boolean isPassthrough = instance.isPassthrough();
         boolean isStaticallySingleValued = instance.isStaticallySingleValued();
-        switch (between(0, 7)) {
+        boolean isUnderNested = instance.isUnderNested();
+        switch (between(0, 8)) {
             case 0 -> name = randomAlphaOfLength(name.length() + 1);
             case 1 -> esDataType = randomValueOtherThan(esDataType, () -> randomFrom(DataType.types()));
             case 2 -> properties = randomValueOtherThan(properties, () -> randomProperties(4));
@@ -106,8 +114,19 @@ public class EsFieldTests extends AbstractEsFieldTypeTests<EsField> {
             case 5 -> tsType = randomValueOtherThan(tsType, () -> randomFrom(EsField.TimeSeriesFieldType.values()));
             case 6 -> isPassthrough = false == isPassthrough;
             case 7 -> isStaticallySingleValued = false == isStaticallySingleValued;
+            case 8 -> isUnderNested = false == isUnderNested;
             default -> throw new IllegalArgumentException();
         }
-        return new EsField(name, esDataType, properties, aggregatable, isAlias, tsType, isPassthrough, isStaticallySingleValued);
+        return new EsField(
+            name,
+            esDataType,
+            properties,
+            aggregatable,
+            isAlias,
+            tsType,
+            isPassthrough,
+            isStaticallySingleValued,
+            isUnderNested
+        );
     }
 }

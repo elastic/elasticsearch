@@ -365,6 +365,7 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
         Failures failures
     ) {
         super.fieldVerifier(plan, function, field, analysisRegistry, failures);
+        verifyNotUnderNested(failures);
         if (isRuntimeSearch() == false) {
             return;
         }

@@ -17,6 +17,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.index.NestedLeaves;
 
 import java.util.HashMap;
@@ -24,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -33,11 +35,36 @@ public class IndexResolverNestedTests extends ESTestCase {
 
     public void testFieldUnderNestedObjectIsAColumn() {
         assumeTrue("snapshot builds read the fields under a nested object", NestedLeaves.ENABLED);
-        Map<String, EsField> mapping = resolve(TransportVersion.current());
+        Map<String, EsField> mapping = resolve(TransportVersion.current(), nestedIndex());
         EsField pid = mapping.get("process").getProperties().get("pid");
         assertThat(pid.getDataType(), equalTo(DataType.LONG));
         assertThat(pid.isAggregatable(), equalTo(false));
+        assertThat(pid.isUnderNested(), equalTo(true));
+        EsField note = mapping.get("process").getProperties().get("note");
+        assertThat(note, instanceOf(TextEsField.class));
+        assertThat(note.isUnderNested(), equalTo(true));
         assertThat(mapping.get("name").getDataType(), equalTo(DataType.KEYWORD));
+        assertThat(mapping.get("name").isUnderNested(), equalTo(false));
+    }
+
+    /**
+     * Where one index maps the name under a nested object and another under a plain one, the values of the first are still
+     * in its child documents, so the column can't be searched as a Lucene query on the parents.
+     */
+    public void testFieldUnderNestedObjectInOneIndexIsUnderNested() {
+        assumeTrue("snapshot builds read the fields under a nested object", NestedLeaves.ENABLED);
+        Map<String, EsField> mapping = resolve(
+            TransportVersion.current(),
+            nestedIndex(),
+            index(
+                "plain",
+                new IndexFieldCapabilitiesBuilder("process", "object").build(),
+                new IndexFieldCapabilitiesBuilder("process.pid", "long").build(),
+                new IndexFieldCapabilitiesBuilder("process.note", "text").build()
+            )
+        );
+        assertThat(mapping.get("process").getProperties().get("pid").isUnderNested(), equalTo(true));
+        assertThat(mapping.get("process").getProperties().get("note").isUnderNested(), equalTo(true));
     }
 
     /**
@@ -46,19 +73,23 @@ public class IndexResolverNestedTests extends ESTestCase {
      */
     public void testWithAnOlderNodeFieldUnderNestedObjectIsLeftOut() {
         TransportVersion older = TransportVersionUtils.getPreviousVersion(NestedLeaves.VERSION);
-        Map<String, EsField> mapping = resolve(older);
+        Map<String, EsField> mapping = resolve(older, nestedIndex());
         assertThat(mapping.get("process"), nullValue());
         assertThat(mapping.get("name").getDataType(), equalTo(DataType.KEYWORD));
     }
 
-    private static Map<String, EsField> resolve(TransportVersion minimumVersion) {
-        FieldCapabilitiesIndexResponse index = index(
+    private static FieldCapabilitiesIndexResponse nestedIndex() {
+        return index(
             "test",
             new IndexFieldCapabilitiesBuilder("process", "nested").build(),
             new IndexFieldCapabilitiesBuilder("process.pid", "long").build(),
+            new IndexFieldCapabilitiesBuilder("process.note", "text").build(),
             new IndexFieldCapabilitiesBuilder("name", "keyword").build()
         );
-        FieldCapabilitiesResponse caps = FieldCapabilitiesResponse.builder().withIndexResponses(List.of(index)).build();
+    }
+
+    private static Map<String, EsField> resolve(TransportVersion minimumVersion, FieldCapabilitiesIndexResponse... indices) {
+        FieldCapabilitiesResponse caps = FieldCapabilitiesResponse.builder().withIndexResponses(List.of(indices)).build();
         return IndexResolver.mergedMappings(
             "*",
             false,

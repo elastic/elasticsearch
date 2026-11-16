@@ -7,6 +7,7 @@ setup:
     test_runner_features:
     - capabilities
     - allowed_warnings_regex
+    - contains
     - warnings
     capabilities:
     - method: POST
@@ -434,3 +435,207 @@ a leaf without doc values reads the child's source, and a cast across a type con
     - [b, null]
     - [c, null]
     - [e, null]
+---
+full-text search on a field under a nested object is rejected:
+# The parent's index holds none of the values under a nested object, so a Lucene query on the parents would miss every parent
+# whose objects match, or, with include_in_root, match only there. Until searching the child documents is supported, these
+# searches fail instead of returning wrong results, whichever other indices map the field as.
+- do:
+    indices.create:
+      index: ft_nested
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: text
+            items:
+              type: nested
+              properties:
+                note:
+                  type: text
+                tag:
+                  type: keyword
+- do:
+    indices.create:
+      index: ft_object
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: text
+            items:
+              properties:
+                note:
+                  type: text
+                tag:
+                  type: keyword
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: ft_nested
+      - id: a
+        items:
+        - { note: hello world, tag: x }
+        - { note: bye, tag: y }
+      - index:
+          _index: ft_object
+      - id: c
+        items: { note: hello there, tag: x }
+- do:
+    catch: bad_request
+    esql.query:
+      body:
+        query: 'FROM ft_nested | WHERE MATCH(items.note, "hello") | KEEP id | LIMIT 10'
+- match: { status: 400 }
+- match: { error.type: verification_exception }
+- contains: { error.reason: "Full-text matching on nested child fields is not supported yet." }
+- do:
+    catch: bad_request
+    esql.query:
+      body:
+        query: 'FROM ft_nested | WHERE items.note:"hello" | KEEP id | LIMIT 10'
+- match: { status: 400 }
+- match: { error.type: verification_exception }
+- contains: { error.reason: "Full-text matching on nested child fields is not supported yet." }
+- do:
+    catch: bad_request
+    esql.query:
+      body:
+        query: 'FROM ft_nested | WHERE MATCH(items.note, "helo", {"fuzziness": 1}) | KEEP id | LIMIT 10'
+- match: { status: 400 }
+- match: { error.type: verification_exception }
+- contains: { error.reason: "Full-text matching on nested child fields is not supported yet." }
+- do:
+    catch: bad_request
+    esql.query:
+      body:
+        query: 'FROM ft_nested | WHERE MATCH(items.tag, "x") | KEEP id | LIMIT 10'
+- match: { status: 400 }
+- match: { error.type: verification_exception }
+- contains: { error.reason: "Full-text matching on nested child fields is not supported yet." }
+- do:
+    catch: bad_request
+    esql.query:
+      body:
+        query: 'FROM ft_nested | WHERE MATCH_PHRASE(items.note, "hello world") | KEEP id | LIMIT 10'
+- match: { status: 400 }
+- match: { error.type: verification_exception }
+- contains: { error.reason: "Full-text matching on nested child fields is not supported yet." }
+- do:
+    catch: bad_request
+    esql.query:
+      body:
+        query: 'FROM ft_nested, ft_object | WHERE MATCH(items.note, "hello") | KEEP id | LIMIT 10'
+- match: { status: 400 }
+- match: { error.type: verification_exception }
+- contains: { error.reason: "Full-text matching on nested child fields is not supported yet." }
+- do:
+    catch: bad_request
+    esql.query:
+      body:
+        query: 'FROM ft_nested, ft_object | WHERE MATCH_PHRASE(items.note, "hello") | KEEP id | LIMIT 10'
+- match: { status: 400 }
+- match: { error.type: verification_exception }
+- contains: { error.reason: "Full-text matching on nested child fields is not supported yet." }
+# A field outside the nested object is searched as before.
+- do:
+    esql.query:
+      body:
+        query: 'FROM ft_nested, ft_object | WHERE MATCH(id, "a") | KEEP items.tag | LIMIT 10'
+- match: { values: [[[x, y]]] }
+---
+null checks read the values of every object:
+# A text field's index answers whether a document has a value, but under a nested object the parent's index holds none of them.
+- do:
+    indices.create:
+      index: nn_nested
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              properties:
+                note:
+                  type: text
+- do:
+    indices.create:
+      index: nn_root
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              include_in_root: true
+              properties:
+                note:
+                  type: text
+- do:
+    indices.create:
+      index: nn_object
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              properties:
+                note:
+                  type: text
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: nn_nested
+      - id: a
+        items:
+        - { note: hello }
+        - { note: bye }
+      - index:
+          _index: nn_nested
+      - id: e
+      - index:
+          _index: nn_root
+      - id: d
+        items:
+        - { note: hello }
+      - index:
+          _index: nn_object
+      - id: c
+        items: { note: hello }
+- do:
+    esql.query:
+      body:
+        query: FROM nn_nested, nn_root, nn_object | WHERE items.note IS NOT NULL | KEEP id | SORT id | LIMIT 10
+- match: { values: [[a], [c], [d]] }
+- do:
+    esql.query:
+      body:
+        query: FROM nn_nested, nn_root, nn_object | WHERE items.note IS NULL | KEEP id | LIMIT 10
+- match: { values: [[e]] }

@@ -188,6 +188,26 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
     }
 
     /**
+     * Rejects a search on a field under a {@code nested} object. Its values are in the child documents, which a Lucene query
+     * on the parents doesn't see, so the search would silently miss parents that match. Until searching them is supported,
+     * this fails rather than return wrong results.
+     */
+    protected void verifyNotUnderNested(Failures failures) {
+        FieldAttribute fieldAttribute = fieldAsFieldAttribute();
+        if (fieldAttribute != null && fieldAttribute.field().isUnderNested()) {
+            failures.add(
+                fail(
+                    field,
+                    "[{}] {} cannot search [{}]: Full-text matching on nested child fields is not supported yet.",
+                    functionName(),
+                    functionType(),
+                    field.sourceText()
+                )
+            );
+        }
+    }
+
+    /**
      * Builds the runtime-search evaluator for a {@code text} field: the query string is analyzed once into its
      * terms, and each row's value is then analyzed and matched by the {@link TokenStreamMatching.Matcher} the
      * given function builds from those terms. How the terms must match (any term, consecutive phrase, ...) is the

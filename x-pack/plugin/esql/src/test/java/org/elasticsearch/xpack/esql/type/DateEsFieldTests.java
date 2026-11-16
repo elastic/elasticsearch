@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.type;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.core.type.DateEsField;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.index.NestedLeaves;
 
 import java.util.Map;
 
@@ -33,6 +34,12 @@ public class DateEsFieldTests extends AbstractEsFieldTypeTests<DateEsField> {
         );
     }
 
+    public void testUnderNestedSerialization() throws Exception {
+        var field = DateEsField.dateEsField("d", Map.of(), false, EsField.TimeSeriesFieldType.NONE, false, true);
+        assertThat(copyInstance(field, NestedLeaves.VERSION).isUnderNested(), is(true));
+        assertThat(copyInstance(field, TransportVersionUtils.getPreviousVersion(NestedLeaves.VERSION)).isUnderNested(), is(false));
+    }
+
     @Override
     protected DateEsField mutateInstance(DateEsField instance) {
         String name = instance.getName();
@@ -40,14 +47,16 @@ public class DateEsFieldTests extends AbstractEsFieldTypeTests<DateEsField> {
         boolean aggregatable = instance.isAggregatable();
         EsField.TimeSeriesFieldType tsType = instance.getTimeSeriesFieldType();
         boolean isStaticallySingleValued = instance.isStaticallySingleValued();
-        switch (between(0, 4)) {
+        boolean isUnderNested = instance.isUnderNested();
+        switch (between(0, 5)) {
             case 0 -> name = randomAlphaOfLength(name.length() + 1);
             case 1 -> properties = randomValueOtherThan(properties, () -> randomProperties(4));
             case 2 -> aggregatable = false == aggregatable;
             case 3 -> tsType = randomValueOtherThan(tsType, () -> randomFrom(EsField.TimeSeriesFieldType.values()));
             case 4 -> isStaticallySingleValued = false == isStaticallySingleValued;
+            case 5 -> isUnderNested = false == isUnderNested;
             default -> throw new IllegalArgumentException();
         }
-        return DateEsField.dateEsField(name, properties, aggregatable, tsType, isStaticallySingleValued);
+        return DateEsField.dateEsField(name, properties, aggregatable, tsType, isStaticallySingleValued, isUnderNested);
     }
 }

@@ -660,8 +660,9 @@ public class IndexResolver {
             if (fieldsInfo.needsFieldSemantics()) {
                 fieldSemantics.put(fullName, FieldSemantics.from(fullName, fcs));
             }
+            boolean underNested = collectedFieldCaps.underNested.contains(fullName);
             EsField field = firstUnsupportedParent == null
-                ? createField(fieldsInfo, name, fullName, fcs, isAlias, indexDedupCache)
+                ? createField(fieldsInfo, name, fullName, fcs, isAlias, underNested, indexDedupCache)
                 : new UnsupportedEsField(
                     fullName,
                     firstUnsupportedParent.getOriginalTypes(),
@@ -713,7 +714,9 @@ public class IndexResolver {
         Map<String, IndexFieldCapabilitiesWithSourceHash> fieldsCaps,
         // The map won't contain entries without duplicates, i.e., it's number of occurrences - 1.
         Map<String, Integer> indexMappingHashDuplicates,
-        Map<String, Set<String>> fieldToMappedIndices
+        Map<String, Set<String>> fieldToMappedIndices,
+        // The names some index maps under a nested object
+        Set<String> underNested
     ) {}
 
     /**
@@ -731,6 +734,7 @@ public class IndexResolver {
         Map<String, Integer> indexMappingHashToDuplicateCount = new HashMap<>();
         Map<String, IndexFieldCapabilitiesWithSourceHash> fieldsCaps = new HashMap<>();
         Map<String, Set<String>> fieldToMappedIndices = trackUnmappedFieldIndices ? new HashMap<>() : null;
+        Set<String> underNestedNames = new HashSet<>();
 
         for (FieldCapabilitiesIndexResponse response : fieldCapsResponse.getIndexResponses()) {
             boolean isNew = indexMappingHashToDuplicateCount.compute(response.getIndexMappingHash(), (k, v) -> v == null ? 1 : v + 1) <= 1;
@@ -743,6 +747,9 @@ public class IndexResolver {
                 boolean underNested = NestedLeaves.pathFor(mapped.name(), response.get()) != null;
                 if (underNested && flattenedLeaves == false) {
                     continue;
+                }
+                if (underNested) {
+                    underNestedNames.add(mapped.name());
                 }
                 IndexFieldCapabilities fc = underNested ? flattened(mapped) : mapped;
                 if (fc.isMetadatafield()) {
@@ -797,7 +804,7 @@ public class IndexResolver {
             }
         }
 
-        return new CollectedFieldCaps(fieldsCaps, indexMappingHashToDuplicateCount, fieldToMappedIndices);
+        return new CollectedFieldCaps(fieldsCaps, indexMappingHashToDuplicateCount, fieldToMappedIndices, underNestedNames);
     }
 
     /**
@@ -827,6 +834,7 @@ public class IndexResolver {
         String fullName,
         List<IndexFieldCapabilities> fcs,
         boolean isAlias,
+        boolean underNested,
         // If this isn't null, it also means we need to create CompactInvalidMappedField instead of InvalidMappedField.
         @Nullable Map<Set<String>, Set<String>> indexDedupCache
     ) {
@@ -872,7 +880,7 @@ public class IndexResolver {
         // TODO I think we only care about unmapped fields if we're aggregating on them. do we even then?
 
         if (type == TEXT) {
-            return textField(name, fullName, isAlias, timeSeriesFieldType, fcs, fieldsInfo);
+            return textField(name, fullName, isAlias, underNested, timeSeriesFieldType, fcs, fieldsInfo);
         }
         if (type == KEYWORD) {
             int length = Short.MAX_VALUE;
@@ -886,11 +894,12 @@ public class IndexResolver {
                 normalized,
                 isAlias,
                 timeSeriesFieldType,
-                isStaticallySingleValued
+                isStaticallySingleValued,
+                underNested
             );
         }
         if (type == DATETIME) {
-            return DateEsField.dateEsField(name, new HashMap<>(), aggregatable, timeSeriesFieldType, isStaticallySingleValued);
+            return DateEsField.dateEsField(name, new HashMap<>(), aggregatable, timeSeriesFieldType, isStaticallySingleValued, underNested);
         }
         if (type == UNSUPPORTED) {
             return unsupported(name, first);
@@ -904,7 +913,8 @@ public class IndexResolver {
             isAlias,
             timeSeriesFieldType,
             isPassthrough,
-            isStaticallySingleValued
+            isStaticallySingleValued,
+            underNested
         );
     }
 
@@ -916,6 +926,7 @@ public class IndexResolver {
         String name,
         String fullName,
         boolean isAlias,
+        boolean underNested,
         EsField.TimeSeriesFieldType timeSeriesFieldType,
         List<IndexFieldCapabilities> fcs,
         FieldsInfo fieldsInfo
@@ -937,7 +948,18 @@ public class IndexResolver {
         } else {
             unknown = TextEsField.UnknownAnalyzer.NOT_REPORTED;
         }
-        return new TextEsField(name, new HashMap<>(), false, isAlias, timeSeriesFieldType, shared ? analyzer : null, gap, unknown, groups);
+        return new TextEsField(
+            name,
+            new HashMap<>(),
+            false,
+            isAlias,
+            timeSeriesFieldType,
+            shared ? analyzer : null,
+            gap,
+            unknown,
+            groups,
+            underNested
+        );
     }
 
     /** Like {@link #conflictingTypes}, walks every index response since {@code fcs} is deduplicated by mapping hash. */

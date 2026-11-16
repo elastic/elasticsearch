@@ -237,20 +237,10 @@ public class Mapper {
 
         // Into: two-phase WRITE (data nodes or coordinator) then SUM (coordinator).
         if (unary instanceof Into into) {
-            if (mappedChild instanceof FragmentExec) {
-                mappedChild = addExchangeForFragment(into, mappedChild);
-                return new IntoExec(into.source(), mappedChild, into.destination(), List.of(), into.output(), IntoExec.Mode.SUM);
-            } else {
-                PhysicalPlan writeExec = new IntoExec(
-                    into.source(),
-                    mappedChild,
-                    into.destination(),
-                    into.child().output(),
-                    into.output(),
-                    IntoExec.Mode.WRITE
-                );
-                return new IntoExec(into.source(), writeExec, into.destination(), List.of(), into.output(), IntoExec.Mode.SUM);
-            }
+            PhysicalPlan write = mappedChild instanceof FragmentExec
+                ? addExchangeForFragment(into, mappedChild)
+                : MapperUtils.mapIntoWrite(into, mappedChild);
+            return new IntoExec(into.source(), write, into.destination(), List.of(), into.output(), IntoExec.Mode.SUM);
         }
 
         //

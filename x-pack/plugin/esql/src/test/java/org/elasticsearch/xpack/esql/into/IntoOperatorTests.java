@@ -7,142 +7,128 @@
 
 package org.elasticsearch.xpack.esql.into;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.IsBlockedResult;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.operator.PageConsumer;
 import org.elasticsearch.compute.test.ComputeTestCase;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.junit.After;
+import org.junit.Before;
 
-import java.util.ArrayList;
+import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.CREATED;
+import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.REFUSED;
+import static org.elasticsearch.xpack.esql.into.IntoTestUtils.stats;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class IntoOperatorTests extends ComputeTestCase {
+    private static final List<Attribute> COLUMNS = List.of(new ReferenceAttribute(Source.EMPTY, "h", DataType.KEYWORD));
 
-    private static class CollectingConsumer implements PageConsumer {
-        final List<Page> pages = new ArrayList<>();
-        boolean finished;
+    private ThreadPool threadPool;
+    private IntoTestUtils.CapturingClient client;
+    private BlockFactory blockFactory;
+    private DriverContext driverContext;
+    private IntoPageWriter.Factory sink;
 
-        @Override
-        public void consume(Page page) {
-            pages.add(page);
+    @Before
+    public void setUpOperator() throws Exception {
+        threadPool = new TestThreadPool(getTestName());
+        client = new IntoTestUtils.CapturingClient(threadPool);
+        blockFactory = blockFactory();
+        driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory, null);
+        sink = IntoPageWriter.Factory.createFactory(client, IntoTestUtils.DESTINATION, COLUMNS, false);
+    }
+
+    @After
+    public void tearDownOperator() throws Exception {
+        while (client.listeners.isEmpty() == false) {
+            client.fail(new RuntimeException("test cleanup"));
         }
+        ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+    }
 
-        @Override
-        public void finish() {
-            finished = true;
-        }
+    public void testStatsRowWaitsForBulks() {
+        Operator op = new IntoOperator.Factory(sink, Function.identity()).get(driverContext);
+        op.addInput(page("h1", "h2"));
+        op.finish();
+        assertThat(op.getOutput(), nullValue());
+        assertFalse(op.isBlocked().listener().isDone());
 
-        @Override
-        public boolean isFinished() {
-            return finished;
-        }
-
-        @Override
-        public IsBlockedResult isBlocked() {
-            return Operator.NOT_BLOCKED;
-        }
+        client.answer(CREATED, CREATED);
+        assertThat(stats(op.getOutput()), equalTo(new IntoStats(2, 2)));
+        assertTrue(op.isFinished());
     }
 
     public void testZeroPagesEmitsZeroZero() {
-        BlockFactory bf = blockFactory();
-        CollectingConsumer consumer = new CollectingConsumer();
-        SyncIntoOperator op = new SyncIntoOperator(consumer, Function.identity(), bf);
+        Operator op = new IntoOperator.Factory(sink, Function.identity()).get(driverContext);
         op.finish();
         assertTrue(op.canProduceMoreDataWithoutExtraInput());
-        Page out = op.getOutput();
-        assertNotNull(out);
-        assertThat(out.getPositionCount(), equalTo(1));
-        assertThat(((LongBlock) out.getBlock(0)).getLong(0), equalTo(0L));
-        assertThat(((LongBlock) out.getBlock(1)).getLong(0), equalTo(0L));
+        assertThat(stats(op.getOutput()), equalTo(new IntoStats(0, 0)));
         assertTrue(op.isFinished());
-        out.releaseBlocks();
     }
 
-    public void testMultiplePagesAreSummed() {
-        BlockFactory bf = blockFactory();
-        CollectingConsumer consumer = new CollectingConsumer();
-        SyncIntoOperator op = new SyncIntoOperator(consumer, Function.identity(), bf);
-        for (int i = 0; i < 5; i++) {
-            op.addInput(singleRowPage(bf));
-        }
+    public void testRecordedFailureIsRethrown() {
+        Operator op = new IntoOperator.Factory(sink, Function.identity()).get(driverContext);
+        op.addInput(page("ok", "bad"));
         op.finish();
-        assertThat(consumer.pages.size(), equalTo(5));
-        Page out = op.getOutput();
-        assertNotNull(out);
-        assertThat(((LongBlock) out.getBlock(0)).getLong(0), equalTo(5L));
-        assertThat(((LongBlock) out.getBlock(1)).getLong(0), equalTo(5L));
-        out.releaseBlocks();
-        consumer.pages.forEach(Page::releaseBlocks);
+        client.answer(CREATED, REFUSED);
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, op::getOutput);
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
     }
 
-    private Page singleRowPage(BlockFactory bf) {
-        return new Page(bf.newConstantLongBlockWith(42L, 1));
+    public void testFailureFastAtAddInput() {
+        Operator op = new IntoOperator.Factory(sink, Function.identity()).get(driverContext);
+        op.addInput(page("bad"));
+        client.answer(REFUSED);
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> op.addInput(page("next")));
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(client.bulks, empty());
     }
 
-    /**
-     * A test-only synchronous IntoOperator variant that uses a counting consumer rather than IntoPageWriter.
-     */
-    private static final class SyncIntoOperator implements Operator {
-        private final CollectingConsumer consumer;
-        private final Function<Page, Page> alignment;
-        private final BlockFactory blockFactory;
-        private long count;
-        private boolean inputFinished;
-        private boolean outputEmitted;
+    public void testCheckedExceptionSurfacesAsElasticsearchException() {
+        Operator op = new IntoOperator.Factory(sink, Function.identity()).get(driverContext);
+        op.addInput(page("h1"));
+        op.finish();
+        client.fail(new IOException("simulated IO failure"));
+        ElasticsearchException e = expectThrows(ElasticsearchException.class, op::getOutput);
+        assertThat(e.getMessage(), containsString("simulated IO failure"));
+    }
 
-        SyncIntoOperator(CollectingConsumer consumer, Function<Page, Page> alignment, BlockFactory blockFactory) {
-            this.consumer = consumer;
-            this.alignment = alignment;
-            this.blockFactory = blockFactory;
-        }
+    public void testExplainModeDiscardsPages() {
+        IntoPageWriter.Factory explainSink = IntoPageWriter.Factory.createFactory(client, IntoTestUtils.DESTINATION, COLUMNS, true);
+        Operator op = new IntoOperator.Factory(explainSink, Function.identity()).get(driverContext);
+        op.addInput(page("explained"));
+        op.finish();
+        assertThat(client.bulks, empty());
+        assertThat(stats(op.getOutput()), equalTo(new IntoStats(0, 0)));
+        assertTrue(op.isFinished());
+    }
 
-        @Override
-        public boolean needsInput() {
-            return inputFinished == false;
-        }
-
-        @Override
-        public void addInput(Page page) {
-            count += page.getPositionCount();
-            consumer.consume(alignment.apply(page));
-        }
-
-        @Override
-        public void finish() {
-            inputFinished = true;
-            consumer.finish();
-        }
-
-        @Override
-        public boolean isFinished() {
-            return outputEmitted;
-        }
-
-        @Override
-        public boolean canProduceMoreDataWithoutExtraInput() {
-            return inputFinished && consumer.isFinished() && outputEmitted == false;
-        }
-
-        @Override
-        public IsBlockedResult isBlocked() {
-            return consumer.isBlocked();
-        }
-
-        @Override
-        public Page getOutput() {
-            if (inputFinished == false || consumer.isFinished() == false) {
-                return null;
+    private Page page(String... values) {
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(values.length)) {
+            for (String value : values) {
+                builder.appendBytesRef(new BytesRef(value));
             }
-            outputEmitted = true;
-            return new IntoStats(count, count).toPage(blockFactory);
+            return new Page(builder.build());
         }
-
-        @Override
-        public void close() {}
     }
 }

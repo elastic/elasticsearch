@@ -24,7 +24,6 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.operator.PageConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -46,28 +45,30 @@ import java.util.function.Supplier;
  * reserved on the request circuit breaker until that bulk settles. The caller's {@link ThreadContext} is restored
  * around each request.
  */
-public final class IntoPageWriter implements PageConsumer {
+public final class IntoPageWriter {
     // visible for testing
     static final long MAX_IN_FLIGHT_BYTES = 3L * Operator.TARGET_PAGE_SIZE;
 
     private static final String BREAKER_LABEL = "into";
 
-    /** Holds the query-scoped configuration and failure state across drivers for one {@code INTO} run. */
-    public static final class Factory implements PageConsumer.Factory {
+    /** Holds the per-node configuration and failure state shared across drivers on one node for one {@code INTO} run. */
+    public static final class Factory {
         private final Client client;
         private final Supplier<ThreadContext.StoredContext> caller;
         private final String destination;
         private final List<String> columns;
         private final List<DataType> types;
+        private final boolean explainOnly;
         private final AtomicReference<Exception> failure = new AtomicReference<>();
 
-        public static Factory createFactory(Client client, String destination, List<Attribute> output) {
+        public static Factory createFactory(Client client, String destination, List<Attribute> output, boolean explainOnly) {
             return new Factory(
                 client,
                 client.threadPool().getThreadContext().newRestorableContext(false),
                 destination,
                 Expressions.names(output),
-                output.stream().map(Attribute::dataType).toList()
+                output.stream().map(Attribute::dataType).toList(),
+                explainOnly
             );
         }
 
@@ -76,27 +77,28 @@ public final class IntoPageWriter implements PageConsumer {
             Supplier<ThreadContext.StoredContext> caller,
             String destination,
             List<String> columns,
-            List<DataType> types
+            List<DataType> types,
+            boolean explainOnly
         ) {
             this.client = client;
             this.caller = caller;
             this.destination = destination;
             this.columns = columns;
             this.types = types;
+            this.explainOnly = explainOnly;
         }
 
-        public String destination() {
+        String destination() {
             return destination;
         }
 
-        @Override
         public IntoPageWriter create(DriverContext driverContext) {
             return new IntoPageWriter(this, Objects.requireNonNull(driverContext), LocalCircuitBreaker.forAsyncIo(driverContext.breaker()));
         }
 
         /** Returns the first bulk or item failure recorded by this run, or {@code null} if every write succeeded. */
         @Nullable
-        public Exception failure() {
+        Exception failure() {
             return failure.get();
         }
     }
@@ -119,10 +121,9 @@ public final class IntoPageWriter implements PageConsumer {
         this.breaker = breaker;
     }
 
-    @Override
     public void consume(Page page) {
         try {
-            if (sink.failure.get() == null) {
+            if (sink.explainOnly == false && sink.failure.get() == null) {
                 send(bulkFor(page));
             }
         } finally {
@@ -220,7 +221,6 @@ public final class IntoPageWriter implements PageConsumer {
         breaker.addWithoutBreaking(-bytes, BREAKER_LABEL);
     }
 
-    @Override
     public void finish() {
         wake(() -> finished = true);
     }
@@ -239,7 +239,6 @@ public final class IntoPageWriter implements PageConsumer {
         }
     }
 
-    @Override
     public synchronized IsBlockedResult isBlocked() {
         if (mayContinue()) {
             return Operator.NOT_BLOCKED;
@@ -258,17 +257,16 @@ public final class IntoPageWriter implements PageConsumer {
         return finished ? inFlightBytes == 0 : inFlightBytes < MAX_IN_FLIGHT_BYTES;
     }
 
-    @Override
     public synchronized boolean isFinished() {
         return finished && inFlightBytes == 0;
     }
 
-    public synchronized IntoStats stats() {
+    synchronized IntoStats stats() {
         return new IntoStats(total, created);
     }
 
     @Nullable
-    public Exception failure() {
+    Exception failure() {
         return sink.failure();
     }
 

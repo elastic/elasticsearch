@@ -48,12 +48,8 @@ public class PropagateEmptyRelation extends OptimizerRules.ParameterizedOptimize
 
     @Override
     protected LogicalPlan rule(LogicalPlan plan, LogicalOptimizerContext ctx) {
-        if (plan instanceof InsertEmptyBuckets) {
-            // InsertEmptyBuckets creates the missing histogram buckets and therefore emits rows even when its input is empty.
-            return plan;
-        }
-        if (plan instanceof Into) {
-            // Into must always run to emit [0, 0] stats even when its input is empty.
+        if (plan instanceof InsertEmptyBuckets || plan instanceof Into) {
+            // Both emit rows on an empty input: InsertEmptyBuckets creates the missing buckets, Into returns its [0, 0] stats row.
             return plan;
         }
         if (plan instanceof UnaryPlan unary && unary.child() instanceof LocalRelation local && local.hasEmptySupplier()) {

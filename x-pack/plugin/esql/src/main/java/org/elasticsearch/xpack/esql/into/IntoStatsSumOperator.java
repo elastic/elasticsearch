@@ -19,11 +19,10 @@ import org.elasticsearch.compute.operator.Operator;
  * them into a single final row. Emits {@code [0, 0]} when no input pages arrive.
  */
 public final class IntoStatsSumOperator implements Operator {
-
-    public record Factory(BlockFactory blockFactory) implements OperatorFactory {
+    public record Factory() implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new IntoStatsSumOperator(blockFactory);
+            return new IntoStatsSumOperator(driverContext.blockFactory());
         }
 
         @Override

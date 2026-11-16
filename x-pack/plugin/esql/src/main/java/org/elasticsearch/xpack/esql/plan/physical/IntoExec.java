@@ -12,7 +12,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.tree.Node.NodeStringFormat;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
@@ -25,9 +27,9 @@ import java.util.Objects;
  *
  * <p>Operates in two modes:
  * <ul>
- *   <li>{@link Mode#WRITE} — runs per driver (data node or coordinator). Reads all source columns,
+ *   <li>{@link Mode#WRITE}: runs per driver (data node or coordinator). Reads all source columns,
  *       bulk-indexes them into the destination index, and emits one row {@code [total, created]}.</li>
- *   <li>{@link Mode#SUM} — runs on the coordinator. Receives one {@code [total, created]} row per
+ *   <li>{@link Mode#SUM}: runs on the coordinator. Receives one {@code [total, created]} row per
  *       upstream driver and sums them into a single final row.</li>
  * </ul>
  */
@@ -108,10 +110,10 @@ public class IntoExec extends UnaryExec {
 
     @Override
     protected AttributeSet computeReferences() {
-        if (mode == Mode.WRITE) {
-            return AttributeSet.of(sourceAttributes);
-        }
-        return child().outputSet();
+        return switch (mode) {
+            case WRITE -> AttributeSet.of(sourceAttributes);
+            case SUM -> child().outputSet();
+        };
     }
 
     @Override
@@ -125,21 +127,22 @@ public class IntoExec extends UnaryExec {
     }
 
     @Override
+    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
+        sb.append(nodeName()).append('[').append(mapper.index(destination)).append(']');
+    }
+
+    @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), destination, sourceAttributes, outputAttributes, mode);
     }
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (obj == null || getClass() != obj.getClass()) {
+        if (super.equals(obj) == false) {
             return false;
         }
         IntoExec other = (IntoExec) obj;
-        return super.equals(obj)
-            && destination.equals(other.destination)
+        return destination.equals(other.destination)
             && sourceAttributes.equals(other.sourceAttributes)
             && outputAttributes.equals(other.outputAttributes)
             && mode == other.mode;

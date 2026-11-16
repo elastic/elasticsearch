@@ -507,9 +507,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             plan = processingCommand.apply(plan);
         }
         forkSeenInScope = forkSeenInEnclosingScope;
-        if (plan instanceof Into into) {
-            throw new ParsingException(into.source(), "INTO must be the last command of the query");
-        }
+        plan.forEachDown(Into.class, into -> { throw new ParsingException(into.source(), "INTO must be the last command of the query"); });
         return plan;
     }
 

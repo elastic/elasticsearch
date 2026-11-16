@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
-import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
@@ -25,14 +25,22 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.BiConsumer;
+
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
 /**
  * Terminal command that writes the query's rows into {@link #destination()}.
- * It is a {@link PipelineBreaker} so the coordinator runs the WRITE-to-SUM
- * two-phase execution; {@link #output()} carries the stats schema so downstream
- * analysis can type-check the result.
+ * It is a {@link PipelineBreaker} so the mapper ends the data-node fragment at the write and
+ * wraps it in a coordinator-side SUM node. {@link #output()} is the one-row {@code [total, created]}
+ * result returned to the caller.
  */
-public class Into extends UnaryPlan implements TelemetryAware, PipelineBreaker, PostAnalysisVerificationAware {
+public class Into extends UnaryPlan
+    implements
+        TelemetryAware,
+        PipelineBreaker,
+        PostAnalysisPlanVerificationAware,
+        PostAnalysisVerificationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Into", Into::new);
 
     private final String destination;
@@ -49,12 +57,7 @@ public class Into extends UnaryPlan implements TelemetryAware, PipelineBreaker, 
     }
 
     private Into(StreamInput in) throws IOException {
-        this(
-            Source.readFrom((PlanStreamInput) in),
-            in.readNamedWriteable(LogicalPlan.class),
-            in.readString(),
-            in.readNamedWriteableCollectionAsList(Attribute.class)
-        );
+        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(LogicalPlan.class), in.readString());
     }
 
     @Override
@@ -62,7 +65,6 @@ public class Into extends UnaryPlan implements TelemetryAware, PipelineBreaker, 
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(child());
         out.writeString(destination);
-        out.writeNamedWriteableCollection(output);
     }
 
     @Override
@@ -100,9 +102,18 @@ public class Into extends UnaryPlan implements TelemetryAware, PipelineBreaker, 
     }
 
     @Override
+    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
+        return (p, failures) -> {
+            if (p.children().contains(this)) {
+                failures.add(fail(this, "INTO must be the last command of the query"));
+            }
+        };
+    }
+
+    @Override
     public void postAnalysisVerification(Failures failures) {
         if (child().anyMatch(p -> p instanceof MergePlan || (p instanceof LeafPlan && p instanceof Row == false))) {
-            failures.add(Failure.fail(this, "INTO currently only supports ROW as a source, without FORK"));
+            failures.add(fail(this, "INTO currently only supports ROW as a source, without FORK"));
         }
     }
 
@@ -118,13 +129,6 @@ public class Into extends UnaryPlan implements TelemetryAware, PipelineBreaker, 
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        Into other = (Into) obj;
-        return super.equals(obj) && destination.equals(other.destination);
+        return super.equals(obj) && destination.equals(((Into) obj).destination);
     }
 }

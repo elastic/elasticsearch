@@ -2097,13 +2097,10 @@ public class ComputeService {
             var workerThreadPool = transportService.getThreadPool();
             int esqlWorkerPoolSize = workerThreadPool.info(EsqlPlugin.computePool()).getMax();
 
-            // The planner's client is used solely by the coordinator-local EQL source, which delegates one
-            // EqlSearchAction. Assign the compute task as that search's parent so cancelling the ES|QL query
-            // cancels the delegated EQL search instead of orphaning it (and hanging the driver that waits on it).
-            var eqlDelegateClient = new ParentTaskAssigningClient(
-                client,
-                task.taskInfo(transportService.getLocalNode().getId(), false).taskId()
-            );
+            // The planner's client sends the requests a query makes on its own behalf: the coordinator-local EQL source's
+            // EqlSearchAction and INTO's bulk writes. They run as children of the compute task, so cancelling the ES|QL
+            // query cancels the delegated EQL search instead of orphaning it (and hanging the driver that waits on it).
+            var taskClient = new ParentTaskAssigningClient(client, task.taskInfo(transportService.getLocalNode().getId(), false).taskId());
             // One snapshot of the project for the dataset rebind below and for the planner. The external request handler
             // rebinds under its own snapshot before calling here; the planner does not consult datasets, so the two
             // snapshots cannot disagree on anything that is read.
@@ -2134,7 +2131,7 @@ public class ComputeService {
                 esqlWorkerPoolSize,
                 grokMatcherWatchdog.get(),
                 clusterService.state().getMinTransportVersion(),
-                eqlDelegateClient
+                taskClient
             );
 
             LOGGER.debug("Received physical plan for {}:\n{}", context.description(), plan);

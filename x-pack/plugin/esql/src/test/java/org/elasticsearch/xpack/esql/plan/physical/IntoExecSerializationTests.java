@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.io.IOException;
 import java.util.List;
@@ -18,13 +17,14 @@ import static org.elasticsearch.xpack.esql.expression.function.ReferenceAttribut
 public class IntoExecSerializationTests extends AbstractPhysicalPlanSerializationTests<IntoExec> {
     @Override
     protected IntoExec createTestInstance() {
-        Source source = randomSource();
-        PhysicalPlan child = randomChild(0);
-        String destination = randomAlphaOfLength(10);
-        List<Attribute> sourceAttributes = randomList(0, 3, () -> randomReferenceAttribute(false));
-        List<Attribute> outputAttributes = randomList(1, 3, () -> randomReferenceAttribute(false));
-        IntoExec.Mode mode = randomFrom(IntoExec.Mode.values());
-        return new IntoExec(source, child, destination, sourceAttributes, outputAttributes, mode);
+        return new IntoExec(
+            randomSource(),
+            randomChild(0),
+            randomAlphaOfLength(10),
+            randomAttributes(3),
+            randomAttributes(3),
+            randomFrom(IntoExec.Mode.values())
+        );
     }
 
     @Override
@@ -37,18 +37,16 @@ public class IntoExecSerializationTests extends AbstractPhysicalPlanSerializatio
         switch (between(0, 4)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> destination = randomValueOtherThan(destination, () -> randomAlphaOfLength(10));
-            case 2 -> sourceAttributes = randomValueOtherThan(
-                sourceAttributes,
-                () -> randomList(0, 3, () -> randomReferenceAttribute(false))
-            );
-            case 3 -> outputAttributes = randomValueOtherThan(
-                outputAttributes,
-                () -> randomList(1, 3, () -> randomReferenceAttribute(false))
-            );
+            case 2 -> sourceAttributes = randomValueOtherThan(sourceAttributes, () -> randomAttributes(3));
+            case 3 -> outputAttributes = randomValueOtherThan(outputAttributes, () -> randomAttributes(3));
             case 4 -> mode = randomValueOtherThan(mode, () -> randomFrom(IntoExec.Mode.values()));
             default -> throw new AssertionError("Unexpected case");
         }
         return new IntoExec(instance.source(), child, destination, sourceAttributes, outputAttributes, mode);
+    }
+
+    private static List<Attribute> randomAttributes(int max) {
+        return randomList(0, max, () -> randomReferenceAttribute(false));
     }
 
     @Override

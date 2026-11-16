@@ -3482,7 +3482,7 @@ public class EsqlSession {
         }
         plan.setAnalyzed();
         // TODO: when the plan contains an INTO node, validate the destination's mapping in projectMetadata
-        // (including column/field type mismatches against plan.output()) after authorizing write privileges
+        // (including column/field type mismatches against the INTO child's output) after authorizing write privileges
         // during pre-analysis.
         List<IndexResolution> semanticSources = new ArrayList<>(indexResolutions);
         semanticSources.addAll(r.lookupIndices().values());

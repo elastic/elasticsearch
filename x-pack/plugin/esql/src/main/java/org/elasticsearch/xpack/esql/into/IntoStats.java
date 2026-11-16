@@ -25,7 +25,7 @@ public record IntoStats(long total, long created) {
         );
     }
 
-    public Page toPage(BlockFactory blockFactory) {
+    Page toPage(BlockFactory blockFactory) {
         return new Page(BlockUtils.fromArrayRow(blockFactory, total, created));
     }
 }

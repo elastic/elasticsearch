@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
-import org.elasticsearch.xpack.esql.plan.physical.IntoExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
@@ -153,7 +152,7 @@ public class LocalMapper {
         }
 
         if (unary instanceof Into into) {
-            return new IntoExec(into.source(), mappedChild, into.destination(), into.child().output(), into.output(), IntoExec.Mode.WRITE);
+            return MapperUtils.mapIntoWrite(into, mappedChild);
         }
 
         //

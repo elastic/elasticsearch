@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.xpack.esql.VerificationException;
 import org.junit.Before;
 
 import java.util.Arrays;
@@ -22,6 +21,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResp
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 
 public class IntoIT extends AbstractEsqlIntegTestCase {
 
@@ -82,27 +82,17 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
         assertInto("ROW k = \"x\" | WHERE k == \"y\"", 0);
     }
 
-    public void testFromIntoIsRejected() {
-        VerificationException e = expectThrows(
-            VerificationException.class,
-            () -> run("FROM " + DESTINATION + " | INTO " + DESTINATION + "-copy").close()
-        );
-        assertThat(e.getMessage(), containsString("INTO currently only supports ROW as a source, without FORK"));
+    public void testEvalColumnsAreWritten() {
+        assertInto("ROW k = [\"ab\", \"c\"] | MV_EXPAND k | EVAL l = LENGTH(k)", 2);
+        assertReadBack("KEEP k, l | SORT k", List.of(List.of("ab", 2L), List.of("c", 1L)));
     }
 
     public void testExplainIntoDoesNotIndex() {
-        long before = indexCount();
         try (EsqlQueryResponse response = run("EXPLAIN (ROW k = \"explained\" | INTO " + DESTINATION + ")")) {
-            assertThat(response.columns().stream().map(c -> c.name()).toList(), org.hamcrest.Matchers.hasItem("type"));
+            List<String> plans = getValuesList(response).stream().map(row -> (String) row.getLast()).toList();
+            assertThat(plans, hasItem(containsString("IntoExec")));
         }
-        refresh(DESTINATION);
-        assertThat(indexCount(), equalTo(before));
-    }
-
-    private long indexCount() {
-        try (EsqlQueryResponse response = run("FROM " + DESTINATION + " | STATS count = COUNT(*)")) {
-            return (long) getValuesList(response).get(0).get(0);
-        }
+        assertReadBack(List.of());
     }
 
     public void testRefusedRowFailsTheQuery() {

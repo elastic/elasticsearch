@@ -952,7 +952,7 @@ public class LocalExecutionPlanner {
             new OutputOperatorFactory(
                 Expressions.names(output),
                 alignPageToAttributes(output, source.layout),
-                outputExec.getPageConsumerFactory()
+                outputExec.getPageConsumer()
             ),
             source.layout
         );
@@ -984,16 +984,20 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planInto(IntoExec into, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(into.child(), context);
-        if (into.mode() == IntoExec.Mode.SUM) {
-            return source.with(new IntoStatsSumOperator.Factory(context.blockFactory()), source.layout);
-        }
         Layout outputLayout = new Layout.Builder().append(into.output()).build();
-        if (configuration.explainOnly()) {
-            return source.with(IntoOperator.Factory.forExplain(context.blockFactory()), outputLayout);
-        }
-        IntoPageWriter.Factory sink = IntoPageWriter.Factory.createFactory(client, into.destination(), into.sourceAttributes());
-        Function<Page, Page> alignment = alignPageToAttributes(into.sourceAttributes(), source.layout);
-        return source.with(IntoOperator.Factory.forWrite(sink, alignment, context.blockFactory()), outputLayout);
+        return switch (into.mode()) {
+            case WRITE -> {
+                IntoPageWriter.Factory sink = IntoPageWriter.Factory.createFactory(
+                    client,
+                    into.destination(),
+                    into.sourceAttributes(),
+                    configuration.explainOnly()
+                );
+                Function<Page, Page> alignment = alignPageToAttributes(into.sourceAttributes(), source.layout);
+                yield source.with(new IntoOperator.Factory(sink, alignment), outputLayout);
+            }
+            case SUM -> source.with(new IntoStatsSumOperator.Factory(), outputLayout);
+        };
     }
 
     private PhysicalOperation planStreamingOutput(StreamingOutputExec exec, LocalExecutionPlannerContext context) {

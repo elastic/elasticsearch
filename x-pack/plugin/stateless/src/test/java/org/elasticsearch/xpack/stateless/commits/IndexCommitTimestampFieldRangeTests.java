@@ -372,7 +372,7 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
     }
 
     public void testTimestampRangeIgnoresSegmentWithGhostTimestampField() throws Exception {
-        IndexMode indexMode = randomFrom(IndexMode.TIME_SERIES, IndexMode.LOGSDB);
+        IndexMode indexMode = randomFrom(IndexMode.TIME_SERIES, IndexMode.LOGSDB, IndexMode.LOGSDB_COLUMNAR);
         Settings.Builder settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName());
         if (indexMode == IndexMode.TIME_SERIES) {
             // Same time_series setup as getDocumentMapper

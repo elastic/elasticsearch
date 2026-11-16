@@ -9,6 +9,8 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
@@ -25,6 +27,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -46,14 +49,17 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.metrics.HistogramUnionState;
 import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentiles;
+import org.elasticsearch.search.aggregations.metrics.InternalTopHits;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileResultsTests;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.SuggestTests;
+import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -121,6 +127,90 @@ public class SearchResponseTests extends ESTestCase {
 
         response.decRef();
         assertEquals(0L, breaker.getUsed());
+    }
+
+    /**
+     * The copy made by {@link SearchResponse#withAdditionalPhaseFailures} and the original are released independently, so the copy
+     * must hold its own references on everything the original releases, and take over the fetch charge and the state set after
+     * construction.
+     */
+    public void testWithAdditionalPhaseFailuresReleasesIndependentlyOfTheOriginal() {
+        CircuitBreaker breaker = FetchSearchPhaseTests.requestBreaker("1gb");
+        long bytes = 4096L;
+        breaker.addWithoutBreaking(bytes);
+
+        TotalHits totalHits = new TotalHits(1, TotalHits.Relation.EQUAL_TO);
+        SearchHits mainHits = new SearchHits(new SearchHit[] { new SearchHit(0, "main") }, totalHits, 1.0f);
+        SearchHits topHits = new SearchHits(new SearchHit[] { new SearchHit(1, "top") }, totalHits, 1.0f);
+        InternalTopHits topHitsAgg = new InternalTopHits(
+            "th",
+            0,
+            1,
+            new TopDocsAndMaxScore(new TopDocs(totalHits, new ScoreDoc[] { new ScoreDoc(1, 1.0f) }), 1.0f),
+            topHits,
+            null
+        );
+        SearchHit completionHit = new SearchHit(2, "completion");
+        CompletionSuggestion.Entry.Option option = new CompletionSuggestion.Entry.Option(2, new Text("text"), 1.0f, Map.of());
+        option.setHit(completionHit);
+        CompletionSuggestion.Entry entry = new CompletionSuggestion.Entry(new Text(""), 0, 5);
+        entry.addOption(option);
+        CompletionSuggestion suggestion = new CompletionSuggestion("suggestion", 1, false);
+        suggestion.addTerm(entry);
+
+        List<SearchPhaseFailure> existingFailures = randomPhaseFailures();
+        List<SearchPhaseFailure> additionalFailures = randomPhaseFailures();
+        SearchResponse original = new SearchResponse(
+            mainHits,
+            InternalAggregations.from(List.of(topHitsAgg)),
+            new Suggest(new ArrayList<>(List.of(suggestion))),
+            false,
+            null,
+            null,
+            1,
+            null,
+            1,
+            1,
+            0,
+            0,
+            List.of(),
+            existingFailures,
+            SearchResponse.Clusters.EMPTY,
+            null,
+            List.of(topHits),
+            List.of(completionHit)
+        );
+        // the original now owns the references the hits were created with
+        mainHits.decRef();
+        original.adoptCoordinatorFetchCharge(() -> breaker.addWithoutBreaking(-bytes));
+        long storeBytesRead = randomNonNegativeLong();
+        original.setDirectoryMetrics(storeMetrics(storeBytesRead));
+        long aggregationBreakerBytes = randomLongBetween(1, 1000);
+        original.setQueryPhaseAggregationBreakerBytes(aggregationBreakerBytes);
+
+        SearchResponse copy = original.withAdditionalPhaseFailures(additionalFailures);
+
+        List<SearchPhaseFailure> expectedFailures = new ArrayList<>(existingFailures);
+        expectedFailures.addAll(additionalFailures);
+        assertThat(copy.getPhaseFailures(), equalTo(expectedFailures));
+        assertThat(original.getPhaseFailures(), equalTo(existingFailures));
+        assertThat(copy.getQueryPhaseAggregationBreakerBytes(), equalTo(aggregationBreakerBytes));
+        assertThat(copy.getDirectoryMetrics().metrics(StoreMetrics.NAME).cast(StoreMetrics.class).getBytesRead(), equalTo(storeBytesRead));
+        assertFalse(original.hasCoordinatorFetchCharge());
+        assertTrue(copy.hasCoordinatorFetchCharge());
+
+        // the copy keeps everything alive and charged after the original has gone
+        original.decRef();
+        assertTrue(mainHits.hasReferences());
+        assertTrue(topHits.hasReferences());
+        assertTrue(completionHit.hasReferences());
+        assertThat(breaker.getUsed(), equalTo(bytes));
+
+        copy.decRef();
+        assertFalse(mainHits.hasReferences());
+        assertFalse(topHits.hasReferences());
+        assertFalse(completionHit.hasReferences());
+        assertThat(breaker.getUsed(), equalTo(0L));
     }
 
     public void testCoordinatorFetchBreakerChargeReleasesOnCloseIfNeverTransferred() {

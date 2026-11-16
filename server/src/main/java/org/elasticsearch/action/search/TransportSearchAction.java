@@ -554,8 +554,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
         // Searches run during the rewrite, such as those of compound retrievers, record their phase failures on the rewrite context.
         final ActionListener<SearchResponse> listenerWithRewriteFailures = originalListener.delegateFailureAndWrap((l, response) -> {
-            response.addPhaseFailures(rewriteContext.phaseFailures());
-            l.onResponse(response);
+            final var rewriteFailures = rewriteContext.phaseFailures();
+            if (rewriteFailures.isEmpty()) {
+                l.onResponse(response);
+            } else {
+                ActionListener.respondAndRelease(l, response.withAdditionalPhaseFailures(rewriteFailures));
+            }
         });
         ActionListener<SearchRequest> rewriteListener = listenerWithRewriteFailures.delegateFailureAndWrap((delegate, rewritten) -> {
             if (ccsCheckCompatibility) {

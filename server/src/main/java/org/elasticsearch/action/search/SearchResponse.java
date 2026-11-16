@@ -94,7 +94,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     private final int successfulShards;
     private final int skippedShards;
     private final List<ShardSearchFailure> shardFailures;
-    private List<SearchPhaseFailure> phaseFailures;
+    private final List<SearchPhaseFailure> phaseFailures;
     private final Clusters clusters;
     private final long tookInMillis;
     // only used for telemetry purposes on the coordinating node, where the search response gets created
@@ -495,13 +495,39 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     }
 
     /**
-     * Adds failures from phases that ran before this search, as part of its rewrite. Only called by the coordinating node before the
-     * response is handed to its caller.
+     * Returns a copy of this response with additional phase failures, for failures from phases that ran before this search, as part of its
+     * rewrite. The copy takes its own references on everything this response releases, and the coordinator fetch charge moves to it, so
+     * the caller must release this response and the copy independently.
      */
-    void addPhaseFailures(List<SearchPhaseFailure> additionalFailures) {
-        if (!additionalFailures.isEmpty()) {
-            phaseFailures = CollectionUtils.concatLists(phaseFailures, additionalFailures);
-        }
+    SearchResponse withAdditionalPhaseFailures(List<SearchPhaseFailure> additionalFailures) {
+        topHitsToRelease.forEach(SearchHits::incRef);
+        completionOptionHitsToRelease.forEach(SearchHit::mustIncRef);
+        SearchResponse copy = new SearchResponse(
+            hits,
+            aggregations,
+            suggest,
+            timedOut,
+            terminatedEarly,
+            profileResults,
+            numReducePhases,
+            scrollId,
+            totalShards,
+            successfulShards,
+            skippedShards,
+            tookInMillis,
+            shardFailures,
+            CollectionUtils.concatLists(phaseFailures, additionalFailures),
+            clusters,
+            pointInTimeId,
+            topHitsToRelease,
+            completionOptionHitsToRelease
+        );
+        copy.timeRangeFilterFromMillis = timeRangeFilterFromMillis;
+        copy.directoryMetrics = directoryMetrics;
+        copy.queryPhaseAggregationBreakerBytes = queryPhaseAggregationBreakerBytes;
+        copy.serializedAggregationsBytes = serializedAggregationsBytes;
+        copy.coordinatorFetchCharge = transferCoordinatorFetchCharge();
+        return copy;
     }
 
     /**

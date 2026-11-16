@@ -69,7 +69,7 @@ import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
 import org.elasticsearch.xpack.core.security.cloud.InternalCloudApiKeyService;
 import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.esql.ml.EsqlParserQueryAnalyzer;
+import org.elasticsearch.xpack.esql.ml.EsqlDatafeedQueryParser;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MachineLearningExtension;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
@@ -203,7 +203,7 @@ public class DatafeedManagerTests extends ESTestCase {
             auditor,
             annotationPersister,
             jobResultsProvider,
-            new EsqlDatafeedQueryValidator(new EsqlParserQueryAnalyzer())
+            new EsqlDatafeedQueryValidator(new EsqlDatafeedQueryParser())
         );
     }
 

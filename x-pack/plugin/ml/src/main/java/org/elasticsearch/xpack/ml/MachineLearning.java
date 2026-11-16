@@ -1147,11 +1147,7 @@ public class MachineLearning extends Plugin
         if (enabled == false) {
             // Holders for @link(MachineLearningFeatureSetUsage) which needs access to job manager and ML extension,
             // both empty if ML is disabled
-            return List.of(
-                new JobManagerHolder(),
-                new MachineLearningExtensionHolder(),
-                new EsqlQueryAnalyzerHolder(esqlQueryAnalyzer.get())
-            );
+            return List.of(new JobManagerHolder(), new MachineLearningExtensionHolder(), new EsqlQueryParserHolder(esqlQueryParser()));
         }
 
         machineLearningExtension.get().configure(environment.settings());
@@ -1209,7 +1205,7 @@ public class MachineLearning extends Plugin
             resultsPersisterService,
             anomalyDetectionAuditor
         );
-        EsqlDatafeedQueryValidator esqlDatafeedQueryValidator = new EsqlDatafeedQueryValidator(esqlQueryAnalyzer.get());
+        EsqlDatafeedQueryValidator esqlDatafeedQueryValidator = new EsqlDatafeedQueryValidator(esqlQueryParser());
         JobConfigProvider jobConfigProvider = new JobConfigProvider(
             client,
             xContentRegistry,
@@ -1349,7 +1345,7 @@ public class MachineLearning extends Plugin
             clusterService,
             () -> machineLearningExtension.get().getCloudCredentialManager(),
             datafeedSearchTelemetry,
-            esqlQueryAnalyzer.get()
+            esqlQueryParser()
         );
         DatafeedContextProvider datafeedContextProvider = new DatafeedContextProvider(
             jobConfigProvider,
@@ -1629,7 +1625,7 @@ public class MachineLearning extends Plugin
             deploymentManager.get(),
             nodeAvailabilityZoneMapper,
             new MachineLearningExtensionHolder(machineLearningExtension.get()),
-            new EsqlQueryAnalyzerHolder(esqlQueryAnalyzer.get()),
+            new EsqlQueryParserHolder(esqlQueryParser()),
             mlMetrics,
             mlConfigMetrics,
             deploymentPathUnsafeIdTelemetry

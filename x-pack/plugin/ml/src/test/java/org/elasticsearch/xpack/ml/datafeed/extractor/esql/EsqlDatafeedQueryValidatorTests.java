@@ -35,9 +35,9 @@ import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.ml.EsqlParserQueryAnalyzer;
+import org.elasticsearch.xpack.esql.ml.EsqlDatafeedQueryParser;
 import org.elasticsearch.xpack.ml.datafeed.crossproject.NoMatchingProjectTestMessages;
-import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryAnalyzer;
+import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -65,8 +65,8 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
     private static final String ESQL_QUERY =
         "FROM logs | STATS avg_bytes = AVG(bytes), doc_count = COUNT(*) BY ts = BUCKET(@timestamp, 1 hour)";
     private static final String TIME_FIELD = "ts";
-    private static final EsqlQueryAnalyzer ANALYZER = new EsqlParserQueryAnalyzer();
-    private static final EsqlDatafeedQueryValidator STRUCTURE_VALIDATOR = new EsqlDatafeedQueryValidator(ANALYZER);
+    private static final EsqlQueryParser PARSER = new EsqlDatafeedQueryParser();
+    private static final EsqlDatafeedQueryValidator STRUCTURE_VALIDATOR = new EsqlDatafeedQueryValidator(PARSER);
     private static final String SUMMARY_COUNT_FIELD = "doc_count";
 
     public void testRequiredColumnsPresentShouldPassValidation() {
@@ -895,7 +895,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         try {
             EsqlDatafeedQueryValidator.warnForConflictingOuterClauses(
                 "datafeed-1",
-                EsqlDatafeedQuery.parse(ANALYZER, "FROM logs | WHERE ts >= 0 | SORT ts DESC | LIMIT 20"),
+                EsqlDatafeedQuery.parse(PARSER, "FROM logs | WHERE ts >= 0 | SORT ts DESC | LIMIT 20"),
                 TIME_FIELD,
                 false
             );
@@ -912,8 +912,8 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
                         containsString("ML owns the request order")
                     ),
                     allOf(
-                        containsString("ES|QL datafeed [datafeed-1] query contains an outer LIMIT clause"),
-                        containsString("ML owns the safety ceiling")
+                        containsString("ES|QL datafeed [datafeed-1] query contains an outer LIMIT [20]"),
+                        containsString("ML sets the row limit")
                     )
                 )
             );
@@ -928,7 +928,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         try {
             EsqlDatafeedQueryValidator.warnForConflictingOuterClauses(
                 "datafeed-1",
-                EsqlDatafeedQuery.parse(ANALYZER, "FROM logs | LIMIT 20"),
+                EsqlDatafeedQuery.parse(PARSER, "FROM logs | LIMIT 20"),
                 TIME_FIELD,
                 true
             );
@@ -937,7 +937,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
                 false,
                 List.of(
                     allOf(
-                        containsString("ES|QL datafeed [datafeed-1] query contains an outer LIMIT clause"),
+                        containsString("ES|QL datafeed [datafeed-1] query contains an outer LIMIT [20]"),
                         containsString("The delayed data check applies the LIMIT to the whole check window")
                     )
                 )
@@ -954,7 +954,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             EsqlDatafeedQueryValidator.warnForConflictingOuterClauses(
                 "datafeed-1",
                 EsqlDatafeedQuery.parse(
-                    ANALYZER,
+                    PARSER,
                     "FROM logs | KEEP ts, value | EVAL note = \"WHERE ts | SORT ts | LIMIT 20\" "
                         + "| EVAL triple_note = \"\"\"WHERE ts | SORT ts | LIMIT 20\"\"\" "
                         + "| KEEP `WHERE ts`, value /* WHERE ts | SORT ts | LIMIT 20 /* WHERE ts */ */ "
@@ -1277,7 +1277,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         try {
             EsqlDatafeedQueryValidator.warnForConflictingOuterClauses(
                 "datafeed-1",
-                EsqlDatafeedQuery.parse(ANALYZER, "FROM logs | LIMIT 500 | STATS c = COUNT(*) BY b = BUCKET(ts, 1 hour)"),
+                EsqlDatafeedQuery.parse(PARSER, "FROM logs | LIMIT 500 | STATS c = COUNT(*) BY b = BUCKET(ts, 1 hour)"),
                 TIME_FIELD,
                 true
             );
@@ -1286,7 +1286,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
                 false,
                 List.of(
                     allOf(
-                        containsString("ES|QL datafeed [datafeed-1] query applies a LIMIT before an aggregation (STATS)"),
+                        containsString("ES|QL datafeed [datafeed-1] query applies LIMIT [500] before an aggregation (STATS)"),
                         containsString("Use SAMPLE or remove the LIMIT"),
                         containsString("The delayed data check applies the LIMIT to the whole check window")
                     )
@@ -1303,7 +1303,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         try {
             EsqlDatafeedQueryValidator.warnForConflictingOuterClauses(
                 "datafeed-1",
-                EsqlDatafeedQuery.parse(ANALYZER, "FROM logs | LIMIT 500 | STATS c = COUNT(*) BY b = BUCKET(ts, 1 hour) | LIMIT 10"),
+                EsqlDatafeedQuery.parse(PARSER, "FROM logs | LIMIT 500 | STATS c = COUNT(*) BY b = BUCKET(ts, 1 hour) | LIMIT 10"),
                 TIME_FIELD,
                 true
             );
@@ -1312,11 +1312,11 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
                 false,
                 List.of(
                     allOf(
-                        containsString("ES|QL datafeed [datafeed-1] query contains an outer LIMIT clause"),
+                        containsString("ES|QL datafeed [datafeed-1] query contains an outer LIMIT [10]"),
                         containsString("The delayed data check applies the LIMIT to the whole check window")
                     ),
                     allOf(
-                        containsString("ES|QL datafeed [datafeed-1] query applies a LIMIT before an aggregation (STATS)"),
+                        containsString("ES|QL datafeed [datafeed-1] query applies LIMIT [500] before an aggregation (STATS)"),
                         not(containsString("The delayed data check"))
                     )
                 )
@@ -1332,7 +1332,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         try {
             EsqlDatafeedQueryValidator.warnForConflictingOuterClauses(
                 "datafeed-1",
-                EsqlDatafeedQuery.parse(ANALYZER, "FROM logs | WHERE `@timestamp` > NOW() - 1 day"),
+                EsqlDatafeedQuery.parse(PARSER, "FROM logs | WHERE `@timestamp` > NOW() - 1 day"),
                 "@timestamp",
                 false
             );
@@ -1405,7 +1405,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         }
 
         private ValidatorHarness(EsqlQueryResponse response, Exception failure) {
-            validator = new EsqlDatafeedQueryValidator(ANALYZER, (client, query, filter, headers, projectRouting, params, listener) -> {
+            validator = new EsqlDatafeedQueryValidator(PARSER, (client, query, filter, headers, projectRouting, params, listener) -> {
                 capturedQuery = query;
                 capturedRouting = projectRouting;
                 capturedParams = params;

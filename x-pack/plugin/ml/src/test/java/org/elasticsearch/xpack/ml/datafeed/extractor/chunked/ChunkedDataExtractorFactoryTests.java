@@ -19,9 +19,9 @@ import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.esql.ml.EsqlParserQueryAnalyzer;
+import org.elasticsearch.xpack.esql.ml.EsqlDatafeedQueryParser;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
-import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryAnalyzer;
+import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDatafeedQuery;
@@ -165,7 +165,7 @@ public class ChunkedDataExtractorFactoryTests extends ESTestCase {
     }
 
     private ChunkedDataExtractorFactory createEsqlFactory(TimeValue groupingInterval, String esqlQuery) {
-        EsqlQueryAnalyzer analyzer = new EsqlParserQueryAnalyzer();
+        EsqlQueryParser parser = new EsqlDatafeedQueryParser();
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeField("time");
         Detector.Builder detectorBuilder = new Detector.Builder();
@@ -186,8 +186,7 @@ public class ChunkedDataExtractorFactoryTests extends ESTestCase {
             datafeedConfig,
             job,
             mock(DatafeedTimingStatsReporter.class),
-            analyzer,
-            EsqlDatafeedQuery.parse(analyzer, esqlQuery)
+            EsqlDatafeedQuery.parse(parser, esqlQuery)
         );
         return new ChunkedDataExtractorFactory(datafeedConfig, job, xContentRegistry(), esqlFactory);
     }

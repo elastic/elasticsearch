@@ -10,20 +10,22 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.esql;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.ml.EsqlParserQueryAnalyzer;
-import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryAnalyzer;
+import org.elasticsearch.xpack.esql.ml.EsqlDatafeedQueryParser;
+import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
+
+import java.util.OptionalInt;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class EsqlDatafeedQueryTests extends ESTestCase {
 
-    private static final EsqlQueryAnalyzer ANALYZER = new EsqlParserQueryAnalyzer();
+    private static final EsqlQueryParser PARSER = new EsqlDatafeedQueryParser();
     private static final String SORT = "\n| SORT ??timeField ASC";
     private static final String CAP = "\n| LIMIT 10000";
 
     private static EsqlDatafeedQuery parse(String query) {
-        return EsqlDatafeedQuery.parse(ANALYZER, query);
+        return EsqlDatafeedQuery.parse(PARSER, query);
     }
 
     /** Generated queries take {@code ??} parameters that the parser cannot resolve without a request. */
@@ -79,20 +81,28 @@ public class EsqlDatafeedQueryTests extends ESTestCase {
     public void testLimitBeforeStatsShouldCapOutputAndBeReported() {
         EsqlDatafeedQuery query = parse("FROM logs-* | LIMIT 500 | STATS c = COUNT(*) BY b = BUCKET(@timestamp, 1h)");
         assertThat(query.injectsRowLimit(), is(true));
-        assertThat(query.hasLimitBeforeAggregation(), is(true));
-        assertThat(query.hasOuterLimit(), is(true));
+        assertThat(query.limitBeforeAggregation(), equalTo(OptionalInt.of(500)));
+        assertThat(query.outputLimit(), equalTo(OptionalInt.empty()));
     }
 
     public void testLimitAfterStatsShouldNotBeReportedAsLimitBeforeAggregation() {
-        assertThat(parse("FROM logs-* | STATS c = COUNT(*) | LIMIT 5").hasLimitBeforeAggregation(), is(false));
-        assertThat(parse("FROM logs-* | STATS c = COUNT(*) | LIMIT 5 | STATS d = COUNT(*)").hasLimitBeforeAggregation(), is(false));
-        assertThat(parse("FROM logs-* | SAMPLE 0.1 | STATS c = COUNT(*)").hasLimitBeforeAggregation(), is(false));
-        assertThat(parse("FROM logs-* | LIMIT 5").hasLimitBeforeAggregation(), is(false));
+        assertThat(parse("FROM logs-* | STATS c = COUNT(*) | LIMIT 5").limitBeforeAggregation().isPresent(), is(false));
+        assertThat(
+            parse("FROM logs-* | STATS c = COUNT(*) | LIMIT 5 | STATS d = COUNT(*)").limitBeforeAggregation().isPresent(),
+            is(false)
+        );
+        assertThat(parse("FROM logs-* | SAMPLE 0.1 | STATS c = COUNT(*)").limitBeforeAggregation().isPresent(), is(false));
+        assertThat(parse("FROM logs-* | LIMIT 5").limitBeforeAggregation().isPresent(), is(false));
+    }
+
+    public void testOutputLimitShouldExposeTheLimitValue() {
+        assertThat(parse("FROM logs-* | LIMIT 20").outputLimit(), equalTo(OptionalInt.of(20)));
+        assertThat(parse("FROM logs-* | LIMIT 20 | LIMIT 5").outputLimit(), equalTo(OptionalInt.of(5)));
     }
 
     public void testLimitInsideSubqueryShouldNotBeAnOuterLimit() {
-        assertThat(parse("FROM logs | WHERE x IN (FROM other | LIMIT 1)").hasOuterLimit(), is(false));
-        assertThat(parse("FROM logs | /* | LIMIT 5 */ KEEP a").hasOuterLimit(), is(false));
+        assertThat(parse("FROM logs | WHERE x IN (FROM other | LIMIT 1)").outputLimit().isPresent(), is(false));
+        assertThat(parse("FROM logs | /* | LIMIT 5 */ KEEP a").outputLimit().isPresent(), is(false));
     }
 
     public void testTimeFieldClausesShouldBeDetectedByFieldName() {

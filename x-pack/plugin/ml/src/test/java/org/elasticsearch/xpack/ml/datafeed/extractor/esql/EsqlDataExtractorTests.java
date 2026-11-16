@@ -37,9 +37,9 @@ import org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.core.esql.action.EsqlResponse;
 import org.elasticsearch.xpack.core.esql.action.internal.SharedSecrets;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
-import org.elasticsearch.xpack.esql.ml.EsqlParserQueryAnalyzer;
+import org.elasticsearch.xpack.esql.ml.EsqlDatafeedQueryParser;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
-import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryAnalyzer;
+import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.junit.After;
 import org.junit.Before;
@@ -79,7 +79,7 @@ import static org.mockito.Mockito.when;
 
 public class EsqlDataExtractorTests extends ESTestCase {
 
-    private static final EsqlQueryAnalyzer ANALYZER = new EsqlParserQueryAnalyzer();
+    private static final EsqlQueryParser PARSER = new EsqlDatafeedQueryParser();
 
     private static final String DEFAULT_QUERY = "FROM logs";
     private static final String TIME_FIELD = "ts";
@@ -756,8 +756,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
     private static EsqlDataExtractorContext context(long start, long end) {
         return new EsqlDataExtractorContext(
             JOB_ID,
-            EsqlDatafeedQuery.parse(ANALYZER, DEFAULT_QUERY),
-            ANALYZER,
+            EsqlDatafeedQuery.parse(PARSER, DEFAULT_QUERY),
             TIME_FIELD,
             TIME_FIELD,
             GROUPING_INTERVAL_MILLIS,
@@ -772,8 +771,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
     private static EsqlDataExtractorContext contextWithHeaders(long start, long end, Map<String, String> headers) {
         return new EsqlDataExtractorContext(
             JOB_ID,
-            EsqlDatafeedQuery.parse(ANALYZER, DEFAULT_QUERY),
-            ANALYZER,
+            EsqlDatafeedQuery.parse(PARSER, DEFAULT_QUERY),
             TIME_FIELD,
             TIME_FIELD,
             GROUPING_INTERVAL_MILLIS,
@@ -809,8 +807,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
     ) {
         EsqlDataExtractorContext context = new EsqlDataExtractorContext(
             JOB_ID,
-            EsqlDatafeedQuery.parse(ANALYZER, esqlQuery),
-            ANALYZER,
+            EsqlDatafeedQuery.parse(PARSER, esqlQuery),
             sourceTimeField,
             emittedTimeField,
             GROUPING_INTERVAL_MILLIS,

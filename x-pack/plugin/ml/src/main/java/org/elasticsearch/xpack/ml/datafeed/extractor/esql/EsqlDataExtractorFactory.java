@@ -12,7 +12,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
-import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryAnalyzer;
+import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 
@@ -22,7 +22,6 @@ public record EsqlDataExtractorFactory(
     DatafeedConfig datafeed,
     Job job,
     DatafeedTimingStatsReporter timingStatsReporter,
-    EsqlQueryAnalyzer analyzer,
     EsqlDatafeedQuery query
 ) implements DataExtractorFactory {
 
@@ -31,17 +30,17 @@ public record EsqlDataExtractorFactory(
         DatafeedConfig datafeed,
         Job job,
         DatafeedTimingStatsReporter timingStatsReporter,
-        EsqlQueryAnalyzer analyzer,
+        EsqlQueryParser parser,
         ActionListener<DataExtractorFactory> factoryHandler
     ) {
         EsqlDatafeedQuery query;
         try {
-            query = EsqlDatafeedQuery.parse(analyzer, datafeed.getEsqlQuery());
+            query = EsqlDatafeedQuery.parse(parser, datafeed.getEsqlQuery());
         } catch (Exception e) {
             factoryHandler.onFailure(e);
             return;
         }
-        factoryHandler.onResponse(new EsqlDataExtractorFactory(client, datafeed, job, timingStatsReporter, analyzer, query));
+        factoryHandler.onResponse(new EsqlDataExtractorFactory(client, datafeed, job, timingStatsReporter, query));
     }
 
     @Override
@@ -49,7 +48,6 @@ public record EsqlDataExtractorFactory(
         EsqlDataExtractorContext ctx = new EsqlDataExtractorContext(
             job.getId(),
             query,
-            analyzer,
             datafeed.getSourceTimeField(),
             job.getDataDescription().getTimeField(),
             datafeed.getGroupingInterval().millis(),

@@ -19,9 +19,9 @@ import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.esql.ml.EsqlParserQueryAnalyzer;
+import org.elasticsearch.xpack.esql.ml.EsqlDatafeedQueryParser;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
-import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryAnalyzer;
+import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.junit.Before;
 
@@ -41,7 +41,7 @@ import static org.mockito.Mockito.mock;
 
 public class EsqlDataExtractorFactoryTests extends ESTestCase {
 
-    private static final EsqlQueryAnalyzer ANALYZER = new EsqlParserQueryAnalyzer();
+    private static final EsqlQueryParser PARSER = new EsqlDatafeedQueryParser();
 
     private static final String ESQL_QUERY =
         "FROM logs | STATS avg_bytes = AVG(bytes), doc_count = COUNT(*) BY ts = BUCKET(@timestamp, 1 hour)";
@@ -66,8 +66,7 @@ public class EsqlDataExtractorFactoryTests extends ESTestCase {
             datafeed,
             job,
             timingStatsReporter,
-            ANALYZER,
-            EsqlDatafeedQuery.parse(ANALYZER, ESQL_QUERY)
+            EsqlDatafeedQuery.parse(PARSER, ESQL_QUERY)
         );
 
         EsqlDataExtractor extractor = (EsqlDataExtractor) factory.newExtractor(1000L, 2000L);
@@ -95,8 +94,7 @@ public class EsqlDataExtractorFactoryTests extends ESTestCase {
             datafeed,
             job,
             timingStatsReporter,
-            ANALYZER,
-            EsqlDatafeedQuery.parse(ANALYZER, ESQL_QUERY)
+            EsqlDatafeedQuery.parse(PARSER, ESQL_QUERY)
         );
 
         EsqlDataExtractor extractor = (EsqlDataExtractor) factory.newExtractor(0L, 1000L);
@@ -113,8 +111,7 @@ public class EsqlDataExtractorFactoryTests extends ESTestCase {
             datafeed,
             job,
             timingStatsReporter,
-            ANALYZER,
-            EsqlDatafeedQuery.parse(ANALYZER, ESQL_QUERY)
+            EsqlDatafeedQuery.parse(PARSER, ESQL_QUERY)
         );
 
         EsqlDataExtractor extractor = (EsqlDataExtractor) factory.newExtractor(0L, 1000L);
@@ -130,8 +127,7 @@ public class EsqlDataExtractorFactoryTests extends ESTestCase {
             datafeed,
             job,
             timingStatsReporter,
-            ANALYZER,
-            EsqlDatafeedQuery.parse(ANALYZER, ESQL_QUERY)
+            EsqlDatafeedQuery.parse(PARSER, ESQL_QUERY)
         );
 
         EsqlDataExtractor extractor = (EsqlDataExtractor) factory.newExtractor(0L, 1000L);
@@ -147,7 +143,7 @@ public class EsqlDataExtractorFactoryTests extends ESTestCase {
         AtomicBoolean onFailureCalled = new AtomicBoolean(false);
         ActionListener<DataExtractorFactory> listener = ActionListener.wrap(onResponse::set, e -> onFailureCalled.set(true));
 
-        EsqlDataExtractorFactory.create(client, datafeed, job, timingStatsReporter, ANALYZER, listener);
+        EsqlDataExtractorFactory.create(client, datafeed, job, timingStatsReporter, PARSER, listener);
 
         assertThat(onFailureCalled.get(), is(false));
         assertThat(onResponse.get(), instanceOf(EsqlDataExtractorFactory.class));
@@ -171,7 +167,7 @@ public class EsqlDataExtractorFactoryTests extends ESTestCase {
             builder.build(),
             job,
             timingStatsReporter,
-            ANALYZER,
+            PARSER,
             ActionListener.wrap(f -> fail("expected a parse failure"), failure::set)
         );
 

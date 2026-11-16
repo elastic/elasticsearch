@@ -27,8 +27,8 @@ import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryAnalyzer;
-import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryStructure;
+import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
+import org.elasticsearch.xpack.ml.datafeed.esql.spi.ParsedEsqlQuery;
 
 import java.time.DateTimeException;
 import java.time.ZoneId;
@@ -37,6 +37,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.OptionalInt;
 
 import static org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.EsqlQueryParam.ParamClassification.IDENTIFIER;
 
@@ -50,15 +51,15 @@ public class EsqlDatafeedQueryValidator {
     private static final String PROJECT_ROUTING_SETTING = "project_routing";
     private static final String TIME_ZONE_SETTING = "time_zone";
 
-    private final EsqlQueryAnalyzer analyzer;
+    private final EsqlQueryParser parser;
     private final EsqlQueryRunner queryRunner;
 
-    public EsqlDatafeedQueryValidator(EsqlQueryAnalyzer analyzer) {
-        this(analyzer, EsqlQueryRunner.DEFAULT);
+    public EsqlDatafeedQueryValidator(EsqlQueryParser parser) {
+        this(parser, EsqlQueryRunner.DEFAULT);
     }
 
-    EsqlDatafeedQueryValidator(EsqlQueryAnalyzer analyzer, EsqlQueryRunner queryRunner) {
-        this.analyzer = Objects.requireNonNull(analyzer);
+    EsqlDatafeedQueryValidator(EsqlQueryParser parser, EsqlQueryRunner queryRunner) {
+        this.parser = Objects.requireNonNull(parser);
         this.queryRunner = Objects.requireNonNull(queryRunner);
     }
 
@@ -126,7 +127,7 @@ public class EsqlDatafeedQueryValidator {
     ) {
         EsqlDatafeedQuery query;
         try {
-            query = EsqlDatafeedQuery.parse(analyzer, esqlQuery);
+            query = EsqlDatafeedQuery.parse(parser, esqlQuery);
         } catch (Exception e) {
             listener.onFailure(e);
             return;
@@ -170,7 +171,7 @@ public class EsqlDatafeedQueryValidator {
     ) {
         String probeQuery;
         try {
-            probeQuery = EsqlDatafeedQuery.parse(analyzer, esqlQuery).sourceTimeFieldProbeQuery();
+            probeQuery = EsqlDatafeedQuery.parse(parser, esqlQuery).sourceTimeFieldProbeQuery();
         } catch (Exception e) {
             listener.onFailure(e);
             return;
@@ -208,11 +209,11 @@ public class EsqlDatafeedQueryValidator {
         if (esqlQuery == null) {
             return;
         }
-        EsqlQueryStructure structure = EsqlDatafeedQuery.parse(analyzer, esqlQuery).structure();
-        if (structure.settings().containsKey(PROJECT_ROUTING_SETTING)) {
+        ParsedEsqlQuery query = EsqlDatafeedQuery.parse(parser, esqlQuery).parsed();
+        if (query.setting(PROJECT_ROUTING_SETTING).isPresent()) {
             throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.DATAFEED_ESQL_PROJECT_ROUTING_SETTING_NOT_SUPPORTED));
         }
-        String timeZone = structure.settings().get(TIME_ZONE_SETTING);
+        String timeZone = query.setting(TIME_ZONE_SETTING).orElse(null);
         if (timeZone != null && isUtc(timeZone) == false) {
             throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.DATAFEED_ESQL_TIME_ZONE_SETTING_NOT_UTC, timeZone));
         }
@@ -220,7 +221,7 @@ public class EsqlDatafeedQueryValidator {
             return;
         }
         // The parser already rejects a remote LOOKUP JOIN index.
-        for (String indexExpression : structure.sourcePatterns()) {
+        for (String indexExpression : query.indexPatterns()) {
             String clusterAlias = remoteClusterAlias(indexExpression);
             if (clusterAlias != null) {
                 throw ExceptionsHelper.badRequestException(
@@ -253,7 +254,7 @@ public class EsqlDatafeedQueryValidator {
     private void checkSourceTimeFieldType(List<? extends ColumnInfo> columns, String sourceTimeField, @Nullable String datafeedId) {
         // KEEP probe returns the one requested column or fails before a response (validateSourceTimeField onFailure).
         String outputType = columns.isEmpty() ? null : columns.get(0).outputType();
-        if (outputType == null || analyzer.isDateType(outputType) == false) {
+        if (outputType == null || EsqlColumnTypes.isDate(outputType) == false) {
             throw new IllegalArgumentException(
                 Messages.getMessage(
                     Messages.DATAFEED_ESQL_SOURCE_TIME_FIELD_NOT_DATE,
@@ -297,13 +298,19 @@ public class EsqlDatafeedQueryValidator {
             HeaderWarning.addWarning(Messages.getMessage(Messages.DATAFEED_ESQL_OUTER_TIME_SORT_WARNING, queryContext, timeField));
         }
         // A LIMIT before the first STATS does not cap the output, so ML still injects its row cap.
-        boolean outerLimitCapsOutput = query.hasOuterLimit() && query.injectsRowLimit() == false;
-        if (outerLimitCapsOutput) {
-            addLimitWarning(Messages.getMessage(Messages.DATAFEED_ESQL_OUTER_LIMIT_WARNING, queryContext), delayedDataCheckEnabled);
+        OptionalInt outputLimit = query.outputLimit();
+        if (outputLimit.isPresent()) {
+            String warning = Messages.getMessage(Messages.DATAFEED_ESQL_OUTER_LIMIT_WARNING, queryContext, outputLimit.getAsInt());
+            addLimitWarning(warning, delayedDataCheckEnabled);
         }
-        if (query.hasLimitBeforeAggregation()) {
-            String warning = Messages.getMessage(Messages.DATAFEED_ESQL_LIMIT_BEFORE_STATS_WARNING, queryContext);
-            addLimitWarning(warning, delayedDataCheckEnabled && outerLimitCapsOutput == false);
+        OptionalInt limitBeforeAggregation = query.limitBeforeAggregation();
+        if (limitBeforeAggregation.isPresent()) {
+            String warning = Messages.getMessage(
+                Messages.DATAFEED_ESQL_LIMIT_BEFORE_STATS_WARNING,
+                queryContext,
+                limitBeforeAggregation.getAsInt()
+            );
+            addLimitWarning(warning, delayedDataCheckEnabled && outputLimit.isEmpty());
         }
     }
 
@@ -352,7 +359,6 @@ public class EsqlDatafeedQueryValidator {
 
     static void validateEmittedTimesInSourceWindow(
         List<? extends ColumnInfo> columns,
-        EsqlQueryAnalyzer analyzer,
         Iterable<? extends Iterable<Object>> rows,
         String jobId,
         String emittedTimeField,
@@ -360,7 +366,7 @@ public class EsqlDatafeedQueryValidator {
         long sourceWindowEnd
     ) {
         int emittedTimeColumnIndex = indexOfColumn(columns, emittedTimeField);
-        boolean emittedTimeIsDate = analyzer.isDateType(columns.get(emittedTimeColumnIndex).outputType());
+        boolean emittedTimeIsDate = EsqlColumnTypes.isDate(columns.get(emittedTimeColumnIndex).outputType());
         for (Iterable<Object> row : rows) {
             validateEmittedTimeValueInSourceWindow(
                 jobId,

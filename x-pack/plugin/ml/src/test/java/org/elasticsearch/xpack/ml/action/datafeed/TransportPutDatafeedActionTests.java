@@ -34,7 +34,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
-import org.elasticsearch.xpack.esql.ml.EsqlParserQueryAnalyzer;
+import org.elasticsearch.xpack.esql.ml.EsqlDatafeedQueryParser;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MachineLearningExtension;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
@@ -199,7 +199,7 @@ public class TransportPutDatafeedActionTests extends ESTestCase {
             mock(AnomalyDetectionAuditor.class),
             mock(AnnotationPersister.class),
             mock(JobResultsProvider.class),
-            new EsqlDatafeedQueryValidator(new EsqlParserQueryAnalyzer())
+            new EsqlDatafeedQueryValidator(new EsqlDatafeedQueryParser())
         );
     }
 

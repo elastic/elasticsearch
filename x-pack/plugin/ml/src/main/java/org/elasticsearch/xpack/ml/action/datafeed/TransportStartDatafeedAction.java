@@ -64,13 +64,13 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
-import org.elasticsearch.xpack.ml.EsqlQueryAnalyzerHolder;
+import org.elasticsearch.xpack.ml.EsqlQueryParserHolder;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedNodeSelector;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedProjectRoutingDiagnostics;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
-import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryAnalyzer;
+import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
@@ -110,7 +110,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     private final DatafeedConfigProvider datafeedConfigProvider;
     private final AnomalyDetectionAuditor auditor;
     private final NamedXContentRegistry xContentRegistry;
-    private final EsqlQueryAnalyzer esqlQueryAnalyzer;
+    private final EsqlQueryParser esqlQueryParser;
     private final boolean remoteClusterClient;
     private final ProjectResolver projectResolver;
     private final CrossProjectModeDecider crossProjectModeDecider;
@@ -130,7 +130,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         AnomalyDetectionAuditor auditor,
         NamedXContentRegistry xContentRegistry,
         ProjectResolver projectResolver,
-        EsqlQueryAnalyzerHolder esqlQueryAnalyzerHolder
+        EsqlQueryParserHolder esqlQueryParserHolder
     ) {
         super(
             StartDatafeedAction.NAME,
@@ -149,7 +149,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         this.datafeedConfigProvider = datafeedConfigProvider;
         this.auditor = auditor;
         this.xContentRegistry = xContentRegistry;
-        this.esqlQueryAnalyzer = esqlQueryAnalyzerHolder.analyzer();
+        this.esqlQueryParser = esqlQueryParserHolder.parser();
         this.remoteClusterClient = DiscoveryNode.isRemoteClusterClient(settings);
         this.projectResolver = projectResolver;
         this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
@@ -426,7 +426,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             xContentRegistry,
             // Fake DatafeedTimingStatsReporter that does not have access to results index
             new DatafeedTimingStatsReporter(new DatafeedTimingStats(job.getId()), (ts, refreshPolicy, listener1) -> {}),
-            esqlQueryAnalyzer,
+            esqlQueryParser,
             ActionListener.wrap(
                 unused -> persistentTasksService.sendStartRequest(
                     MlTasks.datafeedTaskId(params.getDatafeedId()),

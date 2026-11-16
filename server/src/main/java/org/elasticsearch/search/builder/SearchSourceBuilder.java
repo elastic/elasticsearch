@@ -2126,6 +2126,12 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                         );
                     }
                 }
+                if (script == null) {
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "Script field [" + scriptFieldName + "] requires a [" + SCRIPT_FIELD.getPreferredName() + "]"
+                    );
+                }
                 this.ignoreFailure = ignoreFailure;
                 this.fieldName = scriptFieldName;
                 this.script = script;

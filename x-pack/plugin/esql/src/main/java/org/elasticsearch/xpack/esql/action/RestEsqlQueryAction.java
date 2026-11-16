@@ -18,7 +18,6 @@ import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.esql.EsqlStreamResultsIndex;
 
 import java.io.IOException;
 import java.util.List;
@@ -34,7 +33,6 @@ public class RestEsqlQueryAction extends BaseRestHandler {
     private static final Logger LOGGER = LogManager.getLogger(RestEsqlQueryAction.class);
 
     static final String STREAMING_OPTION = "streaming";
-    static final String STORE_OPTION = "store";
     static final String NDJSON_FORMAT_VALUE = "ndjson";
 
     /**
@@ -77,9 +75,6 @@ public class RestEsqlQueryAction extends BaseRestHandler {
             boolean streaming = request.paramAsBoolean(STREAMING_OPTION, false);
             String format = request.param(URL_PARAM_FORMAT);
 
-            if (EsqlStreamResultsIndex.FEATURE_FLAG.isEnabled() && request.hasParam(STORE_OPTION) && streaming == false) {
-                throw new IllegalArgumentException("[" + STORE_OPTION + "] requires [" + STREAMING_OPTION + "=true]");
-            }
             if (NDJSON_FORMAT_VALUE.equals(format) && streaming == false) {
                 throw new IllegalArgumentException("[format=ndjson] requires [" + STREAMING_OPTION + "=true]");
             }
@@ -103,8 +98,6 @@ public class RestEsqlQueryAction extends BaseRestHandler {
         }
         request.param(URL_PARAM_HEADER);
 
-        // unknown, and so rejected, while stored results are not available
-        final boolean store = EsqlStreamResultsIndex.FEATURE_FLAG.isEnabled() && request.paramAsBoolean(STORE_OPTION, false);
         final Boolean partialResults = request.paramAsBoolean("allow_partial_results", null);
         if (partialResults != null) {
             esqlRequest.allowPartialResults(partialResults);
@@ -118,7 +111,7 @@ public class RestEsqlQueryAction extends BaseRestHandler {
                 restListener.resultStreamListener(),
                 request.paramAsBoolean(EsqlQueryResponse.DROP_NULL_COLUMNS_OPTION, false),
                 restListener::setPreHeaderFailureFooter
-            ).store(store);
+            );
             new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
                 EsqlStreamQueryAction.INSTANCE,
                 streamRequest,

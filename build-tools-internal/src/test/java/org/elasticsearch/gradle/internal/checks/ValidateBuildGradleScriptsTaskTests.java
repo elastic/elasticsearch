@@ -160,6 +160,51 @@ public class ValidateBuildGradleScriptsTaskTests {
     }
 
     @Test
+    public void testFailsForEagerTestSeedReads() throws Exception {
+        Project project = createProject();
+        File scriptFile = writeFile(
+            project,
+            "x-pack/plugin/foo/qa/s3/build.gradle",
+            List.of(
+                "def seed = buildParams.testSeedProvider.get()",
+                "systemProperty 'base', buildParams.getTestSeedProvider().map { s -> 'base_' + s }.get()",
+                "systemProperty 'flag', buildParams.random.map{r -> r.nextBoolean()}.get()",
+                "def random = buildParams.getRandom().getOrNull()",
+                "def other = buildParams.random.getOrElse(new Random())"
+            )
+        );
+        ValidateBuildGradleScriptsTask task = createTask(project, scriptFile);
+
+        try {
+            task.validateScripts();
+            fail("GradleException was expected");
+        } catch (GradleException e) {
+            for (int line = 1; line <= 5; line++) {
+                assertTrue(e.getMessage(), e.getMessage().contains("[eager-test-seed] x-pack/plugin/foo/qa/s3/build.gradle:" + line));
+            }
+        }
+    }
+
+    @Test
+    public void testAllowsLazyTestSeedUse() throws Exception {
+        Project project = createProject();
+        File scriptFile = writeFile(
+            project,
+            "x-pack/plugin/foo/qa/s3/build.gradle",
+            List.of(
+                "nonInputProperties.systemProperty 'base', buildParams.testSeedProvider.map { seed -> 'base_' + seed }",
+                "nonInputProperties.systemProperty 'flag', buildParams.random.map{r -> r.nextBoolean()}",
+                "def bucket = providers.environmentVariable('BUCKET').get()"
+            )
+        );
+        ValidateBuildGradleScriptsTask task = createTask(project, scriptFile);
+
+        task.validateScripts();
+
+        assertOutputMarkerWritten(task);
+    }
+
+    @Test
     public void testCountedIgnoreSuppressesExactlyTheBaselinedNumberOfViolations() throws Exception {
         Project project = createProject();
         File scriptFile = writeFile(

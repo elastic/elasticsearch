@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
+import java.util.EnumSet;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -572,6 +573,29 @@ public class PlainCompressionCodecFactoryTests extends ESTestCase {
     public void testUnsupportedCodecThrows() {
         expectThrows(UnsupportedOperationException.class, () -> factory.getDecompressor(CompressionCodecName.BROTLI));
         expectThrows(UnsupportedOperationException.class, () -> factory.getCompressor(CompressionCodecName.BROTLI));
+        expectThrows(UnsupportedOperationException.class, () -> factory.getDecompressor(CompressionCodecName.LZO));
+        expectThrows(UnsupportedOperationException.class, () -> factory.getCompressor(CompressionCodecName.LZO));
+    }
+
+    public void testSupportedDecompressionCodecsMatchFactoryAndEnum() {
+        assertEquals(
+            EnumSet.of(
+                CompressionCodecName.UNCOMPRESSED,
+                CompressionCodecName.SNAPPY,
+                CompressionCodecName.GZIP,
+                CompressionCodecName.ZSTD,
+                CompressionCodecName.LZ4_RAW,
+                CompressionCodecName.LZ4
+            ),
+            PlainCompressionCodecFactory.supportedDecompressionCodecs()
+        );
+        for (CompressionCodecName codec : CompressionCodecName.values()) {
+            if (PlainCompressionCodecFactory.supportedDecompressionCodecs().contains(codec)) {
+                assertNotNull(factory.getDecompressor(codec));
+            } else {
+                expectThrows(UnsupportedOperationException.class, () -> factory.getDecompressor(codec));
+            }
+        }
     }
 
     public void testReleaseIsNoop() {

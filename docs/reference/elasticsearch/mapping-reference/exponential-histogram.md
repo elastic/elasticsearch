@@ -67,7 +67,7 @@ If the histogram is empty (no positive/negative buckets and zero count is `0`), 
 
 `exponential_histogram` fields are primarily intended for use with aggregations. To make them efficient for aggregations, the histogram is stored as compact [doc values](/reference/elasticsearch/mapping-reference/doc-values.md) and not indexed.
 
-Exponential histograms are supported in ES|QL; see the [ES|QL reference](/reference/query-languages/esql.md) for details.
+Exponential histograms are supported in ES|QL. Refer to [](/reference/query-languages/esql/esql-histogram-fields.md) for supported aggregation functions, casting, and query examples.
 
 In Query DSL, because the data is not indexed, you can use `exponential_histogram` fields only with the following aggregations:
 

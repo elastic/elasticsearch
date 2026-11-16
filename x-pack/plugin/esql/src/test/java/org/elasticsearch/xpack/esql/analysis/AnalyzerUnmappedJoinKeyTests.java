@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.xpack.esql.VersionMode;
+
 import static org.hamcrest.Matchers.containsString;
 
 /**
@@ -21,6 +23,10 @@ import static org.hamcrest.Matchers.containsString;
  * (e.g. {@code language_code} without EVAL, or {@code does_not_exist}).
  */
 public class AnalyzerUnmappedJoinKeyTests extends AnalyzerUnmappedTestBase {
+
+    public AnalyzerUnmappedJoinKeyTests(VersionMode versionMode) {
+        super(versionMode);
+    }
 
     private static String lookupJoinQuery(String lookup, String key) {
         return "FROM test | LOOKUP JOIN " + lookup + " ON " + key;

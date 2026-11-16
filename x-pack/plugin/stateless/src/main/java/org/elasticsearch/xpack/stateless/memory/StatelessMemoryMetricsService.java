@@ -8,19 +8,25 @@
 package org.elasticsearch.xpack.stateless.memory;
 
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterInfo;
+import org.elasticsearch.cluster.ClusterInfoSimulator;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.EstimatedHeapUsageStats;
 import org.elasticsearch.cluster.NodeHeapEstimates;
+import org.elasticsearch.cluster.NodeHeapUsageCalculator;
 import org.elasticsearch.cluster.ShardAndIndexHeapUsage;
 import org.elasticsearch.cluster.ShardHeapUsageEstimates;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -29,21 +35,22 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AutoscalingMissedIndicesUpdateException;
-import org.elasticsearch.xpack.stateless.EstimatedHeapSettings;
+import org.elasticsearch.xpack.core.ml.inference.IngestModelMemoryProvider;
 import org.elasticsearch.xpack.stateless.MetricQuality;
+import org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageAllocationDecider;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -52,6 +59,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
 import static org.elasticsearch.xpack.stateless.memory.ShardMappingSize.UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES;
@@ -90,6 +98,9 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
      * This feature enables the calculation of a minimum threshold for adaptive shard memory estimation,
      * derived from StatelessMemoryMetricsService#MAX_HEAP_SIZE and ShardLimitValidator#SETTING_CLUSTER_MAX_SHARDS_PER_NODE.
      * As the shard count increases, this threshold drives automatic cluster sizing to accommodate the additional memory requirements.
+     * The threshold is applied only when generating estimates for autoscaling. Per-shard estimates used by allocation,
+     * the heap monitor, and the recovery gate stay at the unfloored value. This prevents an artificial floor blocking
+     * shard movements when the shards would actually fit on the nodes that are available.
      */
     public static final Setting<Boolean> ADAPTIVE_SHARD_MEMORY_ESTIMATION_MIN_THRESHOLD_ENABLED_SETTING = Setting.boolSetting(
         "memory_metrics.adaptive_min_threshold.enabled",
@@ -137,8 +148,14 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
     public static final long MAX_HEAP_SIZE = ByteSizeUnit.GB.toBytes(31);
 
     private volatile ByteSizeValue fixedShardMemoryOverhead;
+    private final ClusterService clusterService;
     private final boolean selfReportedShardMemoryOverheadEnabled;
 
+    /**
+     * Fixed per-index heap overhead used by {@link #getIndexMemoryOverhead()} (legacy node-base estimate).
+     * The object-size estimate from {@link #getIndexMetadataEstimatedHeapBytes()} is approximate
+     * and expected to be lower than {@code INDEX_MEMORY_OVERHEAD} per index for typical index metadata.
+     */
     // visible for testing
     public static final long INDEX_MEMORY_OVERHEAD = ByteSizeValue.ofKb(350).getBytes();
 
@@ -182,8 +199,10 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
     protected volatile boolean adaptiveShardMemoryEstimationMinThresholdEnabled;
 
     @SuppressWarnings("this-escape")
-    public StatelessMemoryMetricsService(LongSupplier relativeTimeInNanosSupplier, ClusterSettings clusterSettings) {
+    public StatelessMemoryMetricsService(LongSupplier relativeTimeInNanosSupplier, ClusterService clusterService) {
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
+        this.clusterService = clusterService;
+        final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         this.selfReportedShardMemoryOverheadEnabled = clusterSettings.get(SELF_REPORTED_SHARD_MEMORY_OVERHEAD_ENABLED_SETTING);
         clusterSettings.initializeAndWatch(
             INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_ENABLED_SETTING,
@@ -211,78 +230,65 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
      *      {@link org.elasticsearch.cluster.routing.RoutingNodes}</li>
      *  <li>Relocating shards are accounted for on the source and target node</li>
      *  <li>Any shard missing {@link ShardMemoryMetrics} is given a default (non-zero) estimate</li>
+     *  <li>Every indexing node is charged the cluster-wide ingest-model heap from {@link IngestModelMemoryProvider},
+     *      because each indexing node loads every referenced model</li>
      * </ul>
      * Called by {@link StatelessHeapUsageReader#collectEstimatedHeapUsage}, the node-level entry point into this service, whose results
      * reach {@link org.elasticsearch.cluster.ClusterInfo#getNodeHeapMetrics()} and are read from there by
      * {@link org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageAllocationDecider} and
      * {@link org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageMonitor}.
+     * <p>
+     * Does not apply {@link #getAdaptiveShardMemoryEstimationMinThreshold()}. That floor is applied only by
+     * {@link #aggregateShardMetrics} for autoscaling tier totals.
      *
      * @param clusterState The cluster state used to determine which shard is where
      * @return A map of node id to node-heap-estimate objects
      */
     public Map<String, NodeHeapEstimates> getPerNodeMemoryMetrics(ClusterState clusterState) {
-        return getPerNodeMemoryMetrics(clusterState, shardMemoryMetrics);
+        return getPerNodeMemoryMetrics(clusterState, getShardHeapUsageEstimates());
     }
 
     private Map<String, NodeHeapEstimates> getPerNodeMemoryMetrics(
         ClusterState clusterState,
-        Map<ShardId, ShardMemoryMetrics> shardMemoryMetricsSnapshot
+        ShardHeapUsageEstimates shardHeapUsageEstimates
     ) {
-        final DiscoveryNodes discoveryNodes = clusterState.nodes();
-        final long nodeBaseHeapEstimateInBytes = getNodeBaseHeapEstimateInBytes();
-        final long mergeMemoryEstimate = mergeMemoryEstimation();
-        final long minimumRequiredHeapForHandlingLargeIndexingOps = minimumRequiredHeapForAcceptingLargeIndexingOps();
-        final Map<String, EstimatedHeapUsageBuilder> heapUsageBuilders = new HashMap<>();
-        final long nowNanos = relativeTimeInNanos();
-        final ShardMemoryMetrics defaultEstimate = newUninitialisedShardMemoryMetrics(nowNanos);
-        for (RoutingNode routingNode : clusterState.getRoutingNodes()) {
-            final String nodeId = routingNode.nodeId();
-            final DiscoveryNode discoveryNode = discoveryNodes.get(nodeId);
-            assert discoveryNode != null : "The routing nodes is from the cluster state so DiscoveryNodes should be consistent";
-            // We only provide estimates for indexing nodes
-            if (EstimatedHeapSettings.appliesToNode(discoveryNode) == false) {
-                continue;
-            }
-            final EstimatedHeapUsageBuilder builderForNode = new EstimatedHeapUsageBuilder(
-                nodeBaseHeapEstimateInBytes,
-                minimumRequiredHeapForHandlingLargeIndexingOps,
-                mergeMemoryEstimate
-            );
-            for (ShardRouting shard : routingNode) {
-                // Only include active shards in our node-level estimates, the simulator will complete
-                // any ongoing recoveries, which adds the heap consumption to node and deducts it from
-                // the source if it's relocating
-                if (shard.active() == false) {
-                    continue;
-                }
-                final ShardId shardId = shard.shardId();
-                builderForNode.add(shardId, shardMemoryMetricsSnapshot.getOrDefault(shardId, defaultEstimate));
-            }
-            heapUsageBuilders.put(nodeId, builderForNode);
-        }
-        // Take the max postings memory across all nodes and use that for all nodes' total heap estimate
-        final long maxTotalPostingsInMemoryBytes = heapUsageBuilders.values()
-            .stream()
-            .mapToLong(builder -> builder.totalPostingsInMemoryBytes)
-            .max()
-            .orElse(0L);
-        lastMaxTotalPostingsInMemoryBytes = maxTotalPostingsInMemoryBytes; // Tracked for testing purposes
-        return Maps.transformValues(heapUsageBuilders, builder -> builder.getHeapEstimate(maxTotalPostingsInMemoryBytes));
+        final long nonShardHeapUsage = Math.addExact(
+            Math.addExact(getNodeBaseHeapEstimateInBytes(), minimumRequiredHeapForAcceptingLargeIndexingOps()),
+            Math.addExact(mergeMemoryEstimation(), ingestModelHeapBytes())
+        );
+        final var calculated = NodeHeapUsageCalculator.calculateForRoutingNodes(clusterState, nonShardHeapUsage, shardHeapUsageEstimates);
+        lastMaxTotalPostingsInMemoryBytes = calculated.maxPostingsHeapUsage(); // Tracked for testing purposes
+        return calculated.nodeHeapEstimates();
     }
 
     /**
      * Computes node and shard heap usage estimates from the same snapshot of shard memory metrics.
      */
     public EstimatedHeapUsageStats getEstimatedHeapUsageStats(ClusterState clusterState) {
-        Map<ShardId, ShardMemoryMetrics> shardMemoryMetricsSnapshot = snapshotShardMemoryMetrics();
-        return new EstimatedHeapUsageStats(
-            getPerNodeMemoryMetrics(clusterState, shardMemoryMetricsSnapshot),
-            getShardHeapUsageEstimates(shardMemoryMetricsSnapshot)
-        );
+        final var shardHeapUsageEstimates = getShardHeapUsageEstimates();
+        return new EstimatedHeapUsageStats(getPerNodeMemoryMetrics(clusterState, shardHeapUsageEstimates), shardHeapUsageEstimates);
     }
 
     public long getIndexMemoryOverhead() {
         return INDEX_MEMORY_OVERHEAD * totalIndices;
+    }
+
+    /**
+     * Estimated heap used by index metadata objects in the current cluster state. This is an approximate
+     * {@link org.apache.lucene.util.Accountable} walk (not measured RSS): shared {@link MappingMetadata}
+     * instances are counted once, some fields are omitted, and interned settings strings are not attributed per index.
+     * <p>
+     * Expected to be lower than {@link #INDEX_MEMORY_OVERHEAD} times the index count for typical metadata;
+     * callers that previously used the fixed overhead should treat this as a reduction, not a drop-in for
+     * absolute heap accounting.
+     *
+     * @return estimated heap used by index metadata objects in the current cluster state, or -1 if the cluster state is not available
+     */
+    public long getIndexMetadataEstimatedHeapBytes() {
+        if (clusterService.lifecycleState() == Lifecycle.State.STARTED) {
+            return estimateIndexMetadataHeapBytes(clusterService.state().metadata());
+        }
+        return -1;
     }
 
     /** Derived from the master-only {@link #totalIndices}; node-local callers must use {@link #getNodeBaseHeapEstimateInBytes(int)}. */
@@ -303,29 +309,52 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
      * @param totalIndices              total indices in the cluster, per the caller's cluster-state view
      * @param largeIndexingOpsHeapBytes heap needed for recently rejected large indexing ops — not resident heap; local callers pass 0
      * @param mergeMemoryEstimateBytes  pending-merge heap estimate; a future supplier must stay at or below the master's value
+     * @param ingestModelHeapBytes      heap required to load ingest trained models
      * @param shardMappingSizes         the hosted shards' sizes
-     * @return the node's estimated heap usage
+     * @return the node's estimated heap usage. Shard heap does not include
+     * {@link #getAdaptiveShardMemoryEstimationMinThreshold()} as that floor is applied only by
+     * {@link #aggregateShardMetrics} for autoscaling tier totals.
      */
     public NodeHeapEstimates estimateNodeHeapUsage(
+        DiscoveryNode localNode,
         int totalIndices,
         long largeIndexingOpsHeapBytes,
         long mergeMemoryEstimateBytes,
+        long ingestModelHeapBytes,
         Map<ShardId, ShardMappingSize> shardMappingSizes
     ) {
-        final EstimatedHeapUsageBuilder builder = new EstimatedHeapUsageBuilder(
-            getNodeBaseHeapEstimateInBytes(totalIndices),
-            largeIndexingOpsHeapBytes,
-            mergeMemoryEstimateBytes
-        );
+        assert localNode.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE) : "This should only ever be called for indexing nodes";
         final long nowNanos = relativeTimeInNanos();
-        shardMappingSizes.forEach((shardId, size) -> builder.add(shardId, ShardMemoryMetrics.fromShardMappingSize(size, nowNanos)));
-        // Finalize with the given shards' own postings size
-        return builder.getHeapEstimate(builder.totalPostingsInMemoryBytes);
+        final long nodeBaseHeapEstimateInBytes = getNodeBaseHeapEstimateInBytes(totalIndices);
+        final ShardHeapEstimator estimator = createShardHeapEstimator();
+        final Map<ShardId, ShardAndIndexHeapUsage> shardHeapUsages = new HashMap<>();
+        shardMappingSizes.forEach(
+            (shardId, size) -> shardHeapUsages.put(
+                shardId,
+                estimator.computeShardHeapUsage(ShardMemoryMetrics.fromShardMappingSize(size, nowNanos))
+            )
+        );
+        final long nonShardHeapUsage = Math.addExact(
+            Math.addExact(nodeBaseHeapEstimateInBytes, largeIndexingOpsHeapBytes),
+            Math.addExact(mergeMemoryEstimateBytes, ingestModelHeapBytes)
+        );
+        return NodeHeapUsageCalculator.calculateForShardEstimates(
+            nonShardHeapUsage,
+            new ShardHeapUsageEstimates(shardHeapUsages, ShardAndIndexHeapUsage.ZERO)
+        );
     }
 
     // Visible for testing
     public void setWorkloadMemoryOverheadOverrideForTesting(long val) {
         workloadMemoryOverhead = val;
+    }
+
+    /**
+     * JVM heap required to load trained models referenced by ingest pipelines.
+     * The master populates {@link IngestModelMemoryProvider}, but when the ML plugin is absent, 0 bytes are reported
+     */
+    private static long ingestModelHeapBytes() {
+        return IngestModelMemoryProvider.getInstance().getRequiredHeapBytes().heapBytes();
     }
 
     public long minimumRequiredHeapForAcceptingLargeIndexingOps() {
@@ -379,7 +408,10 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         return getAdaptiveShardMemoryEstimationMinThreshold(getNodeBaseHeapEstimateInBytes());
     }
 
-    /** The adaptive per-shard floor for a node with the given base estimate: an equal share of the largest node's post-base heap. */
+    /**
+     * The adaptive per-shard floor for a node with the given base estimate: an equal share of the largest node's post-base heap.
+     * Applied only when {@link #ADAPTIVE_SHARD_MEMORY_ESTIMATION_MIN_THRESHOLD_ENABLED_SETTING} is set.
+     */
     long getAdaptiveShardMemoryEstimationMinThreshold(long nodeBaseHeapEstimateInBytes) {
         return (MAX_HEAP_SIZE - nodeBaseHeapEstimateInBytes) / this.shardLimitPerNode;
     }
@@ -600,6 +632,23 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
     }
 
     /**
+     * Sums {@link IndexMetadata#ramBytesUsed()} across projects, counting each shared
+     * {@link MappingMetadata} instance once. Expected to stay below {@link #INDEX_MEMORY_OVERHEAD} per index for typical configurations.
+     */
+    static long estimateIndexMetadataHeapBytes(Metadata metadata) {
+        long total = 0;
+        Set<MappingMetadata> seenMappings = Collections.newSetFromMap(new IdentityHashMap<>(metadata.getTotalNumberOfIndices()));
+        for (IndexMetadata indexMetadata : metadata.indicesAllProjects()) {
+            total += indexMetadata.ramBytesUsed();
+            MappingMetadata mapping = indexMetadata.mapping();
+            if (mapping != null && seenMappings.add(mapping) == false) {
+                total -= mapping.ramBytesUsed();
+            }
+        }
+        return total;
+    }
+
+    /**
      * Returns the current indexing operations heap memory requirements if they are still valid (not expired),
      * or {@code null} if they are expired or not set.
      */
@@ -686,20 +735,8 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
             );
         }
 
-        synchronized ShardMemoryMetrics snapshot() {
-            return new ShardMemoryMetrics(
-                mappingSizeInBytes,
-                numSegments,
-                totalFields,
-                postingsInMemoryBytes,
-                liveDocsBytes,
-                pointsInMemoryBytes,
-                shardMemoryOverheadBytes,
-                seqNo,
-                metricQuality,
-                metricShardNodeId,
-                updateTimestampNanos
-            );
+        synchronized ShardAndIndexHeapUsage snapshot(ShardHeapEstimator estimator) {
+            return estimator.computeShardHeapUsage(this);
         }
 
         public synchronized boolean update(
@@ -849,57 +886,6 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         return Map.copyOf(maxShardMergeMemoryEstimatePerNode);
     }
 
-    private class EstimatedHeapUsageBuilder {
-        private final long nodeBaseHeapEstimateInBytes;
-        private final long minimumRequiredHeapForAcceptingLargeIndexingOps;
-        private final long shardMergeMemoryEstimate;
-        private final long adaptiveMinThresholdBytes;
-        private final ShardHeapEstimator shardHeapEstimator;
-        private final Set<String> seenIndices = new HashSet<>();
-        private long mappingSizeInBytes;
-        private long totalPostingsInMemoryBytes;
-        private long shardMemoryUsageInBytes;
-
-        EstimatedHeapUsageBuilder(
-            long nodeBaseHeapEstimateInBytes,
-            long minimumRequiredHeapForAcceptingLargeIndexingOps,
-            long shardMergeMemoryEstimate
-        ) {
-            this.shardHeapEstimator = createShardHeapEstimator(SelfReportedShardOverhead.DEFAULT, PostingsInEstimate.EXCLUDE);
-            this.nodeBaseHeapEstimateInBytes = nodeBaseHeapEstimateInBytes;
-            this.minimumRequiredHeapForAcceptingLargeIndexingOps = minimumRequiredHeapForAcceptingLargeIndexingOps;
-            this.shardMergeMemoryEstimate = shardMergeMemoryEstimate;
-            this.adaptiveMinThresholdBytes = getAdaptiveShardMemoryEstimationMinThreshold(nodeBaseHeapEstimateInBytes);
-        }
-
-        void add(ShardId shardId, ShardMemoryMetrics shardMemoryMetrics) {
-            if (seenIndices.add(shardId.getIndexName())) {
-                mappingSizeInBytes += shardMemoryMetrics.getMappingSizeInBytes();
-            }
-            // Postings are accumulated separately (instead of folding them into computeShardHeapUsage's result) because
-            // getPerNodeMemoryMetrics later uses the maximum totalPostingsInMemoryBytes across all nodes.
-            shardMemoryUsageInBytes += shardHeapEstimator.computeShardHeapUsage(shardMemoryMetrics);
-            totalPostingsInMemoryBytes += shardHeapEstimator.getEffectiveShardPostingsInBytes(shardMemoryMetrics);
-        }
-
-        /**
-         * Calculate the heap estimates for this node
-         *
-         * @param postingsForTotalEstimate The postings value to use for the total heap estimate
-         * @return The heap usage estimate for this node
-         */
-        NodeHeapEstimates getHeapEstimate(long postingsForTotalEstimate) {
-            final long totalHeapEstimateInBytes = getHeapUsageEstimate(postingsForTotalEstimate);
-            final long hostedShardsHeapEstimateInBytes = mappingSizeInBytes + shardMemoryUsageInBytes + totalPostingsInMemoryBytes;
-            return new NodeHeapEstimates(totalHeapEstimateInBytes, hostedShardsHeapEstimateInBytes);
-        }
-
-        long getHeapUsageEstimate(long effectivePostingsValue) {
-            return shardMemoryUsageInBytes + mappingSizeInBytes + shardMergeMemoryEstimate + nodeBaseHeapEstimateInBytes
-                + minimumRequiredHeapForAcceptingLargeIndexingOps + effectivePostingsValue;
-        }
-    }
-
     /**
      * Create a new {@link ShardMemoryMetrics} for a shard that we have not yet received memory metrics for
      * <p>
@@ -926,47 +912,21 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
      * {@link #newUninitialisedShardMemoryMetrics} so it matches uninitialized shards in {@link #shardMemoryMetrics}.
      * <p>
      * Called by {@link StatelessHeapUsageReader#collectEstimatedHeapUsage}, the shard-level entry point into this service, whose results
-     * reach {@link org.elasticsearch.cluster.ClusterInfo#getEstimatedShardHeapUsages()} and are read from there by
-     * {@link org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageAllocationDecider} and
-     * {@link org.elasticsearch.cluster.ClusterInfoSimulator}.
+     * reach {@link ClusterInfo#getEstimatedShardHeapUsages()} and are read from there by
+     * {@link EstimatedHeapUsageAllocationDecider} and {@link ClusterInfoSimulator}.
+     * <p>
+     * Does not apply {@link #getAdaptiveShardMemoryEstimationMinThreshold()}. That floor is applied only by
+     * {@link #aggregateShardMetrics} for autoscaling tier totals.
      */
     public ShardHeapUsageEstimates getShardHeapUsageEstimates() {
-        return getShardHeapUsageEstimates(shardMemoryMetrics);
-    }
-
-    private ShardHeapUsageEstimates getShardHeapUsageEstimates(Map<ShardId, ShardMemoryMetrics> shardMemoryMetricsSnapshot) {
-        final var shardHeapEstimator = createShardHeapEstimator(SelfReportedShardOverhead.DEFAULT, PostingsInEstimate.INCLUDE);
-        final Map<ShardId, ShardAndIndexHeapUsage> heapUsagePerShard = new HashMap<>();
-        for (Map.Entry<ShardId, ShardMemoryMetrics> entry : shardMemoryMetricsSnapshot.entrySet()) {
-            heapUsagePerShard.put(
-                entry.getKey(),
-                new ShardAndIndexHeapUsage(
-                    shardHeapEstimator.computeShardHeapUsage(entry.getValue()),
-                    shardHeapEstimator.computeIndexHeapUsage(entry.getValue())
-                )
-            );
-        }
-        ShardMemoryMetrics uninitialised = newUninitialisedShardMemoryMetrics(relativeTimeInNanos());
-        ShardAndIndexHeapUsage defaultForShardsWithoutMetrics = new ShardAndIndexHeapUsage(
-            shardHeapEstimator.computeShardHeapUsage(uninitialised),
-            shardHeapEstimator.computeIndexHeapUsage(uninitialised)
+        final var estimator = createShardHeapEstimator();
+        final var snapshot = shardMemoryMetrics.entrySet()
+            .stream()
+            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, entry -> entry.getValue().snapshot(estimator)));
+        final var defaultForShardsWithoutMetrics = estimator.computeShardHeapUsage(
+            newUninitialisedShardMemoryMetrics(relativeTimeInNanos())
         );
-        return new ShardHeapUsageEstimates(heapUsagePerShard, defaultForShardsWithoutMetrics);
-    }
-
-    private Map<ShardId, ShardMemoryMetrics> snapshotShardMemoryMetrics() {
-        Map<ShardId, ShardMemoryMetrics> snapshot = new HashMap<>();
-        shardMemoryMetrics.forEach((shardId, shardMemoryMetric) -> snapshot.put(shardId, shardMemoryMetric.snapshot()));
-        return snapshot;
-    }
-
-    /**
-     * Goes through the shard memory metrics and returns a map of shards to their shard-level and index-level heap usage components.
-     * Only used by tests; production code should call {@link #getShardHeapUsageEstimates()} instead.
-     */
-    // visible for testing
-    public Map<ShardId, ShardAndIndexHeapUsage> getShardHeapUsages() {
-        return getShardHeapUsageEstimates().perShard();
+        return new ShardHeapUsageEstimates(snapshot, defaultForShardsWithoutMetrics);
     }
 
     public record ShardMergeMemoryEstimate(String mergeId, long estimateInBytes) implements Writeable {
@@ -987,7 +947,9 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         }
     }
 
-    /// Compute the aggregated shard metrics for the whole tier
+    /// Compute the aggregated shard metrics for the whole tier.
+    /// When [#ADAPTIVE_SHARD_MEMORY_ESTIMATION_MIN_THRESHOLD_ENABLED_SETTING] is enabled, each shard's adaptive estimate is raised to
+    /// [#getAdaptiveShardMemoryEstimationMinThreshold()] so autoscaling sees the capacity floor.
     ///
     /// @param postingsInEstimate Whether to include postings in the shard heap estimates
     /// @param selfReportedShardOverhead Whether to use self-reported shard overhead in the shard heap estimates, when available
@@ -998,7 +960,10 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         return aggregateShardMetrics(postingsInEstimate, selfReportedShardOverhead, (shardId, shardMemoryMetrics) -> {});
     }
 
-    /// Compute the aggregated shard metrics for the whole tier
+    /// Compute the aggregated shard metrics for the whole tier.
+    /// When [#ADAPTIVE_SHARD_MEMORY_ESTIMATION_MIN_THRESHOLD_ENABLED_SETTING] is enabled, each shard's adaptive estimate is raised to
+    /// [#getAdaptiveShardMemoryEstimationMinThreshold()] so autoscaling sees the capacity floor.
+    /// Allocation estimates do not use this floor.
     ///
     /// @param postingsInEstimate Whether to include postings in the shard heap estimates
     /// @param selfReportedShardOverhead Whether to use self-reported shard overhead in the shard heap estimates, when available
@@ -1008,21 +973,44 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         SelfReportedShardOverhead selfReportedShardOverhead,
         BiConsumer<ShardId, ShardMemoryMetrics> metricVisitor
     ) {
-        final ShardHeapEstimator shardHeapEstimator = createShardHeapEstimator(selfReportedShardOverhead, postingsInEstimate);
-        return shardHeapEstimator.aggregateShardMetrics(shardMemoryMetrics, metricVisitor);
+        final long shardSizeEstimateFloor = adaptiveShardMemoryEstimationMinThresholdEnabled
+            ? getAdaptiveShardMemoryEstimationMinThreshold()
+            : 0L;
+        return createShardHeapEstimator(selfReportedShardOverhead, shardSizeEstimateFloor).aggregateShardMetrics(
+            shardMemoryMetrics,
+            postingsInEstimate,
+            metricVisitor
+        );
     }
 
-    /// Create a [ShardHeapEstimator] with the default self-reported-shard overhead behaviour
-    /// and the specified postings behaviour
-    public ShardHeapEstimator createShardHeapEstimator(PostingsInEstimate postingsInEstimate) {
-        return createShardHeapEstimator(SelfReportedShardOverhead.DEFAULT, postingsInEstimate);
+    /// Per-shard estimator for allocation, the heap monitor, and the recovery gate.
+    /// Does not apply [#getAdaptiveShardMemoryEstimationMinThreshold]. That floor is applied only by
+    /// [#aggregateShardMetrics] for autoscaling tier totals.
+    public ShardHeapEstimator createShardHeapEstimator() {
+        return createShardHeapEstimator(SelfReportedShardOverhead.DEFAULT, 0L);
     }
 
     // visible for testing
-    ShardHeapEstimator createShardHeapEstimator(
-        SelfReportedShardOverhead selfReportedShardOverhead,
-        PostingsInEstimate postingsInEstimate
-    ) {
+    ShardHeapEstimator createShardHeapEstimator(SelfReportedShardOverhead selfReportedShardOverhead) {
+        return createShardHeapEstimator(selfReportedShardOverhead, 0L);
+    }
+
+    /// Builds a shard-heap estimator.
+    ///
+    /// Allocation, the heap monitor, and the recovery gate pass a `shardSizeEstimateFloor` of zero
+    /// ([#getShardHeapUsageEstimates], [#estimateNodeHeapUsage], and [#createShardHeapEstimator()]).
+    /// Those decisions are hard, since an inflated shard size can leave a shard unassigned or blocked from moving
+    /// even when the real heap would fit it, so they use the raw adaptive, fixed, or self-reported estimate.
+    ///
+    /// [#aggregateShardMetrics] passes [#getAdaptiveShardMemoryEstimationMinThreshold] when
+    /// [#ADAPTIVE_SHARD_MEMORY_ESTIMATION_MIN_THRESHOLD_ENABLED_SETTING] is enabled. That floor is an equal share of the
+    /// largest node's heap (`MAX_HEAP_SIZE` minus the node base, divided by `cluster.max_shards_per_node`), so a project
+    /// of many small shards still reports enough tier memory for the autoscaler to add nodes before the shard count
+    /// reaches the per-node limit.
+    ///
+    /// @param selfReportedShardOverhead whether to prefer a shard's self-reported overhead over the adaptive estimate
+    /// @param shardSizeEstimateFloor minimum adaptive per-shard heap, in bytes
+    private ShardHeapEstimator createShardHeapEstimator(SelfReportedShardOverhead selfReportedShardOverhead, long shardSizeEstimateFloor) {
         final boolean useSelfReportedShardOverhead = switch (selfReportedShardOverhead) {
             case ENABLE -> true;
             case DISABLE -> false;
@@ -1031,9 +1019,8 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         return new ShardHeapEstimator(
             fixedShardMemoryOverhead,
             adaptiveExtraOverheadRatio,
-            adaptiveShardMemoryEstimationMinThresholdEnabled ? getAdaptiveShardMemoryEstimationMinThreshold() : 0,
-            useSelfReportedShardOverhead,
-            postingsInEstimate == PostingsInEstimate.INCLUDE
+            shardSizeEstimateFloor,
+            useSelfReportedShardOverhead
         );
     }
 
@@ -1047,4 +1034,5 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         DISABLE,
         DEFAULT;
     }
+
 }

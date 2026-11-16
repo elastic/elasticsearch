@@ -33,4 +33,8 @@ public class TrimTokenFilterFactory extends AbstractTokenFilterFactory implement
         return new TrimFilter(tokenStream);
     }
 
+    @Override
+    public Object sharingKey() {
+        return getClass();
+    }
 }

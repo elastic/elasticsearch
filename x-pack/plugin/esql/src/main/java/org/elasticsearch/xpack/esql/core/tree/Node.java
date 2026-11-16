@@ -20,6 +20,7 @@ import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
+import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -191,6 +192,17 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
         return anyMatch(Predicate.not(predicate)) == false;
     }
 
+    /**
+     * Traverse the plan tree from the current node to the leaves, checking the given
+     * predicate.  This function will short circuit and return early if it is able to.
+     *
+     * @param predicate condition to check against all nodes
+     * @return true iff the given predicate is false for all nodes
+     */
+    public boolean noneMatch(Predicate<? super T> predicate) {
+        return anyMatch(predicate) == false;
+    }
+
     public List<T> collect(Predicate<? super T> predicate) {
         List<T> l = new ArrayList<>();
         forEachDown(n -> {
@@ -355,6 +367,33 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
         T transformed = transformChildren(child -> child.transformUp(rule));
         T node = this.equals(transformed) ? (T) this : transformed;
         return rule.apply(node);
+    }
+
+    /**
+     * Bottom-up counterpart of {@link #transformDownSkipBranch}: like {@link #transformUp(Function)}, but the child at index
+     * {@code i} of a node {@code parent} is left untouched — neither it nor any node beneath it is passed to {@code rule} — if
+     * {@code skipChild.test(parent, i)}. Unlike the top-down variant, the decision must be taken before the subtree is visited,
+     * hence a predicate rather than a flag the rule sets. It is asked of the parent rather than the child because what makes a
+     * branch special can be a property of its position in the parent (e.g. a branch's identity in a union) rather than of the
+     * child node itself; and by index, because equal children can sit at positions the parent tells apart.
+     */
+    @SuppressWarnings("unchecked")
+    public T transformUpSkipBranch(BiPredicate<? super T, Integer> skipChild, Function<? super T, ? extends T> rule) {
+        List<T> transformedChildren = null;
+        for (int i = 0, s = children.size(); i < s; i++) {
+            if (skipChild.test((T) this, i)) {
+                continue;
+            }
+            T child = children.get(i);
+            T next = child.transformUpSkipBranch(skipChild, rule);
+            if (child.equals(next) == false) {
+                if (transformedChildren == null) {
+                    transformedChildren = new ArrayList<>(children);
+                }
+                transformedChildren.set(i, next);
+            }
+        }
+        return rule.apply(transformedChildren == null ? (T) this : replaceChildrenSameSize(transformedChildren));
     }
 
     @SuppressWarnings("unchecked")

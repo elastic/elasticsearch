@@ -27,6 +27,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.WarmTarget;
+import org.elasticsearch.xpack.stateless.cache.WarmingRatioProviderFactory;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
@@ -56,6 +57,7 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
     private final Executor bccHeaderReadExecutor;
     private final boolean useInternalFilesReplicatedContentForSearchShards;
     private final ClusterService clusterService;
+    private final WarmingRatioProviderFactory warmingRatioProviderFactory;
 
     public StatelessSearchNodeRecoveryListener(
         ObjectStoreService objectStoreService,
@@ -63,7 +65,8 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
         SharedBlobCacheWarmingService warmingService,
         ProjectResolver projectResolver,
         Executor bccHeaderReadExecutor,
-        ClusterService clusterService
+        ClusterService clusterService,
+        WarmingRatioProviderFactory warmingRatioProviderFactory
     ) {
         super(objectStoreService, projectResolver);
         this.recoveryCommitRegistrationHandler = recoveryCommitRegistrationHandler;
@@ -72,6 +75,7 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
         this.useInternalFilesReplicatedContentForSearchShards = clusterService.getClusterSettings()
             .get(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT);
         this.clusterService = clusterService;
+        this.warmingRatioProviderFactory = warmingRatioProviderFactory;
     }
 
     @Override
@@ -109,6 +113,8 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
         );
         assert batchedCompoundCommit == null || batchedCompoundCommit.shardId().equals(indexShard.shardId())
             : batchedCompoundCommit.shardId() + " != " + indexShard.shardId();
+
+        final var warmingRatioProvider = warmingRatioProviderFactory.create(indexShard.shardId());
 
         recoveryCommitRegistrationHandler.register(
             batchedCompoundCommit != null ? batchedCompoundCommit.primaryTermAndGeneration() : PrimaryTermAndGeneration.ZERO,
@@ -172,16 +178,14 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
                                     )
                                 );
                                 var bccBlobFile = referencedCompoundCommit.statelessCompoundCommitReference().bccBlobFile();
-                                var offset = warmingService.byteRangeToWarmForCC(referencedCompoundCommit).end();
                                 // Aggregate a single warm target per BCC blob: the furthest offset to warm, stamped with the most recent
                                 // representative timestamp among the referenced CCs sharing that blob.
                                 // blobSize is 0 as a sentinel until the bccBlobSizeConsumer fills it in.
-                                long ccTimestamp = searchDirectory.resolveRegionTimestampMillis(
-                                    referencedCompoundCommit.statelessCompoundCommitReference()
-                                        .compoundCommit()
-                                        .getTimestampFieldValueRange()
+                                targetsToWarm.merge(
+                                    bccBlobFile,
+                                    warmingService.computeWarmTarget(warmingRatioProvider, referencedCompoundCommit, searchDirectory),
+                                    WarmTarget::merge
                                 );
-                                targetsToWarm.merge(bccBlobFile, new WarmTarget(offset, 0L, ccTimestamp), WarmTarget::merge);
                             },
                             (blobFile, bccSize) -> {
                                 assert targetsToWarm.containsKey(blobFile);
@@ -227,10 +231,11 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
                         searchDirectory.updateCommit(compoundCommit);
                     }
                     warmingService.warmCacheForSearchShardRecovery(
-                        clusterService.state(),
+                        clusterService::state,
                         indexShard,
                         compoundCommit,
                         searchDirectory,
+                        warmingRatioProvider,
                         warmingInputs != null ? warmingInputs.targetsToWarm() : null,
                         resumeRecovery
                     );

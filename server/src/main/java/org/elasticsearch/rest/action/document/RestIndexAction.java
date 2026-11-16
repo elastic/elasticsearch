@@ -57,7 +57,12 @@ public class RestIndexAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/{index}/_doc/{id}"), new Route(PUT, "/{index}/_doc/{id}"));
+        return List.of(
+            new Route(POST, "/{index}/_doc/{id}"),
+            new Route(PUT, "/{index}/_doc/{id}"),
+            new Route(POST, "/{index}/{_slice}/_doc/{id}"),
+            new Route(PUT, "/{index}/{_slice}/_doc/{id}")
+        );
     }
 
     @Override
@@ -79,7 +84,12 @@ public class RestIndexAction extends BaseRestHandler {
 
         @Override
         public List<Route> routes() {
-            return List.of(new Route(POST, "/{index}/_create/{id}"), new Route(PUT, "/{index}/_create/{id}"));
+            return List.of(
+                new Route(POST, "/{index}/_create/{id}"),
+                new Route(PUT, "/{index}/_create/{id}"),
+                new Route(POST, "/{index}/{_slice}/_create/{id}"),
+                new Route(PUT, "/{index}/{_slice}/_create/{id}")
+            );
         }
 
         @Override
@@ -110,7 +120,7 @@ public class RestIndexAction extends BaseRestHandler {
 
         @Override
         public List<Route> routes() {
-            return List.of(new Route(POST, "/{index}/_doc"));
+            return List.of(new Route(POST, "/{index}/_doc"), new Route(POST, "/{index}/{_slice}/_doc"));
         }
 
         @Override

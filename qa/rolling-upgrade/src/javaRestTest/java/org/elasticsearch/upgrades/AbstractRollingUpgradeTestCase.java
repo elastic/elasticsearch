@@ -40,6 +40,7 @@ public abstract class AbstractRollingUpgradeTestCase extends ParameterizedRollin
 
     private static ElasticsearchCluster buildCluster() {
         var cluster = ElasticsearchCluster.local()
+            .name("rolling-upgrade-cluster")
             .distribution(DistributionType.DEFAULT)
             .version(getOldClusterVersion(), isOldClusterDetachedVersion())
             .nodes(NODE_NUM)

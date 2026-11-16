@@ -1,7 +1,7 @@
 
 ```yaml {applies_to}
 serverless: ga
-stack: preview 9.1.0, ga 9.3.0
+stack: ga 9.3+, preview 9.1-9.2
 ```
 
 The `COMPLETION` command allows you to send prompts and context to a Large Language Model (LLM) directly within your ES|QL queries, to perform text generation tasks.
@@ -11,7 +11,7 @@ The `COMPLETION` command allows you to send prompts and context to a Large Langu
 
 ::::{applies-switch}
 
-:::{applies-item} stack: ga 9.3+
+:::{applies-item} { "stack": "ga 9.3+", "serverless": "ga" }
 
 `COMPLETION` automatically limits processing to **100 rows by default** to prevent accidental high consumption and costs. This limit is applied before the `COMPLETION` command executes.
 
@@ -36,7 +36,7 @@ PUT _cluster/settings
 ```
 :::
 
-:::{applies-item} stack: ga 9.1-9.2
+:::{applies-item} stack: preview 9.1-9.2
 
 Be careful to test with small datasets first before running on production data or in automated workflows, to avoid unexpected costs.
 
@@ -55,7 +55,7 @@ Best practices:
 
 ::::{applies-switch}
 
-:::{applies-item} stack: ga 9.5+
+:::{applies-item} { "stack": "ga 9.5+", "serverless": "ga" }
 
 ```esql
 COMPLETION [column =] prompt WITH { "inference_id" : "my_inference_endpoint" [, "timeout" : "<timeout_duration>"] }
@@ -63,7 +63,7 @@ COMPLETION [column =] prompt WITH { "inference_id" : "my_inference_endpoint" [, 
 
 :::
 
-:::{applies-item} stack: ga 9.2+
+:::{applies-item} stack: ga 9.3-9.4, preview =9.2
 
 ```esql
 COMPLETION [column =] prompt WITH { "inference_id" : "my_inference_endpoint" }
@@ -71,7 +71,7 @@ COMPLETION [column =] prompt WITH { "inference_id" : "my_inference_endpoint" }
 
 :::
 
-:::{applies-item} stack: ga =9.1
+:::{applies-item} stack: preview =9.1
 
 ```esql
 COMPLETION [column =] prompt WITH my_inference_endpoint
@@ -132,7 +132,7 @@ the documents come from a remote.
 
 ::::{applies-switch}
 
-:::{applies-item} {"stack": "ga 9.5", "serverless": "ga"}
+:::{applies-item} {"stack": "ga 9.5+", "serverless": "ga"}
 
 The default timeout is 120 seconds.
 
@@ -142,7 +142,7 @@ COMPLETION answer = question WITH { "inference_id": "my_inference_endpoint", "ti
 ```
 :::
 
-:::{applies-item} {"stack": "preview 9.1.0, ga 9.4.0"}
+:::{applies-item} stack: ga 9.3-9.4, preview 9.1-9.2
 
 The timeout is 30 seconds by default.
 

@@ -30,14 +30,12 @@ import java.io.IOException;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
  * The function that checks for the absence of a field in the output result.
  * An absence means that the input expression does not yield a non-null value.
  */
-public class Absent extends AggregateFunction implements SurrogateExpression, AggregateMetricDoubleNativeSupport {
+public class Absent extends UnaryAggregateFunction implements SurrogateExpression, AggregateMetricDoubleNativeSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Absent", Absent::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Absent.class)
         .unary(Absent::new)
@@ -73,6 +71,9 @@ public class Absent extends AggregateFunction implements SurrogateExpression, Ag
                 "boolean",
                 "cartesian_point",
                 "cartesian_shape",
+                "counter_double",
+                "counter_integer",
+                "counter_long",
                 "date",
                 "date_nanos",
                 "date_range",
@@ -120,11 +121,6 @@ public class Absent extends AggregateFunction implements SurrogateExpression, Ag
     }
 
     @Override
-    public AggregateFunction withFilter(Expression filter) {
-        return new Absent(source(), field(), filter, window());
-    }
-
-    @Override
     public Absent replaceChildren(List<Expression> newChildren) {
         return new Absent(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
@@ -141,7 +137,7 @@ public class Absent extends AggregateFunction implements SurrogateExpression, Ag
 
     @Override
     protected TypeResolution resolveType() {
-        return isType(field(), dt -> dt.isCounter() == false, sourceText(), DEFAULT, "any type except counter types");
+        return TypeResolution.TYPE_RESOLVED;
     }
 
     @Override

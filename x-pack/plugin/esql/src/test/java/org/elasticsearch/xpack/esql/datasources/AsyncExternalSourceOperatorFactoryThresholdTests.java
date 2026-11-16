@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
@@ -16,7 +18,9 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.operator.topn.SharedMinCompetitive;
 import org.elasticsearch.compute.operator.topn.SharedNumericThreshold;
+import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -24,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThreshold;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThresholdAware;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -32,6 +37,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -46,6 +52,8 @@ import java.util.NoSuchElementException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -54,11 +62,14 @@ import static org.mockito.Mockito.when;
 public class AsyncExternalSourceOperatorFactoryThresholdTests extends ESTestCase {
 
     private static final BlockFactory BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("none"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
     private static final StoragePath PATH = StoragePath.of("s3://bucket/data.parquet");
     private static final List<Attribute> ATTRIBUTES = List.of(
         new FieldAttribute(Source.EMPTY, "value", new EsField("value", DataType.LONG, Map.of(), false, EsField.TimeSeriesFieldType.NONE))
+    );
+    private static final List<Attribute> KEYWORD_ATTRIBUTES = List.of(
+        new FieldAttribute(Source.EMPTY, "name", new EsField("name", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE))
     );
 
     public void testCachedThresholdIsSharedAcrossConcurrentNativeReads() {
@@ -86,6 +97,43 @@ public class AsyncExternalSourceOperatorFactoryThresholdTests extends ESTestCase
         assertThat(e.getMessage(), containsString("numeric threshold must be installed before source operators are created"));
         reader.completeAll();
         operator.close();
+    }
+
+    /**
+     * A {@code noFurtherCandidates()} probe that lands after the last operator hold was released must not rebuild
+     * the threshold: doing so acquires a fresh TopN side channel whose request-breaker bytes nothing releases, which
+     * is how a 64-byte {@code request} leak surfaced once per csv-spec task. The side channel is built on a real,
+     * tracked breaker so the test observes the bytes the channel holds, and a regression also trips the class-wide
+     * breaker check.
+     */
+    public void testProbeAfterLastReleaseDoesNotAcquireSideChannel() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+        CountingReader reader = new CountingReader(false);
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            new TestStorageProvider(),
+            reader,
+            PATH,
+            KEYWORD_ATTRIBUTES,
+            100,
+            10,
+            Runnable::run
+        ).build();
+        SharedMinCompetitive.KeyConfig keyConfig = new SharedMinCompetitive.KeyConfig(ElementType.BYTES_REF, TopNEncoder.UTF8, true, false);
+        factory.setMinCompetitiveSupplier(new SharedMinCompetitive.Supplier(breaker, List.of(keyConfig)), "name", true, false);
+
+        // The read path builds the threshold, which takes the only reference on the side channel.
+        SourceOperator operator = factory.get(driverContext());
+        assertEquals(1, reader.reads.get());
+        assertThat(breaker.getUsed(), greaterThan(0L));
+
+        // Closing the operator drops the last hold: the threshold is closed and the channel bytes come back.
+        operator.close();
+        assertThat(breaker.getUsed(), equalTo(0L));
+
+        // A probe arriving after that must not charge anything again, and with no consumer left it must tell the
+        // caller to stop rather than fall through to the (absent) limiter and report "keep going".
+        assertTrue(factory.noFurtherCandidates());
+        assertThat(breaker.getUsed(), equalTo(0L));
     }
 
     public void testNoFurtherCandidatesShortCircuitsSyncWrapperRead() {
@@ -281,6 +329,7 @@ public class AsyncExternalSourceOperatorFactoryThresholdTests extends ESTestCase
             StorageObject object,
             FormatReadContext context,
             java.util.concurrent.Executor executor,
+            ExternalReadCounters readCounters,
             ActionListener<CloseableIterator<Page>> listener
         ) {
             asyncReads.incrementAndGet();
@@ -321,6 +370,11 @@ public class AsyncExternalSourceOperatorFactoryThresholdTests extends ESTestCase
 
     private static class TestStorageProvider implements StorageProvider {
         @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            return null; // directory-aware listing is irrelevant to this test double
+        }
+
+        @Override
         public StorageObject newObject(StoragePath path) {
             return new TestStorageObject(path);
         }
@@ -354,7 +408,7 @@ public class AsyncExternalSourceOperatorFactoryThresholdTests extends ESTestCase
         public void close() {}
     }
 
-    private static class TestStorageObject implements StorageObject {
+    private static class TestStorageObject extends AbstractTestStorageObject {
         private final StoragePath path;
 
         TestStorageObject(StoragePath path) {

@@ -23,7 +23,7 @@ import java.util.List;
  * Reopens a {@code DirectMonotonic} table written by {@link MonotonicWriter}. Read-side counterpart to that
  * class, the same way {@link ColumnIteratorReader} pairs with {@link ColumnIteratorWriter}.
  *
- * <p>The returned {@link LongValues} reads off-heap, straight from a mapped slice of the data file, so
+ * <p>The returned {@link LongValues} reads off-heap, straight from a mapped slice of the table's file, so
  * reopening a table costs only its small metadata.
  */
 public final class MonotonicReader {
@@ -33,7 +33,7 @@ public final class MonotonicReader {
     /**
      * Opens the table stored at {@code [dataOffset, dataOffset + dataLength)} in {@code data}.
      *
-     * @param data       the data file the table was written into
+     * @param data       the file the table was written into
      * @param tableMeta  the {@link MonotonicWriter.Table#meta()} bytes held in the column's metadata
      * @param numEntries the number of entries the table was built with; must match what the writer was given
      * @param dataOffset start of the table's region in {@code data}

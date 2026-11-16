@@ -1,0 +1,5 @@
+area: PromQL
+issues: []
+pr: 161104
+summary: Return Prometheus errors for invalid query params
+type: bug

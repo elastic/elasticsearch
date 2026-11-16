@@ -13,7 +13,6 @@
  */
 module org.elasticsearch.lucene.store {
     requires org.elasticsearch.base;
-    requires org.elasticsearch.foreign.adapter;
     requires org.apache.lucene.core;
 
     exports org.elasticsearch.lucene.store;

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 161701
+summary: Keep gzip concat over HTTP/S3
+type: bug

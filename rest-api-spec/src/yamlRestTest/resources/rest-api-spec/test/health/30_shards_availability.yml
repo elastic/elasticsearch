@@ -1,0 +1,87 @@
+# Tests for the shards_availability indicator that are identical on stateful and stateless clusters
+---
+"Green shards availability on a healthy cluster":
+  - requires:
+      cluster_features: "gte_v8.7.0"
+      reason: "the API path changed in 8.7"
+
+  - do:
+      indices.create:
+        index: green_index
+        master_timeout: 1s
+        timeout: 1s
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+        timeout: 30s
+
+  - do:
+      health_report:
+        feature: shards_availability
+
+  - is_true: cluster_name
+  - match: { indicators.shards_availability.status: "green" }
+  - match: { indicators.shards_availability.symptom: "This cluster has all shards available." }
+  - match: { indicators.shards_availability.details.unassigned_primaries: 0 }
+  - match: { indicators.shards_availability.details.initializing_primaries: 0 }
+  - match: { indicators.shards_availability.details.creating_primaries: 0 }
+  - match: { indicators.shards_availability.details.restarting_primaries: 0 }
+  - gte: { indicators.shards_availability.details.started_primaries: 1 }
+  - match: { indicators.shards_availability.details.unassigned_replicas: 0 }
+  - match: { indicators.shards_availability.details.initializing_replicas: 0 }
+  - match: { indicators.shards_availability.details.creating_replicas: 0 }
+  - match: { indicators.shards_availability.details.restarting_replicas: 0 }
+  - gte: { indicators.shards_availability.details.started_replicas: 0 }
+  - is_false: indicators.shards_availability.impacts
+  - is_false: indicators.shards_availability.diagnosis
+
+---
+"Shards availability verbose false omits details":
+  - requires:
+      cluster_features: "gte_v8.7.0"
+      reason: "the API path changed in 8.7"
+
+  - do:
+      health_report:
+        feature: shards_availability
+        verbose: false
+
+  - is_true: cluster_name
+  - match: { indicators.shards_availability.status: "green" }
+  - match: { indicators.shards_availability.symptom: "This cluster has all shards available." }
+  - is_false: indicators.shards_availability.details
+
+---
+"Shards availability is red when index routing allocation is disabled":
+  - requires:
+      cluster_features: "gte_v8.7.0"
+      reason: "the API path changed in 8.7"
+
+  - do:
+      indices.create:
+        index: red_index
+        master_timeout: 1s
+        timeout: 1s
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+            index.routing.allocation.enable: none
+
+  - do:
+      health_report:
+        feature: shards_availability
+
+  - is_true: cluster_name
+  - match:   { indicators.shards_availability.status: "red" }
+  - match:   { indicators.shards_availability.symptom: "This cluster has 1 unavailable primary shard." }
+  - is_true: indicators.shards_availability.diagnosis
+  - length:  { indicators.shards_availability.diagnosis: 1 }
+  - is_true: indicators.shards_availability.diagnosis.0.affected_resources
+  - length:  { indicators.shards_availability.diagnosis.0.affected_resources: 1 }
+  - match:   { indicators.shards_availability.diagnosis.0.affected_resources.indices.0: "${_project_id_prefix_}red_index" }

@@ -110,15 +110,15 @@ public class TransformCrossProjectMetricsIT extends TransformSingleNodeTestCase 
         assertBusy(() -> {
             telemetry.resetMeter();
             telemetry.collect();
-            assertThat(telemetry.getLongGaugeMeasurement(TransformCrossProjectMetrics.TRANSFORM_CPS_UIAM_AUTH_CURRENT), empty());
-            assertThat(telemetry.getLongGaugeMeasurement(TransformCrossProjectMetrics.TRANSFORM_CPS_ACTIVE_CURRENT), empty());
+            assertThat(telemetry.getLongAsyncGaugeMeasurement(TransformCrossProjectMetrics.TRANSFORM_CPS_UIAM_AUTH_CURRENT), empty());
+            assertThat(telemetry.getLongAsyncGaugeMeasurement(TransformCrossProjectMetrics.TRANSFORM_CPS_ACTIVE_CURRENT), empty());
         }, 30, TimeUnit.SECONDS);
 
         deleteTransform(transformId);
     }
 
     private static long measurement(TestTelemetryPlugin telemetry, String metric, String attribute, String value) {
-        var matches = telemetry.getLongGaugeMeasurement(metric)
+        var matches = telemetry.getLongAsyncGaugeMeasurement(metric)
             .stream()
             .filter(measurement -> value.equals(measurement.attributes().get(attribute)))
             .toList();

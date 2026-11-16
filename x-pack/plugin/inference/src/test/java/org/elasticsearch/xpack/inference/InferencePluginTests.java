@@ -13,6 +13,8 @@ import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.telemetry.InferenceStats;
 import org.elasticsearch.plugins.Platforms;
+import org.elasticsearch.rest.RestHeaderDefinition;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
@@ -21,11 +23,18 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.XPackSettings.ML_NATIVE_CODE_PLATFORMS;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 
 public class InferencePluginTests extends ESTestCase {
@@ -88,5 +97,53 @@ public class InferencePluginTests extends ESTestCase {
     public void testGetInferenceServiceFactories_excludesElasticsearchServiceWhenMlDisabled() throws IOException {
         var settings = Settings.builder().put("xpack.ml.enabled", false).build();
         assertFalse(serviceNamesFromFactories(settings).contains(ElasticsearchInternalService.NAME));
+    }
+
+    public void testAttributionHeadersAreAllowed() {
+        try (var plugin = new InferencePlugin(Settings.EMPTY)) {
+            var restHeaders = plugin.getRestHeaders()
+                .stream()
+                .collect(Collectors.toMap(RestHeaderDefinition::getName, RestHeaderDefinition::isMultiValueAllowed));
+            assertThat(
+                restHeaders,
+                equalTo(
+                    Map.of(
+                        "X-elastic-product-use-case",
+                        true,
+                        "X-Elastic-Inference-Interaction-Id",
+                        false,
+                        "X-elastic-product-solution",
+                        false,
+                        "X-elastic-product-feature",
+                        false,
+                        "X-Elastic-Trace-Id",
+                        false,
+                        "X-Elastic-User-Id",
+                        false,
+                        "X-Elastic-Space-Id",
+                        false
+                    )
+                )
+            );
+            assertThat(restHeaders, not(hasKey(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER)));
+        }
+    }
+
+    /**
+     * Task headers are exposed through the tasks API, so the trace, user, and space ids are forwarded to EIS but are not task headers.
+     */
+    public void testProductAttributionHeadersArePropagatedAsTaskHeaders() {
+        try (var plugin = new InferencePlugin(Settings.EMPTY)) {
+            assertThat(
+                plugin.getTaskHeaders(),
+                containsInAnyOrder(
+                    "X-elastic-product-use-case",
+                    "X-Elastic-Inference-Interaction-Id",
+                    "X-elastic-product-solution",
+                    "X-elastic-product-feature"
+                )
+            );
+            assertThat(plugin.getTaskHeaders(), not(hasItem(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER)));
+        }
     }
 }

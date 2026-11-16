@@ -1,0 +1,6 @@
+SET unmapped_fields="nullify";
+FROM employees
+| FORK
+    (WHERE emp_no IN (FROM employees | KEEP emp_no) OR false)
+    (WHERE first_name IN (FROM employees | KEEP first_name) OR false)
+| EVAL y = does_not_exist_field

@@ -19,7 +19,7 @@ public class PowSerializationTests extends AbstractExpressionSerializationTests<
         Source source = randomSource();
         Expression base = randomChild();
         Expression exponent = randomChild();
-        return new Pow(source, base, exponent);
+        return new Pow(source, base, exponent, randomBoolean());
     }
 
     @Override
@@ -32,6 +32,6 @@ public class PowSerializationTests extends AbstractExpressionSerializationTests<
         } else {
             exponent = randomValueOtherThan(exponent, AbstractExpressionSerializationTests::randomChild);
         }
-        return new Pow(source, base, exponent);
+        return new Pow(source, base, exponent, randomBoolean());
     }
 }

@@ -272,15 +272,18 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
     /**
      * Estimates coordinator heap for a single sub-search {@link SearchResponse} while it is buffered in the msearch
      * {@link AtomicArray}. Used with {@link CircuitBreaker#REQUEST} in post-receipt reservation: the estimate is taken
-     * when the response arrives, not from request metadata alone.
+     * when the response arrives, not from request metadata alone. {@link SearchResponseMerger} also uses it for the cluster
+     * responses of a cross-cluster search while they wait to be merged.
      * <p>
      * Included:
      * <ul>
      *   <li>Response shell ({@link #BASE_RESPONSE_OVERHEAD}).</li>
-     *   <li>Top-level and nested hits ({@link #estimateHitBytes}).</li>
+     *   <li>Top-level and nested hits ({@link #estimateHitBytes}), unless the response holds the coordinating node's
+     *       fetch charge for them ({@link SearchResponse#hasCoordinatorFetchCharge()}), which stays on the request
+     *       breaker while the response is buffered.</li>
      *   <li>Merged aggregations when {@link SearchResponse#getQueryPhaseAggregationBreakerBytes()} is zero
-     *       (no handoff from {@link QueryPhaseResultConsumer}), via
-     *       {@link DelayableWriteable#getUncompressedSerializedSize}. When handoff bytes are non-zero, aggregations
+     *       (no handoff from {@link QueryPhaseResultConsumer}), by the size they were read with off the wire if known, otherwise
+     *       via {@link DelayableWriteable#getUncompressedSerializedSize}. When handoff bytes are non-zero, aggregations
      *       are already on the request breaker from query-phase reduce and are not counted again here.
      *       A {@code top_hits} aggregation embeds hits in the agg tree, so the same document bytes may be
      *       counted both there and in top-level hits — a known over-estimate.</li>
@@ -316,7 +319,8 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
      * {@link AtomicArray}), but it cannot prevent a single large response from consuming
      * significant heap before the check fires.
      * <p>
-     * Cost scales with hit count; highlight and explanation serialisation dominate for rich responses.
+     * Cost scales with hit count, and with the aggregations when they weren't read off the wire; highlight, explanation and
+     * aggregation serialisation dominate for rich responses.
      * This method runs on the response-handling thread.
      */
     public static long estimateActualBytes(SearchResponse response) {
@@ -326,15 +330,23 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         CountingStreamOutput counter = new CountingStreamOutput();
         counter.setTransportVersion(TransportVersion.current());
 
-        for (SearchHit hit : response.getHits().getHits()) {
-            bytes += estimateHitBytes(hit, counter);
+        if (response.hasCoordinatorFetchCharge() == false) {
+            for (SearchHit hit : response.getHits().getHits()) {
+                bytes += estimateHitBytes(hit, counter);
+            }
         }
 
         if (response.hasAggregations() && response.getQueryPhaseAggregationBreakerBytes() == 0) {
-            try {
-                bytes += DelayableWriteable.getUncompressedSerializedSize(response.getAggregations());
-            } catch (Exception e) {
-                logger.warn("msearch circuit breaker: failed to estimate aggregation bytes", e);
+            long serializedAggregations = response.serializedAggregationsBytes();
+            if (serializedAggregations >= 0) {
+                // The size the sender wrote, in its own version's format. At the current version it is what counting would give.
+                bytes += serializedAggregations;
+            } else {
+                try {
+                    bytes += DelayableWriteable.getUncompressedSerializedSize(response.getAggregations());
+                } catch (Exception e) {
+                    logger.warn("msearch circuit breaker: failed to estimate aggregation bytes", e);
+                }
             }
         }
 
@@ -471,7 +483,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
      * Uses {@link SearchHit#getDocumentFields()} and {@link SearchHit#getMetadataFields()} rather than
      * {@link SearchHit#getFields()}, which allocates a new {@code HashMap} on every call.
      */
-    private static long estimateHitBytes(SearchHit hit, CountingStreamOutput counter) {
+    static long estimateHitBytes(SearchHit hit, CountingStreamOutput counter) {
         long bytes = PER_HIT_OBJECT_OVERHEAD;
         bytes += hit.rawSourceLength();
         bytes += (long) (hit.getDocumentFields().size() + hit.getMetadataFields().size()) * PER_FIELD_OVERHEAD;

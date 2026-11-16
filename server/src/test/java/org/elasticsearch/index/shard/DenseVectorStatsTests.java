@@ -9,21 +9,31 @@
 
 package org.elasticsearch.index.shard;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
+import org.elasticsearch.index.codec.vectors.diskbbq.SegmentCalibrationParameters;
+import org.elasticsearch.index.shard.DenseVectorStats.AutoCalibrationEntry;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.index.shard.DenseVectorStats.INCLUDE_AUTO_CALIBRATION;
 import static org.elasticsearch.index.shard.DenseVectorStats.INCLUDE_OFF_HEAP;
 import static org.elasticsearch.index.shard.DenseVectorStats.INCLUDE_PER_FIELD_STATS;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DenseVectorStatsTests extends AbstractWireSerializingTestCase<DenseVectorStats> {
@@ -35,7 +45,7 @@ public class DenseVectorStatsTests extends AbstractWireSerializingTestCase<Dense
     @Override
     protected DenseVectorStats createTestInstance() {
         if (randomBoolean()) {
-            return new DenseVectorStats(randomNonNegativeLong(), randomOffHeap());
+            return new DenseVectorStats(randomNonNegativeLong(), randomOffHeap(), randomBoolean() ? randomCalibrationStats() : null);
         } else {
             return new DenseVectorStats(randomNonNegativeLong());
         }
@@ -52,6 +62,26 @@ public class DenseVectorStatsTests extends AbstractWireSerializingTestCase<Dense
 
     Map<String, Long> randomOffHeapEntry() {
         return randomMap(1, 5, () -> new Tuple<>(randomAlphaOfLength(3), randomNonNegativeLong()));
+    }
+
+    Map<String, List<AutoCalibrationEntry>> randomCalibrationStats() {
+        return randomMap(1, 3, () -> new Tuple<>(randomAlphaOfLength(5), randomCalibrationEntries()));
+    }
+
+    List<AutoCalibrationEntry> randomCalibrationEntries() {
+        int count = randomIntBetween(1, 3);
+        List<AutoCalibrationEntry> entries = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            SegmentCalibrationParameters params = rarely()
+                ? new SegmentCalibrationParameters.Osq(null, false, Float.NaN)
+                : new SegmentCalibrationParameters.Osq(
+                    randomFrom(QuantEncoding.values()),
+                    randomBoolean(),
+                    (float) randomDoubleBetween(1.0, 3.0, true)
+                );
+            entries.add(new AutoCalibrationEntry(params, randomNonNegativeLong(), randomNonNegativeLong(), randomIntBetween(1, 10)));
+        }
+        return entries;
     }
 
     public void testBasicEquality() {
@@ -247,6 +277,119 @@ public class DenseVectorStatsTests extends AbstractWireSerializingTestCase<Dense
         assertThat(Strings.toString(builder), equalTo(expected));
     }
 
+    public void testAutoCalibrationXContent() throws IOException {
+        var calibEntry = new AutoCalibrationEntry(
+            new SegmentCalibrationParameters.Osq(QuantEncoding.ONE_BIT_4BIT_QUERY, true, 2.0f),
+            100000L,
+            10000000L,
+            2
+        );
+        var stats = new DenseVectorStats(100000L, Map.of("my_vec", Map.of("vec", 10000000L)), Map.of("my_vec", List.of(calibEntry)));
+
+        // without include_auto_calibration: no auto_calibration block
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        stats.toXContent(builder, new ToXContent.MapParams(Map.of(INCLUDE_OFF_HEAP, "true", INCLUDE_PER_FIELD_STATS, "true")));
+        builder.endObject();
+        assertFalse("auto_calibration should not appear without param", Strings.toString(builder).contains("auto_calibration"));
+
+        // with include_auto_calibration=true
+        builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        stats.toXContent(
+            builder,
+            new ToXContent.MapParams(Map.of(INCLUDE_OFF_HEAP, "true", INCLUDE_PER_FIELD_STATS, "true", INCLUDE_AUTO_CALIBRATION, "true"))
+        );
+        builder.endObject();
+        String output = Strings.toString(builder);
+        assertThat(output, containsString("\"calibrated\":true"));
+        assertThat(output, containsString("\"type\":\"osq\""));
+        assertThat(output, containsString("\"number_of_vectors\":100000"));
+        assertThat(output, containsString("\"size_in_bytes\":10000000"));
+        assertThat(output, containsString("\"number_of_segments\":2"));
+        assertThat(output, containsString("\"bits\":1"));
+        assertThat(output, containsString("\"query_bits\":4"));
+        assertThat(output, containsString("\"precondition\":true"));
+        assertThat(output, containsString("\"oversample\":2.0"));
+    }
+
+    public void testAutoCalibrationXContentHumanReadable() throws IOException {
+        var calibEntry = new AutoCalibrationEntry(
+            new SegmentCalibrationParameters.Osq(QuantEncoding.ONE_BIT_4BIT_QUERY, false, 1.5f),
+            50000L,
+            4194304L,
+            1
+        );
+
+        var stats = new DenseVectorStats(50000L, Map.of("vec_field", Map.of("vec", 4194304L)), Map.of("vec_field", List.of(calibEntry)));
+
+        XContentBuilder builder = XContentFactory.jsonBuilder().humanReadable(true).prettyPrint();
+        builder.startObject();
+        stats.toXContent(
+            builder,
+            new ToXContent.MapParams(Map.of(INCLUDE_OFF_HEAP, "true", INCLUDE_PER_FIELD_STATS, "true", INCLUDE_AUTO_CALIBRATION, "true"))
+        );
+        builder.endObject();
+        String output = Strings.toString(builder);
+        assertThat(output, containsString("\"type\" : \"osq\""));
+        assertTrue("size human-readable should appear", output.contains("\"size\" : \"4mb\""));
+        assertTrue("size_in_bytes should appear", output.contains("\"size_in_bytes\" : 4194304"));
+    }
+
+    public void testAutoCalibrationNotShownWithoutParam() throws IOException {
+        var calibEntry = new AutoCalibrationEntry(
+            new SegmentCalibrationParameters.Osq(QuantEncoding.FOUR_BIT_SYMMETRIC, false, 2.5f),
+            20000L,
+            1000000L,
+            1
+        );
+        var stats = new DenseVectorStats(20000L, Map.of("field", Map.of("vec", 1000000L)), Map.of("field", List.of(calibEntry)));
+
+        // include_auto_calibration absent
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        stats.toXContent(builder, new ToXContent.MapParams(Map.of(INCLUDE_OFF_HEAP, "true", INCLUDE_PER_FIELD_STATS, "true")));
+        builder.endObject();
+        assertFalse(Strings.toString(builder).contains("auto_calibration"));
+
+        // include_auto_calibration=false
+        builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        stats.toXContent(
+            builder,
+            new ToXContent.MapParams(Map.of(INCLUDE_OFF_HEAP, "true", INCLUDE_PER_FIELD_STATS, "true", INCLUDE_AUTO_CALIBRATION, "false"))
+        );
+        builder.endObject();
+        assertFalse(Strings.toString(builder).contains("auto_calibration"));
+    }
+
+    public void testAutoCalibrationNotShownForNonCalibratedField() throws IOException {
+        var calibEntry = new AutoCalibrationEntry(
+            new SegmentCalibrationParameters.Osq(QuantEncoding.ONE_BIT_4BIT_QUERY, true, 2.0f),
+            5000L,
+            500000L,
+            1
+        );
+        var stats = new DenseVectorStats(
+            15000L,
+            Map.of("calibrated_field", Map.of("vec", 500000L), "plain_field", Map.of("vec", 1000000L)),
+            Map.of("calibrated_field", List.of(calibEntry))
+        );
+
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        stats.toXContent(
+            builder,
+            new ToXContent.MapParams(Map.of(INCLUDE_OFF_HEAP, "true", INCLUDE_PER_FIELD_STATS, "true", INCLUDE_AUTO_CALIBRATION, "true"))
+        );
+        builder.endObject();
+        String output = Strings.toString(builder);
+
+        assertThat(output, containsString("auto_calibration"));
+        String afterPlainField = output.substring(output.indexOf("\"plain_field\""));
+        assertFalse("auto_calibration should not appear in plain_field block", afterPlainField.contains("auto_calibration"));
+    }
+
     public void testBasicAdd() {
         DenseVectorStats stats1 = new DenseVectorStats(5L);
         DenseVectorStats stats2 = new DenseVectorStats(6L);
@@ -282,5 +425,159 @@ public class DenseVectorStatsTests extends AbstractWireSerializingTestCase<Dense
         stats2 = new DenseVectorStats(1L, Map.of("bar", Map.of("vex", 13L, "veb", 7L)));
         stats1.add(stats2);
         assertEquals(new DenseVectorStats(2L, Map.of("bar", Map.of("veb", 7L, "vec", 6L, "vex", 24L))), stats1);
+    }
+
+    public void testAutoCalibrationAddSameParams() {
+        var params = new SegmentCalibrationParameters.Osq(QuantEncoding.ONE_BIT_4BIT_QUERY, true, 2.0f);
+        var stats1 = new DenseVectorStats(
+            10000L,
+            Map.of("f", Map.of("vec", 1000000L)),
+            Map.of("f", List.of(new AutoCalibrationEntry(params, 10000L, 1000000L, 1)))
+        );
+        var stats2 = new DenseVectorStats(
+            20000L,
+            Map.of("f", Map.of("vec", 2000000L)),
+            Map.of("f", List.of(new AutoCalibrationEntry(params, 20000L, 2000000L, 1)))
+        );
+        stats1.add(stats2);
+
+        List<AutoCalibrationEntry> merged = stats1.calibrationStats().get("f");
+        assertEquals(1, merged.size());
+        assertEquals(30000L, merged.get(0).numberOfVectors);
+        assertEquals(3000000L, merged.get(0).sizeInBytes);
+        assertEquals(2, merged.get(0).numberOfSegments);
+    }
+
+    public void testAutoCalibrationAddDifferentParams() {
+        var params1bit = new SegmentCalibrationParameters.Osq(QuantEncoding.ONE_BIT_4BIT_QUERY, true, 2.0f);
+        var params4bit = new SegmentCalibrationParameters.Osq(QuantEncoding.FOUR_BIT_SYMMETRIC, false, 1.5f);
+        var stats1 = new DenseVectorStats(
+            10000L,
+            Map.of("f", Map.of("vec", 1000000L)),
+            Map.of("f", List.of(new AutoCalibrationEntry(params1bit, 10000L, 1000000L, 1)))
+        );
+        var stats2 = new DenseVectorStats(
+            5000L,
+            Map.of("f", Map.of("vec", 500000L)),
+            Map.of("f", List.of(new AutoCalibrationEntry(params4bit, 5000L, 500000L, 1)))
+        );
+        stats1.add(stats2);
+
+        assertEquals(2, stats1.calibrationStats().get("f").size());
+    }
+
+    public void testAutoCalibrationAddSameEncodingDifferentPrecondition() {
+        var paramsWithPrecond = new SegmentCalibrationParameters.Osq(QuantEncoding.ONE_BIT_4BIT_QUERY, true, 2.0f);
+        var paramsNoPrecond = new SegmentCalibrationParameters.Osq(QuantEncoding.ONE_BIT_4BIT_QUERY, false, 2.0f);
+        var stats1 = new DenseVectorStats(
+            10000L,
+            Map.of("f", Map.of("vec", 1000000L)),
+            Map.of("f", List.of(new AutoCalibrationEntry(paramsWithPrecond, 10000L, 1000000L, 1)))
+        );
+        var stats2 = new DenseVectorStats(
+            5000L,
+            Map.of("f", Map.of("vec", 500000L)),
+            Map.of("f", List.of(new AutoCalibrationEntry(paramsNoPrecond, 5000L, 500000L, 1)))
+        );
+        stats1.add(stats2);
+
+        assertEquals(2, stats1.calibrationStats().get("f").size());
+    }
+
+    public void testAutoCalibrationAddNullCalibrationStats() {
+        var params = new SegmentCalibrationParameters.Osq(QuantEncoding.ONE_BIT_4BIT_QUERY, true, 2.0f);
+        var entry = new AutoCalibrationEntry(params, 10000L, 1000000L, 1);
+
+        var noCalib = new DenseVectorStats(5L);
+        var withCalib = new DenseVectorStats(5L, Map.of("k", Map.of("vec", 1L)), Map.of("k", List.of(entry)));
+        noCalib.add(withCalib);
+        assertNotNull(noCalib.calibrationStats());
+        assertEquals(1, noCalib.calibrationStats().get("k").size());
+
+        var withCalib2 = new DenseVectorStats(5L, Map.of("k", Map.of("vec", 1L)), Map.of("k", List.of(entry)));
+        withCalib2.add(new DenseVectorStats(5L));
+        assertNotNull(withCalib2.calibrationStats());
+        assertEquals(1, withCalib2.calibrationStats().get("k").size());
+    }
+
+    public void testAutoCalibrationAddUncalibrated() {
+        var uncalibrated = new SegmentCalibrationParameters.Osq(null, false, Float.NaN);
+        var stats1 = new DenseVectorStats(
+            5000L,
+            Map.of("f", Map.of("vec", 500000L)),
+            Map.of("f", List.of(new AutoCalibrationEntry(uncalibrated, 5000L, 500000L, 2)))
+        );
+        var stats2 = new DenseVectorStats(
+            3000L,
+            Map.of("f", Map.of("vec", 300000L)),
+            Map.of("f", List.of(new AutoCalibrationEntry(uncalibrated, 3000L, 300000L, 1)))
+        );
+        stats1.add(stats2);
+
+        List<AutoCalibrationEntry> merged = stats1.calibrationStats().get("f");
+        assertEquals(1, merged.size());
+        assertFalse(merged.get(0).parameters.calibrated());
+        assertEquals(8000L, merged.get(0).numberOfVectors);
+        assertEquals(800000L, merged.get(0).sizeInBytes);
+        assertEquals(3, merged.get(0).numberOfSegments);
+    }
+
+    public void testUncalibratedXContent() throws IOException {
+        var uncalibrated = new SegmentCalibrationParameters.Osq(null, false, Float.NaN);
+        var stats = new DenseVectorStats(
+            5000L,
+            Map.of("f", Map.of("vec", 500000L)),
+            Map.of("f", List.of(new AutoCalibrationEntry(uncalibrated, 5000L, 500000L, 3)))
+        );
+
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        stats.toXContent(
+            builder,
+            new ToXContent.MapParams(Map.of(INCLUDE_OFF_HEAP, "true", INCLUDE_PER_FIELD_STATS, "true", INCLUDE_AUTO_CALIBRATION, "true"))
+        );
+        builder.endObject();
+        String output = Strings.toString(builder);
+        assertThat(output, containsString("\"calibrated\":false"));
+        assertThat(output, containsString("\"type\":\"osq\""));
+        assertThat(output, containsString("\"number_of_vectors\":5000"));
+        assertThat(output, containsString("\"size_in_bytes\":500000"));
+        assertThat(output, containsString("\"number_of_segments\":3"));
+        assertFalse("parameters block should not appear for uncalibrated entry", output.contains("\"parameters\""));
+        assertFalse("calibration-only fields should not appear for uncalibrated entry", output.contains("\"bits\""));
+    }
+
+    public void testUncalibratedEntrySerialization() throws IOException {
+        var entry = new AutoCalibrationEntry(new SegmentCalibrationParameters.Osq(null, false, Float.NaN), 1234L, 56789L, 2);
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            entry.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                var deserialized = new AutoCalibrationEntry(in);
+                assertFalse(deserialized.parameters.calibrated());
+                assertEquals("osq", deserialized.parameters.type());
+                assertEquals(1234L, deserialized.numberOfVectors);
+                assertEquals(56789L, deserialized.sizeInBytes);
+                assertEquals(2, deserialized.numberOfSegments);
+            }
+        }
+    }
+
+    public void testSerializationOldTransportVersionOmitsCalibrationStats() throws IOException {
+        var params = new SegmentCalibrationParameters.Osq(QuantEncoding.ONE_BIT_4BIT_QUERY, true, 2.0f);
+        var entry = new AutoCalibrationEntry(params, 10000L, 1000000L, 1);
+        var stats = new DenseVectorStats(10000L, Map.of("f", Map.of("vec", 1000000L)), Map.of("f", List.of(entry)));
+
+        TransportVersion oldVersion = TransportVersionUtils.randomVersionNotSupporting(
+            DenseVectorStats.DENSE_VECTOR_AUTO_CALIBRATION_STATS
+        );
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(oldVersion);
+            stats.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                in.setTransportVersion(oldVersion);
+                DenseVectorStats deserialized = new DenseVectorStats(in);
+                assertNull("calibration stats should be absent for old transport versions", deserialized.calibrationStats());
+            }
+        }
     }
 }

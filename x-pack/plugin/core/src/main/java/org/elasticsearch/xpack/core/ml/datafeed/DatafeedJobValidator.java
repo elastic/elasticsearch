@@ -42,6 +42,14 @@ public final class DatafeedJobValidator {
         TimeValue bucketSpan = analysisConfig.getBucketSpan();
         if (delayedDataCheckConfig.isEnabled()) {
             checkValidDelayedDataCheckConfig(bucketSpan, delayedDataCheckConfig);
+            if (datafeedConfig.getEsqlQuery() != null) {
+                checkSummaryCountFieldNameIsSetForEsqlDelayedDataCheck(analysisConfig);
+            }
+        }
+
+        if (datafeedConfig.getEsqlQuery() != null) {
+            checkGroupingIntervalMatchesBucketSpan(datafeedConfig.getGroupingInterval(), bucketSpan);
+            checkFrequencyIsMultipleOfGroupingInterval(datafeedConfig);
         }
 
         checkTimeFieldIsNotASearchRuntimeField(datafeedConfig, job.getDataDescription().getTimeField());
@@ -71,6 +79,26 @@ public final class DatafeedJobValidator {
         if (Strings.isNullOrEmpty(analysisConfig.getSummaryCountFieldName())) {
             throw ExceptionsHelper.badRequestException(
                 Messages.getMessage(Messages.DATAFEED_AGGREGATIONS_REQUIRES_JOB_WITH_SUMMARY_COUNT_FIELD)
+            );
+        }
+    }
+
+    private static void checkGroupingIntervalMatchesBucketSpan(TimeValue groupingInterval, TimeValue bucketSpan) {
+        if (groupingInterval.millis() != bucketSpan.millis()) {
+            throw ExceptionsHelper.badRequestException(
+                Messages.getMessage(
+                    Messages.DATAFEED_ESQL_GROUPING_INTERVAL_MUST_MATCH_BUCKET_SPAN,
+                    groupingInterval.getStringRep(),
+                    bucketSpan.getStringRep()
+                )
+            );
+        }
+    }
+
+    private static void checkSummaryCountFieldNameIsSetForEsqlDelayedDataCheck(AnalysisConfig analysisConfig) {
+        if (Strings.isNullOrEmpty(analysisConfig.getSummaryCountFieldName())) {
+            throw ExceptionsHelper.badRequestException(
+                Messages.getMessage(Messages.DATAFEED_ESQL_DELAYED_DATA_REQUIRES_SUMMARY_COUNT_FIELD)
             );
         }
     }
@@ -106,23 +134,48 @@ public final class DatafeedJobValidator {
     private static void checkFrequencyIsMultipleOfHistogramInterval(DatafeedConfig datafeedConfig, NamedXContentRegistry xContentRegistry) {
         TimeValue frequency = datafeedConfig.getFrequency();
         if (frequency != null) {
-            long histogramIntervalMillis = datafeedConfig.getHistogramIntervalMillis(xContentRegistry);
-            long frequencyMillis = frequency.millis();
-            if (frequencyMillis % histogramIntervalMillis != 0) {
-                throw ExceptionsHelper.badRequestException(
-                    Messages.getMessage(
-                        Messages.DATAFEED_FREQUENCY_MUST_BE_MULTIPLE_OF_AGGREGATIONS_INTERVAL,
-                        frequency,
-                        TimeValue.timeValueMillis(histogramIntervalMillis).getStringRep()
-                    )
-                );
-            }
+            checkFrequencyIsMultipleOfInterval(
+                frequency,
+                datafeedConfig.getHistogramIntervalMillis(xContentRegistry),
+                Messages.DATAFEED_FREQUENCY_MUST_BE_MULTIPLE_OF_AGGREGATIONS_INTERVAL
+            );
+        }
+    }
+
+    private static void checkFrequencyIsMultipleOfGroupingInterval(DatafeedConfig datafeedConfig) {
+        TimeValue frequency = datafeedConfig.getFrequency();
+        if (frequency != null) {
+            TimeValue groupingInterval = datafeedConfig.getGroupingInterval();
+            checkFrequencyIsMultipleOfInterval(
+                frequency,
+                groupingInterval.millis(),
+                Messages.DATAFEED_FREQUENCY_MUST_BE_MULTIPLE_OF_GROUPING_INTERVAL,
+                groupingInterval.getStringRep()
+            );
+        }
+    }
+
+    private static void checkFrequencyIsMultipleOfInterval(TimeValue frequency, long intervalMillis, String messageKey) {
+        checkFrequencyIsMultipleOfInterval(frequency, intervalMillis, messageKey, TimeValue.timeValueMillis(intervalMillis).getStringRep());
+    }
+
+    private static void checkFrequencyIsMultipleOfInterval(
+        TimeValue frequency,
+        long intervalMillis,
+        String messageKey,
+        String intervalStringRep
+    ) {
+        if (frequency.millis() % intervalMillis != 0) {
+            throw ExceptionsHelper.badRequestException(Messages.getMessage(messageKey, frequency, intervalStringRep));
         }
     }
 
     private static void checkTimeFieldIsNotASearchRuntimeField(DatafeedConfig datafeedConfig, String timeField) {
         // check the search RT mappings defined in the datafeed
         Map<String, Object> runtimeMappings = datafeedConfig.getRuntimeMappings();
+        if (runtimeMappings == null) {
+            return;
+        }
         for (Map.Entry<String, Object> entry : runtimeMappings.entrySet()) {
             // top level objects are fields
             String fieldName = entry.getKey();

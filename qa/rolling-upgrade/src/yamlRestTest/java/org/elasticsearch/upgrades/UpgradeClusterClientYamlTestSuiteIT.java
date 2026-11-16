@@ -29,7 +29,10 @@ public class UpgradeClusterClientYamlTestSuiteIT extends ParameterizedYamlRollin
         .setting("xpack.security.enabled", "false")
         .build();
 
-    public UpgradeClusterClientYamlTestSuiteIT(@Name("upgradedNodes") int upgradedNodes, ClientYamlTestCandidate testCandidate) {
+    public UpgradeClusterClientYamlTestSuiteIT(
+        @Name("upgradedNodes") int upgradedNodes,
+        @Name("yaml") ClientYamlTestCandidate testCandidate
+    ) {
         super(upgradedNodes, testCandidate);
     }
 

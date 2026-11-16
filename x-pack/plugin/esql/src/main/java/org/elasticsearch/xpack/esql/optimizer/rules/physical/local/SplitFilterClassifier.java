@@ -10,14 +10,19 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.datasources.StatValueComparator;
+import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownLiteralConversion;
+import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownPredicates;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitStats;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
@@ -25,6 +30,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -32,13 +38,13 @@ import java.util.List;
  * each split into one of three states: all rows match the filter, no rows match, or the
  * result is unknown from statistics alone.
  * <p>
- * Used by aggregate pushdown rules to determine whether aggregates (COUNT, MIN, MAX) can
- * be resolved from metadata without scanning data. When all splits are classified as MATCH
- * or MISS, the aggregate can be computed from the MATCH splits' statistics alone.
+ * Used by aggregate pushdown to fold COUNT/MIN/MAX from metadata, and by split discovery to
+ * drop splits whose min/max cannot overlap a WHERE (or request-filter) predicate. MATCH and
+ * MISS are exact; AMBIGUOUS keeps the split and the engine still filters rows.
  * <p>
  * Supports AND, OR, and NOT logical operators, IS NULL / IS NOT NULL null checks, IN lists,
- * and leaf comparisons (field op literal). Unsupported leaf expressions (function calls, etc.)
- * conservatively return AMBIGUOUS.
+ * {@code mv_in_range}, and leaf comparisons (field op literal). Unsupported leaf expressions
+ * (function calls, etc.) conservatively return AMBIGUOUS.
  * NOT of MATCH yields MISS; NOT of MISS conservatively yields AMBIGUOUS because null rows
  * still produce UNKNOWN under WHERE semantics.
  * <p>
@@ -46,9 +52,9 @@ import java.util.List;
  * values ({@code null_count = 0}), because NULL comparisons evaluate to UNKNOWN and are
  * dropped by WHERE clauses.
  */
-final class SplitFilterClassifier {
+public final class SplitFilterClassifier {
 
-    enum SplitMatch {
+    public enum SplitMatch {
         /** All rows in the split satisfy the filter predicate. */
         MATCH,
         /** No rows in the split satisfy the filter predicate. */
@@ -67,6 +73,19 @@ final class SplitFilterClassifier {
         if (filter == null || splitStats == null) {
             return SplitMatch.AMBIGUOUS;
         }
+        // Convert mixed date/numeric literals into the column domain before stats compare.
+        return classifyRewritten(PushdownLiteralConversion.rewrite(filter), splitStats, implicitNullsForAbsentColumn);
+    }
+
+    /**
+     * Like {@link #classifyExpression} but assumes {@code filter} was already passed through
+     * {@link PushdownLiteralConversion#rewrite}. Callers that classify the same filter against many
+     * splits (e.g. footer fold) should rewrite once and reuse this.
+     */
+    public static SplitMatch classifyRewritten(Expression filter, SplitStats splitStats, boolean implicitNullsForAbsentColumn) {
+        if (filter == null || splitStats == null) {
+            return SplitMatch.AMBIGUOUS;
+        }
         return classifyRecursive(filter, splitStats, implicitNullsForAbsentColumn);
     }
 
@@ -82,15 +101,20 @@ final class SplitFilterClassifier {
      * @param splitStats per-split statistics
      * @return the classification for this split
      */
-    static SplitMatch classifySplit(List<Expression> filterConjuncts, SplitStats splitStats, boolean implicitNullsForAbsentColumn) {
+    public static SplitMatch classifySplit(List<Expression> filterConjuncts, SplitStats splitStats, boolean implicitNullsForAbsentColumn) {
         if (filterConjuncts.isEmpty() || splitStats == null) {
             return SplitMatch.AMBIGUOUS;
         }
-        if (filterConjuncts.size() == 1) {
-            return classifyRecursive(filterConjuncts.getFirst(), splitStats, implicitNullsForAbsentColumn);
+        // Rewrite before the size check so size==1 and multi-conjunct paths agree on mixed literals.
+        List<Expression> rewritten = new ArrayList<>(filterConjuncts.size());
+        for (Expression conjunct : filterConjuncts) {
+            rewritten.add(PushdownLiteralConversion.rewrite(conjunct));
+        }
+        if (rewritten.size() == 1) {
+            return classifyRecursive(rewritten.getFirst(), splitStats, implicitNullsForAbsentColumn);
         }
         boolean allMatch = true;
-        for (Expression conjunct : filterConjuncts) {
+        for (Expression conjunct : rewritten) {
             SplitMatch result = classifyRecursive(conjunct, splitStats, implicitNullsForAbsentColumn);
             if (result == SplitMatch.MISS) {
                 return SplitMatch.MISS;
@@ -148,10 +172,16 @@ final class SplitFilterClassifier {
         if (expr instanceof In in) {
             return classifyIn(in, splitStats);
         }
+        if (expr instanceof MvInRange mvInRange) {
+            return classifyMvInRange(mvInRange, splitStats, implicitNullsForAbsentColumn);
+        }
         return classifyConjunct(expr, splitStats, implicitNullsForAbsentColumn);
     }
 
     private static SplitMatch classifyConjunct(Expression expr, SplitStats splitStats, boolean implicitNullsForAbsentColumn) {
+        if (expr instanceof EsqlBinaryComparison bc && disagreeingPushdownLiteral(bc.left(), bc.right())) {
+            return SplitMatch.AMBIGUOUS;
+        }
         String columnName;
         Object literalValue;
         boolean reversed;
@@ -306,6 +336,13 @@ final class SplitFilterClassifier {
      * MATCH when min == max and that value equals one of the literals and null_count == 0.
      */
     private static SplitMatch classifyIn(In in, SplitStats splitStats) {
+        if (in.value() instanceof NamedExpression ne) {
+            for (Expression item : in.list()) {
+                if (item.foldable() && PushdownPredicates.isAgreeingPushdownLiteral(ne.dataType(), item) == false) {
+                    return SplitMatch.AMBIGUOUS;
+                }
+            }
+        }
         String columnName = extractColumnName(in.value());
         if (columnName == null) {
             return SplitMatch.AMBIGUOUS;
@@ -318,6 +355,12 @@ final class SplitFilterClassifier {
         Object max = splitStats.columnMax(columnName);
         if (min == null || max == null) {
             return SplitMatch.AMBIGUOUS;
+        }
+        // IN tells opposite-sign zeros apart; compare() equates them for ==. Leave the pair unknown.
+        for (Object lit : literalValues) {
+            if (StatValueComparator.zerosOfOppositeSign(lit, min) || StatValueComparator.zerosOfOppositeSign(lit, max)) {
+                return SplitMatch.AMBIGUOUS;
+            }
         }
 
         boolean anyInRange = false;
@@ -346,6 +389,66 @@ final class SplitFilterClassifier {
                     return SplitMatch.MATCH;
                 }
             }
+        }
+        return SplitMatch.AMBIGUOUS;
+    }
+
+    /**
+     * {@code mv_in_range(col, lower, upper)} is two-valued: a null/empty field is {@code false}.
+     * MISS when every stored value is outside {@code [lower, upper]} (respecting inclusivity), or
+     * the column is all-null. MATCH when every row is single-valued and in range.
+     */
+    private static SplitMatch classifyMvInRange(MvInRange mvInRange, SplitStats splitStats, boolean implicitNullsForAbsentColumn) {
+        if (mvInRange.field() instanceof NamedExpression ne) {
+            if (mvInRange.lower().foldable() && PushdownPredicates.isAgreeingPushdownLiteral(ne.dataType(), mvInRange.lower()) == false) {
+                return SplitMatch.AMBIGUOUS;
+            }
+            if (mvInRange.upper().foldable() && PushdownPredicates.isAgreeingPushdownLiteral(ne.dataType(), mvInRange.upper()) == false) {
+                return SplitMatch.AMBIGUOUS;
+            }
+        }
+        String columnName = extractColumnName(mvInRange.field());
+        if (columnName == null) {
+            return SplitMatch.AMBIGUOUS;
+        }
+        Object lower = extractLiteralValue(mvInRange.lower());
+        Object upper = extractLiteralValue(mvInRange.upper());
+        if (lower == null || upper == null) {
+            return SplitMatch.AMBIGUOUS;
+        }
+        if (ExternalSourceAggregatePushdown.columnStatUnservable(splitStats, columnName, implicitNullsForAbsentColumn)) {
+            return SplitMatch.AMBIGUOUS;
+        }
+        long nullCount = splitStats.columnNullCount(columnName);
+        if (nullCount == splitStats.rowCount()) {
+            return SplitMatch.MISS;
+        }
+        Object min = splitStats.columnMin(columnName);
+        Object max = splitStats.columnMax(columnName);
+        if (min == null || max == null) {
+            return SplitMatch.AMBIGUOUS;
+        }
+        int maxVsLower = compareValues(max, lower);
+        int minVsUpper = compareValues(min, upper);
+        if (maxVsLower == Integer.MIN_VALUE || minVsUpper == Integer.MIN_VALUE) {
+            return SplitMatch.AMBIGUOUS;
+        }
+        boolean includeLower = mvInRange.includeLower();
+        boolean includeUpper = mvInRange.includeUpper();
+        boolean disjointBelow = includeLower ? maxVsLower < 0 : maxVsLower <= 0;
+        boolean disjointAbove = includeUpper ? minVsUpper > 0 : minVsUpper >= 0;
+        if (disjointBelow || disjointAbove) {
+            return SplitMatch.MISS;
+        }
+        int minVsLower = compareValues(min, lower);
+        int maxVsUpper = compareValues(max, upper);
+        if (minVsLower == Integer.MIN_VALUE || maxVsUpper == Integer.MIN_VALUE) {
+            return SplitMatch.AMBIGUOUS;
+        }
+        boolean minInside = includeLower ? minVsLower >= 0 : minVsLower > 0;
+        boolean maxInside = includeUpper ? maxVsUpper <= 0 : maxVsUpper < 0;
+        if (minInside && maxInside && matchableColumn(columnName, splitStats)) {
+            return SplitMatch.MATCH;
         }
         return SplitMatch.AMBIGUOUS;
     }
@@ -519,6 +622,21 @@ final class SplitFilterClassifier {
         }
         long valueCount = splitStats.columnValueCount(columnName);
         return valueCount >= 0 && valueCount == splitStats.rowCount();
+    }
+
+    /**
+     * True when one side is a named field and the other is a foldable literal whose date or numeric
+     * type disagrees with the field. Extractors drop {@link Expression#dataType()}, so this check
+     * must run on the expressions themselves.
+     */
+    private static boolean disagreeingPushdownLiteral(Expression left, Expression right) {
+        if (left instanceof NamedExpression && right.foldable()) {
+            return PushdownPredicates.isAgreeingPushdownLiteral(left.dataType(), right) == false;
+        }
+        if (right instanceof NamedExpression && left.foldable()) {
+            return PushdownPredicates.isAgreeingPushdownLiteral(right.dataType(), left) == false;
+        }
+        return false;
     }
 
     private static String extractColumnName(Expression expr) {

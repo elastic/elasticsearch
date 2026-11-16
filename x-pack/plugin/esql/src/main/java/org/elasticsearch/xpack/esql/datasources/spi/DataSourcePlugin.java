@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.operator.ProfileSchema;
 
 import java.util.List;
 import java.util.Map;
@@ -45,6 +46,23 @@ public interface DataSourcePlugin {
      */
     default Set<String> supportedSchemes() {
         return Set.of();
+    }
+
+    /**
+     * Maps logical data-source type names (as accepted by PUT /_query/data_source) to the primary URI
+     * scheme used to look up this plugin's storage provider factory for test-connection purposes.
+     *
+     * <p>Override when the PUT type name differs from the URI scheme. For example, the GCS plugin
+     * uses type {@code "gcs"} for PUT but registers its factory under scheme {@code "gs"}; the Azure
+     * plugin uses type {@code "azure"} but registers under {@code "wasbs"}; the HTTP plugin uses type
+     * {@code "local"} but registers under {@code "file"}.
+     *
+     * <p>Plugins whose type name already matches a URI scheme (e.g. S3 type {@code "s3"} → scheme
+     * {@code "s3"}, or HTTP type {@code "http"} → scheme {@code "http"}) do not need to override —
+     * the direct lookup in {@code DataSourceModule.testConnection} already finds the correct factory.
+     */
+    default Map<String, String> testConnectionSchemes() {
+        return Map.of();
     }
 
     /**
@@ -145,11 +163,34 @@ public interface DataSourcePlugin {
     }
 
     /**
+     * Profile schemas for the format-reader statuses contributed by this plugin.
+     *
+     * <p>The same variants should supply the plugin's named-writeable registrations, keeping the
+     * transport discriminator and public profile discriminator in sync.
+     */
+    default List<ProfileSchema.Variant<FormatReaderStatus>> formatReaderProfileVariants() {
+        return List.of();
+    }
+
+    /**
      * CRUD-time validators for datasource and dataset settings, keyed by type name.
      * Receives node {@link Settings} so implementations can read cluster admin overrides
      * (e.g. limits, allowed auth modes, default field values) when constructing validators.
      */
     default Map<String, DataSourceValidator> datasourceValidators(Settings settings) {
         return Map.of();
+    }
+
+    /**
+     * Names of credential (secret) settings this plugin's data source type accepts on a PUT request.
+     * Used by the REST layer to filter these values from the security audit log body.
+     * <p>
+     * This method is called unconditionally at startup — do not gate it on feature flags. A plugin that
+     * is disabled at runtime may still have its type submitted in a request body, and SecurityRestFilter
+     * wraps the request (filtering the body) before the handler can reject an unknown type. Omitting names
+     * here when the plugin is disabled would leave those credential fields unfiltered.
+     */
+    default Set<String> datasourceSecretSettingNames() {
+        return Set.of();
     }
 }

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.action;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
@@ -19,16 +20,17 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.telemetry.InferenceProductContext;
 import org.elasticsearch.inference.telemetry.InferenceStats;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.InferenceContext;
+import org.elasticsearch.xpack.core.inference.InferenceContextTests;
 import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.InferencePlugin;
@@ -37,16 +39,19 @@ import org.elasticsearch.xpack.inference.registry.InferenceEndpointRegistry;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Flow;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.inference.telemetry.InferenceStats.INFERENCE_SOURCE_ATTRIBUTE;
 import static org.elasticsearch.inference.telemetry.InferenceStats.SERVICE_ATTRIBUTE;
 import static org.elasticsearch.inference.telemetry.InferenceStats.STATUS_CODE_ATTRIBUTE;
 import static org.elasticsearch.inference.telemetry.InferenceStats.TASK_TYPE_ATTRIBUTE;
 import static org.elasticsearch.telemetry.metric.MetricAttributes.ERROR_TYPE;
+import static org.elasticsearch.telemetry.metric.MetricAttributes.ES_PRODUCT_ORIGIN;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isA;
 import static org.mockito.ArgumentMatchers.any;
@@ -86,6 +91,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         threadPool = mock();
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         transportService = mock();
+        when(transportService.getLocalNode()).thenReturn(DiscoveryNodeUtils.create("local_node"));
         licenseState = mock();
         inferenceEndpointRegistry = mock();
         serviceRegistry = mock();
@@ -347,17 +353,149 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         );
     }
 
-    public void testProductUseCaseHeaderPresentInThreadContextIfPresent() {
+    public void testAttributionHeadersPresentInThreadContextIfPresent() {
         String productUseCase = "product-use-case";
+        String interactionId = "interaction-id";
+        String productSolution = "security";
+        String productFeature = "attack_discovery";
+        String traceId = "trace-id";
+        String userId = "user-id";
+        String spaceId = "space-id";
 
-        // We need to use real instances instead of mocks as these are final classes
-        InferenceContext context = new InferenceContext(productUseCase);
+        InferenceContext context = InferenceContextTests.context(
+            productUseCase,
+            productSolution,
+            productFeature,
+            interactionId,
+            traceId,
+            userId,
+            spaceId
+        );
+        ThreadContext threadContext = executeWithInferenceContext(context, new ThreadContext(Settings.EMPTY));
+
+        assertThat(threadContext.getHeader("X-elastic-product-use-case"), is(productUseCase));
+        assertThat(threadContext.getHeader("X-Elastic-Inference-Interaction-Id"), is(interactionId));
+        assertThat(threadContext.getHeader("X-elastic-product-solution"), is(productSolution));
+        assertThat(threadContext.getHeader("X-elastic-product-feature"), is(productFeature));
+        assertThat(threadContext.getHeader("X-Elastic-Trace-Id"), is(traceId));
+        assertThat(threadContext.getHeader("X-Elastic-User-Id"), is(userId));
+        assertThat(threadContext.getHeader("X-Elastic-Space-Id"), is(spaceId));
+    }
+
+    public void testExistingThreadContextHeadersTakePrecedenceOverInferenceContext() {
+        InferenceContext context = InferenceContextTests.context(
+            "context-use-case",
+            "context-solution",
+            "context-feature",
+            "context-interaction"
+        );
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.putHeader("X-elastic-product-use-case", "existing-use-case");
+        threadContext.putHeader("X-Elastic-Inference-Interaction-Id", "existing-interaction");
+        threadContext.putHeader("X-elastic-product-solution", "existing-solution");
+        threadContext.putHeader("X-elastic-product-feature", "existing-feature");
 
+        executeWithInferenceContext(context, threadContext);
+
+        assertThat(threadContext.getHeader("X-elastic-product-use-case"), is("existing-use-case"));
+        assertThat(threadContext.getHeader("X-Elastic-Inference-Interaction-Id"), is("existing-interaction"));
+        assertThat(threadContext.getHeader("X-elastic-product-solution"), is("existing-solution"));
+        assertThat(threadContext.getHeader("X-elastic-product-feature"), is("existing-feature"));
+    }
+
+    public void testExistingEmptyThreadContextHeaderIsNotReplaced() {
+        InferenceContext context = InferenceContextTests.context(
+            "context-use-case",
+            "context-solution",
+            "context-feature",
+            "context-interaction"
+        );
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.putHeader("X-elastic-product-use-case", "");
+        threadContext.putHeader("X-elastic-product-solution", "");
+
+        executeWithInferenceContext(context, threadContext);
+
+        assertThat(threadContext.getHeader("X-elastic-product-use-case"), is(""));
+        assertThat(threadContext.getHeader("X-elastic-product-solution"), is(""));
+        assertThat(threadContext.getHeader("X-elastic-product-feature"), is("context-feature"));
+        assertThat(threadContext.getHeader("X-Elastic-Inference-Interaction-Id"), is("context-interaction"));
+        verify(mockRequestCountCounter).incrementBy(
+            anyLong(),
+            eq(Map.of(SERVICE_ATTRIBUTE, serviceId, TASK_TYPE_ATTRIBUTE, taskType.toString()))
+        );
+    }
+
+    public void testMetricsUseOnlyUseCaseAndOriginFromRestoredAttribution() {
+        var context = InferenceContextTests.context(
+            "Security_AI_Assistant",
+            "security",
+            "attack_discovery",
+            "interaction",
+            "trace",
+            "user",
+            ""
+        );
+        var threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.putHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, "Kibana");
+
+        executeWithInferenceContext(context, threadContext);
+
+        var expected = Map.<String, Object>of(
+            SERVICE_ATTRIBUTE,
+            serviceId,
+            TASK_TYPE_ATTRIBUTE,
+            taskType.toString(),
+            INFERENCE_SOURCE_ATTRIBUTE,
+            "security_ai_assistant",
+            ES_PRODUCT_ORIGIN,
+            "kibana"
+        );
+        verify(mockRequestCountCounter).incrementBy(anyLong(), eq(expected));
+        var withStatus = new HashMap<>(expected);
+        withStatus.put(STATUS_CODE_ATTRIBUTE, 200);
+        verify(mockInferenceDurationHistogram).record(anyLong(), eq(withStatus));
+    }
+
+    public void testMetricsUseTheAttributionSnapshotTakenBeforeInference() {
+        var threadContext = new ThreadContext(Settings.EMPTY);
+
+        executeWithInferenceContext(new InferenceContext("security_ai_assistant"), threadContext, listener -> {
+            threadContext.putHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, "kibana");
+            listener.onResponse(mock());
+        });
+
+        assertThat(threadContext.getHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER), is("kibana"));
+        verify(mockInferenceDurationHistogram).record(
+            anyLong(),
+            eq(
+                Map.of(
+                    SERVICE_ATTRIBUTE,
+                    serviceId,
+                    TASK_TYPE_ATTRIBUTE,
+                    taskType.toString(),
+                    INFERENCE_SOURCE_ATTRIBUTE,
+                    "security_ai_assistant",
+                    STATUS_CODE_ATTRIBUTE,
+                    200
+                )
+            )
+        );
+    }
+
+    private ThreadContext executeWithInferenceContext(InferenceContext context, ThreadContext threadContext) {
+        return executeWithInferenceContext(context, threadContext, listener -> listener.onResponse(mock()));
+    }
+
+    private ThreadContext executeWithInferenceContext(
+        InferenceContext context,
+        ThreadContext threadContext,
+        Consumer<ActionListener<InferenceServiceResults>> serviceAction
+    ) {
         when(threadPool.getThreadContext()).thenReturn(threadContext);
 
         mockInferenceEndpointRegistry(taskType);
-        mockService(listener -> listener.onResponse(mock()));
+        mockService(serviceAction);
 
         Request request = createRequest();
         when(request.getContext()).thenReturn(context);
@@ -365,18 +503,8 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         when(request.getTaskType()).thenReturn(taskType);
         when(request.isStreaming()).thenReturn(false);
 
-        ActionListener<InferenceAction.Response> listener = spy(new ActionListener<>() {
-            @Override
-            public void onResponse(InferenceAction.Response o) {}
-
-            @Override
-            public void onFailure(Exception e) {}
-        });
-
-        action.doExecute(mock(), request, listener);
-
-        // Verify the product use case header was set in the thread context
-        assertThat(threadContext.getHeader(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER), is(productUseCase));
+        action.doExecute(mock(), request, ActionListener.noop());
+        return threadContext;
     }
 
     protected Flow.Publisher<InferenceServiceResults.Result> mockStreamResponse(Consumer<Flow.Subscriber<?>> action) {
@@ -416,22 +544,31 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
 
         when(service.canStream(any())).thenReturn(stream);
         when(service.supportedStreamingTasks()).thenReturn(supportedStreamingTasks);
+        when(service.supportsNonStreamingChatCompletion()).thenReturn(true);
         doAnswer(ans -> {
-            listenerAction.accept(ans.getArgument(6));
+            listenerAction.accept(ans.getArgument(7));
             return null;
-        }).when(service).infer(any(), any(), anyBoolean(), any(), any(), any(), any());
+        }).when(service).infer(any(), any(), anyBoolean(), any(), any(), any(), any(), any());
+        doAnswer(ans -> {
+            listenerAction.accept(ans.getArgument(4));
+            return null;
+        }).when(service).unifiedCompletionInfer(any(), any(), any(), any(), any());
+        doAnswer(ans -> {
+            listenerAction.accept(ans.getArgument(4));
+            return null;
+        }).when(service).embeddingInfer(any(), any(), any(), any(), any());
+        doAnswer(ans -> {
+            listenerAction.accept(ans.getArgument(4));
+            return null;
+        }).when(service).rerankInfer(any(), any(), any(), any(), any());
+        doAnswer(ans -> {
+            listenerAction.accept(ans.getArgument(4));
+            return null;
+        }).when(service).decisionInfer(any(), any(), any(), any(), any());
         doAnswer(ans -> {
             listenerAction.accept(ans.getArgument(3));
             return null;
-        }).when(service).unifiedCompletionInfer(any(), any(), any(), any());
-        doAnswer(ans -> {
-            listenerAction.accept(ans.getArgument(3));
-            return null;
-        }).when(service).embeddingInfer(any(), any(), any(), any());
-        doAnswer(ans -> {
-            listenerAction.accept(ans.getArgument(3));
-            return null;
-        }).when(service).rerankInfer(any(), any(), any(), any());
+        }).when(service).documentExtractionInfer(any(), any(), any(), any());
         mockInferenceEndpointRegistry(taskType);
         when(serviceRegistry.getService(any())).thenReturn(Optional.of(service));
     }

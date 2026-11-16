@@ -7,122 +7,87 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
-import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.project.ProjectResolver;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.compute.operator.exchange.ExchangeService;
-import org.elasticsearch.compute.test.TestBlockFactory;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchService;
-import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
-import org.elasticsearch.xpack.esql.core.expression.Nullability;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
-import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchBoundaryExec;
-import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Executor;
+import java.util.Set;
 
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.hamcrest.Matchers.equalTo;
 
 public class DataNodeComputeHandlerTests extends ESTestCase {
 
-    public void testMalformedRemoteFetchBoundaryFinishesOpenSinkBeforeComputeStarts() {
-        // This path fails before compute starts, so transport/search collaborators are inert mocks; a real ExchangeService verifies
-        // that the already-open sink is actually removed rather than merely checking a mocked invocation.
-        ComputeService computeService = mock(ComputeService.class);
-        PlannerSettings.Holder plannerSettings = mock(PlannerSettings.Holder.class);
-        when(computeService.plannerSettings()).thenReturn(plannerSettings);
-        when(plannerSettings.get()).thenReturn(PlannerSettings.DEFAULTS);
-        when(computeService.createFlags()).thenReturn(new EsqlFlags(false));
+    /**
+     * Documents that leave a data node name a context the fetch phase finds again. A request without fetch contexts
+     * would name contexts that close with the request.
+     */
+    public void testDocumentsLeaveTheirNodeOnlyWithFetchContexts() {
+        Attribute doc = new MetadataAttribute(Source.EMPTY, MetadataAttribute.DOC, DataType.DOC_DATA_TYPE, false);
+        ExchangeSourceExec source = new ExchangeSourceExec(Source.EMPTY, List.of(doc), false);
+        ExchangeSinkExec plan = new ExchangeSinkExec(Source.EMPTY, source.output(), false, source);
 
-        ClusterService clusterService = mock(ClusterService.class);
-        DiscoveryNode localNode = mock(DiscoveryNode.class);
-        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
-        when(clusterService.localNode()).thenReturn(localNode);
-        when(localNode.getId()).thenReturn("node-a");
-
-        TransportService transportService = mock(TransportService.class);
-        ThreadPool threadPool = mock(ThreadPool.class);
-        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        when(threadPool.relativeTimeInMillisSupplier()).thenReturn(System::currentTimeMillis);
-        when(transportService.getThreadPool()).thenReturn(threadPool);
-        ExchangeService exchangeService = new ExchangeService(
-            Settings.EMPTY,
-            threadPool,
-            ThreadPool.Names.SEARCH,
-            TestBlockFactory.getNonBreakingInstance()
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> DataNodeComputeHandler.validateFetchContexts(plan, request(plan, null))
         );
-        Executor directExecutor = Runnable::run;
-        DataNodeComputeHandler handler = new DataNodeComputeHandler(
-            computeService,
-            clusterService,
-            mock(ProjectResolver.class),
-            mock(SearchService.class),
-            transportService,
-            exchangeService,
-            directExecutor
-        );
-
-        DataNodeRequest request = malformedRemoteFetchRequest("session-a");
-        exchangeService.createSinkHandler(request.sessionId(), 1);
-        TransportChannel channel = mock(TransportChannel.class);
-        when(channel.getVersion()).thenReturn(TransportVersion.current());
-
-        handler.messageReceived(request, channel, mock(Task.class));
-
-        expectThrows(ResourceNotFoundException.class, () -> exchangeService.getSinkHandler(request.sessionId()));
+        assertThat(e.getMessage(), equalTo("documents can only leave their node for a fetch, but the request kept no fetch contexts"));
+        DataNodeComputeHandler.validateFetchContexts(plan, request(plan, randomPositiveTimeValue()));
     }
 
-    private static DataNodeRequest malformedRemoteFetchRequest(String sessionId) {
-        Attribute doc = new MetadataAttribute(Source.EMPTY, MetadataAttribute.DOC, DataType.DOC_DATA_TYPE, false);
-        Attribute handle = new ReferenceAttribute(
-            Source.EMPTY,
-            null,
-            RemoteFetchHandle.ATTRIBUTE_NAME,
-            DataType.KEYWORD,
-            Nullability.FALSE,
-            null,
-            true
+    /**
+     * A node keeps no fetch context longer than its {@code search.max_keep_alive}, also when the coordinator asks for a
+     * longer keep-alive.
+     */
+    public void testTheReaderContextKeepAliveStaysWithinTheMaxKeepAliveOfTheNode() {
+        TimeValue maxKeepAlive = TimeValue.timeValueMinutes(between(1, 60));
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.builder().put(SearchService.MAX_KEEPALIVE_SETTING.getKey(), maxKeepAlive).build(),
+            Set.of(SearchService.MAX_KEEPALIVE_SETTING)
         );
-        RemoteFetchBoundaryExec boundary = new RemoteFetchBoundaryExec(
+        ExchangeSinkExec plan = new ExchangeSinkExec(
             Source.EMPTY,
-            new ExchangeSourceExec(Source.EMPTY, List.of(doc), false),
-            doc,
-            handle,
-            List.of()
+            List.of(),
+            false,
+            new ExchangeSourceExec(Source.EMPTY, List.of(), false)
         );
-        ExchangeSinkExec sink = new ExchangeSinkExec(Source.EMPTY, boundary.handoffOutput(), false, boundary);
+
+        TimeValue shorter = TimeValue.timeValueMillis(between(1, (int) maxKeepAlive.millis()));
+        assertThat(DataNodeComputeHandler.readerContextKeepAlive(request(plan, shorter), clusterSettings), equalTo(shorter));
+        TimeValue longer = TimeValue.timeValueMillis(maxKeepAlive.millis() + between(1, 3_600_000));
+        assertThat(DataNodeComputeHandler.readerContextKeepAlive(request(plan, longer), clusterSettings), equalTo(maxKeepAlive));
+    }
+
+    private static DataNodeRequest request(ExchangeSinkExec plan, @Nullable TimeValue readerContextKeepAlive) {
         return new DataNodeRequest(
-            sessionId,
+            "session",
+            TaskId.EMPTY_TASK_ID,
             EsqlTestUtils.TEST_CFG,
             "",
             List.of(),
             Map.of(),
-            sink,
+            plan,
             new String[0],
             IndicesOptions.STRICT_EXPAND_OPEN,
             true,
             true,
-            true
+            false,
+            List.of(),
+            0L,
+            readerContextKeepAlive
         );
     }
 }

@@ -23,8 +23,9 @@ import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 /**
- * Unit tests for {@link SynthesizeExternalSource}, the per-row composer of the {@code _source}
- * metadata column for external rows.
+ * Unit tests for {@link SynthesizeExternalSource}, which renders a row object from bound data columns.
+ * A dataset answers {@code METADATA _source} as SQL NULL, so nothing on the read path calls it; the
+ * composition is kept under test for the next surface that needs a rendered row object.
  */
 public class SynthesizeExternalSourceTests extends ESTestCase {
 

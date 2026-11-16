@@ -55,7 +55,7 @@ dependencies {
   // Reactor
   api "io.projectreactor.netty:reactor-netty-core:${versions.azureReactorNetty}"
   api "io.projectreactor.netty:reactor-netty-http:${versions.azureReactorNetty}"
-  api "io.projectreactor:reactor-core:3.7.19"
+  api "io.projectreactor:reactor-core:3.8.7"
   api "org.reactivestreams:reactive-streams:${versions.reactive_streams}"
 
   // Others
@@ -76,7 +76,7 @@ dependencies {
   api "net.minidev:accessors-smart:2.5.2"
   api "net.minidev:json-smart:2.5.2"
   api "org.codehaus.woodstox:stax2-api:4.2.2"
-  api "org.ow2.asm:asm:9.10.1"
+  api "org.ow2.asm:asm:9.11.1"
 
   runtimeOnly "com.google.code.gson:gson:2.11.0"
   runtimeOnly "org.cryptomator:siv-mode:1.5.2"
@@ -168,7 +168,6 @@ tasks.named("thirdPartyAudit").configure {
     'io.netty.incubator.codec.quic.QuicServerCodecBuilder',
     'io.netty.incubator.codec.quic.QuicSslContext',
     'io.netty.incubator.codec.quic.QuicSslContextBuilder',
-    'io.netty.incubator.codec.quic.QuicSslEngine',
     'io.netty.incubator.codec.quic.QuicStreamChannel',
     'io.netty.incubator.codec.quic.QuicStreamChannelBootstrap',
     'io.netty.incubator.codec.quic.QuicTokenHandler',

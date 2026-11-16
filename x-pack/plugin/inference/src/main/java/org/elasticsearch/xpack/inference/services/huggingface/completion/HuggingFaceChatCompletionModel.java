@@ -11,7 +11,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceModel;
@@ -24,14 +24,14 @@ public class HuggingFaceChatCompletionModel extends HuggingFaceModel {
 
     /**
      * Creates a new {@link HuggingFaceChatCompletionModel} by copying properties from an existing model,
-     * replacing the {@code modelId} in the service settings with the one from the given {@link UnifiedCompletionRequest},
+     * replacing the {@code modelId} in the service settings with the one from the given {@link UnifiedCompletionRequestBody},
      * if present. If the request does not specify a model ID, the original value is retained.
      *
      * @param model   the original model to copy from
      * @param request the request potentially containing an overridden model ID
      * @return a new {@link HuggingFaceChatCompletionModel} with updated service settings
      */
-    public static HuggingFaceChatCompletionModel of(HuggingFaceChatCompletionModel model, UnifiedCompletionRequest request) {
+    public static HuggingFaceChatCompletionModel of(HuggingFaceChatCompletionModel model, UnifiedCompletionRequestBody request) {
         var originalModelServiceSettings = model.getServiceSettings();
         var overriddenServiceSettings = new HuggingFaceChatCompletionServiceSettings(
             request.model() != null ? request.model() : originalModelServiceSettings.modelId(),

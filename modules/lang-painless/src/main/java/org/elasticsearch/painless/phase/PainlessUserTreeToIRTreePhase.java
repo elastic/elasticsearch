@@ -9,6 +9,7 @@
 
 package org.elasticsearch.painless.phase;
 
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.painless.AllocationMetrics;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.PainlessError;
@@ -50,6 +51,7 @@ import org.elasticsearch.painless.symbol.Decorations.MethodEscape;
 import org.elasticsearch.painless.symbol.Decorations.ThisPainlessMethod;
 import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCAllEscape;
+import org.elasticsearch.painless.symbol.IRDecorations.IRCScriptAware;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCStatic;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCSynthetic;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDConstant;
@@ -371,6 +373,9 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
      * }
      *
      */
+    @SuppressForbidden(
+        reason = "injectSandboxExceptions generates IR catch nodes for StackOverflowError to sandbox it within Painless scripts"
+    )
     protected static void injectSandboxExceptions(FunctionNode irFunctionNode) {
         try {
             Location internalLocation = new Location("$internal$ScriptInjectionPhase$injectSandboxExceptions", 0);
@@ -599,6 +604,10 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
             irCallSubDefNode.addArgumentNode(injectCast(userCallLocalNode.getArgumentNodes().get(1), scriptScope));
             irCallSubDefNode.attachDecoration(new IRDExpressionType(def.class));
             irCallSubDefNode.attachDecoration(new IRDName("get"));
+            // Same rule as any def call: a get(default) may reach a @script_aware or @allocates field read.
+            if (DefaultSemanticAnalysisPhase.defCallNeedsScript(scriptScope, "get", 1)) {
+                irCallSubDefNode.attachCondition(IRCScriptAware.class);
+            }
 
             BinaryImplNode irBinaryImplNode = new BinaryImplNode(userCallLocalNode.getLocation());
             irBinaryImplNode.setLeftNode(irInvokeCallMemberNode);

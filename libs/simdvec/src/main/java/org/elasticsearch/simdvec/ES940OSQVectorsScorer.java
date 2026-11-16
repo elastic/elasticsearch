@@ -18,15 +18,20 @@ import java.io.IOException;
 
 import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
 import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
+import static org.elasticsearch.simdvec.BBQEncoding.D1Q1;
+import static org.elasticsearch.simdvec.BBQEncoding.D1Q4;
+import static org.elasticsearch.simdvec.BBQEncoding.D2Q4;
+import static org.elasticsearch.simdvec.BBQEncoding.D4Q4;
+import static org.elasticsearch.simdvec.BBQEncoding.D7Q7;
 
 /** Scorer for quantized vectors stored as an {@link IndexInput}. */
 public class ES940OSQVectorsScorer {
 
     public static final int BULK_SIZE = 32;
 
-    public static boolean supportsQuantization(byte queryBits, byte indexBits) {
-        return switch ((queryBits << 8) | indexBits) {
-            case (1 << 8) | 1, (4 << 8) | 1, (4 << 8) | 2, (4 << 8) | 4, (7 << 8) | 7 -> true;
+    public static boolean supportsQuantization(byte indexBits, byte queryBits) {
+        return switch ((indexBits << 8) | queryBits) {
+            case D1Q1, D1Q4, D2Q4, D4Q4, D7Q7 -> true;
             default -> false;
         };
     }
@@ -43,10 +48,9 @@ public class ES940OSQVectorsScorer {
         D2Q4_PACKED((byte) 2, (byte) 4, BitEncoding.PACKED),
         D4Q4_STRIPED((byte) 4, (byte) 4),
         D4Q4_PACKED((byte) 4, (byte) 4, BitEncoding.PACKED),
-        D7Q7((byte) 7, (byte) 7);
+        D7Q7((byte) 7, (byte) 7, BitEncoding.PACKED);
 
-        private final byte indexBits;
-        private final byte queryBits;
+        private final BBQEncoding bbqEncoding;
         private final BitEncoding bitEncoding;
 
         QuantEncoding(byte indexBits, byte queryBits) {
@@ -54,28 +58,23 @@ public class ES940OSQVectorsScorer {
         }
 
         QuantEncoding(byte indexBits, byte queryBits, BitEncoding bitEncoding) {
-            this.indexBits = indexBits;
-            this.queryBits = queryBits;
+            this.bbqEncoding = new BBQEncoding(indexBits, queryBits);
             this.bitEncoding = bitEncoding;
         }
 
-        public static QuantEncoding of(byte queryBits, byte indexBits, BitEncoding bitEncoding) {
-            return switch ((queryBits << 8) | indexBits) {
-                case (1 << 8) | 1 -> D1Q1;
-                case (4 << 8) | 1 -> D1Q4;
-                case (4 << 8) | 2 -> bitEncoding == BitEncoding.PACKED ? D2Q4_PACKED : D2Q4_STRIPED;
-                case (4 << 8) | 4 -> bitEncoding == BitEncoding.PACKED ? D4Q4_PACKED : D4Q4_STRIPED;
-                case (7 << 8) | 7 -> D7Q7;
-                default -> throw new IllegalArgumentException("Unsupported query/index bits combination: " + queryBits + "/" + indexBits);
+        public static QuantEncoding of(BBQEncoding bbqEncoding, BitEncoding bitEncoding) {
+            return switch (bbqEncoding.toSwitchValue()) {
+                case BBQEncoding.D1Q1 -> D1Q1;
+                case BBQEncoding.D1Q4 -> D1Q4;
+                case BBQEncoding.D2Q4 -> bitEncoding == BitEncoding.PACKED ? D2Q4_PACKED : D2Q4_STRIPED;
+                case BBQEncoding.D4Q4 -> bitEncoding == BitEncoding.PACKED ? D4Q4_PACKED : D4Q4_STRIPED;
+                case BBQEncoding.D7Q7 -> D7Q7;
+                default -> throw new IllegalArgumentException("Unsupported query/index bits combination: " + bbqEncoding);
             };
         }
 
-        public byte indexBits() {
-            return indexBits;
-        }
-
-        public byte queryBits() {
-            return queryBits;
+        public BBQEncoding bbqEncoding() {
+            return bbqEncoding;
         }
 
         public BitEncoding bitEncoding() {
@@ -92,6 +91,11 @@ public class ES940OSQVectorsScorer {
         1f / ((1 << 6) - 1),
         1f / ((1 << 7) - 1),
         1f / ((1 << 8) - 1), };
+
+    /** Scale for a quantization of the given bit width, for scorers that are not fixed to one encoding */
+    protected static float bitScale(int bits) {
+        return BIT_SCALES[bits - 1];
+    }
 
     /** The wrapper {@link IndexInput}. */
     protected final IndexInput in;
@@ -120,44 +124,43 @@ public class ES940OSQVectorsScorer {
         this.targetComponentSums = new int[bulkSize];
         this.additionalCorrections = new float[bulkSize];
         this.bulkSize = bulkSize;
-        this.scratch = encoding.indexBits() == 7 ? new byte[dimensions] : null;
+        this.scratch = encoding.bbqEncoding().dataBits() == 7 ? new byte[dimensions] : null;
         this.packedScratch = encoding.bitEncoding == BitEncoding.PACKED ? new byte[length] : null;
         this.dotProduct = switch (encoding) {
-            case D1Q1, D1Q4, D2Q4_STRIPED, D4Q4_STRIPED -> BBQDotProduct.create(in, dimensions, encoding.indexBits(), encoding.queryBits());
+            case D1Q1, D1Q4, D2Q4_STRIPED, D4Q4_STRIPED -> BBQDotProduct.create(in, dimensions, encoding.bbqEncoding());
             case D2Q4_PACKED, D4Q4_PACKED, D7Q7 -> null;
         };
     }
 
     public ES940OSQVectorsScorer(
         IndexInput in,
-        byte queryBits,
-        byte indexBits,
+        BBQEncoding bbqEncoding,
         int dimensions,
         int dataLength,
         int bulkSize,
         BitEncoding bitEncoding
     ) {
-        this(in, QuantEncoding.of(queryBits, indexBits, bitEncoding), dimensions, dataLength, bulkSize);
+        this(in, QuantEncoding.of(bbqEncoding, bitEncoding), dimensions, dataLength, bulkSize);
     }
 
-    public ES940OSQVectorsScorer(IndexInput in, byte queryBits, byte indexBits, int dimensions, int dataLength, int bulkSize) {
-        this(in, queryBits, indexBits, dimensions, dataLength, bulkSize, BitEncoding.STRIPED);
+    public ES940OSQVectorsScorer(IndexInput in, BBQEncoding bbqEncoding, int dimensions, int dataLength, int bulkSize) {
+        this(in, bbqEncoding, dimensions, dataLength, bulkSize, BitEncoding.STRIPED);
     }
 
-    public ES940OSQVectorsScorer(IndexInput in, byte queryBits, byte indexBits, int dimensions, int dataLength) {
-        this(in, queryBits, indexBits, dimensions, dataLength, BULK_SIZE);
+    public ES940OSQVectorsScorer(IndexInput in, BBQEncoding bbqEncoding, int dimensions, int dataLength) {
+        this(in, bbqEncoding, dimensions, dataLength, BULK_SIZE);
     }
 
     /**
      * compute the quantize distance between the provided quantized query and the quantized vector
      * that is read from the wrapped {@link IndexInput}.
      */
-    public long quantizeScore(byte[] q) throws IOException {
+    public long quantizeScore(ScoringQuery q) throws IOException {
         return switch (encoding) {
             case D1Q1, D1Q4, D2Q4_STRIPED, D4Q4_STRIPED -> dotProduct.dotProduct(q);
-            case D2Q4_PACKED -> quantized4BitScore2BitIndexPacked(q);
-            case D4Q4_PACKED -> quantized4BitScorePacked(q);
-            case D7Q7 -> quantized7BitScore(q);
+            case D2Q4_PACKED -> quantized4BitScore2BitIndexPacked(q.bytes());
+            case D4Q4_PACKED -> quantized4BitScorePacked(q.bytes());
+            case D7Q7 -> quantized7BitScore(q.bytes());
         };
     }
 
@@ -200,7 +203,7 @@ public class ES940OSQVectorsScorer {
      * that are read from the wrapped {@link IndexInput}. The number of quantized vectors to read is
      * determined by {@param count} and the results are stored in the provided {@param scores} array.
      */
-    public void quantizeScoreBulk(byte[] q, int count, float[] scores) throws IOException {
+    public void quantizeScoreBulk(ScoringQuery q, int count, float[] scores) throws IOException {
         for (int i = 0; i < count; i++) {
             scores[i] = quantizeScore(q);
         }
@@ -210,13 +213,12 @@ public class ES940OSQVectorsScorer {
      * Compute the quantize distance between the provided quantized query and the quantized vectors
      * that are read from the wrapped {@link IndexInput}. The number of quantized vectors to read is
      * determined by {@param count} and the results are stored in the provided {@param scores} array.
-     * Only the {@param offsetsCount} vectors that are indexed in the provided {@param offsets} are scored; the others are skipped.
+     * Only the vectors whose bit is set in {@param mask} (bit {@code i} for the {@code i}-th vector) are scored;
+     * the others are skipped.
      */
-    public void quantizeScoreBulkOffsets(byte[] q, int[] offsets, int offsetsCount, float[] scores, int count) throws IOException {
-        int offsetIndex = 0;
+    public void quantizeScoreBulkMasked(ScoringQuery q, int mask, float[] scores, int count) throws IOException {
         for (int i = 0; i < count; i++) {
-            if (offsetIndex < offsetsCount && offsets[offsetIndex] == i) {
-                offsetIndex++;
+            if (BulkMask.isSelected(mask, i)) {
                 scores[i] = quantizeScore(q);
             } else {
                 scores[i] = 0.0f;
@@ -243,9 +245,9 @@ public class ES940OSQVectorsScorer {
     ) {
         float ax = lowerInterval;
         // Here we assume `lx` is simply bit vectors, so the scaling isn't necessary
-        float lx = (upperInterval - ax) * BIT_SCALES[encoding.indexBits() - 1];
+        float lx = (upperInterval - ax) * bitScale(encoding.bbqEncoding().dataBits());
         float ay = queryLowerInterval;
-        float ly = (queryUpperInterval - ay) * BIT_SCALES[encoding.queryBits() - 1];
+        float ly = (queryUpperInterval - ay) * bitScale(encoding.bbqEncoding().queryBits());
         float y1 = queryComponentSum;
         float score = ax * ay * dimensions + ay * lx * (float) targetComponentSum + ax * ly * y1 + lx * ly * qcDist;
         // For euclidean, we need to invert the score and apply the additional correction, which is
@@ -265,11 +267,12 @@ public class ES940OSQVectorsScorer {
     }
 
     /**
-     * Bulk score overload; same as {@link #scoreBulk(byte[], float, float, int, float, VectorSimilarityFunction, float, float[], int)}
+     * Bulk score overload; same as
+     * {@link #scoreBulk(ScoringQuery, float, float, int, float, VectorSimilarityFunction, float, float[], int)}
      * with {@link #bulkSize} as the default {@code bulkSize} param value.
      */
     public float scoreBulk(
-        byte[] q,
+        ScoringQuery q,
         float queryLowerInterval,
         float queryUpperInterval,
         int queryComponentSum,
@@ -303,7 +306,7 @@ public class ES940OSQVectorsScorer {
      * <p>The results are stored in the provided {@param scores} array.
      */
     public float scoreBulk(
-        byte[] q,
+        ScoringQuery q,
         float queryLowerInterval,
         float queryUpperInterval,
         int queryComponentSum,
@@ -345,52 +348,47 @@ public class ES940OSQVectorsScorer {
      * Compute the distance between the provided quantized query and the quantized vectors that are
      * read from the wrapped {@link IndexInput}.
      * <p>
-     * Similar to {@link #scoreBulk}, but only the {@param offsetsCount} vectors indexed by the provided {@param offsets} are scored;
-     * the others are skipped.
+     * Similar to {@link #scoreBulk}, but only the vectors whose bit is set in {@param mask} are scored; the others are skipped.
      * <p>
      * The results are stored in the provided {@param scores} array.
      */
-    public float scoreBulkOffsets(
-        byte[] q,
+    public float scoreBulkMasked(
+        ScoringQuery q,
         float queryLowerInterval,
         float queryUpperInterval,
         int queryComponentSum,
         float queryAdditionalCorrection,
         VectorSimilarityFunction similarityFunction,
         float centroidDp,
-        int[] offsets,
-        int offsetsCount,
+        int mask,
         float[] scores,
         int count
     ) throws IOException {
-        assert offsetsCount <= this.bulkSize : "supplied offsets length > this scorer's bulkSize";
         assert count <= this.bulkSize : "supplied count > this scorer's bulkSize";
-        quantizeScoreBulkOffsets(q, offsets, offsetsCount, scores, count);
+        assert BulkMask.validate(mask, count);
+        quantizeScoreBulkMasked(q, mask, scores, count);
         in.readFloats(lowerIntervals, 0, count);
         in.readFloats(upperIntervals, 0, count);
         in.readInts(targetComponentSums, 0, count);
         in.readFloats(additionalCorrections, 0, count);
         float maxScore = Float.NEGATIVE_INFINITY;
-        int offsetIndex = 0;
-        for (int i = 0; i < count; i++) {
-            if (offsetIndex < offsetsCount && offsets[offsetIndex] == i) {
-                offsetIndex++;
-                scores[i] = applyCorrectionsIndividually(
-                    queryLowerInterval,
-                    queryUpperInterval,
-                    queryComponentSum,
-                    queryAdditionalCorrection,
-                    similarityFunction,
-                    centroidDp,
-                    lowerIntervals[i],
-                    upperIntervals[i],
-                    targetComponentSums[i],
-                    additionalCorrections[i],
-                    scores[i]
-                );
-                if (scores[i] > maxScore) {
-                    maxScore = scores[i];
-                }
+        for (int m = mask; m != 0; m = BulkMask.deselectFirst(m)) {
+            int i = BulkMask.first(m);
+            scores[i] = applyCorrectionsIndividually(
+                queryLowerInterval,
+                queryUpperInterval,
+                queryComponentSum,
+                queryAdditionalCorrection,
+                similarityFunction,
+                centroidDp,
+                lowerIntervals[i],
+                upperIntervals[i],
+                targetComponentSums[i],
+                additionalCorrections[i],
+                scores[i]
+            );
+            if (scores[i] > maxScore) {
+                maxScore = scores[i];
             }
         }
         return maxScore;

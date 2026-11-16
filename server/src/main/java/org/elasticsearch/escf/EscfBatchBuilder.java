@@ -138,14 +138,12 @@ public final class EscfBatchBuilder implements Releasable {
         return path;
     }
 
-    /** Discards all uncommitted and unbuilt column builders, releasing their recycler-backed buffers. */
+    /** Releases all uncommitted and unbuilt column builders, freeing their recycler-backed buffers. */
     @Override
     public void close() {
         for (Partition partition : partitions) {
             if (partition != null) {
-                for (EscfColumnBuilder builder : partition.builders) {
-                    builder.discard();
-                }
+                Releasables.close(partition.builders);
             }
         }
         Arrays.fill(partitions, null);
@@ -159,7 +157,10 @@ public final class EscfBatchBuilder implements Releasable {
             case SourceValueType.TRUE -> builder.addBoolean(true);
             case SourceValueType.FALSE -> builder.addBoolean(false);
             case SourceValueType.INT, SourceValueType.LONG -> builder.addLong(rowBuffer.scratchNumeric(col));
-            case SourceValueType.FLOAT, SourceValueType.DOUBLE -> builder.addDouble(Double.longBitsToDouble(rowBuffer.scratchNumeric(col)));
+            case SourceValueType.FLOAT, SourceValueType.DOUBLE -> builder.addDouble(
+                Double.longBitsToDouble(rowBuffer.scratchNumeric(col)),
+                (XContentString.UTF8Bytes) rowBuffer.scratchVar(col) // the stored spelling, or null
+            );
             case SourceValueType.STRING -> builder.addString((XContentString.UTF8Bytes) rowBuffer.scratchVar(col));
             case SourceValueType.FIXED_ARRAY, SourceValueType.UNION_ARRAY -> builder.addArray(type, (byte[]) rowBuffer.scratchVar(col));
             case SourceValueType.KEY_VALUE -> builder.addKeyValue((byte[]) rowBuffer.scratchVar(col));

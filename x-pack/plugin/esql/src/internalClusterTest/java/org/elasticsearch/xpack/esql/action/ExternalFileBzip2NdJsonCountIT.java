@@ -84,7 +84,7 @@ public class ExternalFileBzip2NdJsonCountIT extends AbstractExternalDataSourceIT
 
     private void assertExternalBzip2NdJsonCount(String remoteUrl, long expectedCount, TimeValue requestTimeout) {
         // bzip2 is outside the GA text-format codec set (uncompressed/gzip/zstd) and is rejected on release
-        // builds; this end-to-end bzip2 read is therefore snapshot-only. See elastic/esql-planning#938.
+        // builds; this end-to-end bzip2 read is therefore snapshot-only.
         assumeTrue("bzip2 text-format codec is rejected on release builds", Build.current().isSnapshot());
         // The fixture lives on a remote host; if it is unreachable (offline CI, network policy) skip rather
         // than fail — an unavailable external resource is an environmental condition, not a code regression.

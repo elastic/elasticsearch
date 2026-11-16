@@ -14,11 +14,13 @@ import org.elasticsearch.core.Nullable;
  * range such as {@code 1..3} or {@code 01..03} into its members, zero-padded when either endpoint is written
  * padded and wider than one digit.
  *
- * <p>Sole caller is {@link GlobMatcher}, which parses brace groups with this so that the two ways a pattern can be
- * resolved cannot disagree about what a group means. They used to: a brace-only pattern was expanded here and
- * probed with {@code exists()}, while any other pattern was matched by {@code GlobMatcher}, and only one of them
- * understood numeric ranges. Deciding which strategy a pattern takes is now derived from the parsed pattern
- * ({@link GlobMatcher#enumerateKeys}), not from a second scan of the raw string.
+ * <p>Callers are {@link GlobMatcher} and {@link GlobExpander#expandBracesKeepingWildcards}. The matcher parses
+ * brace groups with this so that the two ways a pattern can be resolved cannot disagree about what a group means.
+ * They used to: a brace-only pattern was expanded here and probed with {@code exists()}, while any other pattern
+ * was matched by {@code GlobMatcher}, and only one of them understood numeric ranges. Deciding which strategy a
+ * pattern takes is now derived from the parsed pattern ({@link GlobMatcher#enumerateKeys}), not from a second scan
+ * of the raw string. Format inference reuses the same expander so {@code *.{parquet,csv}} implies two formats
+ * rather than none.
  *
  * <p>Nested braces are not supported. {@code GlobMatcher} rejects them before calling here.
  */
@@ -27,9 +29,10 @@ final class BraceExpander {
     private BraceExpander() {}
 
     /**
-     * Package-private so {@link GlobMatcher} parses brace bodies with the very same code the brace-only fast path
-     * uses. The two used to disagree: this expanded {@code {1..3}} numerically while the matcher read the literal
-     * text, so one construct meant two different things depending on which engine a pattern happened to reach.
+     * Package-private so {@link GlobMatcher} and {@link GlobExpander} parse brace bodies with the very same code
+     * the brace-only fast path uses. The matcher and this expander used to disagree: this expanded {@code {1..3}}
+     * numerically while the matcher read the literal text, so one construct meant two different things depending
+     * on which engine a pattern happened to reach.
      */
     static String[] expandBraceContent(String content, int maxExpansion) {
         int dotDot = content.indexOf("..");

@@ -21,6 +21,7 @@ public class NGramTokenFilterFactory extends AbstractTokenFilterFactory {
     private final int minGram;
     private final int maxGram;
     private final boolean preserveOriginal;
+    private final Object sharingKey;
     private static final String PRESERVE_ORIG_KEY = "preserve_original";
 
     NGramTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
@@ -41,6 +42,7 @@ public class NGramTokenFilterFactory extends AbstractTokenFilterFactory {
             );
         }
         preserveOriginal = settings.getAsBoolean(PRESERVE_ORIG_KEY, false);
+        this.sharingKey = new Key(minGram, maxGram, preserveOriginal);
     }
 
     @Override
@@ -52,4 +54,11 @@ public class NGramTokenFilterFactory extends AbstractTokenFilterFactory {
     public TokenFilterFactory getSynonymFilter() {
         throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(int minGram, int maxGram, boolean preserveOriginal) {}
 }

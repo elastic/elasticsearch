@@ -131,8 +131,8 @@ public class MockNode extends Node {
             FetchPhase fetchPhase,
             CircuitBreakerService circuitBreakerService,
             ExecutorSelector executorSelector,
-            Tracer tracer,
-            OnlinePrewarmingService onlinePrewarmingService
+            OnlinePrewarmingService onlinePrewarmingService,
+            TaskManager taskManager
         ) {
             if (pluginsService.filterPlugins(MockSearchService.TestPlugin.class).findAny().isEmpty()) {
                 return super.newSearchService(
@@ -145,8 +145,8 @@ public class MockNode extends Node {
                     fetchPhase,
                     circuitBreakerService,
                     executorSelector,
-                    tracer,
-                    onlinePrewarmingService
+                    onlinePrewarmingService,
+                    taskManager
                 );
             }
 
@@ -159,8 +159,8 @@ public class MockNode extends Node {
                 fetchPhase,
                 circuitBreakerService,
                 executorSelector,
-                tracer,
-                onlinePrewarmingService
+                onlinePrewarmingService,
+                taskManager
             );
         }
 
@@ -292,7 +292,13 @@ public class MockNode extends Node {
             TerminationHandler terminationHandler
         ) {
             if (pluginsService.filterPlugins(ListenableShutdownPrepareService.TestPlugin.class).findAny().isPresent()) {
-                return new ListenableShutdownPrepareService(settings, httpServerTransport, transportService, terminationHandler);
+                return new ListenableShutdownPrepareService(
+                    settings,
+                    httpServerTransport,
+                    transportService,
+                    terminationHandler,
+                    actionsToAwaitOnShutdown(pluginsService)
+                );
             }
             return super.newShutdownPrepareService(pluginsService, settings, httpServerTransport, transportService, terminationHandler);
         }

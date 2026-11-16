@@ -1,0 +1,6 @@
+FROM k8s-downsampled, (ROW other = 1)
+| KEEP network.total_bytes_in
+| RENAME network.total_bytes_in AS x, x AS y
+| RENAME y AS z
+| FORK (WHERE true) (WHERE true)
+| KEEP z

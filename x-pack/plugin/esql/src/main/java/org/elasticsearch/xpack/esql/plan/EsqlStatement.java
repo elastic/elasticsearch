@@ -12,7 +12,21 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.List;
 
-public record EsqlStatement(LogicalPlan plan, List<QuerySetting> settings) {
+/**
+ * The result of parsing an ES|QL statement, carrying the main query plan, any {@code SET}
+ * settings, and any {@code LET} named-subquery bindings.
+ * <p>
+ * The 2-arg constructor {@link #EsqlStatement(LogicalPlan, List)} is provided for callers
+ * that do not use {@code LET} and need not change.
+ * </p>
+ */
+public record EsqlStatement(LogicalPlan plan, List<QuerySetting> settings, List<LetBinding> letBindings) {
+
+    /** Convenience constructor for statements without {@code LET} bindings. */
+    public EsqlStatement(LogicalPlan plan, List<QuerySetting> settings) {
+        this(plan, settings, List.of());
+    }
+
     /**
      * Returns the value of a setting, or the setting default value if the setting is not set.
      * If the setting name appears multiple times, this will return last occurrence.
@@ -63,6 +77,6 @@ public record EsqlStatement(LogicalPlan plan, List<QuerySetting> settings) {
 
     @Override
     public String toString() {
-        return "EsqlStatement{" + "plan=" + plan + ", settings=" + settings + "}";
+        return "EsqlStatement{" + "plan=" + plan + ", settings=" + settings + ", letBindings=" + letBindings + "}";
     }
 }

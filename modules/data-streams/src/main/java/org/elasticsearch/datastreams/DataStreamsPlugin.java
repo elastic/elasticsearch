@@ -84,7 +84,6 @@ import org.elasticsearch.datastreams.rest.RestUpdateDataStreamMappingsAction;
 import org.elasticsearch.datastreams.rest.RestUpdateDataStreamSettingsAction;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.health.HealthIndicatorService;
-import org.elasticsearch.index.ColumnarCodecClusterSettingProvider;
 import org.elasticsearch.index.ES95CodecClusterSettingProvider;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.node.PluginComponentBinding;
@@ -211,17 +210,16 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
         pluginSettings.add(TIME_SERIES_POLL_INTERVAL);
         pluginSettings.add(LOOK_AHEAD_TIME);
         pluginSettings.add(LOOK_BACK_TIME);
-        pluginSettings.add(DataStreamIndexSettingsProvider.SUPPORT_SEQ_NO_DISABLED);
-        pluginSettings.add(DataStreamIndexSettingsProvider.SUPPORT_SYNTHETIC_ID);
+        pluginSettings.add(TimeSeriesIndexSettingsProvider.SUPPORT_SEQ_NO_DISABLED);
+        pluginSettings.add(TimeSeriesIndexSettingsProvider.SUPPORT_SYNTHETIC_ID);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING);
         pluginSettings.add(DataStreamLifecycleService.DLM_CREATED_SETTING);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MAX_DOWNSAMPLING_INDICES_IN_PROGRESS_SETTING);
         pluginSettings.add(TransportPastTimeSeriesIndexCreationAction.PAST_TSDB_INDEX_INTERVAL);
-        if (ColumnarCodecClusterSettingProvider.isFeatureFlagEnabled()) {
-            pluginSettings.add(ColumnarCodecClusterSettingProvider.COLUMNAR_CODEC_CLUSTER_ENABLED_SETTING);
-        }
+        pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TSDB_TARGET_FACTOR_SETTING);
+        pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TSDB_TARGET_FLOOR_SEGMENT_SETTING);
         return pluginSettings;
     }
 
@@ -255,7 +253,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
                 services.dlmErrorStore(),
                 services.allocationService(),
                 dataStreamLifecycleErrorsPublisher.get(),
-                services.dataStreamGlobalRetentionSettings(),
+                services.dataStreamLifecycleSettings(),
                 downsamplingOperations
             )
         );
@@ -327,11 +325,8 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
     @Override
     public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
         final List<IndexSettingProvider> providers = new ArrayList<>();
-        providers.add(new DataStreamIndexSettingsProvider(parameters.mapperServiceFactory(), settings));
+        providers.add(new TimeSeriesIndexSettingsProvider(parameters.mapperServiceFactory(), settings));
         providers.add(new ES95CodecClusterSettingProvider(parameters.clusterService().getClusterSettings()));
-        if (ColumnarCodecClusterSettingProvider.isFeatureFlagEnabled()) {
-            providers.add(new ColumnarCodecClusterSettingProvider(parameters.clusterService().getClusterSettings()));
-        }
         return providers;
     }
 

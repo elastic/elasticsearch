@@ -16,6 +16,7 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.KnnCollector;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.elasticsearch.test.ESTestCase;
 
@@ -29,14 +30,21 @@ import java.util.Map;
  */
 public class MergeReaderWrapperTests extends ESTestCase {
 
-    /** Minimal reader that only records the merge lifecycle calls it receives. */
+    /** Minimal reader that only records the lifecycle calls it receives. */
     private static class RecordingReader extends FlatVectorsReader {
         int getMergeInstanceCalls;
         int finishMergeCalls;
+        int closeCalls;
         final FlatVectorsReader mergeInstance;
+        final Map<String, Long> offHeap;
 
         RecordingReader(FlatVectorsReader mergeInstance) {
+            this(mergeInstance, Map.of());
+        }
+
+        RecordingReader(FlatVectorsReader mergeInstance, Map<String, Long> offHeap) {
             this.mergeInstance = mergeInstance == null ? this : mergeInstance;
+            this.offHeap = offHeap;
         }
 
         @Override
@@ -91,11 +99,13 @@ public class MergeReaderWrapperTests extends ESTestCase {
 
         @Override
         public Map<String, Long> getOffHeapByteSize(FieldInfo fieldInfo) {
-            return Map.of();
+            return offHeap;
         }
 
         @Override
-        public void close() {}
+        public void close() {
+            closeCalls++;
+        }
     }
 
     public void testGetMergeInstanceIsDelegatedToTheMergeReader() throws IOException {
@@ -103,7 +113,7 @@ public class MergeReaderWrapperTests extends ESTestCase {
         RecordingReader mergeReader = new RecordingReader(mergeInstance);
         RecordingReader mainReader = new RecordingReader(null);
 
-        try (MergeReaderWrapper wrapper = new MergeReaderWrapper(mainReader, mergeReader)) {
+        try (MergeReaderWrapper wrapper = new MergeReaderWrapper(mainReader, () -> mergeReader, randomBoolean())) {
             assertSame(mergeInstance, wrapper.getMergeInstance());
         }
 
@@ -115,12 +125,61 @@ public class MergeReaderWrapperTests extends ESTestCase {
         RecordingReader mergeReader = new RecordingReader(null);
         RecordingReader mainReader = new RecordingReader(null);
 
-        try (MergeReaderWrapper wrapper = new MergeReaderWrapper(mainReader, mergeReader)) {
+        try (MergeReaderWrapper wrapper = new MergeReaderWrapper(mainReader, () -> mergeReader, randomBoolean())) {
             wrapper.getMergeInstance();
             wrapper.finishMerge();
         }
 
         assertEquals(1, mergeReader.finishMergeCalls);
         assertEquals("the search reader takes no part in the merge", 0, mainReader.finishMergeCalls);
+    }
+
+    public void testMergeReaderIsCreatedOnceAndClosedWithTheWrapper() throws IOException {
+        RecordingReader mergeReader = new RecordingReader(null);
+        RecordingReader mainReader = new RecordingReader(null);
+        int[] created = new int[1];
+
+        MergeReaderWrapper wrapper = new MergeReaderWrapper(mainReader, () -> {
+            created[0]++;
+            return mergeReader;
+        }, randomBoolean());
+        assertEquals("the merge reader is created lazily", 0, created[0]);
+        wrapper.getMergeInstance();
+        wrapper.getMergeInstance();
+        assertEquals("the merge reader is created once", 1, created[0]);
+
+        wrapper.close();
+        wrapper.close();
+        assertEquals(1, mainReader.closeCalls);
+        assertEquals("a merge reader that was created must be closed with the wrapper", 1, mergeReader.closeCalls);
+        expectThrows(AlreadyClosedException.class, wrapper::getMergeInstance);
+        assertEquals("a merge reader must not be created after close", 1, created[0]);
+    }
+
+    public void testCloseWithoutMergeClosesOnlyTheSearchReader() throws IOException {
+        RecordingReader mainReader = new RecordingReader(null);
+        int[] created = new int[1];
+
+        try (MergeReaderWrapper wrapper = new MergeReaderWrapper(mainReader, () -> {
+            created[0]++;
+            return new RecordingReader(null);
+        }, randomBoolean())) {
+            wrapper.finishMerge(); // a no-op when no merge began
+        }
+
+        assertEquals(1, mainReader.closeCalls);
+        assertEquals("no merge, no merge reader", 0, created[0]);
+    }
+
+    public void testOffHeapByteSizeComesFromTheSearchReaderUnlessItReadsWithDirectIO() {
+        Map<String, Long> offHeap = Map.of("vec", 1234L);
+        RecordingReader mainReader = new RecordingReader(null, offHeap);
+        RecordingReader mergeReader = new RecordingReader(null, Map.of("vec", 999L));
+
+        MergeReaderWrapper mmapSearches = new MergeReaderWrapper(mainReader, () -> mergeReader, false);
+        assertEquals("a memory-mapped search reader keeps reporting its off-heap bytes", offHeap, mmapSearches.getOffHeapByteSize(null));
+
+        MergeReaderWrapper directIOSearches = new MergeReaderWrapper(mainReader, () -> mergeReader, true);
+        assertEquals("a direct I/O search reader has no off-heap bytes", Map.of(), directIOSearches.getOffHeapByteSize(null));
     }
 }

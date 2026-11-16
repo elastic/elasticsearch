@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.compute.data.HistogramBlock;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
+import org.elasticsearch.xpack.esql.expression.unit.UnitAware;
 
 import java.util.List;
 import java.util.Objects;
@@ -41,7 +43,9 @@ public class AvgOverTime extends TimeSeriesAggregateFunction
         OptionalArgument,
         SurrogateExpression,
         TimestampAware,
-        AggregateMetricDoubleNativeSupport {
+        AggregateMetricDoubleNativeSupport,
+        AnyNullIsNull,
+        UnitAware.PreservesUnit {
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(AvgOverTime.class)
         .ternary(AvgOverTime::new)
         .name("avg_over_time");
@@ -79,17 +83,17 @@ public class AvgOverTime extends TimeSeriesAggregateFunction
         ) Expression window,
         Expression timestamp
     ) {
-        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW), timestamp);
+        this(source, field, timestamp, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW));
     }
 
-    public AvgOverTime(Source source, Expression field, Expression filter, Expression window, Expression timestamp) {
-        super(source, field, filter, window, List.of(timestamp));
+    public AvgOverTime(Source source, Expression field, Expression timestamp, Expression filter, Expression window) {
+        super(source, List.of(field, timestamp), filter, window, List.of());
         this.timestamp = timestamp;
     }
 
     @Override
     protected TypeResolution resolveType() {
-        return perTimeSeriesAggregation().resolveType();
+        return perTimeSeriesAggregation().typeResolved();
     }
 
     @Override
@@ -104,7 +108,7 @@ public class AvgOverTime extends TimeSeriesAggregateFunction
 
     @Override
     protected NodeInfo<AvgOverTime> info() {
-        return NodeInfo.create(this, AvgOverTime::new, field(), filter(), window(), timestamp);
+        return NodeInfo.create(this, AvgOverTime::new, field(), timestamp, filter(), window());
     }
 
     @Override
@@ -113,18 +117,17 @@ public class AvgOverTime extends TimeSeriesAggregateFunction
     }
 
     @Override
-    public AvgOverTime withFilter(Expression filter) {
-        return new AvgOverTime(source(), field(), filter, window(), timestamp);
-    }
-
-    @Override
     public Expression surrogate() {
         if (field().dataType() == EXPONENTIAL_HISTOGRAM || field().dataType() == DataType.TDIGEST) {
-            var mergeOverTime = new HistogramMergeOverTime(source(), field(), filter(), window(), timestamp);
+            var mergeOverTime = new HistogramMergeOverTime(source(), field(), timestamp, filter(), window());
+            // A window holding no observations divides 0 by 0, which PromQL reports as NaN rather than dropping the
+            // series, so the division must preserve non-finite results.
             return new Div(
                 source(),
                 ExtractHistogramComponent.create(source(), mergeOverTime, HistogramBlock.Component.SUM),
-                ExtractHistogramComponent.create(source(), mergeOverTime, HistogramBlock.Component.COUNT)
+                ExtractHistogramComponent.create(source(), mergeOverTime, HistogramBlock.Component.COUNT),
+                null,
+                true
             );
         }
         return null;

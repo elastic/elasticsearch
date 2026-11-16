@@ -14,6 +14,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.sourcebatch.ArrayReader;
 import org.elasticsearch.sourcebatch.SourceValueType;
+import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.XContentString;
 
 import java.util.Arrays;
@@ -33,13 +34,38 @@ public final class EscfColumnTransforms {
      * @throws IllegalArgumentException if {@code beforeDoc} exceeds {@code source.docCount()}
      */
     public static void backfillUtf8Before(EscfColumnBuilder dest, EscfColumn source, int beforeDoc) {
+        backfillUtf8Before(dest, source, beforeDoc, 0);
+    }
+
+    /**
+     * Writes all present values from {@code source} with doc-id &lt; {@code beforeDoc} into
+     * {@code dest}, then writes the first {@code elementsOfBeforeDoc} elements of {@code beforeDoc}
+     * itself. Use the 4-arg form when the caller has already consumed part of a multi-valued row
+     * from {@code source} and needs those earlier elements replayed into {@code dest}.
+     *
+     * @param elementsOfBeforeDoc number of elements of {@code beforeDoc} to replay (0 = none)
+     * @throws IllegalArgumentException if {@code beforeDoc} exceeds {@code source.docCount()}
+     */
+    public static void backfillUtf8Before(EscfColumnBuilder dest, EscfColumn source, int beforeDoc, int elementsOfBeforeDoc) {
         if (beforeDoc > source.docCount()) {
             throw new IllegalArgumentException("beforeDoc (" + beforeDoc + ") exceeds source docCount (" + source.docCount() + ")");
         }
         // We could always reach down and copy offsets and data directly. We don't need to use cursors.
         final ObjectTupleCursor<BytesRef> replayCursor = utf8Cursor(source, false);
-        for (int d = replayCursor.nextDoc(); d < beforeDoc; d = replayCursor.nextDoc()) {
+        // Copy all elements of docs strictly before beforeDoc. After the loop, the cursor is already
+        // positioned at the first element of beforeDoc (the exit-condition call consumed it without writing).
+        int d;
+        while ((d = replayCursor.nextDoc()) < beforeDoc) {
             dest.setString(d, replayCursor.value());
+        }
+        // Replay elementsOfBeforeDoc elements of beforeDoc using the current cursor position — do NOT
+        // call nextDoc() first; the while loop above already advanced to beforeDoc.
+        for (int i = 0; i < elementsOfBeforeDoc; i++) {
+            assert d == beforeDoc : "expected doc " + beforeDoc + " but got " + d;
+            dest.setString(d, replayCursor.value());
+            if (i + 1 < elementsOfBeforeDoc) {
+                d = replayCursor.nextDoc();
+            }
         }
     }
 
@@ -80,7 +106,9 @@ public final class EscfColumnTransforms {
      * Returns a cursor that stringifies every present value to its UTF-8 keyword form. Nested and
      * flat arrays are flattened to one tuple per leaf element (same doc-id repeated); absent rows
      * and empty arrays emit nothing. JSON null emits a tuple with {@code value()==null}.
-     * Numbers use canonical {@code toString}; BINARY and KEY_VALUE throw.
+     * Numbers render as {@code Long.toString} / {@code Double.toString}, except that a value in a dense DOUBLE
+     * column that was stored with its spelling yields that spelling (see {@link EscfColumnData#lexicalForms()}).
+     * BINARY and KEY_VALUE throw.
      *
      * @param column the source ESCF column
      * @param retainValues {@code false} when each value is consumed before the next {@link
@@ -131,7 +159,12 @@ public final class EscfColumnTransforms {
                             return doc;
                         }
                         case SourceValueType.DOUBLE -> {
-                            currentValue = new BytesRef(Double.toString(column.getDoubleValue(doc)));
+                            // A dense DOUBLE column renders the double, or returns its stored spelling when it has
+                            // one.
+                            // TODO: a union row has no spelling and renders canonically.
+                            currentValue = column.kind() == EscfColumnKind.DOUBLE
+                                ? utf8(column.getStringValue(doc))
+                                : new BytesRef(Double.toString(column.getDoubleValue(doc)));
                             return doc;
                         }
                         case SourceValueType.STRING -> {
@@ -223,5 +256,10 @@ public final class EscfColumnTransforms {
                 return currentValue;
             }
         };
+    }
+
+    private static BytesRef utf8(Text text) {
+        XContentString.UTF8Bytes bytes = text.bytes();
+        return new BytesRef(bytes.bytes(), bytes.offset(), bytes.length());
     }
 }

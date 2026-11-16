@@ -1,0 +1,3 @@
+SET unmapped_fields="nullify";
+FROM employees, (FROM languages, (ROW x = 1))
+| KEEP does_not_exist_field, x

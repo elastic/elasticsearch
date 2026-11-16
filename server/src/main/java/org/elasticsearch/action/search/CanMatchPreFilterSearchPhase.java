@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.CountDown;
@@ -98,6 +99,12 @@ final class CanMatchPreFilterSearchPhase {
      * from iterators and counted in {@link CanMatchResult#skippedByClusterAlias()}.
      */
     private final boolean includeSkippedShardsInIterators;
+    /**
+     * The cluster state the shard iterators were built from, used to recognise shards that are missing because they are being restored
+     * from a snapshot; {@code null} when the caller has none, in which case missing shards are reported as they always were.
+     */
+    @Nullable
+    private final ClusterState clusterState;
     private final LongAdder canMatchResultBytesRead = new LongAdder();
     private final LongAdder canMatchRequestBytesWritten = new LongAdder();
 
@@ -115,8 +122,10 @@ final class CanMatchPreFilterSearchPhase {
         boolean requireAtLeastOneMatch,
         CoordinatorRewriteContextProvider coordinatorRewriteContextProvider,
         boolean includeSkippedShardsInIterators,
+        @Nullable ClusterState clusterState,
         ActionListener<CanMatchResult> listener
     ) {
+        this.clusterState = clusterState;
         this.logger = logger;
         this.searchTransportService = searchTransportService;
         this.nodeIdToConnection = nodeIdToConnection;
@@ -163,7 +172,8 @@ final class CanMatchPreFilterSearchPhase {
         CoordinatorRewriteContextProvider coordinatorRewriteContextProvider,
         SearchResponseMetrics searchResponseMetrics,
         Map<String, Object> searchRequestAttributes,
-        boolean includeSkippedShardsInIterators
+        boolean includeSkippedShardsInIterators,
+        @Nullable ClusterState clusterState
     ) {
         if (shardsIts.isEmpty()) {
             // Must be mutable: callers fold per-cluster skip counts into this map via Map#merge.
@@ -215,6 +225,7 @@ final class CanMatchPreFilterSearchPhase {
                     requireAtLeastOneMatch,
                     coordinatorRewriteContextProvider,
                     includeSkippedShardsInIterators,
+                    clusterState,
                     listener
                 );
                 listener.addListener(new ActionListener<>() {
@@ -316,7 +327,7 @@ final class CanMatchPreFilterSearchPhase {
 
     private void checkNoMissingShards(List<SearchShardIterator> shards) {
         assert assertSearchCoordinationThread();
-        SearchPhase.doCheckNoMissingShards(PHASE_NAME, request, shards);
+        SearchPhase.doCheckNoMissingShards(PHASE_NAME, request, shards, clusterState);
     }
 
     private Map<SendingTarget, List<SearchShardIterator>> groupByNode(List<SearchShardIterator> shards) {

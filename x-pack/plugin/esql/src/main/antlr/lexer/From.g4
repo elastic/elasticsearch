@@ -14,6 +14,9 @@ FROM : 'from'                 -> pushMode(FROM_MODE);
 // TS command
 TS : 'ts' -> pushMode(FROM_MODE);
 
+// EQL source command (snapshot-only); delegates execution to the EQL engine
+DEV_EQL : {EsqlCapabilities.Cap.EQL_COMMAND.isEnabled()}? 'eql' -> pushMode(FROM_MODE);
+
 mode FROM_MODE;
 FROM_PIPE : PIPE -> type(PIPE), popMode;
 FROM_COLON : COLON -> type(COLON);
@@ -22,6 +25,10 @@ FROM_COMMA : COMMA -> type(COMMA);
 FROM_ASSIGN : ASSIGN -> type(ASSIGN);
 METADATA : 'metadata';
 
+// Support for the EQL command WITH clause - transitions to EXPRESSION_MODE for map parsing
+FROM_WITH : WITH -> type(WITH), popMode, pushMode(EXPRESSION_MODE);
+
+// Support for command parameters
 FROM_PARAM : PARAM -> type(PARAM);
 FROM_NAMED_OR_POSITIONAL_PARAM : NAMED_OR_POSITIONAL_PARAM -> type(NAMED_OR_POSITIONAL_PARAM);
 

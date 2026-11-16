@@ -15,6 +15,7 @@ import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
+import java.util.ArrayList;
 import java.util.Deque;
 import java.util.LinkedList;
 import java.util.List;
@@ -43,6 +44,9 @@ public final class AutoPrefilteringScope implements Releasable {
      */
     public record ScopedPrefilter(QueryBuilder query, @Nullable NestedObjectMapper nestedLevel) {}
 
+    /** Marker frame (compared by identity) pushed by {@link #suspend()}. */
+    private static final List<ScopedPrefilter> SUSPENDED = new ArrayList<>(0);
+
     private final Deque<List<ScopedPrefilter>> prefiltersStack = new LinkedList<>();
 
     /**
@@ -63,10 +67,31 @@ public final class AutoPrefilteringScope implements Releasable {
     }
 
     /**
-     * Returns all prefilters in scope.
+     * Returns all prefilters in scope, stopping at the innermost {@link #suspend()} marker if there is one.
      */
     public List<ScopedPrefilter> getPrefilters() {
-        return prefiltersStack.stream().flatMap(List::stream).toList();
+        List<ScopedPrefilter> prefilters = new ArrayList<>();
+        for (List<ScopedPrefilter> frame : prefiltersStack) {
+            if (frame == SUSPENDED) {
+                break;
+            }
+            prefilters.addAll(frame);
+        }
+        return prefilters;
+    }
+
+    /**
+     * Hides all prefilters collected so far from {@link #getPrefilters()} until the matching {@link #close()} (or {@link #pop()}).
+     * Prefilters pushed after this call remain visible. A consumer should suspend the scope while converting its prefilters to
+     * Lucene queries, as they are only used for filtering and must not themselves pick up the enclosing prefilters.
+     * This pushes a marker frame, so it is symmetric with {@link #close()}:
+     * {@code try (AutoPrefilteringScope scope = context.autoPrefilteringScope().suspend()) { ... }}.
+     *
+     * @return this scope, so that it can be used as a try-with-resources resource
+     */
+    public AutoPrefilteringScope suspend() {
+        prefiltersStack.push(SUSPENDED);
+        return this;
     }
 
     @Override

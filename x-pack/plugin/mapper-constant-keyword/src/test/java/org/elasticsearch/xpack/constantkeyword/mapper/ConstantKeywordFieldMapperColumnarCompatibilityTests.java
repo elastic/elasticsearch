@@ -7,19 +7,25 @@
 
 package org.elasticsearch.xpack.constantkeyword.mapper;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.AbstractColumnarMapperCompatibilityTestCase;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
+import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.constantkeyword.ConstantKeywordMapperPlugin;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+
+import static org.hamcrest.Matchers.containsString;
 
 /**
  * Parity tests for {@link ConstantKeywordFieldMapper#mapColumnBatch} against the row path.
@@ -34,10 +40,7 @@ public class ConstantKeywordFieldMapperColumnarCompatibilityTests extends Abstra
     }
 
     private static Settings columnarSettings() {
-        return Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
-            .build();
+        return Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
     }
 
     public void testSingleValue() throws IOException {
@@ -169,16 +172,43 @@ public class ConstantKeywordFieldMapperColumnarCompatibilityTests extends Abstra
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-team/issues/4685")
-    public void testNoColumnUnderStoredSource() throws IOException {
-        // Under stored source, isSourceSynthetic() is false: mapColumnBatch validates values but emits no
-        // presence-marker column. Currently blocked because SourceFieldMapper does not yet enable the
-        // columnar batch path for stored source; remove @AwaitsFix when that support lands.
-        assertColumnarMatchesXContent(
-            mapping(b -> b.startObject(FIELD).field("type", "constant_keyword").field("value", "hello").endObject()),
-            Settings.EMPTY,
-            batch("stored source", 1L, doc("d1", 1L, "{\"f\":\"hello\"}"), doc("d2", 2L, "{}"), doc("d3", 3L, "{\"f\":\"hello\"}"))
-        );
+    /**
+     * Stored source is not supported by the columnar batch path yet: {@code SourceFieldMapper} refuses it, so every batch for such an
+     * index falls back to the row path even though the {@code constant_keyword} mapper itself would accept it. The index is a TSDB one
+     * because a data field only takes part in the batch path in a strict-columnar or TSDB index mode, and strict-columnar modes do not
+     * allow stored source.
+     *
+     * <p>The parity check below is the one the field needs under stored source: {@code isSourceSynthetic()} is false, so
+     * {@code mapColumnBatch} validates values but emits no presence-marker column. When stored source support lands, the check passes
+     * and the surrounding {@code expectThrows} fails; remove it then.
+     */
+    public void testGate_storedSourceFallsBackToRowPath() {
+        final BytesRef tsid = new BytesRef(new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05 });
+        final int routingHash = 42;
+        final long timestamp = 1622505600000L; // 2021-06-01T00:00:00.000Z
+        final String id = TsidExtractingIdFieldMapper.createId(routingHash, tsid, timestamp);
+        final String routing = TimeSeriesRoutingHashFieldMapper.encode(routingHash);
+
+        final AssertionError e = expectThrows(AssertionError.class, () -> assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject(FIELD).field("type", "constant_keyword").field("value", "hello").endObject();
+        }),
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+                .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), "dim")
+                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "-9999-01-01T00:00:00Z")
+                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "9999-01-01T00:00:00Z")
+                .put(IndexSettings.SYNTHETIC_ID.getKey(), false)
+                .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED.toString())
+                .build(),
+            batch(
+                "stored source",
+                1L,
+                doc(id, routing, tsid, 1L, "{\"@timestamp\":\"2021-06-01T00:00:00.000Z\",\"dim\":\"a\",\"f\":\"hello\"}")
+            )
+        ));
+        assertThat(e.getMessage(), containsString("metadata mapper [_source] does not support columnar parse"));
     }
 
     public void testBailOutOnNull() throws IOException {
@@ -262,15 +292,57 @@ public class ConstantKeywordFieldMapperColumnarCompatibilityTests extends Abstra
         assertTrue("supportsColumnarParse must be true when value is configured", mapper.supportsColumnarParse(ms.getIndexSettings()));
     }
 
-    public void testGate_configuredValue_standardMode() throws IOException {
-        // constant_keyword has no index-mode-specific behaviour, so it supports columnar parse in any
-        // index mode — the check belongs in mapColumnBatch (via isSourceSynthetic), not here.
-        MapperService ms = createMapperService(
-            Settings.EMPTY,
-            mapping(b -> b.startObject(FIELD).field("type", "constant_keyword").field("value", "hello").endObject())
+    /**
+     * A {@code constant_keyword} sub-field is driven from its parent's source column like any other multi-field. It accepts the
+     * documents whose value matches its configured constant, and its {@code UnsupportedOperationException} bail-out for a
+     * mismatch still fires from the sub-field position, forcing the batch back to the row path.
+     */
+    public void testAsSubFieldOfKeyword() throws IOException {
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword");
+            b.startObject("fields");
+            b.startObject("kind").field("type", "constant_keyword").field("value", "hello").endObject();
+            b.endObject();
+            b.endObject();
+        }), columnarSettings(), batch("constant_keyword sub-field", 1L, doc("d1", 1L, "{\"f\":\"hello\"}"), doc("d2", 2L, "{}")));
+    }
+
+    public void testSubFieldValueMismatchBailsOut() throws IOException {
+        MapperService ms = createMapperService(columnarSettings(), mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword");
+            b.startObject("fields");
+            b.startObject("kind").field("type", "constant_keyword").field("value", "hello").endObject();
+            b.endObject();
+            b.endObject();
+        }));
+        expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(ms, FIELD, "{\"f\":\"not-hello\"}"));
+    }
+
+    /**
+     * Under {@code index.mapping.synthetic_source_keep: arrays} the row path keeps an array in {@code _ignored_source}, which the
+     * columnar path does not write, so an array must fall back.
+     */
+    public void testTsdbKeepArraysArrayBailsOut() throws IOException {
+        final MapperService ms = createMapperService(
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+                .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), "dim")
+                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "-9999-01-01T00:00:00Z")
+                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "9999-01-01T00:00:00Z")
+                .put(IndexSettings.SYNTHETIC_ID.getKey(), false)
+                .put("index.mapping.synthetic_source_keep", "arrays")
+                .build(),
+            mapping(b -> {
+                b.startObject("@timestamp").field("type", "date").endObject();
+                b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+                b.startObject(FIELD).field("type", "constant_keyword").field("value", "hello").endObject();
+            })
         );
-        FieldMapper mapper = (FieldMapper) ms.mappingLookup().getMapper(FIELD);
-        assertTrue("supportsColumnarParse must be true regardless of index mode", mapper.supportsColumnarParse(ms.getIndexSettings()));
+        final UnsupportedOperationException ex = expectThrows(
+            UnsupportedOperationException.class,
+            () -> mapColumnarLeaf(ms, FIELD, "{\"@timestamp\":1705320000000,\"f\":[\"hello\",\"hello\"]}")
+        );
+        assertTrue(ex.getMessage(), ex.getMessage().contains("may keep array source outside a strict-columnar index mode"));
     }
 
     public void testGate_copyTo() throws IOException {

@@ -8,14 +8,21 @@
 package org.elasticsearch.xpack.esql.inference;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.test.ComputeTestCase;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItem;
 
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -26,7 +33,17 @@ import static org.hamcrest.Matchers.nullValue;
 public abstract class AbstractEmbeddingRequestIteratorTestCase extends ComputeTestCase {
 
     /** Builds the iterator under test over {@code textBlock} with the given batch size (using TEXT input and a default timeout). */
-    protected abstract AbstractEmbeddingRequestIterator newRequestIterator(String inferenceId, BytesRefBlock textBlock, int batchSize);
+    protected AbstractEmbeddingRequestIterator newRequestIterator(String inferenceId, BytesRefBlock textBlock, int batchSize) {
+        return newRequestIterator(inferenceId, textBlock, batchSize, Warnings.NOOP_WARNINGS);
+    }
+
+    /** As above, with a warnings collector, for the tests that assert what the iterator reports. */
+    protected abstract AbstractEmbeddingRequestIterator newRequestIterator(
+        String inferenceId,
+        BytesRefBlock textBlock,
+        int batchSize,
+        Warnings warnings
+    );
 
     /** Number of inputs carried by a request item ({@code 0} for a null request). */
     protected abstract int inputSize(BulkInferenceRequestItem item);
@@ -191,6 +208,81 @@ public abstract class AbstractEmbeddingRequestIteratorTestCase extends ComputeTe
             }
         }
         allBreakersEmpty();
+    }
+
+    /**
+     * A multi-valued position is reduced to its first value and reported. The notice is emitted ONCE however many positions are
+     * multi-valued: it is a constant message and {@link Warnings#registerWarning(String)} caches on the text, which is what keeps
+     * a page of multi-valued rows from producing a wall of identical warnings.
+     */
+    public void testMultiValuedPositionsWarnOnce() throws Exception {
+        DriverContext driverContext = newDriverContext();
+        Warnings warnings = Warnings.createOnlyWarnings(driverContext, new Source(1, 0, "DENSE_VECTOR field"));
+
+        try (BytesRefBlock.Builder blockBuilder = blockFactory().newBytesRefBlockBuilder(4)) {
+            for (int i = 0; i < 3; i++) {
+                blockBuilder.beginPositionEntry();
+                blockBuilder.appendBytesRef(new BytesRef("first" + i));
+                blockBuilder.appendBytesRef(new BytesRef("second" + i));
+                blockBuilder.endPositionEntry();
+            }
+            blockBuilder.appendBytesRef(new BytesRef("single"));
+
+            try (
+                AbstractEmbeddingRequestIterator requestIterator = newRequestIterator(
+                    randomIdentifier(),
+                    blockBuilder.build(),
+                    10,
+                    warnings
+                )
+            ) {
+                BulkInferenceRequestItem item = requestIterator.next();
+                // Every position contributes exactly one input, the extra values having been dropped.
+                assertThat(item.positionValueCounts(), equalTo(new int[] { 1, 1, 1, 1 }));
+                assertThat(inputValues(item), equalTo(List.of("first0", "first1", "first2", "single")));
+                assertFalse(requestIterator.hasNext());
+            }
+        }
+
+        driverContext.finish();
+        List<String> emitted = driverContext.warnings().stream().filter(w -> w.contains("multi-valued")).toList();
+        assertThat(emitted, hasSize(1));
+        assertThat(emitted.get(0), containsString(AbstractEmbeddingRequestIterator.MULTIVALUE_NOTICE));
+        allBreakersEmpty();
+    }
+
+    /** Single-valued input must not warn at all. */
+    public void testSingleValuedPositionsDoNotWarn() throws Exception {
+        DriverContext driverContext = newDriverContext();
+        Warnings warnings = Warnings.createOnlyWarnings(driverContext, new Source(1, 0, "DENSE_VECTOR field"));
+
+        try (BytesRefBlock.Builder blockBuilder = blockFactory().newBytesRefBlockBuilder(3)) {
+            blockBuilder.appendBytesRef(new BytesRef("a"));
+            blockBuilder.appendNull();
+            blockBuilder.appendBytesRef(new BytesRef("b"));
+
+            try (
+                AbstractEmbeddingRequestIterator requestIterator = newRequestIterator(
+                    randomIdentifier(),
+                    blockBuilder.build(),
+                    10,
+                    warnings
+                )
+            ) {
+                while (requestIterator.hasNext()) {
+                    requestIterator.next();
+                }
+            }
+        }
+
+        driverContext.finish();
+        assertThat(driverContext.warnings(), empty());
+        allBreakersEmpty();
+    }
+
+    private DriverContext newDriverContext() {
+        BlockFactory blockFactory = blockFactory();
+        return new DriverContext(blockFactory.bigArrays(), blockFactory, null);
     }
 
     private void assertRequestInputSizes(int batchSize, int rows, List<Integer> expectedInputSizes) throws Exception {

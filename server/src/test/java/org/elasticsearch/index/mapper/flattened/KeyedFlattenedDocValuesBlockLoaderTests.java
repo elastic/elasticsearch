@@ -68,7 +68,7 @@ public class KeyedFlattenedDocValuesBlockLoaderTests extends ESTestCase {
             try (IndexReader reader = openReader(writer)) {
                 LeafReaderContext leaf = reader.leaves().get(0);
                 BlockLoader.ColumnAtATimeReader columnReader = new KeyedFlattenedDocValuesBlockLoader(KEYED_FIELD, KEY, binary).reader(
-                    new NoopCircuitBreaker("test"),
+                    NoopCircuitBreaker.INSTANCE,
                     leaf
                 );
 

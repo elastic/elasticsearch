@@ -27,6 +27,7 @@ import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.datasources.Federation;
+import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -82,6 +83,7 @@ public class S3ManagedIdentityBrokenAuthIT extends ESRestTestCase {
 
     private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
+        .setting(S3FixtureUtils.ALLOWED_ENDPOINT_HOSTS_SETTING, S3FixtureUtils.LOOPBACK_ENDPOINT_HOSTS)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .setting(Federation.FEDERATION_ENABLED.getKey(), "true")
@@ -136,7 +138,6 @@ public class S3ManagedIdentityBrokenAuthIT extends ESRestTestCase {
                 .field("type", "s3")
                 .startObject("settings")
                 .field("auth", "managed_identity")
-                .field("region", regionSupplier.get())
                 .field("endpoint", endpoint)
                 .endObject()
                 .endObject();
@@ -149,7 +150,13 @@ public class S3ManagedIdentityBrokenAuthIT extends ESRestTestCase {
     private static void putDataset(String name, String dataSource, String resource) throws IOException {
         Request req = new Request("PUT", "/_query/dataset/" + name);
         try (XContentBuilder b = jsonBuilder()) {
-            b.startObject().field("data_source", dataSource).field("resource", resource).endObject();
+            b.startObject()
+                .field("data_source", dataSource)
+                .field("resource", resource)
+                .startObject("settings")
+                .field("region", regionSupplier.get())
+                .endObject()
+                .endObject();
             req.setJsonEntity(Strings.toString(b));
         }
         Response r = client().performRequest(req);

@@ -9,13 +9,21 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
-import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.test.index.IndexVersionUtils;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * Parity tests for {@link KeywordFieldMapper#mapColumnBatch} against the row path.
@@ -26,11 +34,39 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
 
     private static final String FIELD = "f";
 
+    /**
+     * Extends the base equality check with:
+     * <ul>
+     *   <li>An explicit doc-values-type assertion for {@code FIELD}: when {@code expected} produces a
+     *       non-NONE doc-values type, this asserts that {@code actual} matches it as a named assertion
+     *       rather than buried in the full set diff.</li>
+     *   <li>Exclusion of {@code _id} from comparison in TSDB scenarios (detected by the presence of
+     *       {@code _tsid} in {@code expected}): the columnar path splits {@code _id} into a DV column
+     *       and a separate TokenStreamColumn while the row path combines them — a known divergence
+     *       covered by {@link TsidExtractingIdFieldMapperColumnarCompatibilityTests}.</li>
+     * </ul>
+     */
+    @Override
+    protected void assertFieldSetsEqual(List<FieldDescriptor> expected, List<FieldDescriptor> actual, String message) {
+        for (FieldDescriptor fd : expected) {
+            if (fd.name().equals(FIELD) && fd.fieldType().docValuesType() != DocValuesType.NONE) {
+                final DocValuesType dvType = fd.fieldType().docValuesType();
+                assertTrue(
+                    message + ": field [" + FIELD + "] expected docValuesType=" + dvType + " but columnar path did not produce it",
+                    actual.stream().anyMatch(a -> a.name().equals(FIELD) && a.fieldType().docValuesType() == dvType)
+                );
+            }
+        }
+        final boolean isTsdb = expected.stream().anyMatch(fd -> fd.name().equals("_tsid"));
+        if (isTsdb) {
+            expected = expected.stream().filter(fd -> fd.name().equals("_id") == false).toList();
+            actual = actual.stream().filter(fd -> fd.name().equals("_id") == false).toList();
+        }
+        super.assertFieldSetsEqual(expected, actual, message);
+    }
+
     private static Settings columnarSettings() {
-        return Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
-            .build();
+        return Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
     }
 
     public void testSingleValue() throws IOException {
@@ -80,6 +116,53 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         );
     }
 
+    private static Settings emptyStringAsNullSettings() {
+        return Settings.builder().put(columnarSettings()).put(FieldMapper.EMPTY_KEYWORD_STRING_AS_NULL_SETTING.getKey(), true).build();
+    }
+
+    public void testEmptyStringAsNull() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject()),
+            emptyStringAsNullSettings(),
+            batch(
+                "empty string as null",
+                1L,
+                doc("d1", 1L, "{\"f\":\"\"}"),
+                doc("d2", 2L, "{\"f\":\"alpha\"}"),
+                doc("d3", 3L, "{\"f\":null}"),
+                doc("d4", 4L, "{}")
+            )
+        );
+    }
+
+    public void testEmptyStringAsNullWithinAnArray() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject()),
+            emptyStringAsNullSettings(),
+            batch(
+                "empty string as null within an array",
+                1L,
+                doc("d1", 1L, "{\"f\":[\"alpha\",\"\",\"beta\"]}"),
+                doc("d2", 2L, "{\"f\":[\"\"]}"),
+                doc("d3", 3L, "{\"f\":[\"\",\"\"]}")
+            )
+        );
+    }
+
+    public void testEmptyStringAsNullTakesTheNullValue() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").field("null_value", "NA").endObject()),
+            emptyStringAsNullSettings(),
+            batch(
+                "empty string as null takes the null value",
+                1L,
+                doc("d1", 1L, "{\"f\":\"\"}"),
+                doc("d2", 2L, "{\"f\":[\"alpha\",\"\"]}"),
+                doc("d3", 3L, "{}")
+            )
+        );
+    }
+
     public void testMixedBatch() throws IOException {
         assertColumnarMatchesXContent(
             mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject()),
@@ -123,6 +206,30 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
                 doc("d4", 4L, "{}")
             )
         );
+    }
+
+    /**
+     * A scalar JSON float keeps the client's spelling even when it is not canonical (#163555). Array elements still
+     * index the canonical rendering under batch indexing until part 2 carries their spellings.
+     */
+    public void testDoubleValuesKeepSpelling() throws IOException {
+        for (SourceEncoder encoder : SourceEncoder.available()) {
+            assertColumnarMatchesXContent(
+                mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject()),
+                columnarSettings(),
+                encoder,
+                batch(
+                    "double spellings, " + encoder,
+                    1L,
+                    doc("d1", 1L, "{\"f\":-1.90}"),
+                    doc("d2", 2L, "{\"f\":1e3}"),
+                    doc("d3", 3L, "{\"f\":2.5}"),
+                    doc("d4", 4L, "{}"),
+                    doc("d5", 5L, "{\"f\":123.41999816894531}"),
+                    doc("d6", 6L, "{\"f\":12.40}")
+                )
+            );
+        }
     }
 
     public void testBooleanValues() throws IOException {
@@ -213,7 +320,7 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         // One string value, one absent doc, and an empty string.
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "keyword");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -231,7 +338,7 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         // Present value, absent doc ({}), and explicit JSON null without null_value -> absent.
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "keyword");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -249,7 +356,7 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         // Explicit JSON null is substituted with null_value.
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "keyword").field("null_value", "NULL");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -267,7 +374,7 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         // index:false — only the binary DV column is emitted, no terms column.
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "keyword").field("index", false);
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }), columnarSettings(), batch("no-index dv-only multi_value=false", 1L, doc("d1", 1L, "{\"f\":\"only_dv\"}"), doc("d2", 2L, "{}")));
     }
@@ -276,7 +383,7 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         // Default index:true — both a terms column and a binary DV column are emitted.
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "keyword");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -294,7 +401,7 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         // Numeric and boolean scalars are stringified by utf8Cursor, matching the row path.
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "keyword");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -308,12 +415,10 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         );
     }
 
-    public void testIgnoreAboveMultiValueFalse() throws IOException {
-        // ignore_above: the too-long value is recorded in _ignored and stored as a plain
-        // BinaryDocValuesField synthetic-source fallback (no counts sidecar).
+    public void testIgnoreAboveIsNoOpMultiValueFalse() throws IOException {
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "keyword").field("ignore_above", 8);
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -327,7 +432,7 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         // because the source STRING column contains no null slots (explicit JSON nulls promote to UNION).
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "keyword").field("null_value", "NULL");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -346,7 +451,7 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         // the fast path.
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "keyword");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -365,7 +470,7 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         // length-validation scan across many rows.
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "keyword");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -389,7 +494,7 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         // zero-copy, matching the row path which extracts the sole element.
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "keyword");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),
@@ -403,38 +508,202 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         );
     }
 
-    // =========================================================================
-    // ColumNAR codec: the doc-values blob is a payload rather than the bare value
-    //
-    // Under the codec a field's doc values are a ColumnarBinaryDocValuesField payload, carrying their
-    // slot count in the blob, whatever the field's cardinality. That is the one output the batch path
-    // cannot take straight from the source column, so these pin it against the row path — the check
-    // that catches a bare value written where a payload is read.
-    // =========================================================================
+    public void testColumnarDimensionSingleValue() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").field("time_series_dimension", true).endObject()),
+            columnarSettings(),
+            batch("columnar keyword dimension single value", 1L, doc("d1", 1L, "{\"f\":\"host-0\"}"))
+        );
+    }
 
-    private static Settings columnarCodecSettings() {
+    public void testColumnarDimensionAbsentDocsMixed() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").field("time_series_dimension", true).endObject()),
+            columnarSettings(),
+            batch(
+                "columnar keyword dimension absent docs mixed",
+                1L,
+                doc("d1", 1L, "{\"f\":\"host-0\"}"),
+                doc("d2", 2L, "{}"),
+                doc("d3", 3L, "{\"f\":\"host-1\"}")
+            )
+        );
+    }
+
+    public void testColumnarDimensionExplicitNull() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").field("time_series_dimension", true).endObject()),
+            columnarSettings(),
+            batch(
+                "columnar keyword dimension explicit null",
+                1L,
+                doc("d1", 1L, "{\"f\":null}"),
+                doc("d2", 2L, "{\"f\":\"host-1\"}"),
+                doc("d3", 3L, "{}")
+            )
+        );
+    }
+
+    public void testDimensionRoutingPathIsNotColumnar() throws IOException {
+        // index.routing_path resolves to ForRoutingPath, whose extractDimensionsWhileMapping() is true, so
+        // the row path writes the dimension to the routing fields and the columnar path must refuse.
+        final MapperService mapperService = createMapperService(tsdbSettings(IndexMetadata.INDEX_ROUTING_PATH.getKey()), mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject(FIELD).field("type", "keyword").field("time_series_dimension", true).endObject();
+        }));
+        final FieldMapper mapper = (FieldMapper) mapperService.mappingLookup().getMapper(FIELD);
+        assertFalse(
+            "a dimension whose routing is extracted while mapping must not be columnar",
+            mapper.supportsColumnarParse(mapperService.getIndexSettings())
+        );
+    }
+
+    public void testTsdbDimensionIsColumnar() throws IOException {
+        // TSDB keyword dimensions resolve to DocValuesDiskFormat.SORTED_SET. The columnar batch path now
+        // emits native SORTED_SET doc values, so these fields take the columnar path. Routing-path
+        // dimensions are still excluded (testDimensionRoutingPathIsNotColumnar covers that).
+        final MapperService mapperService = createMapperService(tsdbSettings(IndexMetadata.INDEX_DIMENSIONS.getKey()), mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject(FIELD).field("type", "keyword").field("time_series_dimension", true).endObject();
+        }));
+        final FieldMapper mapper = (FieldMapper) mapperService.mappingLookup().getMapper(FIELD);
+        assertEquals(
+            "precondition: TSDB keyword dimension must use SORTED_SET doc values",
+            KeywordFieldMapper.KeywordFieldType.DocValuesDiskFormat.SORTED_SET,
+            ((KeywordFieldMapper.KeywordFieldType) mapper.fieldType()).diskFormat()
+        );
+        assertTrue(
+            "TSDB keyword dimensions now take the columnar path via SORTED_SET emission",
+            mapper.supportsColumnarParse(mapperService.getIndexSettings())
+        );
+    }
+
+    /** A stored keyword records no offsets, so index-level {@code keep: arrays} sends the array to {@code _ignored_source}. */
+    public void testTsdbKeepArraysStoredArrayBailsOut() throws IOException {
+        assertTsdbKeepModeArrayBailsOut(
+            tsdbKeepSettings("arrays"),
+            b -> b.field("type", "keyword").field("store", true),
+            "[\"b\",\"a\",\"b\"]"
+        );
+    }
+
+    /** As above, for a field-level keep mode, which does not propagate to the sub-field that would otherwise record offsets. */
+    public void testTsdbFieldKeepArraysStoredArrayBailsOut() throws IOException {
+        assertTsdbKeepModeArrayBailsOut(
+            tsdbKeepSettings(null),
+            b -> b.field("type", "keyword").field("store", true).field("synthetic_source_keep", "arrays"),
+            "[\"b\",\"a\",\"b\"]"
+        );
+    }
+
+    public void testTsdbFieldKeepArraysMultiFieldArrayBailsOut() throws IOException {
+        assertTsdbKeepModeArrayBailsOut(tsdbKeepSettings(null), b -> {
+            b.field("type", "keyword").field("synthetic_source_keep", "arrays");
+            b.startObject("fields").startObject("sub").field("type", "keyword").endObject().endObject();
+        }, "[\"b\",\"a\",\"b\"]");
+    }
+
+    /** Under {@code synthetic_source_keep: all} the row path keeps every value of the field in {@code _ignored_source}. */
+    public void testTsdbFieldKeepAllArrayBailsOut() throws IOException {
+        assertTsdbKeepModeArrayBailsOut(
+            tsdbKeepSettings(null),
+            b -> b.field("type", "keyword").field("synthetic_source_keep", "all"),
+            "[\"b\",\"a\"]"
+        );
+    }
+
+    /**
+     * Under {@code synthetic_source_keep: all} the row path copies every value of the field, scalars included, into
+     * {@code _ignored_source}, which the columnar path does not write, so the field is not eligible for the columnar path at all.
+     * Without the setting the same field is.
+     */
+    public void testTsdbFieldKeepAllIsNotColumnar() throws IOException {
+        for (boolean keepAll : new boolean[] { false, true }) {
+            final var mapperService = createMapperService(tsdbKeepSettings(null), mapping(b -> {
+                b.startObject("@timestamp").field("type", "date").endObject();
+                b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+                b.startObject(FIELD).field("type", "keyword");
+                if (keepAll) {
+                    b.field("synthetic_source_keep", "all");
+                }
+                b.endObject();
+            }));
+            final FieldMapper mapper = (FieldMapper) mapperService.mappingLookup().getMapper(FIELD);
+            assertEquals("keep all: " + keepAll, keepAll == false, mapper.supportsColumnarParse(mapperService.getIndexSettings()));
+        }
+    }
+
+    /**
+     * {@code f} is a plain {@code keyword} field next to a keyword dimension, so its row-path handling of arrays is decided by
+     * {@code synthetic_source_keep} rather than by being a dimension.
+     */
+    private static Settings tsdbKeepSettings(String indexKeep) {
+        final Settings.Builder builder = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+            .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), "dim")
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "-9999-01-01T00:00:00Z")
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "9999-01-01T00:00:00Z");
+        if (indexKeep != null) {
+            builder.put(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING.getKey(), indexKeep);
+        }
+        return builder.build();
+    }
+
+    /**
+     * Maps one {@code f} array under a keep mode the row path honours by writing {@code _ignored_source} (or offsets), which the
+     * columnar path does not, and asserts the batch is refused so it falls back to the row path.
+     */
+    private void assertTsdbKeepModeArrayBailsOut(
+        Settings settings,
+        CheckedConsumer<XContentBuilder, IOException> fieldMapping,
+        String array
+    ) throws IOException {
+        final var mapperService = createMapperService(settings, mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject(FIELD);
+            fieldMapping.accept(b);
+            b.endObject();
+        }));
+        final UnsupportedOperationException ex = expectThrows(
+            UnsupportedOperationException.class,
+            () -> mapColumnarLeaf(mapperService, FIELD, "{\"@timestamp\":1705320000000,\"f\":" + array + "}")
+        );
+        assertTrue(ex.getMessage(), ex.getMessage().contains("may keep array source outside a strict-columnar index mode"));
+    }
+
+    /** TIME_SERIES settings listing {@code f} under the given dimension-source setting. */
+    private static Settings tsdbSettings(String dimensionSettingKey) {
         return Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), true)
-            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+            .putList(dimensionSettingKey, FIELD)
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "-9999-01-01T00:00:00Z")
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "9999-01-01T00:00:00Z")
             .build();
     }
 
-    private void assumeColumnarCodecEnabled() {
-        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
+    // =========================================================================
+    // ColumNAR codec: the doc-values blob is a payload, or the bare value for multi_value=false
+    //
+    // Under the codec a multi-valued field's doc values are a ColumnarBinaryDocValuesField payload and a
+    // multi_value=false field's are the bare value. The batch path cannot take the payload straight from
+    // the source column, so these pin both framings against the row path.
+    // =========================================================================
+
+    private static Settings columnarCodecSettings() {
+        return Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
     }
 
-    public void testColumnarCodecSingleValueMultiValueFalse() throws IOException {
-        assumeColumnarCodecEnabled();
-        // A lone value still travels with its count, so the blob is never the bare term.
+    public void testColumnarCodecSingleValue() throws IOException {
+        final boolean multiValue = randomBoolean();
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "keyword");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", multiValue);
             b.endObject();
         }),
             columnarCodecSettings(),
             batch(
-                "columnar codec single value multi_value=false",
+                "columnar codec single value multi_value=" + multiValue,
                 1L,
                 doc("d1", 1L, "{\"f\":\"hello\"}"),
                 doc("d2", 2L, "{}"),
@@ -444,30 +713,35 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         );
     }
 
-    public void testColumnarCodecNoIndexDocValuesOnlyMultiValueFalse() throws IOException {
-        assumeColumnarCodecEnabled();
-        // index:false — the payload column is the only output, so it cannot ride along with a terms column.
+    public void testColumnarCodecNoIndexDocValuesOnly() throws IOException {
+        final boolean multiValue = randomBoolean();
+        // index:false, so the doc-values column is the only output and cannot ride along with a terms column.
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "keyword").field("index", false);
-            b.startObject("doc_values").field("multi_value", false).endObject();
-            b.endObject();
-        }),
-            columnarCodecSettings(),
-            batch("columnar codec no-index dv-only multi_value=false", 1L, doc("d1", 1L, "{\"f\":\"only_dv\"}"), doc("d2", 2L, "{}"))
-        );
-    }
-
-    public void testColumnarCodecIgnoreAboveMultiValueFalse() throws IOException {
-        assumeColumnarCodecEnabled();
-        // A value that trips ignore_above writes no payload, and deoptimizes the shared terms column it would have ridden on.
-        assertColumnarMatchesXContent(mapping(b -> {
-            b.startObject(FIELD).field("type", "keyword").field("ignore_above", 8);
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", multiValue);
             b.endObject();
         }),
             columnarCodecSettings(),
             batch(
-                "columnar codec ignore_above multi_value=false",
+                "columnar codec no-index dv-only multi_value=" + multiValue,
+                1L,
+                doc("d1", 1L, "{\"f\":\"only_dv\"}"),
+                doc("d2", 2L, "{}")
+            )
+        );
+    }
+
+    public void testColumnarCodecIgnoreAbove() throws IOException {
+        final boolean multiValue = randomBoolean();
+        // A value that trips ignore_above writes no doc value, and deoptimizes the shared terms column it would have ridden on.
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword").field("ignore_above", 8);
+            b.field("multi_value", multiValue);
+            b.endObject();
+        }),
+            columnarCodecSettings(),
+            batch(
+                "columnar codec ignore_above multi_value=" + multiValue,
                 1L,
                 doc("d1", 1L, "{\"f\":\"toolongvalue\"}"),
                 doc("d2", 2L, "{\"f\":\"short\"}"),
@@ -476,16 +750,16 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         );
     }
 
-    public void testColumnarCodecNullValueSubstitutionMultiValueFalse() throws IOException {
-        assumeColumnarCodecEnabled();
+    public void testColumnarCodecNullValueSubstitution() throws IOException {
+        final boolean multiValue = randomBoolean();
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "keyword").field("null_value", "NULL");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", multiValue);
             b.endObject();
         }),
             columnarCodecSettings(),
             batch(
-                "columnar codec null_value substitution multi_value=false",
+                "columnar codec null_value substitution multi_value=" + multiValue,
                 1L,
                 doc("d1", 1L, "{\"f\":null}"),
                 doc("d2", 2L, "{\"f\":\"a\"}"),
@@ -494,17 +768,17 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         );
     }
 
-    public void testColumnarCodecScalarCoercionsMultiValueFalse() throws IOException {
-        assumeColumnarCodecEnabled();
-        // A non-STRING source column is built through the shared builder; the payload column is built beside it either way.
+    public void testColumnarCodecScalarCoercions() throws IOException {
+        final boolean multiValue = randomBoolean();
+        // A non-STRING source column is built through the shared builder, whichever framing the doc values take.
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "keyword");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", multiValue);
             b.endObject();
         }),
             columnarCodecSettings(),
             batch(
-                "columnar codec scalar coercions multi_value=false",
+                "columnar codec scalar coercions multi_value=" + multiValue,
                 1L,
                 doc("d1", 1L, "{\"f\":42}"),
                 doc("d2", 2L, "{\"f\":3.14}"),
@@ -514,7 +788,6 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
     }
 
     public void testColumnarCodecArrayOrder() throws IOException {
-        assumeColumnarCodecEnabled();
         // The multi-valued arm, where the payload replaces both the inline-null blob and its .counts companion.
         assertColumnarMatchesXContent(
             mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject()),
@@ -528,6 +801,490 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
                 doc("d4", 4L, "{\"f\":[]}"),
                 doc("d5", 5L, "{}")
             )
+        );
+    }
+
+    // ---- multi-fields -------------------------------------------------------------------------
+
+    /** {@code keyword} parent with a plain {@code keyword} sub-field. */
+    public void testKeywordSubField() throws IOException {
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword");
+            b.startObject("fields").startObject("raw").field("type", "keyword").endObject().endObject();
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch("keyword sub-field", 1L, doc("d1", 1L, "{\"f\":\"hello\"}"), doc("d2", 2L, "{}"), doc("d3", 3L, "{\"f\":\"world\"}"))
+        );
+    }
+
+    /** Arrays and explicit nulls must produce the same array-order slots on the parent and on the sub-field. */
+    public void testKeywordSubFieldArraysAndNulls() throws IOException {
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword");
+            b.startObject("fields").startObject("raw").field("type", "keyword").endObject().endObject();
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch(
+                "keyword sub-field arrays and nulls",
+                1L,
+                doc("d1", 1L, "{\"f\":[\"a\",\"b\",\"c\"]}"),
+                doc("d2", 2L, "{\"f\":[\"a\",null,\"b\"]}"),
+                doc("d3", 3L, "{\"f\":null}"),
+                doc("d4", 4L, "{\"f\":[]}"),
+                doc("d5", 5L, "{}")
+            )
+        );
+    }
+
+    /** {@code null_value} is resolved independently by the parent and the sub-field. */
+    public void testKeywordSubFieldWithOwnNullValue() throws IOException {
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword").field("null_value", "PARENT_NULL");
+            b.startObject("fields");
+            b.startObject("raw").field("type", "keyword").field("null_value", "SUB_NULL").endObject();
+            b.endObject();
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch("sub-field null_value", 1L, doc("d1", 1L, "{\"f\":null}"), doc("d2", 2L, "{\"f\":\"present\"}"), doc("d3", 3L, "{}"))
+        );
+    }
+
+    /**
+     * {@code ignore_above} is evaluated per mapper, so a value can be ignored by the parent, by the sub-field, by both, or by
+     * neither. Each combination must yield the same {@code _ignored} entries on both paths, and the sub-field must never write a
+     * synthetic-source fallback column.
+     */
+    public void testIgnoreAboveAcrossParentAndSubField() throws IOException {
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword").field("ignore_above", 10);
+            b.startObject("fields").startObject("raw").field("type", "keyword").field("ignore_above", 4).endObject().endObject();
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch(
+                "ignore_above parent and sub-field",
+                1L,
+                doc("d1", 1L, "{\"f\":\"tiny\"}"),                  // neither ignores
+                doc("d2", 2L, "{\"f\":\"medium_len\"}"),            // sub-field ignores
+                doc("d3", 3L, "{\"f\":\"way_too_long_value\"}"),    // both ignore
+                doc("d4", 4L, "{}")
+            )
+        );
+    }
+
+    /** Several sub-fields under one parent are all driven from the same source column. */
+    public void testMultipleSubFields() throws IOException {
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword");
+            b.startObject("fields");
+            b.startObject("raw").field("type", "keyword").endObject();
+            b.startObject("trimmed").field("type", "keyword").field("ignore_above", 3).endObject();
+            b.endObject();
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch("multiple sub-fields", 1L, doc("d1", 1L, "{\"f\":\"ab\"}"), doc("d2", 2L, "{\"f\":\"abcdef\"}"), doc("d3", 3L, "{}"))
+        );
+    }
+
+    /** A {@code multi_value=false} sub-field under a multi-valued-capable parent. */
+    public void testSubFieldMultiValueFalse() throws IOException {
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword");
+            b.startObject("fields").startObject("raw").field("type", "keyword");
+            b.field("multi_value", false);
+            b.endObject().endObject();
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch(
+                "sub-field multi_value=false",
+                1L,
+                doc("d1", 1L, "{\"f\":\"single\"}"),
+                doc("d2", 2L, "{\"f\":[\"solo\"]}"),
+                doc("d3", 3L, "{}")
+            )
+        );
+    }
+
+    /** {@code index:false} on the sub-field only: it emits doc values but no terms column. */
+    public void testSubFieldNotIndexed() throws IOException {
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword");
+            b.startObject("fields").startObject("raw").field("type", "keyword").field("index", false).endObject().endObject();
+            b.endObject();
+        }), columnarSettings(), batch("sub-field index=false", 1L, doc("d1", 1L, "{\"f\":\"only_dv\"}"), doc("d2", 2L, "{}")));
+    }
+
+    /**
+     * Two sub-fields of different types under one keyword parent, both fed from the same source column. Values stay strings so the
+     * numeric sub-field sees a STRING column rather than a UNION one.
+     */
+    public void testMultiValueViolationBailsOutOfColumnarPath() throws IOException {
+        // Two values for a multi_value=false field: mapColumnBatch must throw so that
+        // ShardBatchMapper falls back to the row path, which raises the correct
+        // on_failure=FAIL document-level error instead.
+        final var mapperService = createMapperService(columnarSettings(), mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword");
+            b.field("multi_value", false);
+            b.endObject();
+        }));
+        expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":[\"a\",\"b\"]}"));
+    }
+
+    public void testNullabilityViolationBailsOutOfColumnarPath() throws IOException {
+        // A null value for a nullability=false field: mapColumnBatch must throw so that
+        // ShardBatchMapper falls back to the row path, which raises the correct
+        // on_failure=FAIL document-level error instead.
+        final var mapperService = createMapperService(columnarSettings(), mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword");
+            b.field("nullability", false);
+            b.endObject();
+        }));
+        expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":\"value\"}", "{\"f\":null}"));
+    }
+
+    private static Settings requiredIgnoreSettings(Settings settings) {
+        return Settings.builder().put(settings).put(FieldMapper.DOC_VALUES_ON_FAILURE_SETTING.getKey(), "ignore").build();
+    }
+
+    /**
+     * A nullability=false field whose array holds no non-null value has no value, so under on_failure=ignore the batch path records it in
+     * _ignored as the row path does, and still writes the doc values any other array writes, null slots included. Both in-order layouts
+     * are covered: the columnar codec's payload, and the inline-null blob plus count column of indices created before the codec. A
+     * document without the field, or where it is null, goes in _ignored the same way.
+     */
+    public void testRequiredFieldWithoutValueIsIgnored() throws IOException {
+        final boolean multiValue = randomBoolean();
+        final String values = multiValue
+            ? "[\"" + randomAlphanumericOfLength(5) + "\",\"" + randomAlphanumericOfLength(5) + "\"]"
+            : "[\"" + randomAlphanumericOfLength(5) + "\"]";
+        assertColumnarMatchesXContent(
+            randomFrom(IndexVersion.current(), IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_CODEC_NO_FEATURE_FLAG)),
+            mapping(
+                b -> b.startObject(FIELD).field("type", "keyword").field("nullability", false).field("multi_value", multiValue).endObject()
+            ),
+            requiredIgnoreSettings(columnarSettings()),
+            batch(
+                "required field without a value",
+                1L,
+                doc("d1", 1L, "{\"f\":" + values + "}"),
+                doc("d2", 2L, "{\"f\":" + randomFrom("[]", "[[]]", "[null]", "[null,null]") + "}")
+            ),
+            batch("missing and null", 1L, doc("d1", 1L, "{\"f\":" + values + "}"), doc("d2", 2L, "{}"), doc("d3", 3L, "{\"f\":null}"))
+        );
+    }
+
+    /**
+     * An empty string read as null does not satisfy nullability=false either, on its own or as the only value in an array. The second
+     * batch is a STRING column, which holds no arrays, but still needs the check because of the empty string.
+     */
+    public void testRequiredFieldWithOnlyEmptyStringsIsIgnored() throws IOException {
+        final boolean multiValue = randomBoolean();
+        assertColumnarMatchesXContent(
+            mapping(
+                b -> b.startObject(FIELD).field("type", "keyword").field("nullability", false).field("multi_value", multiValue).endObject()
+            ),
+            requiredIgnoreSettings(emptyStringAsNullSettings()),
+            batch(
+                "required field with only empty strings",
+                1L,
+                doc("d1", 1L, "{\"f\":[\"" + randomAlphanumericOfLength(5) + "\"]}"),
+                doc("d2", 2L, "{\"f\":" + randomFrom("\"\"", "[\"\"]", "[\"\",null]", "[[\"\"]]") + "}")
+            ),
+            batch(
+                "STRING column with an empty string",
+                1L,
+                doc("d1", 1L, "{\"f\":\"" + randomAlphanumericOfLength(5) + "\"}"),
+                doc("d2", 2L, "{\"f\":\"\"}")
+            )
+        );
+    }
+
+    /** Under index-level nullability=false a multi-field is required too, so it is recorded in _ignored next to its parent. */
+    public void testRequiredMultiFieldWithoutValueIsIgnored() throws IOException {
+        final String values = "[\"" + randomAlphanumericOfLength(5) + "\"]";
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword");
+            b.startObject("fields").startObject("raw").field("type", "keyword").endObject().endObject();
+            b.endObject();
+        }),
+            requiredIgnoreSettings(
+                Settings.builder().put(columnarSettings()).put(FieldMapper.DOC_VALUES_NULLABILITY_SETTING.getKey(), false).build()
+            ),
+            batch(
+                "required multi-field without a value",
+                1L,
+                doc("d1", 1L, "{\"f\":" + values + "}"),
+                doc("d2", 2L, "{\"f\":" + randomFrom("[]", "[[]]", "[null]", "[null,null]") + "}")
+            ),
+            batch("missing and null", 1L, doc("d1", 1L, "{\"f\":" + values + "}"), doc("d2", 2L, "{}"), doc("d3", 3L, "{\"f\":null}"))
+        );
+    }
+
+    /**
+     * A null_value exempts a field from nullability=false, as on the row path: a null document reads as the null_value and a missing one
+     * is allowed, so neither goes in _ignored.
+     */
+    public void testRequiredFieldWithNullValueIsNotIgnored() throws IOException {
+        final String nullValue = randomAlphanumericOfLength(5);
+        assertColumnarMatchesXContent(
+            mapping(
+                b -> b.startObject(FIELD).field("type", "keyword").field("nullability", false).field("null_value", nullValue).endObject()
+            ),
+            requiredIgnoreSettings(columnarSettings()),
+            batch(
+                "null_value",
+                1L,
+                doc("d1", 1L, "{\"f\":\"" + randomAlphanumericOfLength(5) + "\"}"),
+                doc("d2", 2L, "{}"),
+                doc("d3", 3L, "{\"f\":" + randomFrom("null", "[null]") + "}")
+            )
+        );
+    }
+
+    public void testMixedTypeSubFields() throws IOException {
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword");
+            b.startObject("fields");
+            b.startObject("as_long").field("type", "long").endObject();
+            b.startObject("as_keyword").field("type", "keyword").endObject();
+            b.endObject();
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch("mixed-type sub-fields", 1L, doc("d1", 1L, "{\"f\":\"123\"}"), doc("d2", 2L, "{\"f\":\"456\"}"), doc("d3", 3L, "{}"))
+        );
+    }
+
+    // =========================================================================
+    // TSDB / SORTED_SET: keyword fields in TIME_SERIES index mode
+    //
+    // Every keyword field in a TSDB index resolves to DocValuesDiskFormat.SORTED_SET (Lucene-native
+    // sorted and deduplicated doc values). The columnar batch path now emits SORTED_SET directly via
+    // LuceneBinaryColumn.of with the frozen fieldType (which carries DocValuesType.SORTED_SET).
+    //
+    // The tested keyword field "f" is also the TSDB dimension. Routing is computed by the coordinating
+    // node in production; in tests we supply it as TimeSeriesRoutingHashFieldMapper.encode(routingHash)
+    // and use TsidExtractingIdFieldMapper.createSyntheticId to produce the correct document IDs.
+    // The assertFieldSetsEqual override excludes _id from TSDB comparisons (detected via _tsid presence)
+    // since the columnar path splits _id differently — covered by TsidExtractingIdFieldMapperColumnarCompatibilityTests.
+    // =========================================================================
+
+    private static final BytesRef ST_TSID = new BytesRef(new byte[] { 0x10, 0x20, 0x30, 0x40, 0x50 });
+    private static final int ST_ROUTING_HASH = 17;
+    private static final String ST_ROUTING = TimeSeriesRoutingHashFieldMapper.encode(ST_ROUTING_HASH);
+    // epoch millis: 2025-01-01T00:00:00.000Z
+    private static final long ST_TS_A = 1735689600000L;
+
+    /**
+     * TIME_SERIES settings with {@code f} as the keyword dimension (via {@code index.time_series.dimensions}).
+     */
+    private static Settings tsdbDimensionSettings() {
+        return Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+            .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), FIELD)
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "-9999-01-01T00:00:00Z")
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "9999-01-01T00:00:00Z")
+            .build();
+    }
+
+    private static String tsdbId(long tsMillis) {
+        return TsidExtractingIdFieldMapper.createSyntheticId(ST_TSID, tsMillis, ST_ROUTING_HASH);
+    }
+
+    public void testTsdbSingleValue() throws IOException {
+        // One value per document; the source column stays scalar (STRING), so zero-copy applies.
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject(FIELD).field("type", "keyword").field("time_series_dimension", true).endObject();
+        }),
+            tsdbDimensionSettings(),
+            batch(
+                "TSDB keyword single value",
+                1L,
+                doc(tsdbId(ST_TS_A), ST_ROUTING, ST_TSID, 1L, "{\"f\":\"host-a\",\"@timestamp\":" + ST_TS_A + "}"),
+                doc(tsdbId(ST_TS_A + 1000L), ST_ROUTING, ST_TSID, 2L, "{\"f\":\"host-b\",\"@timestamp\":" + (ST_TS_A + 1000L) + "}"),
+                doc(tsdbId(ST_TS_A + 2000L), ST_ROUTING, ST_TSID, 3L, "{\"@timestamp\":" + (ST_TS_A + 2000L) + "}")
+            )
+        );
+    }
+
+    public void testTsdbArrayValues() throws IOException {
+        // Multi-valued document: the source column is promoted to ARRAY. Lucene's SORTED_SET writer
+        // adds one value per element and deduplicates. Both paths must produce an identical multiset.
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject(FIELD).field("type", "keyword").field("time_series_dimension", true).endObject();
+        }),
+            tsdbDimensionSettings(),
+            batch(
+                "TSDB keyword array values",
+                1L,
+                doc(tsdbId(ST_TS_A), ST_ROUTING, ST_TSID, 1L, "{\"f\":[\"tag-a\",\"tag-b\"],\"@timestamp\":" + ST_TS_A + "}"),
+                doc(tsdbId(ST_TS_A + 1000L), ST_ROUTING, ST_TSID, 2L, "{\"f\":\"solo\",\"@timestamp\":" + (ST_TS_A + 1000L) + "}"),
+                doc(tsdbId(ST_TS_A + 2000L), ST_ROUTING, ST_TSID, 3L, "{\"@timestamp\":" + (ST_TS_A + 2000L) + "}")
+            )
+        );
+    }
+
+    public void testTsdbArrayWithDuplicates() throws IOException {
+        // Duplicate values in an array: Lucene's SORTED_SET writer deduplicates per doc on both paths.
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject(FIELD).field("type", "keyword").field("time_series_dimension", true).endObject();
+        }),
+            tsdbDimensionSettings(),
+            batch(
+                "TSDB keyword array duplicates",
+                1L,
+                doc(tsdbId(ST_TS_A), ST_ROUTING, ST_TSID, 1L, "{\"f\":[\"dup\",\"dup\",\"other\"],\"@timestamp\":" + ST_TS_A + "}"),
+                doc(tsdbId(ST_TS_A + 1000L), ST_ROUTING, ST_TSID, 2L, "{\"f\":[\"x\",\"x\"],\"@timestamp\":" + (ST_TS_A + 1000L) + "}")
+            )
+        );
+    }
+
+    public void testTsdbExplicitNull() throws IOException {
+        // Explicit JSON null with no null_value configured: absent on both paths (no slot written).
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject(FIELD).field("type", "keyword").field("time_series_dimension", true).endObject();
+        }),
+            tsdbDimensionSettings(),
+            batch(
+                "TSDB keyword explicit null",
+                1L,
+                doc(tsdbId(ST_TS_A), ST_ROUTING, ST_TSID, 1L, "{\"f\":null,\"@timestamp\":" + ST_TS_A + "}"),
+                doc(tsdbId(ST_TS_A + 1000L), ST_ROUTING, ST_TSID, 2L, "{\"f\":\"val\",\"@timestamp\":" + (ST_TS_A + 1000L) + "}")
+            )
+        );
+    }
+
+    public void testTsdbNullValue() throws IOException {
+        // null_value substitution: explicit null becomes the configured null_value on both paths.
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject(FIELD).field("type", "keyword").field("time_series_dimension", true).field("null_value", "NULL").endObject();
+        }),
+            tsdbDimensionSettings(),
+            batch(
+                "TSDB keyword null_value",
+                1L,
+                doc(tsdbId(ST_TS_A), ST_ROUTING, ST_TSID, 1L, "{\"f\":null,\"@timestamp\":" + ST_TS_A + "}"),
+                doc(tsdbId(ST_TS_A + 1000L), ST_ROUTING, ST_TSID, 2L, "{\"f\":\"real\",\"@timestamp\":" + (ST_TS_A + 1000L) + "}")
+            )
+        );
+    }
+
+    public void testTsdbIgnoreAboveSingleValuePerDoc() throws IOException {
+        // One ignore_above-exceeded value per document is stored as a synthetic-source fallback blob.
+        // The batch path must emit the SeparateCount blob + .counts sidecar to match the row path.
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject(FIELD).field("type", "keyword").field("time_series_dimension", true).field("ignore_above", 4).endObject();
+        }),
+            tsdbDimensionSettings(),
+            batch(
+                "TSDB keyword ignore_above single per doc",
+                1L,
+                doc(tsdbId(ST_TS_A), ST_ROUTING, ST_TSID, 1L, "{\"f\":\"TOOLONG\",\"@timestamp\":" + ST_TS_A + "}"),
+                doc(tsdbId(ST_TS_A + 1000L), ST_ROUTING, ST_TSID, 2L, "{\"f\":\"ok\",\"@timestamp\":" + (ST_TS_A + 1000L) + "}"),
+                doc(tsdbId(ST_TS_A + 2000L), ST_ROUTING, ST_TSID, 3L, "{\"@timestamp\":" + (ST_TS_A + 2000L) + "}")
+            )
+        );
+    }
+
+    public void testTsdbIgnoreAboveTwoValuesPerDocBailsOut() throws IOException {
+        // More than one ignore_above-exceeded value in a single document: the batch path throws
+        // UnsupportedOperationException so ShardBatchMapper falls back to the row path.
+        final MapperService mapperService = createMapperService(tsdbDimensionSettings(), mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject(FIELD).field("type", "keyword").field("time_series_dimension", true).field("ignore_above", 3).endObject();
+        }));
+        expectThrows(
+            UnsupportedOperationException.class,
+            () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":[\"TOOLONG1\",\"TOOLONG2\"],\"@timestamp\":" + ST_TS_A + "}")
+        );
+    }
+
+    public void testTsdbIgnoreAboveBackfillFix() throws IOException {
+        // ["short", "TOOLONG", "short2"] — the first element is accepted, the second triggers
+        // deoptimization via ignore_above, and the third is accepted again. This exercises the
+        // backfillUtf8Before fix: without passing elementsThisDoc=1, "short" would be silently lost.
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject(FIELD).field("type", "keyword").field("time_series_dimension", true).field("ignore_above", 6).endObject();
+        }),
+            tsdbDimensionSettings(),
+            batch(
+                "TSDB keyword ignore_above backfill fix",
+                1L,
+                doc(tsdbId(ST_TS_A), ST_ROUTING, ST_TSID, 1L, "{\"f\":[\"short\",\"TOOLONG\",\"short2\"],\"@timestamp\":" + ST_TS_A + "}"),
+                doc(tsdbId(ST_TS_A + 1000L), ST_ROUTING, ST_TSID, 2L, "{\"f\":\"other\",\"@timestamp\":" + (ST_TS_A + 1000L) + "}")
+            )
+        );
+    }
+
+    public void testNoIndexValueLongerThanMaxTermLengthOrderedPath() throws IOException {
+        // index:false with multi-value doc values stores values in array order, which takes the ordered batch path.
+        final String longValue = "a".repeat(IndexWriter.MAX_TERM_LENGTH + 1);
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").field("index", false).endObject()),
+            columnarSettings(),
+            batch(
+                "no-index value longer than max term length, ordered path",
+                1L,
+                doc("d1", 1L, "{\"f\":\"" + longValue + "\"}"),
+                doc("d2", 2L, "{\"f\":[\"short\",\"" + longValue + "\"]}"),
+                doc("d3", 3L, "{}")
+            )
+        );
+    }
+
+    public void testNoIndexValueLongerThanMaxTermLengthUnorderedPath() throws IOException {
+        // multi_value=false does not record array order, which takes the unordered batch path.
+        final String longValue = "a".repeat(IndexWriter.MAX_TERM_LENGTH + 1);
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword").field("index", false);
+            b.field("multi_value", false);
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch(
+                "no-index value longer than max term length, unordered path",
+                1L,
+                doc("d1", 1L, "{\"f\":\"" + longValue + "\"}"),
+                doc("d2", 2L, "{}")
+            )
+        );
+    }
+
+    public void testNoIndexValueLongerThanNonIndexedFieldLimitThrows() throws IOException {
+        final MapperService mapperService = createMapperService(
+            Settings.builder()
+                .put(columnarSettings())
+                .put(IndexSettings.NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.getKey(), "64kb")
+                .build(),
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").field("index", false).endObject())
+        );
+        final String longValue = "a".repeat(64 * 1024 + 1);
+        expectThrows(IllegalArgumentException.class, () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":\"" + longValue + "\"}"));
+    }
+
+    public void testTsdbSortedSetDocValuesWithLargeTermThrows() throws IOException {
+        // A non-dimension keyword field with index: false in a TSDB index uses SORTED_SET doc values.
+        final MapperService mapperService = createMapperService(tsdbDimensionSettings(), mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject(FIELD).field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject("f_plain").field("type", "keyword").field("index", false).endObject();
+        }));
+        final String longValue = "a".repeat(IndexWriter.MAX_TERM_LENGTH + 1);
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> mapColumnarLeaf(mapperService, "f_plain", "{\"f_plain\":\"" + longValue + "\"}")
         );
     }
 }

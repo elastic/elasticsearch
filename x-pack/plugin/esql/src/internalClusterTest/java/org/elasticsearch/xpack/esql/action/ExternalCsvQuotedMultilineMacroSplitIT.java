@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.core.TimeValue;
@@ -27,11 +28,12 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
- * End-to-end regression coverage for CSV with quoted multi-line fields, where a quoted value's embedded
+ * End-to-end regression coverage for CSV with quoted multi-line fields ({@code multiline_fields: true}), where a quoted value's embedded
  * newlines belong to one logical row. A quote-blind stride probe assumes {@code inQuotes=false} at its
  * offset, so probing a quoted file at an arbitrary stride can land <em>inside</em> a quoted value and
  * misread an interior newline as a record terminator. That produces two symptoms depending on
@@ -59,6 +61,7 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractExternalData
     private static final int LINES_PER_ROW = 3;
     private static final int LINE_WIDTH = 60;
     private static final long TRUE_ROW_COUNT = ROWS;
+    private static final int PLAIN_PREFIX_ROWS = 8000;
 
     @Override
     protected Collection<Class<? extends Plugin>> formatPlugins() {
@@ -81,7 +84,7 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractExternalData
             String dataset = registerDataset(
                 "macro_split_null_field",
                 StoragePath.fileUri(csvFile),
-                Map.of("header_row", false, "error_mode", "null_field", "target_split_size", "1kb")
+                Map.of("header_row", false, "multiline_fields", true, "error_mode", "null_field", "target_split_size", "1kb")
             );
             String query = "FROM " + dataset + " | STATS c = COUNT(*)";
 
@@ -122,7 +125,7 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractExternalData
             String dataset = registerDataset(
                 "macro_split",
                 StoragePath.fileUri(csvFile),
-                Map.of("header_row", false, "target_split_size", "1kb")
+                Map.of("header_row", false, "multiline_fields", true, "target_split_size", "1kb")
             );
             String query = "FROM " + dataset + " | STATS c = COUNT(*)";
 
@@ -164,7 +167,7 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractExternalData
             String dataset = registerDataset(
                 "macro_split",
                 StoragePath.fileUri(csvFile),
-                Map.of("header_row", false, "target_split_size", "1kb")
+                Map.of("header_row", false, "multiline_fields", true, "target_split_size", "1kb")
             );
             String query = "FROM " + dataset + " | STATS c = COUNT(*)";
 
@@ -231,6 +234,7 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractExternalData
             );
 
             Map<String, Object> settings = new HashMap<>();
+            settings.put("multiline_fields", true);
             settings.put("target_split_size", targetSplitSize);
             if (errorMode != null) {
                 settings.put("error_mode", errorMode);
@@ -251,6 +255,152 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractExternalData
         } finally {
             Files.deleteIfExists(csvFile);
         }
+    }
+
+    /**
+     * Unless {@code multiline_fields} is {@code true}, a {@code .csv} is split at plain newlines with no look at the data,
+     * so quoted multi-line fields, even ones that appear only after a long run of plain rows, are a contradiction of that
+     * contract. The read must fail and say how to fix it, rather than return rows cut inside quoted fields. The schema
+     * sample is kept inside the plain prefix so that it is a split read that meets the contradiction; the planning-time
+     * failure is {@link #testUnsetMultilineFieldsFailsAtPlanning}.
+     */
+    public void testUnsetMultilineFieldsFailsOnQuotedMultilineRows() throws Exception {
+        Path csvFile = writePlainPrefixThenQuotedMultilineCsv();
+        try {
+            String dataset = registerDataset(
+                "unset_multiline",
+                StoragePath.fileUri(csvFile),
+                Map.of("schema_sample_size", 100, "target_split_size", "1mb")
+            );
+            String query = "FROM " + dataset + " | STATS c = COUNT(*)";
+            Exception e = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest(query), TimeValue.timeValueMinutes(5)).close());
+            assertThat(ExceptionsHelper.unwrapCause(e).getMessage(), containsString("multiline_fields"));
+        } finally {
+            Files.deleteIfExists(csvFile);
+        }
+    }
+
+    /**
+     * The contract does not depend on the file's size or on how it is read: a file too small to split, whose quoted
+     * multi-line value is met by schema inference, fails at planning with the same remedy, and reads exactly with it.
+     */
+    public void testUnsetMultilineFieldsFailsAtPlanning() throws Exception {
+        Path csvFile = createTempDir().resolve("small-quoted-multiline.csv");
+        Files.writeString(csvFile, "a,b\n0,\"multi\nline\"\n1,plain\n");
+        try {
+            String uri = StoragePath.fileUri(csvFile);
+            String query = "FROM " + registerDataset("unset_multiline_small", uri, Map.of()) + " | STATS c = COUNT(*)";
+            Exception e = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest(query), TimeValue.timeValueMinutes(5)).close());
+            assertThat(ExceptionsHelper.unwrapCause(e).getMessage(), containsString("multiline_fields"));
+            String remedied = "FROM " + registerDataset("multiline_small", uri, Map.of("multiline_fields", true)) + " | STATS c = COUNT(*)";
+            try (var response = run(syncEsqlQueryRequest(remedied), TimeValue.timeValueMinutes(5))) {
+                assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(2L));
+            }
+        } finally {
+            Files.deleteIfExists(csvFile);
+        }
+    }
+
+    /** The remedy the error message gives: with {@code multiline_fields: true} the same file counts exactly. */
+    public void testMultilineFieldsTrueReadsPlainPrefixThenQuotedMultilineCsv() throws Exception {
+        Path csvFile = writePlainPrefixThenQuotedMultilineCsv();
+        try {
+            String dataset = registerDataset(
+                "multiline_prefix",
+                StoragePath.fileUri(csvFile),
+                Map.of("multiline_fields", true, "target_split_size", "1mb")
+            );
+            String query = "FROM " + dataset + " | STATS c = COUNT(*), mn = MIN(a), mx = MAX(a)";
+            try (var response = run(syncEsqlQueryRequest(query), TimeValue.timeValueMinutes(5))) {
+                List<List<Object>> values = getValuesList(response);
+                assertThat(((Number) values.get(0).get(0)).longValue(), equalTo((long) PLAIN_PREFIX_ROWS + ROWS));
+                assertThat(((Number) values.get(0).get(1)).longValue(), equalTo(0L));
+                assertThat(((Number) values.get(0).get(2)).longValue(), equalTo((long) PLAIN_PREFIX_ROWS + ROWS - 1));
+            }
+        } finally {
+            Files.deleteIfExists(csvFile);
+        }
+    }
+
+    /**
+     * A control: a file that really is quote-free reads exactly by default, on newline-cut splits. It must
+     * be larger than twice the 1 MiB minimum segment size, or it is read as one whole-file split and nothing is cut.
+     */
+    public void testQuoteFreeCsvCountsExactlyByDefault() throws Exception {
+        Path csvFile = createTempDir().resolve("quote-free.csv");
+        StringBuilder sb = new StringBuilder("a,b\n");
+        int rows = 200_000;
+        for (int i = 0; i < rows; i++) {
+            sb.append(i).append(",plain value ").append(i).append('\n');
+        }
+        Files.writeString(csvFile, sb);
+        try {
+            String dataset = registerDataset("plain_split", StoragePath.fileUri(csvFile), Map.of("target_split_size", "1mb"));
+            String query = "FROM " + dataset + " | STATS c = COUNT(*), mx = MAX(a)";
+            try (var response = run(syncEsqlQueryRequest(query), TimeValue.timeValueMinutes(5))) {
+                List<List<Object>> values = getValuesList(response);
+                assertThat(((Number) values.get(0).get(0)).longValue(), equalTo((long) rows));
+                assertThat(((Number) values.get(0).get(1)).longValue(), equalTo((long) rows - 1));
+            }
+        } finally {
+            Files.deleteIfExists(csvFile);
+        }
+    }
+
+    /**
+     * Unset or {@code false} {@code multiline_fields} cuts on plain newlines without looking at the data: here every row
+     * holds a quoted (single-line) value, which still splits exactly. The file is larger than twice the minimum segment
+     * size, so it really is split.
+     */
+    public void testMultilineFieldsNotTrueSplitsQuotedSingleLineCsvExactly() throws Exception {
+        Path csvFile = createTempDir().resolve("quoted-single-line.csv");
+        StringBuilder sb = new StringBuilder("a,b\n");
+        int rows = 150_000;
+        for (int i = 0; i < rows; i++) {
+            sb.append(i).append(",\"quoted, value ").append(i).append("\"\n");
+        }
+        Files.writeString(csvFile, sb);
+        try {
+            Map<String, Object> settings = new HashMap<>();
+            settings.put("target_split_size", "1mb");
+            if (randomBoolean()) {
+                settings.put("multiline_fields", false);
+            }
+            String dataset = registerDataset("quoted_single_line", StoragePath.fileUri(csvFile), settings);
+            String query = "FROM " + dataset + " | STATS c = COUNT(*), mx = MAX(a)";
+            try (var response = run(syncEsqlQueryRequest(query), TimeValue.timeValueMinutes(5))) {
+                List<List<Object>> values = getValuesList(response);
+                assertThat(((Number) values.get(0).get(0)).longValue(), equalTo((long) rows));
+                assertThat(((Number) values.get(0).get(1)).longValue(), equalTo((long) rows - 1));
+            }
+        } finally {
+            Files.deleteIfExists(csvFile);
+        }
+    }
+
+    /**
+     * {@value #PLAIN_PREFIX_ROWS} plain rows, then {@value #ROWS} rows whose second column is a quoted three-line value.
+     * Column {@code a} is the row index. The prefix lets a query keep its schema sample inside the plain rows, so that the
+     * contract is broken by a split read rather than at planning (see {@link #testUnsetMultilineFieldsFailsAtPlanning}).
+     */
+    private Path writePlainPrefixThenQuotedMultilineCsv() throws Exception {
+        Path file = createTempDir().resolve("plain-prefix.csv");
+        StringBuilder sb = new StringBuilder("a,b\n");
+        for (int i = 0; i < PLAIN_PREFIX_ROWS; i++) {
+            sb.append(i).append(",plain value ").append(i).append('\n');
+        }
+        for (int i = 0; i < ROWS; i++) {
+            sb.append(PLAIN_PREFIX_ROWS + i).append(",\"");
+            for (int line = 0; line < LINES_PER_ROW; line++) {
+                sb.append("x".repeat(LINE_WIDTH));
+                if (line < LINES_PER_ROW - 1) {
+                    sb.append('\n');
+                }
+            }
+            sb.append("\"\n");
+        }
+        Files.writeString(file, sb);
+        return file;
     }
 
     /**

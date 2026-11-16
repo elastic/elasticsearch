@@ -1,0 +1,6 @@
+area: ES|QL
+issues: []
+pr: 161323
+summary: Promote null filler from date to `date_nanos` in fork branch after implicit
+  casting in `UnionAll`
+type: bug

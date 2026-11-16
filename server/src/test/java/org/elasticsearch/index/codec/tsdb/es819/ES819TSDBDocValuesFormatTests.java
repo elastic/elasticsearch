@@ -83,6 +83,24 @@ public class ES819TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTe
         }
     };
 
+    private final Codec codecWithOptimizedMerge = new Elasticsearch93Lucene104Codec() {
+
+        final DocValuesFormat docValuesFormat = new ES819Version3TSDBDocValuesFormat(
+            ESTestCase.randomIntBetween(2, 4096),
+            ESTestCase.randomIntBetween(1, 512),
+            true,
+            BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1,
+            true,
+            random().nextBoolean() ? NUMERIC_LARGE_BLOCK_SHIFT : NUMERIC_BLOCK_SHIFT,
+            random().nextBoolean()
+        );
+
+        @Override
+        public DocValuesFormat getDocValuesFormatForField(String field) {
+            return docValuesFormat;
+        }
+    };
+
     public static class TestES819TSDBDocValuesFormatVersion0 extends ES819TSDBDocValuesFormat {
 
         public TestES819TSDBDocValuesFormatVersion0() {
@@ -108,6 +126,11 @@ public class ES819TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTe
     @Override
     protected Codec getCodec() {
         return codec;
+    }
+
+    @Override
+    protected Codec getCodecWithOptimizedMerge() {
+        return codecWithOptimizedMerge;
     }
 
     public void testBinaryCompressionEnabled() {
@@ -601,6 +624,57 @@ public class ES819TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTe
                     int result = equalIter.advance(expected);
                     assertEquals("advance(" + expected + ") should land on that doc", expected, result);
                 }
+            }
+        }
+    }
+
+    public void testMaxDecodeBytesHint() throws Exception {
+        final String timestampField = TIMESTAMP_FIELD;
+        final String binaryField = "binary_field";
+        long currentTimestamp = BASE_TIMESTAMP;
+
+        // maxDecodeBytes() is only meaningful for the compressed (chunked) binary doc values path.
+        var dvFormat = new ES819Version3TSDBDocValuesFormat(
+            ESTestCase.randomIntBetween(2, 4096),
+            ESTestCase.randomIntBetween(1, 512),
+            random().nextBoolean(),
+            BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1,
+            randomBoolean(),
+            NUMERIC_LARGE_BLOCK_SHIFT,
+            randomBoolean()
+        );
+        var compressedCodec = TestUtil.alwaysDocValuesFormat(dvFormat);
+
+        var config = new IndexWriterConfig();
+        config.setIndexSort(new Sort(new SortedNumericSortField(timestampField, SortField.Type.LONG, true)));
+        config.setLeafSorter(DataStream.TIMESERIES_LEAF_READERS_SORTER);
+        config.setMergePolicy(new LogByteSizeMergePolicy());
+        config.setCodec(compressedCodec);
+
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            int numDocs = 256 + random().nextInt(4096);
+            for (int i = 0; i < numDocs; i++) {
+                var d = new Document();
+                d.add(SortedNumericDocValuesField.indexedField(timestampField, currentTimestamp));
+                d.add(new BinaryDocValuesField(binaryField, new BytesRef(randomAlphaOfLength(randomIntBetween(1, 64)))));
+                iw.addDocument(d);
+                if (i % 100 == 0) {
+                    iw.commit();
+                }
+                currentTimestamp += 1000L;
+            }
+            iw.commit();
+            iw.forceMerge(1);
+
+            try (var reader = DirectoryReader.open(iw)) {
+                var leafReader = reader.leaves().getFirst().reader();
+                var binaryDV = getTSDBBinaryValues(leafReader, binaryField);
+
+                long maxDecodeBytes = binaryDV.maxDecodeBytes();
+                long upperBound = ES819Version3TSDBDocValuesFormat.BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT + (long) Integer.BYTES
+                    * (ES819Version3TSDBDocValuesFormat.BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT + 1);
+                assertTrue("a compressed binary field must report a positive decode-bytes hint", maxDecodeBytes > 0);
+                assertTrue("the real hint must never exceed the format's configured worst case", maxDecodeBytes <= upperBound);
             }
         }
     }

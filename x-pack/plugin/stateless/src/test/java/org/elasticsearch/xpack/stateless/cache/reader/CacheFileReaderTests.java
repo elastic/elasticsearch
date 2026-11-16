@@ -30,6 +30,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 import org.junit.After;
@@ -41,6 +42,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.randomRegionTimestampMillis;
+import static org.elasticsearch.xpack.stateless.TestUtils.NOOP_TIME_PROVIDER;
 import static org.elasticsearch.xpack.stateless.TestUtils.newCacheService;
 import static org.elasticsearch.xpack.stateless.commits.BlobLocationTestUtils.createBlobFileRanges;
 import static org.hamcrest.Matchers.equalTo;
@@ -67,7 +69,7 @@ public class CacheFileReaderTests extends ESTestCase {
     public void testTryPrefetchFetches() throws Exception {
         Settings settings = nodeSettings();
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
-        BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);
+        BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry, NOOP_TIME_PROVIDER);
 
         try (
             NodeEnvironment env = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
@@ -81,7 +83,7 @@ public class CacheFileReaderTests extends ESTestCase {
             CacheFileReader cacheFileReader = new CacheFileReader(
                 service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP, randomRegionTimestampMillis()),
                 reader,
-                createBlobFileRanges(1L, 0L, 0, blob.length),
+                createBlobFileRanges(1L, 1L, 0, blob.length),
                 metrics,
                 System::currentTimeMillis,
                 true
@@ -103,7 +105,7 @@ public class CacheFileReaderTests extends ESTestCase {
     public void testTryPrefetchRecordsFailure() throws Exception {
         Settings settings = nodeSettings();
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
-        BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);
+        BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry, NOOP_TIME_PROVIDER);
 
         try (
             NodeEnvironment env = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
@@ -126,7 +128,7 @@ public class CacheFileReaderTests extends ESTestCase {
             CacheFileReader cacheFileReader = new CacheFileReader(
                 service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP, randomRegionTimestampMillis()),
                 reader,
-                createBlobFileRanges(1L, 0L, 0, blob.length),
+                createBlobFileRanges(1L, 1L, 0, blob.length),
                 metrics,
                 System::currentTimeMillis,
                 true
@@ -142,7 +144,7 @@ public class CacheFileReaderTests extends ESTestCase {
     public void testTryPrefetchWithOversizedFileLength() throws Exception {
         Settings settings = nodeSettings();
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
-        BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);
+        BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry, NOOP_TIME_PROVIDER);
 
         try (
             NodeEnvironment env = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
@@ -156,7 +158,7 @@ public class CacheFileReaderTests extends ESTestCase {
             CacheFileReader cacheFileReader = new CacheFileReader(
                 service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP, randomRegionTimestampMillis()),
                 reader,
-                createBlobFileRanges(1L, 0L, 0, blob.length),
+                createBlobFileRanges(1L, 1L, 0, blob.length),
                 metrics,
                 System::currentTimeMillis,
                 true
@@ -177,7 +179,7 @@ public class CacheFileReaderTests extends ESTestCase {
     public void testTryPrefetchPastEOF() throws Exception {
         Settings settings = nodeSettings();
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
-        BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);
+        BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry, NOOP_TIME_PROVIDER);
 
         try (
             NodeEnvironment env = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
@@ -191,7 +193,7 @@ public class CacheFileReaderTests extends ESTestCase {
             CacheFileReader cacheFileReader = new CacheFileReader(
                 service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP, randomRegionTimestampMillis()),
                 reader,
-                createBlobFileRanges(1L, 0L, 0, blob.length),
+                createBlobFileRanges(1L, 1L, 0, blob.length),
                 metrics,
                 System::currentTimeMillis,
                 true
@@ -209,7 +211,7 @@ public class CacheFileReaderTests extends ESTestCase {
     public void testTryPrefetchNonPositiveLength() throws Exception {
         Settings settings = nodeSettings();
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
-        BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);
+        BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry, NOOP_TIME_PROVIDER);
 
         try (
             NodeEnvironment env = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
@@ -223,7 +225,7 @@ public class CacheFileReaderTests extends ESTestCase {
             CacheFileReader cacheFileReader = new CacheFileReader(
                 service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP, randomRegionTimestampMillis()),
                 reader,
-                createBlobFileRanges(1L, 0L, 0, blob.length),
+                createBlobFileRanges(1L, 1L, 0, blob.length),
                 metrics,
                 System::currentTimeMillis,
                 true
@@ -241,7 +243,7 @@ public class CacheFileReaderTests extends ESTestCase {
     public void testTryPrefetchOversizedLengthIsLimited() throws Exception {
         Settings settings = nodeSettings();
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
-        BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);
+        BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry, NOOP_TIME_PROVIDER);
 
         try (
             NodeEnvironment env = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
@@ -255,7 +257,7 @@ public class CacheFileReaderTests extends ESTestCase {
             CacheFileReader cacheFileReader = new CacheFileReader(
                 service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP, randomRegionTimestampMillis()),
                 reader,
-                createBlobFileRanges(1L, 0L, 0, blob.length),
+                createBlobFileRanges(1L, 1L, 0, blob.length),
                 metrics,
                 System::currentTimeMillis,
                 true
@@ -274,7 +276,7 @@ public class CacheFileReaderTests extends ESTestCase {
     public void testTryPrefetchRetriesOnAlreadyUploaded() throws Exception {
         Settings settings = nodeSettings();
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
-        BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);
+        BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry, NOOP_TIME_PROVIDER);
 
         try (
             NodeEnvironment env = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
@@ -288,7 +290,7 @@ public class CacheFileReaderTests extends ESTestCase {
             CacheFileReader cacheFileReader = new CacheFileReader(
                 service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP, randomRegionTimestampMillis()),
                 reader,
-                createBlobFileRanges(1L, 0L, 0, blob.length),
+                createBlobFileRanges(1L, 1L, 0, blob.length),
                 metrics,
                 System::currentTimeMillis,
                 true
@@ -312,7 +314,7 @@ public class CacheFileReaderTests extends ESTestCase {
     public void testTryPrefetchFailsAfterMaxAlreadyUploadedRetries() throws Exception {
         Settings settings = nodeSettings();
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
-        BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);
+        BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry, NOOP_TIME_PROVIDER);
 
         try (
             NodeEnvironment env = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
@@ -333,7 +335,7 @@ public class CacheFileReaderTests extends ESTestCase {
             CacheFileReader cacheFileReader = new CacheFileReader(
                 service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP, randomRegionTimestampMillis()),
                 reader,
-                createBlobFileRanges(1L, 0L, 0, blob.length),
+                createBlobFileRanges(1L, 1L, 0, blob.length),
                 metrics,
                 System::currentTimeMillis,
                 true
@@ -350,7 +352,7 @@ public class CacheFileReaderTests extends ESTestCase {
     public void testTryPrefetchDoesNotRetryOnOtherError() throws Exception {
         Settings settings = nodeSettings();
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
-        BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);
+        BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry, NOOP_TIME_PROVIDER);
 
         try (
             NodeEnvironment env = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
@@ -376,7 +378,7 @@ public class CacheFileReaderTests extends ESTestCase {
             CacheFileReader cacheFileReader = new CacheFileReader(
                 service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP, randomRegionTimestampMillis()),
                 reader,
-                createBlobFileRanges(1L, 0L, 0, blob.length),
+                createBlobFileRanges(1L, 1L, 0, blob.length),
                 metrics,
                 System::currentTimeMillis,
                 true
@@ -393,7 +395,7 @@ public class CacheFileReaderTests extends ESTestCase {
     public void testTryPrefetchDisabledOnlyUsesFastPath() throws Exception {
         Settings settings = nodeSettings();
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
-        BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);
+        BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry, NOOP_TIME_PROVIDER);
 
         try (
             NodeEnvironment env = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
@@ -407,7 +409,7 @@ public class CacheFileReaderTests extends ESTestCase {
             CacheFileReader cacheFileReader = new CacheFileReader(
                 service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP, randomRegionTimestampMillis()),
                 reader,
-                createBlobFileRanges(1L, 0L, 0, blob.length),
+                createBlobFileRanges(1L, 1L, 0, blob.length),
                 metrics,
                 System::currentTimeMillis,
                 false
@@ -439,7 +441,7 @@ public class CacheFileReaderTests extends ESTestCase {
     public void testReadRecordsSearchOriginMetricWithCorrectAttributes() throws Exception {
         Settings settings = nodeSettings();
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
-        BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);
+        BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry, NOOP_TIME_PROVIDER);
 
         try (
             NodeEnvironment env = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
@@ -452,7 +454,7 @@ public class CacheFileReaderTests extends ESTestCase {
             CacheFileReader cacheFileReader = new CacheFileReader(
                 service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP, randomRegionTimestampMillis()),
                 blobReader,
-                createBlobFileRanges(1L, 0L, 0, blob.length),
+                createBlobFileRanges(1L, 1L, 0, blob.length),
                 metrics,
                 System::currentTimeMillis,
                 true
@@ -480,7 +482,7 @@ public class CacheFileReaderTests extends ESTestCase {
 
             // VBCC (peer/index-tier) thread → Peer attribute
             PlainActionFuture<Void> vbccFuture = new PlainActionFuture<>();
-            threadPool.executor(StatelessPlugin.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL).execute(() -> {
+            threadPool.executor(StatelessThreadPools.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL).execute(() -> {
                 try {
                     cacheFileReader.read(this, ByteBuffer.allocate(blob.length), 0, blob.length, blob.length, "test-vbcc");
                     vbccFuture.onResponse(null);

@@ -17,13 +17,21 @@ import static org.hamcrest.Matchers.is;
 
 public class FallbackPostMapperTests extends ESTestCase {
 
-    public void testMalformedRoutesToIgnoreMalformed() {
-        assertThat(FallbackPostMapper.route(FallbackPostMapper.Reason.MALFORMED), is(FallbackPostMapper.Destination.IGNORE_MALFORMED));
+    public void testMalformedRoutesToIgnoreMalformedInNonColumnarMode() {
+        assertThat(
+            FallbackPostMapper.route(FallbackPostMapper.Reason.MALFORMED, false),
+            is(FallbackPostMapper.Destination.IGNORE_MALFORMED)
+        );
+    }
+
+    /** In strict-columnar mode, malformed values share the ._on_failure column with multi-value violations. */
+    public void testMalformedRoutesToOnFailureInStrictColumnarMode() {
+        assertThat(FallbackPostMapper.route(FallbackPostMapper.Reason.MALFORMED, true), is(FallbackPostMapper.Destination.ON_FAILURE));
     }
 
     public void testMultiValueViolationRoutesToOnFailure() {
         assertThat(
-            FallbackPostMapper.route(FallbackPostMapper.Reason.MULTI_VALUE_VIOLATION),
+            FallbackPostMapper.route(FallbackPostMapper.Reason.MULTI_VALUE_VIOLATION, randomBoolean()),
             is(FallbackPostMapper.Destination.ON_FAILURE)
         );
     }
@@ -32,10 +40,11 @@ public class FallbackPostMapperTests extends ESTestCase {
         EnumSet<FallbackPostMapper.Reason> ignoredSourceReasons = EnumSet.complementOf(
             EnumSet.of(FallbackPostMapper.Reason.MALFORMED, FallbackPostMapper.Reason.MULTI_VALUE_VIOLATION)
         );
+        boolean strictColumnar = randomBoolean();
         for (FallbackPostMapper.Reason reason : ignoredSourceReasons) {
             assertThat(
                 "Expected IGNORED_SOURCE for reason " + reason,
-                FallbackPostMapper.route(reason),
+                FallbackPostMapper.route(reason, strictColumnar),
                 is(FallbackPostMapper.Destination.IGNORED_SOURCE)
             );
         }
@@ -116,6 +125,38 @@ public class FallbackPostMapperTests extends ESTestCase {
     public void testNoConditionMatchesReturnsEmpty() {
         var fc = ctx().build();
         assertNull(FallbackPostMapper.resolvePrecaptureReason(fc));
+    }
+
+    /**
+     * The columnar batch path decides what to leave to the row path with {@link FallbackPostMapper#capturesScalarValues} and
+     * {@link FallbackPostMapper#mayKeepArraySource} instead of building a {@code FieldContext}. Over every combination of inputs,
+     * whatever {@link FallbackPostMapper#resolvePrecaptureReason} captures, they must report as captured, so the two cannot drift.
+     */
+    public void testBatchPredicatesCoverEveryRowPathCapture() {
+        for (boolean syntheticFallback : new boolean[] { false, true }) {
+            for (Mapper.SourceKeepMode mode : Mapper.SourceKeepMode.values()) {
+                for (boolean inArrayScope : new boolean[] { false, true }) {
+                    for (boolean parsesArrayValue : new boolean[] { false, true }) {
+                        var fc = ctx().syntheticFallback(syntheticFallback)
+                            .sourceKeepMode(mode)
+                            .inArrayScope(inArrayScope)
+                            .parsesArrayValue(parsesArrayValue)
+                            .build();
+                        String description = fc.toString();
+                        FallbackPostMapper.Reason reason = FallbackPostMapper.resolvePrecaptureReason(fc);
+                        if (reason != null && inArrayScope == false) {
+                            assertTrue(description, FallbackPostMapper.capturesScalarValues(syntheticFallback, mode));
+                        }
+                        if (reason != null) {
+                            assertTrue(description, FallbackPostMapper.mayKeepArraySource(syntheticFallback, mode));
+                        }
+                        if (FallbackPostMapper.capturesScalarValues(syntheticFallback, mode)) {
+                            assertNotNull(description, reason);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private static Builder ctx() {

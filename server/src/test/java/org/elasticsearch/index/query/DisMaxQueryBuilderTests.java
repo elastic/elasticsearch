@@ -14,8 +14,8 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryVisitor;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -47,14 +47,18 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
         disMaxQueryBuilder.add(queryBuilder);
         int innerQueries = randomIntBetween(0, 2);
         for (int i = 0; i < innerQueries; i++) {
-            disMaxQueryBuilder.add(randomBoolean() ? queryBuilder : new MatchAllQueryBuilder());
+            disMaxQueryBuilder.add(randomBoolean() ? queryBuilder : createInnerQuery());
         }
         return disMaxQueryBuilder;
     }
 
     @Override
     protected void doAssertLuceneQuery(DisMaxQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
-        Collection<Query> queries = AbstractQueryBuilder.toQueries(queryBuilder.innerQueries(), context, QueryVisitor.EMPTY_VISITOR);
+        Collection<Query> queries = AbstractQueryBuilder.toQueries(
+            queryBuilder.innerQueries(),
+            context,
+            new MaxClauseCountQueryVisitor(Integer.MAX_VALUE)
+        );
         Query expected = new DisjunctionMaxQuery(queries, queryBuilder.tieBreaker());
         assertEquals(expected, query);
     }

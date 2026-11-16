@@ -33,6 +33,10 @@ import java.util.regex.Pattern;
  * by a dictionary of size D, this reduces regex work from N calls down to D — typically a 10–50x
  * reduction on Lucene keyword columns where doc-value ordinals naturally deduplicate.
  * <p>
+ * If {@code regex}/{@code newStr} additionally match {@link ReplaceCaptureUntilDelimiter}'s idiom, the
+ * (nullable) {@code idiom} passed in replaces the real regex engine with that class's byte-scan fast
+ * path for every entry processed here -- in both the dictionary path and the per-row fallback below.
+ * <p>
  * The fast-path is correctness-equivalent to the per-row path because:
  * <ul>
  *   <li>REPLACE is a pure function of its inputs, so {@code f(input)} is the same regardless of how many
@@ -40,9 +44,9 @@ import java.util.regex.Pattern;
  *   <li>Dictionary entries are never null (the {@link BytesRefVector} contract), so the row-level
  *       null-out logic from the per-row path doesn't apply here — nulls are already represented in
  *       the ordinals {@link IntBlock} and carried over unchanged.</li>
- *   <li>If {@link Replace#process} throws {@link IllegalArgumentException} (result-too-large) for any
- *       dictionary entry, we abandon the dictionary path for this page and fall back to per-row
- *       evaluation. The fallback emits warnings exactly as the existing per-row path does.</li>
+ *   <li>If processing throws {@link IllegalArgumentException} (result-too-large) for any dictionary
+ *       entry, we abandon the dictionary path for this page and fall back to per-row evaluation. The
+ *       fallback emits warnings exactly as the existing per-row path does.</li>
  * </ul>
  * <p>
  * The dictionary path is gated by {@link OrdinalBytesRefBlock#isDense()} and a no-multi-value check;
@@ -63,6 +67,7 @@ final class ReplaceConstantOrdinalEvaluator implements ExpressionEvaluator {
     private final Pattern regex;
     private final byte[] literalPrefix;
     private final BytesRef newStr;
+    private final ReplaceCaptureUntilDelimiter.Idiom idiom;
     private final DriverContext driverContext;
     private Warnings warnings;
 
@@ -72,6 +77,7 @@ final class ReplaceConstantOrdinalEvaluator implements ExpressionEvaluator {
         Pattern regex,
         byte[] literalPrefix,
         BytesRef newStr,
+        ReplaceCaptureUntilDelimiter.Idiom idiom,
         DriverContext driverContext
     ) {
         this.source = source;
@@ -79,7 +85,13 @@ final class ReplaceConstantOrdinalEvaluator implements ExpressionEvaluator {
         this.regex = regex;
         this.literalPrefix = literalPrefix;
         this.newStr = newStr;
+        this.idiom = idiom;
         this.driverContext = driverContext;
+    }
+
+    /** Replaces {@code entry} with either the idiom fast path or the real regex engine, whichever applies. */
+    private BytesRef processEntry(BytesRef entry) {
+        return idiom != null ? ReplaceCaptureUntilDelimiter.process(entry, idiom) : Replace.process(entry, regex, literalPrefix, newStr);
     }
 
     @Override
@@ -113,7 +125,7 @@ final class ReplaceConstantOrdinalEvaluator implements ExpressionEvaluator {
                 BytesRef entry = dictionary.getBytesRef(i, scratch);
                 BytesRef replaced;
                 try {
-                    replaced = Replace.process(entry, regex, literalPrefix, newStr);
+                    replaced = processEntry(entry);
                 } catch (IllegalArgumentException e) {
                     // Bail to the per-row path so warnings are emitted from the row that triggered the failure
                     // (matching the legacy evaluator's behavior).
@@ -159,7 +171,7 @@ final class ReplaceConstantOrdinalEvaluator implements ExpressionEvaluator {
                 }
                 BytesRef strVal = strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch);
                 try {
-                    result.appendBytesRef(Replace.process(strVal, regex, literalPrefix, newStr));
+                    result.appendBytesRef(processEntry(strVal));
                 } catch (IllegalArgumentException e) {
                     warnings().registerException(e);
                     result.appendNull();
@@ -180,7 +192,16 @@ final class ReplaceConstantOrdinalEvaluator implements ExpressionEvaluator {
 
     @Override
     public String toString() {
-        return "ReplaceConstantOrdinalEvaluator[" + "str=" + str + ", regex=" + regex + ", newStr=" + newStr + "]";
+        return "ReplaceConstantOrdinalEvaluator["
+            + "str="
+            + str
+            + ", regex="
+            + regex
+            + ", newStr="
+            + newStr
+            + ", idiom="
+            + (idiom != null)
+            + "]";
     }
 
     @Override
@@ -201,23 +222,41 @@ final class ReplaceConstantOrdinalEvaluator implements ExpressionEvaluator {
         private final Pattern regex;
         private final byte[] literalPrefix;
         private final BytesRef newStr;
+        private final ReplaceCaptureUntilDelimiter.Idiom idiom;
 
-        Factory(Source source, ExpressionEvaluator.Factory str, Pattern regex, byte[] literalPrefix, BytesRef newStr) {
+        Factory(
+            Source source,
+            ExpressionEvaluator.Factory str,
+            Pattern regex,
+            byte[] literalPrefix,
+            BytesRef newStr,
+            ReplaceCaptureUntilDelimiter.Idiom idiom
+        ) {
             this.source = source;
             this.str = str;
             this.regex = regex;
             this.literalPrefix = literalPrefix;
             this.newStr = newStr;
+            this.idiom = idiom;
         }
 
         @Override
         public ReplaceConstantOrdinalEvaluator get(DriverContext context) {
-            return new ReplaceConstantOrdinalEvaluator(source, str.get(context), regex, literalPrefix, newStr, context);
+            return new ReplaceConstantOrdinalEvaluator(source, str.get(context), regex, literalPrefix, newStr, idiom, context);
         }
 
         @Override
         public String toString() {
-            return "ReplaceConstantOrdinalEvaluator[" + "str=" + str + ", regex=" + regex + ", newStr=" + newStr + "]";
+            return "ReplaceConstantOrdinalEvaluator["
+                + "str="
+                + str
+                + ", regex="
+                + regex
+                + ", newStr="
+                + newStr
+                + ", idiom="
+                + (idiom != null)
+                + "]";
         }
     }
 }

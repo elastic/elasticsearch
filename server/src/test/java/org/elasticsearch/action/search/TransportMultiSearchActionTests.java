@@ -55,10 +55,9 @@ import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancellationService;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
@@ -95,7 +94,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         Settings settings = Settings.builder().put("node.name", TransportMultiSearchActionTests.class.getSimpleName()).build();
         ActionFilters actionFilters = mock(ActionFilters.class);
         when(actionFilters.filters()).thenReturn(new ActionFilter[0]);
-        ThreadPool threadPool = new ThreadPool(settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
+        ThreadPool threadPool = new TestThreadPool(TransportMultiSearchActionTests.class.getSimpleName());
         try {
             TransportService transportService = new TransportService(
                 Settings.EMPTY,
@@ -147,7 +146,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                 System::nanoTime,
                 client,
                 DefaultProjectResolver.INSTANCE,
-                new NoopCircuitBreaker("test")
+                NoopCircuitBreaker.INSTANCE
             );
 
             PlainActionFuture<MultiSearchResponse> future = new PlainActionFuture<>();
@@ -164,7 +163,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         Settings settings = Settings.builder().put("node.name", TransportMultiSearchActionTests.class.getSimpleName()).build();
         ActionFilters actionFilters = mock(ActionFilters.class);
         when(actionFilters.filters()).thenReturn(new ActionFilter[0]);
-        ThreadPool threadPool = new ThreadPool(settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
+        ThreadPool threadPool = new TestThreadPool(TransportMultiSearchActionTests.class.getSimpleName());
         TransportService transportService = new TransportService(
             Settings.EMPTY,
             mock(Transport.class),
@@ -210,15 +209,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                 final Executor executorService = rarely() ? rarelyExecutor : commonExecutor;
                 executorService.execute(() -> {
                     counter.decrementAndGet();
-                    var response = SearchResponseUtils.emptyWithTotalHits(
-                        null,
-                        0,
-                        0,
-                        0,
-                        0L,
-                        ShardSearchFailure.EMPTY_ARRAY,
-                        SearchResponse.Clusters.EMPTY
-                    );
+                    var response = SearchResponseUtils.emptyWithTotalHits(null, 0, 0, 0, 0L, List.of(), SearchResponse.Clusters.EMPTY);
                     try {
                         listener.onResponse(response);
                     } finally {
@@ -241,7 +232,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
             System::nanoTime,
             client,
             DefaultProjectResolver.INSTANCE,
-            new NoopCircuitBreaker("test")
+            NoopCircuitBreaker.INSTANCE
         );
 
         // Execute the multi search api and fail if we find an error after executing:
@@ -499,6 +490,20 @@ public class TransportMultiSearchActionTests extends ESTestCase {
             );
         } finally {
             withAggs.decRef();
+        }
+    }
+
+    public void testEstimateHitsSkippedWhenCoordinatorFetchChargePresent() throws Exception {
+        SearchHit hit = new SearchHit(0, "id");
+        hit.sourceRef(new BytesArray(new byte[5120]));
+        SearchResponse response = responseWithCoordinatorFetchCharge(hit);
+        try {
+            assertThat(
+                TransportMultiSearchAction.estimateActualBytes(response),
+                equalTo(TransportMultiSearchAction.BASE_RESPONSE_OVERHEAD)
+            );
+        } finally {
+            response.decRef();
         }
     }
 
@@ -808,6 +813,19 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         assertThat(breaker.totalReserved(), equalTo(incrementalBytes));
     }
 
+    public void testBreakerSkipsHitsHeldByCoordinatorFetchCharge() throws Exception {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1);
+        int numRequests = 3;
+        runMsearchWithBreaker(breaker, numRequests, () -> {
+            SearchHit hit = new SearchHit(0, "id");
+            hit.sourceRef(new BytesArray(new byte[5120]));
+            return responseWithCoordinatorFetchCharge(hit);
+        });
+        // The fetch charge already covers the hits, so only the response overhead is reserved.
+        assertThat(breaker.totalReserved(), equalTo(TransportMultiSearchAction.BASE_RESPONSE_OVERHEAD * numRequests));
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
     public void testBreakerReleasesHandoffOnCircuitBreak() throws Exception {
         long handoffBytes = 1024L;
         TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(1); // CBE on the first reservation call
@@ -948,6 +966,17 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         return response;
     }
 
+    private static SearchResponse responseWithCoordinatorFetchCharge(SearchHit... hits) {
+        SearchHits searchHits = new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 1f);
+        SearchResponseSections sections = new SearchResponseSections(searchHits, null, null, false, null, null, 1, null);
+        sections.adoptCoordinatorFetchCharge(() -> {});
+        try {
+            return new SearchResponse(sections, null, 1, 1, 0, 0, List.of(), SearchResponse.Clusters.EMPTY, null, null, null);
+        } finally {
+            sections.close();
+        }
+    }
+
     private void runMsearchWithBreaker(TrackingCircuitBreaker breaker, int numRequests, Supplier<SearchResponse> responseSupplier)
         throws Exception {
         runMsearchWithBreaker(breaker, numRequests, responseSupplier, null, null, null);
@@ -986,7 +1015,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         Settings settings = Settings.builder().put("node.name", "msearch-breaker-test").build();
         ActionFilters actionFilters = mock(ActionFilters.class);
         when(actionFilters.filters()).thenReturn(new ActionFilter[0]);
-        ThreadPool threadPool = new ThreadPool(settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
+        ThreadPool threadPool = new TestThreadPool(TransportMultiSearchActionTests.class.getSimpleName());
         MockTransportService transportService = MockTransportService.createNewService(
             Settings.EMPTY,
             VersionInformation.CURRENT,

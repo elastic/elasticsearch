@@ -60,9 +60,12 @@ public class RankVectorsFieldMapper extends FieldMapper {
     public static final String VECTOR_MAGNITUDES_SUFFIX = "._magnitude";
     public static final String CONTENT_TYPE = "rank_vectors";
 
-    private static RankVectorsFieldMapper toType(FieldMapper in) {
-        return (RankVectorsFieldMapper) in;
-    }
+    /**
+     * Maximum number of vectors accepted in a single rank vectors value, whether it is a document's field value or a
+     * max-sim query vector. Some late-interaction models emit up to this many vectors for one piece of text:
+     * Jina-ColBERT-v2, for instance, produces one vector per token over an 8192 token context.
+     */
+    public static final int MAX_VECTORS = 8192;
 
     public static class Builder extends FieldMapper.Builder {
 
@@ -79,7 +82,6 @@ public class RankVectorsFieldMapper extends FieldMapper {
                 }
                 return elementType;
             },
-            m -> toType(m).fieldType().element.elementType(),
             XContentBuilder::field,
             Objects::toString
         );
@@ -92,7 +94,7 @@ public class RankVectorsFieldMapper extends FieldMapper {
             }
 
             return XContentMapValues.nodeIntegerValue(o);
-        }, m -> toType(m).fieldType().dims, XContentBuilder::field, Objects::toString).setSerializerCheck((id, ic, v) -> v != null)
+        }, XContentBuilder::field, Objects::toString).setSerializerCheck((id, ic, v) -> v != null)
             .setMergeValidator((previous, current, c) -> previous == null || Objects.equals(previous, current))
             .addValidator(dims -> {
                 if (dims == null) {
@@ -129,6 +131,19 @@ public class RankVectorsFieldMapper extends FieldMapper {
             return this;
         }
 
+        /**
+         * Sets dimensions inferred from a Document.  Throws an exception if dimensions have been
+         * previously set to a different value.
+         */
+        public void dimensionsFromDocument(int dimensions) {
+            if (dims.isSet() && Objects.equals(dims.getValue(), dimensions) == false) {
+                throw new IllegalArgumentException(
+                    "Field [" + leafName() + "] of type [" + CONTENT_TYPE + "] cannot be indexed with vectors of different dimensions"
+                );
+            }
+            dimensions(dimensions);
+        }
+
         @Override
         protected Parameter<?>[] getParameters() {
             return new Parameter<?>[] { elementType, dims, meta };
@@ -159,7 +174,6 @@ public class RankVectorsFieldMapper extends FieldMapper {
                     meta.getValue()
                 ),
                 builderParams(this, context),
-                indexCreatedVersion,
                 licenseState,
                 isExcludeSourceVectorsFinal
             );
@@ -262,7 +276,6 @@ public class RankVectorsFieldMapper extends FieldMapper {
         }
     }
 
-    private final IndexVersion indexCreatedVersion;
     private final XPackLicenseState licenseState;
     private final boolean isExcludeSourceVectors;
 
@@ -270,12 +283,10 @@ public class RankVectorsFieldMapper extends FieldMapper {
         String simpleName,
         MappedFieldType fieldType,
         BuilderParams params,
-        IndexVersion indexCreatedVersion,
         XPackLicenseState licenseState,
         boolean isExcludeSourceVectors
     ) {
         super(simpleName, fieldType, params);
-        this.indexCreatedVersion = indexCreatedVersion;
         this.licenseState = licenseState;
         this.isExcludeSourceVectors = isExcludeSourceVectors;
     }
@@ -314,8 +325,12 @@ public class RankVectorsFieldMapper extends FieldMapper {
         }
         if (fieldType().dims == null) {
             int currentDims = -1;
+            int vectorCount = 0;
             while (XContentParser.Token.END_ARRAY != context.parser().nextToken()) {
                 int dims = fieldType().element.parseDimensionCount(context);
+                if (++vectorCount > MAX_VECTORS) {
+                    throw tooManyVectors();
+                }
                 if (currentDims == -1) {
                     currentDims = dims;
                 } else if (currentDims != dims) {
@@ -324,9 +339,17 @@ public class RankVectorsFieldMapper extends FieldMapper {
                     );
                 }
             }
-            var builder = (Builder) getMergeBuilder();
-            builder.dimensions(currentDims);
-            context.addDynamicMapper(builder, fullPath());
+            if (currentDims == -1) {
+                throw new IllegalArgumentException(
+                    "Field ["
+                        + fullPath()
+                        + "] of type ["
+                        + typeName()
+                        + "] requires at least one vector; use null to indicate a missing value"
+                );
+            }
+            final int dims = currentDims;
+            context.updateMapping(fullPath(), builder -> ((Builder) builder).dimensionsFromDocument(dims));
             return ParseResult.INDEXED;
         }
         int dims = fieldType().dims;
@@ -341,6 +364,14 @@ public class RankVectorsFieldMapper extends FieldMapper {
                 }
             }, null);
             vectors.add(vector);
+            if (vectors.size() > MAX_VECTORS) {
+                throw tooManyVectors();
+            }
+        }
+        if (vectors.isEmpty()) {
+            throw new IllegalArgumentException(
+                "Field [" + fullPath() + "] of type [" + typeName() + "] requires at least one vector; use null to indicate a missing value"
+            );
         }
         int bufferSize = element.getNumBytes(dims) * vectors.size();
         ByteBuffer buffer = ByteBuffer.allocate(bufferSize).order(ByteOrder.LITTLE_ENDIAN);
@@ -358,6 +389,18 @@ public class RankVectorsFieldMapper extends FieldMapper {
                 new BinaryDocValuesField(vectorMagnitudeFieldName, new BytesRef(magnitudeBuffer.array()))
             );
         return ParseResult.INDEXED;
+    }
+
+    private IllegalArgumentException tooManyVectors() {
+        return new IllegalArgumentException(
+            "Field ["
+                + fullPath()
+                + "] of type ["
+                + typeName()
+                + "] cannot be indexed with more than ["
+                + MAX_VECTORS
+                + "] vectors in a single document"
+        );
     }
 
     private void checkDimensionExceeded(int index, DocumentParserContext context) {
@@ -404,11 +447,6 @@ public class RankVectorsFieldMapper extends FieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexCreatedVersion, licenseState, isExcludeSourceVectors).init(this);
     }
 
     @Override
@@ -461,12 +499,10 @@ public class RankVectorsFieldMapper extends FieldMapper {
             ByteBuffer byteBuffer = ByteBuffer.wrap(ref.bytes, ref.offset, ref.length).order(ByteOrder.LITTLE_ENDIAN);
             assert ref.length % fieldType().element.getNumBytes(fieldType().dims) == 0;
             int numVecs = ref.length / fieldType().element.getNumBytes(fieldType().dims);
+            int vectorLength = fieldType().element.elementType().vectorLength(fieldType().dims);
             for (int i = 0; i < numVecs; i++) {
                 b.startArray();
-                int dims = fieldType().element.elementType() == DenseVectorFieldMapper.ElementType.BIT
-                    ? fieldType().dims / Byte.SIZE
-                    : fieldType().dims;
-                for (int dim = 0; dim < dims; dim++) {
+                for (int j = 0; j < vectorLength; j++) {
                     fieldType().element.readAndWriteValue(byteBuffer, b);
                 }
                 b.endArray();
@@ -486,29 +522,26 @@ public class RankVectorsFieldMapper extends FieldMapper {
             assert ref.length % fieldType().element.getNumBytes(fieldType().dims) == 0;
             int numVecs = ref.length / fieldType().element.getNumBytes(fieldType().dims);
             List<List<?>> vectors = new ArrayList<>(numVecs);
+            int vectorLength = fieldType().element.elementType().vectorLength(fieldType().dims);
             for (int i = 0; i < numVecs; i++) {
-                int dims = fieldType().element.elementType() == DenseVectorFieldMapper.ElementType.BIT
-                    ? fieldType().dims / Byte.SIZE
-                    : fieldType().dims;
-
                 switch (fieldType().element.elementType()) {
                     case FLOAT -> {
-                        List<Float> vec = new ArrayList<>(dims);
-                        for (int dim = 0; dim < dims; dim++) {
+                        List<Float> vec = new ArrayList<>(vectorLength);
+                        for (int j = 0; j < vectorLength; j++) {
                             vec.add(byteBuffer.getFloat());
                         }
                         vectors.add(vec);
                     }
                     case BFLOAT16 -> {
-                        List<Float> vec = new ArrayList<>(dims);
-                        for (int dim = 0; dim < dims; dim++) {
+                        List<Float> vec = new ArrayList<>(vectorLength);
+                        for (int j = 0; j < vectorLength; j++) {
                             vec.add(BFloat16.bFloat16ToFloat(byteBuffer.getShort()));
                         }
                         vectors.add(vec);
                     }
                     case BYTE, BIT -> {
-                        List<Byte> vec = new ArrayList<>(dims);
-                        for (int dim = 0; dim < dims; dim++) {
+                        List<Byte> vec = new ArrayList<>(vectorLength);
+                        for (int j = 0; j < vectorLength; j++) {
                             vec.add(byteBuffer.get());
                         }
                         vectors.add(vec);

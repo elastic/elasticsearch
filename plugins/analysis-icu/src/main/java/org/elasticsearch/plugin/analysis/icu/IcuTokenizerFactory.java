@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenizerFactory;
+import org.elasticsearch.index.analysis.Analysis;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -36,11 +37,23 @@ import java.util.stream.Collectors;
 public class IcuTokenizerFactory extends AbstractTokenizerFactory {
 
     private final ICUTokenizerConfig config;
+    private final Object sharingKey;
     private static final String RULE_FILES = "rule_files";
 
     public IcuTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
-        config = getIcuConfig(environment, settings);
+        try {
+            Map<Integer, String> rulesByScript = readRules(environment, settings);
+            config = buildConfig(rulesByScript);
+            // The rules can be large, so a SHA-256 of each script's rules stands in for them.
+            this.sharingKey = new Key(
+                rulesByScript.entrySet()
+                    .stream()
+                    .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> Analysis.sha256Hex(e.getValue())))
+            );
+        } catch (Exception e) {
+            throw new ElasticsearchException("failed to load ICU rule files", e);
+        }
     }
 
     @Override
@@ -52,56 +65,60 @@ public class IcuTokenizerFactory extends AbstractTokenizerFactory {
         }
     }
 
-    private static ICUTokenizerConfig getIcuConfig(Environment env, Settings settings) {
+    // the RBBI rules of each tailored script, by script code
+    private static Map<Integer, String> readRules(Environment env, Settings settings) throws IOException {
         Map<Integer, String> tailored = new HashMap<>();
+        List<String> ruleFiles = settings.getAsList(RULE_FILES);
 
-        try {
-            List<String> ruleFiles = settings.getAsList(RULE_FILES);
-
-            for (String scriptAndResourcePath : ruleFiles) {
-                int colonPos = scriptAndResourcePath.indexOf(':');
-                if (colonPos == -1 || colonPos == scriptAndResourcePath.length() - 1) {
-                    throw new IllegalArgumentException(RULE_FILES + " should contain comma-separated \"code:rulefile\" pairs");
-                }
-
-                String scriptCode = scriptAndResourcePath.substring(0, colonPos).trim();
-                String resourcePath = scriptAndResourcePath.substring(colonPos + 1).trim();
-                tailored.put(UCharacter.getPropertyValueEnum(UProperty.SCRIPT, scriptCode), resourcePath);
+        for (String scriptAndResourcePath : ruleFiles) {
+            int colonPos = scriptAndResourcePath.indexOf(':');
+            if (colonPos == -1 || colonPos == scriptAndResourcePath.length() - 1) {
+                throw new IllegalArgumentException(RULE_FILES + " should contain comma-separated \"code:rulefile\" pairs");
             }
 
-            if (tailored.isEmpty()) {
-                return null;
-            } else {
-                final BreakIterator breakers[] = new BreakIterator[UScript.CODE_LIMIT];
-                for (Map.Entry<Integer, String> entry : tailored.entrySet()) {
-                    int code = entry.getKey();
-                    String resourcePath = entry.getValue();
-                    breakers[code] = parseRules(resourcePath, env);
-                }
-                // cjkAsWords nor myanmarAsWords are not configurable yet.
-                ICUTokenizerConfig tokenizerConfig = new DefaultICUTokenizerConfig(true, true) {
-                    @Override
-                    public RuleBasedBreakIterator getBreakIterator(int script) {
-                        if (breakers[script] != null) {
-                            return (RuleBasedBreakIterator) breakers[script].clone();
-                        } else {
-                            return super.getBreakIterator(script);
-                        }
-                    }
-                };
-                return tokenizerConfig;
-            }
-        } catch (Exception e) {
-            throw new ElasticsearchException("failed to load ICU rule files", e);
+            String scriptCode = scriptAndResourcePath.substring(0, colonPos).trim();
+            String resourcePath = scriptAndResourcePath.substring(colonPos + 1).trim();
+            tailored.put(UCharacter.getPropertyValueEnum(UProperty.SCRIPT, scriptCode), resourcePath);
         }
+
+        Map<Integer, String> rulesByScript = new HashMap<>();
+        for (Map.Entry<Integer, String> entry : tailored.entrySet()) {
+            rulesByScript.put(entry.getKey(), readRuleFile(entry.getValue(), env));
+        }
+        return rulesByScript;
     }
 
-    // parse a single RBBi rule file
-    private static BreakIterator parseRules(String filename, Environment env) throws IOException {
+    private static ICUTokenizerConfig buildConfig(Map<Integer, String> rulesByScript) {
+        if (rulesByScript.isEmpty()) {
+            return null;
+        }
+        final BreakIterator breakers[] = new BreakIterator[UScript.CODE_LIMIT];
+        for (Map.Entry<Integer, String> entry : rulesByScript.entrySet()) {
+            breakers[entry.getKey()] = new RuleBasedBreakIterator(entry.getValue());
+        }
+        // cjkAsWords nor myanmarAsWords are not configurable yet.
+        return new DefaultICUTokenizerConfig(true, true) {
+            @Override
+            public RuleBasedBreakIterator getBreakIterator(int script) {
+                if (breakers[script] != null) {
+                    return (RuleBasedBreakIterator) breakers[script].clone();
+                } else {
+                    return super.getBreakIterator(script);
+                }
+            }
+        };
+    }
 
+    // read a single RBBi rule file, without its comments
+    private static String readRuleFile(String filename, Environment env) throws IOException {
         final Path path = env.configDir().resolve(filename);
-        String rules = Files.readAllLines(path).stream().filter((v) -> v.startsWith("#") == false).collect(Collectors.joining("\n"));
-
-        return new RuleBasedBreakIterator(rules.toString());
+        return Files.readAllLines(path).stream().filter((v) -> v.startsWith("#") == false).collect(Collectors.joining("\n"));
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(Map<Integer, String> rulesSha256ByScript) {}
 }

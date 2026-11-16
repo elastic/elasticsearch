@@ -20,10 +20,12 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.inference.InferenceString.URL_INPUT_FORMAT_SUPPORT_ADDED;
 import static org.elasticsearch.inference.InferenceStringTests.TEST_DATA_URI;
 import static org.elasticsearch.inference.RerankRequest.SUPPORTED_RERANK_DATA_TYPES;
 import static org.hamcrest.Matchers.anEmptyMap;
@@ -244,7 +246,7 @@ public class RerankRequestTests extends AbstractBWCSerializationTestCase<RerankR
                 "input": {"type":"%s", "value":"%s"},
                 "query": "%s"
             }
-            """, unsupportedDataType, TEST_DATA_URI, QUERY_TEXT);
+            """, unsupportedDataType, InferenceStringTests.convertToDataURIIfNeeded(unsupportedDataType, null, "abcd"), QUERY_TEXT);
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
             var exception = expectThrows(XContentParseException.class, () -> RerankRequest.PARSER.apply(parser, null));
             assertThat(exception.getMessage(), containsString("[RerankRequest] failed to parse field [input]"));
@@ -267,7 +269,7 @@ public class RerankRequestTests extends AbstractBWCSerializationTestCase<RerankR
                 "input": "%s",
                 "query": {"type":"%s", "value":"%s"}
             }
-            """, INPUT_TEXT, unsupportedDataType, TEST_DATA_URI);
+            """, INPUT_TEXT, unsupportedDataType, InferenceStringTests.convertToDataURIIfNeeded(unsupportedDataType, null, "abcd"));
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
             var exception = expectThrows(XContentParseException.class, () -> RerankRequest.PARSER.apply(parser, null));
             assertThat(exception.getMessage(), containsString("[RerankRequest] failed to parse field [query]"));
@@ -281,6 +283,15 @@ public class RerankRequestTests extends AbstractBWCSerializationTestCase<RerankR
                 )
             );
         }
+    }
+
+    /**
+     * Versions before {@link InferenceString#URL_INPUT_FORMAT_SUPPORT_ADDED} throw an exception when serializing URL-format
+     * inputs, so we filter those out of the bwc versions to avoid test failures.
+     */
+    @Override
+    protected Collection<TransportVersion> bwcVersions() {
+        return super.bwcVersions().stream().filter(version -> version.supports(URL_INPUT_FORMAT_SUPPORT_ADDED)).toList();
     }
 
     @Override

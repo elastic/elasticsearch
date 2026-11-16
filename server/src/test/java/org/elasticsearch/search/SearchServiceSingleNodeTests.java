@@ -149,7 +149,6 @@ import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
@@ -3438,7 +3437,6 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             new FetchPhase(Collections.emptyList()),
             getInstanceFromNode(CircuitBreakerService.class),
             getInstanceFromNode(ExecutorSelector.class),
-            Tracer.NOOP,
             OnlinePrewarmingService.NOOP,
             getInstanceFromNode(TransportService.class).getTaskManager()
         );

@@ -733,7 +733,8 @@ public final class ParallelParsingCoordinator {
         // thread that already carries the read's StorageRetryCancellation scope. The walks read that scope
         // through StorageRetryCancellation::isCancelled; they do not install a nested one, which would
         // replace the read's live signal. A probe parked in retry/throttle backoff still sees the same
-        // signal through the ambient scope.
+        // signal through the ambient scope. The cancel reason names this read, not split discovery: the probe
+        // is shared with planning and does not know which phase called it.
         List<Long> boundaries;
         if (strided) {
             // The offsets of a nominal-size grid, resumed from each boundary rather than walked blind. Both
@@ -750,7 +751,8 @@ public final class ParallelParsingCoordinator {
                 nominalSize,
                 minSegment,
                 maxRecordBytes,
-                StorageRetryCancellation::isCancelled
+                StorageRetryCancellation::isCancelled,
+                RecordBoundaryProbe.READ_CANCELLED_MESSAGE
             );
         } else {
             boundaries = RecordBoundaryProbe.provenBoundaries(
@@ -759,7 +761,8 @@ public final class ParallelParsingCoordinator {
                 fileLength,
                 nominalSize,
                 minSegment,
-                StorageRetryCancellation::isCancelled
+                StorageRetryCancellation::isCancelled,
+                RecordBoundaryProbe.READ_CANCELLED_MESSAGE
             ).boundaries();
         }
 

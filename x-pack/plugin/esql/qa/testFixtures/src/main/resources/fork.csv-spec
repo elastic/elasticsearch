@@ -1341,7 +1341,9 @@ required_capability: inline_stats
 // Regression test for https://github.com/elastic/elasticsearch/issues/148386
 // The sorted column z is unused after FORK. Filtering on _fork used to fail with a ClassCastException
 // because a BytesRef block was read as an IntBlock. Reproducing it needs the extra columns that URI_PARTS adds.
+// A null first_name puts the row in a null x.fragment group with z != 10001, so the unsorted LIMIT 1 must only see non-null names.
 from employees
+| where first_name is not null
 | eval title = concat("https://example.com/", first_name, "#frag")
 | uri_parts x = title
 | rename gender AS ver

@@ -167,7 +167,7 @@ public class MockSearchPhaseContext extends AbstractSearchAsyncAction<SearchPhas
                 0,
                 0,
                 failures,
-                List.copyOf(phaseFailures),
+                phaseFailures,
                 SearchResponse.Clusters.EMPTY,
                 searchContextId,
                 null,

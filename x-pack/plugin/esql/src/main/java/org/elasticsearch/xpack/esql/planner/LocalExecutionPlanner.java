@@ -946,7 +946,7 @@ public class LocalExecutionPlanner {
             new OutputOperatorFactory(
                 Expressions.names(output),
                 alignPageToAttributes(output, source.layout),
-                outputExec.getPageConsumer()
+                outputExec.getPageConsumerFactory()
             ),
             source.layout
         );
@@ -1728,7 +1728,8 @@ public class LocalExecutionPlanner {
         PhysicalOperation source = plan(join.left(), context);
         int positionsChannel = source.layout.numberOfChannels();
         LocalSourceExec localSourceExec = (LocalSourceExec) join.joinData();
-        Page localData = localSourceExec.supplier().get();
+        // The lookup operators copy the blocks they keep into each driver's breaker-tracked block factory
+        Page localData = localSourceExec.supplier().peek();
 
         // see {@link Mapper#JOIN_MARKER_PREFIX}
         Attribute marker = null;

@@ -27,6 +27,7 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
+import org.elasticsearch.common.breaker.TrackingCircuitBreaker;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
@@ -38,6 +39,8 @@ import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.lucene.search.cost.QueryCacheEntryCostEstimator;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.Closeable;
@@ -433,6 +436,60 @@ public class IndicesQueryCacheTests extends ESTestCase {
         cache.onClose(shard);
         cache.close();
         return cacheCount;
+    }
+
+    /**
+     * Before building an entry the cache asks the search to reserve the heap the entry takes, sized like Lucene sizes the entry, on
+     * the circuit breaker of the {@link ContextIndexSearcher} running it. The searcher is a real one, so what reaches the cache is the
+     * weight it wraps queries in for exactly this purpose. A granted reservation populates the cache; a refused one leaves the cache as
+     * it was while the search still gets its hits, from an uncached scorer.
+     */
+    public void testCachePopulationIsChargedToTheSearchersBreaker() throws IOException {
+        final int docs = randomIntBetween(1, 1000);
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig());
+        for (int i = 0; i < docs; i++) {
+            w.addDocument(new Document());
+        }
+        w.forceMerge(1);
+        DirectoryReader r = DirectoryReader.open(w);
+        w.close();
+        ShardId shard = new ShardId("index", "_na_", 0);
+        r = ElasticsearchDirectoryReader.wrap(r, shard);
+
+        Settings settings = Settings.builder()
+            .put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING.getKey(), 10)
+            .put(IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), true)
+            .build();
+        IndicesQueryCache cache = new IndicesQueryCache(settings);
+        ContextIndexSearcher s = new ContextIndexSearcher(
+            r,
+            IndexSearcher.getDefaultSimilarity(),
+            cache,
+            TrivialQueryCachingPolicy.ALWAYS,
+            false
+        );
+
+        // DummyQuery reports a cost of maxDoc, so Lucene builds a dense entry and that is what the search is asked to reserve
+        final int maxDoc = r.leaves().get(0).reader().maxDoc();
+        final long denseBytes = new QueryCacheEntryCostEstimator(maxDoc, maxDoc).estimate();
+
+        TrackingCircuitBreaker refusing = new TrackingCircuitBreaker(denseBytes - 1);
+        s.setCircuitBreaker(refusing);
+        assertEquals(docs, s.count(new DummyQuery(0)));
+        assertEquals("a refused reservation leaves the cache as it was", 0L, cache.getStats(shard, () -> 0L).getCacheCount());
+        assertEquals("a refused reservation leaves nothing on the breaker", 0L, refusing.getUsed());
+
+        TrackingCircuitBreaker granting = new TrackingCircuitBreaker(denseBytes);
+        s.setCircuitBreaker(granting);
+        assertEquals(docs, s.count(new DummyQuery(1)));
+        assertEquals(1L, cache.getStats(shard, () -> 0L).getCacheCount());
+        assertEquals("the entry is reserved at the size Lucene builds it", denseBytes, granting.peak());
+        assertEquals("the reservation is released once the search is done", 0L, granting.getUsed());
+
+        IOUtils.close(r, dir);
+        cache.onClose(shard);
+        cache.close();
     }
 
     public void testTwoShards() throws IOException {

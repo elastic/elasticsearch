@@ -71,8 +71,7 @@ public class StatelessRestoreStorageIT extends AbstractStatelessPluginIntegTestC
                                 decision -> decision.type() == Decision.Type.THROTTLE
                                     && SnapshotRestoreAllocationDecider.NAME.equals(decision.label())
                                     && decision.getExplanation() != null
-                                    && decision.getExplanation()
-                                        .startsWith(SnapshotRestoreAllocationDecider.EXPLANATION_INSUFFICIENT_DISK)
+                                    && decision.getExplanation().startsWith(SnapshotRestoreAllocationDecider.EXPLANATION_INSUFFICIENT_DISK)
                             )
                     )
             );

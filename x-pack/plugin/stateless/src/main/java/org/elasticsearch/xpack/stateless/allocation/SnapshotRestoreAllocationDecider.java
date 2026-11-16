@@ -56,22 +56,14 @@ public class SnapshotRestoreAllocationDecider extends AllocationDecider {
         }
         Long shardSize = allocation.snapshotShardSizeInfo().getShardSize(shard);
         if (shardSize == null) {
-            return allocation.decision(
-                allocation.isSimulating() ? Decision.NO : Decision.THROTTLE,
-                NAME,
-                EXPLANATION_SIZE_FETCHING
-            );
+            return allocation.decision(allocation.isSimulating() ? Decision.NO : Decision.THROTTLE, NAME, EXPLANATION_SIZE_FETCHING);
         }
         if (shardSize == ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE) {
             return allocation.decision(Decision.NO, NAME, EXPLANATION_SIZE_UNAVAILABLE);
         }
         var disk = allocation.clusterInfo().getNodeMostAvailableDiskUsages().get(node.nodeId());
         if (disk == null) {
-            return allocation.decision(
-                allocation.isSimulating() ? Decision.NO : Decision.THROTTLE,
-                NAME,
-                EXPLANATION_DISK_STATS_MISSING
-            );
+            return allocation.decision(allocation.isSimulating() ? Decision.NO : Decision.THROTTLE, NAME, EXPLANATION_DISK_STATS_MISSING);
         }
         // freeBytes does not yet reflect space that initializing shards on this node will occupy once
         // recovery finishes. Do not credit relocating-away shards: their files still use disk until deleted.

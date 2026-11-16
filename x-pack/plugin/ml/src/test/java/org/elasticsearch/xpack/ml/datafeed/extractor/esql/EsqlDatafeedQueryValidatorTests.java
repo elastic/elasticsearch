@@ -315,7 +315,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
     }
 
     public void testMintAccessSuccessShouldNotReleaseBorrowedResponse() {
-        RefCountedMintProbeResponse response = refCountedEmptyMintProbeResponse();
+        TestEsqlQueryResponse response = refCountedEmptyMintProbeResponse();
         ValidatorHarness harness = new ValidatorHarness(response);
 
         assertThat(response.hasReferences(), is(true));
@@ -891,7 +891,8 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             EsqlDatafeedQueryValidator.warnForConflictingOuterClauses(
                 "datafeed-1",
                 "FROM logs | WHERE ts >= 0 | SORT ts DESC | LIMIT 20",
-                TIME_FIELD
+                TIME_FIELD,
+                false
             );
 
             assertWarnings(
@@ -916,6 +917,26 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         }
     }
 
+    public void testOuterLimitShouldWarnAboutDelayedDataOnlyWhenTheCheckIsEnabled() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        HeaderWarning.setThreadContext(threadContext);
+        try {
+            EsqlDatafeedQueryValidator.warnForConflictingOuterClauses("datafeed-1", "FROM logs | LIMIT 20", TIME_FIELD, true);
+
+            assertWarnings(
+                false,
+                List.of(
+                    allOf(
+                        containsString("ES|QL datafeed [datafeed-1] query contains an outer LIMIT clause"),
+                        containsString("The delayed data check applies the LIMIT to the whole check window")
+                    )
+                )
+            );
+        } finally {
+            HeaderWarning.removeThreadContext(threadContext);
+        }
+    }
+
     public void testRawKeepAndLexicalFalsePositivesShouldNotWarn() {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         HeaderWarning.setThreadContext(threadContext);
@@ -926,7 +947,8 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
                     + "| EVAL triple_note = \"\"\"WHERE ts | SORT ts | LIMIT 20\"\"\" "
                     + "| KEEP `WHERE ts`, value /* WHERE ts | SORT ts | LIMIT 20 /* WHERE ts */ */ "
                     + "// WHERE ts | SORT ts | LIMIT 20\n | FORK (WHERE ts > 0 | SORT ts | LIMIT 20)",
-                TIME_FIELD
+                TIME_FIELD,
+                true
             );
 
             assertWarnings();
@@ -1012,6 +1034,86 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
 
     private EsqlQueryResponse buildResponse(List<ColumnInfo> columns) {
         return new TestEsqlQueryResponse(mockEsqlResponse(columns));
+    }
+
+    public void testRequiredColumnsProbeSuccessShouldNotReleaseBorrowedResponse() {
+        TestEsqlQueryResponse response = new TestEsqlQueryResponse(mockEsqlResponse(List.of(mockColumn(TIME_FIELD, "date"))));
+        ValidatorHarness harness = new ValidatorHarness(response);
+
+        assertThat(response.hasReferences(), is(true));
+        assertValidationSucceeds(harness.validator, ESQL_QUERY, null, TIME_FIELD, null);
+        assertThat(response.hasReferences(), is(false));
+    }
+
+    public void testRequiredColumnsProbeFailureShouldNotReleaseBorrowedResponse() {
+        TestEsqlQueryResponse response = new TestEsqlQueryResponse(mockEsqlResponse(List.of(mockColumn("other_field", "keyword"))));
+        ValidatorHarness harness = new ValidatorHarness(response);
+
+        assertThat(response.hasReferences(), is(true));
+        assertValidationFails(harness.validator, ESQL_QUERY, null, TIME_FIELD, null);
+        assertThat(response.hasReferences(), is(false));
+    }
+
+    public void testRequiredColumnsProbeListenerThrowsShouldNotReleaseBorrowedResponse() {
+        TestEsqlQueryResponse response = new TestEsqlQueryResponse(mockEsqlResponse(List.of(mockColumn(TIME_FIELD, "date"))));
+        ValidatorHarness harness = new ValidatorHarness(response);
+
+        assertThat(response.hasReferences(), is(true));
+        harness.validator.validateQuery(null, Collections.emptyMap(), ESQL_QUERY, null, TIME_FIELD, null, ActionListener.wrap(ok -> {
+            throw new IllegalStateException("listener failure");
+        }, e -> {}));
+        assertThat(response.hasReferences(), is(false));
+    }
+
+    public void testSourceTimeFieldProbeSuccessShouldNotReleaseBorrowedResponse() {
+        TestEsqlQueryResponse response = new TestEsqlQueryResponse(mockEsqlResponse(List.of(mockColumn("@timestamp", "date"))));
+        ValidatorHarness harness = new ValidatorHarness(response);
+        AtomicBoolean succeeded = new AtomicBoolean(false);
+
+        assertThat(response.hasReferences(), is(true));
+        harness.validator.validateSourceTimeField(
+            null,
+            Collections.emptyMap(),
+            ESQL_QUERY,
+            null,
+            "@timestamp",
+            ActionListener.wrap(ok -> succeeded.set(true), e -> fail("unexpected failure " + e)),
+            null
+        );
+
+        assertThat(succeeded.get(), is(true));
+        assertThat(response.hasReferences(), is(false));
+    }
+
+    public void testSourceTimeFieldProbeFailureShouldNotReleaseBorrowedResponse() {
+        TestEsqlQueryResponse response = new TestEsqlQueryResponse(mockEsqlResponse(List.of(mockColumn("@timestamp", "keyword"))));
+        ValidatorHarness harness = new ValidatorHarness(response);
+        AtomicReference<Exception> failure = new AtomicReference<>();
+
+        assertThat(response.hasReferences(), is(true));
+        harness.validator.validateSourceTimeField(
+            null,
+            Collections.emptyMap(),
+            ESQL_QUERY,
+            null,
+            "@timestamp",
+            ActionListener.wrap(ok -> fail("expected failure"), failure::set),
+            null
+        );
+
+        assertThat(failure.get(), notNullValue());
+        assertThat(response.hasReferences(), is(false));
+    }
+
+    public void testSourceTimeFieldProbeListenerThrowsShouldNotReleaseBorrowedResponse() {
+        TestEsqlQueryResponse response = new TestEsqlQueryResponse(mockEsqlResponse(List.of(mockColumn("@timestamp", "date"))));
+        ValidatorHarness harness = new ValidatorHarness(response);
+
+        assertThat(response.hasReferences(), is(true));
+        harness.validator.validateSourceTimeField(null, Collections.emptyMap(), ESQL_QUERY, null, "@timestamp", ActionListener.wrap(ok -> {
+            throw new IllegalStateException("listener failure");
+        }, e -> {}), null);
+        assertThat(response.hasReferences(), is(false));
     }
 
     public void testRemoteIndexShouldFailRemoteClusterSourceRejection() {
@@ -1163,25 +1265,27 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
                 capturedParams = params;
                 if (failure != null) {
                     listener.onFailure(failure);
-                } else if (response instanceof RefCounted refCounted) {
+                } else {
                     @SuppressWarnings("unchecked")
                     ActionListener<RefCounted> refCountedListener = (ActionListener<RefCounted>) (ActionListener<?>) listener;
-                    ActionListener.respondAndRelease(refCountedListener, refCounted);
-                } else {
-                    listener.onResponse(response);
+                    ActionListener.respondAndRelease(refCountedListener, response);
                 }
             });
         }
     }
 
-    private static RefCountedMintProbeResponse refCountedEmptyMintProbeResponse() {
-        return new RefCountedMintProbeResponse();
+    private static TestEsqlQueryResponse refCountedEmptyMintProbeResponse() {
+        return new TestEsqlQueryResponse(mock(EsqlResponse.class));
     }
 
-    private static final class RefCountedMintProbeResponse extends EsqlQueryResponse implements RefCounted {
+    private static final class TestEsqlQueryResponse extends EsqlQueryResponse implements RefCounted {
 
         private final AbstractRefCounted counted = AbstractRefCounted.of(() -> {});
-        private final EsqlResponse esqlResponse = mock(EsqlResponse.class);
+        private final EsqlResponse esqlResponse;
+
+        TestEsqlQueryResponse(EsqlResponse esqlResponse) {
+            this.esqlResponse = esqlResponse;
+        }
 
         @Override
         protected EsqlResponse responseInternal() {
@@ -1222,25 +1326,6 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         public void close() {
             super.close();
             decRef();
-        }
-    }
-
-    private static class TestEsqlQueryResponse extends EsqlQueryResponse {
-
-        private final EsqlResponse esqlResponse;
-
-        TestEsqlQueryResponse(EsqlResponse esqlResponse) {
-            this.esqlResponse = esqlResponse;
-        }
-
-        @Override
-        protected EsqlResponse responseInternal() {
-            return esqlResponse;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) {
-            throw new UnsupportedOperationException("not needed in tests");
         }
     }
 }

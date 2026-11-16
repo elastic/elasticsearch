@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.datasources.ColumnStatTypeSupport;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.Closeable;
 import java.util.ArrayList;
@@ -1909,6 +1910,34 @@ public class ExternalSourceCacheService implements Closeable {
         List<ListingCacheKey> matches = new ArrayList<>();
         for (ListingCacheKey key : listingStore.cache().keys()) {
             if (datasets.contains(List.of(key.scheme(), key.bucketOrContainer(), key.prefixAndGlob(), key.storageIdentity()))) {
+                matches.add(key);
+            }
+        }
+        for (ListingCacheKey key : matches) {
+            listingStore.cache().invalidate(key);
+        }
+    }
+
+    /**
+     * Drops every cached listing of the dataset at {@code location} for {@code storageIdentity}, so the next list of
+     * that prefix runs against the store. Hint variants and credential identities that share the scheme, bucket,
+     * prefix and storage identity all go: a deleted object is gone for every filter over that prefix. Another dataset
+     * or another endpoint that happens to share the bucket name keeps its listings.
+     */
+    public void invalidateListingsAt(StoragePath location, String storageIdentity) {
+        if (location == null) {
+            return;
+        }
+        String scheme = Objects.toString(location.scheme(), "");
+        String bucket = Objects.toString(location.host(), "");
+        String prefix = Objects.toString(location.path(), "");
+        String identity = Objects.toString(storageIdentity, "");
+        List<ListingCacheKey> matches = new ArrayList<>();
+        for (ListingCacheKey key : listingStore.cache().keys()) {
+            if (scheme.equals(key.scheme())
+                && bucket.equals(key.bucketOrContainer())
+                && prefix.equals(key.prefixAndGlob())
+                && identity.equals(key.storageIdentity())) {
                 matches.add(key);
             }
         }

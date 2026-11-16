@@ -109,8 +109,9 @@ class RelocationSourceShutdownTimeouts {
     /// [SearchRecoveryTimeout#extendable]. A re-evaluation of an equal-share plan (`previousPlan`) always yields an equal-share
     /// plan that only extends the wait by the time saved since then, regardless of which heuristic would win, see
     /// [SearchRecoveryTimeoutCalculationService#searchRecoveryTimeout].
-    /// When all shards fit in the target's recovery slots, nobody waits behind this one, so the extension is all the remaining grace.
-    SearchRecoveryTimeout relocationSourceShutdownTimeout(
+    /// When all shards fit in the target's recovery slots, nobody waits behind this one, so each re-evaluation extends the wait by up to
+    /// one minute (bounded by the remaining grace) instead of only by the saved time.
+    SearchRecoveryTimeout timeout(
         ClusterState state,
         String sourceNodeId,
         String targetNodeId,

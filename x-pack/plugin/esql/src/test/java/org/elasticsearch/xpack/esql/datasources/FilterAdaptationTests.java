@@ -309,6 +309,39 @@ public class FilterAdaptationTests extends ESTestCase {
         }
     }
 
+    public void testAdaptFilter_unpushableWidenedLeavesDoNotNarrowConjunct() {
+        Expression yEqualsTwo = eqLong("y", 2);
+        List<Expression> shapes = List.of(
+            new Or(SRC, new IsNotNull(SRC, doubleFieldAttr("x")), yEqualsTwo),
+            new Or(SRC, new Not(SRC, new IsNull(SRC, doubleFieldAttr("x"))), yEqualsTwo),
+            new Or(SRC, eqDouble("x", 1.0), yEqualsTwo),
+            new Or(SRC, new In(SRC, doubleFieldAttr("x"), List.of(doubleLiteral(1.0))), yEqualsTwo),
+            new Not(SRC, new And(SRC, new IsNull(SRC, doubleFieldAttr("x")), yEqualsTwo))
+        );
+        Set<String> presentColumns = Set.of("x", "y", "w");
+        Set<String> unpushableColumns = Set.of("x");
+        Expression independent = gtLong("w", 3);
+
+        for (Expression shape : shapes) {
+            assertEquals(
+                shape + " must remain entirely unpushed",
+                List.of(),
+                FilterAdaptation.adaptFilterForFile(List.of(shape), presentColumns, Map.of(), unpushableColumns)
+            );
+            assertEquals(
+                shape + " must not prevent an independent conjunct from being pushed",
+                List.of(independent),
+                FilterAdaptation.adaptFilterForFile(List.of(shape, independent), presentColumns, Map.of(), unpushableColumns)
+            );
+        }
+
+        assertEquals(
+            "an actually absent x keeps its exact null semantics",
+            List.of(yEqualsTwo),
+            FilterAdaptation.adaptFilterForFile(List.of(shapes.get(0)), Set.of("y"), Map.of(), Set.of())
+        );
+    }
+
     private static FieldAttribute fieldAttr(String name) {
         return new FieldAttribute(SRC, name, new EsField(name, DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE));
     }
@@ -329,8 +362,16 @@ public class FilterAdaptationTests extends ESTestCase {
         return new FieldAttribute(SRC, name, new EsField(name, DataType.LONG, Map.of(), false, EsField.TimeSeriesFieldType.NONE));
     }
 
+    private static FieldAttribute doubleFieldAttr(String name) {
+        return new FieldAttribute(SRC, name, new EsField(name, DataType.DOUBLE, Map.of(), false, EsField.TimeSeriesFieldType.NONE));
+    }
+
     private static Literal longLiteral(long value) {
         return new Literal(SRC, value, DataType.LONG);
+    }
+
+    private static Literal doubleLiteral(double value) {
+        return new Literal(SRC, value, DataType.DOUBLE);
     }
 
     private static Expression gtLong(String column, long value) {
@@ -343,5 +384,9 @@ public class FilterAdaptationTests extends ESTestCase {
 
     private static Expression eqLong(String column, long value) {
         return new Equals(SRC, longFieldAttr(column), longLiteral(value));
+    }
+
+    private static Expression eqDouble(String column, double value) {
+        return new Equals(SRC, doubleFieldAttr(column), doubleLiteral(value));
     }
 }

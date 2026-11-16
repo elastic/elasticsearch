@@ -43,6 +43,9 @@ import java.util.Set;
  * In UNION_BY_NAME scenarios, different files may have different columns. When a pushed filter
  * references a column absent from a file, the predicate must be simplified before re-translation
  * to the format-specific filter (Parquet {@code FilterPredicate}, ORC {@code SearchArgument}).
+ * A present column whose unified type cannot be safely mapped back to the file's type is different:
+ * any conjunct containing such a column must remain entirely unpushed so the retained engine filter
+ * evaluates it after the file value has been widened.
  * <p>
  * Adaptation rules for missing columns (SQL three-valued logic):
  * <ul>
@@ -72,7 +75,7 @@ public final class FilterAdaptation {
      * @return adapted conjuncts; empty list means no pushdown for this file
      */
     public static List<Expression> adaptFilterForFile(List<Expression> filterConjuncts, Set<String> fileColumnNames) {
-        return adaptFilterForFile(filterConjuncts, fileColumnNames, Map.of());
+        return adaptFilterForFile(filterConjuncts, fileColumnNames, Map.of(), Set.of());
     }
 
     /**
@@ -95,9 +98,29 @@ public final class FilterAdaptation {
         Set<String> fileColumnNames,
         Map<String, DataType> fileColumnTypes
     ) {
+        return adaptFilterForFile(filterConjuncts, fileColumnNames, fileColumnTypes, Set.of());
+    }
+
+    /**
+     * Adapts pushed filter conjuncts while distinguishing absent columns from present columns whose
+     * widening cannot be safely inverted. Predicates on the latter are unknown at the file's type
+     * and therefore leave their whole conjunct unpushed.
+     *
+     * @param filterConjuncts AND-separated pushed expressions
+     * @param fileColumnNames names of columns present in this file's schema
+     * @param fileColumnTypes file-local types for columns whose widening can be inverted
+     * @param unpushableColumnNames present columns whose widening cannot be inverted
+     * @return adapted conjuncts; empty list means no pushdown for this file
+     */
+    static List<Expression> adaptFilterForFile(
+        List<Expression> filterConjuncts,
+        Set<String> fileColumnNames,
+        Map<String, DataType> fileColumnTypes,
+        Set<String> unpushableColumnNames
+    ) {
         List<Expression> adapted = new ArrayList<>(filterConjuncts.size());
         for (Expression conjunct : filterConjuncts) {
-            Expression result = adaptExpression(conjunct, fileColumnNames, fileColumnTypes);
+            Expression result = adaptExpression(conjunct, fileColumnNames, fileColumnTypes, unpushableColumnNames);
             if (result == UNKNOWN_SENTINEL) {
                 continue; // nothing can be assumed about this conjunct for this file, so push none of it
             }
@@ -138,14 +161,23 @@ public final class FilterAdaptation {
      * This is safe because {@code pushFilters} will reject or ignore any sub-expression
      * it cannot translate, and RECHECK ensures row-level correctness regardless.
      *
-     * @return the adapted expression, {@link #TRUE_SENTINEL} if always true, or {@code null} if always false/unknown
+     * @return the adapted expression, {@link #TRUE_SENTINEL} if always true, {@link #UNKNOWN_SENTINEL}
+     *         if it cannot safely be pushed, or {@code null} if always false/unknown for a missing column
      */
-    private static Expression adaptExpression(Expression expr, Set<String> fileColumnNames, Map<String, DataType> fileColumnTypes) {
+    private static Expression adaptExpression(
+        Expression expr,
+        Set<String> fileColumnNames,
+        Map<String, DataType> fileColumnTypes,
+        Set<String> unpushableColumnNames
+    ) {
         if (expr instanceof BinaryComparison bc) {
-            return adaptComparison(bc, fileColumnNames, fileColumnTypes);
+            return adaptComparison(bc, fileColumnNames, fileColumnTypes, unpushableColumnNames);
         }
         if (expr instanceof In in) {
             String colName = extractColumnName(in.value());
+            if (colName != null && unpushableColumnNames.contains(colName)) {
+                return UNKNOWN_SENTINEL;
+            }
             if (colName != null && fileColumnNames.contains(colName) == false) {
                 return null; // UNKNOWN → FALSE
             }
@@ -153,6 +185,9 @@ public final class FilterAdaptation {
         }
         if (expr instanceof IsNull isNull) {
             String colName = extractColumnName(isNull.field());
+            if (colName != null && unpushableColumnNames.contains(colName)) {
+                return UNKNOWN_SENTINEL;
+            }
             if (colName != null && fileColumnNames.contains(colName) == false) {
                 return TRUE_SENTINEL; // missing column is always null → IS NULL is TRUE
             }
@@ -160,6 +195,9 @@ public final class FilterAdaptation {
         }
         if (expr instanceof IsNotNull isNotNull) {
             String colName = extractColumnName(isNotNull.field());
+            if (colName != null && unpushableColumnNames.contains(colName)) {
+                return UNKNOWN_SENTINEL;
+            }
             if (colName != null && fileColumnNames.contains(colName) == false) {
                 return null; // missing column is always null → IS NOT NULL is FALSE
             }
@@ -171,11 +209,13 @@ public final class FilterAdaptation {
         // FilterExec answers it.
         String mvColumn = mvFieldColumn(expr);
         if (mvColumn != null) {
-            return fileColumnNames.contains(mvColumn) && fileColumnTypes.containsKey(mvColumn) == false ? expr : UNKNOWN_SENTINEL;
+            return fileColumnNames.contains(mvColumn)
+                && fileColumnTypes.containsKey(mvColumn) == false
+                && unpushableColumnNames.contains(mvColumn) == false ? expr : UNKNOWN_SENTINEL;
         }
         if (expr instanceof And and) {
-            Expression left = adaptExpression(and.left(), fileColumnNames, fileColumnTypes);
-            Expression right = adaptExpression(and.right(), fileColumnNames, fileColumnTypes);
+            Expression left = adaptExpression(and.left(), fileColumnNames, fileColumnTypes, unpushableColumnNames);
+            Expression right = adaptExpression(and.right(), fileColumnNames, fileColumnTypes, unpushableColumnNames);
             if (left == UNKNOWN_SENTINEL || right == UNKNOWN_SENTINEL) {
                 return UNKNOWN_SENTINEL;
             }
@@ -194,8 +234,8 @@ public final class FilterAdaptation {
             return new And(and.source(), left, right);
         }
         if (expr instanceof Or or) {
-            Expression left = adaptExpression(or.left(), fileColumnNames, fileColumnTypes);
-            Expression right = adaptExpression(or.right(), fileColumnNames, fileColumnTypes);
+            Expression left = adaptExpression(or.left(), fileColumnNames, fileColumnTypes, unpushableColumnNames);
+            Expression right = adaptExpression(or.right(), fileColumnNames, fileColumnTypes, unpushableColumnNames);
             if (left == UNKNOWN_SENTINEL || right == UNKNOWN_SENTINEL) {
                 return UNKNOWN_SENTINEL;
             }
@@ -217,7 +257,7 @@ public final class FilterAdaptation {
             return new Or(or.source(), left, right);
         }
         if (expr instanceof Not not) {
-            Expression child = adaptExpression(not.field(), fileColumnNames, fileColumnTypes);
+            Expression child = adaptExpression(not.field(), fileColumnNames, fileColumnTypes, unpushableColumnNames);
             if (child == UNKNOWN_SENTINEL) {
                 return UNKNOWN_SENTINEL;
             }
@@ -257,9 +297,20 @@ public final class FilterAdaptation {
      * Returns null if the column is missing, TRUE_SENTINEL/null for overflow resolution,
      * or a rebuilt expression with the narrower type literal if the value fits.
      */
-    private static Expression adaptComparison(BinaryComparison bc, Set<String> fileColumnNames, Map<String, DataType> fileColumnTypes) {
+    private static Expression adaptComparison(
+        BinaryComparison bc,
+        Set<String> fileColumnNames,
+        Map<String, DataType> fileColumnTypes,
+        Set<String> unpushableColumnNames
+    ) {
         String leftCol = extractColumnName(bc.left());
         String rightCol = extractColumnName(bc.right());
+        if (leftCol != null && unpushableColumnNames.contains(leftCol)) {
+            return UNKNOWN_SENTINEL;
+        }
+        if (rightCol != null && unpushableColumnNames.contains(rightCol)) {
+            return UNKNOWN_SENTINEL;
+        }
         if (leftCol != null && fileColumnNames.contains(leftCol) == false) {
             return null;
         }

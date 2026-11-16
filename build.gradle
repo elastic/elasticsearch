@@ -600,6 +600,7 @@ tasks.register("validateBuildGradleScripts", ValidateBuildGradleScriptsTask).con
     // Measured on main ff3ed1ce5a62. Counts are direct model references, not action counts.
     'execution-closure-project-reference': [
       'build.gradle::6',
+      'distribution/packages/build.gradle::507',
       'modules/lang-painless/build.gradle::4'
     ],
   ])

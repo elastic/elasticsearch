@@ -1,0 +1,5 @@
+area: Machine Learning
+issues: []
+pr: 164284
+summary: Add time-to-opened and results lag telemetry
+type: enhancement

@@ -290,6 +290,16 @@ public class DatafeedRunner {
         return holder != null && holder.isLookbackFinished();
     }
 
+    /** True when this node runs a real-time datafeed for the job that has finished its lookback. */
+    public boolean hasRealtimeDatafeedPastLookback(String jobId) {
+        for (Holder holder : runningDatafeedsOnThisNode.values()) {
+            if (holder.getJobId().equals(jobId)) {
+                return holder.isLookbackFinished() && holder.task.isLookbackOnly() == false;
+            }
+        }
+        return false;
+    }
+
     public SearchInterval getSearchInterval(TransportStartDatafeedAction.DatafeedTask task) {
         Holder holder = runningDatafeedsOnThisNode.get(task.getAllocationId());
         return holder == null ? null : holder.datafeedJob.getSearchInterval();

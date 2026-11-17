@@ -18,6 +18,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -41,6 +44,7 @@ import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
+import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectJobTelemetry;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
@@ -62,8 +66,10 @@ import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.common.util.concurrent.EsExecutors.DIRECT_EXECUTOR_SERVICE;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -97,6 +103,8 @@ public class AutodetectResultProcessorTests extends ESTestCase {
     private FlushListener flushListener;
     private AutodetectResultProcessor processorUnderTest;
     private ScheduledThreadPoolExecutor executor;
+    private final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+    private final AtomicBoolean realtimeLookbackFinished = new AtomicBoolean(false);
 
     @Before
     public void setUpMocks() {
@@ -127,7 +135,9 @@ public class AutodetectResultProcessorTests extends ESTestCase {
             new ModelSizeStats.Builder(JOB_ID).setTimestamp(new Date(BUCKET_SPAN_MS)).build(),
             new TimingStats(JOB_ID),
             Clock.fixed(CURRENT_TIME, ZoneId.systemDefault()),
-            flushListener
+            flushListener,
+            new AutodetectJobTelemetry(meterRegistry),
+            realtimeLookbackFinished::get
         );
     }
 
@@ -202,6 +212,61 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         verify(bulkResultsPersister).persistBucket(bucket);
         verify(bulkResultsPersister).executeRequest();
         verify(persister).bulkPersisterBuilder(eq(JOB_ID), any());
+    }
+
+    public void testRealtimeBucketShouldRecordResultsLagRatio() {
+        when(bulkResultsPersister.persistTimingStats(any(TimingStats.class))).thenReturn(bulkResultsPersister);
+        when(bulkResultsPersister.persistBucket(any(Bucket.class))).thenReturn(bulkResultsPersister);
+        realtimeLookbackFinished.set(true);
+        // 60 s span starting 150 s before the clock ends 90 s before it: 90 s / 60 s = 1.5 spans.
+        Bucket bucket = new Bucket(JOB_ID, Date.from(CURRENT_TIME.minusSeconds(150)), 60);
+        AutodetectResult result = mock(AutodetectResult.class);
+        when(result.getBucket()).thenReturn(bucket);
+
+        processorUnderTest.setDeleteInterimRequired(false);
+        processorUnderTest.processResult(result);
+
+        List<Measurement> measurements = meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, AutodetectJobTelemetry.RESULTS_LAG_RATIO_METRIC);
+        assertThat(measurements.size(), is(1));
+        assertThat(measurements.get(0).getDouble(), equalTo(1.5));
+        assertThat(measurements.get(0).attributes().isEmpty(), is(true));
+        verify(persister).bulkPersisterBuilder(eq(JOB_ID), any());
+    }
+
+    public void testInterimBucketShouldNotRecordResultsLagRatio() {
+        when(bulkResultsPersister.persistBucket(any(Bucket.class))).thenReturn(bulkResultsPersister);
+        realtimeLookbackFinished.set(true);
+        Bucket bucket = new Bucket(JOB_ID, Date.from(CURRENT_TIME.minusSeconds(150)), 60);
+        bucket.setInterim(true);
+        AutodetectResult result = mock(AutodetectResult.class);
+        when(result.getBucket()).thenReturn(bucket);
+
+        processorUnderTest.setDeleteInterimRequired(false);
+        processorUnderTest.processResult(result);
+
+        assertThat(resultsLagMeasurements(), is(empty()));
+        verify(persister).bulkPersisterBuilder(eq(JOB_ID), any());
+    }
+
+    public void testBucketBeforeLookbackFinishedShouldNotRecordResultsLagRatio() {
+        when(bulkResultsPersister.persistTimingStats(any(TimingStats.class))).thenReturn(bulkResultsPersister);
+        when(bulkResultsPersister.persistBucket(any(Bucket.class))).thenReturn(bulkResultsPersister);
+        realtimeLookbackFinished.set(false);
+        Bucket bucket = new Bucket(JOB_ID, Date.from(CURRENT_TIME.minusSeconds(150)), 60);
+        AutodetectResult result = mock(AutodetectResult.class);
+        when(result.getBucket()).thenReturn(bucket);
+
+        processorUnderTest.setDeleteInterimRequired(false);
+        processorUnderTest.processResult(result);
+
+        assertThat(resultsLagMeasurements(), is(empty()));
+        verify(persister).bulkPersisterBuilder(eq(JOB_ID), any());
+    }
+
+    private List<Measurement> resultsLagMeasurements() {
+        return meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, AutodetectJobTelemetry.RESULTS_LAG_RATIO_METRIC);
     }
 
     public void testProcessResult_records() {

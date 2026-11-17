@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.TimingStatsReporter;
+import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectJobTelemetry;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
@@ -57,6 +58,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.BooleanSupplier;
 
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.JOB_FORECAST_NATIVE_PROCESS_KILLED;
 
@@ -89,6 +91,8 @@ public class AutodetectResultProcessor {
     private final AutodetectProcess process;
     private final TimingStatsReporter timingStatsReporter;
     private final Clock clock;
+    private final AutodetectJobTelemetry telemetry;
+    private final BooleanSupplier realtimeLookbackFinished;
 
     final CountDownLatch completionLatch = new CountDownLatch(1);
     final Semaphore updateModelSnapshotSemaphore = new Semaphore(1);
@@ -117,7 +121,9 @@ public class AutodetectResultProcessor {
         AnnotationPersister annotationPersister,
         AutodetectProcess process,
         ModelSizeStats latestModelSizeStats,
-        TimingStats timingStats
+        TimingStats timingStats,
+        AutodetectJobTelemetry telemetry,
+        BooleanSupplier realtimeLookbackFinished
     ) {
         this(
             client,
@@ -130,7 +136,9 @@ public class AutodetectResultProcessor {
             latestModelSizeStats,
             timingStats,
             Clock.systemUTC(),
-            new FlushListener()
+            new FlushListener(),
+            telemetry,
+            realtimeLookbackFinished
         );
     }
 
@@ -146,7 +154,9 @@ public class AutodetectResultProcessor {
         ModelSizeStats latestModelSizeStats,
         TimingStats timingStats,
         Clock clock,
-        FlushListener flushListener
+        FlushListener flushListener,
+        AutodetectJobTelemetry telemetry,
+        BooleanSupplier realtimeLookbackFinished
     ) {
         this.client = Objects.requireNonNull(client);
         this.auditor = Objects.requireNonNull(auditor);
@@ -160,6 +170,8 @@ public class AutodetectResultProcessor {
         this.bulkAnnotationsPersister = annotationPersister.bulkPersisterBuilder(jobId, this::isAlive);
         this.timingStatsReporter = new TimingStatsReporter(timingStats, bulkResultsPersister);
         this.clock = Objects.requireNonNull(clock);
+        this.telemetry = Objects.requireNonNull(telemetry);
+        this.realtimeLookbackFinished = Objects.requireNonNull(realtimeLookbackFinished);
         this.deleteInterimRequired = true;
         this.priorRunsBucketCount = timingStats.getBucketCount();
         this.runningForecasts = new ConcurrentHashMap<>();
@@ -265,6 +277,15 @@ public class AutodetectResultProcessor {
         }
     }
 
+    // Lookback buckets are historical by design and would swamp the ratio, so only buckets of a job whose datafeed is real-time count.
+    private void recordResultsLagIfRealtime(Bucket bucket) {
+        long bucketSpanMillis = TimeUnit.SECONDS.toMillis(bucket.getBucketSpan());
+        if (bucketSpanMillis > 0 && realtimeLookbackFinished.getAsBoolean()) {
+            long lagMillis = clock.millis() - (bucket.getTimestamp().getTime() + bucketSpanMillis);
+            telemetry.recordResultsLagRatio((double) Math.max(lagMillis, 0) / bucketSpanMillis);
+        }
+    }
+
     void processResult(AutodetectResult result) {
         if (processKilled) {
             return;
@@ -284,6 +305,9 @@ public class AutodetectResultProcessor {
                 ++currentRunBucketCount;
             }
             bulkResultsPersister.persistBucket(bucket);
+            if (bucket.isInterim() == false) {
+                recordResultsLagIfRealtime(bucket);
+            }
             if (deleteInterimRequired || bucket.isInterim()) {
                 // Execute the bulk request after deleting interim results in case the new
                 // results are also interim. Also execute the bulk request after creating new

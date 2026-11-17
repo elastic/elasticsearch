@@ -3622,6 +3622,24 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
+     * {@code formatConfigIdentity} mints a configured reader only to read {@code identity()}.
+     * That remint must close; the registry prototype must not.
+     */
+    public void testFormatConfigIdentityClosesConfiguredRemint() {
+        AtomicInteger prototypeCloses = new AtomicInteger();
+        AtomicInteger remintCloses = new AtomicInteger();
+        ExternalSourceResolver resolver = createResolverWithReader(
+            new CountingStorageProvider(Map.of(), Map.of()),
+            new RemintingStubFormatReader(Map.of(), prototypeCloses, remintCloses, false),
+            null
+        );
+        String identity = resolver.formatConfigIdentity("file.parquet", Map.of("schema_max_fields", "10"));
+        assertFalse("configured identity should fold the consumed key", identity.isEmpty());
+        assertEquals(1, remintCloses.get());
+        assertEquals(0, prototypeCloses.get());
+    }
+
+    /**
      * A cut-short gather forwards read configs only for the files it reached, and the promise is registered on
      * that partial map. The map is why: a cacheable text dataset whose schema budget refuses every entry has no
      * per-file warm rail, so the memoized dataset aggregate is its only metadata-served COUNT(*). An unrecorded
@@ -4988,10 +5006,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     /**
      * A terminal permit-exhaustion / unavailability failure during metadata resolution reaches the resolver as an
-     * {@link ExternalUnavailableException} (503). The factory loop re-wraps every factory failure in an
-     * {@link IllegalArgumentException} (400), so the resolver must recover the buried 503 from the cause chain and
-     * surface it as 503, not a masked 400: otherwise the client's retry / back-pressure path is skipped. Verified
-     * for every format because the fix is format-independent (it sits at the storage layer, below the reader).
+     * {@link ExternalUnavailableException} (503). The factory loop preserves that status carrier, and the resolver
+     * must still recover a 503 buried by the schema cache's {@code ExecutionException} so a transient capacity
+     * condition is not masked as a 400. Verified for every format because the recovery is format-independent.
      */
     public void testMetadataResolutionUnavailabilitySurfacesAs503() {
         for (String[] format : BACK_PRESSURE_FORMATS) {
@@ -5044,10 +5061,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * An interrupt during permit acquisition reaches the resolver as an {@link EsRejectedExecutionException} (429). Like
-     * the 503 case, the factory loop re-wraps it in an {@link IllegalArgumentException} (400), so the resolver must
-     * recover the buried 429 from the cause chain and surface a node-level rejection as 429 rather than a masked 400.
-     * Verified for every format because the recovery is format-independent.
+     * An interrupt during permit acquisition reaches the resolver as an {@link EsRejectedExecutionException} (429).
+     * Like the 503 case, a cache wrapper can bury it, so the resolver must recover the 429 from the cause chain
+     * and surface a node-level rejection as 429 rather than a masked 400. Verified for every format because the
+     * recovery is format-independent.
      */
     public void testMetadataResolutionInterruptSurfacesAs429() {
         for (String[] format : BACK_PRESSURE_FORMATS) {
@@ -5107,7 +5124,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * change, and this one is about making the message inside it worth reading. The two compose — with the wrapper
      * gone, what the client sees is exactly what is asserted here.
      * <p>
-     * Status is deliberately not asserted: this change is scoped to messages.
+     * Status is deliberately not asserted: this change is scoped to messages. Status of the same I/O
+     * path is pinned by {@link #testAnIoFailureFromAFactoryStaysAClientError}.
      */
     public void testMetadataResolutionUnreadableObjectCarriesTheReaderDetail() {
         String detail = "Object not found: the reader's own words";
@@ -5132,6 +5150,96 @@ public class ExternalSourceResolverTests extends ESTestCase {
             assertThat(where + " must not expose the storage path", msg, not(containsString(path)));
             assertThat(where + " must not leak a java type name", msg, not(containsString("java.")));
         }
+    }
+
+    /**
+     * An unchecked invariant break from a format reader must stay a 500. {@code FileSourceFactory} only
+     * catches {@link IOException}, so the {@link IllegalStateException} is the factory's last failure —
+     * and must not be retyped as a client error by {@code lastFactoryFailure}.
+     */
+    public void testAnInvariantBreakFromAFactoryStaysAServerError() {
+        String path = "s3://bucket/data/file.parquet";
+        String detail = "column count is negative";
+        ExternalSourceResolver resolver = createResolverWithFailingMetadata(
+            "parquet",
+            ".parquet",
+            Map.of(path, List.of(attr("x", DataType.INTEGER))),
+            () -> new IllegalStateException(detail),
+            null
+        );
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(path), Map.of(), future);
+
+        Exception e = expectThrows(Exception.class, future::actionGet);
+        assertEquals(RestStatus.INTERNAL_SERVER_ERROR, ExceptionsHelper.status(e));
+        assertThat(e.getMessage(), containsString(detail));
+    }
+
+    /**
+     * A checked I/O failure from a factory must stay a 400 so the factory-status change is not a
+     * blanket promotion of every resolve failure to 500.
+     */
+    public void testAnIoFailureFromAFactoryStaysAClientError() {
+        String path = "s3://bucket/data/file.parquet";
+        String detail = "Could not read footer";
+        ExternalSourceResolver resolver = createResolverWithFailingMetadata(
+            "parquet",
+            ".parquet",
+            Map.of(path, List.of(attr("x", DataType.INTEGER))),
+            () -> new IOException(detail),
+            null
+        );
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(path), Map.of(), future);
+
+        Exception e = expectThrows(Exception.class, future::actionGet);
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
+        assertThat(e.getMessage(), containsString(detail));
+    }
+
+    /**
+     * The asynchronous factory rail ({@code resolveWithFactory}, used for glob fan-out) must classify
+     * an invariant break the same way as the synchronous {@code resolveSingleSource} rail.
+     */
+    public void testAnInvariantBreakFromAnAsyncFactoryStaysAServerError() {
+        String glob = "s3://bucket/data/*.parquet";
+        String file = "s3://bucket/data/file.parquet";
+        String detail = "column count is negative";
+        Map<String, List<Attribute>> schemas = Map.of(file, List.of(attr("x", DataType.INTEGER)));
+        Map<String, List<StorageEntry>> listings = Map.of(StoragePath.of(glob).patternPrefix().toString(), List.of(entry(file, 100)));
+        ExternalSourceResolver resolver = createResolverWithFailingMetadata(
+            "parquet",
+            ".parquet",
+            schemas,
+            listings,
+            () -> new IllegalStateException(detail),
+            null
+        );
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(glob), Map.of(), future);
+
+        Exception e = expectThrows(Exception.class, future::actionGet);
+        assertEquals(RestStatus.INTERNAL_SERVER_ERROR, ExceptionsHelper.status(e));
+        assertThat(e.getMessage(), containsString(detail));
+    }
+
+    /**
+     * Cancellation from a factory must still win over the factory-failure classification: a cancelled
+     * resolve is the query's outcome, not a 400 or a 500.
+     */
+    public void testACancelledResolveStillReportsCancellation() {
+        String path = "s3://bucket/data/file.parquet";
+        ExternalSourceResolver resolver = createResolverWithFailingMetadata(
+            "parquet",
+            ".parquet",
+            Map.of(path, List.of(attr("x", DataType.INTEGER))),
+            () -> new TaskCancelledException("cancelled"),
+            null
+        );
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(path), Map.of(), future);
+
+        expectThrows(TaskCancelledException.class, future::actionGet);
     }
 
     /**
@@ -8494,27 +8602,28 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     /**
      * A breaker that admits one gathered file but not the next stops the FIRST_FILE_WINS stats gather: the remaining
-     * footers are not read, the resolve degrades to partial stats, and the results run is released.
+     * footers are not read, the resolve fails with a {@link CircuitBreakingException} (429), and the results run and
+     * planning reservation are released.
      */
-    public void testStatsGatherTripsBreakerAndDegradesToPartialStats() throws Exception {
-        assertStatsGatherTripsBreakerAndDegradesToPartialStats(null, null);
+    public void testStatsGatherTripsBreakerAndFailsWith429() throws Exception {
+        assertStatsGatherTripsBreakerAndFailsWith429(null, null);
     }
 
     /**
-     * Same as {@link #testStatsGatherTripsBreakerAndDegradesToPartialStats} with the schema cache enabled, the
+     * Same as {@link #testStatsGatherTripsBreakerAndFailsWith429} with the schema cache enabled, the
      * production default: the gather goes through {@code readAndAggregateAllFileStatsWithCache} and stores
      * cache-backed metadata. Each resolver gets its own cold cache so the narrow run reads the same footers.
      */
-    public void testStatsGatherTripsBreakerAndDegradesToPartialStatsWithCache() throws Exception {
+    public void testStatsGatherTripsBreakerAndFailsWith429WithCache() throws Exception {
         try (
             ExternalSourceCacheService wideCache = new ExternalSourceCacheService(cacheEnabledSettings());
             ExternalSourceCacheService narrowCache = new ExternalSourceCacheService(cacheEnabledSettings())
         ) {
-            assertStatsGatherTripsBreakerAndDegradesToPartialStats(wideCache, narrowCache);
+            assertStatsGatherTripsBreakerAndFailsWith429(wideCache, narrowCache);
         }
     }
 
-    private void assertStatsGatherTripsBreakerAndDegradesToPartialStats(
+    private void assertStatsGatherTripsBreakerAndFailsWith429(
         @Nullable ExternalSourceCacheService wideCache,
         @Nullable ExternalSourceCacheService narrowCache
     ) throws Exception {
@@ -8569,29 +8678,87 @@ public class ExternalSourceResolverTests extends ESTestCase {
         EsqlExecutionInfo narrowInfo = new EsqlExecutionInfo(Predicates.always(), EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
         ExternalPlanningReservation narrowReservation = bindPlanning(narrowResolver, narrowInfo, narrow);
         int[] charged = { 0 };
-        narrowResolver.gatherResultsRunProbe = run -> charged[0]++;
+        ExternalPlanningReservation.Run[] capturedRun = new ExternalPlanningReservation.Run[1];
+        narrowResolver.gatherResultsRunProbe = run -> {
+            capturedRun[0] = run;
+            charged[0]++;
+        };
 
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
         narrowResolver.resolve(List.of(StatsGatherFixture.GLOB), Map.of(StatsGatherFixture.GLOB, fixture.config()), future);
-        ExternalSourceResolution resolution = future.actionGet();
+        CircuitBreakingException cbe = expectThrows(CircuitBreakingException.class, future::actionGet);
+        assertEquals(RestStatus.TOO_MANY_REQUESTS, ExceptionsHelper.status(cbe));
+        assertThat(cbe.getMessage(), containsString(EsqlExecutionInfo.EXTERNAL_PLANNING_LABEL));
 
         assertEquals(1, charged[0]);
         // The gather is sequential here (direct executor): the file that tripped is read but never charged, and every
         // later file is drained without a read, so exactly (files - 2) reads are saved against the full gather.
         assertEquals(files - 2, wideReads.get() - narrowReads.get());
-        // Partial stats keep the anchor (first) file's own statistics, not the dataset-wide sum.
-        assertEquals(
-            fixture.rowCounts().get(fixture.paths().get(0)).longValue(),
-            ((Number) resolution.resolvedSource(StatsGatherFixture.GLOB)
-                .metadata()
-                .sourceMetadata()
-                .get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue()
-        );
-        assertEquals(
-            Boolean.TRUE,
-            resolution.resolvedSource(StatsGatherFixture.GLOB).metadata().sourceMetadata().get(SourceStatisticsSerializer.STATS_PARTIAL)
-        );
+        assertNotNull(capturedRun[0]);
+        assertEquals(0L, capturedRun[0].held());
         assertEquals(narrowReservation.queryHeld() + wideBaseline, narrow.getUsed());
+    }
+
+    /**
+     * A {@link CircuitBreakingException} thrown from a non-anchor file's {@code metadata()} on the FIRST_FILE_WINS
+     * stats gather fails the resolve with a 429. The gather must not degrade to partial stats, and later files are
+     * not read. The factory loop wraps the trip in an {@link IllegalArgumentException}, so the gather has to unwrap
+     * it the same way {@code mapResolveFailure} does.
+     */
+    public void testStatsGatherNonAnchorMetadataBreakerTripFailsWith429() throws Exception {
+        assertStatsGatherNonAnchorMetadataBreakerTripFailsWith429(null);
+    }
+
+    /**
+     * Same as {@link #testStatsGatherNonAnchorMetadataBreakerTripFailsWith429} on the cached gather handler.
+     */
+    public void testStatsGatherNonAnchorMetadataBreakerTripFailsWith429WithCache() throws Exception {
+        try (ExternalSourceCacheService cache = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            assertStatsGatherNonAnchorMetadataBreakerTripFailsWith429(cache);
+        }
+    }
+
+    private void assertStatsGatherNonAnchorMetadataBreakerTripFailsWith429(@Nullable ExternalSourceCacheService cache) throws Exception {
+        int files = 4;
+        StatsGatherFixture fixture = statsGatherFixture(files, 4);
+        String tripPath = fixture.paths().get(1);
+        List<String> unread = fixture.paths().subList(2, files);
+        List<String> readPaths = new ArrayList<>();
+        CircuitBreakingException trip = new CircuitBreakingException("over limit", 100, 50, CircuitBreaker.Durability.TRANSIENT);
+        StubFormatReaderWithStats reader = new StubFormatReaderWithStats(fixture.schemas(), fixture.rowCounts()) {
+            @Override
+            public SourceMetadata metadata(StorageObject object) {
+                String path = object.path().toString();
+                readPaths.add(path);
+                if (path.equals(tripPath)) {
+                    throw trip;
+                }
+                return super.metadata(object);
+            }
+        };
+
+        CircuitBreaker breaker = requestBreaker("1gb");
+        ExternalSourceResolver resolver = planningResolver(reader, fixture.schemas(), fixture.listings(), breaker, cache);
+        EsqlExecutionInfo info = new EsqlExecutionInfo(Predicates.always(), EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
+        ExternalPlanningReservation reservation = bindPlanning(resolver, info, breaker);
+        long baseline = breaker.getUsed();
+        ExternalPlanningReservation.Run[] capturedRun = new ExternalPlanningReservation.Run[1];
+        resolver.gatherResultsRunProbe = run -> capturedRun[0] = run;
+
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(StatsGatherFixture.GLOB), Map.of(StatsGatherFixture.GLOB, fixture.config()), future);
+        CircuitBreakingException cbe = expectThrows(CircuitBreakingException.class, future::actionGet);
+        assertEquals(RestStatus.TOO_MANY_REQUESTS, ExceptionsHelper.status(cbe));
+        assertThat(cbe.getMessage(), containsString("over limit"));
+
+        assertThat(readPaths, hasItem(fixture.paths().get(0)));
+        assertThat(readPaths, hasItem(tripPath));
+        for (String path : unread) {
+            assertThat("later files must not be read after the non-anchor trip", readPaths, not(hasItem(path)));
+        }
+        assertNotNull(capturedRun[0]);
+        assertEquals(0L, capturedRun[0].held());
+        assertEquals(reservation.queryHeld() + baseline, breaker.getUsed());
     }
 
     /** A FIRST_FILE_WINS glob whose files all share a wide schema and report row-count statistics. */
@@ -9001,6 +9168,17 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Supplier<? extends Exception> failure,
         @Nullable ExternalSourceCacheService cacheService
     ) {
+        return createResolverWithFailingMetadata(formatName, extension, schemasByPath, Map.of(), failure, cacheService);
+    }
+
+    private ExternalSourceResolver createResolverWithFailingMetadata(
+        String formatName,
+        String extension,
+        Map<String, List<Attribute>> schemasByPath,
+        Map<String, List<StorageEntry>> listingsByPrefix,
+        Supplier<? extends Exception> failure,
+        @Nullable ExternalSourceCacheService cacheService
+    ) {
         NoConfigFormatReader formatReader = new NoConfigFormatReader() {
             @Override
             public RowPositionStrategy rowPositionStrategy() {
@@ -9036,7 +9214,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             @Override
             public void close() {}
         };
-        StubStorageProvider storageProvider = new StubStorageProvider(Map.of(), schemasByPath);
+        StubStorageProvider storageProvider = new StubStorageProvider(listingsByPrefix, schemasByPath);
 
         DataSourcePlugin plugin = new DataSourcePlugin() {
             @Override
@@ -10077,6 +10255,47 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         @Override
         public void close() {}
+    }
+
+    /**
+     * Mints a distinct configured copy so {@link ExternalSourceResolver#formatConfigIdentity} has a
+     * remint to close. Prototype and remint share the close counters.
+     */
+    private static final class RemintingStubFormatReader extends StubFormatReader {
+        private final Map<String, List<Attribute>> schemas;
+        private final AtomicInteger prototypeCloses;
+        private final AtomicInteger remintCloses;
+        private final boolean remint;
+
+        RemintingStubFormatReader(
+            Map<String, List<Attribute>> schemas,
+            AtomicInteger prototypeCloses,
+            AtomicInteger remintCloses,
+            boolean remint
+        ) {
+            super(schemas);
+            this.schemas = schemas;
+            this.prototypeCloses = prototypeCloses;
+            this.remintCloses = remintCloses;
+            this.remint = remint;
+        }
+
+        @Override
+        public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
+            if (remint) {
+                return Configured.empty(this);
+            }
+            return Configured.fromKnownSubset(
+                new RemintingStubFormatReader(schemas, prototypeCloses, remintCloses, true),
+                config,
+                Set.of("schema_max_fields")
+            );
+        }
+
+        @Override
+        public void close() {
+            (remint ? remintCloses : prototypeCloses).incrementAndGet();
+        }
     }
 
     private static class StubSourceMetadata implements SourceMetadata {

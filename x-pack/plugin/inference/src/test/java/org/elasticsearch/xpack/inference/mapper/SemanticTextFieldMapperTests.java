@@ -930,6 +930,38 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
         }
     }
 
+    /**
+     * A mapping update that omits {@code inference_id} keeps the existing one.
+     */
+    public void testUpdateWithoutInferenceIdKeepsExistingInferenceId() throws IOException {
+        for (int randomizedRun = 0; randomizedRun < 10; randomizedRun++) {
+            final String fieldName = randomAlphaOfLengthBetween(5, 15);
+            final String inferenceId = randomAlphaOfLengthBetween(5, 15);
+
+            // Randomly back the inference id with a registered endpoint
+            EndpointClusterState modelSettings = null;
+            if (randomBoolean()) {
+                modelSettings = createRandomModelSettings();
+                givenModelSettings(inferenceId, modelSettings);
+            }
+
+            final MapperService mapperService = createSemanticMapperService(semanticMapping(fieldName, inferenceId));
+
+            final boolean indexDocument = randomBoolean();
+            if (indexDocument) {
+                if (modelSettings == null) {
+                    modelSettings = createRandomModelSettings();
+                }
+                performDynamicUpdate(mapperService, fieldName, inferenceId, modelSettings);
+            }
+
+            merge(mapperService, semanticMapping(fieldName, null));
+
+            assertInferenceEndpoints(mapperService, fieldName, inferenceId, inferenceId);
+            assertSemanticField(mapperService, fieldName, indexDocument, modelSettings, null, null);
+        }
+    }
+
     @Override
     protected Class<SemanticTextFieldMapper> expectedMapperClass() {
         return SemanticTextFieldMapper.class;

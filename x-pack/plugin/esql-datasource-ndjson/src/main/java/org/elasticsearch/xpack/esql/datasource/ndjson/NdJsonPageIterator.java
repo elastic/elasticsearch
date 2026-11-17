@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
+import org.elasticsearch.xpack.esql.datasources.spi.RowLocation;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -235,7 +236,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         this.fingerprintSchema = resolvedAttributes;
         this.sourceLocation = object.path().toString();
         // sourceLocation keys stats, so it stays verbatim; user-facing messages name only the object.
-        String messageLocation = object.path().objectName();
+        String messageLocation = RowLocation.displayObjectName(object.path().objectName());
         this.chunkMode = chunkMode;
         this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
         // Per-stripe stats capture is for the chunk-parallel paths (recordAligned); a whole-file read

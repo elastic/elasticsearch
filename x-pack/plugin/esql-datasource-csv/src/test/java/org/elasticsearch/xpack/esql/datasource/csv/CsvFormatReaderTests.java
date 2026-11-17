@@ -12053,4 +12053,93 @@ public class CsvFormatReaderTests extends ESTestCase {
         return warnings.get(1);
     }
 
+    /**
+     * {@code null_field} nulls the cell and keeps the row, reporting through a different sink from the row-level
+     * one. It carries the same location, and on a later split the same window, or the two sinks disagree about
+     * where the same file is.
+     */
+    public void testNullFieldDetailNamesTheObjectAndItsWindow() throws IOException {
+        List<Attribute> schema = splitSchema();
+        long cut = ("id:long,name:keyword\n" + "1,Alice\n2,Bob\n").getBytes(StandardCharsets.UTF_8).length;
+        String detail = soleDetailWarning(
+            new CsvFormatReader(blockFactory).withSchema(schema),
+            createStorageObject("bad_id,Carol\n"),
+            laterSplitContext(schema, cut, new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 100, 0.0, false))
+        );
+        assertThat(detail, equalTo("row [1] of [test.csv] counted from byte [" + cut + "], column [id]: cannot read [bad_id] as [long]"));
+    }
+
+    /**
+     * A bracketed cell under {@code null_field} drops the unreadable elements and keeps the rest, through a third
+     * sink again. Same location, or a multi-valued column reports somewhere the other two do not.
+     */
+    public void testMultiValueRemovalDetailNamesTheObject() throws IOException {
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("header_row", true, "multi_value_syntax", "brackets", "mode", "quoted")
+        );
+        StorageObject object = createStorageObject("id:long,vals:long\n1,\"[1,nope,3]\"\n");
+        try (
+            CloseableIterator<Page> iterator = reader.read(
+                object,
+                FormatReadContext.builder().batchSize(10).errorPolicy(new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 100, 0.0, false)).build()
+            )
+        ) {
+            while (iterator.hasNext()) {
+                iterator.next().releaseBlocks();
+            }
+        }
+        List<String> warnings = drainWarnings();
+        String detail = warnings.stream()
+            .filter(w -> w.startsWith("row ["))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("no per-row detail, got: " + warnings));
+        assertThat(detail, containsString("of [test.csv]"));
+        assertThat(detail, containsString("column [vals]"));
+    }
+
+    /**
+     * The strict exception takes the same clause as the warnings. It already named the object before this change;
+     * what it did not say was which window the ordinal was counted in, so on a later split it gave a confident
+     * number for a row of the file that is not that row.
+     */
+    public void testStrictThrowNamesTheWindowOnALaterSplit() {
+        List<Attribute> schema = splitSchema();
+        long cut = ("id:long,name:keyword\n" + "1,Alice\n2,Bob\n").getBytes(StandardCharsets.UTF_8).length;
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withSchema(schema);
+        Exception e = expectThrows(Exception.class, () -> {
+            try (
+                CloseableIterator<Page> iterator = reader.read(
+                    createStorageObject("bad_id,Carol\n"),
+                    laterSplitContext(schema, cut, ErrorPolicy.STRICT)
+                )
+            ) {
+                while (iterator.hasNext()) {
+                    iterator.next().releaseBlocks();
+                }
+            }
+        });
+        assertThat(ExceptionsHelper.stackTrace(e), containsString("Row [1] of [test.csv] counted from byte [" + cut + "]:"));
+    }
+
+    private static List<Attribute> splitSchema() {
+        return List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, null, "name", DataType.KEYWORD)
+        );
+    }
+
+    /** A record-aligned split that begins at {@code startByte}, with the header columns supplied out of band. */
+    private static FormatReadContext laterSplitContext(List<Attribute> schema, long startByte, ErrorPolicy policy) {
+        return FormatReadContext.builder()
+            .batchSize(10)
+            .errorPolicy(policy)
+            .firstSplit(false)
+            .lastSplit(true)
+            .recordAligned(true)
+            .splitStartByte(startByte)
+            .readSchema(schema)
+            .fileHeaderColumns(List.of("id", "name"))
+            .build();
+    }
+
 }

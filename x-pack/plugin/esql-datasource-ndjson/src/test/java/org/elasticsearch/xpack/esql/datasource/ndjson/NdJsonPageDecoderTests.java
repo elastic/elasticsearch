@@ -3397,4 +3397,64 @@ public class NdJsonPageDecoderTests extends ESTestCase {
         );
     }
 
+    /**
+     * The whole-line failure takes the clause too, and its window matters most here: one decoder is built per
+     * chunk on the streaming path, so this message is the one that used to give the same ordinal for one record
+     * per chunk with nothing to choose between them.
+     */
+    public void testStrictLineParseErrorNamesTheWindowInAChunk() throws IOException {
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream("{\"v\":1}\n{not json}\n".getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of(attribute("v", DataType.LONG)),
+                null,
+                10,
+                blockFactory,
+                ErrorPolicy.STRICT,
+                "test://chunked-strict",
+                new NdJsonReaderCounters()
+            )
+        ) {
+            decoder.setRecordOffsetBase(4194304L);
+            ParsingException e = expectThrows(ParsingException.class, decoder::decodePage);
+            assertThat(
+                e.getMessage(),
+                Matchers.containsString("row [2] of [test://chunked-strict] counted from byte [4194304]: malformed JSON")
+            );
+        }
+    }
+
+    /**
+     * The summary and the details under it must name the object with one token, as they must in CSV. The cut is
+     * applied where the decoder takes the name, so both sides of the response see the same string.
+     */
+    public void testSummaryAndDetailNameTheObjectIdentically() throws IOException {
+        String longName = "q".repeat(RowLocation.MAX_OBJECT_NAME_CHARS * 3) + ".ndjson";
+        List<String> warnings = new ArrayList<>();
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream("{\"v\":1}\n{\"v\":\"nope\"}\n".getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of(attribute("v", DataType.LONG)),
+                null,
+                10,
+                blockFactory,
+                ErrorPolicy.LENIENT,
+                longName,
+                new NdJsonReaderCounters(),
+                warnings::add
+            );
+            Page page = decoder.decodePage()
+        ) {
+            assertNotNull(page);
+        }
+        assertEquals("one summary + one detail, got: " + warnings, 2, warnings.size());
+        String token = RowLocation.displayObjectName(longName);
+        assertThat("the name is cut, or this test is not exercising the cap", token, Matchers.not(Matchers.equalTo(longName)));
+        assertThat(warnings.get(0), Matchers.containsString("[" + token + "]"));
+        assertThat(warnings.get(1), Matchers.containsString("[" + token + "]"));
+        assertThat(String.join(" ", warnings), Matchers.not(Matchers.containsString(longName)));
+    }
+
 }

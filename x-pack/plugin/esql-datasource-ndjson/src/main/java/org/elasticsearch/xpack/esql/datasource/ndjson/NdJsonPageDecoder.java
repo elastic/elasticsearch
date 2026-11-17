@@ -691,8 +691,11 @@ public class NdJsonPageDecoder implements Closeable {
         Check.isTrue(errorPolicy != null, "errorPolicy must not be null");
         this.errorPolicy = errorPolicy;
         // Cut here, not at each message: the summaries built just below and the per-row details that sit under
-        // them must carry the same token, or one long name renders two ways in a single response.
-        this.sourceLocation = RowLocation.displayObjectName(sourceLocation);
+        // them must carry the same token, or one long name renders two ways in a single response. Shadowing the
+        // parameter is deliberate — the summaries below read the cut value, and a later edit that reaches for the
+        // uncut one would have to reintroduce the name to do it.
+        sourceLocation = RowLocation.displayObjectName(sourceLocation);
+        this.sourceLocation = sourceLocation;
         this.counters = counters;
         this.datetimeFormatter = datetimeFormatter != null ? datetimeFormatter : NdJsonSchemaInferrer.STRICT_DATE_OPTIONAL_TIME;
         this.declaredDateFormats = declaredDateFormats != null ? Map.copyOf(declaredDateFormats) : Map.of();

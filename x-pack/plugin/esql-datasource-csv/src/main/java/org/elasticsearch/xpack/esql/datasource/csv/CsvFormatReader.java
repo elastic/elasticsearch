@@ -1322,7 +1322,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             if (seen.add(name) == false) {
                 throw new IllegalArgumentException(
                     "the header of ["
-                        + object.path().objectName()
+                        + RowLocation.displayObjectName(object.path().objectName())
                         + "] has duplicate column name ["
                         + ErrorExcerpts.summarize(name)
                         + "]; columns cannot bind by name"
@@ -1556,7 +1556,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         List<WidenedColumn> widenedColumns = new ArrayList<>();
         InferredSchema inferred = readSchema(object, warnings::add, widenedColumns::add);
         List<Attribute> schema = inferred.schema();
-        String location = object.path().objectName();
+        String location = RowLocation.displayObjectName(object.path().objectName());
         // mtime required for cache participation; sizeInBytes best-effort (stream-only sources throw from length()).
         long mtimeMillis;
         try {
@@ -1631,7 +1631,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
     private InferredSchema readSchema(StorageObject object, Consumer<String> warningSink, Consumer<WidenedColumn> widenedColumnSink)
         throws IOException {
-        String sourceLocation = object.path().objectName();
+        String sourceLocation = RowLocation.displayObjectName(object.path().objectName());
         InputStream stream = object.newStream();
         // Abort rather than close: providers like S3 drain remaining bytes on close() to reuse
         // the connection. We read only the schema prefix of what may be a multi-GB file, so
@@ -2849,7 +2849,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
             throw new IllegalStateException(
                 "headered read of ["
-                    + object.path().objectName()
+                    + RowLocation.displayObjectName(object.path().objectName())
                     + "] reached a non-first split without the file's header columns; cannot bind the schema by name"
             );
         }

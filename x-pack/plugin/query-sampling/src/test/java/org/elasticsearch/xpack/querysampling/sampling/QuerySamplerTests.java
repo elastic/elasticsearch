@@ -51,6 +51,27 @@ public class QuerySamplerTests extends ESTestCase {
         assertTrue("a pick is back", sampler.offer(tracker.record(new QueryFingerprint(4, 4))));
     }
 
+    public void testAQueryThatIsPickedKeepsRecordingItsChancesAgainstTheLimitAsItIs() {
+        AtomicLong clock = new AtomicLong();
+        PickBudget limit = new PickBudget(clock::get);
+        limit.perHour(60); // a single pick
+        QuerySampler sampler = new QuerySampler(1.0, 1000, supplying(alwaysDrawing(0.0)), limit, new SpatialStrata(0));
+        MultiplicityTracker tracker = new MultiplicityTracker(10);
+
+        assertTrue("picked, which uses the only pick up", sampler.offer(tracker.record(FINGERPRINT)));
+        TrackedQuery again = tracker.record(FINGERPRINT);
+        assertFalse("it is picked already", sampler.offer(again));
+
+        double first = Math.log(2); // γ·ln((1 + 1) / (1 + 1 − 1))
+        double second = QuerySampler.LIMITED_FACTOR * Math.log(1.5); // γ·ln((1 + 2) / (1 + 2 − 1)), cut as the limit is used up
+        assertThat(
+            "the limit is shared, so a query is cut when it is used up, also by the pick of the query itself",
+            again.weights().inclusionProbability(),
+            closeTo(1 - (1 - first) * (1 - second), 1e-12)
+        );
+        assertThat(sampler.starved(), equalTo(1L));
+    }
+
     public void testInclusionProbabilityMatchesHowOftenQueriesAreSampled() {
         QuerySampler sampler = new QuerySampler(
             0.3,

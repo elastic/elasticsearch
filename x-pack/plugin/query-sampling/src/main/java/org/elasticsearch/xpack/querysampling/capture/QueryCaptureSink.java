@@ -49,6 +49,7 @@ import java.util.function.Supplier;
  * a similarity threshold, a sort by a field, which leaves the hits without a score, or a sort by the lowest score first),
  * and no remote indices, whose hits would not tell the clusters apart. Searches from another cluster are skipped, and so are
  * answers that are partial: a timeout, a search that stopped early or shards that failed would count as a low recall.
+ * What is not looked at yet is document level security: the same request of users who see other documents counts as one query.
  * <p>
  * The interceptor sees the request as it was received, before the search rewrites it, so a vector that is only known after the
  * rewrite (a query vector builder such as a {@code semantic_text} field, or a {@code knn} query inside {@code query}) is not

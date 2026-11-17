@@ -16,6 +16,8 @@ import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -33,11 +35,13 @@ import java.util.List;
 /**
  * Samples live kNN queries on the coordinating node: the capture sink copies a few searches, and the sampling pipeline
  * picks distinct queries from them off the search path. Disabled by default: it needs the feature flag, and then the
- * {@code xpack.query_sampling.enabled} setting.
+ * {@code xpack.query_sampling.enabled} setting. For now it runs on clusters with a single project only.
  */
 public class QuerySamplingPlugin extends Plugin {
 
     public static final FeatureFlag QUERY_SAMPLING_FEATURE_FLAG = new FeatureFlag("query_sampling");
+
+    private static final Logger logger = LogManager.getLogger(QuerySamplingPlugin.class);
 
     static final String THREAD_POOL_NAME = "query_sampling";
     private static final int QUEUE_SIZE = 1000;
@@ -68,6 +72,11 @@ public class QuerySamplingPlugin extends Plugin {
     @Override
     public Collection<?> createComponents(PluginServices services) {
         if (QUERY_SAMPLING_FEATURE_FLAG.isEnabled() == false) {
+            return List.of();
+        }
+        if (services.projectResolver().supportsMultipleProjects()) {
+            // the same request to same-named indices of two projects would count as a repeat, so nothing is captured yet
+            logger.info("query sampling does not support multiple projects yet, so it is not started");
             return List.of();
         }
         ClusterSettings clusterSettings = services.clusterService().getClusterSettings();

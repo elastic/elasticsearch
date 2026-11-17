@@ -134,7 +134,10 @@ public final class QuerySampler {
         }
         if (head == false && budget.available() == false) {
             // limit reached: the chance is cut, not taken away, so every query keeps one and estimates stay unbiased; a few
-            // picks may pass the limit. Head queries are exempt
+            // picks may pass the limit. Head queries are exempt. A query that is picked already is cut as well, also when its
+            // own pick used the limit up, on purpose: the limit is shared, so without that pick another query would have used
+            // it, and what the chance would have been is not known. Replaying recorded traffic, weights made this way add up
+            // to 100.2% of the searches, and leaving the picked queries out of the cut gave 85%
             probability *= LIMITED_FACTOR;
             starved.increment();
         }

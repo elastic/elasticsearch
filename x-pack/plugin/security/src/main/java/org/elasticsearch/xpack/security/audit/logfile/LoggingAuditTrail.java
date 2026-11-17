@@ -374,7 +374,9 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         EsqlDatasetActionNames.ESQL_PUT_DATASET_ACTION_NAME,
         EsqlDatasetActionNames.ESQL_DELETE_DATASET_ACTION_NAME,
         EsqlDataSourceActionNames.ESQL_PUT_DATA_SOURCE_ACTION_NAME,
-        EsqlDataSourceActionNames.ESQL_DELETE_DATA_SOURCE_ACTION_NAME
+        EsqlDataSourceActionNames.ESQL_DELETE_DATA_SOURCE_ACTION_NAME,
+        EsqlDataSourceActionNames.ESQL_OPEN_DATA_SOURCE_ACTION_NAME,
+        EsqlDataSourceActionNames.ESQL_CLOSE_DATA_SOURCE_ACTION_NAME
     );
     private static final String FILTER_POLICY_PREFIX = setting("audit.logfile.events.ignore_filters.");
     // because of the default wildcard value (*) for the field filter, a policy with
@@ -926,6 +928,18 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                             authentication,
                             ctx
                         ).withSecurityConfigChange("delete_dataset", DELETE_CONFIG_FIELD_NAME, "dataset", change.auditFields()).build();
+                        case EsqlDataSourceActionNames.ESQL_OPEN_DATA_SOURCE_ACTION_NAME -> securityChangeLogEntryBuilder(
+                            requestId,
+                            authentication,
+                            ctx
+                        ).withSecurityConfigChange("open_data_source", CHANGE_CONFIG_FIELD_NAME, "data_source", change.auditFields())
+                            .build();
+                        case EsqlDataSourceActionNames.ESQL_CLOSE_DATA_SOURCE_ACTION_NAME -> securityChangeLogEntryBuilder(
+                            requestId,
+                            authentication,
+                            ctx
+                        ).withSecurityConfigChange("close_data_source", CHANGE_CONFIG_FIELD_NAME, "data_source", change.auditFields())
+                            .build();
                         default -> throw new IllegalStateException(
                             "Unknown action type ["
                                 + msg.getClass().getSimpleName()

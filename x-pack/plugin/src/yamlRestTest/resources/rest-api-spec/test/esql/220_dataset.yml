@@ -373,3 +373,70 @@ teardown:
 
   - match: { error.type: action_request_validation_exception }
   - match: { error.reason: "Validation Failed: 1: dataset description is too large: 1001 characters, the maximum allowed is 1000;" }
+
+---
+"close-open-data-source":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query/data_source/{name}/_close
+          capabilities: [data_source_open_close]
+      test_runner_features: capabilities
+      reason: "close and open APIs for data sources"
+
+  - do:
+      esql.put_data_source:
+        name: toggle_parent
+        body:
+          type: s3
+          settings:
+            auth: anonymous
+
+  - do:
+      esql.put_dataset:
+        name: toggle_child
+        body:
+          data_source: toggle_parent
+          resource: "s3://x/*.csv"
+
+  - do:
+      esql.get_data_source:
+        name: toggle_parent
+
+  - match: { data_sources.0.state: open }
+
+  - do:
+      esql.close_data_source:
+        name: toggle_parent
+
+  - do:
+      esql.get_data_source:
+        name: toggle_parent
+
+  - match: { data_sources.0.state: closed }
+
+  - do:
+      catch: /closed data source/
+      esql.put_dataset:
+        name: new_against_closed
+        body:
+          data_source: toggle_parent
+          resource: "s3://y/*.csv"
+
+  - do:
+      esql.open_data_source:
+        name: toggle_parent
+
+  - do:
+      esql.get_data_source:
+        name: toggle_parent
+
+  - match: { data_sources.0.state: open }
+
+  - do:
+      esql.delete_dataset:
+        name: toggle_child
+
+  - do:
+      esql.delete_data_source:
+        name: toggle_parent

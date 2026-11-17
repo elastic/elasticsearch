@@ -414,7 +414,17 @@ public final class DatasetRewriter {
             throw new VerificationException("Unknown index [" + resolution.explicitUnauthorized().iterator().next() + "]");
         }
 
-        List<String> datasetNames = new ArrayList<>(resolution.resolvedExternalDatasets());
+        // A dataset whose data source is closed is refused when the FROM names it, and silently skipped when only a wildcard
+        // reaches it, exactly as a closed index is.
+        Set<String> namedInRelation = exactNames(patternsOf(relation));
+        List<String> datasetNames = new ArrayList<>();
+        for (String name : resolution.resolvedExternalDatasets()) {
+            if (isClosed(name, datasets, dataSources) == false) {
+                datasetNames.add(name);
+            } else if (namedInRelation.contains(name)) {
+                throw new DatasetClosedException(name);
+            }
+        }
 
         if (datasetNames.isEmpty()) {
             // Nothing resolved here: the relation flows through to index resolution unchanged. Note this
@@ -617,6 +627,15 @@ public final class DatasetRewriter {
             }
         }
         return hasPositiveWildcard ? preserved : List.of();
+    }
+
+    /**
+     * Whether an admin closed the data source of {@code name}. A dataset whose data source is not registered is not closed:
+     * {@link #buildDatasetBranch} reports that state.
+     */
+    private static boolean isClosed(String name, DatasetMetadata datasets, DataSourceMetadata dataSources) {
+        DataSource parent = dataSources.get(datasets.get(name).dataSource().getName());
+        return parent != null && parent.enabled() == false;
     }
 
     private static LogicalPlan buildDatasetBranch(

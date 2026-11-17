@@ -24,6 +24,8 @@ public class Constants {
         "cluster:admin/component_template/put",
         "cluster:admin/deprecation/cache/reset",
         "cluster:admin/esql/data_source/delete",
+        "cluster:admin/esql/data_source/close",
+        "cluster:admin/esql/data_source/open",
         "cluster:admin/esql/data_source/get",
         "cluster:admin/esql/data_source/put",
         "cluster:admin/esql/data_source/test_connection",

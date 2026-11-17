@@ -30,6 +30,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
@@ -41,6 +42,9 @@ import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.plugin.EsqlStatsAction;
+import org.elasticsearch.xpack.esql.plugin.EsqlStatsRequest;
+import org.elasticsearch.xpack.esql.plugin.EsqlStatsResponse;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 
 import java.nio.file.Path;
@@ -931,6 +935,91 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
     }
 
+    public void testCloseOpenDataSource() throws Exception {
+        final String dsName = "toggle_ds";
+        final String datasetName = "toggle_dataset";
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest(dsName, Map.of("region", "us-east-1"))));
+        assertAcked(client().execute(PutDatasetAction.INSTANCE, putDatasetRequest(datasetName, dsName, "test://logs/*.parquet", Map.of())));
+
+        GetDataSourceAction.Response dsResp = client().execute(GetDataSourceAction.INSTANCE, getDataSourceRequest(dsName)).get();
+        assertThat(dsResp.getDataSources().iterator().next().enabled(), equalTo(true));
+
+        assertAcked(client().execute(CloseDataSourceAction.INSTANCE, closeDataSourceRequest(dsName)));
+        dsResp = client().execute(GetDataSourceAction.INSTANCE, getDataSourceRequest(dsName)).get();
+        assertThat(dsResp.getDataSources().iterator().next().enabled(), equalTo(false));
+
+        // PUT replace keeps a closed data source closed
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest(dsName, Map.of("region", "eu-west-1"))));
+        dsResp = client().execute(GetDataSourceAction.INSTANCE, getDataSourceRequest(dsName)).get();
+        assertThat(dsResp.getDataSources().iterator().next().enabled(), equalTo(false));
+        assertThat(dsResp.getDataSources().iterator().next().settings().get("region").nonSecretValue(), equalTo("eu-west-1"));
+
+        // New dataset against a closed parent is rejected; existing replace still works
+        ExecutionException createEx = expectThrows(
+            ExecutionException.class,
+            () -> client().execute(PutDatasetAction.INSTANCE, putDatasetRequest("new_child", dsName, "test://x/", Map.of())).get()
+        );
+        assertThat(createEx.getCause().getMessage(), containsString("closed data source"));
+        assertAcked(
+            client().execute(PutDatasetAction.INSTANCE, putDatasetRequest(datasetName, dsName, "test://logs2/*.parquet", Map.of()))
+        );
+        GetDatasetAction.Response dsetResp = client().execute(GetDatasetAction.INSTANCE, getDatasetRequest(datasetName)).get();
+        assertThat(dsetResp.getDatasets().iterator().next().resource(), equalTo("test://logs2/*.parquet"));
+
+        assertAcked(client().execute(OpenDataSourceAction.INSTANCE, openDataSourceRequest(dsName)));
+        // Idempotent open
+        assertAcked(client().execute(OpenDataSourceAction.INSTANCE, openDataSourceRequest(dsName)));
+        dsResp = client().execute(GetDataSourceAction.INSTANCE, getDataSourceRequest(dsName)).get();
+        assertThat(dsResp.getDataSources().iterator().next().enabled(), equalTo(true));
+
+        assertAcked(client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest(datasetName)));
+        assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
+    }
+
+    /**
+     * Close and open feed the config-change phone-home counters, and count only changes of state: closing a closed
+     * data source, or opening an open one, is acknowledged but not counted, and a refused one is counted as rejected.
+     */
+    public void testCloseOpenConfigChangeTelemetry() throws Exception {
+        final String dsName = "toggle_telemetry_ds";
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest(dsName, Map.of("region", "us-east-1"))));
+        try {
+            final String sources = "datasources.config.datasources.changes.by_op.";
+            final long closed = configCounter(sources + "closed");
+            final long opened = configCounter(sources + "opened");
+            final long rejected = configCounter(sources + "rejected");
+
+            assertAcked(client().execute(CloseDataSourceAction.INSTANCE, closeDataSourceRequest(dsName)));
+            assertAcked(client().execute(CloseDataSourceAction.INSTANCE, closeDataSourceRequest(dsName)));
+            assertThat(configCounter(sources + "closed"), equalTo(closed + 1));
+            assertAcked(client().execute(OpenDataSourceAction.INSTANCE, openDataSourceRequest(dsName)));
+            assertAcked(client().execute(OpenDataSourceAction.INSTANCE, openDataSourceRequest(dsName)));
+            assertThat(configCounter(sources + "opened"), equalTo(opened + 1));
+
+            assertThat(configCounter(sources + "rejected"), equalTo(rejected));
+            expectThrows(
+                ExecutionException.class,
+                () -> client().execute(CloseDataSourceAction.INSTANCE, closeDataSourceRequest("toggle_tel_missing")).get()
+            );
+            assertThat(configCounter(sources + "rejected"), equalTo(rejected + 1));
+        } finally {
+            assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
+        }
+    }
+
+    /** Sums one phone-home counter over every node: a change is counted on the master that applied it. */
+    private long configCounter(String name) throws Exception {
+        EsqlStatsRequest request = new EsqlStatsRequest();
+        request.includeStats(true);
+        long total = 0;
+        for (EsqlStatsResponse.NodeStatsResponse node : client().execute(EsqlStatsAction.INSTANCE, request).get().getNodes()) {
+            Counters stats = node.getStats();
+            total += stats == null ? 0 : stats.get(name);
+        }
+        return total;
+    }
+
     static PutDataSourceAction.Request putDataSourceRequest(String name, Map<String, Object> settings) {
         return new PutDataSourceAction.Request(TEST_TIMEOUT, TEST_TIMEOUT, name, "test", null, new HashMap<>(settings));
     }
@@ -982,6 +1071,14 @@ public class DataSourceCrudIT extends ESIntegTestCase {
 
     private static DeleteDatasetAction.Request deleteDatasetRequest(String name) {
         return new DeleteDatasetAction.Request(TEST_TIMEOUT, TEST_TIMEOUT, new String[] { name });
+    }
+
+    private static OpenDataSourceAction.Request openDataSourceRequest(String name) {
+        return new OpenDataSourceAction.Request(TEST_TIMEOUT, TEST_TIMEOUT, new String[] { name });
+    }
+
+    private static CloseDataSourceAction.Request closeDataSourceRequest(String name) {
+        return new CloseDataSourceAction.Request(TEST_TIMEOUT, TEST_TIMEOUT, new String[] { name });
     }
 
     private void expectDataSourceMissing(String name) {

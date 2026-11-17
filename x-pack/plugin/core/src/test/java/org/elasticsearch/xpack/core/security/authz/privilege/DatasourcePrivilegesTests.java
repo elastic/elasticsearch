@@ -47,11 +47,41 @@ public class DatasourcePrivilegesTests extends AbstractNamedWriteableTestCase<Co
             permission.check(EsqlDataSourceActionNames.ESQL_PUT_DATA_SOURCE_ACTION_NAME, put, AuthenticationTestHelper.builder().build()),
             is(true)
         );
+        TransportRequest close = new MockDataSourceRequest(EsqlDataSourceActionNames.ESQL_CLOSE_DATA_SOURCE_ACTION_NAME, "abc1");
+        assertThat(
+            permission.check(
+                EsqlDataSourceActionNames.ESQL_CLOSE_DATA_SOURCE_ACTION_NAME,
+                close,
+                AuthenticationTestHelper.builder().build()
+            ),
+            is(true)
+        );
+        TransportRequest open = new MockDataSourceRequest(EsqlDataSourceActionNames.ESQL_OPEN_DATA_SOURCE_ACTION_NAME, "abc1");
+        assertThat(
+            permission.check(EsqlDataSourceActionNames.ESQL_OPEN_DATA_SOURCE_ACTION_NAME, open, AuthenticationTestHelper.builder().build()),
+            is(true)
+        );
         TransportRequest putDenied = new MockDataSourceRequest(EsqlDataSourceActionNames.ESQL_PUT_DATA_SOURCE_ACTION_NAME, "zzz");
         assertThat(
             permission.check(
                 EsqlDataSourceActionNames.ESQL_PUT_DATA_SOURCE_ACTION_NAME,
                 putDenied,
+                AuthenticationTestHelper.builder().build()
+            ),
+            is(false)
+        );
+        assertThat(
+            permission.check(
+                EsqlDataSourceActionNames.ESQL_CLOSE_DATA_SOURCE_ACTION_NAME,
+                new MockDataSourceRequest(EsqlDataSourceActionNames.ESQL_CLOSE_DATA_SOURCE_ACTION_NAME, "zzz"),
+                AuthenticationTestHelper.builder().build()
+            ),
+            is(false)
+        );
+        assertThat(
+            permission.check(
+                EsqlDataSourceActionNames.ESQL_OPEN_DATA_SOURCE_ACTION_NAME,
+                new MockDataSourceRequest(EsqlDataSourceActionNames.ESQL_OPEN_DATA_SOURCE_ACTION_NAME, "zzz"),
                 AuthenticationTestHelper.builder().build()
             ),
             is(false)

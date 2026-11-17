@@ -57,6 +57,7 @@ Each `global.data_source` privilege allows one operation, and `manage` allows al
 | Create or replace a data source | `create` |
 | Read a data source definition | `read_metadata` |
 | Delete a data source | `delete` |
+| Close or open a data source {applies_to}`stack: preview 9.7+` | `manage` |
 | Reference a data source from a dataset | `read` |
 | All of the above | `manage` |
 | Test a data source connection | None. Requires the cluster `manage` privilege. |

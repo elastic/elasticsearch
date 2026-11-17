@@ -87,8 +87,10 @@ public final class DataSourceUsageAccumulator {
     public static final int OP_UPDATED = 1;
     public static final int OP_DELETED = 2;
     public static final int OP_REJECTED = 3;
-    public static final int OP_COUNT = 4;
-    public static final List<String> OP_NAMES = List.of("created", "updated", "deleted", "rejected");
+    public static final int OP_OPENED = 4;
+    public static final int OP_CLOSED = 5;
+    public static final int OP_COUNT = 6;
+    public static final List<String> OP_NAMES = List.of("created", "updated", "deleted", "rejected", "opened", "closed");
 
     // ---- failure error-type vocabulary (queries.failures.by_error_type / discovery.failures.by_error_type) ----
 
@@ -102,6 +104,8 @@ public final class DataSourceUsageAccumulator {
     public static final String ERROR_TYPE_CIRCUIT_BREAKER = "circuit_breaker";
     public static final String ERROR_TYPE_TIMEOUT = "timeout";
     public static final String ERROR_TYPE_RESOURCE_LIMIT = "resource_limit";
+    /** The query named a dataset that an admin closed, or whose data source is closed. Not a query mistake, and not {@code other}. */
+    public static final String ERROR_TYPE_CLOSED = "closed";
     public static final String ERROR_TYPE_OTHER = "other";
     /** The closed set of failure categories. Anything else is a programming error, never a runtime value. */
     public static final List<String> ERROR_TYPE_NAMES = List.of(
@@ -115,6 +119,7 @@ public final class DataSourceUsageAccumulator {
         ERROR_TYPE_CIRCUIT_BREAKER,
         ERROR_TYPE_TIMEOUT,
         ERROR_TYPE_RESOURCE_LIMIT,
+        ERROR_TYPE_CLOSED,
         ERROR_TYPE_OTHER
     );
     public static final int ERROR_TYPE_COUNT = ERROR_TYPE_NAMES.size();
@@ -392,7 +397,7 @@ public final class DataSourceUsageAccumulator {
 
     /**
      * @param kind {@code datasources} or {@code datasets}
-     * @param op {@code created}, {@code updated}, {@code deleted}, or {@code rejected}
+     * @param op {@code created}, {@code updated}, {@code deleted}, {@code rejected}, {@code opened}, or {@code closed}
      */
     public void recordConfigChange(String kind, String op) {
         recordConfigChange(kind, op, Type.UNKNOWN, null);
@@ -400,7 +405,7 @@ public final class DataSourceUsageAccumulator {
 
     /**
      * @param kind   {@code datasources} or {@code datasets}
-     * @param op     {@code created}, {@code updated}, {@code deleted}, or {@code rejected}
+     * @param op     {@code created}, {@code updated}, {@code deleted}, {@code rejected}, {@code opened}, or {@code closed}
      * @param type   the storage / data-source type the change applies to
      * @param reason one of {@link #REJECT_REASON_NAMES}; only used when {@code op} is {@code rejected}, where {@code null}
      *               counts as {@code other} so the per-reason counters always sum to the {@code rejected} op counter
@@ -619,6 +624,8 @@ public final class DataSourceUsageAccumulator {
             case "updated" -> OP_UPDATED;
             case "deleted" -> OP_DELETED;
             case "rejected" -> OP_REJECTED;
+            case "opened" -> OP_OPENED;
+            case "closed" -> OP_CLOSED;
             default -> throw new IllegalArgumentException("unexpected op: " + op);
         };
     }

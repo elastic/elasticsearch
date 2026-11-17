@@ -100,13 +100,20 @@ public class DatasetService {
         if (parent == null) {
             throw new ResourceNotFoundException("data source [{}] not found", request.dataSource());
         }
-        final IndexAbstraction existing = projectMetadata.getIndicesLookup().get(request.name());
-        if (existing != null && existing.getType() != IndexAbstraction.Type.DATASET) {
+        final IndexAbstraction conflicting = projectMetadata.getIndicesLookup().get(request.name());
+        if (conflicting != null && conflicting.getType() != IndexAbstraction.Type.DATASET) {
             throw new ResourceAlreadyExistsException(
                 "dataset [{}] cannot be created, an existing {} with that name is present",
                 request.name(),
-                existing.getType().getDisplayName()
+                conflicting.getType().getDisplayName()
             );
+        }
+        final Dataset existing = getMetadata(projectMetadata).get(request.name());
+        // A closed data source accepts no new dataset, and no existing one moving onto it; replacing a dataset that is
+        // already on it, without changing its data source, stays allowed.
+        final boolean joinsParent = existing == null || existing.dataSource().getName().equals(request.dataSource()) == false;
+        if (parent.enabled() == false && joinsParent) {
+            throw new IllegalArgumentException("cannot create dataset against closed data source [" + request.dataSource() + "]");
         }
         final DataSourceValidator validator = validatorsByType.get(parent.type());
         if (validator == null) {

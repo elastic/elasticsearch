@@ -15,10 +15,15 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xpack.esql.datasources.datasource.CloseDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.DataSourceService;
 import org.elasticsearch.xpack.esql.datasources.datasource.DeleteDataSourceAction;
+import org.elasticsearch.xpack.esql.datasources.datasource.OpenDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceUsageAccumulator;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.junit.After;
@@ -28,12 +33,14 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.ToLongFunction;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
 /**
@@ -48,7 +55,40 @@ public class ExternalSourceConfigChangeForwardIT extends AbstractEsqlIntegTestCa
 
     private static final TimeValue TIMEOUT = TimeValue.timeValueSeconds(30);
 
-    private static final Set<String> CREATED_DATASOURCES = Set.of("ds_fwd", "ds_fwd_max");
+    private static final Set<String> CREATED_DATASOURCES = Set.of("ds_fwd", "ds_fwd_max", "ds_fwd_toggle");
+
+    /**
+     * Registers a data source type with a real telemetry token ({@code gcs}), so that a toggle's {@code type} attribute can be
+     * told apart from {@code unknown}, which is what the {@code test} type used elsewhere folds to.
+     * Discovered through {@code META-INF/services} like the other test data source plugins, not through {@link #nodePlugins()}.
+     */
+    public static final class GcsTypedDataSourcePlugin extends Plugin implements DataSourcePlugin {
+        @Override
+        public Map<String, DataSourceValidator> datasourceValidators(Settings settings) {
+            return Map.of("gcs", new GcsTypedValidator());
+        }
+    }
+
+    private static final class GcsTypedValidator implements DataSourceValidator {
+        @Override
+        public String type() {
+            return "gcs";
+        }
+
+        @Override
+        public Map<String, DataSourceSetting> validateDatasource(Map<String, Object> datasourceSettings) {
+            return new HashMap<>();
+        }
+
+        @Override
+        public Map<String, Object> validateDataset(
+            Map<String, DataSourceSetting> datasourceSettings,
+            String resource,
+            Map<String, Object> datasetSettings
+        ) {
+            return datasetSettings == null ? Map.of() : new HashMap<>(datasetSettings);
+        }
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -159,6 +199,76 @@ public class ExternalSourceConfigChangeForwardIT extends AbstractEsqlIntegTestCa
                     .setPersistentSettings(Settings.builder().putNull(DataSourceService.MAX_DATA_SOURCES_COUNT_SETTING.getKey()).build())
             );
         }
+    }
+
+    /**
+     * Close and open forwarded from a non-master node land once, on the master, one event per data source that changed, tagged
+     * with the data source's type. A close or open onto the state the data source already has is acknowledged but not counted.
+     */
+    public void testCloseOpenFromNonMasterCountsOnce() throws Exception {
+        String master = internalCluster().getMasterName();
+        String coord = nonMasterNode(master);
+        assertAcked(
+            client(coord).execute(
+                PutDataSourceAction.INSTANCE,
+                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds_fwd_toggle", "gcs", null, new HashMap<>())
+            )
+        );
+
+        long closedBefore = clusterTotal(
+            a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASOURCE, DataSourceUsageAccumulator.OP_CLOSED)
+        );
+        resetAllMeters();
+        for (int i = 0; i < 2; i++) {
+            assertAcked(
+                client(coord).execute(
+                    CloseDataSourceAction.INSTANCE,
+                    new CloseDataSourceAction.Request(TIMEOUT, TIMEOUT, new String[] { "ds_fwd_toggle" })
+                )
+            );
+        }
+        collectAllMeters();
+        assertCountedOnceOnMaster(master, coord, "closed");
+        assertThat(
+            "phone-home closed once across the cluster",
+            clusterTotal(a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASOURCE, DataSourceUsageAccumulator.OP_CLOSED))
+                - closedBefore,
+            equalTo(1L)
+        );
+
+        resetAllMeters();
+        for (int i = 0; i < 2; i++) {
+            assertAcked(
+                client(coord).execute(
+                    OpenDataSourceAction.INSTANCE,
+                    new OpenDataSourceAction.Request(TIMEOUT, TIMEOUT, new String[] { "ds_fwd_toggle" })
+                )
+            );
+        }
+        collectAllMeters();
+        assertCountedOnceOnMaster(master, coord, "opened");
+    }
+
+    private void assertCountedOnceOnMaster(String master, String coord, String op) {
+        String kind = "datasource";
+        assertThat("APM " + op + " once across the cluster", apmConfigChanges(kind, op), equalTo(1L));
+        assertThat("master recorded " + op, apmConfigChangesOn(master, kind, op), equalTo(1L));
+        assertThat("coordinator must not also record " + op, apmConfigChangesOn(coord, kind, op), equalTo(0L));
+        List<Measurement> measurements = counters(ExternalSourceMetrics.CONFIG_CHANGES_TOTAL).stream()
+            .filter(m -> kind.equals(m.attributes().get(ExternalSourceMetrics.KIND_ATTRIBUTE)))
+            .filter(m -> op.equals(m.attributes().get(ExternalSourceMetrics.OP_ATTRIBUTE)))
+            .toList();
+        assertThat(measurements, hasSize(1));
+        assertThat(
+            "tagged with the data source type",
+            measurements.get(0).attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE),
+            equalTo("gcs")
+        );
+        assertThat(
+            "a close or open carries no rejection reason",
+            measurements.get(0).attributes().containsKey(ExternalSourceMetrics.REASON_ATTRIBUTE),
+            equalTo(false)
+        );
     }
 
     private String nonMasterNode(String master) {

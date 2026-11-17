@@ -815,3 +815,21 @@ took:
   - exists: esql.datasources.config.datasets.changes.by_op.updated
   - exists: esql.datasources.config.datasets.changes.by_op.deleted
   - exists: esql.datasources.config.datasets.changes.by_op.rejected
+
+---
+"Datasource config.changes open/close telemetry":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ usage_contains_datasource_open_close ]
+      reason: "Datasource config.changes opened/closed phone-home keys and the closed failure category present in /_xpack/usage"
+
+  - do: { xpack.usage: { } }
+  - exists: esql.datasources.config.datasources.changes.by_op.opened
+  - exists: esql.datasources.config.datasources.changes.by_op.closed
+  - exists: esql.datasources.config.datasets.changes.by_op.opened
+  - exists: esql.datasources.config.datasets.changes.by_op.closed
+  - exists: esql.datasources.queries.failures.by_error_type.closed

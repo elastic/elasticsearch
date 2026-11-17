@@ -3428,6 +3428,16 @@ public class RetryableStorageObjectTests extends ESTestCase {
         int failuresBeforeSuccess,
         String staleIdentity
     ) {
+        return sdkThreadObject(sdkThread, threadContext, failuresBeforeSuccess, staleIdentity, null);
+    }
+
+    private static StorageObject sdkThreadObject(
+        ExecutorService sdkThread,
+        ThreadContext threadContext,
+        int failuresBeforeSuccess,
+        String staleIdentity,
+        List<String> identityByAttempt
+    ) {
         AtomicInteger attempts = new AtomicInteger();
         return new AbstractTestStorageObject() {
             @Override
@@ -3474,6 +3484,9 @@ public class RetryableStorageObjectTests extends ESTestCase {
                 ActionListener<DirectReadBuffer> listener
             ) {
                 boolean fail = attempts.getAndIncrement() < failuresBeforeSuccess;
+                if (identityByAttempt != null) {
+                    identityByAttempt.add(threadContext.getHeader(CONTEXT_HEADER));
+                }
                 sdkThread.execute(() -> {
                     try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
                         if (staleIdentity != null) {
@@ -3603,6 +3616,29 @@ public class RetryableStorageObjectTests extends ESTestCase {
                 threadContext
             );
             assertThat(readAndObserveHeader(obj, threadContext, false), equalTo("issuing-user"));
+        } finally {
+            terminate(sdkThread);
+        }
+    }
+
+    public void testAsyncReadRetryAttemptsRunUnderIssuingContext() throws Exception {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        ExecutorService sdkThread = Executors.newSingleThreadExecutor();
+        try {
+            RetryScheduler onSdkThread = (command, delayMillis, executor) -> sdkThread.execute(() -> {
+                try (ThreadContext.StoredContext ignored = threadContext.newEmptyContext()) {
+                    command.run();
+                }
+            });
+            List<String> identityByAttempt = new CopyOnWriteArrayList<>();
+            RetryableStorageObject obj = new RetryableStorageObject(
+                sdkThreadObject(sdkThread, threadContext, 1, null, identityByAttempt),
+                new RetryPolicy(3, 1, 10),
+                onSdkThread,
+                threadContext
+            );
+            assertThat(readAndObserveHeader(obj, threadContext, false), equalTo("issuing-user"));
+            assertThat(identityByAttempt, equalTo(List.of("issuing-user", "issuing-user")));
         } finally {
             terminate(sdkThread);
         }

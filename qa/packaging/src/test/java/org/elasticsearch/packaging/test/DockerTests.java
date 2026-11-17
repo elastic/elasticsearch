@@ -934,7 +934,7 @@ public class DockerTests extends PackagingTestCase {
         final var unlinkedChecksums = DockerShell.executeCommand(
             "bash",
             "-c",
-            "cd /usr/share/elasticsearch && "
+            "set -o pipefail; cd /usr/share/elasticsearch && "
                 + jars
                 + " -exec sha256sum {} + | while read -r sum path; do "
                 + "echo \"$sum $(stat -c %i \"$path\")\"; done | sort -u | cut -d' ' -f1 | uniq -d"

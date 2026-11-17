@@ -884,6 +884,29 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         verify(shardStateAction, never()).localShardFailed(any(), anyString(), any(), any(), any());
     }
 
+    public void testFailedShardHandlerRaceWithPendingRetryTicket() {
+        final var shardRouting = applyInitializingPrimary();
+        final var onShardFailure = indicesService.lastOnShardFailure;
+        assertNotNull(onShardFailure);
+
+        handleRecoveryFailureWithRetry(shardRouting);
+        assertTrue(isAwaitingRecoveryRetry(shardRouting));
+        assertTrue(deterministicTaskQueue.hasRunnableTasks());
+
+        // A genuinely independent engine failure for the same allocation, reported the way
+        // IndicesService#createShard wires it: via the onShardFailure callback, not through the
+        // recovery listener.
+        onShardFailure.accept(new IndexShard.ShardFailure(shardRouting, primaryTerm(shardRouting), "simulated engine failure", null));
+        // Run the tasks, failAndRemoveShard and retry-createShard, in random order
+        // exercising both variants over multiple runs
+        deterministicTaskQueue.runAllRunnableTasks();
+
+        assertTrue(isFailureReported(shardRouting));
+        assertFalse(isAwaitingRecoveryRetry(shardRouting));
+        assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
+        verify(shardStateAction).localShardFailed(eq(shardRouting), anyString(), any(), any(), any());
+    }
+
     public void testUpdateShardDoesNotResendShardStartedWhileRecoveryInFlight() {
         ShardRouting shardRouting = applyInitializingPrimary();
         currentInFlight(shardRouting); // sanity: ticket is live before the state transition below
@@ -1344,6 +1367,7 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         volatile RuntimeException failNextIndexServiceLookup;
         volatile RecoveryListener lastRecoveryListener;
         volatile ShardId lastCreatedShardId;
+        volatile Consumer<IndexShard.ShardFailure> lastOnShardFailure;
 
         @Override
         protected boolean autoCompleteRecovery() {
@@ -1379,6 +1403,7 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
             createShardCalls.incrementAndGet();
             lastRecoveryListener = recoveryListener;
             lastCreatedShardId = shardRouting.shardId();
+            lastOnShardFailure = onShardFailure;
             RuntimeException toFail = failNextCreateShard;
             if (toFail != null) {
                 failNextCreateShard = null;

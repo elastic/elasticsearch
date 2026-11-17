@@ -308,9 +308,9 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                 .removeShard(0, "test", internalCluster().getInstance(ThreadPool.class, node).generic(), closed);
             // Recovery must ABORT on CLOSED shard
             MockLog.awaitLogger(() -> {
-                    safeAwait(recoveryBarrier);
-                    safeGet(closed);
-                },
+                safeAwait(recoveryBarrier);
+                safeGet(closed);
+            },
                 IndicesClusterStateService.class,
                 new MockLog.SeenEventExpectation(
                     "recovery aborted",
@@ -361,9 +361,9 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                 .removeShard(0, "test", internalCluster().getInstance(ThreadPool.class, node).generic(), closed);
             // Recovery must ABORT on CLOSED shard
             MockLog.awaitLogger(() -> {
-                    safeAwait(recoveryBarrier);
-                    safeGet(closed);
-                },
+                safeAwait(recoveryBarrier);
+                safeGet(closed);
+            },
                 IndicesClusterStateService.class,
                 new MockLog.SeenEventExpectation(
                     "recovery aborted",
@@ -422,9 +422,9 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                 .removeShard(0, "test", internalCluster().getInstance(ThreadPool.class, node).generic(), closed);
             // Recovery must ABORT on CLOSED shard
             MockLog.awaitLogger(() -> {
-                    safeAwait(recoveryBarrier);
-                    safeGet(closed);
-                },
+                safeAwait(recoveryBarrier);
+                safeGet(closed);
+            },
                 IndicesClusterStateService.class,
                 new MockLog.SeenEventExpectation(
                     "recovery aborted",

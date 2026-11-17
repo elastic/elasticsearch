@@ -50,8 +50,15 @@ $endif$
 
     @Override
     public $Type$Block next() {
+        // build() keeps unused capacity, so pre-size for at most the values that fit in the target.
+$if(BytesRef)$
+        long maxValues = targetByteSize / Integer.BYTES;
+$else$
+        long maxValues = targetByteSize / $BYTES$;
+$endif$
         int remaining = positions.getPositionCount() - position;
-        try ($Type$Block.Builder builder = positions.blockFactory().new$Type$BlockBuilder(remaining)) {
+        int estimatedSize = (int) Math.min(remaining, Math.max(Operator.MIN_TARGET_PAGE_SIZE + 1, maxValues));
+        try ($Type$Block.Builder builder = positions.blockFactory().new$Type$BlockBuilder(estimatedSize)) {
             int count = 0;
             copiedBytes = 0;
             while (position < positions.getPositionCount()) {
@@ -68,7 +75,7 @@ $endif$
                 }
                 position++;
                 // TOOD what if the estimate is super huge? should we break even with less than MIN_TARGET?
-                // Count copied bytes rather than builder.estimatedBytes(): the latter includes pre-sized capacity.
+                // builder.estimatedBytes() includes the pre-sized capacity, so track the bytes actually copied.
                 if (++count > Operator.MIN_TARGET_PAGE_SIZE && copiedBytes >= targetByteSize) {
                     break;
                 }

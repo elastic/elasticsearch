@@ -43,8 +43,11 @@ public final class DoubleLookup implements ReleasableIterator<DoubleBlock> {
 
     @Override
     public DoubleBlock next() {
+        // build() keeps unused capacity, so pre-size for at most the values that fit in the target.
+        long maxValues = targetByteSize / Double.BYTES;
         int remaining = positions.getPositionCount() - position;
-        try (DoubleBlock.Builder builder = positions.blockFactory().newDoubleBlockBuilder(remaining)) {
+        int estimatedSize = (int) Math.min(remaining, Math.max(Operator.MIN_TARGET_PAGE_SIZE + 1, maxValues));
+        try (DoubleBlock.Builder builder = positions.blockFactory().newDoubleBlockBuilder(estimatedSize)) {
             int count = 0;
             copiedBytes = 0;
             while (position < positions.getPositionCount()) {
@@ -61,7 +64,7 @@ public final class DoubleLookup implements ReleasableIterator<DoubleBlock> {
                 }
                 position++;
                 // TOOD what if the estimate is super huge? should we break even with less than MIN_TARGET?
-                // Count copied bytes rather than builder.estimatedBytes(): the latter includes pre-sized capacity.
+                // builder.estimatedBytes() includes the pre-sized capacity, so track the bytes actually copied.
                 if (++count > Operator.MIN_TARGET_PAGE_SIZE && copiedBytes >= targetByteSize) {
                     break;
                 }

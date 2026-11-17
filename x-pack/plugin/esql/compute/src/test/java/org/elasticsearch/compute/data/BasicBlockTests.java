@@ -633,6 +633,45 @@ public class BasicBlockTests extends ESTestCase {
         };
     }
 
+    public void testLookupSplitsAtCopiedBytes() {
+        try (LongBlock values = blockFactory.newLongArrayVector(new long[] { 1, 2 }, 2).asBlock()) {
+            try (IntBlock positions = blockFactory.newIntArrayVector(new int[200], 200).asBlock()) {
+                assertThat(lookupBlockSizes(values, positions, 80 * Long.BYTES), equalTo(List.of(80, 80, 40)));
+            }
+            try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(200)) {
+                for (int p = 0; p < 200; p++) {
+                    builder.beginPositionEntry().appendInt(0).appendInt(1).endPositionEntry();
+                }
+                try (IntBlock positions = builder.build()) {
+                    assertThat(lookupBlockSizes(values, positions, 80 * Long.BYTES), equalTo(List.of(40, 40, 40, 40, 40)));
+                }
+            }
+        }
+        try (
+            BytesRefBlock values = blockFactory.newBytesRefVectorBuilder(2)
+                .appendBytesRef(new BytesRef("0123456789"))
+                .appendBytesRef(new BytesRef("abcdefghij"))
+                .build()
+                .asBlock();
+            IntBlock positions = blockFactory.newIntArrayVector(new int[200], 200).asBlock()
+        ) {
+            // each 10-byte value also costs a 4-byte offset
+            assertThat(lookupBlockSizes(values, positions, 50 * 14), equalTo(List.of(50, 50, 50, 50)));
+        }
+    }
+
+    private static List<Integer> lookupBlockSizes(Block values, IntBlock positions, long targetBytes) {
+        List<Integer> sizes = new ArrayList<>();
+        try (ReleasableIterator<? extends Block> it = values.lookup(positions, ByteSizeValue.ofBytes(targetBytes))) {
+            while (it.hasNext()) {
+                try (Block b = it.next()) {
+                    sizes.add(b.getPositionCount());
+                }
+            }
+        }
+        return sizes;
+    }
+
     static IntBlock positions(BlockFactory blockFactory, Object... positions) {
         try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(positions.length)) {
             for (Object p : positions) {

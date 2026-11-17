@@ -43,8 +43,11 @@ public final class LongLookup implements ReleasableIterator<LongBlock> {
 
     @Override
     public LongBlock next() {
+        // build() keeps unused capacity, so pre-size for at most the values that fit in the target.
+        long maxValues = targetByteSize / Long.BYTES;
         int remaining = positions.getPositionCount() - position;
-        try (LongBlock.Builder builder = positions.blockFactory().newLongBlockBuilder(remaining)) {
+        int estimatedSize = (int) Math.min(remaining, Math.max(Operator.MIN_TARGET_PAGE_SIZE + 1, maxValues));
+        try (LongBlock.Builder builder = positions.blockFactory().newLongBlockBuilder(estimatedSize)) {
             int count = 0;
             copiedBytes = 0;
             while (position < positions.getPositionCount()) {
@@ -61,7 +64,7 @@ public final class LongLookup implements ReleasableIterator<LongBlock> {
                 }
                 position++;
                 // TOOD what if the estimate is super huge? should we break even with less than MIN_TARGET?
-                // Count copied bytes rather than builder.estimatedBytes(): the latter includes pre-sized capacity.
+                // builder.estimatedBytes() includes the pre-sized capacity, so track the bytes actually copied.
                 if (++count > Operator.MIN_TARGET_PAGE_SIZE && copiedBytes >= targetByteSize) {
                     break;
                 }

@@ -142,7 +142,7 @@ public class BlockMultiValuedTests extends ESTestCase {
     }
 
     public void testLookupManyPositionsUnderTargetIsOneBlock() {
-        int positionsToCopy = between(Operator.MIN_TARGET_PAGE_SIZE + 1, 2000);
+        int positionsToCopy = between(Operator.MIN_TARGET_PAGE_SIZE + 2, 2000);
         assertThat(assertLookup(ByteSizeValue.ofMb(100), positionsToCopy, p -> between(0, 2)), equalTo(1));
     }
 

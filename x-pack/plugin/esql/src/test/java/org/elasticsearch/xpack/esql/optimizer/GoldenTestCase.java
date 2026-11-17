@@ -1135,10 +1135,6 @@ public abstract class GoldenTestCase extends ESTestCase {
     }
 
     /**
-     * Rewrites seeds of random sampling queries to a fixed seed of 42.
-     * The seed generated during plan building can vary between runs, so this is needed to keep golden output deterministic.
-     */
-    /**
      * Checks that no {@link TimeSeriesAggregateExec} reading documents has a {@link FieldExtractExec} below it that loads
      * the {@code _timeseries} label container. Its block loader parses {@code _source} for every document it is loaded
      * for and has no per-series cache, so a load below the aggregation parses {@code _source} once per sample, a
@@ -1166,6 +1162,10 @@ public abstract class GoldenTestCase extends ESTestCase {
         });
     }
 
+    /**
+     * Rewrites seeds of random sampling queries to a fixed seed of 42.
+     * The seed generated during plan building can vary between runs, so this is needed to keep golden output deterministic.
+     */
     private static String normalizeRandomSeeds(String line) {
         return line.replaceAll("(\"seed\"\\s*:\\s*)(-?\\d+)", "$142");
     }

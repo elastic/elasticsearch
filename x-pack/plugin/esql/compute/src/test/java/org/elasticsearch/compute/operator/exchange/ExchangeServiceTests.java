@@ -63,6 +63,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -741,7 +742,7 @@ public class ExchangeServiceTests extends ESTestCase {
         assertThat(coordinatorBreaker.getUsed(), equalTo(0L));
     }
 
-    public void testCoordinatorRejectsFirstPageWhileItArrives() {
+    public void testCoordinatorRejectsFirstPageWhileItArrives() throws Exception {
         TrackingCircuitBreaker coordinatorBreaker = new TrackingCircuitBreaker(ByteSizeValue.ofKb(1).getBytes());
         BlockFactory dataNodeFactory = blockFactory();
         Page page = intPage(dataNodeFactory, 10_000);
@@ -772,7 +773,8 @@ public class ExchangeServiceTests extends ESTestCase {
     /**
      * Starts a coordinator and a data node, adds {@code page} to a sink on the data node and fetches it from the coordinator.
      */
-    private PlainActionFuture<Page> fetchFirstPage(BlockFactory coordinatorFactory, BlockFactory dataNodeFactory, Page page) {
+    private PlainActionFuture<Page> fetchFirstPage(BlockFactory coordinatorFactory, BlockFactory dataNodeFactory, Page page)
+        throws Exception {
         return fetchPages(coordinatorFactory, dataNodeFactory, false, page).getFirst();
     }
 
@@ -785,7 +787,7 @@ public class ExchangeServiceTests extends ESTestCase {
         BlockFactory dataNodeFactory,
         boolean releaseEach,
         Page... pages
-    ) {
+    ) throws Exception {
         MockTransportService node0 = newTransportService();
         ExchangeService exchange0 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, coordinatorFactory);
         exchange0.registerTransportHandler(node0);
@@ -816,8 +818,8 @@ public class ExchangeServiceTests extends ESTestCase {
                 }));
                 try {
                     future.get(30, TimeUnit.SECONDS);
-                } catch (Exception e) {
-                    // checked by the caller
+                } catch (ExecutionException e) {
+                    // The fetch failed, which the caller checks on the future. Stop fetching further pages.
                     break;
                 }
             }

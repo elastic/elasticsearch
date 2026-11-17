@@ -537,6 +537,9 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         // We only bump the ceiling.
         int objectStoreAccessConcurrency = threadPoolConfig.expectedBlobStoreConcurrency() + threadPoolConfig.expectedBlobStoreConcurrency()
             / 10;
+        assert objectStoreAccessConcurrency > 0 : "Object store access concurrency can't be negative";
+
+        logger.info("Setting max_connections for blob store client based on calculated concurrency of " + objectStoreAccessConcurrency);
 
         if (type == ObjectStoreType.S3) {
             return Settings.builder()

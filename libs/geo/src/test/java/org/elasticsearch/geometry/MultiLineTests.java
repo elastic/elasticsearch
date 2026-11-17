@@ -114,6 +114,18 @@ public class MultiLineTests extends BaseGeometryTestCase<MultiLine> {
 
     @Override
     protected MultiLine mutateInstance(MultiLine instance) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+        List<Line> lines = new ArrayList<>();
+        instance.forEach(lines::add);
+        // every line in a collection must have the same number of dimensions as the others
+        boolean hasZ = instance.hasZ();
+        int i = randomIntBetween(0, lines.size() - 1);
+        // a collection cannot be empty, so only remove a line when there is more than one
+        switch (randomIntBetween(0, lines.size() > 1 ? 2 : 1)) {
+            case 0 -> lines.set(i, randomValueOtherThan(lines.get(i), () -> GeometryTestUtils.randomLine(hasZ)));
+            case 1 -> lines.add(GeometryTestUtils.randomLine(hasZ));
+            case 2 -> lines.remove(i);
+            default -> throw new AssertionError("unexpected mutation branch");
+        }
+        return new MultiLine(lines);
     }
 }

@@ -85,6 +85,7 @@ public class NdJsonFormatReaderStateLifecycleTests extends ESTestCase {
         Map.entry("withSchema", WitherLifecycle.SHARES_COUNTERS),
         Map.entry("withDeclaredDateFormats", WitherLifecycle.SHARES_COUNTERS),
         Map.entry("withReadConfig", WitherLifecycle.SHARES_COUNTERS),
+        Map.entry("withBlockFactory", WitherLifecycle.SHARES_COUNTERS),
         Map.entry("withSchemaSampleShare", WitherLifecycle.SHARES_COUNTERS),
         Map.entry("withSchemaSampleBytes", WitherLifecycle.SHARES_COUNTERS),
         Map.entry("withPushedFilter", WitherLifecycle.IDENTITY_NO_COPY),
@@ -191,6 +192,13 @@ public class NdJsonFormatReaderStateLifecycleTests extends ESTestCase {
                             fieldOf(product, field)
                         );
                     }
+                    if (m.getName().equals("withBlockFactory")) {
+                        assertNotSame(
+                            "withBlockFactory must copy onto the distinct factory, not keep the node's",
+                            fieldOf(receiver, "blockFactory"),
+                            fieldOf(product, "blockFactory")
+                        );
+                    }
                 }
             }
         }
@@ -241,6 +249,8 @@ public class NdJsonFormatReaderStateLifecycleTests extends ESTestCase {
             case "withSchema" -> new Object[] { List.of(new ReferenceAttribute(Source.EMPTY, null, "a", DataType.LONG)) };
             case "withDeclaredDateFormats" -> new Object[] { Map.of("b", "yyyy-MM-dd") };
             case "withReadConfig" -> new Object[] { "0123456789abcdef0123456789abcdef" };
+            case "withBlockFactory" -> new Object[] {
+                BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build() };
             case "withSchemaSampleShare" -> new Object[] { 8 };
             case "withSchemaSampleBytes" -> new Object[] { 4096L };
             case "withPushedFilter" -> new Object[] { new Object() };

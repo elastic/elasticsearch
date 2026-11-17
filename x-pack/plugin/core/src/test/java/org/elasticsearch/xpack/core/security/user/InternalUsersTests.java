@@ -280,6 +280,7 @@ public class InternalUsersTests extends ESTestCase {
             ".workflows*",
             ".kibana_change_history*",
             ".kibana-notifications*",
+            ".context-engine-session-events*",
             ".serverless-recovery-history"
         );
         for (var group : role.indices().groups()) {

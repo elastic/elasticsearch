@@ -323,7 +323,7 @@ public class FetchContextTrackerTests extends ESSingleNodeTestCase {
                     SplitShardCountSummary.IRRELEVANT
                 );
                 // a data node closes the search context of the query phase before the request ends
-                try (SearchContext searchContext = contexts.open(shardRequest)) {
+                try (SearchContext searchContext = contexts.open(shardRequest, null)) {
                     kept.add(contexts.originOf(searchContext));
                 }
             }

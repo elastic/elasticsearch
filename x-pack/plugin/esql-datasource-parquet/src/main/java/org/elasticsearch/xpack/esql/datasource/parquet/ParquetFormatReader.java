@@ -808,6 +808,31 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         );
     }
 
+    @Override
+    public ParquetFormatReader withBlockFactory(@Nullable BlockFactory factory) {
+        if (factory == null || factory == blockFactory) {
+            return this;
+        }
+        // Footer caches, I/O watermark, and the heap buffer pool stay the node instances.
+        return new ParquetFormatReader(
+            factory,
+            pushedFilter,
+            pushedExpressions,
+            forceBaselinePath,
+            optimizedReader,
+            dynamicThreshold,
+            declaredDateFormats,
+            declaredTypeColumns,
+            footerBytes,
+            parsedFooters,
+            ioWatermark,
+            heapBufferPool,
+            maxFooterReadBytes,
+            schemaMaxFields,
+            externalIoThreads
+        );
+    }
+
     /**
      * Test-only: share a watermark across readers so node-wide admission can be asserted with a
      * tiny limit. Production readers keep the heap-derived instance from the root constructor.

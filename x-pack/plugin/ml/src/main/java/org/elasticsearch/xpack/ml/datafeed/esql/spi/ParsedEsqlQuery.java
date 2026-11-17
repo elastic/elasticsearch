@@ -7,7 +7,11 @@
 
 package org.elasticsearch.xpack.ml.datafeed.esql.spi;
 
+import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
+
 import java.time.ZoneId;
+import java.util.List;
+import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.OptionalLong;
 import java.util.Set;
@@ -59,4 +63,16 @@ public interface ParsedEsqlQuery {
 
     /** No rows, one column {@code sourceTimeField}, over the source command only: checks it resolves. Needs an index source. */
     EsqlQueryWithParams sourceTimeFieldProbeQuery(String sourceTimeField);
+
+    /**
+     * The query with {@code column_metadata} enabled. Run it with a request filter that matches no documents, not {@code LIMIT 0}:
+     * ES|QL drops the metadata when the plan is empty. Pass the response columns to {@link #timeBucket}.
+     */
+    EsqlQueryWithParams columnMetadataProbeQuery();
+
+    /**
+     * The bucket span of {@code timeColumn} in the response to {@link #columnMetadataProbeQuery}, as reported by ES|QL itself rather than
+     * read from the query. Empty when ES|QL reports none, as for {@code DATE_TRUNC} or after {@code RENAME}.
+     */
+    Optional<TimeBucket> timeBucket(List<? extends ColumnInfo> columns, String timeColumn);
 }

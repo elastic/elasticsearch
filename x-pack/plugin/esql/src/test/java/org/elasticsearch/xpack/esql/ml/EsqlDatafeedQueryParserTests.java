@@ -21,6 +21,7 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryWithParams;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.ParsedEsqlQuery;
+import org.elasticsearch.xpack.ml.datafeed.esql.spi.TimeBucket;
 import org.junit.After;
 import org.junit.Before;
 
@@ -36,6 +38,8 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.OptionalLong;
 import java.util.Set;
@@ -52,6 +56,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
 public class EsqlDatafeedQueryParserTests extends ESTestCase {
 
@@ -207,6 +212,33 @@ public class EsqlDatafeedQueryParserTests extends ESTestCase {
             )
         );
         assertThat(query.outputRowCountQuery().params(), empty());
+    }
+
+    public void testColumnMetadataProbeShouldEnableColumnMetadataBeforeTheQuery() {
+        assertThat(
+            parse("FROM t | STATS c = COUNT(*) BY b = TBUCKET(1 hour)").columnMetadataProbeQuery().query(),
+            equalTo("SET column_metadata=true;\nFROM t | STATS c = COUNT(*) BY b = TBUCKET(1 hour)")
+        );
+        assertThat(
+            parse("SET time_zone=\"UTC\"; FROM t").columnMetadataProbeQuery().query(),
+            startsWith("SET column_metadata=true;\nSET time_zone")
+        );
+    }
+
+    public void testTimeBucketShouldBeReadFromColumnMetadataOfTheTimeColumn() {
+        List<ColumnInfoImpl> columns = List.of(
+            new ColumnInfoImpl("c", "long", null),
+            new ColumnInfoImpl("b", "date", null, Map.of("bucket", Map.of("interval", 15L, "unit", "minute")))
+        );
+        ParsedEsqlQuery query = parse("FROM t");
+        assertThat(query.timeBucket(columns, "b"), equalTo(Optional.of(new TimeBucket(15, "minute"))));
+        assertThat(query.timeBucket(columns, "c"), equalTo(Optional.empty()));
+        assertThat(query.timeBucket(columns, "missing"), equalTo(Optional.empty()));
+    }
+
+    public void testNumericBucketMetadataShouldNotBeATimeBucket() {
+        List<ColumnInfoImpl> columns = List.of(new ColumnInfoImpl("b", "double", null, Map.of("bucket", Map.of("interval", 10.0))));
+        assertThat(parse("FROM t").timeBucket(columns, "b"), equalTo(Optional.empty()));
     }
 
     public void testSubqueriesWithSeveralBranchesShouldBeRejected() {

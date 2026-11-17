@@ -12,7 +12,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.EsqlQueryParam;
+import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -46,6 +48,7 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryWithParams;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.ParsedEsqlQuery;
+import org.elasticsearch.xpack.ml.datafeed.esql.spi.TimeBucket;
 
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -53,6 +56,7 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.OptionalLong;
 import java.util.Set;
@@ -251,6 +255,26 @@ public class EsqlDatafeedQueryParser implements EsqlQueryParser {
         public EsqlQueryWithParams orderedByTimeQuery(String timeField, OptionalLong rowLimit) {
             String pipeline = rowLimit.isPresent() ? "SORT ??timeField ASC\n| LIMIT " + rowLimit.getAsLong() : "SORT ??timeField ASC";
             return withPipeline(pipeline, timeFieldParams(timeField));
+        }
+
+        @Override
+        public EsqlQueryWithParams columnMetadataProbeQuery() {
+            return new EsqlQueryWithParams("SET column_metadata=true;\n" + query, List.of());
+        }
+
+        @Override
+        public Optional<TimeBucket> timeBucket(List<? extends ColumnInfo> columns, String timeColumn) {
+            for (ColumnInfo column : columns) {
+                if (column instanceof ColumnInfoImpl info
+                    && info.name().equals(timeColumn)
+                    && info.meta() != null
+                    && info.meta().get("bucket") instanceof Map<?, ?> bucket
+                    && bucket.get("interval") instanceof Number interval
+                    && bucket.get("unit") instanceof String unit) {
+                    return Optional.of(new TimeBucket(interval.longValue(), unit));
+                }
+            }
+            return Optional.empty();
         }
 
         @Override

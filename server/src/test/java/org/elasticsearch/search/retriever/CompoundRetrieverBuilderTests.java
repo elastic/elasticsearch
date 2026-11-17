@@ -35,7 +35,7 @@ public class CompoundRetrieverBuilderTests extends ESTestCase {
                 new SearchShardTarget("2", new ShardId("2", "2", 2), "bar")
             )
         );
-        when(response.shardFailuresList()).thenReturn(shardFailures);
+        when(response.getShardFailures()).thenReturn(shardFailures);
 
         int priorStatusCode = randomIntBetween(200, 600);
         List<Exception> failures = new ArrayList<>();

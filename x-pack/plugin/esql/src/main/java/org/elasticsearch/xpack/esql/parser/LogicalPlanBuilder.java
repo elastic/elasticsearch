@@ -95,6 +95,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
@@ -397,6 +398,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 throw new ParsingException(src, "Invalid pattern for dissect: [{}]", pattern);
             }
         };
+    }
+
+    @Override
+    public PlanFactory visitNestedExpandCommand(EsqlBaseParser.NestedExpandCommandContext ctx) {
+        UnresolvedAttribute field = visitQualifiedName(ctx.qualifiedName());
+        Source src = source(ctx);
+        return child -> new NestedExpand(src, child, field);
     }
 
     @Override

@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.planner.mapper;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -33,6 +35,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
+import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
@@ -96,6 +99,9 @@ public class Mapper {
     }
 
     public PhysicalPlan map(Versioned<LogicalPlan> versionedPlan) {
+        versionedPlan.inner().forEachDown(NestedExpand.class, expand -> {
+            throw new VerificationException(List.of(Failure.fail(expand, "NESTED_EXPAND is not supported yet")));
+        });
         // We ignore the version for now, but it's fine to use later for plans that work
         // differently from some version and up.
         return mapInner(versionedPlan.inner());

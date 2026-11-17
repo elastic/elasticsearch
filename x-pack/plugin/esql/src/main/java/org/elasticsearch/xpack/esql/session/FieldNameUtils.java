@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedPattern;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
+import org.elasticsearch.xpack.esql.core.type.NestedScopeField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
@@ -50,6 +51,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
@@ -103,6 +105,41 @@ public class FieldNameUtils {
     }
 
     public static PreAnalysisResult resolveFieldNames(LogicalPlan parsed, boolean hasEnriches, boolean includePrefixFields) {
+        return addNestedExpand(parsed, collectFieldNames(parsed, hasEnriches, includePrefixFields));
+    }
+
+    /**
+     * A {@code NESTED_EXPAND} needs the nested field's mapping, which field caps otherwise drops. The marker tells the
+     * resolver to keep those fields in a private schema instead of turning them into ordinary columns.
+     */
+    private static PreAnalysisResult addNestedExpand(LogicalPlan parsed, PreAnalysisResult result) {
+        Set<String> collections = new HashSet<>();
+        parsed.forEachDown(NestedExpand.class, expand -> {
+            if (expand.bound() == false && expand.target() != null) {
+                collections.add(expand.target().name());
+            }
+        });
+        if (collections.isEmpty()) {
+            return result;
+        }
+        Set<String> fieldNames = new HashSet<>(result.fieldNames());
+        fieldNames.add(NestedScopeField.REQUEST_MARKER);
+        if (fieldNames.contains(WILDCARD) == false) {
+            Set<String> extra = new HashSet<>();
+            for (String name : result.fieldNames()) {
+                extra.addAll(parentPrefixes(name));
+            }
+            for (String collection : collections) {
+                extra.add(collection);
+                extra.add(collection + ".*");
+                extra.addAll(parentPrefixes(collection));
+            }
+            fieldNames.addAll(extra);
+        }
+        return new PreAnalysisResult(fieldNames, result.parentPaths(), result.wildcardJoinIndices());
+    }
+
+    private static PreAnalysisResult collectFieldNames(LogicalPlan parsed, boolean hasEnriches, boolean includePrefixFields) {
 
         // The EQL command's output is the whole mapping: its query references fields the ES|QL field-name walk
         // cannot see, and a narrow set risks a zero-column schema for `EQL x "q" | STATS COUNT(*)`, so resolve all
@@ -612,6 +649,7 @@ public class FieldNameUtils {
             || p instanceof Keep
             || p instanceof Limit
             || p instanceof MvExpand
+            || p instanceof NestedExpand
             || p instanceof OrderBy
             || p instanceof Project
             || p instanceof RegexExtract

@@ -35,10 +35,6 @@ public final class LocalSpanCount implements ImplicitContextKeyed {
         return COUNT.incrementAndGet(this);
     }
 
-    public void decrement() {
-        COUNT.decrementAndGet(this);
-    }
-
     @Nullable
     public static LocalSpanCount getOrNull(Context context) {
         return context.get(SPAN_LOCAL_COUNT_KEY);

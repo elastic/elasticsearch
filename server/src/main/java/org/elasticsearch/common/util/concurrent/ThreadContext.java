@@ -31,6 +31,7 @@ import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.tracing.Span;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -78,6 +79,8 @@ import static org.elasticsearch.tasks.Task.HEADERS_TO_COPY;
  *
  */
 public final class ThreadContext implements Writeable {
+
+    private static final String APM_SPAN_TRANSIENT = "apm.local.span";
 
     public static final String PREFIX = "request.headers";
     public static final Setting<Settings> DEFAULT_HEADERS_SETTING = Setting.groupSetting(PREFIX + ".", Property.NodeScope);
@@ -152,11 +155,8 @@ public final class ThreadContext implements Writeable {
         }
 
         // preserve the APM context to have trace continuity
-        if (context.transientHeaders.containsKey(Task.APM_TRACE_CONTEXT)) {
-            threadContextStruct = threadContextStruct.putTransient(
-                Task.APM_TRACE_CONTEXT,
-                context.transientHeaders.get(Task.APM_TRACE_CONTEXT)
-            );
+        if (context.transientHeaders.containsKey(APM_SPAN_TRANSIENT)) {
+            threadContextStruct = threadContextStruct.putTransient(APM_SPAN_TRANSIENT, context.transientHeaders.get(APM_SPAN_TRANSIENT));
         }
 
         threadLocal.set(threadContextStruct);
@@ -201,8 +201,19 @@ public final class ThreadContext implements Writeable {
      */
     public StoredContext clearTraceContext() {
         final ThreadContextStruct context = threadLocal.get();
-        threadLocal.set(context.removeRequests(Task.TRACE_PARENT_HTTP_HEADER, Task.TRACE_STATE).removeTransient(Task.APM_TRACE_CONTEXT));
+        threadLocal.set(context.removeRequests(Task.TRACE_PARENT_HTTP_HEADER, Task.TRACE_STATE).removeTransient(APM_SPAN_TRANSIENT));
         return storedOriginalContext(context);
+    }
+
+    public void setSpan(Span span) {
+        assert span != null : "cannot propagate null span";
+        final ThreadContextStruct context = threadLocal.get();
+        threadLocal.set(context.putTransientAllowOverwrite(APM_SPAN_TRANSIENT, span));
+    }
+
+    @Nullable
+    public Span getSpan() {
+        return (Span) threadLocal.get().transientHeaders.getOrDefault(APM_SPAN_TRANSIENT, Span.noop());
     }
 
     private StoredContext storedOriginalContext(ThreadContextStruct originalContext) {

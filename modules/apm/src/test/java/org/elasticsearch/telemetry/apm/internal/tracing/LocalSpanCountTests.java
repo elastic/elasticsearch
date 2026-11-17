@@ -38,14 +38,4 @@ public class LocalSpanCountTests extends ESTestCase {
         assertThat(count.incrementAndGet(), equalTo(2));
         assertThat(count.incrementAndGet(), equalTo(3));
     }
-
-    public void testDecrementGivesTheCountBack() {
-        final LocalSpanCount count = new LocalSpanCount();
-        count.incrementAndGet();
-        count.incrementAndGet();
-
-        count.decrement();
-
-        assertThat(count.incrementAndGet(), equalTo(2));
-    }
 }

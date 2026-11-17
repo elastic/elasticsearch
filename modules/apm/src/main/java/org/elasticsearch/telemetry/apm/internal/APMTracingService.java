@@ -54,7 +54,11 @@ public class APMTracingService extends AbstractLifecycleComponent {
         this.sampler = new ElasticTracestateSampler(enabled, settings);
         this.traceSupplier = traceSupplierFactory.create(sampler);
         this.tracer = new APMTracer(threadContext, traceSupplier, enabled, recordExceptionStacks);
+        this.tracer.setIncludeNames(APMAgentSettings.TELEMETRY_TRACING_NAMES_INCLUDE_SETTING.get(settings));
+        this.tracer.setExcludeNames(APMAgentSettings.TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING.get(settings));
         this.tracer.setLabelFilters(APMAgentSettings.TELEMETRY_TRACING_SANITIZE_FIELD_NAMES.get(settings));
+        this.tracer.setMaxTraceDepth(OtelSdkSettings.TELEMETRY_TRACING_MAX_DEPTH.get(settings));
+        this.tracer.setMaxSpans(OtelSdkSettings.TELEMETRY_TRACING_MAX_SPANS.get(settings));
     }
 
     public APMTracer tracer() {
@@ -74,10 +78,10 @@ public class APMTracingService extends AbstractLifecycleComponent {
 
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         clusterSettings.addSettingsUpdateConsumer(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING, enabled::set);
-        clusterSettings.addSettingsUpdateConsumer(APMAgentSettings.TELEMETRY_TRACING_NAMES_INCLUDE_SETTING, sampler::setIncludeNames);
-        clusterSettings.addSettingsUpdateConsumer(APMAgentSettings.TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING, sampler::setExcludeNames);
-        clusterSettings.addSettingsUpdateConsumer(OtelSdkSettings.TELEMETRY_TRACING_MAX_DEPTH, sampler::setMaxTraceDepth);
-        clusterSettings.addSettingsUpdateConsumer(OtelSdkSettings.TELEMETRY_TRACING_MAX_SPANS, sampler::setMaxSpansInTrace);
+        clusterSettings.addSettingsUpdateConsumer(APMAgentSettings.TELEMETRY_TRACING_NAMES_INCLUDE_SETTING, tracer::setIncludeNames);
+        clusterSettings.addSettingsUpdateConsumer(APMAgentSettings.TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING, tracer::setExcludeNames);
+        clusterSettings.addSettingsUpdateConsumer(OtelSdkSettings.TELEMETRY_TRACING_MAX_DEPTH, tracer::setMaxTraceDepth);
+        clusterSettings.addSettingsUpdateConsumer(OtelSdkSettings.TELEMETRY_TRACING_MAX_SPANS, tracer::setMaxSpans);
         clusterSettings.addSettingsUpdateConsumer(APMAgentSettings.TELEMETRY_TRACING_SANITIZE_FIELD_NAMES, tracer::setLabelFilters);
         clusterSettings.addSettingsUpdateConsumer(OtelSdkSettings.TELEMETRY_TRACING_RECORD_EXCEPTION_STACKS, recordExceptionStacks::set);
     }

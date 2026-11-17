@@ -25,7 +25,6 @@ import org.elasticsearch.telemetry.tracing.SpanBuilder;
 import java.time.Instant;
 
 import static java.util.Objects.requireNonNull;
-import static java.util.Objects.requireNonNullElseGet;
 import static org.elasticsearch.telemetry.apm.internal.tracing.AbstractSpan.isSpanRecording;
 
 public class APMSpanBuilder implements SpanBuilder {
@@ -112,7 +111,6 @@ public class APMSpanBuilder implements SpanBuilder {
 
     @Override
     public SpanBuilder setNoParent() {
-        this.parentContext = emptyContext();
         this.noParent = true;
         return this;
     }
@@ -124,26 +122,53 @@ public class APMSpanBuilder implements SpanBuilder {
 
     @Override
     public AbstractSpan startSpan() {
-        // The span is returned even if it is not sampled, with the context that stands for that decision. This is what makes the
-        // decision part of what is propagated to the descendants of the span, both local and remote ones, when it is stored in a thread
-        // context.
-        Context otelContext = startSpanContext();
-        return isSpanRecording(otelContext) ? new APMSpan(tracer, otelContext) : new PropagatedSpan(tracer, otelContext);
-    }
+        Context parentOtelContext;
+        if (noParent) {
+            parentOtelContext = emptyContext();
+        } else if (parentContext != null) {
+            parentOtelContext = parentContext;
+        } else if (tracer.currentSpan() instanceof AbstractSpan currentSpan) {
+            parentOtelContext = currentSpan.context();
+        } else {
+            parentOtelContext = getRemoteParentContext();
+        }
 
-    private Context startSpanContext() {
-        final var threadContext = tracer.threadContext();
-        final Context localParentContext = parentContext != null
-            ? parentContext
-            : requireNonNullElseGet(threadContext.getTransient(Task.APM_TRACE_CONTEXT), APMSpanBuilder::emptyContext);
-        boolean hasLocalParentSpan = io.opentelemetry.api.trace.Span.fromContextOrNull(localParentContext) != null;
+        var parentOtelSpan = io.opentelemetry.api.trace.Span.fromContextOrNull(parentOtelContext);
 
-        final io.opentelemetry.api.trace.SpanBuilder otelSpanBuilder = tracer.otelTracer().spanBuilder(name).setSpanKind(spanKind);
+        // local parent span is not sampled, propagate its context to disable any further child spans
+        if (parentOtelSpan != null && parentOtelSpan.getSpanContext().isSampled() == false) {
+            logger.trace("Skipping span [{}] as its local trace was dropped", name);
+            return readOnlySpan(parentOtelContext);
+        }
 
-        // Try to use the local parent first, otherwise look for a remote parent in the request headers; otherwise use emptyContext().
-        // A span that was explicitly started without a parent is the root of a new trace: nothing is inherited, not even a remote parent.
-        final Context newSpanParent = hasLocalParentSpan || noParent ? localParentContext : getRemoteParentContext();
-        otelSpanBuilder.setParent(newSpanParent);
+        if (tracer.isFilteredOut(name)) {
+            logger.trace("Skipping tracing [{}] as it has been filtered out", name);
+            return readOnlySpan(parentOtelContext);
+        }
+
+        final var localDepth = LocalTraceDepth.get(parentOtelContext);
+        final var localSpanCount = LocalSpanCount.getOrNull(parentOtelContext);
+        if (localSpanCount == null) {
+            assert false : "LocalSpanCount should always be populated, even in empty context";
+            return readOnlySpan(parentOtelContext);
+        }
+
+        final int maxTraceDepth = tracer.maxTraceDepth();
+        if (localDepth.depth() > maxTraceDepth) {
+            logger.trace("Skipping span [{}] at local trace depth {} (maxTraceDepth={})", name, localDepth, maxTraceDepth);
+            return readOnlySpan(parentOtelContext);
+        }
+
+        final int maxSpans = tracer.maxSpans();
+        if (localSpanCount.incrementAndGet() > maxSpans) {
+            logger.trace("Skipping span [{}] as the local trace reached maxSpans={}", name, maxSpans);
+            return readOnlySpan(parentOtelContext);
+        }
+
+        final io.opentelemetry.api.trace.SpanBuilder otelSpanBuilder = tracer.otelTracer()
+            .spanBuilder(name)
+            .setSpanKind(spanKind)
+            .setParent(parentOtelContext);
 
         if (attributesBuilder != null) {
             otelSpanBuilder.setAllAttributes(attributesBuilder.build());
@@ -151,18 +176,18 @@ public class APMSpanBuilder implements SpanBuilder {
 
         setCommonAttributes(otelSpanBuilder);
 
-        if (hasLocalParentSpan == false) {
-            Instant startTime = threadContext.removeTransient(Task.LOCAL_TRACE_START_TIME);
+        if (parentOtelSpan != null == false) {
+            Instant startTime = tracer.threadContext().removeTransient(Task.LOCAL_TRACE_START_TIME);
             if (startTime != null) {
                 otelSpanBuilder.setStartTimestamp(startTime);
             }
         }
 
         final io.opentelemetry.api.trace.Span otelSpan = otelSpanBuilder.startSpan();
-        final Context contextForNewSpan = newSpanParent.with(otelSpan).with(LocalTraceDepth.get(localParentContext).increment());
+        final Context contextForNewSpan = parentOtelContext.with(otelSpan).with(localDepth.increment());
 
         logger.trace("Starting span [{}]", name);
-        return contextForNewSpan;
+        return isSpanRecording(contextForNewSpan) ? new APMSpan(tracer, contextForNewSpan) : readOnlySpan(contextForNewSpan);
     }
 
     private void setCommonAttributes(io.opentelemetry.api.trace.SpanBuilder spanBuilder) {
@@ -194,5 +219,21 @@ public class APMSpanBuilder implements SpanBuilder {
             .getPropagators()
             .getTextMapPropagator()
             .extract(emptyContext(), tracer.threadContext(), (tc, key) -> requireNonNull(tc).getHeader(key));
+    }
+
+    /**
+     * Return a read only wrapper of the OTel span in {@code parentOtelContext}. The read only span can be propagated across threads or
+     * nodes, but cannot record any new observation. It preserves the sampling state present in passed {@code parentOtelContext}.
+     *
+     * <p>For example:
+     * <ul>
+     *     <li>A not sampled span will not record anything, and pass its sampling decision down the trace tree.
+     *     <li>A child span was not created because of local trace limits (e.g. {@code max_spans}): the parent span context is passed down,
+     *         but the instrumentation that creates the child span must not be able to overwrite parent span attributes/fields; at the same
+     *         time, it must be able to propagate the trace context to another node.
+     * </ul>
+     */
+    private PropagatedSpan readOnlySpan(Context parentOtelContext) {
+        return new PropagatedSpan(tracer, parentOtelContext);
     }
 }

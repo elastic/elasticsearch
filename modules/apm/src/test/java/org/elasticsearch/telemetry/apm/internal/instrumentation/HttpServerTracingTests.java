@@ -197,15 +197,8 @@ public class HttpServerTracingTests extends ESTestCase {
             .build();
         RestResponse response = new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
 
-<<<<<<< HEAD
-        try (var ignored = instrumentation.start(request, "/{index}/_search").storeInThreadContext()) {
-            instrumentation.recordException(request, new RuntimeException("test"));
-            instrumentation.prepareEnd(request, response).close();
-        }
-=======
         instrumentation.recordException(request, new RuntimeException("test"));
         instrumentation.prepareEnd(request, response).close();
->>>>>>> bd7b7c475465 (Tracing: add PropagatedSpan for dropped spans)
 
         verifyNoInteractions(span);
     }

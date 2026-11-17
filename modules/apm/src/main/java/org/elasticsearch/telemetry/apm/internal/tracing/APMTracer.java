@@ -10,13 +10,11 @@
 package org.elasticsearch.telemetry.apm.internal.tracing;
 
 import io.opentelemetry.api.OpenTelemetry;
-import io.opentelemetry.context.Context;
 
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.telemetry.apm.internal.export.otelsdk.PatternAutomata;
+import org.elasticsearch.telemetry.apm.internal.util.PatternAutomata;
 import org.elasticsearch.telemetry.tracing.Span;
 import org.elasticsearch.telemetry.tracing.Tracer;
 
@@ -25,7 +23,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 import static java.util.Objects.requireNonNull;
-import static org.elasticsearch.telemetry.apm.internal.tracing.AbstractSpan.isSpanRecording;
 
 /**
  * {@link Tracer} implementation provided by the Elasticsearch {@code apm} module ({@code modules/apm}). It records spans using the
@@ -38,6 +35,12 @@ public class APMTracer implements Tracer {
     private final AtomicBoolean enabled; // instance shared with sampler
     private final AtomicBoolean recordExceptionStacks;
 
+    private List<String> includeNames = List.of();
+    private List<String> excludeNames = List.of();
+    /** Built using {@link #includeNames} and {@link #excludeNames}, and filters out spans based on their name. */
+    private volatile CharacterRunAutomaton filterAutomaton = PatternAutomata.compile(List.of(), List.of());
+    private volatile int maxTraceDepth;
+    private volatile int maxSpans;
     private volatile CharacterRunAutomaton labelFilterAutomaton = PatternAutomata.compile(List.of(), List.of());
     private volatile String clusterName;
     private volatile String nodeName;
@@ -62,11 +65,43 @@ public class APMTracer implements Tracer {
 
     @Override
     public Span currentSpan() {
-        final Context context = threadContext.getTransient(Task.APM_TRACE_CONTEXT);
-        if (context == null) {
+        var span = threadContext.getSpan();
+        assert span != null : "span cannot be null";
+        if (span == null || span == Span.noop()) {
             return Span.noop();
         }
-        return enabled.get() && isSpanRecording(context) ? new APMSpan(this, context) : new PropagatedSpan(this, context);
+        assert span instanceof AbstractSpan : "only AbstractSpan instances are allowed in ThreadContext; found" + span.getClass().getName();
+        return span;
+    }
+
+    public synchronized void setIncludeNames(List<String> includeNames) {
+        this.includeNames = includeNames;
+        this.filterAutomaton = PatternAutomata.compile(includeNames, excludeNames);
+    }
+
+    public synchronized void setExcludeNames(List<String> excludeNames) {
+        this.excludeNames = excludeNames;
+        this.filterAutomaton = PatternAutomata.compile(includeNames, excludeNames);
+    }
+
+    public void setLabelFilters(List<String> labelFilters) {
+        this.labelFilterAutomaton = PatternAutomata.compile(labelFilters, List.of());
+    }
+
+    public void setMaxTraceDepth(int maxTraceDepth) {
+        this.maxTraceDepth = maxTraceDepth;
+    }
+
+    public void setMaxSpans(int maxSpans) {
+        this.maxSpans = maxSpans;
+    }
+
+    public void setClusterName(String clusterName) {
+        this.clusterName = clusterName;
+    }
+
+    public void setNodeName(String nodeName) {
+        this.nodeName = nodeName;
     }
 
     ThreadContext threadContext() {
@@ -85,24 +120,25 @@ public class APMTracer implements Tracer {
         return enabled.get();
     }
 
-    public void setLabelFilters(List<String> labelFilters) {
-        this.labelFilterAutomaton = PatternAutomata.compile(labelFilters, List.of());
-    }
-
-    public void setClusterName(String clusterName) {
-        this.clusterName = clusterName;
-    }
-
-    public void setNodeName(String nodeName) {
-        this.nodeName = nodeName;
-    }
-
     String clusterName() {
         return clusterName;
     }
 
     String nodeName() {
         return nodeName;
+    }
+
+    /** Whether the name of a span is excluded from tracing by the configured include and exclude patterns. */
+    boolean isFilteredOut(String spanName) {
+        return filterAutomaton.run(spanName) == false;
+    }
+
+    int maxTraceDepth() {
+        return maxTraceDepth;
+    }
+
+    int maxSpans() {
+        return maxSpans;
     }
 
     /** Whether the value of an attribute with the given key is sensitive and must be redacted. */

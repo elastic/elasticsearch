@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.telemetry.apm.internal.export.otelsdk;
+package org.elasticsearch.telemetry.apm.internal.util;
 
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;

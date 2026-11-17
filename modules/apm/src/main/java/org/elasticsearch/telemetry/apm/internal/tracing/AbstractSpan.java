@@ -44,12 +44,12 @@ public abstract class AbstractSpan implements Span, SpanStatusBuilder {
     public ThreadContext.StoredContext storeInThreadContext() {
         final ThreadContext threadContext = tracer.threadContext();
         final ThreadContext.StoredContext storedContext = threadContext.newStoredContextPreservingResponseHeaders();
-        updateThreadContext(threadContext, otelContext);
+        updateThreadContext(threadContext);
         return storedContext;
     }
 
-    private void updateThreadContext(ThreadContext threadContext, Context context) {
-        threadContext.putTransientAllowOverwrite(Task.APM_TRACE_CONTEXT, context);
+    private void updateThreadContext(ThreadContext threadContext) {
+        threadContext.setSpan(this);
 
         // the propagator does not write an empty tracestate, so make sure that no stale value is left behind
         threadContext.removeHeaders(Task.TRACE_PARENT_HTTP_HEADER, Task.TRACE_STATE);
@@ -59,7 +59,7 @@ public abstract class AbstractSpan implements Span, SpanStatusBuilder {
             tracer.openTelemetry()
                 .getPropagators()
                 .getTextMapPropagator()
-                .inject(context, threadContext, (tc, key, value) -> requireNonNull(tc).putHeaderAllowOverwrite(key, value));
+                .inject(otelContext, threadContext, (tc, key, value) -> requireNonNull(tc).putHeaderAllowOverwrite(key, value));
         }
     }
 }

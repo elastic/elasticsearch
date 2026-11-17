@@ -291,6 +291,8 @@ public class RetryableStorageProviderTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         ExecutorService sdkThread = Executors.newSingleThreadExecutor();
         try {
+            // A real object cannot be used: the test must control the completing thread, which a storage SDK callback thread does by
+            // completing the read with an empty ThreadContext.
             StorageObject inner = new StorageObject() {
                 @Override
                 public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
@@ -373,8 +375,7 @@ public class RetryableStorageProviderTests extends ESTestCase {
                 assertEquals("issuing-user", observed.get(10, TimeUnit.SECONDS));
             }
         } finally {
-            sdkThread.shutdown();
-            sdkThread.awaitTermination(10, TimeUnit.SECONDS);
+            terminate(sdkThread);
         }
     }
 

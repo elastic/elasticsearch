@@ -709,6 +709,22 @@ public class ReshardIndexService {
             final ShardId shardId = splitStateRequest.getShardId();
 
             return modifyReshardingMetadata(clusterState, shardId.getIndex(), indexMetadata -> {
+                // Do not commit HANDOFF if the initializing target primary failed. The source keeps the documents and
+                // the reassigned target restarts the split from CLONE.
+                final ShardRouting targetPrimary = clusterState.projectState(clusterState.metadata().projectFor(shardId.getIndex()).id())
+                    .routingTable()
+                    .shardRoutingTable(shardId)
+                    .primaryShard();
+                if (targetPrimary.unassigned()) {
+                    String message = format(
+                        "%s cannot transition target state [%s] because the target primary is unassigned",
+                        shardId,
+                        splitStateRequest.getNewTargetShardState()
+                    );
+                    logger.debug(message);
+                    throw new IllegalStateException(message);
+                }
+
                 IndexReshardingMetadata reshardingMetadata = indexMetadata.getReshardingMetadata();
 
                 long currentTargetPrimaryTerm = indexMetadata.primaryTerm(shardId.id());

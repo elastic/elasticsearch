@@ -642,7 +642,12 @@ public class KnnNestedFilterLevelTests extends MapperServiceTestCase {
             }
         }, reader -> {
             DirectoryReader esReader = ElasticsearchDirectoryReader.wrap(reader, new ShardId("index", "_na_", 0));
-            test.accept(mapperService, newSearcher(esReader, false, false));
+            // https://github.com/apache/lucene/pull/17017 - if timeout is set (which it can sometimes by lucene newSearcher),
+            // the timeout wrapper doesn't handle null collectors properly. So always unset the timeout until
+            // the Lucene bug is fixed
+            var searcher = newSearcher(esReader, false, false);
+            searcher.setTimeout(null);
+            test.accept(mapperService, searcher);
         });
     }
 }

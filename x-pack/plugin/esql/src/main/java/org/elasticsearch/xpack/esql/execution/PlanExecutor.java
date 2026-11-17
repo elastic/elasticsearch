@@ -390,7 +390,6 @@ public class PlanExecutor {
         long begin,
         String client
     ) {
-        countFinishedQuery(finishCounted, caller, request.entryPoint(), true);
         planTelemetryManager.publish(planTelemetry, true);
         boolean partial = result != null && result.inner().completionInfo().partial();
         recordExternalSourceQuery(
@@ -409,6 +408,10 @@ public class PlanExecutor {
                 planTelemetry.settings().containsKey("PROJECT_ROUTING"),
                 executionInfo.isHasLinkedProjects()
             );
+        // Last step before the response. ActionListener.wrap sends a throw from the bookkeeping above to onQueryFailure,
+        // which counts the query as failed. Counting success any earlier would leave es_esql_success=true and the guard
+        // below would drop that failure measurement.
+        countFinishedQuery(finishCounted, caller, request.entryPoint(), true);
         listener.onResponse(result);
     }
 
@@ -439,9 +442,9 @@ public class PlanExecutor {
         );
         queryLog.onQueryFailure(request.queryDescription(), settings, request.viewSettings(), ex, System.nanoTime() - begin);
         // Matched by condition, not class: a failure from a remote data node arrives as a wrapper that keeps only the condition.
-        if (cacheService != null && ExternalException.hasCondition(ex, ExternalException.Condition.OBJECT_CHANGED)) {
-            // The object was rewritten after the listing this query used was cached. Drop the entries this query read, so the
-            // client's next attempt lists them again; other queries' entries stay.
+        if (cacheService != null && ExternalException.isStaleCachedObject(ex)) {
+            // The object was rewritten or deleted after the listing this query used was cached. Drop the entries this query
+            // read, so the client's next attempt lists them again; other queries' entries stay.
             externalSourceResolver.invalidateUsedCacheEntries();
         }
         listener.onFailure(ex);
@@ -449,7 +452,9 @@ public class PlanExecutor {
 
     /**
      * Counts a finished query on the APM query counter. {@link ActionListener#wrap} runs the failure handler when the success
-     * handler throws, so one query can reach both; {@code finishCounted} keeps it to one count.
+     * handler throws, so one query can reach both; {@code finishCounted} keeps it to one count. Record success only after the
+     * other success bookkeeping, immediately before the response is delivered, so a throw from that bookkeeping is counted
+     * as a failure instead of a success that this guard then refuses to correct.
      */
     private void countFinishedQuery(AtomicBoolean finishCounted, QueryCaller caller, QueryEntryPoint entryPoint, boolean success) {
         if (finishCounted.compareAndSet(false, true)) {

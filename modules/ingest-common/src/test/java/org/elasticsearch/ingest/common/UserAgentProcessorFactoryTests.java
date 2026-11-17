@@ -14,6 +14,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.useragent.UserAgentPlugin;
 import org.elasticsearch.useragent.api.UserAgentParserRegistry;
@@ -212,5 +214,49 @@ public class UserAgentProcessorFactoryTests extends ESTestCase {
             () -> factory.create(null, null, null, config, null)
         );
         assertThat(e.getMessage(), equalTo("[properties] property isn't a list, but of type [java.lang.String]"));
+    }
+
+    /**
+     * Pipelines are stored, so a malformed path in one has to be accepted when the processor is created, with the failure only coming
+     * when a document is run through it. This goes through the factory, as creating a processor from a stored pipeline does.
+     */
+    public void testCreateWithMalformedField() throws Exception {
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "a..b");
+        UserAgentProcessor processor = new UserAgentProcessor.Factory(userAgentParserRegistry).create(
+            null,
+            randomAlphaOfLength(10),
+            null,
+            config,
+            null
+        );
+        assertThat(processor.getField(), hasToString("a..b"));
+
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+        assertThat(e.getMessage(), equalTo("path [a..b] is not valid"));
+    }
+
+    public void testCreateWithMalformedTargetField() throws Exception {
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "source");
+        config.put("target_field", "a..b");
+        UserAgentProcessor processor = new UserAgentProcessor.Factory(userAgentParserRegistry).create(
+            null,
+            randomAlphaOfLength(10),
+            null,
+            config,
+            null
+        );
+        assertThat(processor.getTargetField(), hasToString("a..b"));
+
+        // the source is fine, so it is the target that causes the failure
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+        ingestDocument.setFieldValue(
+            "source",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.0.0 Safari/537.36"
+        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+        assertThat(e.getMessage(), equalTo("path [a..b] is not valid"));
     }
 }

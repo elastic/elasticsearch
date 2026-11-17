@@ -23,15 +23,17 @@ public class IndexPropertiesTests extends ESTestCase {
     public void testShardCountAndModeArePreserved() {
         IndexMode mode = randomFrom(IndexMode.availableModes());
         int count = between(0, 1000);
-        IndexProperties props = new IndexProperties(mode, count);
+        int createdVersion = randomIntBetween(1, Integer.MAX_VALUE);
+        IndexProperties props = new IndexProperties(mode, count, createdVersion);
         assertEquals(count, props.numberOfShards());
+        assertEquals(createdVersion, props.createdVersion());
         assertEquals(mode, props.indexMode());
     }
 
     public void testSerializationRoundTripCurrentVersion() throws IOException {
         IndexMode mode = randomFrom(IndexMode.availableModes());
         int count = between(0, 1000);
-        IndexProperties original = new IndexProperties(mode, count);
+        IndexProperties original = new IndexProperties(mode, count, randomIntBetween(1, Integer.MAX_VALUE));
 
         BytesStreamOutput out = new BytesStreamOutput();
         out.setTransportVersion(TransportVersion.current());

@@ -26,11 +26,12 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.Signature;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
+import org.elasticsearch.xpack.esql.expression.unit.UnitAware;
 
 import java.io.IOException;
 import java.util.List;
 
-public class Abs extends UnaryScalarFunction implements AnyNullIsNull {
+public class Abs extends UnaryScalarFunction implements AnyNullIsNull, UnitAware.PreservesUnit {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Abs", Abs::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Abs.class)
         .unary(Abs::new)
@@ -44,9 +45,9 @@ public class Abs extends UnaryScalarFunction implements AnyNullIsNull {
         .description("Returns the input vector with all sample values converted to their absolute value.")
         .example("abs(rate(http_requests_total[5m]))")
         .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
-        .differenceFromPrometheus(
+        .stdDivergence(
             "For the minimum `integer` or `long` value, whose absolute value cannot be represented, {{es}} returns "
-                + "`null` and emits a warning. Prometheus, which operates on floating-point values, returns the "
+                + "`null` and emits a warning. {{prom}}, which operates on floating-point values, returns the "
                 + "absolute value instead."
         )
         .name("abs");

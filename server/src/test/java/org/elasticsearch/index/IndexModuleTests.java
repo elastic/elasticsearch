@@ -796,7 +796,8 @@ public class IndexModuleTests extends ESTestCase {
                 DiscoveryNodeUtils.create("_node_id", "_node_id"),
                 null,
                 IndexShardTestCase.NOOP_GCP_SYNCER,
-                RetentionLeaseSyncer.EMPTY
+                RetentionLeaseSyncer.EMPTY,
+                0
             );
             closeables.add(() -> flushAndCloseShardNoCheck(indexShard));
             indexShard.markAsRecovering("test");
@@ -830,6 +831,34 @@ public class IndexModuleTests extends ESTestCase {
             lastCommitRef.close();
         } finally {
             IOUtils.close(closeables);
+        }
+    }
+
+    public void testCreateShardThreadsLocalRecoveryRetriesIntoRecoveryState() throws IOException {
+        final IndexModule module = createIndexModule(indexSettings, emptyAnalysisRegistry, indexNameExpressionResolver);
+        final IndexService indexService = newIndexService(module);
+        try {
+            final ShardRouting shardRouting = ShardRouting.newUnassigned(
+                new ShardId("index", UUIDs.randomBase64UUID(random()), 0),
+                true,
+                RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
+                ShardRouting.Role.DEFAULT,
+                RecoveryPriority.UNASSIGNED_NEW_PRIMARY
+            ).initialize("_node_id", null, -1);
+
+            final IndexShard indexShard = indexService.createShard(
+                shardRouting,
+                DiscoveryNodeUtils.create("_node_id", "_node_id"),
+                null,
+                IndexShardTestCase.NOOP_GCP_SYNCER,
+                RetentionLeaseSyncer.EMPTY,
+                7
+            );
+
+            assertThat(indexShard.recoveryState().getLocalRetries(), equalTo(7));
+        } finally {
+            closeIndexService(indexService);
         }
     }
 

@@ -1,3 +1,4 @@
+// Round final floating-point results to avoid asserting on aggregation-order noise.
 // The PromQL tests of `k8s-timeseries-delta.csv-spec` over `index=k8s`, run on `prometheus-k8s`: the same samples in the Prometheus
 // remote-write layout (one document per sample, `labels.*` dimensions including `__name__`, one
 // `metrics.<name>` field per metric). Queries are identical up to the index name; `_timeseries` carries
@@ -92,19 +93,21 @@ required_capability: promql_unmapped_fields_filter_nulls
 required_capability: fix_ts_block_loader_passthrough_aliasing
 
 PROMQL index=prometheus-k8s step=1m clients=(avg by (cluster) (delta(network.eth0.currently_connected_clients[1m])))
+| EVAL clients = ROUND(clients, 6)
+| KEEP clients, step, cluster
 | SORT step, cluster | LIMIT 10;
 
-clients:double     | step:datetime            | cluster:keyword
--910.0             | 2024-05-10T00:01:00.000Z | prod
--81.0              | 2024-05-10T00:03:00.000Z | prod
--664.5             | 2024-05-10T00:03:00.000Z | staging
-140.3611111111111  | 2024-05-10T00:04:00.000Z | qa
--472.5             | 2024-05-10T00:04:00.000Z | staging
-385.33333333333326 | 2024-05-10T00:05:00.000Z | qa
--1203.0            | 2024-05-10T00:06:00.000Z | prod
--85.08130081300806 | 2024-05-10T00:06:00.000Z | qa
-300.9464285714286  | 2024-05-10T00:07:00.000Z | qa
-101.25             | 2024-05-10T00:07:00.000Z | staging
+clients:double | step:datetime            | cluster:keyword
+-910.0         | 2024-05-10T00:01:00.000Z | prod
+-81.0          | 2024-05-10T00:03:00.000Z | prod
+-664.5         | 2024-05-10T00:03:00.000Z | staging
+140.361111     | 2024-05-10T00:04:00.000Z | qa
+-472.5         | 2024-05-10T00:04:00.000Z | staging
+385.333333     | 2024-05-10T00:05:00.000Z | qa
+-1203.0        | 2024-05-10T00:06:00.000Z | prod
+-85.081301     | 2024-05-10T00:06:00.000Z | qa
+300.946429     | 2024-05-10T00:07:00.000Z | qa
+101.25         | 2024-05-10T00:07:00.000Z | staging
 ;
 
 // Remote write stores every sample as a double, so `delta` extrapolates to the window as Prometheus does; the k8s original runs on an integer field, whose delta is not extrapolated.
@@ -112,20 +115,23 @@ delta_with_filtering_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: fn_delta_fix_partial_merge_order
 
 PROMQL index=prometheus-k8s step=10m tx=(sum by (cluster) (delta(network.bytes_in{pod="one"}[10m])))
+| EVAL tx = ROUND(tx, 6)
+| KEEP tx, step, cluster
 | SORT step, cluster | LIMIT 10;
 
-tx:double          | step:datetime            | cluster:keyword
--371.890099009901  | 2024-05-10T00:10:00.000Z | prod
-598.0              | 2024-05-10T00:10:00.000Z | qa
-138.21049382716058 | 2024-05-10T00:10:00.000Z | staging
-295.7746478873239  | 2024-05-10T00:20:00.000Z | prod
-78.35912698412699  | 2024-05-10T00:20:00.000Z | qa
--684.622030237581  | 2024-05-10T00:20:00.000Z | staging
--30.80685358255448 | 2024-05-10T00:30:00.000Z | prod
--948.0             | 2024-05-10T00:30:00.000Z | qa
--766.5             | 2024-05-10T00:30:00.000Z | staging
+tx:double   | step:datetime            | cluster:keyword
+-371.890099 | 2024-05-10T00:10:00.000Z | prod
+598.0       | 2024-05-10T00:10:00.000Z | qa
+138.210494  | 2024-05-10T00:10:00.000Z | staging
+295.774648  | 2024-05-10T00:20:00.000Z | prod
+78.359127   | 2024-05-10T00:20:00.000Z | qa
+-684.62203  | 2024-05-10T00:20:00.000Z | staging
+-30.806854  | 2024-05-10T00:30:00.000Z | prod
+-948.0      | 2024-05-10T00:30:00.000Z | qa
+-766.5      | 2024-05-10T00:30:00.000Z | staging
 ;
 
 // Remote write stores every sample as a double, so `delta` extrapolates to the window as Prometheus does; the k8s original runs on an integer field, whose delta is not extrapolated.
@@ -133,6 +139,7 @@ eval_on_delta_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: fn_delta_fix_partial_merge_order
 
 PROMQL index=prometheus-k8s step=10m avg_bytes=(avg by (cluster) (delta(network.bytes_in[10m])))
 | EVAL kb_minus_offset = (avg_bytes - 100) / 1000.0
@@ -157,18 +164,21 @@ delta_all_value_types_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: fn_delta_fix_partial_merge_order
 
 PROMQL index=prometheus-k8s step=10m events=(sum by (pod) (delta(events_received[10m])))
+| EVAL events = ROUND(events, 6)
+| KEEP events, step, pod
 | SORT events DESC, pod, step | LIMIT 10;
 
-events:double       | step:datetime            | pod:keyword
-13.566666666666666  | 2024-05-10T00:20:00.000Z | three
-7.495494787573995   | 2024-05-10T00:10:00.000Z | one
-1.889033457249072   | 2024-05-10T00:20:00.000Z | two
-1.166666666666667   | 2024-05-10T00:30:00.000Z | three
--1.0861445783132533 | 2024-05-10T00:30:00.000Z | two
--1.301504688843842  | 2024-05-10T00:20:00.000Z | one
--4.293876158949284  | 2024-05-10T00:10:00.000Z | three
--4.558883513099027  | 2024-05-10T00:10:00.000Z | two
--5.934579439252337  | 2024-05-10T00:30:00.000Z | one
+events:double | step:datetime            | pod:keyword
+13.566667     | 2024-05-10T00:20:00.000Z | three
+7.495495      | 2024-05-10T00:10:00.000Z | one
+1.889033      | 2024-05-10T00:20:00.000Z | two
+1.166667      | 2024-05-10T00:30:00.000Z | three
+-1.086145     | 2024-05-10T00:30:00.000Z | two
+-1.301505     | 2024-05-10T00:20:00.000Z | one
+-4.293876     | 2024-05-10T00:10:00.000Z | three
+-4.558884     | 2024-05-10T00:10:00.000Z | two
+-5.934579     | 2024-05-10T00:30:00.000Z | one
 ;

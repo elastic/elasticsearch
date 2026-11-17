@@ -25,6 +25,8 @@
 quantile(0.9, http_request_duration_seconds)
 ```
 
-**Differences from Prometheus**
+:::{note}
+**Differences from {{prom}}**
 
-Computed using the {{es}} t-digest percentile aggregation, so results are approximate and may differ slightly from Prometheus's exact linear interpolation, particularly for small sample sets. Non-finite values are ranked as `NaN` < `-Inf` < finite < `+Inf`, the same order Prometheus sorts by. A rank landing exactly on a sample returns that sample, whereas Prometheus still averages in the neighbouring sample weighted by zero, so it returns `NaN` wherever that neighbour is an infinity.
+A quantile that isn't a number literal, such as `quantile(scalar(a), b)`, isn't supported yet. Computed using the {{es}} t-digest percentile aggregation, so results are approximate and may differ slightly from {{prom}}'s exact linear interpolation, particularly for small sample sets. Non-finite values are ranked as `NaN` < `-Inf` < finite < `+Inf`, the same order {{prom}} sorts by. A rank landing exactly on a sample returns that sample, whereas {{prom}} still averages in the neighbouring sample weighted by zero, so it returns `NaN` wherever that neighbour is an infinity.
+:::

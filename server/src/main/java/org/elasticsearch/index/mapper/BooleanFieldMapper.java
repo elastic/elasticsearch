@@ -104,23 +104,19 @@ public class BooleanFieldMapper extends FieldMapper {
 
         private final DocValuesParameter docValuesParameters;
         private final Parameter<Boolean> indexed;
-        private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
+        private final Parameter<Boolean> stored = Parameter.storeParam(false);
         private final Parameter<Explicit<Boolean>> ignoreMalformed;
         private final Parameter<Boolean> nullValue = new Parameter<>(
             "null_value",
             false,
             () -> null,
             (n, c, o) -> o == null ? null : XContentMapValues.nodeBooleanValue(o),
-            m -> toType(m).nullValue,
             XContentBuilder::field,
             Objects::toString
         ).acceptsNull();
 
-        private final Parameter<Script> script = Parameter.scriptParam(m -> toType(m).script);
-        private final Parameter<OnScriptError> onScriptErrorParam = Parameter.onScriptErrorParam(
-            m -> toType(m).builderParams.onScriptError(),
-            script
-        );
+        private final Parameter<Script> script = Parameter.scriptParam();
+        private final Parameter<OnScriptError> onScriptErrorParam = Parameter.onScriptErrorParam(script);
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -140,21 +136,16 @@ public class BooleanFieldMapper extends FieldMapper {
                     DocValuesParameter.Values.ENABLED_LOW_CARDINALITY,
                     DocValuesParameter.Values.Cardinality.LOW
                 ),
-                m -> toType(m).docValuesParameters(),
                 indexSettings
             );
             this.ignoreMalformed = Parameter.explicitBoolParam(
                 "ignore_malformed",
                 true,
-                m -> toType(m).ignoreMalformed,
                 IGNORE_MALFORMED_SETTING.get(indexSettings.getSettings())
             );
             this.script.precludesParameters(ignoreMalformed, nullValue);
-            this.dimension = TimeSeriesParams.dimensionParam(
-                m -> toType(m).fieldType().isDimension(),
-                () -> docValuesParameters.get().enabled()
-            );
-            this.indexed = Parameter.indexParam(m -> toType(m).indexed, indexSettings, dimension);
+            this.dimension = TimeSeriesParams.dimensionParam(() -> docValuesParameters.get().enabled());
+            this.indexed = Parameter.indexParam(indexSettings, dimension);
             addScriptValidation(script, indexed, () -> docValuesParameters.getValue().enabled());
         }
 
@@ -227,7 +218,8 @@ public class BooleanFieldMapper extends FieldMapper {
                 meta.getValue(),
                 dimension.getValue(),
                 context.isSourceSynthetic(),
-                readInArrayOrder
+                readInArrayOrder,
+                script.get() == null && docValuesParameters.getValue().multiValue() == false
             );
             hasScript = script.get() != null;
             onScriptError = onScriptErrorParam.getValue();
@@ -267,6 +259,7 @@ public class BooleanFieldMapper extends FieldMapper {
         private final boolean isDimension;
         private final boolean isSyntheticSource;
         private final boolean readInArrayOrder;
+        private final boolean staticallySingleValued;
 
         public BooleanFieldType(
             String name,
@@ -278,7 +271,7 @@ public class BooleanFieldMapper extends FieldMapper {
             boolean isDimension,
             boolean isSyntheticSource
         ) {
-            this(name, indexType, isStored, nullValue, scriptValues, meta, isDimension, isSyntheticSource, false);
+            this(name, indexType, isStored, nullValue, scriptValues, meta, isDimension, isSyntheticSource, false, false);
         }
 
         public BooleanFieldType(
@@ -290,7 +283,8 @@ public class BooleanFieldMapper extends FieldMapper {
             Map<String, String> meta,
             boolean isDimension,
             boolean isSyntheticSource,
-            boolean readInArrayOrder
+            boolean readInArrayOrder,
+            boolean staticallySingleValued
         ) {
             super(name, indexType, isStored, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.nullValue = nullValue;
@@ -298,6 +292,12 @@ public class BooleanFieldMapper extends FieldMapper {
             this.isDimension = isDimension;
             this.isSyntheticSource = isSyntheticSource;
             this.readInArrayOrder = readInArrayOrder;
+            this.staticallySingleValued = staticallySingleValued;
+        }
+
+        @Override
+        public boolean isStaticallySingleValued() {
+            return staticallySingleValued;
         }
 
         public BooleanFieldType(String name) {
@@ -567,9 +567,7 @@ public class BooleanFieldMapper extends FieldMapper {
     private final DocValuesParameter.Values docValuesParameters;
     private final DocValuesFieldFactory dvFactory;
     private final boolean stored;
-    private final Script script;
     private final FieldValues<Boolean> scriptValues;
-    private final ScriptCompiler scriptCompiler;
     private final Explicit<Boolean> ignoreMalformed;
     private final IndexSettings indexSettings;
     private final boolean writeDimensionRouting;
@@ -595,9 +593,7 @@ public class BooleanFieldMapper extends FieldMapper {
             mappedFieldType.indexType.hasDocValuesSkipper(),
             builder.indexSettings.getIndexVersionCreated()
         );
-        this.script = builder.script.get();
         this.scriptValues = builder.scriptValues();
-        this.scriptCompiler = builder.scriptCompiler;
         this.indexSettings = builder.indexSettings;
         this.writeDimensionRouting = builder.dimension.getValue()
             && builder.indexSettings.getIndexRouting() instanceof IndexRouting.ExtractFromSource efs
@@ -674,7 +670,7 @@ public class BooleanFieldMapper extends FieldMapper {
             if (value != null) {
                 context.getOffSetContext().recordOffset(offsetsFieldName, value, OFFSETS_FALLBACK);
             } else {
-                context.getOffSetContext().recordNull(offsetsFieldName, OFFSETS_FALLBACK);
+                context.getOffSetContext().recordNull(context, offsetsFieldName, OFFSETS_FALLBACK);
             }
         }
     }
@@ -708,11 +704,6 @@ public class BooleanFieldMapper extends FieldMapper {
         DocumentParserContext documentParserContext
     ) {
         this.scriptValues.valuesForDoc(searchLookup, readerContext, doc, value -> indexValue(documentParserContext, value));
-    }
-
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), scriptCompiler, indexSettings).dimension(fieldType().isDimension()).init(this);
     }
 
     @Override

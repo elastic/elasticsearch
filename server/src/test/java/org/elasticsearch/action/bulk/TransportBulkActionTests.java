@@ -305,7 +305,7 @@ public class TransportBulkActionTests extends ESTestCase {
         IndexRequest invalidRequest1 = new IndexRequest(backingIndexName).opType(DocWriteRequest.OpType.CREATE);
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(invalidRequest1, backingIndex, metadataProvider)
+            () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(invalidRequest1, backingIndex, metadataProvider, Settings.EMPTY)
         );
         assertThat(
             e.getMessage(),
@@ -319,7 +319,7 @@ public class TransportBulkActionTests extends ESTestCase {
         IndexRequest invalidRequest2 = new IndexRequest(backingIndexName).opType(DocWriteRequest.OpType.INDEX);
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(invalidRequest2, backingIndex, metadataProvider)
+            () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(invalidRequest2, backingIndex, metadataProvider, Settings.EMPTY)
         );
         assertThat(
             e.getMessage(),
@@ -333,28 +333,64 @@ public class TransportBulkActionTests extends ESTestCase {
         DocWriteRequest<?> validRequest = new IndexRequest(backingIndexName).opType(DocWriteRequest.OpType.INDEX)
             .setIfSeqNo(1)
             .setIfPrimaryTerm(1);
-        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, backingIndex, metadataProvider);
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, backingIndex, metadataProvider, Settings.EMPTY);
         validRequest = new DeleteRequest(backingIndexName);
-        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, backingIndex, metadataProvider);
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, backingIndex, metadataProvider, Settings.EMPTY);
         validRequest = new UpdateRequest(backingIndexName, "_id");
-        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, backingIndex, metadataProvider);
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, backingIndex, metadataProvider, Settings.EMPTY);
 
         // Testing append only write via ds name
         validRequest = new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.CREATE);
-        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, dataStream, idx -> null);
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, dataStream, idx -> null, Settings.EMPTY);
 
         validRequest = new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.INDEX);
-        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, dataStream, idx -> null);
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, dataStream, idx -> null, Settings.EMPTY);
 
         // Append only for a backing index that doesn't exist is allowed:
         validRequest = new IndexRequest(DataStream.getDefaultBackingIndexName("logs-barbaz", 1)).opType(DocWriteRequest.OpType.CREATE);
-        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, null, idx -> null);
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, null, idx -> null, Settings.EMPTY);
 
         // Some other index names:
         validRequest = new IndexRequest("my-index").opType(DocWriteRequest.OpType.CREATE);
-        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, null, idx -> null);
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, null, idx -> null, Settings.EMPTY);
         validRequest = new IndexRequest("foobar").opType(DocWriteRequest.OpType.CREATE);
-        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, null, idx -> null);
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, null, idx -> null, Settings.EMPTY);
+    }
+
+    /**
+     * Index requests with an explicit id may target a backing index with sequence numbers disabled. A columnar backing index created by
+     * 9.5.2 or later has the setting disabled only through its default, which depends on whether the node is stateless, so the node
+     * settings have to take part in the decision.
+     */
+    public void testExplicitIdOnColumnarBackingIndexCreatedOn95() {
+        String dataStreamName = "logs-columnar";
+        final var dataStream = DataStreamTestHelper.newInstance(dataStreamName, DataStreamTestHelper.randomNonEmptyIndexInstances());
+        final String backingIndexName = dataStream.getWriteIndex().getName();
+        final String columnarMode = randomFrom("columnar", "logsdb_columnar");
+        final DocWriteRequest<?> request = new IndexRequest(backingIndexName).id("id").opType(DocWriteRequest.OpType.INDEX);
+
+        // IndexMetadata caches the result, so each node type needs its own instance.
+        final var statefulMetadata = columnarBackingIndexMetadata(backingIndexName, columnarMode);
+        final var statefulIndex = new ConcreteIndex(statefulMetadata, dataStream);
+        // a stateful 9.5 index has sequence numbers disabled through the default of the setting, although it is not stored
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(request, statefulIndex, idx -> statefulMetadata, Settings.EMPTY);
+
+        // stateless has the gate, so the same version keeps sequence numbers, and OCC is required again
+        Settings stateless = Settings.builder().put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true).build();
+        final var statelessMetadata = columnarBackingIndexMetadata(backingIndexName, columnarMode);
+        final var statelessIndex = new ConcreteIndex(statelessMetadata, dataStream);
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(request, statelessIndex, idx -> statelessMetadata, stateless)
+        );
+    }
+
+    private static IndexMetadata columnarBackingIndexMetadata(String indexName, String columnarMode) {
+        return IndexMetadata.builder(indexName)
+            .settings(settings(IndexVersions.UPGRADE_TO_LUCENE_10_5_1).put(IndexSettings.MODE.getKey(), columnarMode))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
     }
 
     public void testRequireSliceRoutingWhenSliceEnabled() {
@@ -506,12 +542,17 @@ public class TransportBulkActionTests extends ESTestCase {
         IndexRequest request = new IndexRequest(targetBackingIndexName).id("doc-1").opType(DocWriteRequest.OpType.INDEX);
         if (targetHasSeqNoDisabled) {
             // INDEX with an id is allowed for indices with seq_no_disabled=true:
-            TransportBulkAction.prohibitAppendWritesInBackingIndices(request, targetBackingIndex, metadataProvider);
+            TransportBulkAction.prohibitAppendWritesInBackingIndices(request, targetBackingIndex, metadataProvider, Settings.EMPTY);
         } else {
             // INDEX with an id is not allowed for indices with seq_no_disabled=false:
             Exception e = expectThrows(
                 IllegalArgumentException.class,
-                () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(request, targetBackingIndex, metadataProvider)
+                () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(
+                    request,
+                    targetBackingIndex,
+                    metadataProvider,
+                    Settings.EMPTY
+                )
             );
             assertThat(
                 e.getMessage(),
@@ -525,7 +566,7 @@ public class TransportBulkActionTests extends ESTestCase {
         IndexRequest noIdCreate = new IndexRequest(targetBackingIndexName).opType(DocWriteRequest.OpType.CREATE);
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(noIdCreate, targetBackingIndex, metadataProvider)
+            () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(noIdCreate, targetBackingIndex, metadataProvider, Settings.EMPTY)
         );
         assertThat(e.getMessage(), containsString("op_type=create targeting backing indices is disallowed"));
 
@@ -533,7 +574,7 @@ public class TransportBulkActionTests extends ESTestCase {
         IndexRequest noIdIndex = new IndexRequest(targetBackingIndexName).opType(DocWriteRequest.OpType.INDEX);
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(noIdIndex, targetBackingIndex, metadataProvider)
+            () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(noIdIndex, targetBackingIndex, metadataProvider, Settings.EMPTY)
         );
         assertThat(e.getMessage(), containsString("op_type=index and no if_primary_term and if_seq_no set targeting backing indices"));
     }

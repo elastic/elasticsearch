@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.AbstractPageMappingToIteratorOperator;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.ProfileSchema;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -27,6 +28,25 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
         "values_source_reader",
         ValuesSourceReaderOperatorStatus::readFrom
     );
+    public static final ProfileSchema<ValuesSourceReaderOperatorStatus> PROFILE_SCHEMA = ProfileSchema.of(
+        ValuesSourceReaderOperatorStatus.class,
+        (builder, status, params) -> status.writeProfile(builder)
+    )
+        .required("readers_built", ProfileSchema.dynamicObject(ProfileSchema.integer()))
+        .optional("converters_used", ProfileSchema.dynamicObject(ProfileSchema.integer()))
+        .required("values_loaded", ProfileSchema.integer())
+        .required("bytes_read", ProfileSchema.integer())
+        .required("bytes_decoded", ProfileSchema.integer())
+        .required("source_docs_loaded", ProfileSchema.integer())
+        .required("source_field_reads", ProfileSchema.integer())
+        .required("source_bytes_loaded", ProfileSchema.integer())
+        .required("process_nanos", ProfileSchema.integer())
+        .optional("process_time", ProfileSchema.string())
+        .required("pages_received", ProfileSchema.integer())
+        .required("pages_emitted", ProfileSchema.integer())
+        .required("rows_received", ProfileSchema.integer())
+        .required("rows_emitted", ProfileSchema.integer())
+        .build();
     private static final TransportVersion CONVERTERS_USED = TransportVersion.fromName("esql_vsr_converters_used");
 
     private static final TransportVersion ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED = TransportVersion.fromName(
@@ -215,8 +235,7 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
         return sourceBytesLoaded;
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    private XContentBuilder writeProfile(XContentBuilder builder) throws IOException {
         builder.startObject();
         builder.startObject("readers_built");
         for (Map.Entry<String, Integer> e : readersBuilt.entrySet()) {
@@ -242,6 +261,11 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
         builder.field("source_bytes_loaded", sourceBytesLoaded);
         innerToXContent(builder);
         return builder.endObject();
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return PROFILE_SCHEMA.write(builder, this, params);
     }
 
     @Override

@@ -15,6 +15,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TDigestHolder;
@@ -105,6 +106,25 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
                 equalTo(first == null ? second : first)
             );
         }));
+        if (DataType.TIME_SERIES_METADATA_DATA_TYPE.supportedVersion().supportedLocally()) {
+            noNullsSuppliers.add(
+                new TestCaseSupplier(List.of(DataType.TIME_SERIES_METADATA_DATA_TYPE, DataType.TIME_SERIES_METADATA_DATA_TYPE), () -> {
+                    var first = randomBoolean()
+                        ? null
+                        : (BytesRef) EsqlTestUtils.randomLiteral(DataType.TIME_SERIES_METADATA_DATA_TYPE).value();
+                    var second = (BytesRef) EsqlTestUtils.randomLiteral(DataType.TIME_SERIES_METADATA_DATA_TYPE).value();
+                    return new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(first, DataType.TIME_SERIES_METADATA_DATA_TYPE, "first"),
+                            new TestCaseSupplier.TypedData(second, DataType.TIME_SERIES_METADATA_DATA_TYPE, "second")
+                        ),
+                        "CoalesceBytesRefEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
+                        DataType.TIME_SERIES_METADATA_DATA_TYPE,
+                        equalTo(first == null ? second : first)
+                    );
+                })
+            );
+        }
         noNullsSuppliers.add(new TestCaseSupplier(List.of(DataType.DATETIME, DataType.DATETIME), () -> {
             Long firstDate = randomBoolean() ? null : ZonedDateTime.parse("2023-12-04T10:15:30Z").toInstant().toEpochMilli();
             Long secondDate = ZonedDateTime.parse("2023-12-05T10:45:00Z").toInstant().toEpochMilli();
@@ -178,6 +198,19 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
                 equalTo(first == null ? second : first)
             );
         }));
+        noNullsSuppliers.add(new TestCaseSupplier(List.of(DataType.DOUBLE_RANGE, DataType.DOUBLE_RANGE), () -> {
+            DoubleRangeBlockBuilder.DoubleRange first = randomBoolean() ? null : TestCaseSupplier.randomDoubleRange();
+            DoubleRangeBlockBuilder.DoubleRange second = TestCaseSupplier.randomDoubleRange();
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(first, DataType.DOUBLE_RANGE, "first"),
+                    new TestCaseSupplier.TypedData(second, DataType.DOUBLE_RANGE, "second")
+                ),
+                "CoalesceDoubleRangeEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
+                DataType.DOUBLE_RANGE,
+                equalTo(first == null ? second : first)
+            );
+        }));
         noNullsSuppliers.add(new TestCaseSupplier(List.of(DataType.HISTOGRAM, DataType.HISTOGRAM), () -> {
             BytesRef firstHisto = randomBoolean() ? null : EsqlTestUtils.randomHistogram();
             BytesRef secondHisto = EsqlTestUtils.randomHistogram();
@@ -245,7 +278,7 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
                         new TestCaseSupplier.TypedData(null, DataType.NULL, "first"),
                         new TestCaseSupplier.TypedData(null, DataType.NULL, "second")
                     ),
-                    "ConstantNull",
+                    "LiteralsEvaluator[lit=null]",
                     DataType.NULL,
                     nullValue()
                 )
@@ -367,8 +400,8 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
         }
     }
 
-    public void testCoalesceNullabilityIsUnknown() {
-        assertThat(buildFieldExpression(testCase).nullable(), equalTo(Nullability.UNKNOWN));
+    public void testCoalesceNullabilityIsTrue() {
+        assertThat(buildFieldExpression(testCase).nullable(), equalTo(Nullability.TRUE));
     }
 
     public void testCoalesceKnownNullable() {
@@ -376,7 +409,7 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
         sub.add(between(0, sub.size()), new Literal(Source.EMPTY, null, sub.get(0).dataType()));
         Coalesce exp = build(Source.EMPTY, testCase.getDataAsFields());
         // Still UNKNOWN - if it were TRUE then an optimizer would replace it with null
-        assertThat(exp.nullable(), equalTo(Nullability.UNKNOWN));
+        assertThat(exp.nullable(), equalTo(Nullability.TRUE));
     }
 
     public void testCoalesceNotNullable() {
@@ -385,7 +418,7 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
         Coalesce exp = build(Source.EMPTY, sub);
         // Known not to be nullable because it contains a non-null literal
         if (testCase.expectedType() == DataType.NULL) {
-            assertThat(exp.nullable(), equalTo(Nullability.UNKNOWN));
+            assertThat(exp.nullable(), equalTo(Nullability.TRUE));
         } else {
             assertThat(exp.nullable(), equalTo(Nullability.FALSE));
         }

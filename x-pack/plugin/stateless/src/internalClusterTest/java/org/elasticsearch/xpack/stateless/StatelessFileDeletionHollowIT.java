@@ -17,6 +17,7 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -57,7 +58,7 @@ import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAlloc
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.SETTING_HOLLOW_INGESTION_TTL;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
-import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
+import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationHandoffAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.CoreMatchers.sameInstance;
@@ -436,7 +437,7 @@ public class StatelessFileDeletionHollowIT extends AbstractStatelessPluginIntegT
         logLastCommittedSegmentInfos(indexShard);
 
         // Acquire commit for searcher
-        var searcher = indexShard.acquireSearcher("searcher");
+        var searcher = indexShard.acquireExternalSearcher("searcher", SplitShardCountSummary.IRRELEVANT);
         assertThat(searcher.getDirectoryReader().getIndexCommit().getGeneration(), equalTo(5L));
         assertThat(searcher.getDirectoryReader().getIndexCommit().getSegmentCount(), equalTo(2));
 
@@ -598,7 +599,7 @@ public class StatelessFileDeletionHollowIT extends AbstractStatelessPluginIntegT
     }
 
     private static void ensureSearcherCanAccessStoredFieldFile(Engine.Searcher searcher) throws IOException {
-        searcher.search(Queries.ALL_DOCS_INSTANCE, new Collector() {
+        searcher.search(Queries.ALL_DOCS_INSTANCE, collectorManager(() -> new Collector() {
             @Override
             public ScoreMode scoreMode() {
                 return ScoreMode.COMPLETE_NO_SCORES;
@@ -618,7 +619,7 @@ public class StatelessFileDeletionHollowIT extends AbstractStatelessPluginIntegT
                     }
                 };
             }
-        });
+        }));
     }
 
     private static void ensureSnapshotCanReadFiles(Engine.IndexCommitRef snapshot) throws IOException {

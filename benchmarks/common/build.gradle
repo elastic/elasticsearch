@@ -1,0 +1,42 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+// Shared helpers for JMH microbenchmarks. Kept intentionally server-free: benchmarked
+// modules may reach into :server for the code under test, but this common jar must not,
+// so it stays a clean foundation for future per-module `jmh` sourcesets that don't touch
+// server.
+apply plugin: org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin
+apply plugin: 'java-library'
+
+dependencies {
+  api project(':libs:logging')
+  api "org.openjdk.jmh:jmh-core:${versions.jmh}"
+
+  // ComponentMetadataRulesPlugin strips transitives across the board, so log4j-api must
+  // be declared explicitly even though log4j-core depends on it. Mirrors server/build.gradle.
+  implementation "org.apache.logging.log4j:log4j-api:${versions.log4j}"
+  implementation "org.apache.logging.log4j:log4j-core:${versions.log4j}"
+
+  // Activates log4j-core's PluginProcessor so this jar ships a
+  // META-INF/.../Log4j2Plugins.dat entry for BenchmarkConfigurationFactory. Without this
+  // the @Plugin annotation is silently ignored at runtime and log4j falls back to its
+  // default PropertiesConfigurationFactory (@Order 8), which would leave %node_name /
+  // %cluster_name in patterns and re-introduce the initialization ordering trap that the
+  // factory is here to prevent. Both jars are needed on the processor path since
+  // PluginProcessor references classes from log4j-api.
+  annotationProcessor "org.apache.logging.log4j:log4j-api:${versions.log4j}"
+  annotationProcessor "org.apache.logging.log4j:log4j-core:${versions.log4j}"
+}
+
+// log4j-core registers both PluginProcessor and GraalVmProcessor via
+// META-INF/services/javax.annotation.processing.Processor; we only want the former.
+// Mirrors server/build.gradle.
+tasks.named('compileJava').configure {
+  options.compilerArgs.addAll('-processor', 'org.apache.logging.log4j.core.config.plugins.processor.PluginProcessor')
+}

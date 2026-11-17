@@ -73,12 +73,13 @@ public abstract class DivDoublesByConstantEvaluator implements ExpressionEvaluat
   }
 
   public DoubleBlock eval(int positionCount, DoubleBlock lhsBlock) {
-    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
+        if (lhsBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (lhsBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -99,7 +100,7 @@ public abstract class DivDoublesByConstantEvaluator implements ExpressionEvaluat
   }
 
   public DoubleBlock eval(int positionCount, DoubleVector lhsVector) {
-    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         double lhs = lhsVector.getDouble(p);
         try {
@@ -125,7 +126,7 @@ public abstract class DivDoublesByConstantEvaluator implements ExpressionEvaluat
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }

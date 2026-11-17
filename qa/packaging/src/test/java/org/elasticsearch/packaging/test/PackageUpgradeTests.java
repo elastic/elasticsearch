@@ -64,13 +64,15 @@ public class PackageUpgradeTests extends PackagingTestCase {
 
         // create indexes explicitly with 0 replicas so when restarting we can reach green state
         ServerUtils.makeRequest(
-            Request.Put("http://localhost:9200/library")
+            Request.Put("http://localhost:9200/library?wait_for_active_shards=all")
                 .bodyString("{\"settings\":{\"index\":{\"number_of_replicas\":0}}}", ContentType.APPLICATION_JSON)
         );
         ServerUtils.makeRequest(
-            Request.Put("http://localhost:9200/library2")
+            Request.Put("http://localhost:9200/library2?wait_for_active_shards=all")
                 .bodyString("{\"settings\":{\"index\":{\"number_of_replicas\":0}}}", ContentType.APPLICATION_JSON)
         );
+        ServerUtils.waitForElasticsearch("green", "library", installation, null, null, null);
+        ServerUtils.waitForElasticsearch("green", "library2", installation, null, null, null);
 
         // add some docs
         ServerUtils.makeRequest(

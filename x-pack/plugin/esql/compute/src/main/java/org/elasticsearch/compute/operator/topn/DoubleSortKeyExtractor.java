@@ -73,7 +73,12 @@ abstract class DoubleSortKeyExtractor implements NumericSortKeyExtractor {
 
         @Override
         public boolean isNullAt(int position) {
-            return block.isNull(position) || block.getValueCount(position) == 0;
+            // TODO: when empty-non-null arrays ([]) become representable, block.isNull(position)
+            // returns false for an empty position, so this method will incorrectly return false.
+            // encodedAt() will then call block.getDouble(getFirstValueIndex(position)) with
+            // valueCount == 0, reading at an index with no backing value -- silent data corruption
+            // or AIOOBE.
+            return block.isNull(position);
         }
     }
 
@@ -92,7 +97,11 @@ abstract class DoubleSortKeyExtractor implements NumericSortKeyExtractor {
 
         @Override
         public boolean isNullAt(int position) {
-            return block.isNull(position) || block.getValueCount(position) == 0;
+            // TODO: when empty-non-null arrays ([]) become representable, block.isNull(position)
+            // returns false for an empty position, so this method will incorrectly return false.
+            // encodedAt() will then compute start + getValueCount(position) - 1 = start - 1 and
+            // read block.getDouble(start - 1) -- silent data corruption or AIOOBE.
+            return block.isNull(position);
         }
     }
 
@@ -116,7 +125,12 @@ abstract class DoubleSortKeyExtractor implements NumericSortKeyExtractor {
 
         @Override
         public boolean isNullAt(int position) {
-            return block.isNull(position) || block.getValueCount(position) == 0;
+            // TODO: when empty-non-null arrays ([]) become representable, block.isNull(position)
+            // returns false for an empty position, so this method will incorrectly return false.
+            // encodedAt() will then read block.getDouble(start) with valueCount == 0 before the
+            // loop can guard it (end == start, but the initial read at start has no backing value)
+            // -- silent data corruption or AIOOBE.
+            return block.isNull(position);
         }
     }
 
@@ -140,7 +154,12 @@ abstract class DoubleSortKeyExtractor implements NumericSortKeyExtractor {
 
         @Override
         public boolean isNullAt(int position) {
-            return block.isNull(position) || block.getValueCount(position) == 0;
+            // TODO: when empty-non-null arrays ([]) become representable, block.isNull(position)
+            // returns false for an empty position, so this method will incorrectly return false.
+            // encodedAt() will then read block.getDouble(start) with valueCount == 0 before the
+            // loop can guard it (end == start, but the initial read at start has no backing value)
+            // -- silent data corruption or AIOOBE.
+            return block.isNull(position);
         }
     }
 }

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -17,6 +18,7 @@ import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionReg
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.Map;
@@ -71,6 +73,7 @@ public class MutableAnalyzerContext extends AnalyzerContext {
             configuration,
             functionRegistry,
             promqlFunctionRegistry,
+            EsqlTestUtils.TEST_ANALYSIS_REGISTRY,
             null,
             indexResolution,
             lookupResolution,
@@ -81,7 +84,11 @@ public class MutableAnalyzerContext extends AnalyzerContext {
             minimumVersion,
             unmappedResolution,
             timestampBounds,
-            IpLocationResolution.SERVICE_UNAVAILABLE
+            IpLocationResolution.SERVICE_UNAVAILABLE,
+            false,
+            Map.of(),
+            EsqlFlags.DEFAULTS,
+            Map.of()
         );
         this.currentVersion = minimumVersion;
     }

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.logsdb;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
@@ -20,23 +19,7 @@ import static org.elasticsearch.test.ESTestCase.inFipsJvm;
 public class Clusters {
 
     public static ElasticsearchCluster oldVersionCluster(String user, String pass) {
-        return oldVersionCluster(user, pass, () -> false);
-    }
-
-    /**
-     * Creates an old-version cluster whose {@code logsdb_columnar} index mode is controlled by
-     * the {@code columnar} supplier. The supplier is evaluated lazily when the cluster starts, so
-     * callers can resolve the value (e.g. via {@code randomBoolean()}) after this method returns.
-     * The columnar feature and setting are only applied when the old cluster version supports them
-     * (≥ 9.5.0); when the version predates that the supplier is never called.
-     */
-    public static ElasticsearchCluster oldVersionCluster(String user, String pass, Supplier<Boolean> columnar) {
-        var cluster = clusterBuilder(user, pass);
-        if (supportsColumnar(Version.fromString(System.getProperty("tests.old_cluster_version")))) {
-            cluster.feature(FeatureFlag.COLUMNAR_INDEX_MODE_FEATURE_FLAG)
-                .setting("cluster.logsdb_columnar.enabled", () -> Boolean.toString(columnar.get()));
-        }
-        return cluster.build();
+        return clusterBuilder(user, pass).build();
     }
 
     public static ElasticsearchCluster oldVersionClusterWithLogsDisabled(String user, String pass, Supplier<Boolean> useTrialLicense) {
@@ -55,8 +38,7 @@ public class Clusters {
             .module("x-pack-aggregate-metric")
             .module("x-pack-stack")
             .setting("xpack.security.autoconfiguration.enabled", "false")
-            .setting("xpack.license.self_generated.type", useTrial ? "trial" : "basic")
-            .feature(FeatureFlag.COLUMNAR_INDEX_MODE_FEATURE_FLAG);
+            .setting("xpack.license.self_generated.type", useTrial ? "trial" : "basic");
 
         return cluster.build();
     }
@@ -87,10 +69,6 @@ public class Clusters {
         }
 
         return cluster;
-    }
-
-    private static boolean supportsColumnar(Version version) {
-        return version.onOrAfter(Version.fromString("9.5.0"));
     }
 
     private static boolean supportRetryOnShardFailures(Version version) {

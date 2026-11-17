@@ -1,0 +1,3 @@
+FROM (FROM employees, (FROM sample_data | STATS count(*)) | WHERE emp_no > 10)
+| WHERE languages is not null
+| SORT emp_no, languages

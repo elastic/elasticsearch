@@ -23,6 +23,7 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -46,6 +47,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -245,7 +247,7 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
 
         assertThat(indexService.mapperService().mappingLookup().getMapper("parent.field").getOffsetFieldName(), nullValue());
 
-        try (var searcher = indexService.getShard(0).acquireSearcher(getTestName())) {
+        try (var searcher = indexService.getShard(0).acquireExternalSearcher(getTestName(), SplitShardCountSummary.IRRELEVANT)) {
             var reader = searcher.getDirectoryReader();
             var ignoredSourceDV = MultiDocValues.getBinaryValues(reader, IgnoredSourceFieldMapper.NAME);
             assertThat(FieldInfos.getMergedFieldInfos(reader).fieldInfo("parent.field.offsets"), nullValue());
@@ -319,7 +321,7 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
             }
         }
 
-        try (var searcher = indexService.getShard(0).acquireSearcher(getTestName())) {
+        try (var searcher = indexService.getShard(0).acquireExternalSearcher(getTestName(), SplitShardCountSummary.IRRELEVANT)) {
             var reader = searcher.getDirectoryReader();
             for (int i = 0; i < expectedArrays.length; i++) {
                 var document = reader.storedFields().document(i);
@@ -386,13 +388,15 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
         }
 
         indexService.getShard(0).forceMerge(new ForceMergeRequest("test-index").maxNumSegments(1));
-        try (var searcher = indexService.getShard(0).acquireSearcher(getTestName())) {
+        try (var searcher = indexService.getShard(0).acquireExternalSearcher(getTestName(), SplitShardCountSummary.IRRELEVANT)) {
             var reader = searcher.getDirectoryReader();
             for (int i = 0; i < documents.size(); i++) {
                 var document = reader.storedFields().document(i);
                 List<String> storedFieldNames = document.getFields().stream().map(IndexableField::name).toList();
+                // The object array is preserved via _ignored_source, so only assert on _id: with columnar id it moves to
+                // binary doc values and is no longer a stored field, otherwise it remains a stored field.
                 if (isUseColumnarId(reader)) {
-                    assertThat(storedFieldNames, empty());
+                    assertThat(storedFieldNames, not(hasItem("_id")));
                 } else {
                     assertThat(storedFieldNames, hasItem("_id"));
                 }
@@ -455,7 +459,7 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
         }
 
         indexService.getShard(0).forceMerge(new ForceMergeRequest("test-index").maxNumSegments(1));
-        try (var searcher = indexService.getShard(0).acquireSearcher(getTestName())) {
+        try (var searcher = indexService.getShard(0).acquireExternalSearcher(getTestName(), SplitShardCountSummary.IRRELEVANT)) {
             var reader = searcher.getDirectoryReader();
             for (int i = 0; i < documents.size(); i++) {
                 var document = reader.storedFields().document(i);

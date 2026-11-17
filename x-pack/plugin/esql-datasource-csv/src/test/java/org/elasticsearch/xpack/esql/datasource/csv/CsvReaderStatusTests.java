@@ -9,12 +9,15 @@ package org.elasticsearch.xpack.esql.datasource.csv;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.compute.operator.ProfileSchema;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -27,31 +30,26 @@ public class CsvReaderStatusTests extends AbstractWireSerializingTestCase<CsvRea
 
     @Override
     protected CsvReaderStatus createTestInstance() {
-        return new CsvReaderStatus(
-            randomFrom("csv", "tsv"),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomBoolean(),
-            randomNonNegativeLong()
-        );
+        return new CsvReaderStatus(randomFrom("csv", "tsv"), randomNonNegativeLong(), randomNonNegativeLong(), randomBoolean());
     }
 
     @Override
     protected CsvReaderStatus mutateInstance(CsvReaderStatus instance) {
-        return new CsvReaderStatus(
-            instance.format(),
-            instance.rowsEmitted(),
-            instance.parseErrors(),
-            instance.headerDetected(),
-            randomValueOtherThan(instance.readNanos(), () -> randomNonNegativeLong())
-        );
+        return new CsvReaderStatus(instance.format(), instance.rowsEmitted(), instance.parseErrors(), instance.headerDetected() == false);
     }
 
     public void testToXContent() throws IOException {
-        CsvReaderStatus status = new CsvReaderStatus("tsv", 100L, 3L, true, 150L);
-        assertThat(
-            toJson(status),
-            equalTo("{\"format\":\"tsv\",\"rows_emitted\":100,\"parse_errors\":3,\"header_detected\":true,\"read_nanos\":150}")
+        CsvReaderStatus status = new CsvReaderStatus("tsv", 100L, 3L, true);
+        assertThat(toJson(status), equalTo("{\"format\":\"tsv\",\"rows_emitted\":100,\"parse_errors\":3,\"header_detected\":true}"));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testProfileSchema() {
+        Map<String, Object> properties = (Map<String, Object>) CsvReaderStatus.PROFILE_SCHEMA.schema().get("properties");
+        assertEquals(ProfileSchema.enumeration("csv", "tsv"), properties.get("format"));
+        assertEquals(
+            List.of("format", "rows_emitted", "parse_errors", "header_detected"),
+            CsvReaderStatus.PROFILE_SCHEMA.schema().get("required")
         );
     }
 

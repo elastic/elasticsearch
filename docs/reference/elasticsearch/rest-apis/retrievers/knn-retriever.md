@@ -67,7 +67,7 @@ A kNN retriever returns top documents from a [k-nearest neighbor search (kNN)](d
     * `l2_norm`: also known as Euclidean, will include documents where the vector is within the `dims` dimensional hypersphere with radius `similarity` with origin at `query_vector`.
     * `cosine`, `dot_product`, and `max_inner_product`: Only return vectors where the cosine similarity or dot-product are at least the provided `similarity`.
 
-    Read more here: [knn similarity search](docs-content://solutions/search/vector/knn.md#knn-similarity-search)
+    Read more here: [knn similarity search](docs-content://solutions/search/vector/knn/approximate-knn-query-examples.md#knn-similarity-search)
 
 
 `rescore_vector` {applies_to}`stack: preview =9.0, ga 9.1+`
@@ -88,7 +88,7 @@ Rescoring only makes sense for quantized vectors; when [quantization](/reference
     * The top `k` rescored candidates will be returned.
 
 
-See [oversampling and rescoring quantized vectors](docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) for details.
+See [oversampling and rescoring quantized vectors](docs-content://solutions/search/vector/knn/optimize-performance-accuracy.md#dense-vector-knn-search-rescoring) for details.
 
 
 ## Restrictions [_restrictions_2]

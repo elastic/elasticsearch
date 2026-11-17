@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
-import org.elasticsearch.compute.lucene.query.DataPartitioning;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.FuzzyQueryBuilder;
@@ -28,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -35,11 +35,13 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -295,68 +297,83 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
 
     @Override
     protected PhysicalPlan rule(EvalExec evalExec, LocalPhysicalOptimizerContext ctx) {
-        PhysicalPlan plan = evalExec;
         // TimeSeriesSourceOperator and LuceneTopNSourceOperator do not support QueryAndTags, skip them
         // Lookup join is not supported yet
         if (evalExec.child() instanceof EsQueryExec queryExec && queryExec.canSubstituteRoundToWithQueryBuilderAndTags()) {
-            // Look for RoundTo and plan the push down for it.
-            List<RoundTo> roundTos = evalExec.fields()
-                .stream()
-                .map(Alias::child)
-                .filter(RoundTo.class::isInstance)
-                .map(RoundTo.class::cast)
-                .toList();
-            // It is not clear how to push down multiple RoundTos, dealing with multiple RoundTos is out of the scope of this PR.
-            if (roundTos.size() == 1) {
-                RoundTo roundTo = roundTos.get(0);
-                // The range queries and tags generated below assume DOWN (floor) semantics: each interval [p_i, p_{i+1})
-                // is tagged with p_i. UP (ceiling) convention would require tagging with p_{i+1} instead, which is not
-                // implemented here. Skip the pushdown for UP convention.
-                if (roundTo.roundingConvention() != DOWN) {
-                    return evalExec;
-                }
-                int count = roundTo.points().size();
-                int roundingPointsUpperLimit = adjustedRoundingPointsThreshold(
-                    ctx.searchStats(),
-                    roundingPointsThreshold(ctx),
-                    queryExec.query(),
-                    queryExec.indexMode()
-                );
-                if (count > roundingPointsUpperLimit) {
-                    logger.debug(
-                        "Skipping RoundTo push down for [{}], as it has [{}] points, which is more than [{}]",
-                        roundTo.source(),
-                        count,
-                        roundingPointsUpperLimit
-                    );
-                    return evalExec;
-                }
-                // Time-series indices are sorted by _tsid, then @timestamp. Replacing round_to causes fragmentation,
-                // leading to reading many small chunks of data. It is more efficient to query sequentially
-                // and apply round_to on the timestamp field.
-                //
-                // For example, with 1,000 TSIDs over 15 minutes (tbucket=1m), replacing round_to would generate
-                // 15 queries. Each query would necessitate 1,000 seeks, requiring decompression and partial reads
-                // of many doc-value blocks.
-                //
-                // However, if the EsQueryExec index mode is time-series (e.g., rate), we prefer partitioning by tsid
-                // prefixes. When prefix partitioning is not available (old codec), we fall back to replacing round_to
-                // with QueryAndTags.
-                if (((FieldAttribute) roundTo.field()).name().equals(MetadataAttribute.TIMESTAMP_FIELD)
-                    && ctx.searchStats().targetShards().values().stream().allMatch(imd -> imd.getIndexMode() == IndexMode.TIME_SERIES)) {
-                    if (queryExec.indexMode() != IndexMode.TIME_SERIES) {
-                        return evalExec;
-                    }
-                    // prefer partitioning by tsid prefixes
-                    var partitioning = ctx.configuration().pragmas().dataPartitioning(ctx.plannerSettings().defaultDataPartitioning());
-                    if (partitioning != DataPartitioning.SHARD && ctx.searchStats().canPartitionByTsidPrefix()) {
-                        return evalExec;
-                    }
-                }
-                plan = planRoundTo(roundTo, evalExec, queryExec, ctx);
+            RoundTo roundTo = pushableRoundTo(evalExec, queryExec, ctx);
+            if (roundTo != null) {
+                return planRoundTo(roundTo, evalExec, queryExec, ctx);
             }
         }
-        return plan;
+        return evalExec;
+    }
+
+    /**
+     * Returns the single {@code RoundTo} in the {@code EvalExec} that can be pushed down to the given {@code EsQueryExec} as a list of
+     * {@code QueryBuilderAndTags}, or {@code null} if there is no such {@code RoundTo}. This is the gating logic shared between this rule
+     * (which performs the actual rewrite) and {@link ReplaceSampledStatsByExactStats} (which needs to know whether a sampled count
+     * aggregation could instead be executed exactly via query-and-tags push down, so that sampling can be skipped).
+     */
+    static RoundTo pushableRoundTo(EvalExec evalExec, EsQueryExec queryExec, LocalPhysicalOptimizerContext ctx) {
+        // Look for RoundTo and plan the push down for it.
+        List<RoundTo> roundTos = evalExec.fields()
+            .stream()
+            .map(Alias::child)
+            .filter(RoundTo.class::isInstance)
+            .map(RoundTo.class::cast)
+            .toList();
+        // It is not clear how to push down multiple RoundTos.
+        if (roundTos.size() != 1) {
+            return null;
+        }
+        RoundTo roundTo = roundTos.get(0);
+        if (roundTo.field() instanceof FieldAttribute == false) {
+            return null;
+        }
+        // The range queries and tags generated below assume DOWN (floor) semantics: each interval [p_i, p_{i+1})
+        // is tagged with p_i. UP (ceiling) convention would require tagging with p_{i+1} instead, which is not
+        // implemented here. Skip the pushdown for UP convention.
+        if (roundTo.roundingConvention() != DOWN) {
+            return null;
+        }
+        int count = roundTo.points().size();
+        int roundingPointsUpperLimit = adjustedRoundingPointsThreshold(
+            ctx.searchStats(),
+            roundingPointsThreshold(ctx),
+            queryExec.query(),
+            queryExec.indexMode()
+        );
+        if (count > roundingPointsUpperLimit) {
+            logger.debug(
+                "Skipping RoundTo push down for [{}], as it has [{}] points, which is more than [{}]",
+                roundTo.source(),
+                count,
+                roundingPointsUpperLimit
+            );
+            return null;
+        }
+        // Time-series indices are sorted by _tsid, then @timestamp. Replacing round_to causes fragmentation,
+        // leading to reading many small chunks of data. It is more efficient to query sequentially
+        // and apply round_to on the timestamp field.
+        //
+        // For example, with 1,000 TSIDs over 15 minutes (tbucket=1m), replacing round_to would generate
+        // 15 queries. Each query would necessitate 1,000 seeks, requiring decompression and partial reads
+        // of many doc-value blocks.
+        //
+        // However, if the EsQueryExec index mode is time-series (e.g., rate), we prefer partitioning by tsid
+        // prefixes. When prefix partitioning is not available (old codec), we fall back to replacing round_to
+        // with QueryAndTags.
+        if (((FieldAttribute) roundTo.field()).name().equals(MetadataAttribute.TIMESTAMP_FIELD)
+            && ctx.searchStats().targetShards().values().stream().allMatch(imd -> IndexMode.isTsdb(imd.getIndexMode()))) {
+            if (queryExec.indexMode().isTsdb() == false) {
+                return null;
+            }
+            // prefer partitioning by tsid prefixes
+            if (ctx.searchStats().canPartitionByTsidPrefix()) {
+                return null;
+            }
+        }
+        return roundTo;
     }
 
     /**
@@ -408,7 +425,7 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
         return new EvalExec(evalExec.source(), queryExecWithTags, updatedFields);
     }
 
-    private static List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags(
+    static List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags(
         RoundTo roundTo,
         EsQueryExec queryExec,
         LocalPhysicalOptimizerContext ctx
@@ -429,15 +446,25 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
         List<EsQueryExec.QueryBuilderAndTags> queries = new ArrayList<>(count);
 
         Object tag = points.get(0);
-        if (points.size() == 1) { // if there is only one rounding point, just tag the main query
-            EsQueryExec.QueryBuilderAndTags queryBuilderAndTags = tagOnlyBucket(queryExec, tag);
-            queries.add(queryBuilderAndTags);
+        Source source = roundTo.source();
+        // A multivalued field has no bucket: ROUND_TO is null for it, with a warning. The range queries never match it, but the
+        // queries that only check that the field exists, or that it does not, must tell it apart from a single value.
+        boolean singleValued = field instanceof FieldAttribute fa && ctx.searchStats().isSingleValue(fa.fieldName());
+        Queries.Clause clause = queryExec.hasScoring() ? Queries.Clause.MUST : Queries.Clause.FILTER;
+        if (points.size() == 1) {
+            // A single rounding point covers every document that has a value: the rounding points are
+            // derived from the min/max of the existing values, so all of them round down to this point.
+            // Documents without a value must still produce null, so the point tags only the documents
+            // where the field exists, and the null bucket is added just like in the multi-point branch.
+            // Tagging the main query directly would stamp the rounding point onto documents whose field
+            // is null, turning e.g. top(date_trunc(1 month, @timestamp), ...) of an all-null group into
+            // the bucket value.
+            queries.add(existsBucket(source, field, tag, singleValued, queryExec, pushdownPredicates, clause));
+            queries.add(nullBucket(source, field, singleValued, queryExec, pushdownPredicates, clause));
         } else {
-            Source source = roundTo.source();
             Object lower = null;
             Object upper = null;
-            Queries.Clause clause = queryExec.hasScoring() ? Queries.Clause.MUST : Queries.Clause.FILTER;
-            ZoneId zoneId = ctx.configuration().zoneId();
+            ZoneId zoneId = QuerySettings.TIME_ZONE.get(ctx.configuration().resolvedSettings());
             for (int i = 1; i < count; i++) {
                 upper = points.get(i);
                 // build predicates and range queries for RoundTo ranges
@@ -448,7 +475,7 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
             // build the last/gte bucket
             queries.add(rangeBucket(source, field, dataType, lower, null, lower, zoneId, queryExec, pushdownPredicates, clause));
             // build null bucket
-            queries.add(nullBucket(source, field, queryExec, pushdownPredicates, clause));
+            queries.add(nullBucket(source, field, singleValued, queryExec, pushdownPredicates, clause));
         }
         return queries;
     }
@@ -495,21 +522,48 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
         }
     }
 
-    private static EsQueryExec.QueryBuilderAndTags tagOnlyBucket(EsQueryExec queryExec, Object tag) {
-        return new EsQueryExec.QueryBuilderAndTags(queryExec.query(), List.of(tag));
-    }
-
-    private static EsQueryExec.QueryBuilderAndTags nullBucket(
+    /**
+     * The bucket for the documents that have a single value for the rounded field. Used when there is a
+     * single rounding point, where no range filter is needed: every existing value rounds to it.
+     */
+    private static EsQueryExec.QueryBuilderAndTags existsBucket(
         Source source,
         Expression field,
+        Object tag,
+        boolean singleValued,
         EsQueryExec queryExec,
         LucenePushdownPredicates pushdownPredicates,
         Queries.Clause clause
     ) {
-        IsNull isNull = new IsNull(source, field);
+        Query exists = TRANSLATOR_HANDLER.asQuery(pushdownPredicates, new IsNotNull(source, field));
+        if (singleValued == false) {
+            exists = new SingleValueQuery(exists, ((FieldAttribute) field).fieldName().string(), false);
+        }
+        return buildCombinedQueryAndTags(queryExec, exists, clause, List.of(tag));
+    }
+
+    /**
+     * The bucket for the documents that have no bucket: the ones without a value for the rounded field and,
+     * unless the field is known to be single valued, the ones with many values.
+     */
+    private static EsQueryExec.QueryBuilderAndTags nullBucket(
+        Source source,
+        Expression field,
+        boolean singleValued,
+        EsQueryExec queryExec,
+        LucenePushdownPredicates pushdownPredicates,
+        Queries.Clause clause
+    ) {
+        Query isNull;
+        if (singleValued) {
+            isNull = TRANSLATOR_HANDLER.asQuery(pushdownPredicates, new IsNull(source, field));
+        } else {
+            Query exists = TRANSLATOR_HANDLER.asQuery(pushdownPredicates, new IsNotNull(source, field));
+            isNull = new NotQuery(source, new SingleValueQuery(exists, ((FieldAttribute) field).fieldName().string(), false));
+        }
         List<Object> nullTags = new ArrayList<>(1);
         nullTags.add(null);
-        return buildCombinedQueryAndTags(queryExec, pushdownPredicates, isNull, clause, nullTags);
+        return buildCombinedQueryAndTags(queryExec, isNull, clause, nullTags);
     }
 
     private static EsQueryExec.QueryBuilderAndTags rangeBucket(
@@ -525,17 +579,15 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
         Queries.Clause clause
     ) {
         Expression range = createRangeExpression(source, field, dataType, lower, upper, zoneId);
-        return buildCombinedQueryAndTags(queryExec, pushdownPredicates, range, clause, List.of(tag));
+        return buildCombinedQueryAndTags(queryExec, TRANSLATOR_HANDLER.asQuery(pushdownPredicates, range), clause, List.of(tag));
     }
 
     private static EsQueryExec.QueryBuilderAndTags buildCombinedQueryAndTags(
         EsQueryExec queryExec,
-        LucenePushdownPredicates pushdownPredicates,
-        Expression expression,
+        Query queryDSL,
         Queries.Clause clause,
         List<Object> tags
     ) {
-        Query queryDSL = TRANSLATOR_HANDLER.asQuery(pushdownPredicates, expression);
         QueryBuilder mainQuery = queryExec.query();
         QueryBuilder newQuery = queryDSL.toQueryBuilder();
         QueryBuilder combinedQuery = Queries.combine(clause, mainQuery != null ? List.of(mainQuery, newQuery) : List.of(newQuery));
@@ -547,7 +599,7 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
      * If the query level pragmas is set to -1(default), the cluster level flags will be used.
      * If the query level pragmas is set to greater than or equals to 0, the query level pragmas will be used.
      */
-    private int roundingPointsThreshold(LocalPhysicalOptimizerContext ctx) {
+    private static int roundingPointsThreshold(LocalPhysicalOptimizerContext ctx) {
         int queryLevelRoundingPointsThreshold = ctx.configuration().pragmas().roundToPushDownThreshold();
         int clusterLevelRoundingPointsThreshold = ctx.flags().roundToPushdownThreshold();
         int roundingPointsThreshold;
@@ -568,7 +620,7 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
      */
     static int adjustedRoundingPointsThreshold(SearchStats stats, int threshold, QueryBuilder query, IndexMode indexMode) {
         int clauses = estimateQueryClauses(stats, query) + 1;
-        if (indexMode == IndexMode.TIME_SERIES) {
+        if (indexMode.isTsdb()) {
             // No doc partitioning for time_series sources; increase the threshold to trade overhead for parallelism.
             threshold *= 2;
         }

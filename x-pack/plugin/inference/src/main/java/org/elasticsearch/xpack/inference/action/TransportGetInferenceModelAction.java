@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.Model;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.common.InferenceExceptions;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
+import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -42,6 +44,7 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
     private final ModelRegistry modelRegistry;
     private final InferenceServiceRegistry serviceRegistry;
     private final Executor executor;
+    private final Settings settings;
 
     @Inject
     public TransportGetInferenceModelAction(
@@ -49,7 +52,8 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
         ActionFilters actionFilters,
         ThreadPool threadPool,
         ModelRegistry modelRegistry,
-        InferenceServiceRegistry serviceRegistry
+        InferenceServiceRegistry serviceRegistry,
+        Settings settings
     ) {
         super(
             GetInferenceModelAction.NAME,
@@ -61,6 +65,7 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
         this.modelRegistry = modelRegistry;
         this.serviceRegistry = serviceRegistry;
         this.executor = threadPool.executor(InferencePlugin.UTILITY_THREAD_POOL_NAME);
+        this.settings = settings;
     }
 
     @Override
@@ -138,10 +143,22 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
             for (var unparsedModel : unparsedModels) {
                 var service = serviceRegistry.getService(unparsedModel.service());
                 if (service.isEmpty()) {
-                    throw serviceNotFoundException(unparsedModel.service(), unparsedModel.inferenceEntityId());
+                    // If the ml plugin or the nlp functionality is disabled the elasticsearch service will not be registered so ignore
+                    // this failure
+                    if (shouldIgnoreElasticsearchInternalServiceMissing(unparsedModel.service())) {
+                        continue;
+                    }
+
+                    listener.onFailure(serviceNotFoundException(unparsedModel.service(), unparsedModel.inferenceEntityId()));
+                    return;
                 }
                 var list = parsedModelsByService.computeIfAbsent(service.get().name(), s -> new ArrayList<>());
                 list.add(service.get().parsePersistedConfig(unparsedModel));
+            }
+
+            if (parsedModelsByService.isEmpty()) {
+                listener.onResponse(new GetInferenceModelAction.Response(List.of()));
+                return;
             }
 
             var groupedListener = new GroupedActionListener<List<Model>>(
@@ -168,8 +185,12 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
         }
     }
 
+    private boolean shouldIgnoreElasticsearchInternalServiceMissing(String service) {
+        return ElasticsearchInternalService.isServiceNameOrAlias(service) && ElasticsearchInternalService.isSupported(settings) == false;
+    }
+
     private ElasticsearchStatusException serviceNotFoundException(String service, String inferenceId) {
-        throw new ElasticsearchStatusException(
+        return new ElasticsearchStatusException(
             "Unknown service [{}] for inference endpoint [{}].",
             RestStatus.INTERNAL_SERVER_ERROR,
             service,

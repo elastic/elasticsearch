@@ -21,14 +21,14 @@ import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
-import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
+import org.apache.lucene.util.quantization.LegacyQuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.ScalarQuantizedVectorSimilarity;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.OffHeapQuantizedByteVectorValues;
+import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -53,10 +53,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
-
-    // bounds of the range of values that can be seen by int7 scalar quantized vectors
-    static final byte MIN_INT7_VALUE = 0;
-    static final byte MAX_INT7_VALUE = 127;
 
     @BeforeClass
     public static void requiresHeapSegments() {
@@ -169,13 +165,13 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
 
     public void testRandomMMap() throws IOException {
         try (Directory dir = new MMapDirectory(createTempDir("testRandomMMap"))) {
-            testRandomSupplier(dir, BYTE_ARRAY_RANDOM_INT7_FUNC);
+            testRandomSupplier(dir, AbstractVectorTestCase::randomInt7ByteVector);
         }
     }
 
     public void testRandomNIO() throws IOException {
         try (Directory dir = new NIOFSDirectory(createTempDir("testRandomNIO"))) {
-            testRandomSupplier(dir, BYTE_ARRAY_RANDOM_INT7_FUNC);
+            testRandomSupplier(dir, AbstractVectorTestCase::randomInt7ByteVector);
         }
     }
 
@@ -183,19 +179,19 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
         long maxChunkSize = randomLongBetween(32, 128);
         logger.info("maxChunkSize=" + maxChunkSize);
         try (Directory dir = new MMapDirectory(createTempDir("testRandomMaxChunkSizeSmall"), maxChunkSize)) {
-            testRandomSupplier(dir, BYTE_ARRAY_RANDOM_INT7_FUNC);
+            testRandomSupplier(dir, AbstractVectorTestCase::randomInt7ByteVector);
         }
     }
 
     public void testRandomMax() throws IOException {
         try (Directory dir = new MMapDirectory(createTempDir("testRandomMax"))) {
-            testRandomSupplier(dir, BYTE_ARRAY_MAX_INT7_FUNC);
+            testRandomSupplier(dir, AbstractVectorTestCase::maxInt7ByteVector);
         }
     }
 
     public void testRandomMin() throws IOException {
         try (Directory dir = new MMapDirectory(createTempDir("testRandomMin"))) {
-            testRandomSupplier(dir, BYTE_ARRAY_MIN_INT7_FUNC);
+            testRandomSupplier(dir, AbstractVectorTestCase::minInt7ByteVector);
         }
     }
 
@@ -237,19 +233,19 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
 
     public void testRandomScorerMMap() throws IOException {
         try (Directory dir = new MMapDirectory(createTempDir("testRandomScorerMMap"))) {
-            testRandomScorerImpl(dir, FLOAT_ARRAY_RANDOM_FUNC);
+            testRandomScorerImpl(dir, VectorTestUtils::randomFloatVector);
         }
     }
 
     public void testRandomScorerNIO() throws IOException {
         try (Directory dir = new NIOFSDirectory(createTempDir("testRandomScorerNIO"))) {
-            testRandomScorerImpl(dir, FLOAT_ARRAY_RANDOM_FUNC);
+            testRandomScorerImpl(dir, VectorTestUtils::randomFloatVector);
         }
     }
 
     public void testRandomScorerMax() throws IOException {
         try (Directory dir = new MMapDirectory(createTempDir("testRandomScorerMax"))) {
-            testRandomScorerImpl(dir, FLOAT_ARRAY_MAX_FUNC);
+            testRandomScorerImpl(dir, AbstractVectorTestCase::maxFloatArray);
         }
     }
 
@@ -257,7 +253,7 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
         long maxChunkSize = randomLongBetween(32, 128);
         logger.info("maxChunkSize=" + maxChunkSize);
         try (Directory dir = new MMapDirectory(createTempDir("testRandomScorerChunkSizeSmall"), maxChunkSize)) {
-            testRandomScorerImpl(dir, FLOAT_ARRAY_RANDOM_FUNC);
+            testRandomScorerImpl(dir, VectorTestUtils::randomFloatVector);
         }
     }
 
@@ -267,7 +263,7 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
 
         for (var sim : List.of(COSINE, DOT_PRODUCT, EUCLIDEAN, MAXIMUM_INNER_PRODUCT)) {
             // Use the random supplier for COSINE, which returns values in the normalized range
-            floatArraySupplier = sim == COSINE ? FLOAT_ARRAY_RANDOM_FUNC : floatArraySupplier;
+            floatArraySupplier = sim == COSINE ? VectorTestUtils::randomFloatVector : floatArraySupplier;
             final int dims = randomIntBetween(1, 4096);
             final int size = randomIntBetween(2, 100);
             final float[][] vectors = new float[size][];
@@ -303,7 +299,7 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
     }
 
     public void testRandomSlice() throws IOException {
-        testRandomSliceImpl(30, 64, 1, BYTE_ARRAY_RANDOM_INT7_FUNC);
+        testRandomSliceImpl(30, 64, 1, Int7SQVectorScorerFactoryTests::randomInt7ByteVector);
     }
 
     void testRandomSliceImpl(int dims, long maxChunkSize, int initialPadding, IntFunction<byte[]> byteArraySupplier) throws IOException {
@@ -458,7 +454,7 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
                 int idx0 = randomIntBetween(0, size - 1);
                 int[] nodes = shuffledList(ids).stream().mapToInt(i -> i).toArray();
                 for (var sim : List.of(COSINE, DOT_PRODUCT, EUCLIDEAN, MAXIMUM_INNER_PRODUCT)) {
-                    QuantizedByteVectorValues values = vectorValues(dims, size, in, sim.function());
+                    LegacyQuantizedByteVectorValues values = vectorValues(dims, size, in, sim.function());
                     float[] expected = new float[size];
                     float[] scores = new float[size];
                     var referenceScorer = luceneScoreSupplier(values, sim.function()).scorer();
@@ -505,7 +501,7 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
                     int idx0 = randomIntBetween(0, size - 1);
                     int[] nodes = shuffledList(ids).stream().mapToInt(i -> i).toArray();
                     for (var sim : List.of(COSINE, DOT_PRODUCT, EUCLIDEAN, MAXIMUM_INNER_PRODUCT)) {
-                        QuantizedByteVectorValues values = vectorValues(dims, size, in, sim.function());
+                        LegacyQuantizedByteVectorValues values = vectorValues(dims, size, in, sim.function());
                         float[] expected = new float[size];
                         float[] scores = new float[size];
                         var referenceScorer = luceneScoreSupplier(values, sim.function()).scorer();
@@ -635,7 +631,7 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
         }
     }
 
-    QuantizedByteVectorValues vectorValues(int dims, int size, IndexInput in, VectorSimilarityFunction sim) throws IOException {
+    LegacyQuantizedByteVectorValues vectorValues(int dims, int size, IndexInput in, VectorSimilarityFunction sim) throws IOException {
         var sq = new ScalarQuantizer(0.1f, 0.9f, (byte) 7);
         var slice = in.slice("values", 0, in.length());
         return new OffHeapQuantizedByteVectorValues.DenseOffHeapVectorValues(dims, size, sq, false, sim, null, slice);
@@ -654,7 +650,7 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
         return scorer.score(a, aOffsetValue, b, bOffsetValue);
     }
 
-    static RandomVectorScorerSupplier luceneScoreSupplier(QuantizedByteVectorValues values, VectorSimilarityFunction sim)
+    static RandomVectorScorerSupplier luceneScoreSupplier(LegacyQuantizedByteVectorValues values, VectorSimilarityFunction sim)
         throws IOException {
         return new Lucene99ScalarQuantizedVectorScorer(null).getRandomVectorScorerSupplier(sim, values);
     }
@@ -668,24 +664,6 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
         }
         return ba;
     }
-
-    static IntFunction<byte[]> BYTE_ARRAY_RANDOM_INT7_FUNC = size -> {
-        byte[] ba = new byte[size];
-        randomBytesBetween(ba, MIN_INT7_VALUE, MAX_INT7_VALUE);
-        return ba;
-    };
-
-    static IntFunction<byte[]> BYTE_ARRAY_MAX_INT7_FUNC = size -> {
-        byte[] ba = new byte[size];
-        Arrays.fill(ba, MAX_INT7_VALUE);
-        return ba;
-    };
-
-    static IntFunction<byte[]> BYTE_ARRAY_MIN_INT7_FUNC = size -> {
-        byte[] ba = new byte[size];
-        Arrays.fill(ba, MIN_INT7_VALUE);
-        return ba;
-    };
 
     static final int TIMES = 100; // a loop iteration times
 }

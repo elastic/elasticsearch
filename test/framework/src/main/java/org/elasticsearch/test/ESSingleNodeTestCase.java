@@ -19,6 +19,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComposableIndexTemplateAction;
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
@@ -44,7 +45,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndicesService;
@@ -126,12 +126,6 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         }
     }
 
-    @Override
-    public final void setUp() throws Exception {
-        // do not override setUp, use an @Before
-        super.setUp();
-    }
-
     @Before
     public final void startTestNode() throws Exception {
         // the seed has to be created regardless of whether it will be used or not, for repeatability
@@ -141,12 +135,6 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         if (NODE == null) {
             startNode(seed);
         }
-    }
-
-    @Override
-    public final void tearDown() throws Exception {
-        // do not override tearDown, use an @After
-        super.tearDown();
     }
 
     @After
@@ -244,15 +232,6 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     }
 
     /**
-     * Whether the test node should enable index slicing validation.
-     * This adds the {@link IndexSettings#SLICE_VALIDATED} setting to all indices created in the cluster. In production, this happens
-     * via an x-pack plugin.
-     */
-    protected boolean enableIndexSlice() {
-        return true;
-    }
-
-    /**
      * Determines whether the columnar ID mode should be randomized in the test setup.
      *
      * @return {@code true} if the columnar ID mode should be randomized; otherwise, returns {@code false}.
@@ -297,8 +276,12 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             // turn it off for these tests.
             .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
             .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()) // empty list disables a port scan for other nodes
-            .putList(INITIAL_MASTER_NODES_SETTING.getKey(), nodeName)
-            .put(nodeSettings());// allow test cases to provide their own settings or override these
+            .putList(INITIAL_MASTER_NODES_SETTING.getKey(), nodeName);
+        // covers the non-batch path for indices that opt into batch indexing by default, such as columnar ones
+        if (randomBoolean()) {
+            settingBuilder.put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), false);
+        }
+        settingBuilder.put(nodeSettings());// allow test cases to provide their own settings or override these
 
         boolean enableConcurrentSearch = enableConcurrentSearch();
         if (enableConcurrentSearch) {
@@ -309,9 +292,6 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         Settings settings = settingBuilder.build();
 
         Collection<Class<? extends Plugin>> plugins = new ArrayList<>(getPlugins());
-        if (enableIndexSlice()) {
-            plugins.add(ESIntegTestCase.AlwaysValidateSlicePlugin.class);
-        }
         if (plugins.contains(getTestTransportPlugin()) == false) {
             plugins.add(getTestTransportPlugin());
         }
@@ -322,7 +302,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             plugins.add(ConcurrentSearchTestPlugin.class);
         }
         plugins.add(MockScriptService.TestPlugin.class);
-        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomizeColumnarIdMode()) {
+        if (randomizeColumnarIdMode()) {
             plugins.add(ESIntegTestCase.RandomizeColumnarIdModePlugin.class);
         }
         Node node = new MockNode(settings, plugins, forbidPrivateIndexSettings(), TEST_ENTITLEMENTS.addEntitledNodePaths(settings, null));

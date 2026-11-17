@@ -8,14 +8,15 @@ package org.elasticsearch.xpack.downsample;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.internal.hppc.IntArrayList;
+import org.apache.lucene.internal.hppc.LongArrayList;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkProcessor2;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -31,7 +32,6 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
@@ -45,6 +45,7 @@ import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.lucene.queries.XSortedSetDocValuesRangeQuery;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
@@ -67,7 +68,6 @@ import org.elasticsearch.xpack.core.exponentialhistogram.fielddata.ExponentialHi
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -202,11 +202,13 @@ class DownsampleShardIndexer {
 
         TimeValue duration = TimeValue.timeValueMillis(client.threadPool().relativeTimeInMillis() - startTime);
         logger.info(
-            "Shard [{}] successfully sent [{}], received source doc [{}], indexed downsampled doc [{}], failed [{}], took [{}]",
+            "Shard [{}] successfully sent [{}], received source doc [{}], indexed downsampled doc [{}], "
+                + "skipped already indexed [{}], failed [{}], took [{}]",
             indexShard.shardId(),
             task.getNumReceived(),
             task.getNumSent(),
             task.getNumIndexed(),
+            task.getNumSkippedAlreadyIndexed(),
             task.getNumFailed(),
             duration
         );
@@ -252,8 +254,10 @@ class DownsampleShardIndexer {
     }
 
     private Query createQuery() {
-        if (this.state.started() && this.state.tsid() != null) {
-            return SortedSetDocValuesField.newSlowRangeQuery(TimeSeriesIdFieldMapper.NAME, this.state.tsid(), null, true, false);
+        // The executor creates the state with the INITIALIZED status and the last tsid found in the target index, so the
+        // presence of a tsid is what signals a resumed task, not the status.
+        if (this.state.tsid() != null) {
+            return XSortedSetDocValuesRangeQuery.newSlowRangeQuery(TimeSeriesIdFieldMapper.NAME, this.state.tsid(), null, true, false);
         }
         return Queries.ALL_DOCS_INSTANCE;
     }
@@ -318,20 +322,47 @@ class DownsampleShardIndexer {
                 long bulkIngestTookMillis = response.getIngestTookInMillis() >= 0 ? response.getIngestTookInMillis() : 0;
                 long bulkTookMillis = response.getTook().getMillis();
                 task.addNumIndexed(request.numberOfActions());
+                List<BulkItemResponse> failedItems = List.of();
+                if (response.hasFailures()) {
+                    // Version conflicts are expected when a task resumes after an interruption, the documents are created with op type
+                    // CREATE, so the bucket that were already indexed by the previous run are rejected. They are skipped rather
+                    // than counted as failures.
+                    int conflicts = 0;
+                    for (BulkItemResponse item : response.getItems()) {
+                        if (item.isFailed() == false) {
+                            continue;
+                        }
+                        if (item.getFailure().getStatus() == RestStatus.CONFLICT) {
+                            conflicts++;
+                        } else {
+                            if (failedItems.isEmpty()) {
+                                failedItems = new ArrayList<>();
+                            }
+                            failedItems.add(item);
+                        }
+                    }
+                    if (conflicts > 0) {
+                        task.addNumSkippedAlreadyIndexed(conflicts);
+                        logger.debug(
+                            "Shard [{}] skipped [{}] downsampled documents that were already indexed",
+                            indexShard.shardId(),
+                            conflicts
+                        );
+                    }
+                }
                 task.setAfterBulkInfo(
                     new DownsampleAfterBulkInfo(
                         client.threadPool().absoluteTimeInMillis(),
                         executionId,
                         bulkIngestTookMillis,
                         bulkTookMillis,
-                        response.hasFailures(),
+                        failedItems.isEmpty() == false,
                         RestStatus.OK.getStatus()
                     )
                 );
                 task.updateBulkInfo(bulkIngestTookMillis, bulkTookMillis);
 
-                if (response.hasFailures()) {
-                    List<BulkItemResponse> failedItems = Arrays.stream(response.getItems()).filter(BulkItemResponse::isFailed).toList();
+                if (failedItems.isEmpty() == false) {
                     task.addNumFailed(failedItems.size());
 
                     Map<String, String> failures = failedItems.stream()
@@ -541,6 +572,7 @@ class DownsampleShardIndexer {
             final SortedNumericLongValues timestampValues;
 
             final IntArrayList docIdBuffer = new IntArrayList(DOCID_BUFFER_SIZE);
+            final LongArrayList timestampBuffer = new LongArrayList(DOCID_BUFFER_SIZE);
             final long timestampBoundStartTime = searchExecutionContext.getIndexSettings().getTimestampBounds().startTime();
 
             LeafDownsampleCollector(
@@ -653,12 +685,12 @@ class DownsampleShardIndexer {
                 }
                 if (aggregateCounterDownsamplers.length > 0 || aggregateHistogramDownsamplers.length > 0) {
                     assert timestampValues != null;
-                    long[] timestamps = TimestampValueFetcher.fetch(timestampValues, docIdBuffer);
+                    TimestampValueFetcher.fetch(timestampValues, docIdBuffer, timestampBuffer);
                     for (int i = 0; i < aggregateCounterDownsamplers.length; i++) {
-                        aggregateCounterDownsamplers[i].collect(aggregateCounterValues[i], timestamps, docIdBuffer, temporality);
+                        aggregateCounterDownsamplers[i].collect(aggregateCounterValues[i], timestampBuffer, docIdBuffer, temporality);
                     }
                     for (int i = 0; i < aggregateHistogramDownsamplers.length; i++) {
-                        aggregateHistogramDownsamplers[i].collect(aggregateHistogramValues[i], timestamps, docIdBuffer, temporality);
+                        aggregateHistogramDownsamplers[i].collect(aggregateHistogramValues[i], timestampBuffer, docIdBuffer, temporality);
                     }
                 }
 
@@ -667,6 +699,7 @@ class DownsampleShardIndexer {
 
                 // buffer.clean() also overwrites all slots with zeros
                 docIdBuffer.elementsCount = 0;
+                timestampBuffer.elementsCount = 0;
             }
 
             private <T> void collect(AbstractFieldDownsampler<T>[] downsamplers, T[] docValues) throws IOException {
@@ -712,6 +745,9 @@ class DownsampleShardIndexer {
 
         private void indexBucket(XContentBuilder doc) {
             IndexRequestBuilder request = client.prepareIndex(downsampleIndex);
+            // The _id is derived from _tsid and timestamp. Use CREATE so that a bucket already indexed by a previous,
+            // interrupted run of this task is rejected with a version conflict instead of being indexed a second time.
+            request.setOpType(DocWriteRequest.OpType.CREATE);
             request.setSource(doc);
             if (logger.isTraceEnabled()) {
                 logger.trace("Indexing downsample doc: [{}]", Strings.toString(doc));
@@ -882,7 +918,7 @@ class DownsampleShardIndexer {
             return builder;
         }
 
-        public XContentBuilder buildExtraResetDocument(long timestamp, List<Tuple<String, ResetDataPoints.ResetValue>> resetValues)
+        public XContentBuilder buildExtraResetDocument(long timestamp, Map<String, ResetDataPoints.ResetValue> resetValues)
             throws IOException {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.SMILE);
             builder.startObject();
@@ -891,8 +927,8 @@ class DownsampleShardIndexer {
             for (DimensionFieldDownsampler dimensionFieldDownsampler : dimensionDownsamplers) {
                 dimensionFieldDownsampler.write(builder);
             }
-            for (Tuple<String, ResetDataPoints.ResetValue> resetValue : resetValues) {
-                resetValue.v2().write(resetValue.v1(), builder);
+            for (var resetValue : resetValues.entrySet()) {
+                resetValue.getValue().write(resetValue.getKey(), builder);
             }
 
             extractLegacyDimensionsIfNeeded(builder);

@@ -1,5 +1,0 @@
-area: Machine Learning
-issues: []
-pr: 152000
-summary: "Revert \"[ML] Add extra validation in `trained_model` creation\""
-type: bug

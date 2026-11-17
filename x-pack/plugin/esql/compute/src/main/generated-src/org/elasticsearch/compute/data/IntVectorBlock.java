@@ -115,7 +115,13 @@ public final class IntVectorBlock extends AbstractVectorBlock implements IntBloc
 
     @Override
     public void allowPassingToDifferentDriver() {
+        makeRefCountsThreadSafe();
         vector.allowPassingToDifferentDriver();
+    }
+
+    @Override
+    public void enablePooling() {
+        vector.enablePooling();
     }
 
     @Override

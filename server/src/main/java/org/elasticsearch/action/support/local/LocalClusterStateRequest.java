@@ -10,7 +10,7 @@
 package org.elasticsearch.action.support.local;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -25,7 +25,7 @@ import java.util.Objects;
 /**
  * A base request for actions that are executed locally on the node that receives the request.
  */
-public abstract class LocalClusterStateRequest extends LegacyActionRequest {
+public abstract class LocalClusterStateRequest extends UntypedActionRequest {
 
     /**
      * The timeout for waiting until the cluster is unblocked.

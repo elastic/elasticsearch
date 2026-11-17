@@ -53,9 +53,9 @@ import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.commits.GetVirtualBatchedCompoundCommitChunksPressure;
-import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
+import org.elasticsearch.xpack.stateless.utils.StatelessCommitServiceProvider;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -81,7 +81,7 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
         IndicesService indicesService,
         ClusterService clusterService,
         GetVirtualBatchedCompoundCommitChunksPressure vbccChunksPressure,
-        StatelessCommitService statelessCommitService,
+        StatelessCommitServiceProvider statelessCommitServiceProvider,
         ProjectResolver projectResolver
     ) {
         super(NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -93,23 +93,24 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
 
         transportService.registerRequestHandler(
             transportPrimaryAction,
-            transportService.getThreadPool().executor(StatelessPlugin.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL),
+            transportService.getThreadPool().executor(StatelessThreadPools.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL),
             GetVirtualBatchedCompoundCommitChunkRequest::new,
             (request, channel, task) -> {
                 final ActionListener<GetVirtualBatchedCompoundCommitChunkResponse> listener = new ChannelActionListener<>(channel);
                 ActionListener.run(listener, (l) -> {
                     assert transportService.getLocalNode().hasRole(DiscoveryNodeRole.INDEX_ROLE.roleName()) : "not an indexing node";
-                    assert ThreadPool.assertCurrentThreadPool(StatelessPlugin.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL);
+                    assert ThreadPool.assertCurrentThreadPool(StatelessThreadPools.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL);
                     final ShardId shardId = request.getShardId();
                     final Index index = shardId.getIndex();
                     final IndexShard shard = indicesService.indexServiceSafe(index).getShard(request.getShardId().id());
                     assert shard.routingEntry().primary() : shard + " not primary on node " + transportService.getLocalNode();
+                    final var commitService = statelessCommitServiceProvider.get();
                     primaryShardOperation(
                         request,
                         shard,
                         bigArrays,
                         vbccChunksPressure,
-                        statelessCommitService::readVirtualBatchedCompoundCommitChunk,
+                        commitService::readVirtualBatchedCompoundCommitChunk,
                         l
                     );
                 });

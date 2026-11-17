@@ -14,6 +14,13 @@ capabilities API. Any [`WHERE`](/reference/query-languages/esql/commands/where.m
 `METRICS_INFO` narrow the set of time series considered, so only metrics with matching data are
 returned.
 
+:::{note}
+Prefer `METRICS_INFO` over [`TS_INFO`](/reference/query-languages/esql/commands/ts-info.md) when you
+only need metric-level metadata. It avoids producing a row for every metric and time series combination,
+which reduces memory use and processing cost. Use `TS_INFO` when you need metadata for individual series,
+including their dimension values, or aggregates that depend on the number of series, such as counting series per metric.
+:::
+
 ## Syntax
 
 ```esql
@@ -48,11 +55,12 @@ The output contains the following columns, all of type `keyword`:
     may be `null` if no unit is declared).
 
 `metric_type`
-:   The metric type, for example `counter` or `gauge` (multi-valued when definitions differ across backing indices).
+:   The metric type, for example `counter`, `gauge`, or `histogram` (multi-valued when definitions differ
+    across backing indices).
 
 `field_type`
-:   The Elasticsearch field type, for example `long`, `double`, or `integer` (multi-valued when definitions differ
-    across backing indices).
+:   The Elasticsearch field type, for example `long`, `double`, `histogram`, `tdigest`, or
+    `exponential_histogram` (multi-valued when definitions differ across backing indices).
 
 `dimension_fields`
 :   The dimension field names associated with this metric (multi-valued). The union of dimension

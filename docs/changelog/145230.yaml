@@ -1,6 +1,0 @@
-area: Search
-issues:
- - 143783
-pr: 145230
-summary: Include target indices and query in profiled search results
-type: enhancement

@@ -23,6 +23,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -41,6 +42,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
@@ -130,6 +132,63 @@ public class ChunkedFetchPhaseCircuitBreakerTrippingIT extends ESIntegTestCase {
             long currentBreaker = getRequestBreakerUsed(coordinatorNode);
             assertThat(
                 "Coordinator circuit breaker should be released even after tripping, current: "
+                    + currentBreaker
+                    + ", before: "
+                    + breakerBefore,
+                currentBreaker,
+                lessThanOrEqualTo(breakerBefore)
+            );
+        });
+    }
+
+    public void testCircuitBreakerTripsOnFieldGraphWithSourceDisabled() throws Exception {
+        internalCluster().startNode();
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+
+        int numFields = 500;
+        int numDocs = 150;
+        createWideIndex(INDEX_NAME, numFields);
+        populateWideIndex(INDEX_NAME, numDocs, numFields);
+        ensureGreen(INDEX_NAME);
+
+        long breakerBefore = getRequestBreakerUsed(coordinatorNode);
+
+        ElasticsearchException exception = null;
+        SearchResponse resp = null;
+        try {
+            resp = internalCluster().client(coordinatorNode)
+                .prepareSearch(INDEX_NAME)
+                .setQuery(matchAllQuery())
+                .setSize(numDocs)
+                .setFetchSource(false)
+                .addFetchField("*")
+                .setAllowPartialSearchResults(false)
+                .addSort(SORT_FIELD, SortOrder.ASC)
+                .get();
+        } catch (ElasticsearchException e) {
+            exception = e;
+        } finally {
+            if (resp != null) {
+                resp.decRef();
+            }
+        }
+
+        assertNotNull("Search should have failed once the coordinator accumulated the field graph", exception);
+        assertThat(
+            "Circuit breaker should trip on the extracted field graph even with _source disabled",
+            containsCircuitBreakerException(exception),
+            equalTo(true)
+        );
+        assertThat(
+            "Circuit breaking should map to 429 TOO_MANY_REQUESTS",
+            ExceptionsHelper.status(exception),
+            equalTo(RestStatus.TOO_MANY_REQUESTS)
+        );
+
+        assertBusy(() -> {
+            long currentBreaker = getRequestBreakerUsed(coordinatorNode);
+            assertThat(
+                "Coordinator circuit breaker should be released after tripping on the field graph, current: "
                     + currentBreaker
                     + ", before: "
                     + breakerBefore,
@@ -276,6 +335,81 @@ public class ChunkedFetchPhaseCircuitBreakerTrippingIT extends ESIntegTestCase {
         });
     }
 
+    public void testCircuitBreakerTripsOnDataNodeSourceDuringStreamingFetch() throws Exception {
+        String dataNode = internalCluster().startNode(
+            Settings.builder().put("indices.breaker.request.type", "memory").put("indices.breaker.request.limit", "4mb").build()
+        );
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(
+            Settings.builder().put("indices.breaker.request.limit", "200mb").build()
+        );
+        createIndex(INDEX_NAME);
+
+        prepareIndex(INDEX_NAME).setId("huge")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field(SORT_FIELD, 0)
+                    .field("huge_field", Strings.repeat("x", 10_000_000))  // 10MB source, well past the 4MB data node limit
+                    .endObject()
+            )
+            .get();
+        refresh(INDEX_NAME);
+        ensureGreen(INDEX_NAME);
+
+        long breakerBefore = getRequestBreakerUsed(dataNode);
+        assertThat(
+            "baseline data node request breaker usage should leave ample headroom below the low limit, otherwise "
+                + "an unrelated allocation -- not the streamed source -- could trip the breaker and fail this test "
+                + "for the wrong reason; current usage: "
+                + breakerBefore,
+            breakerBefore,
+            lessThan(1_000_000L)
+        );
+
+        ElasticsearchException exception = null;
+        SearchResponse resp = null;
+        try {
+            resp = internalCluster().client(coordinatorNode)
+                .prepareSearch(INDEX_NAME)
+                .setQuery(matchAllQuery())
+                .setSize(1)
+                .setAllowPartialSearchResults(false)
+                .get();
+        } catch (ElasticsearchException e) {
+            exception = e;
+        } finally {
+            if (resp != null) {
+                resp.decRef();
+            }
+        }
+
+        assertNotNull("Search should have failed on the data node's oversized source", exception);
+
+        Throwable breakerException = ExceptionsHelper.unwrap(exception, CircuitBreakingException.class);
+        assertNotNull("root cause must be a CircuitBreakingException", breakerException);
+        assertThat(
+            "Trip should be attributed to the streaming per-hit source accounting, not the network buffer",
+            breakerException.getMessage(),
+            containsString("fetch[source]")
+        );
+        assertThat(
+            "Circuit breaking should map to 429 TOO_MANY_REQUESTS",
+            ExceptionsHelper.status(exception),
+            equalTo(RestStatus.TOO_MANY_REQUESTS)
+        );
+
+        assertBusy(() -> {
+            long currentBreaker = getRequestBreakerUsed(dataNode);
+            assertThat(
+                "Data node circuit breaker should be released after tripping on the streamed source, current: "
+                    + currentBreaker
+                    + ", before: "
+                    + breakerBefore,
+                currentBreaker,
+                lessThanOrEqualTo(breakerBefore)
+            );
+        });
+    }
+
     /**
      * Test that multiple sequential breaker trips don't cause memory leaks.
      * Repeatedly tripping the breaker should not accumulate memory.
@@ -363,6 +497,39 @@ public class ChunkedFetchPhaseCircuitBreakerTrippingIT extends ESIntegTestCase {
             }
             indexRandom(batch == 0, builders);
         }
+        refresh(indexName);
+    }
+
+    private void createWideIndex(String indexName, int numFields) {
+        String[] mapping = new String[2 + numFields * 2];
+        mapping[0] = SORT_FIELD;
+        mapping[1] = "type=long";
+        for (int f = 0; f < numFields; f++) {
+            mapping[2 + f * 2] = "f" + f;
+            mapping[3 + f * 2] = "type=keyword";
+        }
+        assertAcked(
+            prepareCreate(indexName).setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put("index.mapping.total_fields.limit", numFields + 100)
+            ).setMapping(mapping)
+        );
+    }
+
+    private void populateWideIndex(String indexName, int numDocs, int numFields) throws IOException {
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            XContentBuilder source = jsonBuilder().startObject();
+            source.field(SORT_FIELD, i);
+            for (int f = 0; f < numFields; f++) {
+                source.field("f" + f, "value_" + i + "_" + f);
+            }
+            source.endObject();
+            builders.add(prepareIndex(indexName).setId(Integer.toString(i)).setSource(source));
+        }
+        indexRandom(true, builders);
         refresh(indexName);
     }
 

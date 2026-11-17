@@ -39,6 +39,7 @@ import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexSortConfig;
+import org.elasticsearch.index.fielddata.plain.MultiValuedBinaryDocValuesSortField;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.lucene.queries.SearchAfterSortedDocQuery;
@@ -140,7 +141,7 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
             }
         }
         this.innerSizedBucketAggregators = dateHistogramValuesSources.toArray(new DateHistogramValuesSource[0]);
-        this.queue = new CompositeValuesCollectorQueue(aggCtx.bigArrays(), sources, size);
+        this.queue = new CompositeValuesCollectorQueue(aggCtx.bigArrays(), sources, size, aggCtx.searcher().getIndexReader());
         if (rawAfterKey != null) {
             try {
                 this.queue.setAfterKey(rawAfterKey);
@@ -252,6 +253,10 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
 
     /** Return true if the provided field may have multiple values per document in the leaf **/
     private static boolean isMaybeMultivalued(LeafReaderContext context, SortField sortField) throws IOException {
+        // Binary doc values sort as STRING too, but have no SORTED_SET doc values to ask below, which would read as single-valued.
+        if (sortField instanceof MultiValuedBinaryDocValuesSortField binarySortField) {
+            return binarySortField.isMaybeMultiValued(context.reader());
+        }
         SortField.Type type = IndexSortConfig.getSortFieldType(sortField);
         return switch (type) {
             case STRING -> {
@@ -354,7 +359,10 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
 
                     @Override
                     public FieldComparator<?> getComparator(int numHits, Pruning enableSkipping) {
-                        return new LongComparator(1, delegate.getField(), (Long) missingValue, delegate.getReverse(), Pruning.NONE) {
+                        // Documents without a value must compare as the index sort placed them, or the search for the first
+                        // document after the after key, which assumes the comparator follows the index order, goes astray.
+                        Long missing = (Long) delegate.getMissingValue();
+                        return new LongComparator(1, delegate.getField(), missing, delegate.getReverse(), Pruning.NONE) {
                             @Override
                             public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
                                 return new LongLeafComparator(context) {
@@ -504,10 +512,7 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
 
                     @Override
                     public DocIdSetIterator competitiveIterator() throws IOException {
-                        // Only prune when there is no index sort to exploit. With a (possibly reversed) index-sort
-                        // prefix, index-sort early termination is preferred - it stops the scan entirely - and pruning
-                        // the competitive range away would hide the boundary document that triggers it.
-                        if (queue.mayDynamicallyPrune() && sortPrefixLen == 0) {
+                        if (queue.mayDynamicallyPrune()) {
                             return inner.competitiveIterator();
                         } else {
                             return null;
@@ -623,8 +628,8 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
     @Override
     public void collectDebugInfo(BiConsumer<String, Object> add) {
         super.collectDebugInfo(add);
-        if (sources[0] instanceof SegmentOrdinalValuesSource segmentOrdinalValuesSource) {
-            segmentOrdinalValuesSource.collectDebugInfo(Strings.format("sources.%s", sourceConfigs[0].name()), add);
+        if (sources[0] instanceof GlobalOrdinalValuesSource globalOrdinalValuesSource) {
+            globalOrdinalValuesSource.collectDebugInfo(Strings.format("sources.%s", sourceConfigs[0].name()), add);
         }
     }
 

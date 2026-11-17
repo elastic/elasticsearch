@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.inference.services.custom.request;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.methods.HttpRequestBase;
-import org.apache.http.client.utils.URIBuilder;
-import org.apache.http.entity.StringEntity;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.HttpHeaders;
+import org.apache.hc.core5.net.URIBuilder;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
@@ -29,6 +29,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeSet;
 
 import static org.elasticsearch.xpack.inference.common.JsonUtils.toJson;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
@@ -44,19 +45,39 @@ public class CustomRequest implements OutboundRequest {
     public CustomRequest(RequestParameters requestParams, CustomModel model) {
         this.model = Objects.requireNonNull(model);
 
+        var secretParameters = model.getSecretSettings().getSecretParameters();
+        var taskSettingsParameters = model.getTaskSettings().getParameters();
+        validateTaskSettingsDoNotOverrideSecrets(secretParameters, taskSettingsParameters);
+
         var stringOnlyParams = new HashMap<String, String>();
-        addStringParams(stringOnlyParams, model.getSecretSettings().getSecretParameters());
-        addStringParams(stringOnlyParams, model.getTaskSettings().getParameters());
+        addStringParams(stringOnlyParams, secretParameters);
+        addStringParams(stringOnlyParams, taskSettingsParameters);
 
         var jsonParams = new HashMap<String, String>();
-        addJsonStringParams(jsonParams, model.getSecretSettings().getSecretParameters());
-        addJsonStringParams(jsonParams, model.getTaskSettings().getParameters());
+        addJsonStringParams(jsonParams, secretParameters);
+        addJsonStringParams(jsonParams, taskSettingsParameters);
 
         jsonParams.putAll(requestParams.jsonParameters());
 
         jsonPlaceholderReplacer = new ValidatingSubstitutor(jsonParams, "${", "}");
         stringPlaceholderReplacer = new ValidatingSubstitutor(stringOnlyParams, "${", "}");
         uri = buildUri();
+    }
+
+    private static void validateTaskSettingsDoNotOverrideSecrets(
+        Map<String, SecureString> secretParameters,
+        Map<String, Object> taskSettingsParameters
+    ) {
+        var overlappingKeys = new TreeSet<>(secretParameters.keySet());
+        overlappingKeys.retainAll(taskSettingsParameters.keySet());
+        if (overlappingKeys.isEmpty() == false) {
+            throw new IllegalArgumentException(
+                Strings.format(
+                    "Task settings parameters %s are not allowed to override secret parameters with the same name",
+                    overlappingKeys
+                )
+            );
+        }
     }
 
     private static void addStringParams(Map<String, String> stringParams, Map<String, ?> paramsToAdd) {
@@ -88,13 +109,13 @@ public class CustomRequest implements OutboundRequest {
             }
             return builder.build();
         } catch (URISyntaxException e) {
-            throw new IllegalStateException(Strings.format("Failed to build URI, error: %s", e.getMessage()), e);
+            throw new IllegalArgumentException(Strings.format("Failed to build URI, error: %s", e.getMessage()), e);
         }
     }
 
     @Override
     public void createHttpRequest(ActionListener<HttpRequest> listener) {
-        HttpPost httpRequest = new HttpPost(uri);
+        SimpleHttpRequest httpRequest = SimpleRequestBuilder.post(uri).build();
 
         setHeaders(httpRequest);
         setRequestContent(httpRequest);
@@ -102,7 +123,7 @@ public class CustomRequest implements OutboundRequest {
         listener.onResponse(new HttpRequest(httpRequest, getInferenceEntityId()));
     }
 
-    private void setHeaders(HttpRequestBase httpRequest) {
+    private void setHeaders(SimpleHttpRequest httpRequest) {
         // Header content_type's default value, if user defines the Content-Type, it will be replaced by user's value;
         httpRequest.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
 
@@ -112,13 +133,12 @@ public class CustomRequest implements OutboundRequest {
         }
     }
 
-    private void setRequestContent(HttpPost httpRequest) {
+    private void setRequestContent(SimpleHttpRequest httpRequest) {
         String replacedRequestContentString = jsonPlaceholderReplacer.replace(
             model.getServiceSettings().getRequestContentString(),
             REQUEST
         );
-        StringEntity stringEntity = new StringEntity(replacedRequestContentString, StandardCharsets.UTF_8);
-        httpRequest.setEntity(stringEntity);
+        httpRequest.setBody(replacedRequestContentString, ContentType.TEXT_PLAIN.withCharset(StandardCharsets.UTF_8));
     }
 
     @Override

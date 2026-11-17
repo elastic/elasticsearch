@@ -11,6 +11,7 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 $if(BytesRef)$
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.PagedBytesCursor;
 $endif$
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -41,6 +42,25 @@ $if(BytesRef)$
 
 $else$
     private $type$[] values;
+$if(int||long||double)$
+    private final boolean enablePooling;
+    private long extraPooledBytes;
+
+    $Type$BlockBuilder(int estimatedSize, BlockFactory blockFactory, boolean enablePooling) {
+        super(blockFactory);
+        this.enablePooling = enablePooling;
+        int initialSize = Math.max(estimatedSize, 2);
+        if (enablePooling) {
+            values = blockFactory.acquire$Type$s(initialSize);
+            estimatedBytes = LocalArrayPool.usedBytesFor$Type$s(values.length);
+            extraPooledBytes = LocalArrayPool.usedBytesFor$Type$s(values.length - initialSize);
+        } else {
+            adjustBreaker(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) initialSize * elementSize());
+            values = new $type$[initialSize];
+        }
+    }
+
+$else$
 
     $Type$BlockBuilder(int estimatedSize, BlockFactory blockFactory) {
         super(blockFactory);
@@ -48,6 +68,7 @@ $else$
         adjustBreaker(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) initialSize * elementSize());
         values = new $type$[initialSize];
     }
+$endif$
 $endif$
 
     @Override
@@ -65,6 +86,16 @@ $endif$
     }
 
 $if(BytesRef)$
+    @Override
+    public BytesRefBlockBuilder appendBytesReference(BytesReference value) {
+        ensureCapacity();
+        values.append(value);
+        hasNonNullValue = true;
+        valueCount++;
+        updatePosition();
+        return this;
+    }
+
     @Override
     public BytesRefBlockBuilder append(PagedBytesCursor value) {
         ensureCapacity();
@@ -96,6 +127,9 @@ $if(BytesRef)$
         throw new AssertionError("should not reach here");
 $else$
         values = Arrays.copyOf(values, newSize);
+$if(int||long||double)$
+        extraPooledBytes = 0;
+$endif$
 $endif$
     }
 
@@ -121,6 +155,13 @@ $if(BytesRef)$
     @Override
     protected void writeNullValue() {
         values.append(BytesRefBlock.NULL_VALUE);
+    }
+
+    @Override
+    public $Type$BlockBuilder cancelPositionEntry() {
+        values.truncateTo(firstValueIndexes[positionCount]);
+        super.cancelPositionEntry();
+        return this;
     }
 $endif$
 
@@ -225,6 +266,13 @@ $endif$
         return this;
     }
 
+$if(int||long||double)$
+    @Override
+    public long estimatedBytes() {
+        return isReleased() ? 0 : estimatedBytes - extraPooledBytes;
+    }
+
+$endif$
 $if(BytesRef)$
     @Override
     public long estimatedBytes() {
@@ -267,35 +315,48 @@ $if(BytesRef)$
 
 $else$
     private $Type$Block buildBigArraysBlock() {
-        final $Type$Block theBlock;
-    $if(boolean)$
-        final BitArray array = new BitArray(valueCount, blockFactory.bigArrays());
-        for (int i = 0; i < valueCount; i++) {
-            if (values[i]) {
-                array.set(i);
-            }
-        }
-    $else$
-        final $Array$ array = blockFactory.bigArrays().new$Array$(valueCount, false);
-        for (int i = 0; i < valueCount; i++) {
-            array.set(i, values[i]);
-        }
-    $endif$
-        if (isDense() && singleValued()) {
-            theBlock = new $Type$BigArrayVector(array, positionCount, blockFactory).asBlock();
-        } else {
-            theBlock = new $Type$BigArrayBlock(array, positionCount, firstValueIndexes, nullsMask, mvOrdering, blockFactory);
-        }
         /*
-        * Update the breaker with the actual bytes used.
-        * We pass false below even though we've used the bytes. That's weird,
-        * but if we break here we will throw away the used memory, letting
-        * it be deallocated. The exception will bubble up and the builder will
-        * still technically be open, meaning the calling code should close it
-        * which will return all used memory to the breaker.
-        */
-        blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes - array.ramBytesUsed());
-        return theBlock;
+         * Keep ownership of the BigArray until adjustBreaker succeeds. If it throws after
+         * wrapping, release the array here; the incomplete block is abandoned without close
+         * so we do not need BigArrayBlock.closeInternal's overhead debit on the failure path.
+         */
+    $if(boolean)$
+        BitArray array = new BitArray(valueCount, blockFactory.bigArrays());
+    $else$
+        $Array$ array = blockFactory.bigArrays().new$Array$(valueCount, false);
+    $endif$
+        try {
+    $if(boolean)$
+            for (int i = 0; i < valueCount; i++) {
+                if (values[i]) {
+                    array.set(i);
+                }
+            }
+    $else$
+            for (int i = 0; i < valueCount; i++) {
+                array.set(i, values[i]);
+            }
+    $endif$
+            final $Type$Block theBlock;
+            if (isDense() && singleValued()) {
+                theBlock = new $Type$BigArrayVector(array, positionCount, blockFactory).asBlock();
+            } else {
+                theBlock = new $Type$BigArrayBlock(array, positionCount, firstValueIndexes, nullsMask, mvOrdering, blockFactory);
+            }
+            /*
+             * Update the breaker with the actual bytes used.
+             * We pass false below even though we've used the bytes. That's weird,
+             * but if we break here we will throw away the used memory, letting
+             * it be deallocated. The exception will bubble up and the builder will
+             * still technically be open, meaning the calling code should close it
+             * which will return all used memory to the breaker.
+             */
+            blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes - array.ramBytesUsed());
+            array = null; // ownership transferred to theBlock
+            return theBlock;
+        } finally {
+            Releasables.close(array);
+        }
     }
 $endif$
 
@@ -324,6 +385,11 @@ $endif$
                     estimatedBytes
                 );
             }
+    $if(int||long||double)$
+            if (enablePooling) {
+                theBlock.enablePooling();
+            }
+    $endif$
     $endif$
             built();
             return theBlock;

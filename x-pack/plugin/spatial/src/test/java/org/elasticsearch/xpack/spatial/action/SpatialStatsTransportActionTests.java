@@ -30,7 +30,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
@@ -84,13 +83,7 @@ public class SpatialStatsTransportActionTests extends ESTestCase {
     }
 
     private SpatialStatsTransportAction toAction(SpatialUsage nodeUsage) {
-        return new SpatialStatsTransportAction(
-            transportService,
-            clusterService,
-            threadPool,
-            new ActionFilters(Collections.emptySet()),
-            nodeUsage
-        );
+        return new SpatialStatsTransportAction(transportService, clusterService, threadPool, ActionFilters.EMPTY, nodeUsage);
     }
 
     private ObjectPath buildSpatialStatsResponse(SpatialUsage... nodeUsages) throws IOException {

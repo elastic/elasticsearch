@@ -1,11 +1,8 @@
 ---
 setup:
   - requires:
-      test_runner_features: [ capabilities, allowed_warnings ]
-      capabilities:
-        - method: PUT
-          path: /{index}
-          capabilities: [ columnar_index_modes ]
+      test_runner_features: [ allowed_warnings ]
+      cluster_features: [ "mapper.columnar.store_not_allowed" ]
       reason: "Support for columnar index modes required"
 
 ---
@@ -18,7 +15,7 @@ setup:
             index:
               mode: columnar
               number_of_shards: 2
-              number_of_replicas: 0
+              number_of_replicas: 1
           mappings:
             properties:
               "@timestamp":
@@ -90,7 +87,7 @@ setup:
             settings:
               index:
                 mode: columnar
-                number_of_replicas: 0
+                number_of_replicas: 1
             mappings:
               properties:
                 "@timestamp":
@@ -151,7 +148,7 @@ setup:
             settings:
               index:
                 mode: columnar
-                number_of_replicas: 0
+                number_of_replicas: 1
             mappings:
               properties:
                 "@timestamp":
@@ -209,7 +206,7 @@ setup:
             index:
               mode: logsdb_columnar
               number_of_shards: 2
-              number_of_replicas: 0
+              number_of_replicas: 1
           mappings:
             properties:
               "@timestamp":
@@ -292,7 +289,7 @@ setup:
             settings:
               index:
                 mode: logsdb_columnar
-                number_of_replicas: 0
+                number_of_replicas: 1
             mappings:
               properties:
                 "@timestamp":
@@ -357,7 +354,7 @@ setup:
             settings:
               index:
                 mode: logsdb_columnar
-                number_of_replicas: 0
+                number_of_replicas: 1
             mappings:
               properties:
                 "@timestamp":
@@ -422,7 +419,7 @@ setup:
           settings:
             index:
               mode: columnar
-              number_of_replicas: 0
+              number_of_replicas: 1
           mappings:
             properties:
               agent_id:
@@ -445,7 +442,7 @@ setup:
           settings:
             index:
               mode: logsdb_columnar
-              number_of_replicas: 0
+              number_of_replicas: 1
           mappings:
             properties:
               agent_id:

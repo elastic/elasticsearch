@@ -10,6 +10,10 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -21,6 +25,8 @@ import java.util.concurrent.Executor;
  * A basic interface for rewriteable classes.
  */
 public interface Rewriteable<T> {
+
+    Logger logger = LogManager.getLogger(Rewriteable.class);
 
     int MAX_REWRITE_ROUNDS = 16;
 
@@ -111,6 +117,7 @@ public interface Rewriteable<T> {
     /**
      * Rewrites the given rewriteable and fetches pending async tasks for each round before rewriting again.
      */
+    @SuppressForbidden(reason = "TODO: replace with manual depth tracking before the overflow occurs")
     static <T extends Rewriteable<T>> void rewriteAndFetch(
         T original,
         QueryRewriteContext context,
@@ -118,6 +125,7 @@ public interface Rewriteable<T> {
         int iteration
     ) {
         T builder = original;
+        final T rewritten;
         try {
             for (T rewrittenBuilder = builder.rewrite(context); rewrittenBuilder != builder; rewrittenBuilder = builder.rewrite(context)) {
                 builder = rewrittenBuilder;
@@ -137,10 +145,16 @@ public interface Rewriteable<T> {
                     return;
                 }
             }
-            rewriteResponse.onResponse(builder);
+            rewritten = builder;
         } catch (Exception ex) {
             rewriteResponse.onFailure(ex);
+            return;
+        } catch (StackOverflowError ex) { // TODO: unsafe - replace with manual depth tracking
+            logger.warn(() -> Strings.format("stack overflow while rewriting [%s]", original.getClass().getName()), ex);
+            rewriteResponse.onFailure(new IllegalArgumentException("The request is too deeply nested to rewrite"));
+            return;
         }
+        rewriteResponse.onResponse(rewritten);
     }
 
     /**

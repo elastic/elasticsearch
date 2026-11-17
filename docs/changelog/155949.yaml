@@ -1,0 +1,5 @@
+area: Infra/Metrics
+issues: []
+pr: 155949
+summary: Filter zero metric async counters with OTel SDK
+type: enhancement

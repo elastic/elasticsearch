@@ -85,10 +85,16 @@ public final class MlIndexAndAlias {
     private static final Logger logger = LogManager.getLogger(MlIndexAndAlias.class);
     private static final Predicate<String> HAS_SIX_DIGIT_SUFFIX = Pattern.compile("\\d{6}").asMatchPredicate();
     private static final Predicate<String> IS_ANOMALIES_SHARED_INDEX = Pattern.compile(
-        AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT + "-\\d{6}"
+        Pattern.quote(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX) + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT + "-\\d{6}"
     ).asMatchPredicate();
     private static final Predicate<String> IS_ANOMALIES_STATE_INDEX = Pattern.compile(
-        AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX + "-\\d{6}"
+        "(?:"
+            + Pattern.quote(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX)
+            + "|"
+            + Pattern.quote(AnomalyDetectorsIndexFields.REINDEXED_V7_STATE_INDEX_PREFIX)
+            + "|"
+            + Pattern.quote(AnomalyDetectorsIndexFields.REINDEXED_V8_STATE_INDEX_PREFIX)
+            + ")-\\d{6}"
     ).asMatchPredicate();
     public static final String ROLLOVER_ALIAS_SUFFIX = ".rollover_alias";
 
@@ -626,7 +632,8 @@ public final class MlIndexAndAlias {
     }
 
     /**
-     * Checks if an index name matches the pattern for the ML anomalies state indices  (e.g., ".ml-state-000001").
+     * Checks if an index name matches the pattern for ML anomalies state indices (for example
+     * {@code .ml-state-000001} or {@code .reindexed-v8-ml-state-000001}).
      *
      * @param indexName The name of the index to check.
      * @return {@code true} if the index is an anomalies state index, {@code false} otherwise.
@@ -768,20 +775,50 @@ public final class MlIndexAndAlias {
      * @param expectedType  The expected Elasticsearch field type string (e.g. {@code "keyword"}).
      * @return              {@code true} iff the field exists and has the expected type.
      */
-    @SuppressWarnings("unchecked")
     public static boolean hasFieldTypedAs(IndexMetadata indexMetadata, String fieldName, String expectedType) {
-        if (indexMetadata == null || indexMetadata.mapping() == null) {
+        return hasFieldTypedAs(indexMetadata, List.of(fieldName), expectedType);
+    }
+
+    /**
+     * Returns {@code true} if the mapping of {@code indexMetadata} contains a field at
+     * {@code fieldPath} whose {@code "type"} attribute equals {@code expectedType}.
+     * <p>
+     * Each path segment except the last is resolved through a {@code properties} block
+     * (e.g. {@code List.of("anomaly_score_explanation", "by_field_relative_rarity")}).
+     * Returns {@code false} for absent metadata, missing mappings, missing intermediate
+     * {@code properties} blocks, missing field, or non-matching type.
+     *
+     * @param indexMetadata The index metadata to inspect. May be {@code null}.
+     * @param fieldPath     Dot-path segments from the top-level {@code properties} block.
+     * @param expectedType  The expected Elasticsearch field type string (e.g. {@code "double"}).
+     * @return              {@code true} iff the field exists and has the expected type.
+     */
+    @SuppressWarnings("unchecked")
+    public static boolean hasFieldTypedAs(IndexMetadata indexMetadata, List<String> fieldPath, String expectedType) {
+        if (indexMetadata == null || indexMetadata.mapping() == null || fieldPath.isEmpty()) {
             return false;
         }
-        var rawProperties = indexMetadata.mapping().sourceAsMap().get("properties");
-        if (rawProperties instanceof Map<?, ?> == false) {
+        Object current = indexMetadata.mapping().sourceAsMap().get("properties");
+        if (current instanceof Map<?, ?> == false) {
             return false;
         }
-        var rawField = ((Map<String, Object>) rawProperties).get(fieldName);
-        if (rawField instanceof Map<?, ?> == false) {
-            return false;
+        Map<String, Object> properties = (Map<String, Object>) current;
+        for (int i = 0; i < fieldPath.size(); i++) {
+            Object rawField = properties.get(fieldPath.get(i));
+            if (rawField instanceof Map<?, ?> == false) {
+                return false;
+            }
+            Map<String, Object> field = (Map<String, Object>) rawField;
+            if (i == fieldPath.size() - 1) {
+                return expectedType.equals(field.get("type"));
+            }
+            Object nestedProperties = field.get("properties");
+            if (nestedProperties instanceof Map<?, ?> == false) {
+                return false;
+            }
+            properties = (Map<String, Object>) nestedProperties;
         }
-        return expectedType.equals(((Map<String, Object>) rawField).get("type"));
+        return false;
     }
 
     /**

@@ -11,7 +11,10 @@ package org.elasticsearch.ingest;
 
 import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -25,6 +28,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -33,6 +37,8 @@ import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -46,11 +52,16 @@ import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.common.TriConsumer;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Strings;
@@ -62,17 +73,24 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.plugins.IngestPlugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.TemplateScript;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParseException;
@@ -95,7 +113,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -116,11 +137,15 @@ import static org.elasticsearch.ingest.IngestService.NOOP_PIPELINE_NAME;
 import static org.elasticsearch.ingest.IngestService.hasPipeline;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -270,6 +295,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> noRedirect,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
+            IngestMemoryAccountant.NOOP,
             listener
         );
 
@@ -562,6 +588,291 @@ public class IngestServiceTests extends ESTestCase {
         }
     }
 
+    public void testValidatePipelineSizeWithinLimits() {
+        IngestService ingestService = createWithProcessors();
+        var projectId = applyClusterStateWithPipelines(ingestService, Map.of());
+        PutPipelineRequest request = putJsonPipelineRequest("_id", """
+            {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}""");
+        // Generous limits: nothing should be rejected.
+        validateSize(ingestService, projectId, request, 100, ByteSizeValue.ofKb(64), ByteSizeValue.ofMb(1));
+    }
+
+    public void testValidatePipelineExceedsMaxPipelineSize() {
+        IngestService ingestService = createWithProcessors();
+        var projectId = applyClusterStateWithPipelines(ingestService, Map.of());
+        PutPipelineRequest request = putJsonPipelineRequest("_id", """
+            {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}""");
+        long size = new PipelineConfiguration("_id", request.getSource(), request.getXContentType()).serializedSizeInBytes();
+
+        // Exactly at the limit is allowed.
+        validateSize(ingestService, projectId, request, 100, ByteSizeValue.ofBytes(size), ByteSizeValue.ofMb(1));
+
+        // One byte under the pipeline's size is rejected.
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> validateSize(ingestService, projectId, request, 100, ByteSizeValue.ofBytes(size - 1), ByteSizeValue.ofMb(1))
+        );
+        assertThat(e.getMessage(), containsString("ingest.pipeline.max_pipeline_size"));
+    }
+
+    public void testValidatePipelineExceedsMaxPipelines() {
+        IngestService ingestService = createWithProcessors();
+        Map<String, PipelineConfiguration> existing = new HashMap<>();
+        for (int i = 0; i < 3; i++) {
+            existing.put("existing_" + i, getTestPipelineConfiguration("existing_" + i));
+        }
+        var projectId = applyClusterStateWithPipelines(ingestService, existing);
+
+        PutPipelineRequest newPipeline = putJsonPipelineRequest("_new", """
+            {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}""");
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> validateSize(ingestService, projectId, newPipeline, 3, ByteSizeValue.ofKb(64), ByteSizeValue.ofMb(1))
+        );
+        assertThat(e.getMessage(), containsString("ingest.pipeline.max_pipelines"));
+
+        // Updating an already-existing pipeline does not increase the count, so the limit does not apply to it.
+        PutPipelineRequest updateExisting = putJsonPipelineRequest("existing_0", """
+            {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}""");
+        validateSize(ingestService, projectId, updateExisting, 3, ByteSizeValue.ofKb(64), ByteSizeValue.ofMb(1));
+    }
+
+    public void testValidatePipelineExceedsMaxTotalMetadataSize() {
+        IngestService ingestService = createWithProcessors();
+        PipelineConfiguration existing = getTestPipelineConfiguration("existing");
+        var projectId = applyClusterStateWithPipelines(ingestService, Map.of("existing", existing));
+
+        PutPipelineRequest request = putJsonPipelineRequest("_new", """
+            {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}""");
+        long newSize = new PipelineConfiguration("_new", request.getSource(), request.getXContentType()).serializedSizeInBytes();
+        long total = existing.serializedSizeInBytes() + newSize;
+
+        // Exactly at the aggregate limit is allowed.
+        validateSize(ingestService, projectId, request, 100, ByteSizeValue.ofMb(1), ByteSizeValue.ofBytes(total));
+
+        // One byte under the aggregate is rejected.
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> validateSize(ingestService, projectId, request, 100, ByteSizeValue.ofMb(1), ByteSizeValue.ofBytes(total - 1))
+        );
+        assertThat(e.getMessage(), containsString("ingest.pipeline.max_total_metadata_size"));
+    }
+
+    public void testValidatePipelineAggregateExcludesReplacedPipeline() {
+        IngestService ingestService = createWithProcessors();
+        // A large existing pipeline that will be replaced by a small one.
+        PipelineConfiguration existing = new PipelineConfiguration(
+            "_id",
+            new BytesArray(String.format(Locale.ROOT, """
+                {"description": "%s", "processors": [{"set" : {"field": "_field", "value": "_value"}}]}""", "x".repeat(2048))),
+            XContentType.JSON
+        );
+        var projectId = applyClusterStateWithPipelines(ingestService, Map.of("_id", existing));
+
+        PutPipelineRequest replacement = putJsonPipelineRequest("_id", """
+            {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}""");
+        long newSize = new PipelineConfiguration("_id", replacement.getSource(), replacement.getXContentType()).serializedSizeInBytes();
+        assertThat(newSize, lessThan(existing.serializedSizeInBytes()));
+
+        // The aggregate counts only the replacement, not the (larger) pipeline it supersedes: a limit equal to the new size passes even
+        // though the old pipeline alone was larger.
+        validateSize(ingestService, projectId, replacement, 100, ByteSizeValue.ofMb(1), ByteSizeValue.ofBytes(newSize));
+    }
+
+    /**
+     * A cluster can end up above the aggregate limit without ever violating it -- the limit may be lowered, or the cluster may be upgraded
+     * into a limit that did not exist before. When that happens the operator still has to be able to edit their way back under it, so an
+     * update that does not grow the aggregate is allowed even though the aggregate is already over the limit. Only updates that would push
+     * it further over are rejected.
+     */
+    public void testValidatePipelineAllowsShrinkingWhenAlreadyOverMaxTotalMetadataSize() {
+        IngestService ingestService = createWithProcessors();
+        PipelineConfiguration big = new PipelineConfiguration("big", new BytesArray(pipelineJson(2048)), XContentType.JSON);
+        PipelineConfiguration other = new PipelineConfiguration("other", new BytesArray(pipelineJson(2048)), XContentType.JSON);
+        var projectId = applyClusterStateWithPipelines(ingestService, Map.of("big", big, "other", other));
+
+        // A limit well below what is already stored, i.e. the cluster is already over the aggregate limit.
+        long currentTotal = big.serializedSizeInBytes() + other.serializedSizeInBytes();
+        ByteSizeValue maxTotalSize = ByteSizeValue.ofBytes(currentTotal / 2);
+        assertThat(currentTotal, greaterThan(maxTotalSize.getBytes()));
+
+        // Replacing a pipeline with a smaller definition shrinks the aggregate, so it is allowed even though the result is still over the
+        // limit. Without this the operator would be locked out of the very edit that fixes the problem.
+        PutPipelineRequest shrink = putJsonPipelineRequest("big", pipelineJson(0));
+        assertThat(
+            new PipelineConfiguration("big", shrink.getSource(), shrink.getXContentType()).serializedSizeInBytes(),
+            lessThan(big.serializedSizeInBytes())
+        );
+        validateSize(ingestService, projectId, shrink, 100, ByteSizeValue.ofMb(1), maxTotalSize);
+
+        // Replacing it with a definition of exactly the same size leaves the aggregate unchanged, so that is allowed too.
+        PutPipelineRequest sameSize = putJsonPipelineRequest("big", pipelineJson(2048));
+        validateSize(ingestService, projectId, sameSize, 100, ByteSizeValue.ofMb(1), maxTotalSize);
+
+        // But growing a pipeline while over the limit pushes the aggregate further over, and is still rejected.
+        PutPipelineRequest grow = putJsonPipelineRequest("big", pipelineJson(4096));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> validateSize(ingestService, projectId, grow, 100, ByteSizeValue.ofMb(1), maxTotalSize)
+        );
+        assertThat(e.getMessage(), containsString("ingest.pipeline.max_total_metadata_size"));
+
+        // As is adding a brand new pipeline, however small.
+        PutPipelineRequest create = putJsonPipelineRequest("_new", pipelineJson(0));
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> validateSize(ingestService, projectId, create, 100, ByteSizeValue.ofMb(1), maxTotalSize)
+        );
+        assertThat(e.getMessage(), containsString("ingest.pipeline.max_total_metadata_size"));
+    }
+
+    /**
+     * The pre-check on the put path runs against the last applied cluster state, so a burst of concurrent puts can all pass it before any
+     * of them is applied. The limits must therefore also be enforced inside the cluster state update, where each task in a batch sees the
+     * result of the one before it. Submitting both puts in a single batch is exactly the shape such a burst takes by the time it reaches
+     * the master, so this reproduces the race deterministically.
+     */
+    public void testMaxPipelinesIsEnforcedAcrossPutsInTheSameBatch() throws Exception {
+        var projectId = randomProjectIdOrDefault();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
+
+        // Room for exactly one pipeline, and both requests were validated against the empty state.
+        var limits = new IngestSettings.PipelineLimits(1, ByteSizeValue.ofMb(1), ByteSizeValue.ofMb(1));
+        List<IngestService.PipelineClusterStateUpdateTask> tasks = List.of(
+            putTaskWithLimits(projectId, putJsonPipelineRequest("first", pipelineJson(0)), limits),
+            putTaskWithLimits(projectId, putJsonPipelineRequest("second", pipelineJson(0)), limits)
+        );
+
+        List<Exception> failures = new ArrayList<>();
+        ClusterState result = ClusterStateTaskExecutorUtils.executeHandlingResults(
+            clusterState,
+            IngestService.PIPELINE_TASK_EXECUTOR,
+            tasks,
+            task -> {},
+            (task, e) -> failures.add(e)
+        );
+
+        // The second task sees the first task's pipeline, so only one of the two is stored.
+        assertThat(failures.size(), equalTo(1));
+        assertThat(failures.get(0).getMessage(), containsString("ingest.pipeline.max_pipelines"));
+        IngestMetadata ingestMetadata = result.metadata().getProject(projectId).custom(IngestMetadata.TYPE);
+        assertThat(ingestMetadata.getPipelines().keySet(), containsInAnyOrder("first"));
+    }
+
+    /**
+     * As {@link #testMaxPipelinesIsEnforcedAcrossPutsInTheSameBatch}, but for the aggregate size limit -- the one an attacker would push on
+     * to grow the cluster state, since it is the only limit that bounds total heap.
+     */
+    public void testMaxTotalMetadataSizeIsEnforcedAcrossPutsInTheSameBatch() throws Exception {
+        var projectId = randomProjectIdOrDefault();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
+
+        // An aggregate limit with room for one padded pipeline but not two.
+        long oneSize = new PipelineConfiguration("first", new BytesArray(pipelineJson(2048)), XContentType.JSON).serializedSizeInBytes();
+        var limits = new IngestSettings.PipelineLimits(100, ByteSizeValue.ofMb(1), ByteSizeValue.ofBytes(oneSize + 512));
+        List<IngestService.PipelineClusterStateUpdateTask> tasks = List.of(
+            putTaskWithLimits(projectId, putJsonPipelineRequest("first", pipelineJson(2048)), limits),
+            putTaskWithLimits(projectId, putJsonPipelineRequest("second", pipelineJson(2048)), limits)
+        );
+
+        List<Exception> failures = new ArrayList<>();
+        ClusterState result = ClusterStateTaskExecutorUtils.executeHandlingResults(
+            clusterState,
+            IngestService.PIPELINE_TASK_EXECUTOR,
+            tasks,
+            task -> {},
+            (task, e) -> failures.add(e)
+        );
+
+        assertThat(failures.size(), equalTo(1));
+        assertThat(failures.get(0).getMessage(), containsString("ingest.pipeline.max_total_metadata_size"));
+        IngestMetadata ingestMetadata = result.metadata().getProject(projectId).custom(IngestMetadata.TYPE);
+        assertThat(ingestMetadata.getPipelines().keySet(), containsInAnyOrder("first"));
+    }
+
+    /**
+     * Pipelines applied from file-based state are operator-managed, so they are exempt from the limits -- they must not be able to wedge
+     * cluster bootstrap. This exercises the constructor and the direct {@code execute} call that
+     * {@link org.elasticsearch.action.ingest.ReservedPipelineAction} uses.
+     */
+    public void testReservedPipelinesAreExemptFromLimits() {
+        var projectId = randomProjectIdOrDefault();
+        Map<String, PipelineConfiguration> existing = new HashMap<>();
+        for (int i = 0; i < 5; i++) {
+            existing.put(
+                "existing_" + i,
+                new PipelineConfiguration("existing_" + i, new BytesArray(pipelineJson(2048)), XContentType.JSON)
+            );
+        }
+
+        var task = new IngestService.PutPipelineClusterStateUpdateTask(projectId, putJsonPipelineRequest("reserved", pipelineJson(2048)));
+        IngestMetadata result = task.execute(new IngestMetadata(existing), List.of());
+
+        // Stored despite counts and sizes that would have failed a limited task.
+        assertThat(result.getPipelines().keySet(), hasItem("reserved"));
+    }
+
+    private static IngestService.PutPipelineClusterStateUpdateTask putTaskWithLimits(
+        ProjectId projectId,
+        PutPipelineRequest request,
+        IngestSettings.PipelineLimits limits
+    ) {
+        return new IngestService.PutPipelineClusterStateUpdateTask(
+            projectId,
+            ActionTestUtils.assertNoFailureListener(t -> {}),
+            request,
+            limits
+        );
+    }
+
+    /**
+     * Runs the put path's size pre-check for a request, measuring the pipeline exactly the way {@link IngestService#putPipeline} does:
+     * off the raw parsed config map, before anything has had a chance to consume it.
+     */
+    private static void validateSize(
+        IngestService ingestService,
+        ProjectId projectId,
+        PutPipelineRequest request,
+        int maxPipelines,
+        ByteSizeValue maxPipelineSize,
+        ByteSizeValue maxTotalSize
+    ) {
+        Map<String, Object> config = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
+        ingestService.validatePipelineLimits(
+            projectId,
+            request.getId(),
+            PipelineConfiguration.serializedSizeInBytes(request.getId(), config),
+            new IngestSettings.PipelineLimits(maxPipelines, maxPipelineSize, maxTotalSize)
+        );
+    }
+
+    /**
+     * A minimal pipeline definition, padded out to an arbitrary size by the length of its description.
+     */
+    private static String pipelineJson(int descriptionLength) {
+        return String.format(Locale.ROOT, """
+            {"description": "%s", "processors": [{"set" : {"field": "_field", "value": "_value"}}]}""", "x".repeat(descriptionLength));
+    }
+
+    private static ProjectId applyClusterStateWithPipelines(IngestService ingestService, Map<String, PipelineConfiguration> pipelines) {
+        var projectId = randomProjectIdOrDefault();
+        ClusterState previousClusterState = ClusterState.builder(new ClusterName("_name")).build();
+        ClusterState clusterState = ClusterState.builder(previousClusterState)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).putCustom(IngestMetadata.TYPE, new IngestMetadata(pipelines)).build())
+            .build();
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+        return projectId;
+    }
+
+    private static PipelineConfiguration getTestPipelineConfiguration(String id) {
+        return new PipelineConfiguration(id, new BytesArray("""
+            {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}"""), XContentType.JSON);
+    }
+
     public void testGetProcessorsInPipeline() throws Exception {
         IngestService ingestService = createWithProcessors();
         String id = "_id";
@@ -695,7 +1006,7 @@ public class IngestServiceTests extends ESTestCase {
             ingestService.getPipeline(projectId, "_id1").execute(ingestDocument, (ingestDocument1, e) -> exceptionHolder[0] = e);
             assertThat(exceptionHolder[0], notNullValue());
             assertThat(exceptionHolder[0].getMessage(), containsString("reload me"));
-            assertThat(ingestDocument.getSourceAndMetadata().get("_field"), nullValue());
+            assertThat(ingestDocument.getSource().get("_field"), nullValue());
         }
 
         externalProperty[0] = true;
@@ -706,7 +1017,7 @@ public class IngestServiceTests extends ESTestCase {
             IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
             ingestService.getPipeline(projectId, "_id1").execute(ingestDocument, (ingestDocument1, e) -> holder[0] = e);
             assertThat(holder[0], nullValue());
-            assertThat(ingestDocument.getSourceAndMetadata().get("_field"), equalTo("_value"));
+            assertThat(ingestDocument.getSource().get("_field"), equalTo("_value"));
         }
     }
 
@@ -1313,6 +1624,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> noRedirect,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
+            IngestMemoryAccountant.NOOP,
             listener
         );
 
@@ -1363,6 +1675,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> noRedirect,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
+            IngestMemoryAccountant.NOOP,
             listener
         );
         verify(failureHandler, times(1)).apply(
@@ -1401,9 +1714,78 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
+            IngestMemoryAccountant.NOOP,
             listener
         );
         verifyNoInteractions(failureHandler);
+        verify(listener, times(1)).onResponse(null);
+    }
+
+    public void testExecuteSelfReferenceFailures() {
+        Processor.Factory selfRefProcessor = (factories, tag, description, config, projectId) -> {
+            boolean ingestMetadata = Boolean.TRUE.equals(config.remove("ingest_metadata"));
+            return new FakeProcessor("self_ref", tag, description, ingestDocument -> {
+                Map<String, Object> selfReference = new HashMap<>();
+                selfReference.put("self", selfReference);
+                if (ingestMetadata) {
+                    ingestDocument.getIngestMetadata().put("self", selfReference);
+                } else {
+                    ingestDocument.setFieldValue("self", selfReference);
+                }
+                ingestDocument.doNoSelfReferencesCheck(true);
+            });
+        };
+        IngestService ingestService = createWithProcessors(Map.of("self_ref", selfRefProcessor));
+        var projectId = randomProjectIdOrDefault();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
+        ClusterState previousClusterState = clusterState;
+        clusterState = executePut(
+            projectId,
+            putJsonPipelineRequest("source_self_ref", "{\"processors\": [{\"self_ref\" : {}}]}"),
+            clusterState
+        );
+        clusterState = executePut(
+            projectId,
+            putJsonPipelineRequest("ingest_metadata_self_ref", "{\"processors\": [{\"self_ref\" : {\"ingest_metadata\": true}}]}"),
+            clusterState
+        );
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(new IndexRequest("_index").id("_id1").source(Map.of()).setPipeline("source_self_ref").setFinalPipeline("_none"));
+        bulkRequest.add(
+            new IndexRequest("_index").id("_id2").source(Map.of()).setPipeline("ingest_metadata_self_ref").setFinalPipeline("_none")
+        );
+        boolean[] failures = new boolean[2];
+        List<String> expectedMessages = List.of(
+            "Iterable object is self-referencing itself (source document)",
+            "Iterable object is self-referencing itself (ingest metadata)"
+        );
+        final TriConsumer<Integer, Exception, IndexDocFailureStoreStatus> failureHandler = (slot, e, status) -> {
+            failures[slot] = true;
+            assertThat(e, instanceOf(IngestPipelineException.class));
+            assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+            assertThat(e.getCause().getCause(), instanceOf(IllegalArgumentException.class));
+            assertThat(e.getCause().getCause().getMessage(), equalTo(expectedMessages.get(slot)));
+            assertThat(status, equalTo(IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN));
+        };
+        @SuppressWarnings("unchecked")
+        final ActionListener<Void> listener = mock(ActionListener.class);
+        ingestService.executeBulkRequest(
+            projectId,
+            bulkRequest.numberOfActions(),
+            bulkRequest.requests(),
+            indexReq -> {},
+            (s) -> null,
+            (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
+            failureHandler,
+            IngestMemoryAccountant.NOOP,
+            listener
+        );
+        assertTrue(failures[0]);
+        assertTrue(failures[1]);
         verify(listener, times(1)).onResponse(null);
     }
 
@@ -1444,6 +1826,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
+            IngestMemoryAccountant.NOOP,
             listener
         );
         latch.await();
@@ -1477,6 +1860,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
+            IngestMemoryAccountant.NOOP,
             listener
         );
         verifyNoInteractions(failureHandler);
@@ -1539,6 +1923,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
+            IngestMemoryAccountant.NOOP,
             listener
         );
         verify(processor).execute(any(), any());
@@ -1597,6 +1982,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> noRedirect,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
+            IngestMemoryAccountant.NOOP,
             listener
         );
         verify(processor).execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), Map.of()), any());
@@ -1656,6 +2042,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
+            IngestMemoryAccountant.NOOP,
             listener
         );
         verifyNoInteractions(failureHandler);
@@ -1715,6 +2102,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> noRedirect,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
+            IngestMemoryAccountant.NOOP,
             listener
         );
         verify(processor).execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), Map.of()), any());
@@ -1783,6 +2171,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> noRedirect,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             requestItemErrorHandler,
+            IngestMemoryAccountant.NOOP,
             listener
         );
 
@@ -1850,6 +2239,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not redirect to failure store"),
             requestItemErrorHandler,
+            IngestMemoryAccountant.NOOP,
             listener
         );
 
@@ -1915,6 +2305,7 @@ public class IngestServiceTests extends ESTestCase {
             redirectCheck,
             redirectHandler,
             failureHandler,
+            IngestMemoryAccountant.NOOP,
             listener
         );
         verify(processor).execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), Map.of()), any());
@@ -1966,6 +2357,7 @@ public class IngestServiceTests extends ESTestCase {
             redirectCheck,
             redirectHandler,
             failureHandler,
+            IngestMemoryAccountant.NOOP,
             listener
         );
         verify(processor).execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), Map.of()), any());
@@ -2017,6 +2409,7 @@ public class IngestServiceTests extends ESTestCase {
             redirectCheck,
             redirectHandler,
             failureHandler,
+            IngestMemoryAccountant.NOOP,
             listener
         );
         verify(processor).execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), Map.of()), any());
@@ -2075,6 +2468,7 @@ public class IngestServiceTests extends ESTestCase {
             redirectCheck,
             redirectHandler,
             failureHandler,
+            IngestMemoryAccountant.NOOP,
             listener
         );
         verify(processor).execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), Map.of()), any());
@@ -2140,6 +2534,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> true,
             requestItemRedirectHandler,
             requestItemErrorHandler,
+            IngestMemoryAccountant.NOOP,
             listener
         );
 
@@ -2204,6 +2599,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             requestItemErrorHandler,
+            IngestMemoryAccountant.NOOP,
             listener
         );
 
@@ -2321,6 +2717,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             (integer, e, status) -> {},
+            IngestMemoryAccountant.NOOP,
             ActionListener.noop()
         );
 
@@ -2406,6 +2803,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
+            IngestMemoryAccountant.NOOP,
             listener
         );
         final IngestStats afterFirstRequestStats = ingestService.stats();
@@ -2434,6 +2832,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
+            IngestMemoryAccountant.NOOP,
             listener
         );
         final IngestStats afterSecondRequestStats = ingestService.stats();
@@ -2463,6 +2862,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
+            IngestMemoryAccountant.NOOP,
             listener
         );
         final IngestStats afterThirdRequestStats = ingestService.stats();
@@ -2497,6 +2897,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
+            IngestMemoryAccountant.NOOP,
             listener
         );
         final IngestStats afterForthRequestStats = ingestService.stats();
@@ -2527,6 +2928,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
+            IngestMemoryAccountant.NOOP,
             listener
         );
         final IngestStats afterFifthRequestStats = ingestService.stats();
@@ -2624,6 +3026,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
+            IngestMemoryAccountant.NOOP,
             listener
         );
         verifyNoInteractions(failureHandler);
@@ -2688,7 +3091,7 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testCBORParsing() throws Exception {
         AtomicReference<Object> reference = new AtomicReference<>();
-        Consumer<IngestDocument> executor = doc -> reference.set(doc.getFieldValueAsBytes("data"));
+        Consumer<IngestDocument> executor = doc -> reference.set(doc.getFieldValue("data", byte[].class));
         final IngestService ingestService = createWithProcessors(
             Map.of("foo", (factories, tag, description, config, projectId) -> new FakeProcessor("foo", tag, description, executor))
         );
@@ -2721,6 +3124,7 @@ public class IngestServiceTests extends ESTestCase {
                 (s) -> false,
                 (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
                 (integer, e, status) -> {},
+                IngestMemoryAccountant.NOOP,
                 ActionListener.noop()
             );
         }
@@ -2796,6 +3200,7 @@ public class IngestServiceTests extends ESTestCase {
             (s) -> false,
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             (integer, e, status) -> {},
+            IngestMemoryAccountant.NOOP,
             ActionListener.noop()
         );
 
@@ -3483,6 +3888,14 @@ public class IngestServiceTests extends ESTestCase {
     }
 
     private static IngestService createWithProcessors(Map<String, Processor.Factory> processors, Predicate<NodeFeature> featureTest) {
+        return createWithProcessors(processors, featureTest, FailureStoreMetrics.NOOP);
+    }
+
+    private static IngestService createWithProcessors(
+        Map<String, Processor.Factory> processors,
+        Predicate<NodeFeature> featureTest,
+        FailureStoreMetrics failureStoreMetrics
+    ) {
         Client client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -3503,7 +3916,7 @@ public class IngestServiceTests extends ESTestCase {
             null,
             UserAgentParserRegistry.NOOP,
             IpLocationService.NOOP,
-            FailureStoreMetrics.NOOP,
+            failureStoreMetrics,
             TestProjectResolvers.alwaysThrow(),
             new FeatureService(List.of()) {
                 @Override
@@ -3632,6 +4045,7 @@ public class IngestServiceTests extends ESTestCase {
                 projectId,
                 ActionTestUtils.assertNoFailureListener(t -> {}),
                 request,
+                null, // these tests are not exercising the pipeline limits
                 instantSource
             )
         );
@@ -3668,5 +4082,310 @@ public class IngestServiceTests extends ESTestCase {
             IngestService.PIPELINE_TASK_EXECUTOR,
             oneTask(DEFAULT_PROJECT_ID, request)
         );
+    }
+
+    /**
+     * An ingest service with a pipeline "_id" that runs a single processor, and the project it is set up in.
+     */
+    private record ServiceAndProject(IngestService service, ProjectId projectId) {}
+
+    private ServiceAndProject ingestServiceWithProcessor(Processor processor) {
+        return ingestServiceWithProcessor(processor, FailureStoreMetrics.NOOP);
+    }
+
+    private ServiceAndProject ingestServiceWithProcessor(Processor processor, FailureStoreMetrics failureStoreMetrics) {
+        IngestService ingestService = createWithProcessors(
+            Map.of("mock", (factories, tag, description, config, projectId) -> processor),
+            DataStream.DATA_STREAM_FAILURE_STORE_FEATURE::equals,
+            failureStoreMetrics
+        );
+        PutPipelineRequest putRequest = putJsonPipelineRequest("_id", "{\"processors\": [{\"mock\" : {}}]}");
+        var projectId = randomProjectIdOrDefault();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
+        ClusterState previousClusterState = clusterState;
+        clusterState = executePut(projectId, putRequest, clusterState);
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+        return new ServiceAndProject(ingestService, projectId);
+    }
+
+    /**
+     * A processor that adds a field to every document, completing on the calling thread or, as the enrich processor does, on another one.
+     */
+    private static Processor fieldAddingProcessor(int fieldLength, boolean async) {
+        return new AbstractProcessor("tag", null) {
+            @Override
+            public String getType() {
+                return "mock";
+            }
+
+            @Override
+            public boolean isAsync() {
+                // the two argument execute is only called for async processors, which is how the enrich processor completes
+                return true;
+            }
+
+            @Override
+            public void execute(IngestDocument document, BiConsumer<IngestDocument, Exception> handler) {
+                document.setFieldValue("added", "x".repeat(fieldLength));
+                if (async) {
+                    new Thread(() -> handler.accept(document, null)).start();
+                } else {
+                    handler.accept(document, null);
+                }
+            }
+        };
+    }
+
+    private static BulkRequest bulkOfSmallDocuments(int size) {
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < size; i++) {
+            bulkRequest.add(
+                new IndexRequest("_index").id("_id" + i)
+                    .source(XContentType.JSON, "field", "value" + i)
+                    .setPipeline("_id")
+                    .setFinalPipeline("_none")
+            );
+        }
+        return bulkRequest;
+    }
+
+    public void testGrowthOfSourceIsChargedToAccountant() throws Exception {
+        final boolean async = randomBoolean();
+        final int fieldLength = randomIntBetween(1, 1000);
+        final int size = randomIntBetween(1, 20);
+        var setup = ingestServiceWithProcessor(fieldAddingProcessor(fieldLength, async));
+        BulkRequest bulkRequest = bulkOfSmallDocuments(size);
+        final long[] originalLengths = new long[size];
+        for (int i = 0; i < size; i++) {
+            originalLengths[i] = ((IndexRequest) bulkRequest.requests().get(i)).source().length();
+        }
+
+        final AtomicLong charged = new AtomicLong();
+        final PlainActionFuture<Void> done = new PlainActionFuture<>();
+        setup.service()
+            .executeBulkRequest(
+                setup.projectId(),
+                size,
+                bulkRequest.requests(),
+                slot -> fail("nothing is dropped"),
+                s -> false,
+                (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
+                (slot, e, status) -> fail(e),
+                charged::addAndGet,
+                done
+            );
+        done.get(10, TimeUnit.SECONDS);
+
+        long expected = 0;
+        for (int i = 0; i < size; i++) {
+            long newLength = ((IndexRequest) bulkRequest.requests().get(i)).source().length();
+            assertThat(newLength, greaterThan(originalLengths[i]));
+            expected += newLength - originalLengths[i];
+        }
+        assertThat(charged.get(), equalTo(expected));
+    }
+
+    public void testShrinkingSourceIsNotCharged() throws Exception {
+        var setup = ingestServiceWithProcessor(new TestProcessor(document -> document.removeField("field")));
+        BulkRequest bulkRequest = bulkOfSmallDocuments(randomIntBetween(1, 10));
+
+        final PlainActionFuture<Void> done = new PlainActionFuture<>();
+        setup.service()
+            .executeBulkRequest(
+                setup.projectId(),
+                bulkRequest.numberOfActions(),
+                bulkRequest.requests(),
+                slot -> fail("nothing is dropped"),
+                s -> false,
+                (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
+                (slot, e, status) -> fail(e),
+                bytes -> fail("the sources shrank, but [" + bytes + "] was charged"),
+                done
+            );
+        done.get(10, TimeUnit.SECONDS);
+    }
+
+    public void testRejectedGrowthFailsTheDocumentAndRestoresItsSource() throws Exception {
+        final boolean async = randomBoolean();
+        // a rejection must fail the item whether or not the failure store is enabled, a redirected one would be reported as a success
+        final Boolean failureStoreResolution = randomFrom(true, false, null);
+        final int size = randomIntBetween(2, 20);
+        final int rejectedCharge = randomIntBetween(1, size);
+        final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        var setup = ingestServiceWithProcessor(
+            fieldAddingProcessor(randomIntBetween(10, 100), async),
+            new FailureStoreMetrics(meterRegistry)
+        );
+        BulkRequest bulkRequest = bulkOfSmallDocuments(size);
+        final BytesReference[] originalSources = new BytesReference[size];
+        for (int i = 0; i < size; i++) {
+            originalSources[i] = ((IndexRequest) bulkRequest.requests().get(i)).source();
+        }
+
+        final AtomicInteger charges = new AtomicInteger();
+        final Map<Integer, Exception> failures = new ConcurrentHashMap<>();
+        final List<IndexDocFailureStoreStatus> failureStatuses = new CopyOnWriteArrayList<>();
+        final PlainActionFuture<Void> done = new PlainActionFuture<>();
+        setup.service()
+            .executeBulkRequest(
+                setup.projectId(),
+                size,
+                bulkRequest.requests(),
+                slot -> fail("nothing is dropped"),
+                s -> failureStoreResolution,
+                (slot, targetIndex, e) -> fail("Rejections must not be redirected to the failure store"),
+                (slot, e, status) -> {
+                    failures.put(slot, e);
+                    failureStatuses.add(status);
+                },
+                bytes -> {
+                    // documents may complete in any order when async, so reject whichever one is charged at the chosen position
+                    if (charges.incrementAndGet() == rejectedCharge) {
+                        throw new EsRejectedExecutionException("out of memory budget", false);
+                    }
+                },
+                done
+            );
+        done.get(10, TimeUnit.SECONDS);
+
+        assertThat(charges.get(), equalTo(size));
+        assertThat(failures.size(), equalTo(1));
+        final int failedSlot = failures.keySet().iterator().next();
+        final Exception failure = failures.get(failedSlot);
+        assertThat(ExceptionsHelper.unwrapCause(failure), instanceOf(EsRejectedExecutionException.class));
+        assertThat(ExceptionsHelper.status(failure), equalTo(RestStatus.TOO_MANY_REQUESTS));
+        if (failureStoreResolution == null) {
+            assertThat(failureStatuses, equalTo(List.of(IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN)));
+            assertFailureStoreMetrics(meterRegistry, 0, 0, 0);
+        } else {
+            assertThat(
+                failureStatuses,
+                equalTo(
+                    List.of(
+                        failureStoreResolution
+                            ? IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN
+                            : IndexDocFailureStoreStatus.NOT_ENABLED
+                    )
+                )
+            );
+            // only the rejected document is counted here, the others are counted once they are indexed
+            assertFailureStoreMetrics(meterRegistry, 1, 0, 1);
+        }
+        for (int i = 0; i < size; i++) {
+            IndexRequest request = (IndexRequest) bulkRequest.requests().get(i);
+            if (i == failedSlot) {
+                assertThat(request.source(), equalTo(originalSources[i]));
+            } else {
+                assertThat(request.source().length(), greaterThan(originalSources[i].length()));
+            }
+        }
+    }
+
+    public void testCapacityFailuresAreNotRedirectedToFailureStore() throws Exception {
+        final RuntimeException capacityFailure = randomFrom(
+            new EsRejectedExecutionException("queue is full", false),
+            new CircuitBreakingException("too much", CircuitBreaker.Durability.TRANSIENT),
+            new ElasticsearchStatusException("busy", RestStatus.TOO_MANY_REQUESTS),
+            // only 429 blocks, such as the flood-stage one
+            new ClusterBlockException(Set.of(IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
+        );
+        assertFailureStoreRedirection(maybeWrapped(capacityFailure), false);
+    }
+
+    public void testOtherFailuresAreStillRedirectedToFailureStore() throws Exception {
+        final RuntimeException otherFailure = randomFrom(
+            new IllegalStateException("error"),
+            new ElasticsearchException("boom"),
+            new ElasticsearchStatusException("unavailable", RestStatus.SERVICE_UNAVAILABLE),
+            // conflicts and retryable blocks are not about capacity, unlike at the shard level these are redirected
+            new VersionConflictEngineException(new ShardId("index", "_na_", 0), "[id]", "version conflict"),
+            new ClusterBlockException(Set.of(NoMasterBlockService.NO_MASTER_BLOCK_ALL))
+        );
+        assertFailureStoreRedirection(maybeWrapped(otherFailure), true);
+    }
+
+    /**
+     * Wraps the failure as remote calls do. The pipeline additionally wraps any processor failure in an {@link IngestProcessorException}.
+     */
+    private static RuntimeException maybeWrapped(RuntimeException failure) {
+        return randomBoolean() ? failure : new RemoteTransportException("remote", failure);
+    }
+
+    /**
+     * Fails a single document in its pipeline, and checks whether it is redirected to the failure store if that is enabled, which status
+     * it fails with otherwise, and that each outcome is reflected in the failure store metrics.
+     */
+    private void assertFailureStoreRedirection(RuntimeException processorFailure, boolean redirectIfEnabled) throws Exception {
+        // true if the failure store is enabled, false if the target is a data stream without it, null if it is not a data stream
+        final Boolean failureStoreResolution = randomFrom(true, false, null);
+        final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        var setup = ingestServiceWithProcessor(
+            new TestProcessor("tag", "mock", null, processorFailure),
+            new FailureStoreMetrics(meterRegistry)
+        );
+        BulkRequest bulkRequest = bulkOfSmallDocuments(1);
+
+        final AtomicInteger redirected = new AtomicInteger();
+        final List<IndexDocFailureStoreStatus> failureStatuses = new CopyOnWriteArrayList<>();
+        final PlainActionFuture<Void> done = new PlainActionFuture<>();
+        setup.service()
+            .executeBulkRequest(
+                setup.projectId(),
+                1,
+                bulkRequest.requests(),
+                slot -> fail("nothing is dropped"),
+                s -> failureStoreResolution,
+                (slot, targetIndex, e) -> redirected.incrementAndGet(),
+                (slot, e, status) -> failureStatuses.add(status),
+                IngestMemoryAccountant.NOOP,
+                done
+            );
+        done.get(10, TimeUnit.SECONDS);
+
+        if (failureStoreResolution == null) {
+            assertThat(redirected.get(), equalTo(0));
+            assertThat(failureStatuses, equalTo(List.of(IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN)));
+            assertFailureStoreMetrics(meterRegistry, 0, 0, 0);
+        } else if (failureStoreResolution && redirectIfEnabled) {
+            assertThat(redirected.get(), equalTo(1));
+            assertThat(failureStatuses, empty());
+            // the total is counted once the failure document is indexed
+            assertFailureStoreMetrics(meterRegistry, 0, 1, 0);
+        } else {
+            assertThat(redirected.get(), equalTo(0));
+            assertThat(
+                failureStatuses,
+                equalTo(
+                    List.of(
+                        failureStoreResolution
+                            ? IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN
+                            : IndexDocFailureStoreStatus.NOT_ENABLED
+                    )
+                )
+            );
+            // the document is neither indexed nor stored in the failure store, so it is rejected
+            assertFailureStoreMetrics(meterRegistry, 1, 0, 1);
+        }
+    }
+
+    private static void assertFailureStoreMetrics(RecordingMeterRegistry meterRegistry, long total, long failureStore, long rejected) {
+        assertThat(measuredFailureStoreMetric(meterRegistry, FailureStoreMetrics.METRIC_TOTAL), equalTo(total));
+        assertThat(measuredFailureStoreMetric(meterRegistry, FailureStoreMetrics.METRIC_FAILURE_STORE), equalTo(failureStore));
+        assertThat(measuredFailureStoreMetric(meterRegistry, FailureStoreMetrics.METRIC_REJECTED), equalTo(rejected));
+        for (Measurement measurement : meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_COUNTER, FailureStoreMetrics.METRIC_REJECTED)) {
+            assertThat(measurement.attributes().get("error_location"), equalTo(FailureStoreMetrics.ErrorLocation.PIPELINE.name()));
+            assertThat(measurement.attributes().get("failure_store"), equalTo(false));
+        }
+    }
+
+    private static long measuredFailureStoreMetric(RecordingMeterRegistry meterRegistry, String metric) {
+        return meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_COUNTER, metric)
+            .stream()
+            .mapToLong(Measurement::getLong)
+            .sum();
     }
 }

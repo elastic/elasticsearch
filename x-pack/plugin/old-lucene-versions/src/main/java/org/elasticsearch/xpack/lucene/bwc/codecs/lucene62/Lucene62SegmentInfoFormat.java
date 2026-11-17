@@ -141,14 +141,6 @@ public class Lucene62SegmentInfoFormat extends SegmentInfoFormat {
                             throw new CorruptIndexException("invalid index sort reverse: " + b, input);
                         }
 
-                        if (sortedSetSelector != null) {
-                            sortFields[i] = new SortedSetSortField(fieldName, reverse, sortedSetSelector);
-                        } else if (sortedNumericSelector != null) {
-                            sortFields[i] = new SortedNumericSortField(fieldName, sortType, reverse, sortedNumericSelector);
-                        } else {
-                            sortFields[i] = new SortField(fieldName, sortType, reverse);
-                        }
-
                         Object missingValue;
                         b = input.readByte();
                         if (b == 0) {
@@ -192,8 +184,12 @@ public class Lucene62SegmentInfoFormat extends SegmentInfoFormat {
                                     throw new AssertionError("unhandled sortType=" + sortType);
                             }
                         }
-                        if (missingValue != null) {
-                            sortFields[i].setMissingValue(missingValue);
+                        if (sortedSetSelector != null) {
+                            sortFields[i] = new SortedSetSortField(fieldName, reverse, sortedSetSelector, missingValue);
+                        } else if (sortedNumericSelector != null) {
+                            sortFields[i] = new SortedNumericSortField(fieldName, sortType, reverse, sortedNumericSelector, missingValue);
+                        } else {
+                            sortFields[i] = new SortField(fieldName, sortType, reverse, missingValue);
                         }
                     }
                     indexSort = new Sort(sortFields);

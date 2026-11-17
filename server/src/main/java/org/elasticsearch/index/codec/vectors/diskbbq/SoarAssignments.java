@@ -12,15 +12,9 @@ package org.elasticsearch.index.codec.vectors.diskbbq;
 import java.util.NoSuchElementException;
 import java.util.PrimitiveIterator;
 
-import static org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans.NO_SOAR_ASSIGNMENT;
+import static org.elasticsearch.index.codec.vectors.cluster.Soar.NO_SOAR_ASSIGNMENT;
 
-public class SoarAssignments implements OverspillAssignments {
-
-    private final int[] assignments;
-
-    public SoarAssignments(int[] assignments) {
-        this.assignments = assignments;
-    }
+public record SoarAssignments(int[] assignments) implements OverspillAssignments {
 
     @Override
     public int size() {
@@ -35,18 +29,6 @@ public class SoarAssignments implements OverspillAssignments {
             return EMPTY_ITERATOR;
         }
     }
-
-    private static final PrimitiveIterator.OfInt EMPTY_ITERATOR = new PrimitiveIterator.OfInt() {
-        @Override
-        public boolean hasNext() {
-            return false;
-        }
-
-        @Override
-        public int nextInt() {
-            throw new NoSuchElementException();
-        }
-    };
 
     private static class SingleIterator implements PrimitiveIterator.OfInt {
         private final int value;

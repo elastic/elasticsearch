@@ -275,6 +275,16 @@ FROM logs-*
 
 [`MATCH`](/reference/query-languages/esql/functions-operators/search-functions/match.md) works on `text` and `keyword` fields. Use [`MATCH_PHRASE`](/reference/query-languages/esql/functions-operators/search-functions/match_phrase.md) when the words must appear together in order. For Lucene query syntax with `field:value` and boolean operators, use [`QSTR`](/reference/query-languages/esql/functions-operators/search-functions/qstr.md). For {{kib}} Query Language syntax, use [`KQL`](/reference/query-languages/esql/functions-operators/search-functions/kql.md).
 
+`MATCH` and `MATCH_PHRASE` can also target expressions that are not backed by an index, such as
+columns produced by [`EVAL`](/reference/query-languages/esql/commands/eval.md) or [`STATS`](/reference/query-languages/esql/commands/stats-by.md):
+
+* {applies_to}`stack: preview =9.5, ga 9.6+` {applies_to}`serverless: ga` `MATCH`
+* {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` `MATCH_PHRASE`
+
+This [runtime search](/reference/query-languages/esql/esql-runtime-search.md) scans values
+row by row instead of using the inverted index, which is slower on large
+datasets. For best performance, prefer searching indexed fields when possible.
+
 :::{tip}
 To learn more about using {{esql}} for search use cases, refer to [{{esql}} for search](docs-content://solutions/search/esql-for-search.md).
 :::
@@ -443,6 +453,8 @@ The [**Query activity**](docs-content://deploy-manage/monitor/query-activity.md)
 
 When running an {{esql}} query through the [ES|QL query API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-query), set the `profile` body parameter to `true` to include a `profile` object in the response. The profile output is intended for human debugging and can help identify which parts of a query contribute to its runtime. The response format can change at any time, so use it for investigation rather than automation.
 
+{applies_to}`stack: preview 9.6` {applies_to}`serverless: preview` An operator that reads values reports `bytes_decoded`, the bytes the values it decoded spell, next to `bytes_read`, the bytes they were read from. The ratio is how far the stored bytes expanded into values, and dividing `bytes_decoded` by that operator's `process_nanos` gives the rate they were read at. Both the field value read and an external dataset read report it.
+
 ### Query logging
 
 ```{applies_to}
@@ -450,26 +462,29 @@ stack: preview 9.4
 serverless: unavailable
 ```
 
-Query logging captures Query DSL, EQL, KQL, and {{esql}} queries that exceed configurable duration thresholds and stores them in a managed data stream for analysis. This is the recommended way to log slow queries. To configure it, refer to [Query logging](docs-content://deploy-manage/monitor/logging-configuration/query-logs.md).
+Query logging captures Query DSL, EQL, SQL, and {{esql}} queries that exceed configurable duration thresholds and stores them in a managed data stream for analysis. This is the recommended way to log slow queries. To configure it, refer to [Query logging](docs-content://deploy-manage/monitor/logging-configuration/query-logs.md).
 
 For clusters on earlier versions, a legacy {{esql}}-specific query log {applies_to}`stack: ga 9.1+` writes slow queries to a `_esql_querylog.json` file in the {{es}} log directory. To configure it, refer to [{{esql}} query log](/reference/query-languages/esql/esql-query-log.md).
 
 ### Task management API
 
-The [task management API](/reference/query-languages/esql/esql-task-management.md) lets you monitor and cancel long-running {{esql}} queries.
-
-List running {{esql}} tasks:
-
-```console
-GET _tasks?actions=*esql*&detailed
+```{applies_to}
+serverless: unavailable
 ```
 
-Cancel a specific task:
+[**Query activity**](docs-content://deploy-manage/monitor/query-activity.md) is the simplest way to find and cancel running queries. Use the task management APIs instead if you're on a version before 9.4, don't have {{kib}} access, or want to automate these checks. For steps, refer to [Find and cancel long-running queries](/reference/query-languages/query-task-management.md).
 
-```console
-POST _tasks/<task_id>/_cancel
+
+## Optimize queries for {{esql}} Data Federation
+
+```{applies_to}
+stack: preview =9.5
+serverless: preview
 ```
 
+The advice on this page, particularly adding a [`WHERE`](/reference/query-languages/esql/commands/where.md), a [`KEEP`](/reference/query-languages/esql/commands/keep.md), and a [`LIMIT`](/reference/query-languages/esql/commands/limit.md), applies to [external datasets](/reference/query-languages/esql/esql-data-federation-querying.md) as well as indices. Because datasets read from object storage rather than local disk, every unnecessary column or row translates directly into additional network I/O.
+
+Datasets also have their own performance characteristics, including partition pruning, Parquet row-group skipping, late materialization, and metadata caching. For details, refer to [query external datasets](/reference/query-languages/esql/esql-data-federation-querying.md#how-external-data-is-read).
 
 ## Related pages
 
@@ -477,7 +492,7 @@ POST _tasks/<task_id>/_cancel
   - (recommended) [Query logging](docs-content://deploy-manage/monitor/logging-configuration/query-logs.md) {applies_to}`stack: preview 9.4`: Log all query types through a managed data stream
   - [{{esql}} query log](/reference/query-languages/esql/esql-query-log.md) {applies_to}`stack: ga 9.1+`: Log {{esql}} queries to a file on each node
 - [Circuit breaker settings](/reference/elasticsearch/configuration-reference/circuit-breaker-settings.md#circuit-breakers-page-esql): Configure {{esql}} memory limits and troubleshoot circuit breaker errors
-- [{{esql}} task management](/reference/query-languages/esql/esql-task-management.md): Monitor and cancel long-running queries
+- [Find and cancel long-running queries](/reference/query-languages/query-task-management.md): Monitor and cancel long-running queries
 - [Approximate STATS queries](/reference/query-languages/esql/esql-query-approximation.md) {applies_to}`stack: preview 9.4+`: Trade exact results for faster aggregations on large datasets
 - [Filing a support case](/reference/query-languages/esql/esql-troubleshooting.md#filing-a-support-case): Learn what to include when reporting a slow or failing query
 - [Explicit mapping](docs-content://manage-data/data-store/mapping/explicit-mapping.md): Control which fields are indexed and how

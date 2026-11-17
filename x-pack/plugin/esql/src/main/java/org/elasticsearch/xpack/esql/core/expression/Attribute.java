@@ -151,7 +151,9 @@ public abstract class Attribute extends NamedExpression {
     }
 
     public Attribute withQualifier(String qualifier) {
-        return Objects.equals(qualifier, qualifier) ? this : clone(source(), qualifier, name(), dataType(), nullable(), id(), synthetic());
+        return Objects.equals(qualifier(), qualifier)
+            ? this
+            : clone(source(), qualifier, name(), dataType(), nullable(), id(), synthetic());
     }
 
     public Attribute withName(String name) {
@@ -256,6 +258,10 @@ public abstract class Attribute extends NamedExpression {
      * @return true if the attribute represents a TSDB metric type
      */
     public abstract boolean isMetric();
+
+    public boolean isInternal() {
+        return synthetic();
+    }
 
     protected void checkAndSerializeQualifier(PlanStreamOutput out, TransportVersion version) throws IOException {
         if (version.supports(ESQL_QUALIFIERS_IN_ATTRIBUTES)) {

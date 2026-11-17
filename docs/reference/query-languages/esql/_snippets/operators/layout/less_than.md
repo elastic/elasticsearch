@@ -1,4 +1,8 @@
 ### Less than `<` [esql-less_than]
+```{applies_to}
+stack: ga
+serverless: ga
+```
 
 :::{image} /reference/query-languages/esql/images/generated/x-pack-esql/operators/less_than.svg
 :alt: Embedded

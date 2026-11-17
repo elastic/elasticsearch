@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.profiling.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.ParsingException;
@@ -18,6 +18,7 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.profiling.persistence.EventsIndex;
 
@@ -26,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -36,7 +38,24 @@ import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQu
 /**
  * A request to get profiling details
  */
-public class GetStackTracesRequest extends LegacyActionRequest implements IndicesRequest.Replaceable {
+public class GetStackTracesRequest extends UntypedActionRequest implements IndicesRequest.Replaceable {
+    /** The index schema to use when searching for profiling data. */
+    public enum Schema {
+        ECS,
+        OTEL;
+
+        public static Schema fromString(String value, XContentLocation location) {
+            return switch (value.toLowerCase(Locale.ROOT)) {
+                case "ecs" -> ECS;
+                case "otel" -> OTEL;
+                default -> throw new ParsingException(
+                    location,
+                    "Unknown [" + SCHEMA_FIELD.getPreferredName() + "] value [" + value + "]; valid values are [ecs, otel]"
+                );
+            };
+        }
+    }
+
     public static final ParseField QUERY_FIELD = new ParseField("query");
     public static final ParseField SAMPLE_SIZE_FIELD = new ParseField("sample_size");
     public static final ParseField LIMIT_FIELD = new ParseField("limit");
@@ -51,6 +70,7 @@ public class GetStackTracesRequest extends LegacyActionRequest implements Indice
     public static final ParseField CUSTOM_PER_CORE_WATT_X86 = new ParseField("per_core_watt_x86");
     public static final ParseField CUSTOM_PER_CORE_WATT_ARM64 = new ParseField("per_core_watt_arm64");
     public static final ParseField CUSTOM_COST_PER_CORE_HOUR = new ParseField("cost_per_core_hour");
+    public static final ParseField SCHEMA_FIELD = new ParseField("schema");
     private static final int DEFAULT_SAMPLE_SIZE = 20_000;
 
     private QueryBuilder query;
@@ -68,6 +88,8 @@ public class GetStackTracesRequest extends LegacyActionRequest implements Indice
     private Double customPerCoreWattX86;
     private Double customPerCoreWattARM64;
     private Double customCostPerCoreHour;
+
+    private Schema schema = Schema.ECS;
 
     // We intentionally don't expose this field via the REST API, but we can control behavior within Elasticsearch.
     // Once we have migrated all client-side code to dedicated APIs (such as the flamegraph API), we can adjust
@@ -202,6 +224,14 @@ public class GetStackTracesRequest extends LegacyActionRequest implements Indice
         this.shardSeed = shardSeed;
     }
 
+    public Schema getSchema() {
+        return schema;
+    }
+
+    public boolean isOtelSchema() {
+        return schema == Schema.OTEL;
+    }
+
     public void parseXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
         String currentFieldName = null;
@@ -238,6 +268,8 @@ public class GetStackTracesRequest extends LegacyActionRequest implements Indice
                     this.customPerCoreWattARM64 = parser.doubleValue();
                 } else if (CUSTOM_COST_PER_CORE_HOUR.match(currentFieldName, parser.getDeprecationHandler())) {
                     this.customCostPerCoreHour = parser.doubleValue();
+                } else if (SCHEMA_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    this.schema = Schema.fromString(parser.text(), parser.getTokenLocation());
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].");
                 }
@@ -391,7 +423,8 @@ public class GetStackTracesRequest extends LegacyActionRequest implements Indice
         return Objects.equals(query, that.query)
             && Objects.equals(sampleSize, that.sampleSize)
             && Arrays.equals(indices, that.indices)
-            && Objects.equals(stackTraceIdsField, that.stackTraceIdsField);
+            && Objects.equals(stackTraceIdsField, that.stackTraceIdsField)
+            && schema == that.schema;
     }
 
     @Override
@@ -402,19 +435,21 @@ public class GetStackTracesRequest extends LegacyActionRequest implements Indice
         // to produce consistent downsampling results, relying on the default hashCode implementation of `query` will
         // produce consistent results per node but not across the cluster. To avoid this, we produce the hashCode based on the
         // string representation instead, which will produce consistent results for the entire cluster and across node restarts.
+        // Note: schema is intentionally excluded so that the same query produces the same sampling seed regardless of schema.
         return Objects.hash(Objects.toString(query, "null"), sampleSize, Arrays.hashCode(indices), stackTraceIdsField);
     }
 
     @Override
     public String[] indices() {
+        boolean otel = schema == Schema.OTEL;
         Set<String> indices = new HashSet<>();
-        indices.add("profiling-stacktraces");
-        indices.add("profiling-stackframes");
-        indices.add("profiling-executables");
+        indices.add(otel ? "profiling-stacktraces.otel-*" : "profiling-stacktraces");
+        indices.add(otel ? "profiling-stackframes.otel-*" : "profiling-stackframes");
+        indices.add(otel ? "profiling-executables.otel-*" : "profiling-executables");
         if (userProvidedIndices) {
             indices.addAll(List.of(this.indices));
         } else {
-            indices.addAll(EventsIndex.indexNames());
+            indices.addAll(otel ? EventsIndex.otelIndexNames() : EventsIndex.indexNames());
         }
         return indices.toArray(new String[0]);
     }

@@ -23,7 +23,7 @@ import java.io.IOException;
  * the additional ordinals vector. However, they offer significant speed improvements and reduced memory usage when byte values are
  * frequently repeated
  */
-public final class OrdinalBytesRefVector extends AbstractNonThreadSafeRefCounted implements BytesRefVector {
+public final class OrdinalBytesRefVector extends AbstractBlockRefCounted implements BytesRefVector {
     private final IntVector ordinals;
     private final BytesRefVector bytes;
 
@@ -71,6 +71,7 @@ public final class OrdinalBytesRefVector extends AbstractNonThreadSafeRefCounted
 
     @Override
     public void allowPassingToDifferentDriver() {
+        makeRefCountsThreadSafe();
         ordinals.allowPassingToDifferentDriver();
         bytes.allowPassingToDifferentDriver();
     }
@@ -93,6 +94,13 @@ public final class OrdinalBytesRefVector extends AbstractNonThreadSafeRefCounted
     @Override
     public OrdinalBytesRefVector asOrdinals() {
         return this;
+    }
+
+    @Override
+    public long estimateTotalValueBytes() {
+        // Each value counts as the dictionary's average term, so the ordinals are never read.
+        final int terms = bytes.getPositionCount();
+        return terms == 0 ? 0 : bytes.estimateTotalValueBytes() * getPositionCount() / terms;
     }
 
     public IntVector getOrdinalsVector() {
@@ -180,6 +188,11 @@ public final class OrdinalBytesRefVector extends AbstractNonThreadSafeRefCounted
     @Override
     protected void closeInternal() {
         Releasables.close(ordinals, bytes);
+    }
+
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", ordinals=" + ordinals + ", bytes=" + bytes + "]";
     }
 
     @Override

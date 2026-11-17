@@ -11,9 +11,9 @@ package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.hnsw.IntToIntFunction;
 
 import java.io.IOException;
+import java.util.function.IntUnaryOperator;
 
 /**
  * Concurrent implementation of Lloyd's k-means.
@@ -39,7 +39,7 @@ class LloydKMeansLocalConcurrent<V> extends LloydKMeansLocal<V> {
     @Override
     protected boolean stepLloyd(
         ClusteringVectorValues<V> vectors,
-        IntToIntFunction ordTranslator,
+        IntUnaryOperator ordTranslator,
         V[] centroids,
         FixedBitSet[] centroidChangedSlices,
         int[] assignments,
@@ -56,16 +56,6 @@ class LloydKMeansLocalConcurrent<V> extends LloydKMeansLocal<V> {
             assignments,
             neighborHoods
         );
-    }
-
-    @Override
-    protected void assignSpilled(
-        ClusteringVectorValues<V> vectors,
-        KMeansIntermediate<V> kmeansIntermediate,
-        NeighborHood[] neighborhoods,
-        float soarLambda
-    ) throws IOException {
-        assignSpilledConcurrent(executor, numWorkers, vectors, ops, kmeansIntermediate, neighborhoods, soarLambda);
     }
 
     @Override

@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 148529
-summary: "Two-phase I/O fixes — sparse read, mask short-circuit, coalesce gap"
-type: enhancement

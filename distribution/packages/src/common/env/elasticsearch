@@ -13,7 +13,7 @@
 ES_PATH_CONF=@path.conf@
 
 # Elasticsearch PID directory
-#PID_DIR=/var/run/elasticsearch
+#PID_DIR=/run/elasticsearch
 
 # Additional Java OPTS
 #ES_JAVA_OPTS=

@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
+import static org.elasticsearch.index.codec.vectors.VectorTestUtils.randomFloatVector;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -72,7 +73,7 @@ public class DiversifyingParentBlockQueryTests extends MapperServiceTestCase {
         float[][] queries = new float[numQueries][];
         List<Map<String, Float>> expectedTopDocs = new ArrayList<>();
         for (int i = 0; i < numQueries; i++) {
-            queries[i] = randomVector(dims);
+            queries[i] = randomFloatVector(dims);
             expectedTopDocs.add(new HashMap<>());
         }
 
@@ -82,7 +83,7 @@ public class DiversifyingParentBlockQueryTests extends MapperServiceTestCase {
                 int numVectors = randomIntBetween(0, 5);
                 float[][] vectors = new float[numVectors][];
                 for (int j = 0; j < numVectors; j++) {
-                    vectors[j] = randomVector(dims);
+                    vectors[j] = randomFloatVector(dims);
                 }
 
                 if (numVectors > 0) {
@@ -155,13 +156,5 @@ public class DiversifyingParentBlockQueryTests extends MapperServiceTestCase {
             builder.endObject();
             return new SourceToParse(id, BytesReference.bytes(builder), XContentType.JSON);
         }
-    }
-
-    private float[] randomVector(int dim) {
-        float[] vector = new float[dim];
-        for (int i = 0; i < vector.length; i++) {
-            vector[i] = randomFloat();
-        }
-        return vector;
     }
 }

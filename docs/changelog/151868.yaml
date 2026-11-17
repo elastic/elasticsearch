@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 151868
-summary: Prune row groups for string TopN sources
-type: enhancement

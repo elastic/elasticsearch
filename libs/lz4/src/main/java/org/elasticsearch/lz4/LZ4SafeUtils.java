@@ -39,7 +39,7 @@ import static org.elasticsearch.lz4.LZ4Utils.notEnoughSpace;
  * <p>
  * Differences from the original are annotated with [ES change from upstream]
  *
- * @see <a href="https://github.com/yawkat/lz4-java/blob/v1.10.1/src/java/net/jpountz/lz4/LZ4SafeUtils.java">LZ4SafeUtils.java</a>
+ * @see <a href="https://github.com/yawkat/lz4-java/blob/v1.11.1/src/java/net/jpountz/lz4/LZ4SafeUtils.java">LZ4SafeUtils.java</a>
  */
 enum LZ4SafeUtils {
     ;
@@ -69,7 +69,7 @@ enum LZ4SafeUtils {
 
     static void wildIncrementalCopy(byte[] dest, int matchOff, int dOff, int matchCopyEnd) {
         // [ES change from upstream]: use the implementation from LZ4UnsafeUtils#wildIncrementalCopy
-        // see https://github.com/yawkat/lz4-java/blob/v1.10.1/src/java-unsafe/net/jpountz/lz4/LZ4UnsafeUtils.java#L55-L99
+        // see https://github.com/yawkat/lz4-java/blob/v1.11.1/src/java-unsafe/net/jpountz/lz4/LZ4UnsafeUtils.java#L55-L99
         // with further modifications as noted with [ES change from upstream] comments
         if (dOff - matchOff < 4) {
             for (int i = 0; i < 4; ++i) {

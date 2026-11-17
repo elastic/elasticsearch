@@ -92,12 +92,11 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
     private final ThreadPool threadPool = new TestThreadPool("pipelining test");
 
     @After
-    public void tearDown() throws Exception {
+    public void cleanup() throws Exception {
         waitingRequests.keySet().forEach(this::finishRequest);
         terminateExecutorService(handlerService);
         terminateExecutorService(eventLoopService);
         threadPool.shutdownNow();
-        super.tearDown();
     }
 
     private void terminateExecutorService(ExecutorService executorService) throws InterruptedException {
@@ -140,7 +139,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
 
     private EmbeddedChannel makeEmbeddedChannelWithSimulatedWork(int numberOfRequests) {
         return new EmbeddedChannel(
-            new Netty4HttpPipeliningHandler(numberOfRequests, httpServerTransport(), new ThreadWatchdog.ActivityTracker()) {
+            new Netty4HttpPipeliningHandler(numberOfRequests, httpServerTransport(), new ThreadWatchdog.ActivityTracker(), "http") {
                 @Override
                 protected void handlePipelinedRequest(ChannelHandlerContext ctx, Netty4HttpRequest pipelinedRequest) {
                     ctx.fireChannelRead(pipelinedRequest);
@@ -225,7 +224,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
     public void testPipeliningRequestsAreReleased() {
         final int numberOfRequests = 10;
         final EmbeddedChannel embeddedChannel = new EmbeddedChannel(
-            new Netty4HttpPipeliningHandler(numberOfRequests + 1, httpServerTransport(), new ThreadWatchdog.ActivityTracker())
+            new Netty4HttpPipeliningHandler(numberOfRequests + 1, httpServerTransport(), new ThreadWatchdog.ActivityTracker(), "http")
         );
 
         for (int i = 0; i < numberOfRequests; i++) {
@@ -517,7 +516,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
         final var watchdog = new ThreadWatchdog();
         final var activityTracker = watchdog.getActivityTrackerForCurrentThread();
         final var requestHandled = new AtomicBoolean();
-        final var handler = new Netty4HttpPipeliningHandler(Integer.MAX_VALUE, httpServerTransport(), activityTracker) {
+        final var handler = new Netty4HttpPipeliningHandler(Integer.MAX_VALUE, httpServerTransport(), activityTracker, "http") {
             @Override
             protected void handlePipelinedRequest(ChannelHandlerContext ctx, Netty4HttpRequest pipelinedRequest) {
                 // thread is not idle while handling the request
@@ -558,7 +557,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
     }
 
     private Netty4HttpPipeliningHandler getTestHttpHandler() {
-        return new Netty4HttpPipeliningHandler(Integer.MAX_VALUE, httpServerTransport(), new ThreadWatchdog.ActivityTracker()) {
+        return new Netty4HttpPipeliningHandler(Integer.MAX_VALUE, httpServerTransport(), new ThreadWatchdog.ActivityTracker(), "http") {
             @Override
             protected void handlePipelinedRequest(ChannelHandlerContext ctx, Netty4HttpRequest pipelinedRequest) {
                 ctx.fireChannelRead(pipelinedRequest);

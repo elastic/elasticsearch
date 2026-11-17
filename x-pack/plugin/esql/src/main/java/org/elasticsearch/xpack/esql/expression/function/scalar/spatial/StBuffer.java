@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -63,7 +64,7 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpatial;
 
-public class StBuffer extends SpatialDocValuesFunction implements OptionalArgument {
+public class StBuffer extends SpatialDocValuesFunction implements OptionalArgument, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "StBuffer", StBuffer::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(StBuffer.class).ternary(StBuffer::new).name("st_buffer");
 
@@ -375,13 +376,12 @@ public class StBuffer extends SpatialDocValuesFunction implements OptionalArgume
     }
 
     @Override
-    public Object fold(FoldContext foldCtx) {
+    public Object doFold(Source source, FoldContext foldCtx) {
         var distanceExpression = distance.fold(foldCtx);
         double inputDistance = getInputDistance(distanceExpression);
         BufferParameters bp = bufferParameters();
         Object input = geometry.fold(foldCtx);
         return switch (input) {
-            case null -> null;
             case List<?> list -> {
                 Geometry jts = processor.asJtsGeometry(list);
                 yield UNSPECIFIED.jtsGeometryToWkb(bufferOp(jts, inputDistance, bp));
@@ -406,7 +406,7 @@ public class StBuffer extends SpatialDocValuesFunction implements OptionalArgume
         @Fixed double distance,
         @Fixed(includeInToString = false) BufferParameters bufferParameters
     ) {
-        if (geometry.getValueCount(p) < 1) {
+        if (geometry.isNull(p)) {
             builder.appendNull();
         } else {
             Geometry jts = processor.asJtsGeometry(geometry, p);
@@ -426,7 +426,7 @@ public class StBuffer extends SpatialDocValuesFunction implements OptionalArgume
         @Fixed double distance,
         @Fixed(includeInToString = false) BufferParameters bufferParameters
     ) throws IOException {
-        if (point.getValueCount(p) < 1) {
+        if (point.isNull(p)) {
             builder.appendNull();
         } else {
             Geometry jts = geoProcessor.asJtsMultiPoint(point, p, GEO::longAsPoint);
@@ -446,7 +446,7 @@ public class StBuffer extends SpatialDocValuesFunction implements OptionalArgume
         @Fixed double distance,
         @Fixed(includeInToString = false) BufferParameters bufferParameters
     ) throws IOException {
-        if (left.getValueCount(p) < 1) {
+        if (left.isNull(p)) {
             builder.appendNull();
         } else {
             Geometry jts = cartesianProcessor.asJtsMultiPoint(left, p, CARTESIAN::longAsPoint);

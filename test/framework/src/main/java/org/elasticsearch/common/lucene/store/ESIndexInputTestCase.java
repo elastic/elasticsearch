@@ -62,11 +62,6 @@ public class ESIndexInputTestCase extends ESTestCase {
         uniqueIdGenerator = new AtomicLong();
     }
 
-    @Override
-    public final void setUp() throws Exception {
-        super.setUp();
-    }
-
     /**
      * Reads the contents of an {@link IndexInput} from {@code indexInput.getFilePointer()} to {@code length} using a wide variety of
      * different access methods. Returns an array of length {@code length} containing the bytes that were read starting at index

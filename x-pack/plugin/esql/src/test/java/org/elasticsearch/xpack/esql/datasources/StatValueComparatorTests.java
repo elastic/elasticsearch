@@ -34,6 +34,16 @@ public class StatValueComparatorTests extends ESTestCase {
         assertThat(StatValueComparator.compare(2.0d, 2), equalTo(0));
     }
 
+    public void testSignedZerosCompareEqual() {
+        assertThat(StatValueComparator.compare(-0.0, 0.0), equalTo(0));
+        assertThat(StatValueComparator.compare(0.0, -0.0), equalTo(0));
+        assertThat(StatValueComparator.compare(-0.0, -0.0), equalTo(0));
+        assertThat(StatValueComparator.compare(-0.0, 1.0), lessThan(0));
+        assertTrue(StatValueComparator.zerosOfOppositeSign(-0.0, 0.0));
+        assertFalse(StatValueComparator.zerosOfOppositeSign(-0.0, -0.0));
+        assertFalse(StatValueComparator.zerosOfOppositeSign(-0.0, 1.0));
+    }
+
     public void testBytesRefVsString() {
         assertThat(StatValueComparator.compare(new BytesRef("abc"), "abc"), equalTo(0));
         assertThat(StatValueComparator.compare(new BytesRef("abd"), "abc"), greaterThan(0));
@@ -49,5 +59,19 @@ public class StatValueComparatorTests extends ESTestCase {
     public void testIncompatibleTypesAreIncomparable() {
         assertThat(StatValueComparator.compare("abc", 1), equalTo(StatValueComparator.INCOMPARABLE));
         assertThat(StatValueComparator.compare(new BytesRef("abc"), 1), equalTo(StatValueComparator.INCOMPARABLE));
+    }
+
+    public void testKeywordComparedInUtf8ByteOrderNotUtf16() {
+        // U+FFFD (BMP) vs U+1F600 (astral): String.compareTo (UTF-16) would order the emoji first, but the runtime
+        // keyword comparison uses UTF-8 byte order (BytesRef), where the replacement char sorts first. The classifier
+        // must match runtime order, or a filtered COUNT/MIN/MAX MATCH-vs-MISS diverges from a scan.
+        String bmp = "�";
+        String astral = "😀";
+        assertThat(StatValueComparator.compare(bmp, astral), lessThan(0));
+        assertThat(StatValueComparator.compare(astral, bmp), greaterThan(0));
+        // Both stat representations (parquet String, text BytesRef) and a mix must all use UTF-8 order.
+        assertThat(StatValueComparator.compare(new BytesRef(bmp), new BytesRef(astral)), lessThan(0));
+        assertThat(StatValueComparator.compare(bmp, new BytesRef(astral)), lessThan(0));
+        assertThat(StatValueComparator.compare(new BytesRef(bmp), astral), lessThan(0));
     }
 }

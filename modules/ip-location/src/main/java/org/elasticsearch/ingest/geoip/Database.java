@@ -75,7 +75,7 @@ import static org.elasticsearch.iplocation.api.DatabaseProperty.VPN;
  * This can be accommodated, for example, by having a Foo value and a separate FooV2 value where the 'V' should be read as
  * 'variant' or 'variation'. A V-less Database type is inherently the first variant/variation (i.e. V1).
  */
-enum Database {
+public enum Database {
 
     City(
         Set.of(

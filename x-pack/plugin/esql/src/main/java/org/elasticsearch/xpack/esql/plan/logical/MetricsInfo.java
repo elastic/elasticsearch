@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -53,6 +52,10 @@ public class MetricsInfo extends UnaryPlan implements TelemetryAware, PostAnalys
 
     public MetricsInfo(Source source, LogicalPlan child) {
         this(source, child, buildAttributes(source));
+    }
+
+    public static MetricsInfo fromTsInfo(TsInfo tsInfo) {
+        return new MetricsInfo(tsInfo.source(), tsInfo.child(), List.copyOf(tsInfo.output().subList(0, ATTRIBUTES.size())));
     }
 
     private MetricsInfo(Source source, LogicalPlan child, List<Attribute> attributes) {
@@ -138,7 +141,7 @@ public class MetricsInfo extends UnaryPlan implements TelemetryAware, PostAnalys
         if (failures.hasFailures()) {
             return;
         }
-        boolean hasTsSource = child().anyMatch(p -> p instanceof EsRelation er && er.indexMode() == IndexMode.TIME_SERIES);
+        boolean hasTsSource = child().anyMatch(p -> p instanceof EsRelation er && er.indexMode().isTsdb());
         if (hasTsSource == false) {
             failures.add(fail(this, "METRICS_INFO can only be used with TS source command"));
         }

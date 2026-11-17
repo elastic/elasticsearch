@@ -17,9 +17,9 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.action.RestActions;
+import org.elasticsearch.search.crossproject.ProjectRoutingRequestInfo;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -40,7 +40,9 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiFunction;
+import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
@@ -67,10 +69,17 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     public static final ParseField TOOK = new ParseField("took");
     public static final ParseField IS_PARTIAL_FIELD = new ParseField("is_partial");
 
+    /**
+     * Request-breaker label for coordinator memory reserved while planning an external data source.
+     * Admit and release must share it so the held-memory gauge balances.
+     */
+    public static final String EXTERNAL_PLANNING_LABEL = "esql-external-planning";
+
     private static final TransportVersion ESQL_QUERY_PLANNING_DURATION = TransportVersion.fromName("esql_query_planning_duration");
     public static final TransportVersion EXECUTION_METADATA_VERSION = TransportVersion.fromName("esql_execution_metadata");
     public static final TransportVersion EXECUTION_CLUSTER_NAME_VERSION = TransportVersion.fromName("esql_cluster_name");
     public static final TransportVersion EXECUTION_PROFILE_FORMAT_VERSION = TransportVersion.fromName("esql_profile_format");
+    public static final TransportVersion EXECUTION_DROP_SKIP_UNAVAILABLE_VERSION = TransportVersion.fromName("esql_drop_skip_unavailable");
 
     public enum IncludeExecutionMetadata {
         ALWAYS,
@@ -97,6 +106,45 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     private final transient Predicate<String> skipOnFailurePredicate; // Predicate to determine if we should skip a cluster on failure
     private volatile boolean isPartial; // Does this request have partial results?
     private transient volatile boolean isStopped; // Have we received stop command?
+    /**
+     * Set once coordinator compute has started ({@code ComputeService.runCompute}). STOP that arrives
+     * earlier may still skip dispatch; STOP after this bit is set must cut live work rather than
+     * replace a later {@code execute()} (INLINE STATS, subplans) with an empty result.
+     */
+    private transient volatile boolean computeStarted;
+    /**
+     * Sticky "a stop hook cut live work" bit. {@link #addStopHook} can fire a hook immediately when
+     * {@link #isStopped} is already true; that call consumes the hook's one-shot transition, so a
+     * later {@link #runStopHooks()} would otherwise see only {@code false} and leave {@code is_partial}
+     * unset on a coordinator-only plan.
+     */
+    private transient volatile boolean stopCutLiveWork;
+    /**
+     * Hooks that {@code TransportEsqlAsyncStopAction} fires to interrupt query execution for plans that have no
+     * exchange-sink path back to the coordinator. Each hook should return {@code true} only when it actually
+     * cut a live unit of work (e.g. transitioned a {@link org.elasticsearch.compute.operator.Driver} from
+     * running to early-finishing). The aggregate signal is what we use to gate {@code is_partial} —
+     * "no-op" hook calls do not mark the response partial. The list is task-local and short-lived; using
+     * {@link CopyOnWriteArrayList} keeps registration cheap during plan setup and lets STOP iterate
+     * concurrently with late registrations.
+     */
+    private final transient List<BooleanSupplier> stopHooks = new CopyOnWriteArrayList<>();
+
+    // Project routing telemetry — coordinator-only, not serialized
+    private transient ProjectRoutingRequestInfo projectRoutingInfo;
+    /**
+     * Request-breaker reservation for external-datasource planning. Coordinator-only, like the other transient
+     * fields on this class: {@link #writeTo} does not write it and {@link #EsqlExecutionInfo(StreamInput)} does
+     * not read it. {@code PlanExecutor.esql} closes it once, when the session completes.
+     */
+    private transient ExternalPlanningReservation externalPlanning;
+    private transient boolean hasLinkedProjects;
+    /**
+     * Whether the analyzed plan contained an external relation. Runtime-only coordinator state: it is not serialized
+     * ({@link #writeTo} does not write it and {@link #EsqlExecutionInfo(StreamInput)} does not read it). Gates query
+     * metering independently of the scan counters, so an external-source query that ends up scanning nothing is still metered.
+     */
+    private transient volatile boolean externalSource;
 
     private final EsqlQueryProfile queryProfile;
 
@@ -131,7 +179,9 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             this.includeExecutionMetadata = in.readBoolean() ? IncludeExecutionMetadata.CCS_ONLY : IncludeExecutionMetadata.NEVER;
         }
         this.isPartial = in.readBoolean();
-        this.skipOnFailurePredicate = Predicates.always();
+        this.skipOnFailurePredicate = clusterAlias -> {
+            throw new UnsupportedOperationException("shouldSkipOnFailure(String clusterAlias) must be used on coordinator only");
+        };
         this.queryProfile = in.getTransportVersion().supports(ESQL_QUERY_PLANNING_DURATION)
             ? EsqlQueryProfile.readFrom(in)
             : new EsqlQueryProfile();
@@ -169,6 +219,21 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         return includeExecutionMetadata;
     }
 
+    /** Stores routing metadata captured from the first field-caps round. */
+    public void setProjectRoutingInfo(@Nullable ProjectRoutingRequestInfo info, boolean hasLinkedProjects) {
+        this.projectRoutingInfo = info;
+        this.hasLinkedProjects = hasLinkedProjects;
+    }
+
+    @Nullable
+    public ProjectRoutingRequestInfo getProjectRoutingInfo() {
+        return projectRoutingInfo;
+    }
+
+    public boolean isHasLinkedProjects() {
+        return hasLinkedProjects;
+    }
+
     /**
      * Call when ES|QL execution is complete in order to set the overall took time for an ES|QL query.
      */
@@ -191,6 +256,33 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     }
 
     /**
+     * Installs the query's external-planning reservation. One query, one reservation, set from
+     * {@code PlanExecutor.esql} before the session starts. Not serialized.
+     */
+    public void externalPlanning(ExternalPlanningReservation reservation) {
+        this.externalPlanning = reservation;
+    }
+
+    /** Marks that the analyzed plan contained an external relation. One-way: it is never cleared. Not serialized. */
+    public void markExternalSource() {
+        this.externalSource = true;
+    }
+
+    /** @return whether the analyzed plan contained an external relation, whether or not anything was scanned */
+    public boolean externalSource() {
+        return externalSource;
+    }
+
+    /** @return the reservation installed for this query, or {@code null} when planning has nothing to charge */
+    @Nullable
+    public ExternalPlanningReservation externalPlanning() {
+        return externalPlanning;
+    }
+
+    /**
+     * Checks if a failure from a remote cluster should be skipped.
+     * Must be used on coordinator only.
+     *
      * @param clusterAlias to check if we should skip this cluster on failure
      * @return whether it's OK to skip the cluster on failure.
      * @throws NoSuchRemoteClusterException if clusterAlias is unknown to this node's RemoteClusterService
@@ -238,7 +330,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
                     : previous.getIndexExpression() + "," + indexExpression;
             }
             var displayClusterAlias = Objects.equals(clusterAlias, RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) ? localCusterName : null;
-            return new Cluster(clusterAlias, displayClusterAlias, expr, shouldSkipOnFailure(clusterAlias));
+            return new Cluster(clusterAlias, displayClusterAlias, expr);
         });
     }
 
@@ -264,8 +356,8 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     public Cluster swapCluster(String clusterAlias, BiFunction<String, Cluster, Cluster> remappingFunction) {
         return clusterInfo.compute(clusterAlias, (unused, oldCluster) -> {
             final Cluster newCluster = remappingFunction.apply(clusterAlias, oldCluster);
-            if (newCluster != null && isPartial == false) {
-                isPartial = newCluster.isPartial();
+            if (newCluster != null && newCluster.isPartial()) {
+                isPartial = true;
             }
             return newCluster;
         });
@@ -349,12 +441,93 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         return isPartial;
     }
 
+    /**
+     * Marks the overall result as partial directly, independent of the per-cluster status path used for
+     * shard/node failures. This is required for pure external-source queries (e.g. {@code EXTERNAL "file://..."}),
+     * which carry no {@code clusterInfo} entry to drive {@link #swapCluster} — so a lenient external read that
+     * drops data (e.g. a {@code external_max_record_size} truncation under a non-strict {@code error_mode}) has no cluster
+     * to flip. Sticky like the cluster-driven path: once partial, always partial.
+     */
+    public void markPartial() {
+        isPartial = true;
+    }
+
     public void markAsStopped() {
         isStopped = true;
     }
 
     public boolean isStopped() {
         return isStopped;
+    }
+
+    /**
+     * Records that coordinator compute has started for this query. Sticky; later STOP must cut
+     * live work instead of skipping a subsequent {@code execute()} with an empty result.
+     */
+    public void markComputeStarted() {
+        computeStarted = true;
+    }
+
+    public boolean hasComputeStarted() {
+        return computeStarted;
+    }
+
+    /**
+     * Registers a hook that {@link #runStopHooks()} fires when the user requests async STOP for this query.
+     * The hook should return {@code true} only on the transition from running to finishing — see
+     * {@link #stopHooks} for the rationale.
+     * <p>
+     * If {@link #markAsStopped()} has already run, the hook is invoked immediately. STOP is a one-shot
+     * broadcast of the hooks registered at that moment; a driver that starts afterwards would otherwise
+     * never learn the query was stopped. A {@code true} from that immediate call is sticky on
+     * {@link #runStopHooks()} so STOP still observes the cut if it races after this registration.
+     */
+    public void addStopHook(BooleanSupplier hook) {
+        stopHooks.add(hook);
+        if (isStopped && hook.getAsBoolean()) {
+            stopCutLiveWork = true;
+            // STOP may already have sampled {@link #runStopHooks()}; is_partial is sticky so the
+            // cut is still visible on the response.
+            markPartial();
+        }
+    }
+
+    /**
+     * Removes a previously-registered stop hook. Callers register per-phase hooks (e.g. one per driver
+     * in a {@code ComputeService.runCompute} invocation) and must invoke this on phase completion so
+     * the async task's stop-hook list doesn't retain references to closed drivers/contexts for the
+     * whole task lifetime — coordinator reductions and subplans invoke {@code runCompute} multiple
+     * times under the same task, and cleared hooks would otherwise no-op but keep the driver-graph
+     * reachable. Uses reference equality via {@link java.util.List#remove(Object)}, so callers must
+     * pass the exact same {@link BooleanSupplier} instance previously registered.
+     */
+    public void removeStopHook(BooleanSupplier hook) {
+        stopHooks.remove(hook);
+    }
+
+    /**
+     * Fires all registered stop hooks and returns {@code true} if at least one hook reported that it cut a
+     * live unit of work. Callers can use this to decide whether STOP truncated the query (and therefore
+     * the response should be flagged {@code is_partial=true}) or whether STOP merely raced with natural
+     * completion (in which case the response is honestly complete).
+     * <p>
+     * No wrapping try/catch here: today's hooks are {@code Driver::runStopHooks} which delegates to
+     * {@link org.elasticsearch.compute.operator.DriverContext#runStopHooks()}, and that already isolates
+     * per-hook failures so one misbehaving operator can't sink the STOP response. Any exception escaping
+     * this loop is a bug in a caller (added a hook that doesn't respect the contract) and should surface
+     * loudly.
+     */
+    public boolean runStopHooks() {
+        boolean anyCut = stopCutLiveWork;
+        for (BooleanSupplier hook : stopHooks) {
+            anyCut |= hook.getAsBoolean();
+        }
+        if (anyCut) {
+            stopCutLiveWork = true;
+        }
+        // Re-read after the loop: a concurrent {@link #addStopHook} can consume a one-shot
+        // transition and set the sticky bit after the snapshot above.
+        return anyCut || stopCutLiveWork;
     }
 
     public void clusterInfoInitializing(boolean clusterInfoInitializing) {
@@ -396,7 +569,6 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         @Nullable
         private final String displayClusterAlias;
         private final String indexExpression; // original index expression from the user for this cluster
-        private final boolean skipUnavailable;
         private final Cluster.Status status;
         private final Integer totalShards;
         private final Integer successfulShards;
@@ -427,22 +599,9 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
          * @param clusterAlias clusterAlias as defined in the remote cluster settings or RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY
          *                     for the local cluster
          * @param indexExpression the original (not resolved/concrete) indices expression provided for this cluster.
-         * @param skipUnavailable whether this Cluster is marked as skip_unavailable in remote cluster settings
          */
-        public Cluster(String clusterAlias, String displayClusterAlias, String indexExpression, boolean skipUnavailable) {
-            this(
-                clusterAlias,
-                displayClusterAlias,
-                indexExpression,
-                skipUnavailable,
-                Cluster.Status.RUNNING,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null
-            );
+        public Cluster(String clusterAlias, String displayClusterAlias, String indexExpression) {
+            this(clusterAlias, displayClusterAlias, indexExpression, Cluster.Status.RUNNING, null, null, null, null, null, null);
         }
 
         /**
@@ -450,14 +609,12 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
          * @param clusterAlias clusterAlias as defined in the remote cluster settings or RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY
          *                     for the local cluster
          * @param indexExpression the original (not resolved/concrete) indices expression provided for this cluster.
-         * @param skipUnavailable whether cluster is marked as skip_unavailable in remote cluster settings
          * @param status current status of the search on this Cluster
          */
         public Cluster(
             String clusterAlias,
             String displayClusterAlias,
             String indexExpression,
-            boolean skipUnavailable,
             Cluster.Status status,
             Integer totalShards,
             Integer successfulShards,
@@ -472,7 +629,6 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             this.clusterAlias = clusterAlias;
             this.displayClusterAlias = displayClusterAlias;
             this.indexExpression = indexExpression;
-            this.skipUnavailable = skipUnavailable;
             this.status = status;
             this.totalShards = totalShards;
             this.successfulShards = successfulShards;
@@ -492,7 +648,9 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             this.skippedShards = in.readOptionalInt();
             this.failedShards = in.readOptionalInt();
             this.took = in.readOptionalTimeValue();
-            this.skipUnavailable = in.readBoolean();
+            if (in.getTransportVersion().supports(EXECUTION_DROP_SKIP_UNAVAILABLE_VERSION) == false) {
+                in.readBoolean();
+            }
             this.failures = Collections.unmodifiableList(in.readCollectionAsList(ShardSearchFailure::readShardSearchFailure));
         }
 
@@ -509,7 +667,9 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             out.writeOptionalInt(skippedShards);
             out.writeOptionalInt(failedShards);
             out.writeOptionalTimeValue(took);
-            out.writeBoolean(skipUnavailable);
+            if (out.getTransportVersion().supports(EXECUTION_DROP_SKIP_UNAVAILABLE_VERSION) == false) {
+                out.writeBoolean(false);
+            }
             out.writeCollection(failures);
         }
 
@@ -546,7 +706,6 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
                     original.getClusterAlias(),
                     original.getDisplayClusterAlias(),
                     original.getIndexExpression(),
-                    original.isSkipUnavailable(),
                     status != null ? status : original.getStatus(),
                     totalShards != null ? totalShards : original.getTotalShards(),
                     successfulShards != null ? successfulShards : original.getSuccessfulShards(),
@@ -660,10 +819,6 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
                 .collect(joining(","));
         }
 
-        public boolean isSkipUnavailable() {
-            return skipUnavailable;
-        }
-
         public Cluster.Status getStatus() {
             return status;
         }
@@ -747,10 +902,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
                 + took
                 + ", indexExpression='"
                 + indexExpression
-                + '\''
-                + ", skipUnavailable="
-                + skipUnavailable
-                + '}';
+                + "'}";
         }
     }
 }

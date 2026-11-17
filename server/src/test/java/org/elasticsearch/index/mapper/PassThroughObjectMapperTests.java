@@ -194,7 +194,9 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
             new ObjectMapper.Builder("metrics").add(new KeywordFieldMapper.Builder("cpu_usage", defaultIndexSettings()))
         );
 
-        MapperMergeContext mergeContext = MapperMergeContext.root(isSourceSynthetic, true, MAPPING_UPDATE, Long.MAX_VALUE);
+        MapperMergeContext mergeContext = new TestRootMapperMergeContextBuilder(MAPPING_UPDATE).sourceSynthetic(isSourceSynthetic)
+            .dataStream(true)
+            .build();
         RootObjectMapper merged = (RootObjectMapper) passThroughBuilder.mergeWith(objectBuilder, mergeContext)
             .build(mergeContext.getMapperBuilderContext());
         assertThat(merged.getMapper("metrics"), instanceOf(PassThroughObjectMapper.class));
@@ -210,7 +212,7 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
             IllegalArgumentException.class,
             () -> passThroughBuilder2.mergeWith(
                 objectWithSubObjectTrue,
-                MapperMergeContext.root(isSourceSynthetic, true, MAPPING_UPDATE, Long.MAX_VALUE)
+                new TestRootMapperMergeContextBuilder(MAPPING_UPDATE).sourceSynthetic(isSourceSynthetic).dataStream(true).build()
             )
         );
         assertThat(
@@ -227,7 +229,7 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
             IllegalArgumentException.class,
             () -> passThroughBuilder3.mergeWith(
                 rootObjectBuilder,
-                MapperMergeContext.root(isSourceSynthetic, true, MAPPING_UPDATE, Long.MAX_VALUE)
+                new TestRootMapperMergeContextBuilder(MAPPING_UPDATE).sourceSynthetic(isSourceSynthetic).dataStream(true).build()
             )
         );
         assertThat(
@@ -293,7 +295,6 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
      * aliases so that queries can omit the passthrough prefix.
      */
     public void testPassThroughAliasesInColumnarMode() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
             MapperService mapperService = createMapperService(settings, mapping(b -> {
@@ -323,7 +324,6 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
      * wins the root-level alias.
      */
     public void testPassThroughPriorityWinsInColumnarMode() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
             MapperService mapperService = createMapperService(settings, mapping(b -> {
@@ -357,7 +357,6 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
      * alias for each child field: {@code "resource.attributes.env"} → alias {@code "env"}.
      */
     public void testPassThroughWithDottedPrefixInColumnarMode() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
             MapperService mapperService = createMapperService(settings, mapping(b -> {

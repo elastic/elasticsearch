@@ -22,13 +22,19 @@ import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunct
 import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
+import org.elasticsearch.xpack.esql.plan.logical.DatasetShadowRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Describe;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
+import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedEqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 
 import java.util.ArrayList;
@@ -48,17 +54,42 @@ public class PreAnalyzer {
      */
     static final List<FunctionDefinition> INFERENCE_FUNCTION_DEFINITIONS = List.of(TextEmbedding.DEFINITION, Embedding.DEFINITION);
 
+    public record LookupIndexPattern(IndexPattern indexPattern, ExecuteLocation mode) {}
+
     public record PreAnalysis(
         Map<IndexPattern, IndexMode> indexes,
         List<Enrich> enriches,
-        List<IndexPattern> lookupIndices,
+        List<LookupIndexPattern> lookupIndices,
         Set<LinkedIndexPattern> linkedIndices,  // CPS only, patterns from local view names that could match remote indices
         boolean useAggregateMetricDoubleWhenNotSupported,
         boolean useDenseVectorWhenNotSupported,
         boolean hasTimeSeriesAggregation,
-        List<String> icebergPaths,
-        List<String> inferenceIds
+        boolean requiresAllDimensionFields,
+        boolean needsAnalyzerGroups,
+        boolean needsFieldSemantics,
+        List<String> externalSourcePaths,
+        List<String> inferenceIds,
+        Set<IndexPattern> eqlPatterns  // patterns of EQL source commands; used to retain their field-caps for reuse
     ) {
+        /** The same pre-analysis, but building the field semantics of the resolved indices. */
+        public PreAnalysis withFieldSemantics() {
+            return new PreAnalysis(
+                indexes,
+                enriches,
+                lookupIndices,
+                linkedIndices,
+                useAggregateMetricDoubleWhenNotSupported,
+                useDenseVectorWhenNotSupported,
+                hasTimeSeriesAggregation,
+                requiresAllDimensionFields,
+                needsAnalyzerGroups,
+                true,
+                externalSourcePaths,
+                inferenceIds,
+                eqlPatterns
+            );
+        }
+
         public static final PreAnalysis EMPTY = new PreAnalysis(
             Map.of(),
             List.of(),
@@ -67,8 +98,12 @@ public class PreAnalyzer {
             false,
             false,
             false,
+            false,
+            false,
+            false,
             List.of(),
-            List.of()
+            List.of(),
+            Set.of()
         );
     }
 
@@ -82,27 +117,49 @@ public class PreAnalyzer {
 
     protected PreAnalysis doPreAnalyze(LogicalPlan plan) {
         Map<IndexPattern, IndexMode> indexes = new HashMap<>();
-        List<IndexPattern> lookupIndices = new ArrayList<>();
         plan.forEachUp(UnresolvedRelation.class, p -> {
-            if (p.indexMode() == IndexMode.LOOKUP) {
-                lookupIndices.add(p.indexPattern());
-            } else if (indexes.containsKey(p.indexPattern()) == false || indexes.get(p.indexPattern()) == p.indexMode()) {
-                indexes.put(p.indexPattern(), p.indexMode());
-            } else {
-                IndexMode m1 = p.indexMode();
-                IndexMode m2 = indexes.get(p.indexPattern());
+            if (p.indexMode() != IndexMode.LOOKUP) {
+                if (indexes.containsKey(p.indexPattern()) == false || indexes.get(p.indexPattern()) == p.indexMode()) {
+                    indexes.put(p.indexPattern(), p.indexMode());
+                } else {
+                    IndexMode m1 = p.indexMode();
+                    IndexMode m2 = indexes.get(p.indexPattern());
+                    throw new IllegalStateException(
+                        "index pattern '" + p.indexPattern() + "' found with different index mode: " + m2 + " != " + m1
+                    );
+                }
+            }
+        });
+        // The EQL source command resolves its schema through the same field-caps path as FROM: its pattern
+        // joins the same indexes map, so preAnalyzeMainIndices resolves it once into the shared IndexResolution.
+        // EQL is always STANDARD mode; reject a collision with a same-pattern non-STANDARD relation, matching the
+        // UnresolvedRelation conflict above. Reachable via a mixed subquery (e.g. FROM (TS idx), (EQL idx "…")),
+        // where it throws exactly as the FROM/TS twin does.
+        Set<IndexPattern> eqlPatterns = new LinkedHashSet<>();
+        plan.forEachUp(UnresolvedEqlRelation.class, p -> {
+            eqlPatterns.add(p.indexPattern());
+            IndexMode existing = indexes.putIfAbsent(p.indexPattern(), IndexMode.STANDARD);
+            if (existing != null && existing != IndexMode.STANDARD) {
                 throw new IllegalStateException(
-                    "index pattern '" + p.indexPattern() + "' found with with different index mode: " + m2 + " != " + m1
+                    "index pattern '" + p.indexPattern() + "' found with different index mode: " + existing + " != " + IndexMode.STANDARD
                 );
             }
         });
+        List<LookupIndexPattern> lookupIndices = new ArrayList<>();
+        plan.forEachUp(LookupJoin.class, lj -> {
+            if (lj.right() instanceof UnresolvedRelation ur) {
+                lookupIndices.add(new LookupIndexPattern(ur.indexPattern(), lj.executesOn()));
+            }
+        });
 
-        // CPS: collect ViewShadowRelation patterns. Shadows live as siblings of the
-        // strict UnresolvedRelation inside per-resolution-level ViewUnionAlls (see ViewResolver).
-        // A LinkedHashSet preserves the order shadows were emitted in for deterministic test output;
-        // it also deduplicates so two shadows with the same indexPattern only produce one lenient call.
+        // CPS: collect ViewShadowRelation and DatasetShadowRelation patterns into one linked-indices set.
+        // Both shadow kinds ride inside BranchPlan branches (built by ViewResolver and DatasetRewriter
+        // respectively); both drive the same lenient flat field-caps pass (EsqlSession.preAnalyzeLinkedIndices),
+        // keyed by the shadow's LinkedIndexPattern. A LinkedHashSet preserves emission order for deterministic
+        // test output and deduplicates so two shadows with the same indexPattern only produce one lenient call.
         Set<LinkedIndexPattern> linkedIndexPatterns = new LinkedHashSet<>();
         plan.forEachUp(ViewShadowRelation.class, p -> linkedIndexPatterns.add(p.linkedIndexPattern()));
+        plan.forEachUp(DatasetShadowRelation.class, p -> linkedIndexPatterns.add(p.linkedIndexPattern()));
 
         List<Enrich> unresolvedEnriches = new ArrayList<>();
         plan.forEachUp(Enrich.class, unresolvedEnriches::add);
@@ -125,8 +182,9 @@ public class PreAnalyzer {
 
         List<String> inferenceIds = new ArrayList<>();
         // Inference commands require a literal inference_id at parse time, unlike
-        // UnresolvedFunction calls where the ID may be dynamic.
-        plan.forEachUp(InferencePlan.class, inferencePlan -> inferenceIds.add(inferenceId(inferencePlan)));
+        // UnresolvedFunction calls where the ID may be dynamic. A command that has yet to settle on an endpoint contributes
+        // every candidate it may end up using, so all of them are resolved in the single pass that follows.
+        plan.forEachUp(InferencePlan.class, inferencePlan -> inferenceIds.addAll(candidateInferenceIds(inferencePlan)));
 
         /*
          * Enable aggregate_metric_double and dense_vector when we see certain functions
@@ -143,7 +201,7 @@ public class PreAnalyzer {
         Holder<Boolean> useAggregateMetricDoubleWhenNotSupported = new Holder<>(false);
         Holder<Boolean> useDenseVectorWhenNotSupported = new Holder<>(false);
         indexes.forEach((ip, mode) -> {
-            if (mode == IndexMode.TIME_SERIES) {
+            if (mode.isTsdb()) {
                 useAggregateMetricDoubleWhenNotSupported.set(true);
             }
         });
@@ -171,8 +229,16 @@ public class PreAnalyzer {
         }));
 
         Holder<Boolean> hasTimeSeriesAggregation = new Holder<>(false);
+        Holder<Boolean> requiresAllDimensionFields = new Holder<>(false);
         plan.forEachUp(TimeSeriesAggregate.class, p -> hasTimeSeriesAggregation.set(true));
-        plan.forEachUp(PromqlCommand.class, p -> hasTimeSeriesAggregation.set(true));
+        plan.forEachUp(PromqlCommand.class, p -> {
+            hasTimeSeriesAggregation.set(true);
+            requiresAllDimensionFields.set(true);
+        });
+        // Only a HIGHLIGHT analyzing with the mapping analyzers reads which indices use which one; skip the cost otherwise.
+        boolean needsAnalyzerGroups = plan.anyMatch(p -> p instanceof Highlight h && h.hasAnalyzerOption() == false);
+        // Only DESCRIBE reads the field semantics; skip building them otherwise.
+        boolean needsFieldSemantics = plan.anyMatch(Describe.class::isInstance);
 
         // mark plan as preAnalyzed (if it were marked, there would be no analysis)
         plan.forEachUp(LogicalPlan::setPreAnalyzed);
@@ -185,13 +251,18 @@ public class PreAnalyzer {
             useAggregateMetricDoubleWhenNotSupported.get(),
             useDenseVectorWhenNotSupported.get(),
             hasTimeSeriesAggregation.get(),
+            requiresAllDimensionFields.get(),
+            needsAnalyzerGroups,
+            needsFieldSemantics,
             icebergPaths,
-            inferenceIds
+            inferenceIds,
+            eqlPatterns
         );
     }
 
-    private static String inferenceId(InferencePlan<?> plan) {
-        return BytesRefs.toString(plan.inferenceId().fold(FoldContext.small()));
+    /** Binds the wildcard so the ids stay typed: {@code forEachUp} hands back a raw {@link InferencePlan}. */
+    private static List<String> candidateInferenceIds(InferencePlan<?> plan) {
+        return plan.candidateInferenceIds();
     }
 
     private static FunctionDefinition inferenceFunctionDefinition(String name) {

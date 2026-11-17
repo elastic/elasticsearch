@@ -1,0 +1,5 @@
+Completion[completion-inference-id[KEYWORD],100[INTEGER],title{f}#0,result{r}#1,MapExpression[[]],null]
+\_Limit[100[INTEGER],false,false]
+  \_LimitBy[3[INTEGER],[author{f}#2],false]
+    \_Limit[100[INTEGER],false,false]
+      \_EsRelation[books][author{f}#2, author.keyword{f}#3, book_no{f}#4, collection{f}#5, description{f}#6, publisher{f}#7, ratings{f}#8, title{f}#0, year{f}#9]

@@ -20,6 +20,8 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleRangeBlock;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.ExponentialHistogramBlock;
 import org.elasticsearch.compute.data.ExponentialHistogramBlockBuilder;
@@ -58,6 +60,7 @@ import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomDouble;
+import static org.elasticsearch.test.ESTestCase.randomDoubleBetween;
 import static org.elasticsearch.test.ESTestCase.randomFloat;
 import static org.elasticsearch.test.ESTestCase.randomGaussianDouble;
 import static org.elasticsearch.test.ESTestCase.randomInt;
@@ -92,6 +95,11 @@ public class BlockTestUtils {
                 var from = randomMillisUpToYear9999();
                 var to = randomLongBetween(from + 1, MAX_MILLIS_BEFORE_9999);
                 yield new LongRangeBlockBuilder.LongRange(from, to);
+            }
+            case DOUBLE_RANGE -> {
+                var from = randomDouble();
+                var to = from + randomDoubleBetween(0.0, Double.MAX_VALUE / 2, false);
+                yield new DoubleRangeBlockBuilder.DoubleRange(from, to);
             }
             case DOC -> new BlockUtils.Doc(
                 randomIntBetween(0, 255), // Shard ID should be small and non-negative.
@@ -244,7 +252,33 @@ public class BlockTestUtils {
                 switch (l.size()) {
                     case 0 -> b.appendNull();
                     case 1 -> b.appendLongRange((LongRangeBlockBuilder.LongRange) l.get(0));
-                    default -> throw new IllegalArgumentException("LONG_RANGE does not support multi-valued positions");
+                    default -> {
+                        b.beginPositionEntry();
+                        for (Object o : l) {
+                            b.appendLongRange((LongRangeBlockBuilder.LongRange) o);
+                        }
+                        b.endPositionEntry();
+                    }
+                }
+                return;
+            }
+        }
+        if (builder instanceof DoubleRangeBlockBuilder b) {
+            if (value instanceof DoubleRangeBlockBuilder.DoubleRange v) {
+                b.appendDoubleRange(v);
+                return;
+            }
+            if (value instanceof List<?> l) {
+                switch (l.size()) {
+                    case 0 -> b.appendNull();
+                    case 1 -> b.appendDoubleRange((DoubleRangeBlockBuilder.DoubleRange) l.get(0));
+                    default -> {
+                        b.beginPositionEntry();
+                        for (Object o : l) {
+                            b.appendDoubleRange((DoubleRangeBlockBuilder.DoubleRange) o);
+                        }
+                        b.endPositionEntry();
+                    }
                 }
                 return;
             }
@@ -380,6 +414,15 @@ public class BlockTestUtils {
                     i++;
                     yield lit;
                 }
+                case DOUBLE_RANGE -> {
+                    var b = (DoubleRangeBlock) block;
+                    var lit = new DoubleRangeBlockBuilder.DoubleRange(
+                        b.getDoubleFromBlock().getDouble(i),
+                        b.getDoubleToBlock().getDouble(i)
+                    );
+                    i++;
+                    yield lit;
+                }
                 case EXPONENTIAL_HISTOGRAM -> ((ExponentialHistogramBlock) block).getExponentialHistogram(
                     i++,
                     new ExponentialHistogramScratch()
@@ -481,7 +524,7 @@ public class BlockTestUtils {
     public static TDigestHolder randomTDigest() {
         // TODO: This is mostly copied from TDigestFieldMapperTests and EsqlTestUtils; refactor it.
         int size = between(1, 100);
-        NoopCircuitBreaker noopBreaker = new NoopCircuitBreaker("test-breaker");
+        NoopCircuitBreaker noopBreaker = NoopCircuitBreaker.INSTANCE;
         TDigest digest = TDigest.createMergingDigest(new MemoryTrackingTDigestArrays(noopBreaker), 100);
         for (int i = 0; i < size; i++) {
             double sample = randomGaussianDouble();

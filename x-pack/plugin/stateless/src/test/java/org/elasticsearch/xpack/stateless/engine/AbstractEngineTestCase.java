@@ -18,8 +18,8 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.BlobCacheUtils;
+import org.elasticsearch.blobcache.shared.DefaultEvictionPolicy;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -35,6 +35,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
@@ -79,6 +80,7 @@ import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
+import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherMetrics;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
@@ -105,6 +107,7 @@ import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
 import org.elasticsearch.xpack.stateless.reshard.ReshardSearchFilters;
 import org.elasticsearch.xpack.stateless.reshard.ReshardUnownedBitsetCache;
+import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
 
@@ -129,8 +132,8 @@ import java.util.function.LongSupplier;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.DIRECT_EXECUTOR_SERVICE;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.stateless.StatelessPlugin.SHARD_READ_THREAD_POOL;
-import static org.elasticsearch.xpack.stateless.StatelessPlugin.SHARD_READ_THREAD_POOL_SETTING;
+import static org.elasticsearch.xpack.stateless.StatelessThreadPools.SHARD_READ_THREAD_POOL;
+import static org.elasticsearch.xpack.stateless.StatelessThreadPools.SHARD_READ_THREAD_POOL_SETTING;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -150,10 +153,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
     protected NodeEnvironment nodeEnvironment;
 
     @SuppressWarnings("unchecked")
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initEngineResources() throws Exception {
         threadPools = ConcurrentCollections.newConcurrentMap();
         sharedBlobCacheService = mock(StatelessSharedBlobCacheService.class);
         int cacheRegionSize = BlobCacheUtils.toIntBytes(SHARED_CACHE_REGION_SIZE_SETTING.get(Settings.EMPTY).getBytes());
@@ -168,8 +169,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         nodeEnvironment = newNodeEnvironment();
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void cleanupEngineResources() throws Exception {
         var iterator = threadPools.entrySet().iterator();
         while (iterator.hasNext()) {
             var entry = iterator.next();
@@ -186,7 +187,6 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                 breaker.getUsed()
             );
         }
-        super.tearDown();
     }
 
     private ThreadPool registerThreadPool(final ThreadPool threadPool) {
@@ -216,6 +216,25 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             mock(ObjectStoreService.class),
             commitService,
             mock(HollowShardsService.class)
+        );
+    }
+
+    /**
+     * Creates an {@link IndexEngine} with a caller-supplied {@link IndexEngineDynamicSettings}.
+     * Use this overload when a test needs to update the settings dynamically after engine construction.
+     */
+    protected IndexEngine newIndexEngine(final EngineConfig indexConfig, final IndexEngineDynamicSettings dynamicSettings) {
+        StatelessCommitService commitService = mockCommitService(indexConfig.getIndexSettings().getNodeSettings());
+        return newIndexEngine(
+            indexConfig,
+            mock(TranslogReplicator.class),
+            mock(ObjectStoreService.class),
+            commitService,
+            mock(HollowShardsService.class),
+            mock(SharedBlobCacheWarmingService.class),
+            DocumentParsingProvider.EMPTY_INSTANCE,
+            new IndexEngine.EngineMetrics(TranslogRecoveryMetrics.NOOP, MergeMetrics.NOOP, HollowShardsMetrics.NOOP),
+            dynamicSettings
         );
     }
 
@@ -269,6 +288,23 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         );
     }
 
+    /**
+     * Builds an {@link IndexEngineDynamicSettings} pre-initialized from the given node settings.
+     * All tests that construct an {@link IndexEngine} directly should use this helper so the engine
+     * receives a properly wired dynamic-settings holder rather than reading stale constructor-time values.
+     */
+    protected static IndexEngineDynamicSettings newIndexEngineDynamicSettings(Settings nodeSettings) {
+        ClusterSettings clusterSettings = new ClusterSettings(
+            nodeSettings,
+            Sets.addToCopy(
+                ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
+                IndexEngine.MERGE_FORCE_REFRESH_SIZE,
+                IndexEngine.MERGE_BACKLOG_THROTTLE_FACTOR
+            )
+        );
+        return new IndexEngineDynamicSettings(clusterSettings);
+    }
+
     protected IndexEngine newIndexEngine(
         EngineConfig indexConfig,
         TranslogReplicator translogReplicator,
@@ -278,6 +314,30 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         SharedBlobCacheWarmingService sharedBlobCacheWarmingService,
         DocumentParsingProvider documentParsingProvider,
         IndexEngine.EngineMetrics engineMetrics
+    ) {
+        return newIndexEngine(
+            indexConfig,
+            translogReplicator,
+            objectStoreService,
+            commitService,
+            hollowShardsService,
+            sharedBlobCacheWarmingService,
+            documentParsingProvider,
+            engineMetrics,
+            newIndexEngineDynamicSettings(indexConfig.getIndexSettings().getNodeSettings())
+        );
+    }
+
+    protected IndexEngine newIndexEngine(
+        EngineConfig indexConfig,
+        TranslogReplicator translogReplicator,
+        ObjectStoreService objectStoreService,
+        StatelessCommitService commitService,
+        HollowShardsService hollowShardsService,
+        SharedBlobCacheWarmingService sharedBlobCacheWarmingService,
+        DocumentParsingProvider documentParsingProvider,
+        IndexEngine.EngineMetrics engineMetrics,
+        IndexEngineDynamicSettings dynamicSettings
     ) {
         var indexEngine = new IndexEngine(
             indexConfig,
@@ -291,6 +351,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             commitService.getCommitBCCResolverForShard(indexConfig.getShardId()),
             documentParsingProvider,
             engineMetrics,
+            dynamicSettings,
             commitService.getShardLocalCommitsTracker(indexConfig.getShardId()).shardLocalReadersTracker()
         ) {
 
@@ -356,8 +417,9 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             ClusterSettings.createBuiltInClusterSettings(
                 Settings.builder()
                     .put(settings)
-                    // this triggers a deprecation warning response header
+                    // this triggers a deprecation warning response header; overridable by nodeSettings
                     .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), randomBoolean())
+                    .put(nodeSettings)
                     .build()
             ),
             nodeEnvironment
@@ -432,6 +494,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                 SearchCommitPrefetcherDynamicSettings.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING,
                 SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING,
                 SearchCommitPrefetcherDynamicSettings.PREFETCH_SEARCH_IDLE_TIME_SETTING,
+                SearchCommitPrefetcherDynamicSettings.PREFETCH_METRICS_ENABLED_SETTING,
                 SearchCommitPrefetcher.BACKGROUND_PREFETCH_ENABLED_SETTING,
                 SearchCommitPrefetcher.PREFETCH_REQUEST_SIZE_LIMIT_INDEX_NODE_SETTING,
                 SearchCommitPrefetcher.FORCE_PREFETCH_SETTING,
@@ -450,7 +513,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             new SearchCommitPrefetcherDynamicSettings(clusterSettings),
             newReaderHeapBreaker(),
             StatelessReaderHeapMetrics.NOOP,
-            reshardSearchFilters
+            reshardSearchFilters,
+            SearchCommitPrefetcherMetrics.NOOP
         ) {
             @Override
             public void close() throws IOException {
@@ -490,19 +554,27 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             ClusterSettings.createBuiltInClusterSettings(indexSettings.getNodeSettings()),
             nodeEnvironment
         );
+        var cacheClusterService = TestUtils.mockClusterService(indexSettings.getSettings());
         var cache = new StatelessSharedBlobCacheService(
             nodeEnvironment,
             indexSettings.getSettings(),
+            cacheClusterService.getClusterSettings(),
             threadPool,
             BlobCacheMetrics.NOOP,
-            mock(ClusterService.class),
-            TestUtils.mockIndicesService(mock(ClusterService.class)),
+            new DefaultEvictionPolicy<>(),
             System::nanoTime,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
-        );
+        ) {};
         SearchDirectory directory = new SearchDirectory(
             cache,
-            new CacheBlobReaderService(indexSettings.getSettings(), cache, mock(Client.class), threadPool) {
+            new CacheBlobReaderService(
+                indexSettings.getSettings(),
+                cache,
+                mock(Client.class),
+                threadPool,
+                TestUtils.unmeteredFillCacheMemoryPressure(indexSettings.getSettings(), threadPool)
+            ) {
                 @Override
                 public CacheBlobReader getCacheBlobReader(
                     ShardId shardId,
@@ -513,7 +585,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                     LongConsumer totalBytesReadFromIndexing,
                     BlobCacheMetrics.CachePopulationReason cachePopulationReason,
                     Executor objectStoreFetchExecutor,
-                    String fileName
+                    String fileName,
+                    boolean speculativeFill
                 ) {
                     getBlobReader.accept(this, blobFile);
                     return super.getCacheBlobReader(
@@ -525,12 +598,15 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                         totalBytesReadFromIndexing,
                         cachePopulationReason,
                         objectStoreFetchExecutor,
-                        fileName
+                        fileName,
+                        speculativeFill
                     );
                 }
             },
             MutableObjectStoreUploadTracker.ALWAYS_UPLOADED,
-            shardId
+            shardId,
+            randomBoolean(),
+            indexSettings.getIndexVersionCreated()
         ) {
             @Override
             public boolean updateCommit(StatelessCompoundCommit newCommit, Map<String, BlobFileRanges> commitFilesRangesOverride) {
@@ -580,6 +656,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                 SearchCommitPrefetcherDynamicSettings.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING,
                 SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING,
                 SearchCommitPrefetcherDynamicSettings.PREFETCH_SEARCH_IDLE_TIME_SETTING,
+                SearchCommitPrefetcherDynamicSettings.PREFETCH_METRICS_ENABLED_SETTING,
                 SearchCommitPrefetcher.BACKGROUND_PREFETCH_ENABLED_SETTING,
                 SearchCommitPrefetcher.PREFETCH_REQUEST_SIZE_LIMIT_INDEX_NODE_SETTING,
                 SearchCommitPrefetcher.FORCE_PREFETCH_SETTING,
@@ -612,7 +689,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             new SearchCommitPrefetcherDynamicSettings(clusterSettings),
             newReaderHeapBreaker(),
             StatelessReaderHeapMetrics.NOOP,
-            reshardSearchFilters
+            reshardSearchFilters,
+            SearchCommitPrefetcherMetrics.NOOP
         ) {
             @Override
             public void close() throws IOException {
@@ -652,9 +730,17 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         );
         var directory = new SearchDirectory(
             sharedBlobCacheService,
-            new CacheBlobReaderService(indexSettings.getSettings(), sharedBlobCacheService, mock(Client.class), threadPool),
+            new CacheBlobReaderService(
+                indexSettings.getSettings(),
+                sharedBlobCacheService,
+                mock(Client.class),
+                threadPool,
+                TestUtils.unmeteredFillCacheMemoryPressure(indexSettings.getSettings(), threadPool)
+            ),
             objectStoreUploadTracker,
-            shardId
+            shardId,
+            randomBoolean(),
+            indexSettings.getIndexVersionCreated()
         );
         directory.setBlobContainer(primaryTerm -> blobContainer);
         // update the CC of the directory because assertions use it for the primary term
@@ -693,16 +779,28 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
     }
 
     protected static Engine.Index randomDoc(String id) throws IOException {
+        return randomDoc(id, XContentMeteringParserDecorator.UNKNOWN_SIZE);
+    }
+
+    protected static Engine.Index randomDoc(String id, long normalizedSize) throws IOException {
         CheckedBiConsumer<XContentBuilder, LuceneDocument, IOException> sourceBuilder = (builder, doc) -> {
             builder.startObject();
             builder.field("value", randomUnicodeOfCodepointLengthBetween(1, 10));
             builder.endObject();
         };
-        return randomDoc(id, sourceBuilder);
+        return randomDoc(id, sourceBuilder, normalizedSize);
     }
 
     protected static Engine.Index randomDoc(String id, CheckedBiConsumer<XContentBuilder, LuceneDocument, IOException> sourceBuilder)
         throws IOException {
+        return randomDoc(id, sourceBuilder, XContentMeteringParserDecorator.UNKNOWN_SIZE);
+    }
+
+    protected static Engine.Index randomDoc(
+        String id,
+        CheckedBiConsumer<XContentBuilder, LuceneDocument, IOException> sourceBuilder,
+        long normalizedSize
+    ) throws IOException {
         final LuceneDocument document = new LuceneDocument();
         document.add(new StringField("_id", Uid.encodeId(id), Field.Store.YES));
         var version = new NumericDocValuesField("_version", 0);
@@ -725,7 +823,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             source,
             XContentType.JSON,
             null,
-            XContentMeteringParserDecorator.UNKNOWN_SIZE
+            normalizedSize
         );
         return new Engine.Index(Uid.encodeId(id), 1L, doc);
     }

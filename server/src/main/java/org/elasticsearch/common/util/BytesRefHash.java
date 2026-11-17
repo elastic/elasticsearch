@@ -135,13 +135,10 @@ public final class BytesRefHash extends AbstractHash implements Accountable, Byt
     }
 
     /**
-     * Get the id associated with <code>key</code>
+     * Get the id associated with <code>key</code>. Reads only, comparing keys in place with
+     * {@link BytesRefArray#bytesEqual}: {@link #find(BytesRef)} and {@link Finder} rely on it.
      */
     public long find(BytesRef key, int code) {
-        return find(key, code, spare);
-    }
-
-    private long find(BytesRef key, int code, BytesRef intermediate) {
         final long slot = slot(rehash(code), mask);
         for (long index = slot;; index = nextSlot(index, mask)) {
             final long id = id(index);
@@ -157,15 +154,6 @@ public final class BytesRefHash extends AbstractHash implements Accountable, Byt
         return find(key, key.hashCode());
     }
 
-    /**
-     * Allows finding a key in the hash in a thread safe manner, by providing an intermediate
-     * BytesRef reference to storing intermediate results. As long as each thread provides
-     * its own intermediate instance, this method is thread safe.
-     */
-    private long threadSafeFind(BytesRef key, BytesRef intermediate) {
-        return find(key, key.hashCode(), intermediate);
-    }
-
     private long set(BytesRef key, int code, long id) {
         assert rehash(key.hashCode()) == code;
         assert size < maxSize;
@@ -173,8 +161,8 @@ public final class BytesRefHash extends AbstractHash implements Accountable, Byt
         for (long index = slot;; index = nextSlot(index, mask)) {
             final long curId = id(index);
             if (curId == -1) { // means unset
-                setId(index, id);
                 append(id, key, code);
+                setId(index, id);
                 ++size;
                 return id;
             } else if (bytesRefs.bytesEqual(curId, key)) {
@@ -213,8 +201,7 @@ public final class BytesRefHash extends AbstractHash implements Accountable, Byt
     public long add(BytesRef key, int code) {
         if (size >= maxSize) {
             assert size == maxSize;
-            grow();
-            hashes = bigArrays.resize(hashes, maxSize);
+            growHashesThenTable();
         }
         return set(key, rehash(code), size);
     }
@@ -234,10 +221,18 @@ public final class BytesRefHash extends AbstractHash implements Accountable, Byt
     public long add(PagedBytesCursor key, int code) {
         if (size >= maxSize) {
             assert size == maxSize;
-            grow();
-            hashes = bigArrays.resize(hashes, maxSize);
+            growHashesThenTable();
         }
         return setCursor(key, rehash(code), size);
+    }
+
+    /**
+     * Makes room for one more entry, sizing {@link #hashes} before the table grows.
+     */
+    private void growHashesThenTable() {
+        hashes = bigArrays.resize(hashes, maxSizeAfterGrow());
+        grow();
+        assert hashes.size() >= maxSize;
     }
 
     private long setCursor(PagedBytesCursor key, int code, long id) {
@@ -246,8 +241,8 @@ public final class BytesRefHash extends AbstractHash implements Accountable, Byt
         for (long index = slot;; index = nextSlot(index, mask)) {
             final long curId = id(index);
             if (curId == -1) { // means unset
-                setId(index, id);
                 appendCursor(id, key, code);
+                setId(index, id);
                 ++size;
                 return id;
             } else if (key.equals(bytesRefs.get(curId, spareCursor))) {
@@ -295,11 +290,15 @@ public final class BytesRefHash extends AbstractHash implements Accountable, Byt
     }
 
     public class Finder {
-        private final BytesRef intermediate = new BytesRef();
-
         public long find(BytesRef key) {
-            return threadSafeFind(key, intermediate);
+            return BytesRefHash.this.find(key);
         }
     }
 
+    @Override
+    public void clear() {
+        bytesRefs.truncateTo(0);
+        ids.fill(0, ids.size(), 0);
+        size = 0;
+    }
 }

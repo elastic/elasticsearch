@@ -11,11 +11,15 @@ import org.elasticsearch.Version;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.promql.HistogramFunctionCall;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -39,18 +43,38 @@ public final class PromqlFunctionDefinition {
     private final String name;
     private final FunctionType functionType;
     private final PromqlFunctionArity arity;
+    private final boolean variadic;
     private final FunctionBuilder esqlBuilder;
     private final String description;
     private final String extendedDescription;
     private final List<PromqlParamInfo> params;
     private final List<String> examples;
     private final CounterSupport counterSupport;
-    private final String differenceFromPrometheus;
+    private final ClassicHistogramHandler classicHistogramHandler;
+    private final String stdDivergence;
     private final List<StackAvailability> stack;
 
     @FunctionalInterface
     public interface FunctionBuilder {
         Expression build(Source source, Expression target, PromqlFunctionRegistry.PromqlContext ctx, List<Expression> extraParams);
+    }
+
+    /**
+     * Builds the specialized logical plan node used to evaluate classic histogram.
+     */
+    @FunctionalInterface
+    public interface ClassicHistogramHandler {
+        HistogramFunctionCall build(Source source, LogicalPlan child, PromqlFunctionDefinition definition, List<Expression> extraParams);
+    }
+
+    /**
+     * Constructor reference for a unary function whose non-finite behavior is selectable, i.e. a constructor of the
+     * form {@code (source, field, allowNonFinite)}. Used by {@link Builder#unaryNonFiniteValueTransformation} to build
+     * the PromQL variant of math functions that must follow IEEE-754 semantics.
+     */
+    @FunctionalInterface
+    public interface NonFiniteUnaryBuilder {
+        Expression build(Source source, Expression field, boolean allowNonFinite);
     }
 
     /**
@@ -144,13 +168,15 @@ public final class PromqlFunctionDefinition {
         String name,
         FunctionType functionType,
         PromqlFunctionArity arity,
+        boolean variadic,
         FunctionBuilder esqlBuilder,
         String description,
         String extendedDescription,
         List<PromqlParamInfo> params,
         List<String> examples,
         CounterSupport counterSupport,
-        String differenceFromPrometheus,
+        ClassicHistogramHandler classicHistogramHandler,
+        String stdDivergence,
         List<StackAvailability> stack
     ) {
         Objects.requireNonNull(name, "name cannot be null");
@@ -161,7 +187,12 @@ public final class PromqlFunctionDefinition {
         Objects.requireNonNull(params, "params cannot be null");
         Objects.requireNonNull(examples, "examples cannot be null");
         Objects.requireNonNull(counterSupport, "counterSupport cannot be null");
-        if (arity.max() != params.size()) {
+        if (classicHistogramHandler != null && functionType != FunctionType.HISTOGRAM) {
+            throw new IllegalArgumentException("classicHistogramHandler may only be set for histogram functions");
+        }
+        // A variadic function repeats its trailing parameter, so its declared parameter list cannot enumerate the (unbounded)
+        // maximum argument count; the fixed-arity equality only applies to non-variadic functions.
+        if (variadic == false && arity.max() != params.size()) {
             throw new IllegalArgumentException(
                 String.format(
                     Locale.ROOT,
@@ -178,6 +209,7 @@ public final class PromqlFunctionDefinition {
         this.name = name;
         this.functionType = functionType;
         this.arity = arity;
+        this.variadic = variadic;
         this.esqlBuilder = esqlBuilder;
         this.description = description;
         // Optional: extra description paragraph rendered only on the function's own page, not in the brief overview.
@@ -185,8 +217,9 @@ public final class PromqlFunctionDefinition {
         this.params = params;
         this.examples = examples;
         this.counterSupport = counterSupport;
-        // Optional: only set for functions whose Elasticsearch behavior diverges from the Prometheus reference.
-        this.differenceFromPrometheus = differenceFromPrometheus;
+        this.classicHistogramHandler = classicHistogramHandler;
+        // Optional: only set for functions that reject some uses Prometheus accepts, or whose results differ from it.
+        this.stdDivergence = stdDivergence;
         // Stack availability rendered into the docs applies_to badge. Empty until declared; the docs generator rejects
         // any registered function that leaves this unset.
         this.stack = stack;
@@ -202,6 +235,16 @@ public final class PromqlFunctionDefinition {
 
     public PromqlFunctionArity arity() {
         return arity;
+    }
+
+    /**
+     * Whether the function repeats its trailing parameter an unbounded number of times (for example {@code label_join}'s
+     * source labels). A variadic function's declared {@link #params()} list carries a single representative entry for the
+     * repeating parameter rather than one entry per argument, so callers must not assume {@code params().size()} equals the
+     * actual argument count.
+     */
+    public boolean variadic() {
+        return variadic;
     }
 
     public FunctionBuilder esqlBuilder() {
@@ -234,11 +277,23 @@ public final class PromqlFunctionDefinition {
     }
 
     /**
-     * The "Differences from Prometheus" note rendered in the generated function docs, or {@code null} when the
+     * Returns the specialized classic histogram handler, or {@code null} when this histogram function only supports the
+     * regular native-histogram translation path.
+     */
+    public ClassicHistogramHandler classicHistogramHandler() {
+        if (functionType != FunctionType.HISTOGRAM) {
+            throw new IllegalStateException("classicHistogramHandler may only be called for histogram functions");
+        }
+        return classicHistogramHandler;
+    }
+
+    /**
+     * The "Differences from Prometheus" note rendered in the generated function docs: the uses of this function that
+     * Prometheus accepts and Elasticsearch rejects, and the uses that return a different result. {@code null} when the
      * function matches the Prometheus reference behavior.
      */
-    public String differenceFromPrometheus() {
-        return differenceFromPrometheus;
+    public String stdDivergence() {
+        return stdDivergence;
     }
 
     /**
@@ -264,6 +319,12 @@ public final class PromqlFunctionDefinition {
     );
     public static final PromqlParamInfo SCALAR = PromqlParamInfo.child("s", PromqlDataType.SCALAR, "Scalar value.");
     public static final PromqlParamInfo QUANTILE = PromqlParamInfo.of("φ", PromqlDataType.SCALAR, "Quantile value (0 ≤ φ ≤ 1).");
+    public static final PromqlParamInfo K = PromqlParamInfo.of("k", PromqlDataType.SCALAR, "Number of series to keep.");
+    public static final PromqlParamInfo RATIO = PromqlParamInfo.of(
+        "r",
+        PromqlDataType.SCALAR,
+        "Ratio of series to keep (-1 ≤ r ≤ 1); the absolute value selects the share, " + "a negative r inverts the selection."
+    );
     public static final PromqlParamInfo TO_NEAREST = PromqlParamInfo.optional(
         "to_nearest",
         PromqlDataType.SCALAR,
@@ -271,6 +332,8 @@ public final class PromqlFunctionDefinition {
     );
     public static final PromqlParamInfo MIN_SCALAR = PromqlParamInfo.of("min", PromqlDataType.SCALAR, "Minimum value.");
     public static final PromqlParamInfo MAX_SCALAR = PromqlParamInfo.of("max", PromqlDataType.SCALAR, "Maximum value.");
+    public static final PromqlParamInfo LOWER_SCALAR = PromqlParamInfo.of("lower", PromqlDataType.SCALAR, "Lower bound of the range.");
+    public static final PromqlParamInfo UPPER_SCALAR = PromqlParamInfo.of("upper", PromqlDataType.SCALAR, "Upper bound of the range.");
 
     /**
      * Shared extended-description fragment for the counter rate family ({@code rate}, {@code irate}, {@code increase}),
@@ -289,8 +352,8 @@ public final class PromqlFunctionDefinition {
      */
     public static final String RATE_INCREASE_NOTE =
         "{{es}} computes the value over fixed time buckets and, at bucket boundaries, interpolates the counter value "
-            + "from the adjacent buckets' samples, falling back to Prometheus-style extrapolation wherever an adjacent "
-            + "bucket has no samples (the series edges and any gaps). Prometheus instead extrapolates within each range "
+            + "from the adjacent buckets' samples, falling back to {{prom}}-style extrapolation wherever an adjacent "
+            + "bucket has no samples (the series edges and any gaps). {{prom}} instead extrapolates within each range "
             + "window, so results can differ slightly.";
     /**
      * Shared extended-description fragment for the gauge family ({@code delta}, {@code idelta}, {@code deriv}), set as
@@ -305,19 +368,33 @@ public final class PromqlFunctionDefinition {
     public static final String FIRST_LAST_NOTE =
         "Accepts additional {{es}} field types (for example `keyword`, `ip`, and `date`) and returns counter inputs "
             + "unchanged rather than rejecting or converting them.";
+    /**
+     * Shared "Differences from Prometheus" fragment for the histogram functions that estimate from buckets
+     * ({@code histogram_quantile}, {@code histogram_fraction}).
+     */
+    public static final String HISTOGRAM_OVER_SELECTION_NOT_SUPPORTED_YET =
+        "{applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` An argument computed by `topk`, `bottomk`, `limitk`, "
+            + "`limit_ratio`, or `without(...)`, such as `histogram_quantile(0.9, topk(5, a))`, isn't supported yet. Aggregate with "
+            + "`by(...)` first, such as `histogram_quantile(0.9, topk(5, sum by (job, le) (a)))`.";
+    /**
+     * Shared "Differences from Prometheus" note for the native-histogram component functions ({@code histogram_count},
+     * {@code histogram_sum}, {@code histogram_avg}).
+     */
+    public static final String NATIVE_HISTOGRAM_ONLY_NOTE =
+        "Accepts only native histograms. Classic histogram buckets, such as `rate(x_bucket[5m])`, return an error, where "
+            + "{{prom}} returns no results.";
     public static final String COUNT_NOTE = "Returns a `long` integer count rather than a floating-point value.";
-    public static final String LOG_DOMAIN_NOTE =
-        "For an input of zero or a negative number, {{es}} returns `null` and emits a warning, rather than the "
-            + "`-Inf` (for zero) or `NaN` (for negatives) that Prometheus returns.";
-    public static final String DOMAIN_PLUS_MINUS_ONE_NOTE =
-        "For inputs outside the range [-1, 1], {{es}} returns `null` and emits a warning, rather than the `NaN` that "
-            + "Prometheus returns.";
-    public static final String OVERFLOW_NOTE =
-        "On numeric overflow for large-magnitude inputs, {{es}} returns `null` and emits a warning, rather than the "
-            + "`±Inf` that Prometheus returns.";
-    public static final String QUANTILE_NOTE =
+    public static final String QUANTILE_APPROXIMATION_NOTE =
         "Computed using the {{es}} t-digest percentile aggregation, so results are approximate and may differ slightly "
-            + "from Prometheus's exact linear interpolation, particularly for small sample sets.";
+            + "from {{prom}}'s exact linear interpolation, particularly for small sample sets.";
+    /**
+     * Extends {@link #QUANTILE_APPROXIMATION_NOTE} for the quantiles that rank non-finite samples rather than
+     * discarding them. Only accurate for a quantile backed by the non-finite-preserving aggregator.
+     */
+    public static final String QUANTILE_NOTE = QUANTILE_APPROXIMATION_NOTE
+        + " Non-finite values are ranked as `NaN` < `-Inf` < finite < `+Inf`, the same order {{prom}} sorts by. A "
+        + "rank landing exactly on a sample returns that sample, whereas {{prom}} still averages in the neighbouring "
+        + "sample weighted by zero, so it returns `NaN` wherever that neighbour is an infinity.";
 
     /**
      * Stack (versioned Elasticsearch) releases that PromQL function documentation can reference. Kept as a small closed
@@ -326,7 +403,9 @@ public final class PromqlFunctionDefinition {
      */
     public enum PromqlDocsVersion {
         V_9_4(Version.V_9_4_0),
-        V_9_5(Version.V_9_5_0);
+        V_9_5(Version.V_9_5_0),
+        V_9_6(Version.V_9_6_0),
+        V_9_7(Version.V_9_7_0);
 
         private final Version version;
 
@@ -381,6 +460,21 @@ public final class PromqlFunctionDefinition {
     public static final List<StackAvailability> STACK_GA_9_5 = List.of(ga(PromqlDocsVersion.V_9_5));
 
     /**
+     * Stack availability for PromQL functions that ship as generally available in 9.6.
+     */
+    public static final List<StackAvailability> STACK_GA_9_6 = List.of(ga(PromqlDocsVersion.V_9_6));
+
+    /**
+     * Stack availability for PromQL functions that ship as a preview in 9.7.
+     */
+    public static final List<StackAvailability> STACK_PREVIEW_9_7 = List.of(preview(PromqlDocsVersion.V_9_7));
+
+    /**
+     * Stack availability for PromQL functions that ship as generally available in 9.7.
+     */
+    public static final List<StackAvailability> STACK_GA_9_7 = List.of(ga(PromqlDocsVersion.V_9_7));
+
+    /**
      * Scales a PromQL quantile φ (in the range [0, 1]) to the percentile value (in the range [0, 100]) expected by
      * the ES|QL {@code PERCENTILE} aggregation that PromQL {@code quantile} and {@code quantile_over_time} translate
      * into. Without this scaling, e.g. {@code quantile(1.0, x)} would collapse to the 0.01th percentile (≈ the
@@ -404,12 +498,14 @@ public final class PromqlFunctionDefinition {
         private final List<String> examples = new ArrayList<>();
         private FunctionType functionType;
         private PromqlFunctionArity arity;
+        private boolean variadic;
         private FunctionBuilder builder;
         private String description;
         private String extendedDescription;
         private List<PromqlParamInfo> params;
         private CounterSupport counterSupport = CounterSupport.UNSUPPORTED;
-        private String differenceFromPrometheus;
+        private ClassicHistogramHandler classicHistogramHandler;
+        private String stdDivergence;
         private List<StackAvailability> stack = List.of();
 
         public PromqlFunctionDefinition.Builder counterSupport(CounterSupport counterSupport) {
@@ -433,20 +529,21 @@ public final class PromqlFunctionDefinition {
         }
 
         /**
-         * Documents how this function's Elasticsearch behavior diverges from the Prometheus reference. Rendered as a
-         * "Differences from Prometheus" section in the generated docs. Omit for functions that match Prometheus.
+         * Documents how this function's Elasticsearch behavior diverges from the Prometheus reference: the uses it
+         * rejects, and the uses that return a different result. Rendered as a "Differences from Prometheus" section in
+         * the generated docs. Omit for functions that match Prometheus.
          */
-        public PromqlFunctionDefinition.Builder differenceFromPrometheus(String differenceFromPrometheus) {
-            this.differenceFromPrometheus = differenceFromPrometheus;
+        public PromqlFunctionDefinition.Builder stdDivergence(String stdDivergence) {
+            this.stdDivergence = stdDivergence;
             return this;
         }
 
         /**
          * Declares the {@code stack} availability rendered into the function's docs {@code applies_to} badge. Use the
          * {@link PromqlFunctionDefinition#STACK_PREVIEW_9_4_GA_9_5} / {@link PromqlFunctionDefinition#STACK_GA_9_5}
-         * presets for the common cases. Serverless availability is intentionally not declared here: implemented PromQL
-         * functions are generally available in serverless, which is stated once at the docs page level rather than
-         * repeated per function. (When a function first ships as a serverless preview, add a serverless entry here.)
+         * presets for the common cases. Serverless availability is not declared separately. A list that includes
+         * {@code ga} leaves serverless to the docs page frontmatter. A preview-only list is also preview on serverless,
+         * and the generated badge says so.
          */
         public PromqlFunctionDefinition.Builder stack(List<StackAvailability> stack) {
             this.stack = stack;
@@ -464,6 +561,16 @@ public final class PromqlFunctionDefinition {
             this.builder = (source, target, ctx, extraParams) -> ctorRef.apply(source, target);
             this.params = List.of(INSTANT_VECTOR);
             return this;
+        }
+
+        /**
+         * Registers a unary math function whose PromQL variant must preserve non-finite results ({@code NaN}/{@code ±Inf})
+         * rather than reject them to {@code null}. The input is coerced to {@code double} so the function evaluates with
+         * IEEE-754 semantics regardless of the metric's stored type (e.g. {@code sqrt(-x)} yields {@code NaN} even for a
+         * {@code long}/{@code integer} metric), and the function is constructed with its non-finite-preserving flag set.
+         */
+        public PromqlFunctionDefinition.Builder unaryNonFiniteValueTransformation(NonFiniteUnaryBuilder ctorRef) {
+            return unaryValueTransformation((source, field) -> ctorRef.build(source, new ToDouble(source, field), true));
         }
 
         public PromqlFunctionDefinition.Builder binaryValueTransformation(
@@ -530,6 +637,15 @@ public final class PromqlFunctionDefinition {
             return this;
         }
 
+        /** Defines a range-vector function whose scalar parameter follows the range vector. */
+        public PromqlFunctionDefinition.Builder withinSeriesRangeFirst(PromqlParamInfo parameter, FunctionBuilder builder) {
+            this.functionType = FunctionType.WITHIN_SERIES_AGGREGATION;
+            this.arity = PromqlFunctionArity.TWO;
+            this.params = List.of(RANGE_VECTOR, parameter);
+            this.builder = builder;
+            return this;
+        }
+
         public PromqlFunctionDefinition.Builder withinSeriesOverTime(FunctionDefinition.TernaryBuilder<? extends Expression> ctorRef) {
             this.functionType = FunctionType.WITHIN_SERIES_AGGREGATION;
             this.arity = PromqlFunctionArity.ONE;
@@ -580,6 +696,56 @@ public final class PromqlFunctionDefinition {
             return this;
         }
 
+        public PromqlFunctionDefinition.Builder acrossSeriesBinaryReduceSortDesc(PromqlParamInfo paramInfo) {
+            return acrossSeriesBinaryReduceSort(paramInfo, Order.OrderDirection.DESC);
+        }
+
+        public PromqlFunctionDefinition.Builder acrossSeriesBinaryReduceSortAsc(PromqlParamInfo paramInfo) {
+            return acrossSeriesBinaryReduceSort(paramInfo, Order.OrderDirection.ASC);
+        }
+
+        private PromqlFunctionDefinition.Builder acrossSeriesBinaryReduceSort(
+            PromqlParamInfo paramInfo,
+            Order.OrderDirection orderDirection
+        ) {
+            this.functionType = FunctionType.ACROSS_SERIES_REDUCTION;
+            this.arity = PromqlFunctionArity.TWO;
+            this.builder = (source, target, ctx, extraParams) -> new Order(source, target, orderDirection, Order.NullsPosition.LAST);
+            this.params = List.of(paramInfo, INSTANT_VECTOR);
+            return this;
+        }
+
+        /**
+         * Across-series reduction that keeps {@code k} arbitrary elements with no value-based ranking.
+         * The {@link FunctionBuilder} returns {@code null} to signal "no sort order" to the translator,
+         * which emits a {@link org.elasticsearch.xpack.esql.plan.logical.TopNBy} with an empty order list.
+         */
+        public PromqlFunctionDefinition.Builder acrossSeriesBinaryReduceUnordered(PromqlParamInfo paramInfo) {
+            this.functionType = FunctionType.ACROSS_SERIES_REDUCTION;
+            this.arity = PromqlFunctionArity.TWO;
+            this.builder = (source, target, ctx, extraParams) -> null;
+            this.params = List.of(paramInfo, INSTANT_VECTOR);
+            return this;
+        }
+
+        /**
+         * Across-series reduction that retains an approximate ratio of elements via hash sampling.
+         * Like the metadata-manipulation functions this is not lowered through the generic {@link FunctionBuilder}:
+         * the translator emits a {@link org.elasticsearch.xpack.esql.plan.logical.Filter} over the internal
+         * {@link org.elasticsearch.xpack.esql.expression.promql.function.HashOffset} sampling offset directly
+         * (see {@code TranslatePromqlToEsqlPlan}), since it needs the collapsed child plan and its grouping
+         * columns, which the {@link PromqlFunctionRegistry.PromqlContext} does not carry.
+         */
+        public PromqlFunctionDefinition.Builder acrossSeriesBinaryRatioReduce(PromqlParamInfo ratioParam) {
+            this.functionType = FunctionType.ACROSS_SERIES_REDUCTION;
+            this.arity = PromqlFunctionArity.TWO;
+            this.builder = (source, target, ctx, extraParams) -> {
+                throw new UnsupportedOperationException("limit_ratio is translated directly, not built via the generic function builder");
+            };
+            this.params = List.of(ratioParam, INSTANT_VECTOR);
+            return this;
+        }
+
         public PromqlFunctionDefinition.Builder histogramUnary(BiFunction<Source, Expression, ? extends Expression> ctorRef) {
             this.functionType = FunctionType.HISTOGRAM;
             this.arity = PromqlFunctionArity.ONE;
@@ -596,6 +762,25 @@ public final class PromqlFunctionDefinition {
             return this;
         }
 
+        public PromqlFunctionDefinition.Builder histogramTernary(PromqlParamInfo p1, PromqlParamInfo p2, FunctionBuilder builder) {
+            this.functionType = FunctionType.HISTOGRAM;
+            this.arity = PromqlFunctionArity.fixed(3);
+            this.builder = builder;
+            this.params = List.of(p1, p2, INSTANT_VECTOR);
+            return this;
+        }
+
+        /**
+         * Configures the specialized logical plan node used for classic histograms.
+         */
+        public PromqlFunctionDefinition.Builder classicHistogramHandler(ClassicHistogramHandler classicHistogramHandler) {
+            if (functionType != FunctionType.HISTOGRAM) {
+                throw new IllegalStateException("classicHistogramHandler may only be configured for histogram functions");
+            }
+            this.classicHistogramHandler = Objects.requireNonNull(classicHistogramHandler);
+            return this;
+        }
+
         public PromqlFunctionDefinition.Builder scalar(Function<Source, ? extends Expression> ctorRef) {
             this.functionType = FunctionType.SCALAR;
             this.arity = PromqlFunctionArity.NONE;
@@ -609,6 +794,17 @@ public final class PromqlFunctionDefinition {
             this.arity = PromqlFunctionArity.NONE;
             this.builder = (source, target, ctx, extraParams) -> ctorRef.apply(source, ctx.step());
             this.params = List.of();
+            return this;
+        }
+
+        /**
+         * Builds a required-argument time-extraction function over an instant vector (e.g. {@code timestamp(v)}).
+         */
+        public PromqlFunctionDefinition.Builder unaryTimeExtraction(FunctionBuilder functionBuilder) {
+            this.functionType = FunctionType.TIME_EXTRACTION;
+            this.arity = PromqlFunctionArity.ONE;
+            this.builder = functionBuilder;
+            this.params = List.of(INSTANT_VECTOR);
             return this;
         }
 
@@ -633,7 +829,7 @@ public final class PromqlFunctionDefinition {
                         new ToDatetime(
                             source,
                             new Mul(source, new ToDouble(source, date), Literal.fromDouble(source, 1000.0)),
-                            ctx.configuration().withZoneId(ZoneOffset.UTC)
+                            ctx.configuration().withSetting(QuerySettings.TIME_ZONE, ZoneOffset.UTC)
                         ),
                         ctx.configuration()
                     );
@@ -665,6 +861,76 @@ public final class PromqlFunctionDefinition {
         }
 
         /**
+         * Configures a label metadata-manipulation function ({@code label_replace}, {@code label_join}).
+         * <p>
+         * Unlike the other function families, these are not lowered through the generic {@link FunctionBuilder}: they resolve
+         * into a dedicated logical node and are translated directly (see {@code ResolvePromqlFunctions} and
+         * {@code MetadataManipulationFunction#translate}). This method therefore only records the metadata - arity, parameters,
+         * and whether the trailing source-label parameter repeats - and installs a builder that fails fast if the generic path
+         * is ever invoked for one of these functions.
+         *
+         * @param arity    accepted argument-count range ({@code label_replace} is fixed at 5; {@code label_join} is 3..N)
+         * @param variadic whether the trailing parameter repeats an unbounded number of times ({@code label_join} sources)
+         * @param params   parameter descriptors, with a single representative entry for the repeating parameter when variadic
+         */
+        public PromqlFunctionDefinition.Builder metadataManipulation(
+            PromqlFunctionArity arity,
+            boolean variadic,
+            List<PromqlParamInfo> params
+        ) {
+            this.functionType = FunctionType.METADATA_MANIPULATION;
+            this.arity = arity;
+            this.variadic = variadic;
+            this.params = params;
+            this.builder = (source, target, ctx, extraParams) -> {
+                throw new UnsupportedOperationException(
+                    "label metadata-manipulation functions are translated directly, not built via the generic function builder"
+                );
+            };
+            return this;
+        }
+
+        /**
+         * Configures a result-ordering function ({@code sort}, {@code sort_desc}).
+         * <p>
+         * These are not lowered through the generic {@link FunctionBuilder}: they resolve into a dedicated logical node
+         * and ordering is injected by the result-ordering analyzer rule. This method therefore only records the metadata
+         * and installs a builder that fails fast if the generic path is ever invoked.
+         */
+        public PromqlFunctionDefinition.Builder resultOrdering() {
+            this.functionType = FunctionType.RESULT_ORDERING;
+            this.arity = PromqlFunctionArity.ONE;
+            this.params = List.of(INSTANT_VECTOR);
+            this.builder = throwingResultOrderingBuilder();
+            return this;
+        }
+
+        /**
+         * Configures a label-based result-ordering function ({@code sort_by_label}, {@code sort_by_label_desc}).
+         * Variadic in the label-name arguments after the instant vector. Like {@link #resultOrdering()}, these are not
+         * lowered through the generic {@link FunctionBuilder}.
+         */
+        public PromqlFunctionDefinition.Builder resultOrderingByLabel() {
+            this.functionType = FunctionType.RESULT_ORDERING;
+            this.arity = new PromqlFunctionArity(1, Integer.MAX_VALUE);
+            this.variadic = true;
+            this.params = List.of(
+                INSTANT_VECTOR,
+                PromqlParamInfo.of("label", PromqlDataType.SCALAR, "Name of a label to sort by (repeatable).")
+            );
+            this.builder = throwingResultOrderingBuilder();
+            return this;
+        }
+
+        private static FunctionBuilder throwingResultOrderingBuilder() {
+            return (source, target, ctx, extraParams) -> {
+                throw new UnsupportedOperationException(
+                    "result-ordering functions are translated directly, not built via the generic function builder"
+                );
+            };
+        }
+
+        /**
          * Build the {@link PromqlFunctionDefinition} with the given primary name.
          */
         public PromqlFunctionDefinition name(String name) {
@@ -672,13 +938,15 @@ public final class PromqlFunctionDefinition {
                 name,
                 functionType,
                 arity,
+                variadic,
                 builder,
                 description,
                 extendedDescription,
                 params,
                 examples,
                 counterSupport,
-                differenceFromPrometheus,
+                classicHistogramHandler,
+                stdDivergence,
                 stack
             );
         }

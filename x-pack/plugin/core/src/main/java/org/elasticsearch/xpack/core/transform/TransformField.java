@@ -47,11 +47,13 @@ public final class TransformField {
     public static final ParseField DEDUCE_MAPPINGS = new ParseField("deduce_mappings");
     public static final ParseField NUM_FAILURE_RETRIES = new ParseField("num_failure_retries");
     public static final ParseField UNATTENDED = new ParseField("unattended");
+    public static final ParseField INDEXER_REQUEST_TIMEOUT = new ParseField("indexer_request_timeout");
 
     public static final ParseField FIELD = new ParseField("field");
     public static final ParseField SYNC = new ParseField("sync");
     public static final ParseField TIME = new ParseField("time");
     public static final ParseField DELAY = new ParseField("delay");
+    public static final ParseField INITIAL_DELAY = new ParseField("initial_delay");
     public static final ParseField DEFER = new ParseField("defer");
     // TODO: Rename to "defer_data_validation" or similar to emphasize that not all validation is deferred
     public static final ParseField DEFER_VALIDATION = new ParseField("defer_validation");

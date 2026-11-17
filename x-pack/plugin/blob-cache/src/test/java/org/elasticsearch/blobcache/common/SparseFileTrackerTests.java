@@ -129,7 +129,7 @@ public class SparseFileTrackerTests extends ESTestCase {
         final long length = fileContents.length;
         final SparseFileTracker sparseFileTracker = new SparseFileTracker("test", length);
 
-        if (randomBoolean()) {
+        if (length > 0 && randomBoolean()) {
             final long rangeStart = randomLongBetween(0, length - 1);
             final long rangeEnd = randomLongBetween(rangeStart + 1, length);
             final var range = ByteRange.of(rangeStart, rangeEnd);
@@ -511,13 +511,18 @@ public class SparseFileTrackerTests extends ESTestCase {
 
         // Fill caller 2's gaps [30, 50) and [50, 80): future1 fires when B reaches 40;
         // future2 fires when the gap [50,80) reaches 70 (end of its subRange).
+        boolean future1ShouldBeDone = false;
         for (SparseFileTracker.Gap gap : gaps2List) {
             for (long i = gap.start(); i < gap.end(); i++) {
                 if (randomBoolean()) {
                     gap.onProgress(i + 1);
-                    if (i >= 40) {
-                        assertTrue(future1.isDone());
+                    // future1 is completed when gaps are filled to its upper boundary of 40. However, if the gap.onProgress is called
+                    // with the gap's end, i.e. 50, the gap's listeners are not invoked until gap.onCompletion is called. So we include
+                    // that in the condition check.
+                    if (i + 1 >= 40 && i + 1 != 50L) {
+                        future1ShouldBeDone = true;
                     }
+                    assertThat(future1.isDone(), equalTo(future1ShouldBeDone));
                 }
             }
             gap.onCompletion();
@@ -562,13 +567,18 @@ public class SparseFileTrackerTests extends ESTestCase {
         assertThat(gaps1List.get(0).end(), equalTo(30L));
 
         // Fill caller 2's gaps first: when B=[30,50) passes 40 the listener is not yet invoked
+        boolean future2ShouldBeDone = false;
         for (SparseFileTracker.Gap gap : gaps2List) {
             for (long i = gap.start(); i < gap.end(); i++) {
                 if (randomBoolean()) {
                     gap.onProgress(i + 1);
-                    if (i >= 70) {
-                        assertTrue(future2.isDone());
+                    // future2 is completed when gaps are filled to its upper boundary of 70. However, if the gap.onProgress is called
+                    // with the gap's end, i.e. 80, the gap's listeners are not invoked until gap.onCompletion is called. So we include
+                    // that in the condition check.
+                    if (i + 1 >= 70 && i + 1 != 80L) {
+                        future2ShouldBeDone = true;
                     }
+                    assertThat(future2.isDone(), equalTo(future2ShouldBeDone));
                 }
             }
             gap.onCompletion();
@@ -712,6 +722,94 @@ public class SparseFileTrackerTests extends ESTestCase {
             covered.set((int) range.start(), (int) range.end());
         }
         return covered.cardinality();
+    }
+
+    public void testSplitDoesNotForwardProgressPastAFailedLowerHalf() {
+        final int length = between(10, 1024);
+        final byte[] bytes = new byte[length];
+        final SparseFileTracker tracker = new SparseFileTracker("test", length);
+
+        // Register a listener on [0, length] but only waiting for the sub-range [0, firstReadPosition], which will be completed by
+        // the listeners from the following split read
+        final int firstReadPosition = between(1, length / 2);
+        final var firstReadListener = new PlainActionFuture<Void>();
+        tracker.waitForRange(ByteRange.of(0, length), ByteRange.of(0, firstReadPosition), firstReadListener);
+
+        // Trigger split at a position that is different from the firstReadPosition so that the new split
+        // listeners forward to firstReadListener
+        final int firstSplitPosition = randomValueOtherThan(firstReadPosition, () -> between(1, length - 1));
+        final var lowerOptGaps = tracker.waitForRange(
+            ByteRange.of(0, firstSplitPosition),
+            ByteRange.of(0, firstSplitPosition),
+            ActionTestUtils.assertNoSuccessListener(e -> {})
+        );
+        assertTrue(lowerOptGaps.isPresent());
+
+        // Lower half [0, firstSplitPosition) fails, no bytes are ever written for it.
+        final var lowerGaps = lowerOptGaps.get().claim();
+        assertThat(lowerGaps, hasSize(1));
+        lowerGaps.getFirst().onFailure(new ElasticsearchException("simulated"));
+
+        // Read the upper half and fill the range
+        final var upperGapListener = new PlainActionFuture<Void>();
+        final var upperOptGaps = tracker.waitForRange(
+            ByteRange.of(firstSplitPosition, length),
+            ByteRange.of(firstSplitPosition, length),
+            ActionTestUtils.assertNoFailureListener(upperGapListener::onResponse)
+        );
+
+        assertTrue(upperOptGaps.isPresent());
+        final var upperGaps = upperOptGaps.get().claim();
+        assertThat(upperGaps, hasSize(1));
+        // Randomly register another (smaller) read for the upper half. It must not lead to incorrect forward either.
+        if (randomBoolean()) {
+            tracker.waitForRange(
+                ByteRange.of(firstSplitPosition, length - 1),
+                ByteRange.of(firstSplitPosition, length - 1),
+                ActionTestUtils.assertNoFailureListener(r -> {})
+            );
+        }
+        // Upper half [firstSplitPosition, length) fills successfully; its progress must not be forwarded to the initial firstReadListener
+        fillGap(bytes, upperGaps.getFirst());
+
+        assertTrue(upperGapListener.isDone());
+        assertTrue(firstReadListener.isDone());
+        expectThrows(ElasticsearchException.class, firstReadListener::actionGet);
+
+        // tracker must not update the complete pointer since the lower half failed
+        assertThat(tracker.getComplete(), equalTo(0L));
+
+        // The filled upper range is available to future read
+        {
+            final var startOfAnotherUpperRange = between(firstSplitPosition, length - 1);
+            final var anotherUpperRange = ByteRange.of(startOfAnotherUpperRange, between(startOfAnotherUpperRange, length));
+            final var future = new PlainActionFuture<Void>();
+            assertTrue(
+                tracker.waitForRange(anotherUpperRange, anotherUpperRange, ActionTestUtils.assertNoFailureListener(future::onResponse))
+                    .isEmpty()
+            );
+            assertTrue(future.isDone());
+        }
+
+        // Read the lower range again and it should see the gap again and able to be re-filled
+        {
+            final var anotherLowerRange = ByteRange.of(0, between(firstSplitPosition, length));
+            final var future = new PlainActionFuture<Void>();
+            final var anotherOptGapsForLower = tracker.waitForRange(
+                anotherLowerRange,
+                anotherLowerRange,
+                ActionTestUtils.assertNoFailureListener(future::onResponse)
+            );
+            assertTrue(anotherOptGapsForLower.isPresent());
+            final var anotherGapsForLower = anotherOptGapsForLower.get().claim();
+            assertThat(anotherGapsForLower, hasSize(1));
+            // Fill the lower range
+            fillGap(bytes, anotherGapsForLower.getFirst());
+            assertTrue(future.isDone());
+        }
+
+        // Tracker's complete pointer should be updated since both lower and upper ranges are now filled
+        assertThat(tracker.getComplete(), equalTo((long) length));
     }
 
     public void testThreadSafety() throws InterruptedException {

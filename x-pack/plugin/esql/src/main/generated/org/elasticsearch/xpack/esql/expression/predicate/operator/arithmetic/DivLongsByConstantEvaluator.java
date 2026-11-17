@@ -72,12 +72,13 @@ public abstract class DivLongsByConstantEvaluator implements ExpressionEvaluator
   }
 
   public LongBlock eval(int positionCount, LongBlock lhsBlock) {
-    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
+        if (lhsBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (lhsBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -93,7 +94,7 @@ public abstract class DivLongsByConstantEvaluator implements ExpressionEvaluator
   }
 
   public LongVector eval(int positionCount, LongVector lhsVector) {
-    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
+    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         long lhs = lhsVector.getLong(p);
         result.appendLong(p, Div.processLongsByConstant(lhs, rhs()));
@@ -114,7 +115,7 @@ public abstract class DivLongsByConstantEvaluator implements ExpressionEvaluator
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }

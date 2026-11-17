@@ -82,6 +82,7 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
                     queryResults.length()
                 );
                 final CountDown counter = new CountDown(docIdsToLoad.length);
+                final Runnable onFetchPhaseFinished = () -> sendResponseAndReleaseFetchResults(reducedQueryPhase);
                 for (int i = 0; i < docIdsToLoad.length; i++) {
                     final int index = i;
                     final List<Integer> docIds = docIdsToLoad[index];
@@ -108,7 +109,7 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
                                     accumulateDirectoryMetrics(response.getDirectoryMetrics());
                                     fetchResults.setOnce(response.getShardIndex(), response);
                                     response.incRef();
-                                    consumeResponse(counter, reducedQueryPhase);
+                                    countDownAndFinish(counter, onFetchPhaseFinished);
                                 }
 
                                 @Override
@@ -119,7 +120,12 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
                                         querySearchResult.getContextId(),
                                         t,
                                         querySearchResult.getSearchShardTarget(),
-                                        () -> sendResponsePhase(reducedQueryPhase, fetchResults)
+                                        () -> new SearchPhase("fetch") {
+                                            @Override
+                                            protected void run() {
+                                                onFetchPhaseFinished.run();
+                                            }
+                                        }
                                     );
                                 }
                             }
@@ -127,19 +133,23 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
                     } else {
                         // the counter is set to the total size of docIdsToLoad
                         // which can have null values so we have to count them down too
-                        consumeResponse(counter, reducedQueryPhase);
+                        countDownAndFinish(counter, onFetchPhaseFinished);
                     }
                 }
             }
         };
     }
 
-    private void consumeResponse(CountDown counter, SearchPhaseController.ReducedQueryPhase reducedQueryPhase) {
+    private static void countDownAndFinish(CountDown counter, Runnable onFinish) {
         if (counter.countDown()) {
-            sendResponse(reducedQueryPhase, fetchResults);
-            for (FetchSearchResult fetchSearchResult : fetchResults.asList()) {
-                fetchSearchResult.decRef();
-            }
+            onFinish.run();
+        }
+    }
+
+    private void sendResponseAndReleaseFetchResults(SearchPhaseController.ReducedQueryPhase reducedQueryPhase) {
+        sendResponse(reducedQueryPhase, fetchResults);
+        for (FetchSearchResult fetchSearchResult : fetchResults.asList()) {
+            fetchSearchResult.decRef();
         }
     }
 

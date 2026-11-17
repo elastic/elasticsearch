@@ -12,12 +12,15 @@ package org.elasticsearch.telemetry.apm.internal.export.otelsdk;
 import io.opentelemetry.sdk.common.export.RetryPolicy;
 
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 
+import java.time.Duration;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.elasticsearch.common.settings.Setting.Property.NodeScope;
 import static org.elasticsearch.common.settings.Setting.Property.OperatorDynamic;
@@ -38,7 +41,7 @@ public final class OtelSdkSettings {
 
     // --- Resource attributes (all signals)
 
-    /** External OTel resource attributes attached to every metric, span and log record exported by the SDK path. */
+    /** External OTel resource attributes attached to every metric and span exported by the SDK path. */
     public static final Setting.AffixSetting<String> TELEMETRY_RESOURCE_ATTRIBUTES = Setting.prefixKeySetting(
         "telemetry.resource.",
         key -> Setting.simpleString(key, NodeScope)
@@ -47,8 +50,31 @@ public final class OtelSdkSettings {
     // --- Shared OTLP export transport (metrics + traces)
 
     /** URL ({@code http://host:port}, no path) where the SDK exports metrics and spans.
-     * Required when the SDK metrics or trace path is active. */
-    public static final Setting<String> TELEMETRY_EXPORT_ENDPOINT = Setting.simpleString("telemetry.export.endpoint", "", NodeScope);
+     * Required when the SDK metrics or trace path is active. Defaults to the legacy
+     * {@code telemetry.agent.server_url}, or to {@code telemetry.agent.server_urls} when that holds a single URL. */
+    public static final Setting<String> TELEMETRY_EXPORT_ENDPOINT = new Setting<>(
+        "telemetry.export.endpoint",
+        OtelSdkSettings::resolveServerUrls,
+        Function.identity(),
+        NodeScope
+    );
+
+    private static String resolveServerUrls(Settings settings) {
+        String serverUrl = settings.get("telemetry.agent.server_url");
+        if (serverUrl != null) {
+            return serverUrl;
+        }
+        List<String> serverUrls = settings.getAsList("telemetry.agent.server_urls");
+        return serverUrls.size() == 1 ? serverUrls.get(0) : "";
+    }
+
+    /** When {@code false}, TLS certificate verification is disabled for the OTLP exporters.
+     * Defaults to the legacy {@code telemetry.agent.verify_server_cert} when set. */
+    public static final Setting<Boolean> TELEMETRY_EXPORT_VERIFY_SERVER_CERT = Setting.boolSetting(
+        "telemetry.export.verify_server_cert",
+        settings -> settings.get("telemetry.agent.verify_server_cert", "true"),
+        NodeScope
+    );
 
     /**
      * Initial backoff of the shared OTLP retry policy ({@link #OTLP_RETRY_POLICY}).
@@ -62,7 +88,10 @@ public final class OtelSdkSettings {
      * */
     public static final double OTLP_RETRY_BACKOFF_MULTIPLIER = 5;
 
-    /** Retry policy shared by the metrics and traces OTLP exporters. */
+    /**
+     * Retry policy for the metrics and traces OTLP exporters.
+     * Log export uses {@link #TELEMETRY_LOGS_RETRY_POLICY}.
+     */
     public static final RetryPolicy OTLP_RETRY_POLICY = RetryPolicy.builder()
         .setMaxAttempts(3)
         .setInitialBackoff(OTLP_RETRY_INITIAL_BACKOFF.toDuration())
@@ -104,6 +133,14 @@ public final class OtelSdkSettings {
 
     // --- Metrics
 
+    /** When {@code true}, also emit the OTel semantic-convention JVM metric names alongside the legacy APM-agent names,
+     * to support migrating dashboards to the semconv names (ES-14386). */
+    public static final Setting<Boolean> NODE_METRICS_OTEL_SEMCONV_ENABLED_SETTING = Setting.boolSetting(
+        "node.metrics.otel_semconv.enabled",
+        false,
+        NodeScope
+    );
+
     /** Disk cap for buffered batches while OTLP is unreachable. {@code 0b} disables buffering. */
     public static final Setting<ByteSizeValue> TELEMETRY_METRICS_BUFFER_DISK_SIZE = Setting.byteSizeSetting(
         "telemetry.metrics.buffer.disk_size",
@@ -116,18 +153,55 @@ public final class OtelSdkSettings {
     /** Buffered entries older than this are dropped. */
     public static final Setting<TimeValue> TELEMETRY_METRICS_BUFFER_TTL = Setting.timeSetting(
         "telemetry.metrics.buffer.ttl",
-        TimeValue.timeValueHours(12),
+        TimeValue.timeValueHours(48),
+        NodeScope
+    );
+
+    /**
+     * Instrument name patterns whose metrics are dropped.
+     * Patterns may contain the wildcards {@code *} (any run of characters) and {@code ?} (a single character).
+     */
+    public static final Setting<List<String>> TELEMETRY_METRICS_DISABLED = Setting.stringListSetting(
+        "telemetry.metrics.disabled",
+        NodeScope
+    );
+
+    /**
+     * Whether the per-instrument collection-time histogram ({@code es.apm.metrics.instrument.collection_time.histogram}) is
+     * recorded. Off by default because it adds one series per observable instrument; enable it at runtime to attribute metric
+     * collection cost to a specific instrument, then disable it again.
+     */
+    public static final Setting<Boolean> TELEMETRY_METRICS_INSTRUMENT_TIMING_ENABLED = Setting.boolSetting(
+        "telemetry.metrics.instrument_timing.enabled",
+        false,
+        OperatorDynamic,
         NodeScope
     );
 
     // --- Traces
 
     /** Maximum depth of child spans per request. {@code 0} exports only the root span.
-     * Spans from an upstream {@code traceparent} are not counted. */
+     * Spans from an upstream {@code traceparent} are not counted.
+     * Defaults to unlimited when a span limit is set, so that limit applies at any depth; otherwise {@code 0}. */
     public static final Setting<Integer> TELEMETRY_TRACING_MAX_DEPTH = Setting.intSetting(
         "telemetry.tracing.max_depth",
+        settings -> settings.get("telemetry.tracing.max_spans") != null || settings.get("telemetry.agent.transaction_max_spans") != null
+            ? String.valueOf(Integer.MAX_VALUE)
+            : "0",
         0,
+        Integer.MAX_VALUE,
+        OperatorDynamic,
+        NodeScope
+    );
+
+    /** Maximum number of spans recorded under a local root span, not counting the root. Spans beyond it, and their
+     * children, are not recorded. Defaults to the legacy {@code telemetry.agent.transaction_max_spans} when set,
+     * otherwise 500. */
+    public static final Setting<Integer> TELEMETRY_TRACING_MAX_SPANS = Setting.intSetting(
+        "telemetry.tracing.max_spans",
+        settings -> String.valueOf(Math.max(0, settings.getAsInt("telemetry.agent.transaction_max_spans", 500))),
         0,
+        Integer.MAX_VALUE,
         OperatorDynamic,
         NodeScope
     );
@@ -172,12 +246,12 @@ public final class OtelSdkSettings {
 
     // --- Logs
 
-    /** OTLP/gRPC endpoint URL where the SDK exports audit log records. Required when {@link #TELEMETRY_LOGS_ENABLED} is true. */
+    /** OTLP/gRPC endpoint URL where the SDK exports audit log records. Required when {@link #TELEMETRY_LOGS_AUDIT_ENABLED} is true. */
     public static final Setting<String> TELEMETRY_LOGS_ENDPOINT = Setting.simpleString("telemetry.logs.endpoint", "", NodeScope);
 
     /** Whether the OTel SDK audit-log export path is active. When false, {@link OtelSdkExportLogsSupplier} installs nothing. */
-    public static final Setting<Boolean> TELEMETRY_LOGS_ENABLED = Setting.boolSetting(
-        "telemetry.logs.enabled",
+    public static final Setting<Boolean> TELEMETRY_LOGS_AUDIT_ENABLED = Setting.boolSetting(
+        "telemetry.logs.audit.enabled",
         false,
         new Setting.Validator<>() {
             @Override
@@ -187,7 +261,7 @@ public final class OtelSdkSettings {
             public void validate(Boolean value, Map<Setting<?>, Object> settings) {
                 if (value && ((String) settings.get(TELEMETRY_LOGS_ENDPOINT)).isEmpty()) {
                     throw new IllegalArgumentException(
-                        TELEMETRY_LOGS_ENDPOINT.getKey() + " must be configured when telemetry.logs.enabled=true"
+                        TELEMETRY_LOGS_ENDPOINT.getKey() + " must be configured when telemetry.logs.audit.enabled=true"
                     );
                 }
             }
@@ -195,6 +269,138 @@ public final class OtelSdkSettings {
             @Override
             public Iterator<Setting<?>> settings() {
                 return List.<Setting<?>>of(TELEMETRY_LOGS_ENDPOINT).iterator();
+            }
+        },
+        NodeScope
+    );
+
+    public static final Setting<Boolean> TELEMETRY_LOGS_QUERYLOG_ENABLED = Setting.boolSetting(
+        "telemetry.logs.querylog.enabled",
+        false,
+        new Setting.Validator<>() {
+            @Override
+            public void validate(Boolean value) {}
+
+            @Override
+            public void validate(Boolean value, Map<Setting<?>, Object> settings) {
+                if (value && ((String) settings.get(TELEMETRY_LOGS_ENDPOINT)).isEmpty()) {
+                    throw new IllegalArgumentException(
+                        TELEMETRY_LOGS_ENDPOINT.getKey() + " must be configured when telemetry.logs.querylog.enabled=true"
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                return List.<Setting<?>>of(TELEMETRY_LOGS_ENDPOINT).iterator();
+            }
+        },
+        NodeScope
+    );
+
+    /**
+     * How long one log batch may be retried, and how long the exporter and the batch processor wait for that export.
+     * Both timeouts cover every attempt together.
+     *
+     * <p>Five attempts wait 5s, 10s, 20s, and 40s: 75s before the SDK's ±20% jitter, and 60–90s after it, so the last
+     * attempt is never earlier than 60s. Allowing 10s per attempt adds 50s, for a total of up to about 140s.
+     * The 150s timeout leaves room for that window. OkHttp's default read and write timeouts are 10s. Metrics and traces keep
+     * {@link #OTLP_RETRY_POLICY}, which is sized to finish inside one {@link #TELEMETRY_EXPORT_INTERVAL}.
+     */
+    public static final Duration TELEMETRY_LOGS_EXPORT_TIMEOUT = Duration.ofSeconds(150);
+
+    /** Retry policy for audit and query log OTLP export. See {@link #TELEMETRY_LOGS_EXPORT_TIMEOUT}. */
+    public static final RetryPolicy TELEMETRY_LOGS_RETRY_POLICY = RetryPolicy.builder()
+        .setMaxAttempts(5)
+        .setInitialBackoff(Duration.ofSeconds(5))
+        .setBackoffMultiplier(2)
+        .setMaxBackoff(Duration.ofSeconds(40))
+        .build();
+
+    /**
+     * Maximum number of log records the {@code BatchLogRecordProcessor} buffers before dropping.
+     * A retried batch can be held for up to about 140s, so 10_000 records is about 70 records/s over that window,
+     * and about 30 MB at 3 KB/record.
+     */
+    public static final Setting<Integer> TELEMETRY_LOGS_MAX_QUEUE_SIZE = Setting.intSetting(
+        "telemetry.logs.max_queue_size",
+        10_000,
+        1,
+        NodeScope
+    );
+
+    /**
+     * PEM-encoded CA certificate(s) used to verify the otel-delivery-gateway's server certificate.
+     * Multiple files are concatenated in PEM order. Paths are resolved relative to the Elasticsearch
+     * config directory when not absolute. When empty, the OTel exporter's default TLS handling is used.
+     */
+    public static final Setting<List<String>> TELEMETRY_LOGS_SSL_CERTIFICATE_AUTHORITIES = Setting.stringListSetting(
+        "telemetry.logs.ssl.certificate_authorities",
+        NodeScope
+    );
+
+    /**
+     * Path to the PEM-encoded client certificate for mTLS authentication to the otel-delivery-gateway.
+     * Must be set together with {@link #TELEMETRY_LOGS_SSL_KEY}.
+     * Path is resolved relative to the Elasticsearch config directory when not absolute.
+     */
+    public static final Setting<String> TELEMETRY_LOGS_SSL_CERTIFICATE = Setting.simpleString(
+        "telemetry.logs.ssl.certificate",
+        "",
+        new Setting.Validator<>() {
+            @Override
+            public void validate(String value) {}
+
+            @Override
+            public void validate(String value, Map<Setting<?>, Object> settings) {
+                String key = (String) settings.get(TELEMETRY_LOGS_SSL_KEY);
+                if (value.isEmpty() != key.isEmpty()) {
+                    throw new IllegalArgumentException(
+                        TELEMETRY_LOGS_SSL_CERTIFICATE.getKey()
+                            + " and "
+                            + TELEMETRY_LOGS_SSL_KEY.getKey()
+                            + " must both be set or both be unset"
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                return List.<Setting<?>>of(TELEMETRY_LOGS_SSL_KEY).iterator();
+            }
+        },
+        NodeScope
+    );
+
+    /**
+     * Path to the PEM-encoded private key for the client certificate ({@link #TELEMETRY_LOGS_SSL_CERTIFICATE}).
+     * Must be set together with {@link #TELEMETRY_LOGS_SSL_CERTIFICATE}.
+     * Supports PKCS#8 ({@code BEGIN PRIVATE KEY}) and PKCS#1 RSA ({@code BEGIN RSA PRIVATE KEY}) formats.
+     * Encrypted keys are not supported.
+     */
+    public static final Setting<String> TELEMETRY_LOGS_SSL_KEY = Setting.simpleString(
+        "telemetry.logs.ssl.key",
+        "",
+        new Setting.Validator<>() {
+            @Override
+            public void validate(String value) {}
+
+            @Override
+            public void validate(String value, Map<Setting<?>, Object> settings) {
+                String cert = (String) settings.get(TELEMETRY_LOGS_SSL_CERTIFICATE);
+                if (value.isEmpty() != cert.isEmpty()) {
+                    throw new IllegalArgumentException(
+                        TELEMETRY_LOGS_SSL_CERTIFICATE.getKey()
+                            + " and "
+                            + TELEMETRY_LOGS_SSL_KEY.getKey()
+                            + " must both be set or both be unset"
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                return List.<Setting<?>>of(TELEMETRY_LOGS_SSL_CERTIFICATE).iterator();
             }
         },
         NodeScope

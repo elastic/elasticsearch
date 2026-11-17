@@ -23,12 +23,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ColumnarIndexModeTests extends ESTestCase {
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-    }
-
     public void testColumnarFromString() {
         assertThat(IndexMode.fromString("columnar"), equalTo(IndexMode.COLUMNAR));
         assertThat(IndexMode.fromString("COLUMNAR"), equalTo(IndexMode.COLUMNAR));
@@ -83,11 +77,23 @@ public class ColumnarIndexModeTests extends ESTestCase {
         assertThat(IndexMode.LOGSDB.isColumnar(), equalTo(true));
         assertThat(IndexMode.COLUMNAR.isColumnar(), equalTo(true));
         assertThat(IndexMode.LOGSDB_COLUMNAR.isColumnar(), equalTo(true));
+        assertThat(IndexMode.VECTORDB_DOCUMENT.isColumnar(), equalTo(false));
+        assertThat(IndexMode.VECTORDB_COLUMNAR.isColumnar(), equalTo(true));
         assertThat(IndexMode.LOOKUP.isColumnar(), equalTo(false));
     }
 
+    public void testIsSearchOptimizedColumnar() {
+        assertThat(IndexMode.STANDARD.isSearchOptimizedColumnar(), equalTo(false));
+        assertThat(IndexMode.TIME_SERIES.isSearchOptimizedColumnar(), equalTo(false));
+        assertThat(IndexMode.LOGSDB.isSearchOptimizedColumnar(), equalTo(false));
+        assertThat(IndexMode.COLUMNAR.isSearchOptimizedColumnar(), equalTo(false));
+        assertThat(IndexMode.LOGSDB_COLUMNAR.isSearchOptimizedColumnar(), equalTo(false));
+        assertThat(IndexMode.VECTORDB_DOCUMENT.isSearchOptimizedColumnar(), equalTo(false));
+        assertThat(IndexMode.VECTORDB_COLUMNAR.isSearchOptimizedColumnar(), equalTo(true));
+        assertThat(IndexMode.LOOKUP.isSearchOptimizedColumnar(), equalTo(false));
+    }
+
     public void testIndexDisabledByDefault() {
-        assumeTrue("columnar feature flag must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = IndexSettingsTests.newIndexMeta(
             "test",
             Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build()

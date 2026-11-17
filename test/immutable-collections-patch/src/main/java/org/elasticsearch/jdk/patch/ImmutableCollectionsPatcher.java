@@ -10,10 +10,10 @@
 package org.elasticsearch.jdk.patch;
 
 import org.objectweb.asm.ClassReader;
-import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
-import org.objectweb.asm.FieldVisitor;
 import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.FieldNode;
 
 import java.net.URI;
 import java.nio.file.Files;
@@ -31,27 +31,30 @@ import java.nio.file.Paths;
  */
 public class ImmutableCollectionsPatcher {
     private static final String CLASSFILE = "java.base/java/util/ImmutableCollections.class";
+    private static final String STABLE_DESC = "Ljdk/internal/vm/annotation/Stable;";
 
     public static void main(String[] args) throws Exception {
         Path outputDir = Paths.get(args[0]);
         byte[] originalClassFile = Files.readAllBytes(Paths.get(URI.create("jrt:/" + CLASSFILE)));
 
         ClassReader classReader = new ClassReader(originalClassFile);
-        ClassWriter classWriter = new ClassWriter(classReader, 0);
-        classReader.accept(new ClassVisitor(Opcodes.ASM9, classWriter) {
-            @Override
-            public void visit(int version, int access, String name, String signature, String superName, String[] interfaces) {
-                super.visit(version, Opcodes.ACC_PUBLIC, name, signature, superName, interfaces);
-            }
-
-            @Override
-            public FieldVisitor visitField(int access, String name, String descriptor, String signature, Object value) {
-                if (name.equals("SALT32L") || name.equals("REVERSE")) {
-                    access = Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC;
+        ClassNode classNode = new ClassNode();
+        classReader.accept(classNode, 0);
+        classNode.access = Opcodes.ACC_PUBLIC;
+        for (FieldNode field : classNode.fields) {
+            if (field.name.equals("SALT32L") || field.name.equals("REVERSE")) {
+                // Since JDK 27, these fields are non-final but @Stable. Modifying fields without removing @Stable
+                // causes unpredictable behaviors from inconsistencies by different iterators using different values
+                // for SALT32L and REVERSE.
+                field.access = Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC;
+                if (field.visibleAnnotations != null) {
+                    field.visibleAnnotations.removeIf(annotation -> annotation.desc.equals(STABLE_DESC));
                 }
-                return super.visitField(access, name, descriptor, signature, value);
             }
-        }, 0);
+        }
+        ClassWriter classWriter = new ClassWriter(0);
+        classNode.accept(classWriter);
+
         Path outputFile = outputDir.resolve(CLASSFILE);
         Files.createDirectories(outputFile.getParent());
         Files.write(outputFile, classWriter.toByteArray());

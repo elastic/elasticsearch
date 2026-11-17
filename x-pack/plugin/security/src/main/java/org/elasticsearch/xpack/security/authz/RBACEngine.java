@@ -148,7 +148,8 @@ public class RBACEngine implements AuthorizationEngine {
         SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME,
         TransportClearScrollAction.NAME,
         "indices:data/read/sql/close_cursor",
-        SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME
+        SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME,
+        SearchTransportService.MARK_CONTEXT_RELOCATING_ACTION_NAME
     );
 
     private final Settings settings;
@@ -304,6 +305,7 @@ public class RBACEngine implements AuthorizationEngine {
             case "indices:data/read/sql":
             case "indices:data/read/sql/translate":
             case "indices:data/read/esql":
+            case "indices:data/read/esql/stream":
             case "indices:data/read/esql/compute":
                 if (request instanceof BulkShardRequest) {
                     return false;
@@ -444,7 +446,8 @@ public class RBACEngine implements AuthorizationEngine {
                         && request instanceof IndicesRequest.RemoteClusterShardRequest shardsRequest
                         && shardsRequest.shards() != null) {
                         for (ShardId shardId : shardsRequest.shards()) {
-                            if (shardId != null && shardIdAuthorized(shardsRequest, shardId, result.getIndicesAccessControl()) == false) {
+                            if (shardId != null
+                                && shardIdAuthorized(shardsRequest, shardId, result.getIndicesAccessControl(), metadata) == false) {
                                 listener.onResponse(IndexAuthorizationResult.DENIED);
                                 return;
                             }
@@ -459,22 +462,40 @@ public class RBACEngine implements AuthorizationEngine {
         }
     }
 
-    private static boolean shardIdAuthorized(IndicesRequest request, ShardId shardId, IndicesAccessControl accessControl) {
+    private static boolean shardIdAuthorized(
+        IndicesRequest request,
+        ShardId shardId,
+        IndicesAccessControl accessControl,
+        ProjectMetadata metadata
+    ) {
         var shardIdAccessPermissions = accessControl.getIndexPermissions(shardId.getIndexName());
-        if (shardIdAccessPermissions != null) {
-            return true;
+        if (shardIdAccessPermissions == null) {
+            logger.warn(
+                Strings.format(
+                    "bad request of type [%s], request's stated indices %s are authorized but specified internal shard "
+                        + "ID %s is not authorized",
+                    request.getClass().getCanonicalName(),
+                    request.indices(),
+                    shardId
+                )
+            );
+            return false;
         }
 
-        logger.warn(
-            Strings.format(
-                "bad request of type [%s], request's stated indices %s are authorized but specified internal shard "
-                    + "ID %s is not authorized",
-                request.getClass().getCanonicalName(),
-                request.indices(),
-                shardId
-            )
-        );
-        return false;
+        if (metadata.hasIndex(shardId.getIndex()) == false) {
+            logger.warn(
+                Strings.format(
+                    "bad request of type [%s], request's stated indices %s are authorized but specified internal shard "
+                        + "ID %s does not match the authorized index in the cluster metadata",
+                    request.getClass().getCanonicalName(),
+                    request.indices(),
+                    shardId
+                )
+            );
+            return false;
+        }
+
+        return true;
     }
 
     private static boolean allowsRemoteIndices(TransportRequest transportRequest) {
@@ -755,8 +776,8 @@ public class RBACEngine implements AuthorizationEngine {
             } catch (UnsupportedOperationException e) {
                 listener.onFailure(
                     new IllegalArgumentException(
-                        "Cannot retrieve privileges for API keys with assigned role descriptors. "
-                            + "Please use the Get API key information API https://ela.st/es-api-get-api-key",
+                        "Cannot retrieve privileges for a subject whose effective privileges are constrained by limited-by roles. "
+                            + "For API keys, use the Get API key information API https://ela.st/es-api-get-api-key",
                         e
                     )
                 );

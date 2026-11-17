@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -32,6 +33,8 @@ import java.util.stream.Collectors;
  */
 public class DirectoryMetrics implements ToXContentFragment, Writeable {
     public static final DirectoryMetrics EMPTY = new DirectoryMetrics(Map.of());
+
+    public static final String BLOB_STORE_CACHE_METRICS_NAME = "blob_store_cache";
 
     public interface PluggableMetrics<T extends PluggableMetrics<T>> extends ToXContentObject, NamedWriteable {
         /**
@@ -69,6 +72,36 @@ public class DirectoryMetrics implements ToXContentFragment, Writeable {
          */
         default <R> R cast(Class<R> clazz) {
             return clazz.cast(this);
+        }
+    }
+
+    @FunctionalInterface
+    public interface Capture {
+
+        Capture NOOP = () -> () -> DirectoryMetrics.EMPTY;
+
+        /**
+         * Opens a measurement window on the calling thread, returning a supplier of the delta since this call.
+         */
+        Supplier<DirectoryMetrics> start();
+
+        /**
+         * Measures the {@link DirectoryMetrics} consumed by {@code block} and accumulates the delta into {@code sink}.
+         */
+        default <T> T measure(Supplier<T> block, AtomicReference<DirectoryMetrics> sink) {
+            final Supplier<DirectoryMetrics> delta = start();
+            try {
+                return block.get();
+            } finally {
+                DirectoryMetrics.accumulate(sink, delta.get());
+            }
+        }
+
+        default void measure(Runnable block, AtomicReference<DirectoryMetrics> sink) {
+            measure(() -> {
+                block.run();
+                return null;
+            }, sink);
         }
     }
 
@@ -114,6 +147,13 @@ public class DirectoryMetrics implements ToXContentFragment, Writeable {
             entries.putAll(metric.entries());
         }
         return Collections.unmodifiableMap(entries);
+    }
+
+    public static void accumulate(AtomicReference<DirectoryMetrics> ref, DirectoryMetrics incoming) {
+        if (incoming == null || incoming.isEmpty()) {
+            return;
+        }
+        ref.accumulateAndGet(incoming, (current, in) -> current.isEmpty() ? in : current.merge(in));
     }
 
     /**

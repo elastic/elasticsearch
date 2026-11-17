@@ -343,7 +343,7 @@ This configuration is appropriate when full source fidelity is required, such as
 
 ## Automatically quantize vectors for kNN search [dense-vector-quantization]
 
-The `dense_vector` field type supports quantization to reduce the memory footprint required when [searching](docs-content://solutions/search/vector/knn.md#approximate-knn) `float` vectors. The supported vector quantization strategies for `dense_vector` kNN indexing are:
+The `dense_vector` field type supports quantization to reduce the memory footprint required when [searching](docs-content://solutions/search/vector/knn/approximate-knn.md) `float` vectors. The supported vector quantization strategies for `dense_vector` kNN indexing are:
 - [`int8`](#dense-vector-quantization-int8)
 - [`int4`](#dense-vector-quantization-int4)
 - [`bbq`](#dense-vector-quantization-bbq), available as:
@@ -371,7 +371,7 @@ PUT my-bbq-disk-index
 }
 ```
 
-Quantized vectors can use [oversampling and rescoring](docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) to improve accuracy on approximate kNN search results.
+Quantized vectors can use [oversampling and rescoring](docs-content://solutions/search/vector/knn/optimize-performance-accuracy.md#dense-vector-knn-search-rescoring) to improve accuracy on approximate kNN search results.
 
 ::::{note}
 Quantization will continue to keep the raw float vector values on disk for reranking, reindexing, and quantization improvements over the lifetime of the data. This means disk usage will increase by ~25% for `int8`, ~12.5% for `int4`, and ~3.1% for `bbq` due to the overhead of storing the quantized and raw vectors.
@@ -579,14 +579,20 @@ $$$dense-vector-index-options$$$
 `ef_construction`
 :   (Optional, integer) The number of candidates to track while assembling the list of nearest neighbors for each new node. Defaults to `100`. Only applicable to `hnsw`, `int8_hnsw`, `int4_hnsw` and `bbq_hnsw` index types.
 
+`flat_index_threshold` {applies_to}`stack: ga 9.4`
+:   (Optional, integer) The segment document count threshold below which graph or IVF construction is skipped in favor of brute-force flat search. `-1` (default) defers to format-specific defaults. `0` always builds the graph or IVF structure. A positive value overrides the format default. Only applicable to `hnsw`, `int8_hnsw`, `int4_hnsw`, `bbq_hnsw`, and `bbq_disk` index types.
+
 `default_visit_percentage` {applies_to}`stack: ga 9.2`
 :   (Optional, integer) Only applicable to `bbq_disk`. Must be between 0 and 100.  0 will default to using `num_candidates` for calculating the percent visited. Increasing `default_visit_percentage` tends to improve the accuracy of the final results. Defaults to ~1% per shard for every 1 million vectors.
 
 `precondition` {applies_to}`stack: ga 9.4`
-:   (Optional, boolean) Only applicable to `bbq_disk`. When `true` transforms the indexed vectors using a random orthogonal projection. This can help improve accuracy when any of the vector components are not normally distributed. Defaults to `false`.
+:   (Optional, boolean) Only applicable to `bbq_disk`. When `true` transforms the indexed vectors using a random orthogonal projection. This can help improve accuracy when any of the vector components are not normally distributed. Defaults to `false`. Cannot be changed after the field is created.
 
 `cluster_size` {applies_to}`stack: ga 9.2`
 :   (Optional, integer) Only applicable to `bbq_disk`.  The number of vectors per cluster.  Smaller cluster sizes increases accuracy at the cost of performance. Defaults to `384`. Must be a value between `64` and `65536`.
+
+`bits` {applies_to}`stack: ga 9.4`
+:   (Optional, integer) Only applicable to `bbq_disk`. The number of bits per dimension for quantization encoding. Valid values are `1` (default), `2`, `4`, or `7`. Higher values increase fidelity at the cost of slightly more disk space and slower queries. When no `rescore_vector` is specified, `bits` automatically adjusts the default oversampling: `1` uses 3.0x, `2` uses 1.5x, `4` and `7` disable oversampling. This setting can be changed without reindexing. Refer to [Quantize bits](/reference/elasticsearch/mapping-reference/bbq.md#bbq-bits) for details.
 
 `rescore_vector` {applies_to}`stack: preview =9.0, ga 9.1+`
 :   (Optional, object) An optional section that configures automatic vector rescoring on knn queries for the given field. Only applicable to quantized index types.
@@ -597,11 +603,41 @@ $$$dense-vector-index-options$$$
     * Exactly `0` to indicate no oversampling and rescoring should occur {applies_to}`stack: ga 9.1`
     :   The higher the value, the more vectors will be gathered and rescored with the raw values per shard.
     :   In case a knn query specifies a `rescore_vector` parameter, the query `rescore_vector` parameter will be used instead.
-    :   See [oversampling and rescoring quantized vectors](docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) for details.
+    :   For `bbq_disk` fields with auto-calibration enabled, mapping `oversample` is a fallback when a segment has no calibrated value.
+        When no query-time `rescore_vector` is set, calibrated segments use their per-segment oversample factors.
+        Refer to [Auto-calibration for `bbq_disk`](/reference/elasticsearch/mapping-reference/bbq.md#bbq-auto-calibration) for the full resolution order.
+    :   See [oversampling and rescoring quantized vectors](docs-content://solutions/search/vector/knn/optimize-performance-accuracy.md#dense-vector-knn-search-rescoring) for details.
 ::::
 
 `on_disk_rescore` {applies_to}`stack: preview 9.3` {applies_to}`serverless: unavailable`
-:   (Optional, boolean) Only applicable to quantized HNSW and `bbq_disk` index types. When `true`, vector rescoring will read the raw vector data directly from disk, and will not copy it in memory. This can improve performance when vector data is larger than the amount of available RAM. This setting only applies to newly-indexed vectors; after changing this setting, the vectors must be reindexed or force-merged to apply the new setting to the whole index. Defaults to `false`.
+:   (Optional, boolean) Only applicable to quantized HNSW and `bbq_disk` index types. When `true`, vector rescoring will read the raw vector data directly from disk, and will not copy it in memory. This can improve performance when vector data is larger than the amount of available RAM. This setting only applies to newly-indexed vectors; after changing this setting, the vectors must be reindexed or force-merged to apply the new setting to the whole index. Defaults to `false`. Merges have their own option, `on_disk_merge`, below.
+
+`on_disk_merge` {applies_to}`stack: preview 9.6` {applies_to}`serverless: unavailable`
+:   (Optional, boolean) When `true`, direct I/O is used where possible while merging the field's vector data, so that a merge does not displace what searches keep in memory. Can be changed with a mapping update, which applies to later merges; a merge reads each source segment with the setting that segment was written with, so segments written before the change keep the old behavior until they are merged away. Defaults to `false`.
+
+`auto_calibrate` {applies_to}`stack: ga 9.5`
+:   (Optional, boolean or string) Only applicable to `bbq_disk`.
+    When enabled, {{es}} automatically selects the optimal quantization encoding, oversampling factor, and preconditioning for each merged segment based on the actual recall characteristics of the merged corpus.
+    Segments containing fewer than 10,000 vectors after merging are not calibrated and when not otherwise specified in the mappings, use the default oversampling factor of 3.0x.
+    Refer to [Auto-calibration for `bbq_disk`](/reference/elasticsearch/mapping-reference/bbq.md#bbq-auto-calibration) for details.
+
+::::{applies-switch}
+
+:::{applies-item} stack: ga 9.6+
+- `auto_calibrate` accepts a boolean or a [valid profile name](/reference/elasticsearch/mapping-reference/bbq.md#bbq-auto-calibration-profiles).
+- Auto-calibration is enabled by default for indices created in 9.6 or later, using [the `iso_sizing` profile](/reference/elasticsearch/mapping-reference/bbq.md#bbq-auto-calibration-profiles).
+  Indices created before 9.6 keep the previous default, which is disabled.
+- The value can be changed on an existing field with the [update mapping API]({{es-apis}}operation/operation-indices-put-mapping).
+  Refer to [Changing `auto_calibrate` on an existing field](/reference/elasticsearch/mapping-reference/bbq.md#bbq-auto-calibration-update) for details.
+:::
+
+:::{applies-item} stack: ga =9.5
+- `auto_calibrate` only accepts a boolean.
+- Auto-calibration is disabled by default.
+- The value cannot be changed after the field is created.
+:::
+
+::::
 :::::
 
 
@@ -717,10 +753,10 @@ POST /my-bit-vectors/_search?filter_path=hits.hits
 
 ## GPU vector indexing
 ```{applies_to}
-stack: preview 9.3
+stack: preview 9.3, ga 9.4
 ```
 
-{{es}} can leverage  [GPU acceleration](gpu-vector-indexing.md)  to speed up the indexing of dense vectors.
+{{es}} can leverage [GPU acceleration](docs-content://solutions/search/vector/gpu-vector-indexing.md) to speed up the indexing of dense vectors.
 
 
 ## Index modes for vector search [dense-vector-index-modes]
@@ -731,7 +767,7 @@ stack: preview 9.3
 
 The `vectordb_document` [index mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting) optimizes an index for vector search workloads.
 
-In {{serverless-short}}, this mode is automatically applied to indices in Vector DB projects. On {{ech}}, you must set it explicitly at index creation time:
+You must set the mode at index creation time:
 
 ```console
 PUT my-vector-index
@@ -743,6 +779,12 @@ PUT my-vector-index
   }
 }
 ```
+
+:::{tip}
+:applies_to: {"vectordb": "ga"}
+On [Elasticsearch Vector Database](docs-content://solutions/vector-database.md) projects, new indices use `vectordb_document` automatically. It is the only supported index mode. For details, refer to [when to use this project type](docs-content://solutions/vector-database.md#when-to-use-this-project-type).
+:::
+
 
 When `vectordb_document` mode is active, the following settings are applied automatically unless you explicitly configure them:
 
@@ -763,6 +805,31 @@ Dynamic float array mapping
 
 `index.merge.scheduler.auto_throttle`
 :   Set to `false`. Disables automatic throttling of merge I/O, allowing merges to proceed at full speed.
+
+### `vectordb_columnar` [dense-vector-vectordb-columnar-mode]
+
+{applies_to}`stack: preview 9.6+`
+
+The `vectordb_columnar` [index mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting) combines the vector search defaults of [`vectordb_document`](#dense-vector-vectordb-document-mode) with the [columnar](/reference/elasticsearch/columnar/index.md) storage model. Columnar modes store each field once, as doc values, and reconstruct `_source` from them, which reduces the storage footprint of the non-vector fields that accompany your vectors. Unlike the other columnar modes, `vectordb_columnar` is optimized for search rather than analytics, so `dense_vector` and `text` fields are also indexed by default. This makes it suitable for both vector search and hybrid search that combines text with vectors.
+
+`vectordb_columnar` is a good fit for vector search, especially when your documents carry many non-vector, non-text fields. If your searches return many fields for many hits, consider the [`columnar_stored`](/reference/elasticsearch/columnar/index.md#columnar-source) `_source` mode to speed up retrieval. Choose `vectordb_document` when you need `_source` returned with its original structure, such as arrays of objects or unmapped content.
+
+You must set the mode at index creation time:
+
+```console
+PUT my-vector-index
+{
+  "settings": {
+    "index": {
+      "mode": "vectordb_columnar"
+    }
+  }
+}
+```
+
+`vectordb_columnar` applies the same vector search settings and defaults as [`vectordb_document`](#dense-vector-vectordb-document-mode).
+
+It also inherits the behavior and [limitations](/reference/elasticsearch/columnar/index.md#columnar-limitations) of the columnar modes, such as auto-flattened mappings, synthetic or `columnar_stored` [`_source`](/reference/elasticsearch/columnar/index.md#columnar-source), and the rejection of mapping-level runtime fields. Unlike the other columnar modes, it indexes `dense_vector` fields by default, keeps positions and norms on `text` fields, maps dynamic strings as `text`, and keeps the query cache enabled for filtered vector search. For the full list of settings and defaults, refer to [`vectordb_columnar` settings](/reference/elasticsearch/columnar/index.md#vectordb-columnar-settings).
 
 ## Updatable field type [_updatable_field_type]
 

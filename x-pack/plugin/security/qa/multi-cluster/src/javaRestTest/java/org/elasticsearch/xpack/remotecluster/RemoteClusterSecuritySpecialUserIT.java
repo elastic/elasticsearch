@@ -19,12 +19,14 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.junit.RunnableTestRuleAdapter;
 import org.elasticsearch.xcontent.ObjectPath;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -33,6 +35,8 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.is;
 
 public class RemoteClusterSecuritySpecialUserIT extends AbstractRemoteClusterSecurityTestCase {
 
@@ -234,6 +238,106 @@ public class RemoteClusterSecuritySpecialUserIT extends AbstractRemoteClusterSec
             } finally {
                 searchResponse5.decRef();
             }
+        }
+    }
+
+    public void testUserManagedServiceAccountCrossClusterSearch() throws Exception {
+        configureRemoteCluster();
+
+        final String roleName = "user_managed_ccs_shared_logs";
+        final String namespace = "ccs";
+        final String service = "worker";
+        final String tokenName = "ccs-token";
+        final String principal = namespace + "/" + service;
+
+        final Request putRoleRequest = new Request("PUT", "/_security/role/" + roleName);
+        putRoleRequest.setJsonEntity("""
+            {
+              "remote_indices": [
+                {
+                  "names": ["shared-managed"],
+                  "privileges": ["read"],
+                  "clusters": ["my_remote_cluster*"]
+                }
+              ]
+            }""");
+        assertOK(adminClient().performRequest(putRoleRequest));
+
+        final Request putAccountRequest = new Request("PUT", "/_security/service/" + namespace + "/" + service);
+        putAccountRequest.setJsonEntity(Strings.format("""
+            {
+              "roles": ["%s"],
+              "enabled": true
+            }""", roleName));
+        assertOK(adminClient().performRequest(putAccountRequest));
+
+        final Request createTokenRequest = new Request(
+            "PUT",
+            "/_security/service/" + namespace + "/" + service + "/credential/token/" + tokenName
+        );
+        final Response createTokenResponse = adminClient().performRequest(createTokenRequest);
+        assertOK(createTokenResponse);
+        final String serviceToken = ObjectPath.eval("token.value", responseAsMap(createTokenResponse));
+
+        try {
+            final RequestOptions bearerAuth = RequestOptions.DEFAULT.toBuilder()
+                .addHeader("Authorization", "Bearer " + serviceToken)
+                .build();
+
+            final Request authenticateRequest = new Request("GET", "/_security/_authenticate");
+            authenticateRequest.setOptions(bearerAuth);
+            final Map<String, Object> authenticateResponse = entityAsMap(client().performRequest(authenticateRequest));
+            assertThat(authenticateResponse, hasEntry("username", principal));
+            assertThat(authenticateResponse.get("roles"), equalTo(List.of(roleName)));
+            @SuppressWarnings("unchecked")
+            final Map<String, Object> metadata = (Map<String, Object>) authenticateResponse.get("metadata");
+            assertThat(metadata.get(ServiceAccountSettings.USER_MANAGED_SERVICE_ACCOUNT_FIELD), is(true));
+
+            final Request indexRequest = new Request("POST", "/shared-managed/_doc?refresh=true");
+            indexRequest.setJsonEntity("""
+                { "name": "user-managed-service-account-ccs" }""");
+            assertOK(performRequestAgainstFulfillingCluster(indexRequest));
+
+            final Request allowedSearchRequest = new Request("GET", "/my_remote_cluster:shared-managed/_search");
+            allowedSearchRequest.setOptions(bearerAuth);
+            final Response allowedSearchResponse = client().performRequest(allowedSearchRequest);
+            assertOK(allowedSearchResponse);
+            final SearchResponse allowedSearch = SearchResponseUtils.parseSearchResponse(responseAsParser(allowedSearchResponse));
+            try {
+                assertThat(
+                    Arrays.stream(allowedSearch.getHits().getHits()).map(SearchHit::getIndex).collect(Collectors.toList()),
+                    containsInAnyOrder("shared-managed")
+                );
+            } finally {
+                allowedSearch.decRef();
+            }
+
+            final Request deniedSearchRequest = new Request("GET", "/my_remote_cluster:shared-metrics/_search");
+            deniedSearchRequest.setOptions(bearerAuth);
+            final ResponseException deniedSearch = expectThrows(
+                ResponseException.class,
+                () -> client().performRequest(deniedSearchRequest)
+            );
+            assertThat(deniedSearch.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            assertThat(
+                deniedSearch.getMessage(),
+                containsString(
+                    "action [indices:data/read/search] towards remote cluster is unauthorized for service account [" + principal + "]"
+                )
+            );
+            assertThat(deniedSearch.getMessage(), containsString("on indices [shared-metrics]"));
+        } finally {
+            final Request deleteTokenRequest = new Request(
+                "DELETE",
+                "/_security/service/" + namespace + "/" + service + "/credential/token/" + tokenName
+            );
+            assertOK(adminClient().performRequest(deleteTokenRequest));
+
+            final Request deleteAccountRequest = new Request("DELETE", "/_security/service/" + namespace + "/" + service);
+            assertOK(adminClient().performRequest(deleteAccountRequest));
+
+            final Request deleteRoleRequest = new Request("DELETE", "/_security/role/" + roleName);
+            assertOK(adminClient().performRequest(deleteRoleRequest));
         }
     }
 

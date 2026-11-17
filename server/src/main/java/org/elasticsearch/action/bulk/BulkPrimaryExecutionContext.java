@@ -16,13 +16,18 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
+import org.elasticsearch.action.update.UpdateHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
+import java.util.function.Predicate;
 
 /**
  * This is a utility class that holds the per request state needed to perform bulk operations on the primary.
@@ -57,6 +62,7 @@ class BulkPrimaryExecutionContext {
     private final BulkShardRequest request;
     private final IndexShard primary;
     private final IndexingPressure.PrimaryExpansionTracker pressureExpansionTracker;
+    private final PreResolvedUpdates preResolvedUpdates;
     private Translog.Location locationToSync = null;
     private int currentIndex = -1;
 
@@ -65,6 +71,9 @@ class BulkPrimaryExecutionContext {
     private BulkItemResponse executionResult;
     private int updateRetryCounter;
     private long noopMappingUpdateRetryForMappingVersion;
+    // whether an operation of the request required a mapping update
+    private boolean hasMappingUpdate;
+    private int mappingUpdateLookAheadEnd;
 
     BulkPrimaryExecutionContext(BulkShardRequest request, IndexShard primary) {
         this(request, primary, IndexingPressure.PrimaryExpansionTracker.noop());
@@ -75,9 +84,20 @@ class BulkPrimaryExecutionContext {
         IndexShard primary,
         IndexingPressure.PrimaryExpansionTracker pressureExpansionTracker
     ) {
+        this(request, primary, pressureExpansionTracker, PreResolvedUpdates.EMPTY);
+    }
+
+    BulkPrimaryExecutionContext(
+        BulkShardRequest request,
+        IndexShard primary,
+        IndexingPressure.PrimaryExpansionTracker pressureExpansionTracker,
+        PreResolvedUpdates preResolvedUpdates
+    ) {
         this.request = request;
         this.primary = primary;
         this.pressureExpansionTracker = pressureExpansionTracker;
+        this.preResolvedUpdates = preResolvedUpdates;
+        assert preResolvedUpdates == PreResolvedUpdates.EMPTY || assertPreResolvedSlotsMatchUpdateItems(request, preResolvedUpdates);
         advance();
     }
 
@@ -109,6 +129,12 @@ class BulkPrimaryExecutionContext {
     /** gets the current, untranslated item request */
     public DocWriteRequest<?> getCurrent() {
         return getCurrentItem().request();
+    }
+
+    /** Takes the current item's pre-resolved update, or null if absent or already taken (e.g. on retry) */
+    @Nullable
+    public UpdateHelper.PreResolvedUpdate takePreResolvedUpdate() {
+        return preResolvedUpdates.take(currentIndex);
     }
 
     public BulkShardRequest getBulkShardRequest() {
@@ -176,8 +202,15 @@ class BulkPrimaryExecutionContext {
         assert assertInvariants(ItemProcessingState.INITIAL);
         requestToExecute = writeRequest;
         currentItemState = ItemProcessingState.TRANSLATED;
-        pressureExpansionTracker.addExpandedBytes(expansionDeltaBytes(getCurrent(), writeRequest));
         assert assertInvariants(ItemProcessingState.TRANSLATED);
+    }
+
+    public void trackMemoryConsumptionForTranslatedUpdateRequest(DocWriteRequest<?> translatedRequest) {
+        assert assertInvariants(ItemProcessingState.INITIAL);
+        long expandedBytes = expansionDeltaBytes(getCurrent(), translatedRequest);
+        if (expandedBytes > 0) {
+            pressureExpansionTracker.addExpandedBytes(expandedBytes);
+        }
     }
 
     /**
@@ -202,7 +235,39 @@ class BulkPrimaryExecutionContext {
         assert assertInvariants(ItemProcessingState.TRANSLATED);
         currentItemState = ItemProcessingState.WAIT_FOR_MAPPING_UPDATE;
         requestToExecute = null;
+        hasMappingUpdate = true;
         assert assertInvariants(ItemProcessingState.WAIT_FOR_MAPPING_UPDATE);
+    }
+
+    /**
+     * Returns true if the mapping update of the current operation should be sent together with the ones of the operations that
+     * follow it, which {@link MapperService#INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING} enables.
+     * <p>
+     * The first mapping update of a request is sent on its own, so that only requests that need several mapping updates parse
+     * documents ahead of time. An operation that a look-ahead already went through sends its own update if it still needs one.
+     */
+    public boolean shouldLookAheadForMappingUpdates() {
+        return hasMappingUpdate && currentIndex >= mappingUpdateLookAheadEnd && primary.indexSettings().isCombineDynamicMappingUpdates();
+    }
+
+    /**
+     * Offers the index requests that follow the current operation to the predicate, in the order they are executed, until it
+     * rejects one or an operation is not an index request. Aborted operations are skipped.
+     */
+    public void lookAheadForMappingUpdates(Predicate<IndexRequest> accept) {
+        assert shouldLookAheadForMappingUpdates();
+        final BulkItemRequest[] items = request.items();
+        int index = currentIndex + 1;
+        for (; index < items.length; index++) {
+            if (isAborted(items[index].getPrimaryResponse())) {
+                continue;
+            }
+            if (items[index].request() instanceof IndexRequest indexRequest && accept.test(indexRequest)) {
+                continue;
+            }
+            break;
+        }
+        mappingUpdateLookAheadEnd = index;
     }
 
     public void resetForUpdateRetry() {
@@ -368,6 +433,8 @@ class BulkPrimaryExecutionContext {
         // anymore.
         if (primary.routingEntry().isSearchable() == false) {
             if (requestToExecute != null) {
+                // In the failure path (i.e. after a memory pressure rejection) getCurrent() == requestToExecute
+                // and thus the expansionDeltaBytes == 0 and this will be a no-op
                 pressureExpansionTracker.removeExpandedBytes(expansionDeltaBytes(getCurrent(), requestToExecute));
             }
             requestToExecute = null;
@@ -419,6 +486,22 @@ class BulkPrimaryExecutionContext {
                 assert executionResult != null;
                 assert getCurrentItem().getPrimaryResponse() != null;
                 break;
+        }
+        return true;
+    }
+
+    private static boolean assertPreResolvedSlotsMatchUpdateItems(BulkShardRequest request, PreResolvedUpdates preResolvedUpdates) {
+        assert preResolvedUpdates.size() == request.items().length
+            : "expected [" + request.items().length + "] pre-resolved update slots but found [" + preResolvedUpdates.size() + "]";
+        for (int i = 0; i < request.items().length; i++) {
+            UpdateHelper.PreResolvedUpdate preResolved = preResolvedUpdates.get(i);
+            if (preResolved != null) {
+                DocWriteRequest<?> item = request.items()[i].request();
+                assert item != null && item.opType() == DocWriteRequest.OpType.UPDATE
+                    : "pre-resolved slot [" + i + "] does not correspond to an update request but to [" + item + "]";
+                assert preResolved.id().equals(item.id()) && Objects.equals(preResolved.routing(), item.routing())
+                    : "pre-resolved slot [" + i + "] resolved [" + preResolved.id() + "] but the item targets [" + item.id() + "]";
+            }
         }
         return true;
     }

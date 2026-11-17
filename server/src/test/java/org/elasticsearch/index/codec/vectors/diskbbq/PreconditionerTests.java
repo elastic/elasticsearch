@@ -9,15 +9,18 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
+import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.ByteBuffersIndexInput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
-public class PreconditionerTests extends LuceneTestCase {
+public class PreconditionerTests extends ESTestCase {
     public void testRandomProviderConfigurations() throws IOException {
         int dim = random().nextInt(128, 1024);
 
@@ -66,5 +69,88 @@ public class PreconditionerTests extends LuceneTestCase {
         IndexOutput output = new ByteBuffersIndexOutput(byteBuffersDataOutput, "test", "test");
         preconditioner.write(output);
         Preconditioner.read(new ByteBuffersIndexInput(byteBuffersDataOutput.toDataInput(), "test"));
+    }
+
+    public void testApplyTransformToBytes() {
+        int dim = random().nextInt(128, 1024);
+        int blockDim = random().nextInt(8, dim);
+        Preconditioner preconditioner = Preconditioner.createPreconditioner(dim, blockDim);
+
+        // Generate a random byte vector
+        byte[] byteVector = new byte[dim];
+        random().nextBytes(byteVector);
+
+        // Apply the byte→byte transform
+        byte[] byteOut = new byte[dim];
+        float[] scratch = new float[dim];
+        preconditioner.applyTransformToBytes(byteVector, byteOut, scratch);
+
+        // Apply the byte→float transform for comparison
+        float[] floatOut = new float[dim];
+        preconditioner.applyTransform(byteVector, floatOut);
+
+        // The byte output should be the clamped/rounded version of the float output
+        for (int i = 0; i < dim; i++) {
+            byte expected = (byte) Math.clamp(Math.round(floatOut[i]), -128, 127);
+            assertEquals("Mismatch at dimension " + i, expected, byteOut[i]);
+        }
+
+        // Verify the float scratch buffer was populated (same as applyTransform output)
+        for (int i = 0; i < dim; i++) {
+            assertEquals("Scratch mismatch at dimension " + i, floatOut[i], scratch[i], 1e-6f);
+        }
+    }
+
+    public void testPreconditionFloatVectorsInPlaceMatchesApplyTransform() {
+        int dim = 11;
+        int blockDim = 4;
+        Preconditioner preconditioner = Preconditioner.createPreconditioner(dim, blockDim);
+
+        List<float[]> vectors = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            float[] vector = new float[dim];
+            for (int j = 0; j < dim; j++) {
+                vector[j] = random().nextFloat() * 2 - 1;
+            }
+            vectors.add(vector);
+        }
+
+        float[][] expected = new float[vectors.size()][dim];
+        for (int i = 0; i < vectors.size(); i++) {
+            preconditioner.applyTransform(vectors.get(i), expected[i]);
+        }
+
+        preconditioner.preconditionVectorsInPlace(vectors, VectorEncoding.FLOAT32);
+
+        for (int i = 0; i < vectors.size(); i++) {
+            assertArrayEquals("Mismatch for vector " + i, expected[i], vectors.get(i), 1e-6f);
+        }
+    }
+
+    public void testPreconditionByteVectorsInPlaceMatchesApplyTransformToBytes() {
+        int dim = 11;
+        int blockDim = 4;
+        Preconditioner preconditioner = Preconditioner.createPreconditioner(dim, blockDim);
+
+        List<byte[]> vectors = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            byte[] vector = new byte[dim];
+            random().nextBytes(vector);
+            vectors.add(vector);
+        }
+
+        byte[][] expected = new byte[vectors.size()][dim];
+        byte[] byteScratch = new byte[dim];
+        float[] floatScratch = new float[dim];
+        for (int i = 0; i < vectors.size(); i++) {
+            preconditioner.applyTransformToBytes(vectors.get(i), byteScratch, floatScratch);
+            System.arraycopy(byteScratch, 0, expected[i], 0, dim);
+        }
+
+        preconditioner.preconditionVectorsInPlace(vectors, VectorEncoding.BYTE);
+
+        for (int i = 0; i < vectors.size(); i++) {
+            assertArrayEquals("Mismatch for vector " + i, expected[i], vectors.get(i));
+        }
     }
 }

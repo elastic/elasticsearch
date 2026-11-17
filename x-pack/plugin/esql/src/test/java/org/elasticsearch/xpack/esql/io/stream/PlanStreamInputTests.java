@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.io.stream;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
@@ -17,9 +15,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
-import org.elasticsearch.xpack.esql.session.ConfigurationBuilder;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -28,7 +24,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
@@ -149,19 +144,6 @@ public class PlanStreamInputTests extends ESTestCase {
             );
             assertThat(planIn, equalTo(planOut));
             assertThat(sources.apply(planIn), equalTo(sources.apply(planOut)));
-        }
-    }
-
-    public void testGrokMatcherWatchdogUsesConfigurationValue() throws IOException {
-        Configuration config = new ConfigurationBuilder(randomConfiguration()).grokMatcherWatchdogMs(250).build();
-        try (PlanStreamInput psi = new PlanStreamInput(StreamInput.wrap(new byte[0]), new NamedWriteableRegistry(List.of()), config)) {
-            assertThat(psi.grokMatcherWatchdog().maxExecutionTimeInMillis(), equalTo(250L));
-        }
-    }
-
-    public void testGrokMatcherWatchdogFallsBackToDefaultWithNullConfiguration() throws IOException {
-        try (PlanStreamInput psi = new PlanStreamInput(StreamInput.wrap(new byte[0]), new NamedWriteableRegistry(List.of()), null)) {
-            assertThat(psi.grokMatcherWatchdog().maxExecutionTimeInMillis(), equalTo(1000L));
         }
     }
 

@@ -10,17 +10,22 @@
 package org.elasticsearch.index.codec.vectors.diskbbq.calibrate;
 
 import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
 import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.List;
 
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class CalibrationUtilsTests extends ESTestCase {
+
+    private static final int DIM = 4;
 
     public void testCalibrationQueryDimension() {
         assertEquals(8, CalibrationUtils.calibrationQueryDimension(8, false));
@@ -82,4 +87,55 @@ public class CalibrationUtilsTests extends ESTestCase {
         CalibrationUtils.materializeCalibrationQuery(fvv, 0, dim, dim, false, false, preconditioner, false, dst, preconditionScratch);
         assertArrayEquals(raw, dst, 1e-5f);
     }
+
+    public void testSampleDataDisjointAndRespectsCaps() throws IOException {
+        float[][] data = new float[200][];
+        for (int i = 0; i < data.length; i++) {
+            data[i] = new float[] { i, i + 1f };
+        }
+        FloatVectorValues fvv = KMeansFloatVectorValues.build(List.of(data), null, 2);
+        CalibrationUtils.SampledData sampled = CalibrationUtils.sampleData(fvv, 32, 64);
+        assertEquals(32, sampled.queryOrdinals().length);
+        assertEquals(64, sampled.corpusOrdinals().length);
+        HashSet<Integer> all = new HashSet<>();
+        for (int o : sampled.queryOrdinals()) {
+            assertTrue(all.add(o));
+        }
+        for (int o : sampled.corpusOrdinals()) {
+            assertTrue(all.add(o));
+        }
+    }
+
+    public void testNeedsNeyshaburSrebroLift() {
+        assertTrue(CalibrationUtils.needsNeyshaburSrebroLift(VectorSimilarityFunction.DOT_PRODUCT));
+        assertTrue(CalibrationUtils.needsNeyshaburSrebroLift(VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT));
+        assertFalse(CalibrationUtils.needsNeyshaburSrebroLift(VectorSimilarityFunction.EUCLIDEAN));
+        assertFalse(CalibrationUtils.needsNeyshaburSrebroLift(VectorSimilarityFunction.COSINE));
+    }
+
+    public void testNeyshaburLiftedSourceAddsLiftDimension() throws IOException {
+        float[][] data = { { 1f, 0f }, { 0.5f, 0f } };
+        FloatVectorValues base = KMeansFloatVectorValues.build(List.of(data), null, 2);
+        double maxNormSq = CalibrationUtils.maxSquaredNormOverCorpusSample(base, new int[] { 0, 1 });
+        CalibrationUtils.NeyshaburLiftedSource<FloatVectorValues> lifted = new CalibrationUtils.NeyshaburLiftedSource<>(base, 2, maxNormSq);
+        assertEquals(3, lifted.liftedDimension());
+        assertEquals(2, lifted.size());
+
+        // explicit scratch read
+        float[] scratch = new float[lifted.liftedDimension()];
+        lifted.liftedVector(0, scratch);
+        float firstLift = scratch[2];
+        lifted.liftedVector(1, scratch);
+        float secondLift = scratch[2];
+        // the shorter vector (smaller norm) gets the larger lift component
+        assertThat(secondLift, greaterThan(firstLift));
+
+        // FloatVectorValues bridge produces the same lifted vectors
+        FloatVectorValues bridged = lifted.asFloatVectorValues();
+        assertEquals(3, bridged.dimension());
+        assertEquals(2, bridged.size());
+        assertEquals(firstLift, bridged.vectorValue(0)[2], 0f);
+        assertEquals(secondLift, bridged.vectorValue(1)[2], 0f);
+    }
+
 }

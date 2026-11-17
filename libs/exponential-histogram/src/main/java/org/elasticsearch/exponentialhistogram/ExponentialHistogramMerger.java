@@ -38,7 +38,7 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
     // OpenTelemetry SDK default, we might make this configurable later
     public static final int DEFAULT_MAX_HISTOGRAM_BUCKETS = 320;
 
-    private static final long BASE_SIZE = RamUsageEstimator.shallowSizeOfInstance(ExponentialHistogramMerger.class) + DownscaleStats.SIZE;
+    private static final long BASE_SIZE = RamUsageEstimator.shallowSizeOfInstance(ExponentialHistogramMerger.class);
 
     public interface Factory extends Accountable, Releasable {
 
@@ -212,23 +212,18 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
         CopyableBucketIterator negBucketsB = b.negativeBuckets().iterator();
 
         ZeroBucket zeroBucket = a.zeroBucket().merge(b.zeroBucket());
-        zeroBucket = zeroBucket.collapseOverlappingBucketsForAll(posBucketsA, negBucketsA, posBucketsB, negBucketsB);
 
-        FixedCapacityExponentialHistogram buffer = factory.acquireBuffer();
+        // Merging never increases the number of buckets, so the result has at most as many buckets as both inputs combined
+        FixedCapacityExponentialHistogram buffer = factory.acquireBuffer(populatedBucketCount(a) + populatedBucketCount(b));
         try {
 
-            buffer.setZeroBucket(zeroBucket);
             buffer.setSum(a.sum() + b.sum());
             buffer.setMin(nanAwareAggregate(a.min(), b.min(), Math::min));
             buffer.setMax(nanAwareAggregate(a.max(), b.max(), Math::max));
 
             int targetScale = Math.min(factory.maxScale, Math.min(a.scale(), b.scale()));
 
-            // We might exceed our limit for the total number of buckets for the targetScale.
-            // We try the merge optimistically, assuming that everything fits.
-            // If we fail, we reduce the target scale to make everything fit.
-
-            mergeBucketsInto(negBucketsA, posBucketsA, negBucketsB, posBucketsB, targetScale, Long::sum, buffer);
+            mergeBucketsInto(zeroBucket, negBucketsA, posBucketsA, negBucketsB, posBucketsB, targetScale, Long::sum, buffer);
             FixedCapacityExponentialHistogram temp = result;
             result = buffer;
             buffer = temp;
@@ -237,7 +232,12 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
         }
     }
 
+    private static int populatedBucketCount(ExponentialHistogram histogram) {
+        return histogram.negativeBuckets().bucketCount() + histogram.positiveBuckets().bucketCount();
+    }
+
     private void mergeBucketsInto(
+        ZeroBucket zeroBucket,
         CopyableBucketIterator negBucketsA,
         CopyableBucketIterator posBucketsA,
         CopyableBucketIterator negBucketsB,
@@ -260,6 +260,8 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
             countCombineFunction
         );
 
+        output.setZeroBucket(zeroBucket.collapseOverlappingBucketsForAll(positiveMerged, negativeMerged));
+
         // We might exceed our limit for the total number of buckets for the targetScale.
         // We try the merge optimistically, assuming that everything fits.
         // If we fail, we reduce the target scale to make everything fit and redo the merge
@@ -276,6 +278,9 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
             output.resetBuckets(targetScale);
             positiveMerged = new MergingBucketIterator(posBucketsA, posBucketsB, targetScale, countCombineFunction);
             negativeMerged = new MergingBucketIterator(negBucketsA, negBucketsB, targetScale, countCombineFunction);
+
+            output.setZeroBucket(zeroBucket.collapseOverlappingBucketsForAll(positiveMerged, negativeMerged));
+
             overflowCount = putBuckets(output, negativeMerged, false, null);
             overflowCount += putBuckets(output, positiveMerged, true, null);
 
@@ -429,9 +434,11 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
             return Math.max(0L, aCount - bCount);
         };
 
-        FixedCapacityExponentialHistogram buffer = factory.acquireBuffer();
+        // Buckets only present in b are clamped to zero and dropped, so the result never has more buckets than a
+        FixedCapacityExponentialHistogram buffer = factory.acquireBuffer(populatedBucketCount(a));
         try {
             mergeBucketsInto(
+                subtractedZeroBucket,
                 a.negativeBuckets().iterator(),
                 a.positiveBuckets().iterator(),
                 negBucketsB,
@@ -440,7 +447,6 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
                 bucketDifferenceOperator,
                 buffer
             );
-            buffer.setZeroBucket(subtractedZeroBucket);
 
             // we might have clamped negative buckets away, so we need to scale down the remaining buckets to compensate for that
             long desiredTargetCount = aValueCount - bValueCount;
@@ -464,7 +470,8 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
                 );
                 assert estimatedMin.isPresent()
                     : "The merged histogram should have at least one value, so the estimated minimum should be present";
-                buffer.setMin(Math.max(a.min(), estimatedMin.getAsDouble()));
+                // The estimated minimum must lie within the cumulative min/max
+                buffer.setMin(Math.clamp(estimatedMin.getAsDouble(), a.min(), a.max()));
             }
 
             // Same logic as for min
@@ -478,7 +485,8 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
                 );
                 assert estimatedMax.isPresent()
                     : "The merged histogram should have at least one value, so the estimated maximum should be present";
-                buffer.setMax(Math.min(a.max(), estimatedMax.getAsDouble()));
+                // The estimated maximum must lie within the cumulative min/max
+                buffer.setMax(Math.clamp(estimatedMax.getAsDouble(), a.min(), a.max()));
             }
 
             result = buffer;

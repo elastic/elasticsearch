@@ -14,8 +14,11 @@ FROM : 'from'                 -> pushMode(FROM_MODE);
 // TS command
 TS : 'ts' -> pushMode(FROM_MODE);
 
-// EXTERNAL command (gated by esql_external_datasources feature flag)
-DEV_EXTERNAL : {this.isExternalDataSourcesEnabled()}? 'external' -> pushMode(FROM_MODE);
+// EXTERNAL command (internal, deprecated, snapshot-only)
+DEV_EXTERNAL : 'external' {EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled()}? -> pushMode(FROM_MODE);
+
+// EQL source command (snapshot-only); delegates execution to the EQL engine
+DEV_EQL : {EsqlCapabilities.Cap.EQL_COMMAND.isEnabled()}? 'eql' -> pushMode(FROM_MODE);
 
 mode FROM_MODE;
 FROM_PIPE : PIPE -> type(PIPE), popMode;

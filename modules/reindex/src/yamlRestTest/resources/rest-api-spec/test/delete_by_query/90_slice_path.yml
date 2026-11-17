@@ -1,0 +1,117 @@
+setup:
+  - requires:
+      cluster_features: ["index.slice_indexing"]
+      reason: "requires slice indexing support"
+
+  - do:
+      indices.create:
+        index: sliced
+        body:
+          settings:
+            index.slice.enabled: true
+  - do:
+      index:
+        index:  sliced
+        id:     "1"
+        _slice: tenant-a
+        body:   { "company": "cat" }
+  - do:
+      index:
+        index:  sliced
+        id:     "2"
+        _slice: tenant-a
+        body:   { "company": "dog" }
+  - do:
+      index:
+        index:  sliced
+        id:     "3"
+        _slice: tenant-b
+        body:   { "company": "cow" }
+  - do:
+      indices.refresh: {}
+
+---
+"Delete by query with a single slice in the path":
+  - do:
+      delete_by_query:
+        index:   sliced
+        _slice:  tenant-a
+        refresh: true
+        body:
+          query:
+            match_all: {}
+  - match: {deleted: 2}
+  - match: {failures: []}
+
+  - do:
+      count:
+        index:  sliced
+        _slice: tenant-a
+  - match: {count: 0}
+
+  - do:
+      count:
+        index:  sliced
+        _slice: tenant-b
+  - match: {count: 1}
+
+---
+"Delete by query with multiple slices in the path":
+  - do:
+      delete_by_query:
+        index:   sliced
+        _slice:  tenant-a,tenant-b
+        refresh: true
+        body:
+          query:
+            match_all: {}
+  - match: {deleted: 3}
+  - match: {failures: []}
+
+  - do:
+      count:
+        index: sliced
+  - match: {count: 0}
+
+---
+"Delete by query with _all in the path":
+  - do:
+      delete_by_query:
+        index:   sliced
+        _slice:  _all
+        refresh: true
+        body:
+          query:
+            match_all: {}
+  - match: {deleted: 3}
+  - match: {failures: []}
+
+  - do:
+      count:
+        index: sliced
+  - match: {count: 0}
+
+---
+"Delete by query with a slice in the path matches nothing on a non-sliced index":
+  - do:
+      index:
+        index:   plain
+        id:      "1"
+        refresh: true
+        body:    { "company": "cat" }
+
+  - do:
+      delete_by_query:
+        index:   plain
+        _slice:  tenant-a
+        refresh: true
+        body:
+          query:
+            match_all: {}
+  - match: {deleted: 0}
+  - match: {failures: []}
+
+  - do:
+      count:
+        index: plain
+  - match: {count: 1}

@@ -14,10 +14,8 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 
@@ -49,46 +47,18 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
     private final int[] dataColumnIndices;
     private final int[] partitionColumnIndices;
     /**
-     * Per-file prefix bytes for {@code _id} composition, or {@code null} when {@code _id} is not
-     * projected. When non-null, composes {@code <prefix><rowPosition>} per row into the {@code _id}
-     * output slot from the reader-emitted {@link ColumnExtractor#ROW_POSITION_COLUMN} block.
-     */
-    @Nullable
-    private final BytesRef idPrefix;
-    /**
      * Index of {@link ColumnExtractor#ROW_POSITION_COLUMN} within {@link #dataColumnIndices} (i.e.
      * position in the incoming data page's block list), or {@code -1} when not present. Non-negative
-     * whenever {@code _id} or {@code _file.record_ref} is requested, since both are composed from it.
+     * whenever {@code _file.record_ref} is requested, since it is composed from it.
      */
     private final int rowPositionDataChannel;
-    /** Index of {@code _id} within {@link #fullOutput}, or {@code -1} when not present. */
-    private final int idOutputIndex;
     /**
      * Index of {@code _file.record_ref} within {@link #fullOutput}, or {@code -1} when not present.
      * When non-negative the iterator fills that slot with the masked physical position from the
-     * reader-emitted {@link ColumnExtractor#ROW_POSITION_COLUMN} channel — the same value {@code _id}
-     * is composed from, exposed directly as the opaque per-record token.
+     * reader-emitted {@link ColumnExtractor#ROW_POSITION_COLUMN} channel, exposed as the opaque
+     * per-record token.
      */
     private final int recordRefOutputIndex;
-    /**
-     * Index of {@code _source} within {@link #fullOutput}, or {@code -1} when not present. When
-     * non-negative the iterator builds the per-row JSON for that slot via
-     * {@link SynthesizeExternalSource#composePage}.
-     */
-    private final int sourceOutputIndex;
-    /**
-     * Names of the data columns paired positionally with the incoming data page's blocks. Cached
-     * at construction so the per-page {@code _source} synthesis does not re-walk
-     * {@link #fullOutput} on every row.
-     */
-    private final String[] dataColumnNames;
-    /**
-     * Declared {@link DataType}s of the data columns, paired positionally with
-     * {@link #dataColumnNames}. {@code _source} synthesis needs the type to render each value the
-     * way the response layer would (IP/VERSION/DATETIME as strings, UNSIGNED_LONG decoded) rather
-     * than as raw block contents.
-     */
-    private final DataType[] dataColumnTypes;
 
     VirtualColumnIterator(
         CloseableIterator<Page> delegate,
@@ -96,25 +66,6 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
         Set<String> partitionColumnNames,
         Map<String, Object> partitionValues,
         BlockFactory blockFactory
-    ) {
-        this(delegate, fullOutput, partitionColumnNames, partitionValues, blockFactory, null);
-    }
-
-    /**
-     * Variant that wires {@code _id} composition. {@code idPrefix} must be non-null whenever the
-     * {@code _id} name is in {@code partitionColumnNames}; the source factory builds it once per
-     * file via {@link ExternalRowIdentity#prefix(org.elasticsearch.xpack.esql.datasources.spi.StoragePath, long)}
-     * and reuses it across every page of that file. When {@code _id} is not requested,
-     * {@code idPrefix} should be {@code null} and the iterator behaves identically to the
-     * legacy two-arg constructor.
-     */
-    VirtualColumnIterator(
-        CloseableIterator<Page> delegate,
-        List<Attribute> fullOutput,
-        Set<String> partitionColumnNames,
-        Map<String, Object> partitionValues,
-        BlockFactory blockFactory,
-        @Nullable BytesRef idPrefix
     ) {
         Check.notNull(delegate, "delegate cannot be null");
         Check.isTrue(fullOutput != null && fullOutput.isEmpty() == false, "fullOutput cannot be null or empty");
@@ -124,14 +75,9 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
         this.fullOutput = fullOutput;
         this.partitionValues = partitionValues != null ? partitionValues : Map.of();
         this.blockFactory = blockFactory;
-        this.idPrefix = idPrefix;
 
         List<Integer> dataIdxList = new ArrayList<>();
         List<Integer> partIdxList = new ArrayList<>();
-        List<String> dataNames = new ArrayList<>();
-        List<DataType> dataTypes = new ArrayList<>();
-        int idIdx = -1;
-        int sourceIdx = -1;
         int recordRefIdx = -1;
         int rowPosChannelInData = -1;
         int nextDataChannel = 0;
@@ -139,17 +85,11 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
             String name = fullOutput.get(i).name();
             if (partitionColumnNames.contains(name)) {
                 partIdxList.add(i);
-                if (ExternalMetadataColumns.ID.equals(name)) {
-                    idIdx = i;
-                } else if (ExternalMetadataColumns.SOURCE.equals(name)) {
-                    sourceIdx = i;
-                } else if (FileMetadataColumns.RECORD_REF.equals(name)) {
+                if (FileMetadataColumns.RECORD_REF.equals(name)) {
                     recordRefIdx = i;
                 }
             } else {
                 dataIdxList.add(i);
-                dataNames.add(name);
-                dataTypes.add(fullOutput.get(i).dataType());
                 if (ColumnExtractor.ROW_POSITION_COLUMN.equals(name)) {
                     rowPosChannelInData = nextDataChannel;
                 }
@@ -158,17 +98,11 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
         }
         this.dataColumnIndices = toIntArray(dataIdxList);
         this.partitionColumnIndices = toIntArray(partIdxList);
-        this.idOutputIndex = idIdx;
         this.recordRefOutputIndex = recordRefIdx;
-        this.sourceOutputIndex = sourceIdx;
         this.rowPositionDataChannel = rowPosChannelInData;
-        this.dataColumnNames = dataNames.toArray(new String[0]);
-        this.dataColumnTypes = dataTypes.toArray(new DataType[0]);
-        Check.isTrue(idPrefix == null || idIdx >= 0, "idPrefix supplied but _id slot missing from fullOutput");
-        // _id and _file.record_ref are both composed from the reader-emitted _rowPosition channel,
-        // which the optimizer injects whenever either is requested. If the slot is present but the
-        // channel is missing, fail loud rather than silently emit wrong identities.
-        Check.isTrue(idIdx < 0 || rowPosChannelInData >= 0, "_id requested but reader did not emit the _rowPosition channel");
+        // _file.record_ref is composed from the reader-emitted _rowPosition channel, which the optimizer injects
+        // whenever it is requested. If the slot is present but the channel is missing, fail loud rather than
+        // silently emit wrong tokens.
         Check.isTrue(
             recordRefIdx < 0 || rowPosChannelInData >= 0,
             "_file.record_ref requested but reader did not emit the _rowPosition channel"
@@ -186,8 +120,24 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
     }
 
     @Override
+    public Page tryAdvance() {
+        Page raw = delegate.tryAdvance();
+        return raw != null ? inject(raw) : null;
+    }
+
+    @Override
     public SubscribableListener<Void> waitForReady() {
         return delegate.waitForReady();
+    }
+
+    @Override
+    public boolean isExhausted() {
+        return delegate.isExhausted();
+    }
+
+    @Override
+    public void revokeOvershootOnPark() {
+        delegate.revokeOvershootOnPark();
     }
 
     @Override
@@ -239,33 +189,11 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
         try {
             for (int idx : partitionColumnIndices) {
                 Attribute attr = fullOutput.get(idx);
-                if (idx == idOutputIndex && idPrefix != null) {
-                    // _id = base64url(hash(location) | mtime | masked physical position) from the reader-emitted
-                    // _rowPosition channel. Every file reader emits this channel (the optimizer
-                    // injects it for _id / _file.record_ref); a split-local counter would reset to 0
-                    // each split and break _id repeatability across layouts.
-                    Block rowPosBlock = dataPage.getBlock(rowPositionDataChannel);
-                    blocks[idx] = ExternalRowIdentity.composePage(idPrefix, (LongBlock) rowPosBlock, blockFactory);
-                } else if (idx == recordRefOutputIndex) {
+                if (idx == recordRefOutputIndex) {
                     // _file.record_ref = the same masked physical position, surfaced directly as the
                     // opaque per-record LONG token (no location prefix).
                     Block rowPosBlock = dataPage.getBlock(rowPositionDataChannel);
                     blocks[idx] = buildRecordRefBlock((LongBlock) rowPosBlock, positions);
-                } else if (idx == sourceOutputIndex) {
-                    // Materialize _source from this row's data column values: project the data
-                    // blocks already pulled off the page above into a (names, blocks) pair and
-                    // hand to the shared serializer.
-                    Block[] dataBlocksByOrder = new Block[dataColumnIndices.length];
-                    for (int d = 0; d < dataColumnIndices.length; d++) {
-                        dataBlocksByOrder[d] = blocks[dataColumnIndices[d]];
-                    }
-                    blocks[idx] = SynthesizeExternalSource.composePage(
-                        dataColumnNames,
-                        dataColumnTypes,
-                        dataBlocksByOrder,
-                        positions,
-                        blockFactory
-                    );
                 } else {
                     Object value = partitionValues.get(attr.name());
                     blocks[idx] = createConstantBlock(attr, value, positions);
@@ -304,7 +232,7 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
      * there are no partition columns to inject but the producer over-projected.
      * <p>
      * Producer invariant: every format reader emits data columns at the head of the page in the
-     * order declared by {@link #dataColumnNames}; surplus blocks (e.g. the parquet-mr "empty
+     * order declared by {@link #dataColumnNames()}; surplus blocks (e.g. the parquet-mr "empty
      * projection → full schema" fallback) trail at higher indices. This method drops the trailing
      * surplus; callers that emit a permuted block order will silently lose data.
      */
@@ -358,9 +286,11 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
 
     /**
      * Builds the {@code _file.record_ref} block: the masked physical position from the reader-emitted
-     * {@code _rowPosition} channel, surfaced as an opaque per-record LONG. The mask strips any
-     * deferred-extraction extractor id packed into the high bits (a no-op for unencoded values from
-     * the row-index / byte-offset readers). Null positions propagate to null.
+     * {@code _rowPosition} channel, surfaced as an opaque per-record LONG. Decoding masks off any
+     * deferred-extraction extractor id, keeping the token independent of which extractor the driver
+     * registered (a no-op for the row-index / byte-offset readers). Independence from split layout
+     * comes from the reader anchoring {@code _rowPosition} file-globally, upstream of here. Null
+     * positions propagate to null.
      */
     private Block buildRecordRefBlock(LongBlock rowPositionBlock, int positions) {
         try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(positions)) {
@@ -369,7 +299,7 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
                     builder.appendNull();
                 } else {
                     long encoded = rowPositionBlock.getLong(rowPositionBlock.getFirstValueIndex(i));
-                    builder.appendLong(encoded & ExternalRowIdentity.LOCAL_POSITION_MASK);
+                    builder.appendLong(SourceExtractors.decodeLocalPosition(encoded));
                 }
             }
             return builder.build();

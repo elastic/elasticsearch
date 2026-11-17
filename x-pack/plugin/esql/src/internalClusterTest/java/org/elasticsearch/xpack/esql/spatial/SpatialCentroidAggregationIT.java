@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class SpatialCentroidAggregationIT extends SpatialCentroidAggregationTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(SpatialPlugin.class, EsqlPluginWithEnterpriseOrTrialLicense.class, TestEncryptionServicePlugin.class);
+        return List.of(SpatialPlugin.class, TestEncryptionServicePlugin.class, EsqlPluginWithEnterpriseOrTrialLicense.class);
     }
 
     @Override

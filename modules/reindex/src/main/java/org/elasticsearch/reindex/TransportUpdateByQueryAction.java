@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -93,12 +92,6 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     protected void doExecute(Task task, UpdateByQueryRequest request, ActionListener<BulkByPaginatedSearchResponse> listener) {
         BulkByPaginatedSearchTask bulkByPaginatedSearchTask = (BulkByPaginatedSearchTask) task;
         long startTime = System.nanoTime();
-        ProjectMetadata projectMetadata = projectResolver.getProjectState(clusterService.state()).metadata();
-        BulkByPaginatedSearchParallelizationHelper.validateSliceRoutingForWriteBackedSearch(
-            request,
-            projectMetadata,
-            "update by query request"
-        );
         BulkByPaginatedSearchParallelizationHelper.startSlicedAction(
             request,
             bulkByPaginatedSearchTask,
@@ -135,7 +128,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     }
 
     /**
-     * Simple implementation of update-by-query using scrolling and bulk.
+     * Simple implementation of update-by-query using paginated search and bulk.
      */
     static class AsyncIndexBySearchAction extends AbstractAsyncBulkByPaginatedSearchAction<
         UpdateByQueryRequest,

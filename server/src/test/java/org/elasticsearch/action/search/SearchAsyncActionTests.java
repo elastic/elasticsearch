@@ -16,11 +16,13 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.VersionInformation;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -34,6 +36,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -151,6 +154,7 @@ public class SearchAsyncActionTests extends ESTestCase {
             ClusterState.EMPTY_STATE,
             null,
             new ArraySearchPhaseResults<>(filteredShardsIter.size()),
+            NoopCircuitBreaker.INSTANCE,
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,
             mock(SearchResponseMetrics.class),
@@ -263,6 +267,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 ClusterState.EMPTY_STATE,
                 null,
                 results,
+                NoopCircuitBreaker.INSTANCE,
                 request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY,
                 mock(SearchResponseMetrics.class),
@@ -384,6 +389,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 ClusterState.EMPTY_STATE,
                 null,
                 results,
+                NoopCircuitBreaker.INSTANCE,
                 request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY,
                 mock(SearchResponseMetrics.class),
@@ -517,8 +523,16 @@ public class SearchAsyncActionTests extends ESTestCase {
                 Collections.emptyMap(),
                 new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
                 ClusterState.EMPTY_STATE,
-                null,
+                new SearchTask(
+                    randomLong(),
+                    randomAlphaOfLength(6),
+                    randomAlphaOfLength(6),
+                    () -> randomAlphaOfLength(6),
+                    TaskId.EMPTY_TASK_ID,
+                    Map.of()
+                ),
                 new ArraySearchPhaseResults<>(shardsIter.size()),
+                NoopCircuitBreaker.INSTANCE,
                 request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY,
                 mock(SearchResponseMetrics.class),
@@ -632,6 +646,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 ClusterState.EMPTY_STATE,
                 null,
                 results,
+                NoopCircuitBreaker.INSTANCE,
                 request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY,
                 mock(SearchResponseMetrics.class),
@@ -722,6 +737,7 @@ public class SearchAsyncActionTests extends ESTestCase {
             ClusterState.EMPTY_STATE,
             null,
             new ArraySearchPhaseResults<>(0),
+            NoopCircuitBreaker.INSTANCE,
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,
             mock(SearchResponseMetrics.class),
@@ -789,7 +805,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                 true,
                 RecoverySource.EmptyStoreRecoverySource.INSTANCE,
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar"),
-                ShardRouting.Role.DEFAULT
+                ShardRouting.Role.DEFAULT,
+                RecoveryPriority.UNASSIGNED_NEW_PRIMARY
             );
             if (primaryNode != null) {
                 routing = routing.initialize(primaryNode.getId(), i + "p", 0);
@@ -802,7 +819,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                     false,
                     RecoverySource.PeerRecoverySource.INSTANCE,
                     new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar"),
-                    ShardRouting.Role.DEFAULT
+                    ShardRouting.Role.DEFAULT,
+                    RecoveryPriority.UNASSIGNED_EXPECTED
                 );
                 if (replicaNode != null) {
                     routing = routing.initialize(replicaNode.getId(), i + "r", 0);
@@ -838,7 +856,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 0,
                 0,
                 0L,
-                ShardSearchFailure.EMPTY_ARRAY,
+                List.of(),
                 Clusters.EMPTY,
                 null,
                 null,

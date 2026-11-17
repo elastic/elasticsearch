@@ -37,11 +37,14 @@ public final class PercentileIntGroupingAggregatorFunction implements GroupingAg
 
   private final double percentile;
 
+  private final double tDigestStateCompression;
+
   PercentileIntGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext,
-      double percentile) {
+      double percentile, double tDigestStateCompression) {
     this.percentile = percentile;
+    this.tDigestStateCompression = tDigestStateCompression;
     this.channels = channels;
-    this.state = PercentileIntAggregator.initGrouping(driverContext, percentile);
+    this.state = PercentileIntAggregator.initGrouping(driverContext, percentile, tDigestStateCompression);
     this.driverContext = driverContext;
   }
 

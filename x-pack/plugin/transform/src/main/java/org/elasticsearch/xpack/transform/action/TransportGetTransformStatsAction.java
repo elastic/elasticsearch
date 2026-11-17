@@ -209,9 +209,7 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
                 final TransformNodeAssignments transformNodeAssignments = TransformNodes.transformTaskNodes(hitsAndIds.v2().v1(), project);
 
                 ActionListener<Response> doExecuteListener = ActionListener.wrap(response -> {
-                    PersistentTasksCustomMetadata tasksInProgress = clusterState.getMetadata()
-                        .getProject()
-                        .custom(PersistentTasksCustomMetadata.TYPE);
+                    PersistentTasksCustomMetadata tasksInProgress = project.custom(PersistentTasksCustomMetadata.TYPE);
                     if (tasksInProgress != null) {
                         // Mutates underlying state object with the assigned node attributes
                         response.getTransformsStats().forEach(dtsasi -> setNodeAttributes(dtsasi, tasksInProgress, clusterState));
@@ -253,14 +251,19 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
         );
     }
 
-    private static void setNodeAttributes(
+    // Visible for testing
+    static void setNodeAttributes(
         TransformStats transformStats,
         PersistentTasksCustomMetadata persistentTasksCustomMetadata,
         ClusterState clusterState
     ) {
         var pTask = persistentTasksCustomMetadata.getTask(transformStats.getId());
-        if (pTask != null) {
-            transformStats.setNode(NodeAttributes.fromDiscoveryNode(clusterState.nodes().get(pTask.getExecutorNode())));
+        if (pTask != null && pTask.isAssigned()) {
+            // The node is not in the cluster state if it has left but the task has not been reassigned yet
+            var node = clusterState.nodes().get(pTask.getExecutorNode());
+            if (node != null) {
+                transformStats.setNode(NodeAttributes.fromDiscoveryNode(node));
+            }
         }
     }
 

@@ -8,13 +8,19 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -27,7 +33,6 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.GeoBoundingBoxQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -36,6 +41,7 @@ import org.elasticsearch.ingest.IngestFeatures;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.field.WriteField;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -48,6 +54,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -71,6 +78,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.oneOf;
 
 public class DynamicMappingIT extends ESIntegTestCase {
@@ -99,7 +108,6 @@ public class DynamicMappingIT extends ESIntegTestCase {
     }
 
     public void testDynamicStringMappingWithoutAutoTextSubfield() {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         internalCluster().ensureAtLeastNumDataNodes(1);
         ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         FeatureService featureService = internalCluster().getInstance(FeatureService.class);
@@ -130,18 +138,20 @@ public class DynamicMappingIT extends ESIntegTestCase {
         assertThat(msg.containsKey("fields"), is(false));
     }
 
-    public void testSimpleDynamicMappingsSuccessful() {
+    public void testSimpleDynamicMappingsSuccessful() throws Exception {
         createIndex("index");
         client().prepareIndex("index").setId("1").setSource("a.x", 1).get();
         client().prepareIndex("index").setId("2").setSource("a.y", 2).get();
 
-        Map<String, Object> mappings = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "index")
-            .get()
-            .mappings()
-            .get("index")
-            .sourceAsMap();
-        assertTrue(new WriteField("properties.a", () -> mappings).exists());
-        assertTrue(new WriteField("properties.a.properties.x", () -> mappings).exists());
+        assertBusy(() -> {
+            Map<String, Object> mappings = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "index")
+                .get()
+                .mappings()
+                .get("index")
+                .sourceAsMap();
+            assertTrue(new WriteField("properties.a", () -> mappings).exists());
+            assertTrue(new WriteField("properties.a.properties.x", () -> mappings).exists());
+        });
     }
 
     public void testConflictingDynamicMappingsBulk() {
@@ -178,23 +188,24 @@ public class DynamicMappingIT extends ESIntegTestCase {
 
     public void testConcurrentDynamicUpdates() throws Throwable {
         int numberOfFieldsToCreate = 32;
-        Map<String, Object> properties = indexConcurrently(numberOfFieldsToCreate, Settings.builder());
-        assertThat(properties, aMapWithSize(numberOfFieldsToCreate));
-        for (int i = 0; i < numberOfFieldsToCreate; i++) {
-            assertThat(properties, hasKey("field" + i));
-        }
+        indexConcurrently(numberOfFieldsToCreate, Settings.builder(), properties -> {
+            assertThat(properties, aMapWithSize(numberOfFieldsToCreate));
+            for (int i = 0; i < numberOfFieldsToCreate; i++) {
+                assertThat(properties, hasKey("field" + i));
+            }
+        });
     }
 
     public void testConcurrentDynamicIgnoreBeyondLimitUpdates() throws Throwable {
         int numberOfFieldsToCreate = 32;
-        Map<String, Object> properties = indexConcurrently(
+        indexConcurrently(
             numberOfFieldsToCreate,
             Settings.builder()
                 .put(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), numberOfFieldsToCreate)
-                .put(INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING.getKey(), true)
+                .put(INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING.getKey(), true),
+            // every field is a multi-field (text + keyword)
+            properties -> assertThat(properties, aMapWithSize(16))
         );
-        // every field is a multi-field (text + keyword)
-        assertThat(properties, aMapWithSize(16));
         assertResponse(
             prepareSearch("index").setQuery(new MatchAllQueryBuilder()).setSize(numberOfFieldsToCreate).addFetchField("*"),
             response -> {
@@ -204,7 +215,8 @@ public class DynamicMappingIT extends ESIntegTestCase {
         );
     }
 
-    private Map<String, Object> indexConcurrently(int numberOfFieldsToCreate, Settings.Builder settings) throws Throwable {
+    private void indexConcurrently(int numberOfFieldsToCreate, Settings.Builder settings, Consumer<Map<String, Object>> assertProperties)
+        throws Throwable {
         indicesAdmin().prepareCreate("index").setSettings(settings).get();
         ensureGreen("index");
         final AtomicReference<Throwable> error = new AtomicReference<>();
@@ -226,13 +238,15 @@ public class DynamicMappingIT extends ESIntegTestCase {
         for (int i = 0; i < numberOfFieldsToCreate; ++i) {
             assertTrue(client().prepareGet("index", Integer.toString(i)).get().isExists());
         }
-        GetMappingsResponse mappings = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "index").get();
-        MappingMetadata indexMappings = mappings.getMappings().get("index");
-        assertNotNull(indexMappings);
-        Map<String, Object> typeMappingsMap = indexMappings.getSourceAsMap();
-        @SuppressWarnings("unchecked")
-        Map<String, Object> properties = (Map<String, Object>) typeMappingsMap.get("properties");
-        return properties;
+        assertBusy(() -> {
+            GetMappingsResponse mappings = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "index").get();
+            MappingMetadata indexMappings = mappings.getMappings().get("index");
+            assertNotNull(indexMappings);
+            Map<String, Object> typeMappingsMap = indexMappings.getSourceAsMap();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> properties = (Map<String, Object>) typeMappingsMap.get("properties");
+            assertProperties.accept(properties);
+        });
     }
 
     public void testConcurrentDynamicMappingsWithConflictingType() throws Throwable {
@@ -257,15 +271,17 @@ public class DynamicMappingIT extends ESIntegTestCase {
         for (int i = 0; i < numberOfDocsToCreate; ++i) {
             assertTrue(client().prepareGet("index", Integer.toString(i)).get().isExists());
         }
-        Map<String, Object> index = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "index")
-            .get()
-            .getMappings()
-            .get("index")
-            .getSourceAsMap();
-        for (int i = 0, j = 1; i < numberOfDocsToCreate; i++, j++) {
-            assertThat(new WriteField("properties.field" + i + ".type", () -> index).get(null), is(oneOf("long", "float")));
-            assertThat(new WriteField("properties.field" + j + ".type", () -> index).get(null), is(oneOf("long", "float")));
-        }
+        assertBusy(() -> {
+            Map<String, Object> index = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "index")
+                .get()
+                .getMappings()
+                .get("index")
+                .getSourceAsMap();
+            for (int i = 0, j = 1; i < numberOfDocsToCreate; i++, j++) {
+                assertThat(new WriteField("properties.field" + i + ".type", () -> index).get(null), is(oneOf("long", "float")));
+                assertThat(new WriteField("properties.field" + j + ".type", () -> index).get(null), is(oneOf("long", "float")));
+            }
+        });
     }
 
     public void testPreflightCheckAvoidsMaster() throws InterruptedException, IOException {
@@ -289,8 +305,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
                         .endObject()
                         .endArray()
                         .endObject()
-                ),
-                XContentType.JSON
+                )
             )
             .get();
         prepareIndex("index").setId("1").setSource("nested1", Map.of("foo", "bar"), "nested2", Map.of("foo", "bar")).get();
@@ -316,7 +331,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
         masterBlockedLatch.await();
         try {
             assertThat(
-                expectThrows(IllegalArgumentException.class, prepareIndex("index").setId("2").setSource("nested3", Map.of("foo", "bar")))
+                expectThrows(MapperParsingException.class, prepareIndex("index").setId("2").setSource("nested3", Map.of("foo", "bar")))
                     .getMessage(),
                 Matchers.containsString("Limit of nested fields [2] has been exceeded")
             );
@@ -549,10 +564,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
             );
             assertThat(exc.getMessage(), Matchers.containsString("failed to parse"));
             assertThat(exc.getCause(), instanceOf(IllegalArgumentException.class));
-            assertThat(
-                exc.getCause().getMessage(),
-                Matchers.containsString("Limit of total fields [4] has been exceeded while adding new fields [2]")
-            );
+            assertThat(exc.getCause().getMessage(), Matchers.containsString("Limit of total fields [4] has been exceeded"));
         }
 
         {
@@ -569,7 +581,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
                         "rfield2" : null
                       }
                     }
-                """, XContentType.JSON));
+                """));
 
             // introduction of a new object with 2 new sub-fields succeeds
             prepareIndex("index1").setId("1")
@@ -585,6 +597,320 @@ public class DynamicMappingIT extends ESIntegTestCase {
         assertBusy(
             () -> assertThat(clusterService.state().metadata().getProject().index("test").getMappingVersion(), equalTo(1 + previousVersion))
         );
+    }
+
+    /**
+     * Every document of the bulk request adds a field. The first one sends its own mapping update and the second one sends the
+     * updates of all the documents that follow it, so that the mappings are only updated twice.
+     */
+    public void testBulkRequestCombinesDynamicMappingUpdates() throws Exception {
+        createIndex("test", indexSettings(1, 0).put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), true).build());
+        final ClusterService clusterService = internalCluster().clusterService();
+        final long previousVersion = clusterService.state().metadata().getProject().index("test").getMappingVersion();
+        int numDocs = between(3, 100);
+        BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (int i = 0; i < numDocs; i++) {
+            bulkRequest.add(new IndexRequest("test").id(Integer.toString(i)).source("field_" + i, i));
+        }
+        BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
+        assertFalse(bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
+        assertBusy(
+            () -> assertThat(clusterService.state().metadata().getProject().index("test").getMappingVersion(), equalTo(2 + previousVersion))
+        );
+        assertBusy(() -> {
+            Map<String, Object> mappings = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "test")
+                .get()
+                .mappings()
+                .get("test")
+                .sourceAsMap();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");
+            for (int i = 0; i < numDocs; i++) {
+                assertThat(properties, hasKey("field_" + i));
+            }
+        });
+        assertHitCount(prepareSearch("test"), numDocs);
+    }
+
+    /**
+     * The setting is updated on an existing index and applies to the bulk requests that follow.
+     */
+    public void testCombineDynamicMappingUpdatesSettingIsDynamic() throws Exception {
+        createIndex("test", 1, 0);
+        final ClusterService clusterService = internalCluster().clusterService();
+        int numDocs = between(3, 20);
+        int round = 0;
+        for (boolean enabled : new boolean[] { false, true, false }) {
+            updateIndexSettings(
+                Settings.builder().put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), enabled),
+                "test"
+            );
+            long previousVersion = clusterService.state().metadata().getProject().index("test").getMappingVersion();
+            BulkRequest bulkRequest = new BulkRequest();
+            for (int i = 0; i < numDocs; i++) {
+                bulkRequest.add(new IndexRequest("test").source("field_" + round + "_" + i, i));
+            }
+            BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
+            assertFalse(bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
+            final long expectedVersion = previousVersion + (enabled ? 2 : numDocs);
+            assertBusy(
+                () -> assertThat(clusterService.state().metadata().getProject().index("test").getMappingVersion(), equalTo(expectedVersion))
+            );
+            round++;
+        }
+    }
+
+    /**
+     * A bulk request must leave the same mappings and return the same result for each of its operations as when the operations
+     * are sent one request at a time, which never combines their mapping updates.
+     */
+    public void testBulkRequestSameOutcomeAsSeparateRequests() throws Exception {
+        int numReplicas = between(0, cluster().numDataNodes() - 1);
+        createIndex(
+            "combined",
+            indexSettings(1, numReplicas).put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), true).build()
+        );
+        createIndex("separate", 1, numReplicas);
+        ensureGreen("combined", "separate");
+        int numOperations = between(2, 60);
+        int numFields = between(1, 15);
+        BulkRequest combined = new BulkRequest();
+        List<BulkItemResponse> separate = new ArrayList<>();
+        for (int i = 0; i < numOperations; i++) {
+            String id = Integer.toString(rarely() ? between(0, i) : i);
+            String field = "field_" + between(0, numFields - 1);
+            Object value = randomFrom(1, 1.5, "text", true, "2024-01-01", Map.of("sub_" + between(0, 2), randomFrom(1, "text")));
+            for (String index : List.of("combined", "separate")) {
+                DocWriteRequest<?> operation = switch (i % 10) {
+                    case 0 -> new DeleteRequest(index, id);
+                    case 1, 2 -> new UpdateRequest(index, id).doc(field, value).docAsUpsert(true);
+                    default -> new IndexRequest(index).id(id).source(field, value, "other_" + field, i);
+                };
+                if (index.equals("combined")) {
+                    combined.add(operation);
+                } else {
+                    separate.add(client().bulk(new BulkRequest().add(operation)).actionGet().getItems()[0]);
+                }
+            }
+        }
+        BulkItemResponse[] combinedResponses = client().bulk(combined).actionGet().getItems();
+        for (int i = 0; i < numOperations; i++) {
+            String operation = "operation [" + i + "]";
+            assertThat(operation, combinedResponses[i].isFailed(), equalTo(separate.get(i).isFailed()));
+            if (separate.get(i).isFailed() == false) {
+                assertThat(operation, combinedResponses[i].getResponse().getResult(), equalTo(separate.get(i).getResponse().getResult()));
+            }
+        }
+        assertBusy(() -> {
+            Map<String, MappingMetadata> mappings = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "combined", "separate")
+                .get()
+                .mappings();
+            assertThat(mappings.get("combined").sourceAsMap(), equalTo(mappings.get("separate").sourceAsMap()));
+        });
+        refresh("combined", "separate");
+        assertResponse(
+            prepareSearch("separate"),
+            response -> assertHitCount(prepareSearch("combined"), response.getHits().getTotalHits().value())
+        );
+    }
+
+    /**
+     * Bulk requests that add the same fields and fields of their own run at the same time, on an index that may ignore the fields
+     * beyond its total fields limit. Every document is indexed and the mappings never go over the limit.
+     */
+    public void testConcurrentBulkRequestsWithDynamicMappingUpdates() throws Exception {
+        int numRequests = between(2, 8);
+        int numDocs = between(5, 40);
+        boolean limited = randomBoolean();
+        int limit = between(10, numRequests * numDocs);
+        Settings.Builder settings = indexSettings(between(1, 3), between(0, cluster().numDataNodes() - 1)).put(
+            MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(),
+            true
+        );
+        if (limited) {
+            settings.put(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), limit)
+                .put(INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING.getKey(), true);
+        } else {
+            settings.put(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 10_000);
+        }
+        indicesAdmin().prepareCreate("index").setSettings(settings).get();
+        ensureGreen("index");
+        final AtomicReference<Throwable> error = new AtomicReference<>();
+        startInParallel(numRequests, request -> {
+            try {
+                BulkRequest bulkRequest = new BulkRequest();
+                for (int i = 0; i < numDocs; i++) {
+                    bulkRequest.add(
+                        new IndexRequest("index").id(request + "_" + i).source("shared_" + i, i, "request_" + request + "_" + i, i)
+                    );
+                }
+                BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
+                assertFalse(bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
+            } catch (Throwable e) {
+                error.compareAndSet(null, e);
+            }
+        });
+        if (error.get() != null) {
+            throw new AssertionError(error.get());
+        }
+        assertBusy(() -> {
+            Map<String, Object> mappings = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "index")
+                .get()
+                .mappings()
+                .get("index")
+                .sourceAsMap();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");
+            if (limited) {
+                assertThat(properties.size(), lessThanOrEqualTo(limit));
+            } else {
+                assertThat(properties, aMapWithSize(numDocs + numRequests * numDocs));
+            }
+        });
+        refresh("index");
+        assertHitCount(prepareSearch("index"), numRequests * numDocs);
+    }
+
+    /**
+     * Concurrent bulk requests add metrics and dimensions to a time series index, as the first documents sent to a new backing
+     * index of a metrics data stream do. The requests share metrics and dimensions, so their mapping updates overlap.
+     */
+    public void testBulkRequestsCombineDynamicMappingUpdatesOfTimeSeriesIndex() throws Exception {
+        Settings settings = indexSettings(1, 0).put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), true)
+            .put(IndexSettings.MODE.getKey(), "time_series")
+            .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of("host", "attributes.*"))
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2024-01-01T00:00:00Z")
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2024-01-02T00:00:00Z")
+            .build();
+        assertAcked(indicesAdmin().prepareCreate("test").setSettings(settings).setMapping("""
+            {
+              "dynamic_templates": [
+                { "ip": { "path_match": "attributes.ip_*", "mapping": { "type": "ip" } } },
+                { "counter": { "path_match": "metrics.*_total", "mapping": { "type": "double", "time_series_metric": "counter" } } },
+                { "gauge": { "path_match": "metrics.*", "mapping": { "type": "double", "time_series_metric": "gauge" } } }
+              ],
+              "properties": {
+                "@timestamp": { "type": "date" },
+                "host": { "type": "keyword", "time_series_dimension": true },
+                "attributes": { "type": "passthrough", "priority": 1, "time_series_dimension": true },
+                "metrics": { "type": "object", "subobjects": false }
+              }
+            }"""));
+        final ClusterService clusterService = internalCluster().clusterService();
+        final long previousVersion = clusterService.state().metadata().getProject().index("test").getMappingVersion();
+        int numRequests = between(1, 5);
+        int numDocs = between(3, 100);
+        int numMetrics = between(1, numDocs);
+        int numAttributes = between(1, 10);
+        final AtomicReference<Throwable> error = new AtomicReference<>();
+        startInParallel(numRequests, request -> {
+            try {
+                BulkRequest bulkRequest = new BulkRequest();
+                for (int i = 0; i < numDocs; i++) {
+                    int metric = randomIntBetween(0, numMetrics - 1);
+                    Map<String, Object> attributes = new HashMap<>();
+                    for (int a = 0; a < between(1, 3); a++) {
+                        int attribute = randomIntBetween(0, numAttributes - 1);
+                        switch (attribute % 3) {
+                            case 0 -> attributes.put("keyword_" + attribute, "value-" + i);
+                            case 1 -> attributes.put("ip_" + attribute, "10.0." + request + "." + i);
+                            case 2 -> attributes.put("long_" + attribute, i);
+                            default -> throw new AssertionError();
+                        }
+                    }
+                    bulkRequest.add(
+                        new IndexRequest("test").opType(DocWriteRequest.OpType.CREATE)
+                            .source(
+                                "@timestamp",
+                                "2024-01-01T00:00:" + (i % 60 < 10 ? "0" : "") + (i % 60) + "Z",
+                                "host",
+                                "host-" + request + "-" + i,
+                                "attributes",
+                                attributes,
+                                "metrics",
+                                Map.of("metric." + metric + (metric % 2 == 0 ? "_total" : ""), i)
+                            )
+                    );
+                }
+                BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
+                assertFalse(bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
+            } catch (Throwable e) {
+                error.compareAndSet(null, e);
+            }
+        });
+        if (error.get() != null) {
+            throw new AssertionError(error.get());
+        }
+        if (numRequests == 1) {
+            // the update of the first document, then the combined update of all the others
+            assertThat(
+                clusterService.state().metadata().getProject().index("test").getMappingVersion(),
+                lessThanOrEqualTo(2 + previousVersion)
+            );
+        }
+        refresh("test");
+        assertHitCount(prepareSearch("test"), numRequests * numDocs);
+
+        assertBusy(() -> {
+            Map<String, Object> mappings = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "test")
+                .get()
+                .mappings()
+                .get("test")
+                .sourceAsMap();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");
+            @SuppressWarnings("unchecked")
+            Map<String, Map<String, Object>> attributes = (Map<String, Map<String, Object>>) ((Map<String, Object>) properties.get(
+                "attributes"
+            )).get("properties");
+            for (Map.Entry<String, Map<String, Object>> attribute : attributes.entrySet()) {
+                String expectedType = switch (attribute.getKey().substring(0, attribute.getKey().indexOf('_'))) {
+                    case "keyword" -> "keyword";
+                    case "ip" -> "ip";
+                    case "long" -> "long";
+                    default -> throw new AssertionError(attribute.getKey());
+                };
+                assertThat(attribute.getKey(), attribute.getValue().get("type"), equalTo(expectedType));
+            }
+            @SuppressWarnings("unchecked")
+            Map<String, Map<String, Object>> metrics = (Map<String, Map<String, Object>>) ((Map<String, Object>) properties.get("metrics"))
+                .get("properties");
+            for (Map.Entry<String, Map<String, Object>> metric : metrics.entrySet()) {
+                assertThat(metric.getKey(), metric.getValue().get("type"), equalTo("double"));
+                assertThat(
+                    metric.getKey(),
+                    metric.getValue().get("time_series_metric"),
+                    equalTo(metric.getKey().endsWith("_total") ? "counter" : "gauge")
+                );
+            }
+            // every attribute and metric of every document is mapped
+            assertResponse(prepareSearch("test").setSize(numRequests * numDocs), response -> {
+                for (SearchHit hit : response.getHits()) {
+                    Map<String, Object> source = hit.getSourceAsMap();
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> attributeSource = (Map<String, Object>) source.get("attributes");
+                    for (String attribute : attributeSource.keySet()) {
+                        assertThat(attributes, hasKey(attribute));
+                    }
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> metricSource = (Map<String, Object>) source.get("metrics");
+                    for (String metric : metricSource.keySet()) {
+                        assertThat(metrics, hasKey(metric));
+                    }
+                }
+            });
+            FieldCapabilitiesResponse fieldCaps = client().prepareFieldCaps("test").setFields("attributes.*", "metrics.*").get();
+            for (String attribute : attributes.keySet()) {
+                for (FieldCapabilities caps : fieldCaps.getField("attributes." + attribute).values()) {
+                    assertTrue(attribute, caps.isDimension());
+                }
+            }
+            for (String metric : metrics.keySet()) {
+                for (FieldCapabilities caps : fieldCaps.getField("metrics." + metric).values()) {
+                    assertThat(metric, caps.getMetricType(), notNullValue());
+                }
+            }
+        });
     }
 
     public void testBulkRequestWithDynamicTemplates() throws Exception {
@@ -814,7 +1140,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
                   }
                 }
               }
-            }""", XContentType.JSON));
+            }"""));
 
         // the parent object has been mapped dynamic:true, hence the field gets indexed
         // we use a fixed doc id here to make sure this document and the one we sent later with a conflicting type

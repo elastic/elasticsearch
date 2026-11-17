@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -22,10 +23,6 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.MOVE_CANNOT_REMAIN_REASON;
-import static org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.MOVE_NOT_PREFERRED_REASON;
-import static org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.REBALANCE_REASON;
 
 /// Observes shard state transitions during allocation rounds, logging them and emitting APM timing metrics.
 class ShardChangesObserver implements RoutingChangesObserver {
@@ -49,12 +46,12 @@ class ShardChangesObserver implements RoutingChangesObserver {
 
     private static Map<String, Map<String, Object>> buildRelocationAttributes(boolean primary) {
         return Map.of(
-            REBALANCE_REASON,
-            Map.of("es_relocation_reason", REBALANCE_REASON, "es_shard_primary", primary),
-            MOVE_CANNOT_REMAIN_REASON,
-            Map.of("es_relocation_reason", MOVE_CANNOT_REMAIN_REASON, "es_shard_primary", primary),
-            MOVE_NOT_PREFERRED_REASON,
-            Map.of("es_relocation_reason", MOVE_NOT_PREFERRED_REASON, "es_shard_primary", primary)
+            BalancedShardsAllocator.MoveType.REBALANCE.reason(),
+            Map.of("es_relocation_reason", BalancedShardsAllocator.MoveType.REBALANCE.reason(), "es_shard_primary", primary),
+            BalancedShardsAllocator.MoveType.CANNOT_REMAIN.reason(),
+            Map.of("es_relocation_reason", BalancedShardsAllocator.MoveType.CANNOT_REMAIN.reason(), "es_shard_primary", primary),
+            BalancedShardsAllocator.MoveType.NOT_PREFERRED.reason(),
+            Map.of("es_relocation_reason", BalancedShardsAllocator.MoveType.NOT_PREFERRED.reason(), "es_shard_primary", primary)
         );
     }
 

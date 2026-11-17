@@ -1,5 +1,0 @@
-area: Security
-issues: []
-pr: 152181
-summary: "[Encryption] Add datasources destructive reset"
-type: enhancement

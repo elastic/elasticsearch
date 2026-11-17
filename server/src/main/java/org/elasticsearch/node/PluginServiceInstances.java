@@ -10,7 +10,7 @@
 package org.elasticsearch.node;
 
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.RerouteService;
@@ -39,6 +39,7 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.RemoteTransportClient;
+import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -61,7 +62,7 @@ public record PluginServiceInstances(
     IndicesService indicesService,
     FeatureService featureService,
     SystemIndices systemIndices,
-    DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings,
+    DataStreamLifecycleSettings dataStreamLifecycleSettings,
     DocumentParsingProvider documentParsingProvider,
     TaskManager taskManager,
     ProjectResolver projectResolver,
@@ -73,5 +74,6 @@ public record PluginServiceInstances(
     CrossProjectModeDecider crossProjectModeDecider,
     PersistentTaskLifecycleManager taskLifecycleManager,
     DataStreamLifecycleErrorStore dlmErrorStore,
-    IpLocationService ipLocationService
+    IpLocationService ipLocationService,
+    UsageService usageService
 ) implements Plugin.PluginServices {}

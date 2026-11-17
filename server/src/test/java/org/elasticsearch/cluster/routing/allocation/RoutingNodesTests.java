@@ -17,6 +17,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -27,10 +29,14 @@ import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
+import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.RelocationFailureInfo;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.UUIDs;
@@ -383,7 +389,15 @@ public class RoutingNodesTests extends ESAllocationTestCase {
 
     }
 
-    public void testNodeInterleavedShardIterator() {
+    public void testNodeInterleavedShardIteratorSubset() {
+        testNodeInterleavedShardIteratorCommon(nodeIds -> Set.copyOf(randomNonEmptySubsetOf(nodeIds)));
+    }
+
+    public void testNodeInterleavedShardIteratorFull() {
+        testNodeInterleavedShardIteratorCommon(Set::copyOf);
+    }
+
+    private void testNodeInterleavedShardIteratorCommon(Function<Set<String>, Set<String>> subsetSelector) {
         final var projectId = randomProjectIdOrDefault();
         final var numberOfShards = between(1, 5);
         final var numberOfReplicas = between(0, 4);
@@ -431,21 +445,58 @@ public class RoutingNodesTests extends ESAllocationTestCase {
             }
         }
 
-        final var iterationCountsByNode = shardsByNode.keySet().stream().collect(Collectors.toMap(Function.identity(), ignored -> 0));
-        final var interleavingIterator = clusterState.getRoutingNodes().nodeInterleavedShardIterator();
+        final var includedNodes = subsetSelector.apply(shardsByNode.keySet());
+        final var iterationCountsByNode = shardsByNode.keySet()
+            .stream()
+            .filter(includedNodes::contains)
+            .collect(Collectors.toMap(Function.identity(), ignored -> 0));
+        // We use this logic to test both the subset and full iterator
+        final var interleavingIterator = includedNodes.size() == shardsByNode.size() && randomBoolean()
+            ? clusterState.getRoutingNodes().nodeInterleavedShardIterator()
+            : clusterState.getRoutingNodes().nodeInterleavedShardIterator(includedNodes::contains);
         while (interleavingIterator.hasNext()) {
             final var shardRouting = interleavingIterator.next();
             final var expectedShards = shardsByNode.get(shardRouting.currentNodeId());
-            assertTrue(expectedShards.remove(shardRouting.shardId()));
+            assertTrue(
+                "Saw a shard from node " + shardRouting.currentNodeId() + " when subset " + includedNodes + " was specified",
+                includedNodes.contains(shardRouting.currentNodeId())
+            );
+            assertTrue("Shard " + shardRouting + " was visited more than once", expectedShards.remove(shardRouting.shardId()));
             iterationCountsByNode.computeIfPresent(shardRouting.currentNodeId(), (ignored, i) -> i + 1);
             final var minNodeCount = iterationCountsByNode.values().stream().mapToInt(i -> i).min().orElseThrow();
             final var maxNodeCount = iterationCountsByNode.values().stream().mapToInt(i -> i).max().orElseThrow();
-            assertThat(maxNodeCount - minNodeCount, oneOf(0, 1));
+            assertThat(
+                "The most visited node is more than one visit ahead of the least visited node. "
+                    + "This means we're not round-robin-ing correctly",
+                maxNodeCount - minNodeCount,
+                oneOf(0, 1)
+            );
             if (expectedShards.isEmpty()) {
                 iterationCountsByNode.remove(shardRouting.currentNodeId());
             }
         }
-        assertTrue(shardsByNode.values().stream().allMatch(Set::isEmpty));
+
+        final var nodesWithUnvisitedShards = shardsByNode.entrySet()
+            .stream()
+            .filter(e -> includedNodes.contains(e.getKey()))
+            .filter(e -> e.getValue().isEmpty() == false)
+            .map(Map.Entry::getKey)
+            .toList();
+        assertTrue("Shards on nodes " + nodesWithUnvisitedShards + " were left unvisited", nodesWithUnvisitedShards.isEmpty());
+    }
+
+    public void testNodeInterleavedShardIteratorNoMatchingNodes() {
+        final var projectId = randomProjectIdOrDefault();
+        final var indexMetadata = IndexMetadata.builder("index").settings(indexSettings(IndexVersion.current(), 2, 0)).build();
+        final var metadata = Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata, true)).build();
+        final var routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(indexMetadata).build();
+        final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(newNode("node-0")).masterNodeId("node-0").localNodeId("node-0"))
+            .metadata(metadata)
+            .routingTable(GlobalRoutingTableTestHelper.routingTable(projectId, routingTable))
+            .build();
+
+        assertFalse(clusterState.getRoutingNodes().nodeInterleavedShardIterator(nodeId -> false).hasNext());
     }
 
     public void testBuildRoutingNodesForMultipleProjects() {
@@ -507,6 +558,187 @@ public class RoutingNodesTests extends ESAllocationTestCase {
         runMoveShardRolesTest(ShardRouting.Role.INDEX_ONLY, ShardRouting.Role.SEARCH_ONLY);
     }
 
+    public void testStartingPrimaryRelocationDoesNotIncrementReplicaFailedRelocations() {
+        final var projectId = randomProjectIdOrDefault();
+        final var inSync = randomList(2, 2, UUIDs::randomBase64UUID);
+        final var indexMetadata = IndexMetadata.builder(randomIndexName())
+            .settings(indexSettings(IndexVersion.current(), 1, 1))
+            .putInSyncAllocationIds(0, Set.copyOf(inSync))
+            .build();
+
+        final var shardId = new ShardId(indexMetadata.getIndex(), 0);
+        final int priorFailedRelocations = randomIntBetween(0, 5);
+
+        final var indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex())
+            .addShard(shardRoutingBuilder(shardId, "node-1", true, STARTED).build())
+            .addShard(
+                shardRoutingBuilder(shardId, "node-2", false, STARTED).withRelocationFailureInfo(
+                    new RelocationFailureInfo(priorFailedRelocations)
+                ).build()
+            )
+            .build();
+
+        final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata, false)).build())
+            .nodes(
+                DiscoveryNodes.builder().add(newNode("node-1")).add(newNode("node-2")).add(newNode("node-3")).add(newNode("node-4")).build()
+            )
+            .routingTable(GlobalRoutingTableTestHelper.routingTable(projectId, RoutingTable.builder().add(indexRoutingTable).build()))
+            .build();
+
+        final var routingNodes = clusterState.getRoutingNodes().mutableCopy();
+        routingNodes.relocateShard(
+            routingNodes.node("node-1").getByShardId(shardId),
+            "node-3",
+            0L,
+            "test",
+            RoutingChangesObserver.NOOP,
+            RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+        );
+        routingNodes.relocateShard(
+            routingNodes.node("node-2").getByShardId(shardId),
+            "node-4",
+            0L,
+            "test",
+            RoutingChangesObserver.NOOP,
+            RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+        );
+
+        final var primaryTarget = routingNodes.node("node-3").getByShardId(shardId);
+        routingNodes.startShard(primaryTarget, RoutingChangesObserver.NOOP, primaryTarget.getExpectedShardSize());
+
+        final var startedPrimary = routingNodes.node("node-3").getByShardId(shardId);
+        assertThat(startedPrimary.state(), equalTo(STARTED));
+        assertThat(startedPrimary.primary(), equalTo(true));
+
+        final var restartedReplica = routingNodes.node("node-2").getByShardId(shardId);
+        assertThat(restartedReplica.state(), equalTo(RELOCATING));
+        assertThat(restartedReplica.relocatingNodeId(), equalTo("node-4"));
+        assertThat(
+            "restarting replica relocation due to primary moving should not increment failedRelocations",
+            restartedReplica.relocationFailureInfo().failedRelocations(),
+            equalTo(priorFailedRelocations)
+        );
+        assertThat(routingNodes.node("node-4").getByShardId(shardId).state(), equalTo(INITIALIZING));
+        assertTrue(routingNodes.node("node-4").getByShardId(shardId).isRelocationTarget());
+    }
+
+    /// A shard which fails before becoming active keeps its recovery priority, but an active shard which fails becomes
+    /// [RecoveryPriority#UNASSIGNED_UNEXPECTED].
+    public void testFailedShardRecoveryPriority() {
+        final var projectId = randomProjectIdOrDefault();
+        final var failPrimary = randomBoolean();
+        final var indexMetadata = IndexMetadata.builder(randomIndexName())
+            .settings(indexSettings(IndexVersion.current(), 1, failPrimary ? 0 : 1))
+            .build();
+        final var shardId = new ShardId(indexMetadata.getIndex(), 0);
+
+        final var failedShardActive = randomBoolean();
+        final var failedShardRecoveryPriority = failPrimary
+            ? randomFrom(
+                RecoveryPriority.UNASSIGNED_NEW_PRIMARY,
+                RecoveryPriority.UNASSIGNED_UNEXPECTED,
+                RecoveryPriority.UNASSIGNED_EXPECTED,
+                RecoveryPriority.UNASSIGNED_RESTORING,
+                RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING
+            )
+            : randomFrom(
+                RecoveryPriority.UNASSIGNED_UNEXPECTED,
+                RecoveryPriority.UNASSIGNED_EXPECTED,
+                RecoveryPriority.UNASSIGNED_RESTORING,
+                RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING
+            );
+        final var failedShardNode = failPrimary ? "node-1" : "node-2";
+        final var failedShard = failedShardActive
+            ? shardRoutingBuilder(shardId, failedShardNode, failPrimary, STARTED).build()
+            : shardRoutingBuilder(shardId, failedShardNode, failPrimary, INITIALIZING).withRecoveryPriority(failedShardRecoveryPriority)
+                .build();
+        final var indexRoutingTableBuilder = IndexRoutingTable.builder(indexMetadata.getIndex()).addShard(failedShard);
+        if (failPrimary == false) {
+            indexRoutingTableBuilder.addShard(shardRoutingBuilder(shardId, "node-1", true, STARTED).build());
+        }
+
+        final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata, false)).build())
+            .nodes(DiscoveryNodes.builder().add(newNode("node-1")).add(newNode("node-2")).build())
+            .routingTable(
+                GlobalRoutingTableTestHelper.routingTable(projectId, RoutingTable.builder().add(indexRoutingTableBuilder.build()).build())
+            )
+            .build();
+
+        final var routingNodes = clusterState.getRoutingNodes().mutableCopy();
+        routingNodes.failShard(
+            routingNodes.node(failedShardNode).getByShardId(shardId),
+            new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, "test"),
+            RoutingChangesObserver.NOOP,
+            clusterState.metadata()
+        );
+
+        assertThat(routingNodes.unassigned().size(), equalTo(1));
+        final var unassignedShard = routingNodes.unassigned().iterator().next();
+        assertThat(unassignedShard.shardId(), equalTo(shardId));
+        assertThat(unassignedShard.primary(), equalTo(failPrimary));
+        assertThat(
+            unassignedShard.recoveryPriority(),
+            equalTo(failedShardActive ? RecoveryPriority.UNASSIGNED_UNEXPECTED : failedShardRecoveryPriority)
+        );
+    }
+
+    /// A reshard split target primary takes over writes at [IndexReshardingState.Split.TargetShardState#HANDOFF], before
+    /// it becomes active. If it fails before the handoff, it keeps its deferrable recovery priority since the source shard
+    /// still serves its documents. If it fails at or after the handoff, its failure has reduced availability, so it becomes
+    /// [RecoveryPriority#UNASSIGNED_UNEXPECTED].
+    public void testFailedSplitTargetPrimaryRecoveryPriority() {
+        final var projectId = randomProjectIdOrDefault();
+        final var indexName = randomIndexName();
+        final var initialMetadata = IndexMetadata.builder(indexName).settings(indexSettings(IndexVersion.current(), 2, 0)).build();
+        final var sourceShardId = new ShardId(initialMetadata.getIndex(), 0);
+        final var targetShardId = new ShardId(initialMetadata.getIndex(), 1);
+
+        final var targetShardState = randomFrom(IndexReshardingState.Split.TargetShardState.values());
+        var reshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(1, 2);
+        for (final var state : IndexReshardingState.Split.TargetShardState.values()) {
+            if (state.ordinal() > IndexReshardingState.Split.TargetShardState.CLONE.ordinal()
+                && state.ordinal() <= targetShardState.ordinal()) {
+                reshardingMetadata = reshardingMetadata.transitionSplitTargetToNewState(targetShardId, state);
+            }
+        }
+        final var indexMetadata = IndexMetadata.builder(initialMetadata).reshardingMetadata(reshardingMetadata).build();
+
+        final var indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex())
+            .addShard(shardRoutingBuilder(sourceShardId, "node-1", true, STARTED).build())
+            .addShard(
+                shardRoutingBuilder(targetShardId, "node-2", true, INITIALIZING).withRecoverySource(
+                    new RecoverySource.ReshardSplitRecoverySource(sourceShardId)
+                ).withRecoveryPriority(RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING).build()
+            )
+            .build();
+
+        final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata, false)).build())
+            .nodes(DiscoveryNodes.builder().add(newNode("node-1")).add(newNode("node-2")).build())
+            .routingTable(GlobalRoutingTableTestHelper.routingTable(projectId, RoutingTable.builder().add(indexRoutingTable).build()))
+            .build();
+
+        final var routingNodes = clusterState.getRoutingNodes().mutableCopy();
+        routingNodes.failShard(
+            routingNodes.node("node-2").getByShardId(targetShardId),
+            new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, "test"),
+            RoutingChangesObserver.NOOP,
+            clusterState.metadata()
+        );
+
+        assertThat(routingNodes.unassigned().size(), equalTo(1));
+        final var unassignedShard = routingNodes.unassigned().iterator().next();
+        assertThat(unassignedShard.shardId(), equalTo(targetShardId));
+        assertThat(unassignedShard.primary(), equalTo(true));
+        assertThat(unassignedShard.recoverySource().getType(), equalTo(RecoverySource.Type.RESHARD_SPLIT));
+        final var expectedRecoveryPriority = targetShardState == IndexReshardingState.Split.TargetShardState.CLONE
+            ? RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING
+            : RecoveryPriority.UNASSIGNED_UNEXPECTED;
+        assertThat(unassignedShard.recoveryPriority(), equalTo(expectedRecoveryPriority));
+    }
+
     private void runMoveShardRolesTest(ShardRouting.Role primaryRole, ShardRouting.Role replicaRole) {
         var projectId = randomProjectIdOrDefault();
         var inSync = randomList(2, 2, UUIDs::randomBase64UUID);
@@ -534,11 +766,21 @@ public class RoutingNodesTests extends ESAllocationTestCase {
 
         var routingNodes = clusterState.getRoutingNodes().mutableCopy();
 
-        routingNodes.relocateShard(routingNodes.node("node-1").getByShardId(shardId), "node-3", 0L, "test", RoutingChangesObserver.NOOP);
+        RecoveryPriority recoveryPriority = RecoveryPriority.RELOCATION_CAN_REMAIN_NO;
+        routingNodes.relocateShard(
+            routingNodes.node("node-1").getByShardId(shardId),
+            "node-3",
+            0L,
+            "test",
+            RoutingChangesObserver.NOOP,
+            recoveryPriority
+        );
 
         assertThat(routingNodes.node("node-1").getByShardId(shardId).state(), equalTo(RELOCATING));
         assertThat(routingNodes.node("node-2").getByShardId(shardId).state(), equalTo(STARTED));
         assertThat(routingNodes.node("node-3").getByShardId(shardId).state(), equalTo(INITIALIZING));
+        assertThat(routingNodes.node("node-1").getByShardId(shardId).recoveryPriority(), equalTo(recoveryPriority));
+        assertThat(routingNodes.node("node-3").getByShardId(shardId).recoveryPriority(), equalTo(recoveryPriority));
         assertThat(routingNodes.unassigned().ignored(), empty());
     }
 

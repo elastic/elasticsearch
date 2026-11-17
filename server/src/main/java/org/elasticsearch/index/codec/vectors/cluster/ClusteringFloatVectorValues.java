@@ -22,7 +22,4 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
 
     @Override
     public abstract ClusteringFloatVectorValues copy() throws IOException;
-
-    @Override
-    public abstract int ordToDoc(int ord);
 }

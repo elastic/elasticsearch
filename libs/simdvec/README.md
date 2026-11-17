@@ -18,18 +18,17 @@ libs/simdvec/
 │   │   ├── aarch64/        #     ARM kernels (NEON baseline, SVE in *_2.cpp)
 │   │   └── amd64/          #     x64 kernels (AVX2 baseline, AVX-512 in *_2.cpp)
 │   ├── src/vec/headers/    #     Shared and platform-specific headers
-│   ├── Makefile            #     Cross-compilation build (all platforms)
-│   └── Dockerfile.cross-toolchain
-└── build.gradle            # Gradle build config (multi-release JAR, JDK 21 coverage)
+│   └── Makefile            #     Cross-compilation build (all platforms)
+└── build.gradle            # Gradle build config, including how libvec is built and published
 ```
 
 ### Related code in other modules
 
-- **`libs/native`** — Low-level Panama FFI bindings
-  - `VectorLibrary.java` — interface declaring native function signatures
-  - `JdkVectorLibrary.java` — Panama implementation, loads `libvec`
-  - `VectorSimilarityFunctions.java` — public facade
-  - FFI-level tests for vector scoring functions
+- **`libs/foreign-library`** — the FFM binding framework. `SimdVecLibrary` (in this module) declares
+  libvec's functions with its annotations, and the build generates the implementation.
+- **`libs/native/libraries`** — collects the built (or published) libvec alongside the other native
+  libraries, for tests and the distribution.
+- **`libs/native-toolchain`** — the cross-compilation toolchain image used to build libvec.
 
 ## Native code tiers
 
@@ -68,41 +67,70 @@ The native kernels cover single-pair and bulk scoring for:
 ## Building the native library
 
 The native library is built via the `Makefile` in `native/`. For
-cross-compilation of all three platform binaries (darwin-aarch64,
-linux-aarch64, linux-x64), use the Docker-based toolchain:
+cross-compilation of all four platform binaries (darwin-aarch64,
+linux-aarch64, linux-x64, windows-x64), use the shared Docker-based toolchain image
+(`es-native-cross-toolchain`, see [`libs/native-toolchain`](../native-toolchain/README.md)).
+
+The build is integrated with Gradle; Gradle detects which version of the native
+sources are present and will fetch the matching binaries from Artifactory. If
+the source code is new (no matching binaries on Artifactory), it compiles libvec
+from source. You can drive this behaviour by setting the `VEC_NATIVE_BUILD`
+environment variable:
 
 ```bash
-# Build the cross-compilation toolchain image
-./build_cross_toolchain_image.sh
+# Cross-compile all platforms in Docker (CI mode)
+VEC_NATIVE_BUILD=docker ./gradlew :libs:simdvec:buildNativeLibrary
 
-# Build and publish binaries
-./publish_vec_binaries.sh
+# Build for the host platform only (dev iteration)
+VEC_NATIVE_BUILD=host ./gradlew :libs:simdvec:buildNativeLibrary
 ```
-
-For local development on the current platform:
-
-```bash
-cd native
-make local       # builds for the host platform
-make install     # copies the binary where Gradle tests expect it
+NOTE: the Gradle daemon might not be able to access your docker installation.
+If you receive a message like:
 ```
-
-`make install` places the library in
-`libs/native/libraries/build/platform/<os>-<arch>/` so that Gradle tests can
-use it instead of fetching from Artifactory. Set `LOCAL_VEC_BINARY_OS=true` to
-skip the Artifactory download:
-
-```bash
-make install
-LOCAL_VEC_BINARY_OS=true ./gradlew :libs:simdvec:test
+A problem occurred starting process 'command 'docker''
 ```
+add `--no-daemon` to the Gradle command line.
+
+When `VEC_NATIVE_BUILD` is unset (or set to `artifactory`), the binary is
+fetched from Artifactory (no compiler or Docker required).
+
+Building from source **replaces** the published artifact rather than
+complementing it.
+In `host` mode that means `libs/native/libraries/build/platform/` holds libvec
+for your platform only. Anything that needs other platforms (e.g. assembling
+a distribution for a different OS or architecture) needs `docker` mode or the
+published artifact.
+
+CI publishes the binaries for new sources on its own. To publish from your machine, or to build
+every platform even though the binaries are already published, see *Publish a library* in
+[`libs/native-toolchain`](../native-toolchain/README.md#publish-a-library).
+
+In the rare case in which your changes require a new `es-native-cross-toolchain`
+docker image (e.g. new clang version, additional build tools, a missing system
+header, etc.), see [`libs/native-toolchain`](../native-toolchain/README.md).
 
 ## Testing
 
+Java tests for this project are designed to cover both Java and native code.
+To run them (from the repo root):
 ```bash
-# Run simdvec tests (from repo root)
 ./gradlew :libs:simdvec:test
 ```
+It is possible to run them using a locally built native library (e.g. to test changes to the native code):
+```bash
+VEC_NATIVE_BUILD=host ./gradlew :libs:simdvec:test
+```
 
-The Gradle build also runs a `testJava21` task to verify runtime version guards
-when running/testing with a JDK newer than 21.
+The Gradle build also runs a `testJava21` task to verify runtime version guards when running/testing with a JDK newer than 21.
+
+## Benchmarking
+
+In order to run JMH micro-benchmarks, run:
+```bash
+./gradlew :libs:simdvec:benchmark
+```
+you can pass parameters down to JMH with `--args`, e.g.
+```bash
+./gradlew :libs:simdvec:benchmark --args 'VectorScorerFloat32BulkBenchmark.scoreMultipleBulk -pfunction=DOT_PRODUCT -pbulkSize=32 -pimplementation=NATIVE -pnumVectors=65000'
+```
+will run the float32 bulk benchmarks for the native dot-product implementation, with fixed bulk size of 32 over 65000 vectors ("L2-cache-spilling" size).

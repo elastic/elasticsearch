@@ -10,10 +10,10 @@
 # (Lucene's Similarity API does not expose a searcher context), so the runnable stays null and
 # search timeouts never propagate into the script.
 #
-# "static lambda" tests (below the context tests) verify that the cancellation poll is forwarded
-# into typed static lambda bodies (e.g. removeIf / sort) via the synthetic #scriptThis capture
-# (the script receiver) injected by the compiler.  The loop lives inside the lambda, not the
-# top-level script body, and shares the script's persistent $cancelPoll counter.
+# The "lambda" tests (below the context tests) verify that the cancellation poll reaches a loop
+# inside a typed lambda body (e.g. removeIf / sort). In a cancellation-aware context the compiler
+# makes every lambda an instance method that captures the script, so the loop polls through the
+# script's persistent $cancelPoll counter.
 
 ---
 "Search timeout aborts a long-running filter script loop":
@@ -671,10 +671,9 @@
   - is_true: timed_out
 
 ---
-"Search timeout cancels a loop inside a static lambda in a filter script":
-  # The loop is inside a typed removeIf lambda, not in the top-level script body.
-  # Exercises the IRCStaticCancellationCheck path: the compiler injects a synthetic
-  # #scriptThis capture so the lambda body shares the script's $cancelPoll counter.
+"Search timeout cancels a loop inside a typed lambda in a filter script":
+  # The loop is inside a typed removeIf lambda, not in the top-level script body. The lambda is
+  # an instance method capturing the script, so its loop shares the script's $cancelPoll counter.
   - do:
       indices.create:
         index: test_filter_lambda_timeout
@@ -716,7 +715,7 @@
   - is_true: timed_out
 
 ---
-"Search timeout cancels a loop inside a static lambda in a runtime long field":
+"Search timeout cancels a loop inside a typed lambda in a runtime long field":
   # Same as above but via a runtime field script to confirm the lambda capture path
   # works across a different cancellation-aware context.
   - do:
@@ -766,7 +765,7 @@
   - is_true: timed_out
 
 ---
-"Static lambda loop cancelled in number sort script":
+"Typed lambda loop cancelled in number sort script":
   - do:
       indices.create:
         index: test_number_sort_lambda_timeout
@@ -810,7 +809,7 @@
   - is_true: timed_out
 
 ---
-"Static lambda loop cancelled in string sort script":
+"Typed lambda loop cancelled in string sort script":
   - do:
       indices.create:
         index: test_string_sort_lambda_timeout
@@ -854,7 +853,7 @@
   - is_true: timed_out
 
 ---
-"Static lambda loop cancelled in bytesref (version) sort script":
+"Typed lambda loop cancelled in bytesref (version) sort script":
   - do:
       indices.create:
         index: test_bytesref_sort_lambda_timeout
@@ -898,7 +897,7 @@
   - is_true: timed_out
 
 ---
-"Static lambda loop cancelled in terms_set minimum_should_match script":
+"Typed lambda loop cancelled in terms_set minimum_should_match script":
   - do:
       indices.create:
         index: test_terms_set_lambda_timeout
@@ -942,7 +941,7 @@
   - is_true: timed_out
 
 ---
-"Static lambda loop cancelled in interval filter script":
+"Typed lambda loop cancelled in interval filter script":
   - do:
       indices.create:
         index: test_interval_lambda_timeout
@@ -989,7 +988,7 @@
   - is_true: timed_out
 
 ---
-"Static lambda loop cancelled in aggregation script":
+"Typed lambda loop cancelled in aggregation script":
   - do:
       indices.create:
         index: test_agg_lambda_timeout
@@ -1033,7 +1032,7 @@
   - is_true: timed_out
 
 ---
-"Static lambda loop cancelled in scripted_metric map_script":
+"Typed lambda loop cancelled in scripted_metric map_script":
   - do:
       indices.create:
         index: test_scripted_metric_map_lambda_timeout
@@ -1080,7 +1079,7 @@
   - is_true: timed_out
 
 ---
-"Static lambda loop cancelled in script_score":
+"Typed lambda loop cancelled in script_score":
   - do:
       indices.create:
         index: test_script_score_lambda_timeout
@@ -1123,7 +1122,7 @@
   - is_true: timed_out
 
 ---
-"Static lambda loop cancelled in double runtime field script":
+"Typed lambda loop cancelled in double runtime field script":
   - do:
       indices.create:
         index: test_rt_double_lambda_timeout
@@ -1165,7 +1164,7 @@
   - is_true: timed_out
 
 ---
-"Static lambda loop cancelled in boolean runtime field script":
+"Typed lambda loop cancelled in boolean runtime field script":
   - do:
       indices.create:
         index: test_rt_boolean_lambda_timeout
@@ -1207,7 +1206,7 @@
   - is_true: timed_out
 
 ---
-"Static lambda loop cancelled in date runtime field script":
+"Typed lambda loop cancelled in date runtime field script":
   - do:
       indices.create:
         index: test_rt_date_lambda_timeout
@@ -1249,7 +1248,7 @@
   - is_true: timed_out
 
 ---
-"Static lambda loop cancelled in keyword runtime field script":
+"Typed lambda loop cancelled in keyword runtime field script":
   - do:
       indices.create:
         index: test_rt_keyword_lambda_timeout
@@ -1291,7 +1290,7 @@
   - is_true: timed_out
 
 ---
-"Static lambda loop cancelled in geo_point runtime field script":
+"Typed lambda loop cancelled in geo_point runtime field script":
   - do:
       indices.create:
         index: test_rt_geo_point_lambda_timeout
@@ -1333,7 +1332,7 @@
   - is_true: timed_out
 
 ---
-"Static lambda loop cancelled in ip runtime field script":
+"Typed lambda loop cancelled in ip runtime field script":
   - do:
       indices.create:
         index: test_rt_ip_lambda_timeout
@@ -1375,7 +1374,7 @@
   - is_true: timed_out
 
 ---
-"Static lambda loop cancelled in composite runtime field script":
+"Typed lambda loop cancelled in composite runtime field script":
   - do:
       indices.create:
         index: test_rt_composite_lambda_timeout

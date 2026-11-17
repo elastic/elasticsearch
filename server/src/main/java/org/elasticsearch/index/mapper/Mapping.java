@@ -9,15 +9,10 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.lookup.SourceFilter;
-import org.elasticsearch.xcontent.ToXContentFragment;
-import org.elasticsearch.xcontent.XContentBuilder;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -28,7 +23,7 @@ import java.util.stream.Stream;
  * Wrapper around everything that defines a mapping, without references to
  * utility classes like MapperService, ...
  */
-public final class Mapping implements ToXContentFragment {
+public final class Mapping {
 
     public static final Mapping EMPTY = new Mapping(
         new RootObjectMapper.Builder(MapperService.SINGLE_MAPPING_NAME).build(MapperBuilderContext.root(false, false)),
@@ -42,7 +37,11 @@ public final class Mapping implements ToXContentFragment {
      * during Mapping class loading (which can happen at unpredictable times via XContentHelper.parseToType).
      */
     private static class EmptyCompressedHolder {
-        static final CompressedXContent INSTANCE = EMPTY.toCompressedXContent();
+        static final CompressedXContent INSTANCE = new MappingBuilder(
+            new RootObjectMapper.Builder(MapperService.SINGLE_MAPPING_NAME),
+            Map.of(),
+            null
+        ).toCompressedXContent();
     }
 
     public static CompressedXContent emptyCompressed() {
@@ -90,18 +89,6 @@ public final class Mapping implements ToXContentFragment {
     }
 
     /**
-     * Outputs this mapping instance and returns it in {@link CompressedXContent} format
-     * @return the {@link CompressedXContent} representation of this mapping instance
-     */
-    public CompressedXContent toCompressedXContent() {
-        try {
-            return new CompressedXContent(this);
-        } catch (Exception e) {
-            throw new ElasticsearchGenerationException("failed to serialize source for type [" + root.fullPath() + "]", e);
-        }
-    }
-
-    /**
      * Returns the root object for the current mapping
      */
     public RootObjectMapper getRoot() {
@@ -115,7 +102,7 @@ public final class Mapping implements ToXContentFragment {
         return meta;
     }
 
-    MetadataFieldMapper[] getSortedMetadataMappers() {
+    public MetadataFieldMapper[] getSortedMetadataMappers() {
         return metadataMappers;
     }
 
@@ -158,9 +145,6 @@ public final class Mapping implements ToXContentFragment {
      * @return a {@link SourceLoader.SyntheticVectorsLoader} for extracting synthetic vectors,
      *         potentially using the provided filter
      */
-    public SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader(@Nullable SourceFilter filter) {
-        return root.syntheticVectorsLoader(filter);
-    }
 
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(@Nullable SourceFilter filter) {
         return syntheticFieldLoader(filter, false);
@@ -181,24 +165,5 @@ public final class Mapping implements ToXContentFragment {
 
     public FieldNamesFieldMapper fieldNamesFieldMapper() {
         return fieldNamesFieldMapper;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        root.toXContent(builder, params, (b, params1) -> {
-            if (meta != null) {
-                b.field("_meta", meta);
-            }
-            for (Mapper mapper : metadataMappers) {
-                mapper.toXContent(b, params1);
-            }
-            return b;
-        });
-        return builder;
-    }
-
-    @Override
-    public String toString() {
-        return Strings.toString(this);
     }
 }

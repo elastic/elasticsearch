@@ -133,7 +133,7 @@ public abstract class SourceValueFetcherIndexFieldData<T>
         }
 
         @Override
-        public SortedBinaryDocValues getBytesValues() {
+        public SortableBinaryDocValues getBytesValues() {
             throw new IllegalArgumentException("not supported for source fallback");
         }
     }

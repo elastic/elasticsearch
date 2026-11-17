@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless.objectstore;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
@@ -39,17 +40,22 @@ import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
+import org.elasticsearch.common.blobstore.fs.FsBlobStore;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
@@ -60,25 +66,31 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryException;
-import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.client.NoOpNodeClient;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationResponse;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BccUploadMetrics;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.StaleCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
@@ -94,9 +106,11 @@ import org.elasticsearch.xpack.stateless.utils.TransferableCloseables;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.HexFormat;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -105,12 +119,15 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.env.Environment.PATH_REPO_SETTING;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommitTestUtils.randomNonZeroPositiveLong;
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.BUCKET_SETTING;
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.OBJECT_STORE_FILE_DELETION_DELAY;
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.ObjectStoreType.AZURE;
@@ -120,12 +137,17 @@ import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.O
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -159,7 +181,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
         }
         // no throw
         ObjectStoreType objectStoreType = ObjectStoreService.TYPE_SETTING.get(builder.build());
-        Settings settings = objectStoreType.createRepositorySettings(bucket, randomAlphaOfLength(5), basePath);
+        Settings settings = objectStoreType.createRepositorySettings(bucket, randomAlphaOfLength(5), basePath, null);
         assertThat(settings.keySet().size(), equalTo(1));
         assertThat(settings.get("location"), equalTo(basePath != null ? PathUtils.get(bucket, basePath).toString() : bucket));
     }
@@ -184,7 +206,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
         }
         // check no throw
         ObjectStoreType objectStoreType = ObjectStoreService.TYPE_SETTING.get(builder.build());
-        Settings settings = objectStoreType.createRepositorySettings(bucket, client, basePath);
+        Settings settings = objectStoreType.createRepositorySettings(bucket, client, basePath, null);
         assertThat(
             settings.keySet().size(),
             equalTo(2 + (basePath == null ? 0 : 1) + (objectStoreType == S3 ? 1 /* add_purpose_custom_query_parameter */ : 0))
@@ -192,6 +214,99 @@ public class ObjectStoreServiceTests extends ESTestCase {
         assertThat(settings.get(bucketName), equalTo(bucket));
         assertThat(settings.get("client"), equalTo(client));
         assertThat(settings.get("base_path"), equalTo(basePath));
+
+        // when threshold is not set, the per-type key must be absent
+        List<String> multiPartUploadSettings = switch (type) {
+            case S3 -> List.of(ObjectStoreService.S3_MULTIPART_THRESHOLD_SETTING_KEY);
+            case GCS -> List.of(ObjectStoreService.GCS_MULTIPART_THRESHOLD_SETTING_KEY);
+            case AZURE -> List.of(
+                ObjectStoreService.AZURE_MULTIPART_THRESHOLD_SETTING_KEY,
+                ObjectStoreService.AZURE_MULTIPART_PART_SIZE_SETTING_KEY
+            );
+            default -> throw new AssertionError("unexpected type: " + type);
+        };
+        for (var setting : multiPartUploadSettings) {
+            assertNull(settings.get(setting));
+        }
+
+        // when threshold is set, the per-type key must be present with the right value and the key count grows by one
+        ByteSizeValue threshold = randomBoolean() ? ByteSizeValue.ofMb(between(5, 100)) : null;
+        Settings settingsWithThreshold = objectStoreType.createRepositorySettings(bucket, client, basePath, threshold);
+        if (threshold == null) {
+            for (var setting : multiPartUploadSettings) {
+                assertThat(settingsWithThreshold.get(setting), is(nullValue()));
+            }
+        } else {
+            for (var setting : multiPartUploadSettings) {
+                assertThat(settingsWithThreshold.get(setting), equalTo(threshold.getStringRep()));
+            }
+        }
+    }
+
+    public void testMultiPartThresholdValidation() {
+        // below minimum (5 MB) should throw
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ObjectStoreService.OBJECT_STORE_MULTIPART_THRESHOLD.get(
+                Settings.builder().put(ObjectStoreService.OBJECT_STORE_MULTIPART_THRESHOLD.getKey(), "4mb").build()
+            )
+        );
+        assertThat(e.getMessage(), containsString("4mb"));
+
+        // at minimum should succeed
+        ByteSizeValue atMin = ObjectStoreService.OBJECT_STORE_MULTIPART_THRESHOLD.get(
+            Settings.builder().put(ObjectStoreService.OBJECT_STORE_MULTIPART_THRESHOLD.getKey(), "5mb").build()
+        );
+        assertThat(atMin, equalTo(ByteSizeValue.ofMb(5)));
+
+        // at maximum (5 GB) should succeed
+        ByteSizeValue atMax = ObjectStoreService.OBJECT_STORE_MULTIPART_THRESHOLD.get(
+            Settings.builder().put(ObjectStoreService.OBJECT_STORE_MULTIPART_THRESHOLD.getKey(), "5gb").build()
+        );
+        assertThat(atMax, equalTo(ByteSizeValue.ofGb(5)));
+
+        // above maximum should throw
+        IllegalArgumentException eMax = expectThrows(
+            IllegalArgumentException.class,
+            () -> ObjectStoreService.OBJECT_STORE_MULTIPART_THRESHOLD.get(
+                Settings.builder().put(ObjectStoreService.OBJECT_STORE_MULTIPART_THRESHOLD.getKey(), "6gb").build()
+            )
+        );
+        assertThat(eMax.getMessage(), containsString("6gb"));
+    }
+
+    public void testMultiPartThresholdInjectedPerType() {
+        ByteSizeValue threshold = ByteSizeValue.ofMb(between(5, 100));
+        assertThat(
+            S3.createRepositorySettings("b", "c", null, threshold).get(ObjectStoreService.S3_MULTIPART_THRESHOLD_SETTING_KEY),
+            equalTo(threshold.getStringRep())
+        );
+        assertThat(
+            GCS.createRepositorySettings("b", "c", null, threshold).get(ObjectStoreService.GCS_MULTIPART_THRESHOLD_SETTING_KEY),
+            equalTo(threshold.getStringRep())
+        );
+        assertThat(
+            AZURE.createRepositorySettings("b", "c", null, threshold).get(ObjectStoreService.AZURE_MULTIPART_THRESHOLD_SETTING_KEY),
+            equalTo(threshold.getStringRep())
+        );
+        assertThat(
+            AZURE.createRepositorySettings("b", "c", null, threshold).get(ObjectStoreService.AZURE_MULTIPART_PART_SIZE_SETTING_KEY),
+            equalTo(threshold.getStringRep())
+        );
+    }
+
+    public void testMultiPartThresholdNotInjectedWhenNull() {
+        assertNull(S3.createRepositorySettings("b", "c", null, null).get(ObjectStoreService.S3_MULTIPART_THRESHOLD_SETTING_KEY));
+        assertNull(GCS.createRepositorySettings("b", "c", null, null).get(ObjectStoreService.GCS_MULTIPART_THRESHOLD_SETTING_KEY));
+        assertNull(AZURE.createRepositorySettings("b", "c", null, null).get(ObjectStoreService.AZURE_MULTIPART_THRESHOLD_SETTING_KEY));
+        assertNull(AZURE.createRepositorySettings("b", "c", null, null).get(ObjectStoreService.AZURE_MULTIPART_PART_SIZE_SETTING_KEY));
+        assertNull(FS.createRepositorySettings("b", "c", null, null).get(ObjectStoreService.S3_MULTIPART_THRESHOLD_SETTING_KEY));
+    }
+
+    public void testMultiPartThresholdClampedForAzure() {
+        var settings = AZURE.createRepositorySettings("b", "c", null, ByteSizeValue.ofMb(200));
+        assertEquals(ByteSizeValue.ofMb(200).getStringRep(), settings.get(ObjectStoreService.AZURE_MULTIPART_THRESHOLD_SETTING_KEY));
+        assertEquals(ByteSizeValue.ofMb(100).getStringRep(), settings.get(ObjectStoreService.AZURE_MULTIPART_PART_SIZE_SETTING_KEY));
     }
 
     /**
@@ -206,7 +321,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             assertThat(objectStoreService.lifecycleState(), equalTo(Lifecycle.State.CLOSED));
 
             final var future = new PlainActionFuture<Void>();
-            objectStoreService.uploadTranslogFile("translog-1", new BytesArray(new byte[] { 1, 2, 3 }), future);
+            objectStoreService.uploadTranslogFile("translog-1", new BytesArray(new byte[] { 1, 2, 3 }), () -> false, () -> {}, future);
 
             // The listener must be failed (not stranded by a thrown error) so the caller can release its references.
             final var e = expectThrows(IllegalStateException.class, future::actionGet);
@@ -227,7 +342,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             assertThat(objectStoreService.lifecycleState(), equalTo(Lifecycle.State.STOPPED));
 
             final var future = new PlainActionFuture<Void>();
-            objectStoreService.uploadTranslogFile("translog-1", new BytesArray(new byte[] { 1, 2, 3 }), future);
+            objectStoreService.uploadTranslogFile("translog-1", new BytesArray(new byte[] { 1, 2, 3 }), () -> false, () -> {}, future);
 
             final var e = expectThrows(IllegalStateException.class, future::actionGet);
             assertThat(e.getMessage(), startsWith("Object store service is not running"));
@@ -257,7 +372,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
 
                     @Override
                     public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
-                        assert StatelessCompoundCommit.startsWithBlobPrefix(blobName) || permittedFiles.contains(blobName)
+                        assert BatchedCompoundCommit.startsWithBlobPrefix(blobName) || permittedFiles.contains(blobName)
                             : blobName + " in " + permittedFiles;
                         return super.readBlob(purpose, blobName);
                     }
@@ -327,7 +442,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
                     .listBlobs(randomFrom(OperationPurpose.values()))
                     .keySet()
                     .stream()
-                    .filter(StatelessCompoundCommit::startsWithBlobPrefix)
+                    .filter(BatchedCompoundCommit::startsWithBlobPrefix)
                     .count()
             );
 
@@ -335,6 +450,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             BatchedCompoundCommit commit = testHarness.objectStoreService.readSearchShardState(
                 testHarness.objectStoreService.getProjectBlobContainer(testHarness.shardId),
                 dir,
+                dir.createMetadataReadDirectory(false),
                 1
             );
             if (commit != null) {
@@ -600,6 +716,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
                         testHarness.objectStoreService.readSearchShardState(
                             testHarness.objectStoreService.getProjectBlobContainer(testHarness.shardId),
                             SearchDirectory.unwrapDirectory(testHarness.searchStore.directory()),
+                            SearchDirectory.unwrapDirectory(testHarness.searchStore.directory()).createMetadataReadDirectory(false),
                             finalLatestBcc != null ? finalLatestBcc.primaryTermAndGeneration().primaryTerm() : 1
                         ),
                         equalTo(finalLatestBcc)
@@ -747,7 +864,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
                         } else {
                             return createFsRepository(xContentRegistry, projectId, metadata);
                         }
-                    }), Map.of(), threadPool, client, List.of(), SnapshotMetrics.NOOP);
+                    }), Map.of(), threadPool, client, List.of());
                 }
             }
         ) {
@@ -818,6 +935,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
                     .build();
             }
         };
+        final Optional<CountDownLatch> releaseCopyThreads = maybeBlockCopyThreads(node1);
 
         var node2 = new FakeStatelessNode(
             this::newEnvironment,
@@ -859,6 +977,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             BatchedCompoundCommit commit = node2.objectStoreService.readSearchShardState(
                 node2.objectStoreService.getProjectBlobContainer(destinationShardId),
                 dir,
+                dir.createMetadataReadDirectory(false),
                 primaryTerm
             );
             if (commit != null) {
@@ -874,6 +993,8 @@ public class ObjectStoreServiceTests extends ESTestCase {
                 // See implementation of generateIndexCommits().
                 assertEquals(commitCount, indexSearcher.search(new TermQuery(new Term("field0", "term")), 100).totalHits.value());
             }
+
+            releaseCopyThreads.ifPresent(CountDownLatch::countDown);
         }
     }
 
@@ -916,7 +1037,8 @@ public class ObjectStoreServiceTests extends ESTestCase {
                         BlobContainer sourceBlobContainer,
                         String sourceBlobName,
                         String blobName,
-                        long blobSize
+                        long blobSize,
+                        @Nullable Executor executor
                     ) throws IOException {
                         blobCopyCount.updateAndGet(count -> {
                             count++;
@@ -930,6 +1052,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
                 };
             }
         };
+        final Optional<CountDownLatch> releaseCopyThreads = maybeBlockCopyThreads(node);
 
         try (node) {
             ShardId sourceShardId = node.shardId;
@@ -950,6 +1073,8 @@ public class ObjectStoreServiceTests extends ESTestCase {
             if (blobCopyCount.get() > blobsToCopyBeforeCancel + numCopyThreads) {
                 fail("Cancelled copy task but copy still ongoing");
             }
+
+            releaseCopyThreads.ifPresent(CountDownLatch::countDown);
         }
     }
 
@@ -957,8 +1082,6 @@ public class ObjectStoreServiceTests extends ESTestCase {
         var primaryTerm = randomLongBetween(1, 42);
         var commitCount = between(2, 15);
         var task = new CancellableTask(0, "test", "test", "test", TaskId.EMPTY_TASK_ID, Map.of());
-        final var copyFailureIOE = new IOException("Fail copy");
-        final var copyFailureRE = new RuntimeException("Fail copy");
         final boolean throwIOE = randomBoolean();
         final var blobsToCopy = new AtomicInteger();
 
@@ -993,21 +1116,23 @@ public class ObjectStoreServiceTests extends ESTestCase {
                         BlobContainer sourceBlobContainer,
                         String sourceBlobName,
                         String blobName,
-                        long blobSize
+                        long blobSize,
+                        @Nullable Executor executor
                     ) throws IOException {
                         // always fail last blob
                         if (blobsToCopy.decrementAndGet() == 0 || randomBoolean()) {
                             if (throwIOE) {
-                                throw copyFailureIOE;
+                                throw new IOException("Fail copy");
                             } else {
-                                throw copyFailureRE;
+                                throw new RuntimeException("Fail copy");
                             }
                         }
-                        innerContainer.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize);
+                        innerContainer.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize, executor);
                     }
                 };
             }
         };
+        final Optional<CountDownLatch> releaseCopyThreads = maybeBlockCopyThreads(node);
 
         try (node) {
             ShardId sourceShardId = node.shardId;
@@ -1026,7 +1151,10 @@ public class ObjectStoreServiceTests extends ESTestCase {
                 Exception.class,
                 () -> objectStoreService.copyShard(task, sourceShardId, destinationShardId, primaryTerm)
             );
-            assertSame(failure, throwIOE ? copyFailureIOE : copyFailureRE);
+            assertThat(failure, instanceOf(throwIOE ? IOException.class : RuntimeException.class));
+            assertThat(failure.getMessage(), equalTo("Fail copy"));
+
+            releaseCopyThreads.ifPresent(CountDownLatch::countDown);
         }
     }
 
@@ -1076,11 +1204,11 @@ public class ObjectStoreServiceTests extends ESTestCase {
             final var objectStoreService = testHarness.objectStoreService;
 
             // Block shard file deletions
-            final int maxDeletionThreads = testHarness.threadPool.info(StatelessPlugin.SHARD_WRITE_THREAD_POOL).getMax();
+            final int maxDeletionThreads = testHarness.threadPool.info(StatelessThreadPools.SHARD_WRITE_THREAD_POOL).getMax();
             final var startBarrier = new CyclicBarrier(maxDeletionThreads + 1);
             final var deletionBarrier = new CyclicBarrier(maxDeletionThreads + 1);
             for (int i = 0; i < maxDeletionThreads; i++) {
-                testHarness.threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL).submit(() -> {
+                testHarness.threadPool.executor(StatelessThreadPools.SHARD_WRITE_THREAD_POOL).submit(() -> {
                     safeAwait(startBarrier);
                     safeAwait(deletionBarrier);
                 });
@@ -1123,7 +1251,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             objectStoreService.asyncDeleteShardFile(
                 new StaleCompoundCommit(
                     new ShardId(new Index(randomIdentifier(), randomUUID()), between(0, 3)),
-                    new PrimaryTermAndGeneration(primaryTerm, randomNonNegativeLong()),
+                    new PrimaryTermAndGeneration(primaryTerm, randomNonZeroPositiveLong()),
                     primaryTerm
                 )
             );
@@ -1131,7 +1259,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             objectStoreService.asyncDeleteShardFile(
                 new StaleCompoundCommit(
                     new ShardId(new Index(indexMetadata.getIndex().getName(), indexMetadata.getIndexUUID()), 0),
-                    new PrimaryTermAndGeneration(primaryTerm, randomNonNegativeLong()),
+                    new PrimaryTermAndGeneration(primaryTerm, randomNonZeroPositiveLong()),
                     primaryTerm
                 )
             );
@@ -1139,7 +1267,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             objectStoreService.asyncDeleteShardFile(
                 new StaleCompoundCommit(
                     testHarness.shardId,
-                    new PrimaryTermAndGeneration(primaryTerm, randomNonNegativeLong()),
+                    new PrimaryTermAndGeneration(primaryTerm, randomNonZeroPositiveLong()),
                     primaryTerm
                 )
             );
@@ -1164,6 +1292,520 @@ public class ObjectStoreServiceTests extends ESTestCase {
             });
 
         }
+    }
+
+    @TestLogging(
+        reason = "test that non-slow and slow translog uploads log at DEBUG and WARN level respectively",
+        value = "org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService:DEBUG"
+    )
+    public void testTranslogUploadTimesLogLevels() throws Exception {
+        var time = new AtomicLong(0);
+        AtomicBoolean exceedThreshold = new AtomicBoolean(false);
+        final TimeValue slowTranslogUploadLogThreshold = TimeValue.timeValueMillis(10);
+
+        final long fastUploadDuration = randomLongBetween(0, slowTranslogUploadLogThreshold.millis() - 1);
+        final long slowUploadDuration = randomLongBetween(
+            slowTranslogUploadLogThreshold.millis() + 1,
+            slowTranslogUploadLogThreshold.millis() + 100
+        );
+
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry()) {
+            @Override
+            protected Settings nodeSettings() {
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    .put(
+                        ObjectStoreService.OBJECT_STORE_SLOW_TRANSLOG_UPLOAD_LOG_THRESHOLD_SETTING.getKey(),
+                        slowTranslogUploadLogThreshold
+                    )
+                    .build();
+            }
+
+            @Override
+            public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
+                return new FilterBlobContainer(innerContainer) {
+                    @Override
+                    protected BlobContainer wrapChild(BlobContainer child) {
+                        return child;
+                    }
+
+                    @Override
+                    public void writeBlob(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
+                        throws IOException {
+                        if (purpose == OperationPurpose.TRANSLOG) {
+                            if (exceedThreshold.get()) {
+                                time.addAndGet(slowUploadDuration);
+                            } else {
+                                time.addAndGet(fastUploadDuration);
+                            }
+                        }
+                        super.writeBlob(purpose, blobName, bytes, failIfAlreadyExists);
+                    }
+                };
+            }
+
+            @Override
+            protected ThreadPool createThreadPool(Settings nodeSettings) {
+                return new TestThreadPool("test", nodeSettings, StatelessPlugin.statelessExecutorBuilders(nodeSettings, true)) {
+                    @Override
+                    public long relativeTimeInMillis() {
+                        return time.get();
+                    }
+                };
+            }
+        }) {
+            var objectStoreService = testHarness.objectStoreService;
+
+            // In case of no-delay, translog upload is fast and hence we log at DEBUG level
+            var future1 = new PlainActionFuture<Void>();
+            MockLog.assertThatLogger(() -> {
+                objectStoreService.uploadTranslogFile("translog-1", new BytesArray(new byte[] { 1 }), () -> false, () -> {}, future1);
+                safeGet(future1);
+            },
+                ObjectStoreService.class,
+                new MockLog.SeenEventExpectation(
+                    "slow translog debug",
+                    ObjectStoreService.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "*translog file*uploaded in*ms*"
+                ),
+                new MockLog.UnseenEventExpectation(
+                    "slow translog warn",
+                    ObjectStoreService.class.getCanonicalName(),
+                    Level.WARN,
+                    "*translog file*uploaded in*ms*"
+                )
+            );
+
+            exceedThreshold.set(true);
+
+            // In case of a delay that exceeds the slow translog upload threshold we log at WARN level
+            var future2 = new PlainActionFuture<Void>();
+            MockLog.assertThatLogger(() -> {
+                objectStoreService.uploadTranslogFile("translog-2", new BytesArray(new byte[] { 2 }), () -> false, () -> {}, future2);
+                safeGet(future2);
+            },
+                ObjectStoreService.class,
+                new MockLog.UnseenEventExpectation(
+                    "slow translog debug",
+                    ObjectStoreService.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "*translog file*uploaded in*ms*"
+                ),
+                new MockLog.SeenEventExpectation(
+                    "slow translog warn",
+                    ObjectStoreService.class.getCanonicalName(),
+                    Level.WARN,
+                    "*translog file*uploaded in*ms*"
+                )
+            );
+        }
+    }
+
+    public void testTranslogUploadRecordsDurationAndSize() throws Exception {
+        final var time = new AtomicLong(0);
+        final var meterRegistry = new RecordingMeterRegistry();
+        final long uploadDuration = randomLongBetween(0, 1_000_000);
+
+        try (
+            var testHarness = new FakeStatelessNode(
+                this::newEnvironment,
+                this::newNodeEnvironment,
+                xContentRegistry(),
+                1,
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+                meterRegistry
+            ) {
+                @Override
+                protected ThreadPool createThreadPool(Settings nodeSettings) {
+                    return new TestThreadPool("test", nodeSettings, StatelessPlugin.statelessExecutorBuilders(nodeSettings, true)) {
+                        @Override
+                        public long relativeTimeInMillis() {
+                            return time.get();
+                        }
+                    };
+                }
+
+                @Override
+                public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
+                    return new FilterBlobContainer(innerContainer) {
+                        @Override
+                        protected BlobContainer wrapChild(BlobContainer child) {
+                            return child;
+                        }
+
+                        @Override
+                        public void writeBlob(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
+                            throws IOException {
+                            if (purpose == OperationPurpose.TRANSLOG) {
+                                time.addAndGet(uploadDuration);
+                            }
+                            super.writeBlob(purpose, blobName, bytes, failIfAlreadyExists);
+                        }
+                    };
+                }
+            }
+        ) {
+            final var bytes = new BytesArray(randomByteArrayOfLength(between(1, 64) * 1024));
+            final var future = new PlainActionFuture<Void>();
+            testHarness.objectStoreService.uploadTranslogFile("translog", bytes, () -> false, () -> {}, future);
+            safeGet(future);
+
+            assertThat(
+                meterRegistry.getRecorder()
+                    .getMeasurements(InstrumentType.LONG_HISTOGRAM, ObjectStoreService.TRANSLOG_UPLOAD_DURATION_HISTOGRAM)
+                    .stream()
+                    .map(Measurement::getLong)
+                    .toList(),
+                equalTo(List.of(uploadDuration))
+            );
+            assertThat(
+                meterRegistry.getRecorder()
+                    .getMeasurements(InstrumentType.LONG_HISTOGRAM, ObjectStoreService.TRANSLOG_UPLOAD_SIZE_HISTOGRAM)
+                    .stream()
+                    .map(Measurement::getLong)
+                    .toList(),
+                equalTo(List.of(ByteSizeUnit.BYTES.toKB(bytes.length())))
+            );
+        }
+    }
+
+    public void testTranslogUploadCallsOnBeforeUploadOnlyWhenItStarts() throws Exception {
+        final var firstUploadStarted = new CountDownLatch(1);
+        final var releaseFirstUpload = new CountDownLatch(1);
+        final List<String> events = Collections.synchronizedList(new ArrayList<>());
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry()) {
+            @Override
+            protected Settings nodeSettings() {
+                // a single translog-upload slot
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    .put(StatelessThreadPools.TRANSLOG_THREAD_POOL_SETTING + ".core", 1)
+                    .put(StatelessThreadPools.TRANSLOG_THREAD_POOL_SETTING + ".max", 1)
+                    .build();
+            }
+
+            @Override
+            protected ThreadPool createThreadPool(Settings nodeSettings) {
+                return new TestThreadPool("test", nodeSettings, StatelessPlugin.statelessExecutorBuilders(nodeSettings, true));
+            }
+
+            @Override
+            public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
+                return new FilterBlobContainer(innerContainer) {
+                    @Override
+                    protected BlobContainer wrapChild(BlobContainer child) {
+                        return child;
+                    }
+
+                    @Override
+                    public void writeBlob(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
+                        throws IOException {
+                        if (purpose == OperationPurpose.TRANSLOG) {
+                            if (blobName.equals("translog-1")) {
+                                firstUploadStarted.countDown();
+                                safeAwait(releaseFirstUpload);
+                            }
+                            events.add("write " + blobName);
+                        }
+                        super.writeBlob(purpose, blobName, bytes, failIfAlreadyExists);
+                    }
+                };
+            }
+        }) {
+            final var objectStoreService = testHarness.objectStoreService;
+            final var firstFuture = new PlainActionFuture<Void>();
+            objectStoreService.uploadTranslogFile(
+                "translog-1",
+                new BytesArray(new byte[] { 1 }),
+                () -> false,
+                () -> events.add("before translog-1"),
+                firstFuture
+            );
+            safeAwait(firstUploadStarted);
+
+            // the first upload holds the single slot, so the second upload waits in the task runner's queue
+            // but does NOT call onBeforeUpload yet because it has not yet started running
+            final var secondFuture = new PlainActionFuture<Void>();
+            objectStoreService.uploadTranslogFile(
+                "translog-2",
+                new BytesArray(new byte[] { 2 }),
+                () -> false,
+                () -> events.add("before translog-2"),
+                secondFuture
+            );
+            assertFalse(secondFuture.isDone());
+            // the second queued upload has not been notified because the first upload is holding the lock
+            assertThat(events, equalTo(List.of("before translog-1")));
+
+            releaseFirstUpload.countDown();
+            safeGet(firstFuture);
+            safeGet(secondFuture);
+            assertThat(events, equalTo(List.of("before translog-1", "write translog-1", "before translog-2", "write translog-2")));
+        }
+    }
+
+    // test that a translog upload waiting in the task runner's queue is skipped if, when it is time to upload its translog was
+    // already uploaded by some other upload
+    public void testTranslogUploadIsSkippedWhenAlreadyUploadedWhileQueued() throws Exception {
+        final var firstUploadStarted = new CountDownLatch(1);
+        final var releaseFirstUpload = new CountDownLatch(1);
+        final List<String> events = Collections.synchronizedList(new ArrayList<>());
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry()) {
+            @Override
+            protected Settings nodeSettings() {
+                // a single translog-upload slot
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    .put(StatelessThreadPools.TRANSLOG_THREAD_POOL_SETTING + ".core", 1)
+                    .put(StatelessThreadPools.TRANSLOG_THREAD_POOL_SETTING + ".max", 1)
+                    .build();
+            }
+
+            @Override
+            protected ThreadPool createThreadPool(Settings nodeSettings) {
+                return new TestThreadPool("test", nodeSettings, StatelessPlugin.statelessExecutorBuilders(nodeSettings, true));
+            }
+
+            @Override
+            public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
+                return new FilterBlobContainer(innerContainer) {
+                    @Override
+                    protected BlobContainer wrapChild(BlobContainer child) {
+                        return child;
+                    }
+
+                    @Override
+                    public void writeBlob(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
+                        throws IOException {
+                        if (purpose == OperationPurpose.TRANSLOG) {
+                            if (blobName.equals("translog-1")) {
+                                firstUploadStarted.countDown();
+                                safeAwait(releaseFirstUpload);
+                            }
+                            events.add("write " + blobName);
+                        }
+                        super.writeBlob(purpose, blobName, bytes, failIfAlreadyExists);
+                    }
+                };
+            }
+        }) {
+            final var objectStoreService = testHarness.objectStoreService;
+            final var firstFuture = new PlainActionFuture<Void>();
+            objectStoreService.uploadTranslogFile(
+                "translog-1",
+                new BytesArray(new byte[] { 1 }),
+                () -> false,
+                () -> events.add("before translog-1"),
+                firstFuture
+            );
+            safeAwait(firstUploadStarted);
+
+            // the first upload holds the single slot, so the second upload waits in the task runner's queue
+            final var translogAlreadyUploaded = new AtomicBoolean(false);
+            final var secondFuture = new PlainActionFuture<Void>();
+            objectStoreService.uploadTranslogFile(
+                "translog-2",
+                new BytesArray(new byte[] { 2 }),
+                translogAlreadyUploaded::get,
+                () -> events.add("before translog-2"),
+                secondFuture
+            );
+            assertFalse(secondFuture.isDone());
+            // while the second upload waits in the queue, its translog gets uploaded by some other upload
+            translogAlreadyUploaded.set(true);
+
+            releaseFirstUpload.countDown();
+            safeGet(firstFuture);
+            safeGet(secondFuture);
+            // the second upload was not notified
+            assertThat(events, equalTo(List.of("before translog-1", "write translog-1")));
+        }
+    }
+
+    public void testBccMultipartUploadRecordsBccMultipartUploadPartStartLatency() throws Exception {
+        final var time = new AtomicLong(0);
+        final var meterRegistry = new RecordingMeterRegistry();
+
+        final boolean isMultipart = randomBoolean();
+        // A retry of an upload-part request should not record the metric: only the first upload-part request should record.
+        // We retry each part at least once to assert that at the end we only recorded the metric once per part.
+        final int retriesPerPart = randomIntBetween(1, 5);
+
+        final var waitForUploadLatch = new CountDownLatch(1);
+
+        try (
+            var testHarness = new FakeStatelessNode(
+                this::newEnvironment,
+                this::newNodeEnvironment,
+                xContentRegistry(),
+                1,
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+                meterRegistry
+            ) {
+                @Override
+                protected Settings nodeSettings() {
+                    // upload every commit right away instead of batching it with other commits
+                    return Settings.builder()
+                        .put(super.nodeSettings())
+                        .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 1)
+                        .build();
+                }
+
+                @Override
+                protected ThreadPool createThreadPool(Settings nodeSettings) {
+                    return new TestThreadPool("test", nodeSettings, StatelessPlugin.statelessExecutorBuilders(nodeSettings, true)) {
+                        @Override
+                        public long relativeTimeInNanos() {
+                            return time.get();
+                        }
+                    };
+                }
+
+                @Override
+                public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
+                    return new FilterBlobContainer(innerContainer) {
+                        @Override
+                        protected BlobContainer wrapChild(BlobContainer child) {
+                            return child;
+                        }
+
+                        @Override
+                        public boolean supportsConcurrentMultipartUploads() {
+                            return true;
+                        }
+
+                        @Override
+                        public void writeBlobAtomic(
+                            OperationPurpose purpose,
+                            String blobName,
+                            long blobSize,
+                            BlobMultiPartInputStreamProvider provider,
+                            boolean failIfAlreadyExists,
+                            Executor executor
+                        ) throws IOException {
+                            // A single upload asks for the whole blob (i.e., `blobSize`) at once while a multipart upload asks for
+                            // one part at a time advancing the clock by 10, 20 and 30 milliseconds before each request.
+                            final int parts = isMultipart ? 3 : 1;
+                            final long partSize = blobSize / parts;
+
+                            for (int part = 1; part <= parts; part++) {
+                                time.addAndGet(TimeUnit.MILLISECONDS.toNanos(10L * part));
+
+                                final long offset = (part - 1) * partSize;
+                                final long length = part == parts ? blobSize - offset : partSize;
+
+                                provider.apply(offset, length).close();
+                                for (int retry = 0; retry < retriesPerPart; retry++) {
+                                    provider.apply(offset, length).close();
+                                }
+                            }
+                        }
+                    };
+                }
+            }
+        ) {
+            final var indexCommit = testHarness.generateIndexCommits(1).get(0);
+            testHarness.commitService.onCommitCreation(indexCommit);
+            testHarness.commitService.addListenerForUploadedGeneration(
+                testHarness.shardId,
+                indexCommit.getGeneration(),
+                ActionListener.releasing(waitForUploadLatch::countDown)
+            );
+            safeAwait(waitForUploadLatch);
+
+            final var measurements = meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, ObjectStoreService.BCC_MULTIPART_UPLOAD_PART_START_LATENCY_HISTOGRAM);
+            // time since the start of the upload is 10, 10 + 20 (=30), and 10 + 20 + 30 (=60) milliseconds
+            assertThat(
+                measurements.stream().map(Measurement::getLong).toList(),
+                equalTo(isMultipart ? List.of(10L, 30L, 60L) : List.of(10L))
+            );
+            assertThat(
+                measurements.stream().map(m -> m.attributes().get("multipart")).toList(),
+                equalTo(isMultipart ? List.of(true, true, true) : List.of(false))
+            );
+
+            final var partDurations = meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, ObjectStoreService.BCC_UPLOAD_PART_DURATION_HISTOGRAM);
+            assertThat(partDurations.size(), equalTo((isMultipart ? 3 : 1) * (1 + retriesPerPart)));
+            assertTrue(partDurations.stream().allMatch(m -> m.getLong() >= 0L));
+            assertThat(
+                partDurations.stream().map(m -> m.attributes().get("multipart")).distinct().toList(),
+                equalTo(isMultipart ? List.of(true) : List.of(false))
+            );
+
+            final var objectStoreUploads = meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, BccUploadMetrics.BCC_OBJECT_STORE_UPLOAD_DURATION_HISTOGRAM_METRIC);
+            assertThat(objectStoreUploads.size(), equalTo(1));
+            assertThat(objectStoreUploads.getFirst().getLong(), greaterThanOrEqualTo(0L));
+            assertThat(objectStoreUploads.getFirst().attributes().get(BccUploadMetrics.BCC_UPLOAD_SUCCESS_ATTRIBUTE_KEY), equalTo(true));
+            assertThat(objectStoreUploads.getFirst().attributes().get(BccUploadMetrics.BCC_SIZE_ATTRIBUTE_KEY), notNullValue());
+        }
+    }
+
+    public void testListBlobsIgnoresMergeBlobsWithoutWarning() throws Exception {
+        final var blobStorePath = PathUtils.get(createTempDir().toString());
+        final var blobContainer = new FsBlobContainer(
+            new FsBlobStore(randomIntBetween(1, 8) * 1024, blobStorePath, false),
+            BlobPath.EMPTY,
+            blobStorePath
+        );
+        final long primaryTerm = randomLongBetween(1L, 100L);
+        final var bccGenerations = new HashSet<Long>();
+        for (int i = randomIntBetween(1, 5); i > 0; i--) {
+            bccGenerations.add(randomLongBetween(1L, 1000L));
+        }
+        for (long generation : bccGenerations) {
+            writeRandomBlob(blobContainer, BatchedCompoundCommit.blobNameFromGeneration(generation));
+        }
+        final long maxBccGeneration = bccGenerations.stream().mapToLong(Long::longValue).max().getAsLong();
+        // a merge blob with a merge start generation above every BCC must neither be listed nor be the latest blob
+        final String mergeBlobName = randomMergeBlobName(maxBccGeneration + randomLongBetween(1L, 100L));
+        writeRandomBlob(blobContainer, mergeBlobName);
+        final String junkBlobName = randomAlphaOfLength(10);
+        writeRandomBlob(blobContainer, junkBlobName);
+
+        MockLog.assertThatLogger(() -> {
+            try {
+                final var blobs = ObjectStoreService.listBlobs(primaryTerm, blobContainer);
+                assertThat(blobs, aMapWithSize(bccGenerations.size()));
+                for (long generation : bccGenerations) {
+                    assertThat(blobs, hasKey(new PrimaryTermAndGeneration(primaryTerm, generation)));
+                }
+
+                final var latestBlob = ObjectStoreService.getLatestBlob(blobContainer);
+                assertThat(latestBlob, notNullValue());
+                assertThat(latestBlob.v1(), equalTo(maxBccGeneration));
+                assertThat(latestBlob.v2().name(), equalTo(BatchedCompoundCommit.blobNameFromGeneration(maxBccGeneration)));
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        },
+            ObjectStoreService.class,
+            new MockLog.UnseenEventExpectation(
+                "no warning for merge blob",
+                ObjectStoreService.class.getCanonicalName(),
+                Level.WARN,
+                "*" + mergeBlobName + "*"
+            ),
+            new MockLog.SeenEventExpectation(
+                "warning for unknown blob",
+                ObjectStoreService.class.getCanonicalName(),
+                Level.WARN,
+                "*" + junkBlobName + "*"
+            )
+        );
+    }
+
+    private static void writeRandomBlob(BlobContainer blobContainer, String blobName) throws IOException {
+        blobContainer.writeBlob(OperationPurpose.INDICES, blobName, new BytesArray(randomByteArrayOfLength(between(1, 64))), true);
+    }
+
+    // TODO(szybia): use MergeBlobFile.blobName (#162535)
+    private static String randomMergeBlobName(long mergeStartGeneration) {
+        return BatchedCompoundCommit.MERGE_BLOB_PREFIX + mergeStartGeneration + '_' + randomAlphanumericOfLength(between(1, 5)) + '_'
+            + HexFormat.of().toHexDigits(randomLong());
     }
 
     private void assertProjectObjectStoreNotFound(ObjectStoreService objectStoreService, ProjectId projectId) {
@@ -1232,5 +1874,17 @@ public class ObjectStoreServiceTests extends ESTestCase {
             sizeInBytes += commitRef.getDirectory().fileLength(additionalFile);
         }
         return sizeInBytes;
+    }
+
+    private Optional<CountDownLatch> maybeBlockCopyThreads(FakeStatelessNode node) {
+        if (randomBoolean()) {
+            return Optional.empty();
+        }
+        final int numCopyThreads = node.threadPool.info(StatelessThreadPools.BLOB_COPY_THREAD_POOL).getMax();
+        final var releaseThreadsLatch = new CountDownLatch(1);
+        for (int i = 0; i < numCopyThreads; i++) {
+            node.threadPool.executor(StatelessThreadPools.BLOB_COPY_THREAD_POOL).execute(() -> { safeAwait(releaseThreadsLatch); });
+        }
+        return Optional.of(releaseThreadsLatch);
     }
 }

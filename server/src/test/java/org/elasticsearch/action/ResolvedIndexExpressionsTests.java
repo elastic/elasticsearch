@@ -9,8 +9,12 @@
 
 package org.elasticsearch.action;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 
+import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -114,5 +118,78 @@ public class ResolvedIndexExpressionsTests extends ESTestCase {
         assertThat(expressions.get(0).original(), equalTo("forbidden-index"));
         assertThat(expressions.get(0).localExpressions().localIndexResolutionResult(), equalTo(CONCRETE_RESOURCE_UNAUTHORIZED));
         assertThat(expressions.get(0).localExpressions().indices(), contains("forbidden-index"));
+    }
+
+    public void testAuthorizationFailureTemplateConvertsThroughLegacyWireFormat() throws Exception {
+        var template = "Authorization errors while resolving [-*]";
+        var resolved = new ResolvedIndexExpressions(
+            List.of(
+                new ResolvedIndexExpression(
+                    "forbidden-index",
+                    new ResolvedIndexExpression.LocalExpressions(Set.of(), CONCRETE_RESOURCE_UNAUTHORIZED),
+                    Set.of()
+                ),
+                new ResolvedIndexExpression(
+                    "visible-index",
+                    new ResolvedIndexExpression.LocalExpressions(Set.of("visible-index"), SUCCESS),
+                    Set.of()
+                )
+            ),
+            template
+        );
+
+        var legacyVersion = randomFrom(
+            TransportVersionUtils.allReleasedVersions()
+                .stream()
+                .filter(v -> v.supports(ResolvedIndexExpressions.RESOLVED_INDEX_EXPRESSIONS))
+                .filter(v -> v.supports(ResolvedIndexExpressions.RESOLVED_INDEX_EXPRESSIONS_AUTH_TEMPLATE) == false)
+                .toList()
+        );
+        var roundTripped = roundTrip(resolved, legacyVersion);
+        assertThat(roundTripped.authorizationFailureTemplate(), equalTo(template));
+        assertThat(roundTripped.expressions().getFirst().localExpressions().legacyException().getMessage(), equalTo(template));
+        assertThat(
+            roundTripped.expressions().getFirst().localExpressions().localIndexResolutionResult(),
+            equalTo(CONCRETE_RESOURCE_UNAUTHORIZED)
+        );
+        assertNull(roundTripped.expressions().get(1).localExpressions().legacyException());
+        assertThat(roundTripped.expressions().get(1).localExpressions().localIndexResolutionResult(), equalTo(SUCCESS));
+    }
+
+    public void testAuthorizationFailureTemplateConvertsThroughCurrentWireFormat() throws Exception {
+        var template = "Authorization errors while resolving [-*]";
+        var resolved = new ResolvedIndexExpressions(
+            List.of(
+                new ResolvedIndexExpression(
+                    "forbidden-index",
+                    new ResolvedIndexExpression.LocalExpressions(Set.of(), CONCRETE_RESOURCE_UNAUTHORIZED),
+                    Set.of()
+                ),
+                new ResolvedIndexExpression(
+                    "visible-index",
+                    new ResolvedIndexExpression.LocalExpressions(Set.of("visible-index"), SUCCESS),
+                    Set.of()
+                )
+            ),
+            template
+        );
+
+        var roundTripped = roundTrip(
+            resolved,
+            TransportVersionUtils.randomVersionSupporting(ResolvedIndexExpressions.RESOLVED_INDEX_EXPRESSIONS_AUTH_TEMPLATE)
+        );
+        assertThat(roundTripped.authorizationFailureTemplate(), equalTo(template));
+        assertThat(roundTripped.expressions(), equalTo(resolved.expressions()));
+        assertNull(roundTripped.expressions().getFirst().localExpressions().legacyException());
+    }
+
+    private ResolvedIndexExpressions roundTrip(ResolvedIndexExpressions expressions, TransportVersion transportVersion) throws IOException {
+        var output = new BytesStreamOutput();
+        output.setTransportVersion(transportVersion);
+        expressions.writeTo(output);
+
+        var input = output.bytes().streamInput();
+        input.setTransportVersion(transportVersion);
+        return new ResolvedIndexExpressions(input);
     }
 }

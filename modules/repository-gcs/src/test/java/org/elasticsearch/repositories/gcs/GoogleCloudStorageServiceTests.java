@@ -10,6 +10,8 @@
 package org.elasticsearch.repositories.gcs;
 
 import com.google.cloud.http.HttpTransportOptions;
+import com.google.cloud.storage.StorageException;
+import com.google.cloud.storage.StorageRetryStrategy;
 
 import org.apache.http.HttpRequest;
 import org.apache.http.HttpResponse;
@@ -31,14 +33,19 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.Matchers;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
+import java.net.SocketException;
+import java.net.SocketTimeoutException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.util.Base64;
 import java.util.Locale;
 import java.util.UUID;
+
+import javax.net.ssl.SSLException;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
@@ -50,8 +57,8 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
 
     public void testClientInitializer() throws Exception {
         final String clientName = randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
-        final TimeValue connectTimeValue = TimeValue.timeValueNanos(randomIntBetween(0, 2000000));
-        final TimeValue readTimeValue = TimeValue.timeValueNanos(randomIntBetween(0, 2000000));
+        final TimeValue connectTimeValue = randomTimeout();
+        final TimeValue readTimeValue = randomTimeout();
         final String applicationName = randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
         final String endpoint = randomFrom("http://", "https://")
             + randomFrom("www.elastic.co", "www.googleapis.com", "localhost/api", "google.com/oauth")
@@ -105,13 +112,52 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
         assertThat(storage.getOptions().getRetrySettings().getMaxAttempts(), equalTo(maxRetries + 1));
         assertThat(
             ((HttpTransportOptions) storage.getOptions().getTransportOptions()).getConnectTimeout(),
-            Matchers.is((int) connectTimeValue.millis())
+            Matchers.is(GoogleCloudStorageService.toTimeout(connectTimeValue))
         );
         assertThat(
             ((HttpTransportOptions) storage.getOptions().getTransportOptions()).getReadTimeout(),
-            Matchers.is((int) readTimeValue.millis())
+            Matchers.is(GoogleCloudStorageService.toTimeout(readTimeValue))
         );
         assertThat(proxy.get().toString(), equalTo("HTTP @ /192.168.52.15:8080"));
+    }
+
+    private static TimeValue randomTimeout() {
+        return rarely() ? randomBoolean() ? TimeValue.MINUS_ONE : TimeValue.ZERO : TimeValue.timeValueNanos(randomIntBetween(1, 2000000));
+    }
+
+    public void testRetryStrategyRetriesTlsHandshakeFailures() {
+        final var clusterService = ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool());
+        final GoogleCloudStorageService service = new GoogleCloudStorageService(clusterService, TestProjectResolvers.DEFAULT_PROJECT_ONLY);
+        final var handler = service.getRetryStrategy().getIdempotentHandler();
+        assertTrue(handler.shouldRetry(new SSLException("(internal_error) Unhandled exception"), null));
+        assertTrue(handler.shouldRetry(new RuntimeException(new SSLException("(internal_error) Unhandled exception")), null));
+        assertTrue(handler.shouldRetry(new SocketException("Connection reset"), null));
+        assertFalse(handler.shouldRetry(new IllegalArgumentException("not a transport failure"), null));
+    }
+
+    public void testRetryStrategyRetriesReadTimeouts() {
+        final var clusterService = ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool());
+        final GoogleCloudStorageService service = new GoogleCloudStorageService(clusterService, TestProjectResolvers.DEFAULT_PROJECT_ONLY);
+        final var handler = service.getRetryStrategy().getIdempotentHandler();
+        assertTrue(handler.shouldRetry(new SocketTimeoutException("Read timed out"), null));
+        assertTrue(handler.shouldRetry(resumableUploadReadTimeout(), null));
+        assertFalse(handler.shouldRetry(new IOException(randomAlphaOfLength(10)), null));
+    }
+
+    /// The SDK's default strategy retries read timeouts wrapped by the resumable upload path.
+    /// ES pins the legacy strategy, so this pins parity with the default and fails if an SDK bump changes the classification.
+    public void testRetryStrategyMatchesSdkDefaultForReadTimeouts() {
+        final var clusterService = ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool());
+        final GoogleCloudStorageService service = new GoogleCloudStorageService(clusterService, TestProjectResolvers.DEFAULT_PROJECT_ONLY);
+        final StorageException e = resumableUploadReadTimeout();
+        assertTrue(StorageRetryStrategy.getDefaultStorageRetryStrategy().getIdempotentHandler().shouldRetry(e, null));
+        assertTrue(service.getRetryStrategy().getIdempotentHandler().shouldRetry(e, null));
+    }
+
+    /// Shape produced by `JsonResumableSessionPutTask` when a chunk PUT throws an `IOException`
+    /// (`UploadFailureScenario.SCENARIO_0`): code 0, no reason, `SocketTimeoutException` cause.
+    private static StorageException resumableUploadReadTimeout() {
+        return new StorageException(0, "Unknown Error", null, new SocketTimeoutException("Read timed out"));
     }
 
     public void testReinitClientSettings() throws Exception {

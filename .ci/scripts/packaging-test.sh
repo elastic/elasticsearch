@@ -54,10 +54,19 @@ else
     cat /etc/issue || true
 fi
 
+# sudo-rs stops draining its pty once expect exits, which hangs Elasticsearch's shutdown
+USE_PTY=use_pty
+sudo --version | grep -q sudo-rs && USE_PTY='!use_pty'
+
 sudo bash -c 'cat > /etc/sudoers.d/elasticsearch_vars'  << SUDOERS_VARS
     Defaults   env_keep += "ES_JAVA_HOME"
     Defaults   env_keep += "JAVA_HOME"
     Defaults   env_keep += "SYSTEM_JAVA_HOME"
+    # Force sudo to allocate its own pty and propagate it through the privilege drop. Without this,
+    # some platforms (observed on EL10 distros) do not propagate the pty that "expect"/"spawn" allocated,
+    # so Elasticsearch's console detection concludes no terminal is attached and skips security
+    # auto-configuration entirely. See https://github.com/elastic/elasticsearch/issues/154510.
+    Defaults   $USE_PTY
 SUDOERS_VARS
 sudo chmod 0440 /etc/sudoers.d/elasticsearch_vars
 

@@ -91,7 +91,21 @@ public class PrometheusLabelValuesRestAction extends BaseRestHandler {
 
         LogicalPlan plan = PrometheusLabelValuesPlanBuilder.buildPlan(labelName, index, matchSelectors, start, end, limit);
         EsqlStatement statement = new EsqlStatement(plan, PrometheusPlanBuilderUtils.QUERY_SETTINGS);
-        PreparedEsqlQueryRequest esqlRequest = PreparedEsqlQueryRequest.sync(statement, "prometheus_label_values");
+        PreparedEsqlQueryRequest esqlRequest = new PromqlQueryRequest(
+            index,
+            statement,
+            "prometheus_label_values",
+            "name",
+            labelName,
+            LIMIT_PARAM,
+            limit == DEFAULT_LIMIT ? null : limit,
+            START_PARAM,
+            startParam,
+            END_PARAM,
+            endParam,
+            MATCH_PARAM,
+            matchSelectors
+        );
 
         return channel -> client.execute(
             EsqlQueryAction.INSTANCE,

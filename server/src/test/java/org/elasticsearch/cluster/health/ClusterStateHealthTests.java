@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTableGenerator;
@@ -91,10 +92,8 @@ public class ClusterStateHealthTests extends ESTestCase {
         threadPool = new TestThreadPool("ClusterStateHealthTests");
     }
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initClusterAndTransport() throws Exception {
         clusterService = createClusterService(threadPool);
         CapturingTransport transport = new CapturingTransport();
         transportService = transport.createTransportService(
@@ -111,8 +110,7 @@ public class ClusterStateHealthTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void closeClusterAndTransport() throws Exception {
         clusterService.close();
         transportService.close();
     }
@@ -163,7 +161,7 @@ public class ClusterStateHealthTests extends ESTestCase {
             transportService,
             clusterService,
             threadPool,
-            new ActionFilters(new HashSet<>()),
+            ActionFilters.EMPTY,
             indexNameExpressionResolver,
             new AllocationService(null, new TestGatewayAllocator(), null, null, null, TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY),
             TestProjectResolvers.singleProject(projectId)
@@ -486,7 +484,10 @@ public class ClusterStateHealthTests extends ESTestCase {
                     ShardRouting shardRouting = shardRoutingTable.shard(copy);
                     if (shardRouting.primary() && (shardRouting.started() == false || alreadyFailedPrimary == false)) {
                         newIndexRoutingTable.addShard(
-                            shardRouting.moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, "unlucky shard"))
+                            shardRouting.moveToUnassigned(
+                                new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, "unlucky shard"),
+                                RecoveryPriority.UNASSIGNED_UNEXPECTED
+                            )
                         );
                         alreadyFailedPrimary = true;
                     } else {

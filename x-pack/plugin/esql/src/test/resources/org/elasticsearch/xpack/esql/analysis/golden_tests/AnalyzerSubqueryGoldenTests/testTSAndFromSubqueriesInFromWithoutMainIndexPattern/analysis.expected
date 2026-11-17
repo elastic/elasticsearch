@@ -1,0 +1,6 @@
+Limit[1000[INTEGER],false,false]
+\_BranchPlan[[unnamed_view_1=SUBQUERY, unnamed_view_2=SUBQUERY]]
+  |_Eval[[TOLONG(network.total_bytes_in{f}#0) AS network.total_bytes_in#1, TODOUBLE(network.total_cost{f}#2) AS network.total_cost#3]]
+  | \_Filter[@timestamp{f}#4 > 1759795200000[DATETIME]]
+  |   \_EsRelation[k8s-downsampled][TIME_SERIES][@timestamp{f}#4, client.ip{f}#5, cluster{f}#6, event{f}#7, event_city{f}#8, event_city_boundary{f}#9, event_location{f}#10, event_log{f}#11, event_shape{f}#12, events_received{f}#13, network.bytes_in{f}#14, network.cost{f}#15, network.eth0.currently_connected_clients{f}#16, network.eth0.firmware_version{f}#17, network.eth0.last_up{f}#18, network.eth0.rx{f}#19, network.eth0.tx{f}#20, network.eth0.up{f}#21, network.total_bytes_in{f}#0, network.total_cost{f}#2, pod{f}#22]
+  \_EsRelation[sample_data][@timestamp{f}#23, client_ip{f}#24, event_duration{f}#25, message{f}#26]

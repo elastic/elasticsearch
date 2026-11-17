@@ -73,6 +73,11 @@ public class TestHttpRequest implements HttpRequest {
     }
 
     @Override
+    public String getScheme() {
+        return "http";
+    }
+
+    @Override
     public HttpBody body() {
         return body;
     }

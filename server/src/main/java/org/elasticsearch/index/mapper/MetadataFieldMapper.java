@@ -13,6 +13,7 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -51,17 +52,12 @@ public abstract class MetadataFieldMapper extends FieldMapper {
      * ignored by the update merge.  Instead, we use an {@link Explicit} object that
      * will serialize its value if it has been configured, no matter what the value is.
      */
-    public static Parameter<Explicit<Boolean>> updateableBoolParam(
-        String name,
-        Function<FieldMapper, Explicit<Boolean>> initializer,
-        boolean defaultValue
-    ) {
+    public static Parameter<Explicit<Boolean>> updateableBoolParam(String name, boolean defaultValue) {
         return new Parameter<>(
             name,
             true,
             defaultValue ? () -> Explicit.IMPLICIT_TRUE : () -> Explicit.IMPLICIT_FALSE,
             (n, c, o) -> Explicit.explicitBoolean(XContentMapValues.nodeBooleanValue(o)),
-            initializer,
             (b, n, v) -> b.field(n, v.value()),
             v -> Boolean.toString(v.value())
         );
@@ -136,7 +132,7 @@ public abstract class MetadataFieldMapper extends FieldMapper {
         /**
          * Returns true if any parameter has a value that differs from its default.
          */
-        private boolean hasNonDefaultParameters() {
+        protected boolean hasNonDefaultParameters() {
             for (Parameter<?> param : getParameters()) {
                 if (param.isConfigured()) {
                     return true;
@@ -144,6 +140,28 @@ public abstract class MetadataFieldMapper extends FieldMapper {
             }
             return false;
         }
+
+        /**
+         * Writes nothing at all, not an empty object, unless a parameter differs from its default; the built-in
+         * metadata fields are present in a mapping as exactly those absent entries. There is no {@code type}, and
+         * {@code include_defaults} plays no part in the decision, only in how a written parameter is rendered.
+         */
+        @Override
+        public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            if (hasNonDefaultParameters() == false) {
+                return builder;
+            }
+            builder.startObject(leafName());
+            serializeParameters(builder, params);
+            return builder.endObject();
+        }
+
+        /**
+         * Checks this field against the rest of the mapping once the root has been normalized, and fails the build
+         * if they are inconsistent. Runs on the builders, so it sees what the user configured explicitly rather
+         * than what was resolved at build time.
+         */
+        void validateMapping(RootObjectMapper.Builder root) {}
 
         @Override
         public final MetadataFieldMapper build(MapperBuilderContext context) {
@@ -195,11 +213,6 @@ public abstract class MetadataFieldMapper extends FieldMapper {
         super(mappedFieldType.name(), mappedFieldType, BuilderParams.empty());
     }
 
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new ConstantBuilder(this);
-    }
-
     /**
      * A trivial builder for non-configurable metadata field mappers that have no parameters.
      * Wraps a built mapper and returns it unchanged from {@link #build()}.
@@ -229,17 +242,6 @@ public abstract class MetadataFieldMapper extends FieldMapper {
     }
 
     @Override
-    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        MetadataFieldMapper.Builder mergeBuilder = (MetadataFieldMapper.Builder) getMergeBuilder();
-        if (mergeBuilder.hasNonDefaultParameters() == false) {
-            return builder;
-        }
-        builder.startObject(leafName());
-        mergeBuilder.toXContent(builder, params);
-        return builder.endObject();
-    }
-
-    @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         throw new DocumentParsingException(
             context.parser().getTokenLocation(),
@@ -259,6 +261,42 @@ public abstract class MetadataFieldMapper extends FieldMapper {
      */
     public void postParse(DocumentParserContext context) throws IOException {
         // do nothing
+    }
+
+    /**
+     * Called once per batch, before any columnar field mapping, on the columnar bulk batch-mapping
+     * path (see {@code ShardBatchMapper}). Only invoked when {@link #supportsColumnarParse(IndexSettings)}
+     * returns {@code true}; mirrors the role of {@link #preParse} in the row-major path, but reads
+     * per-document values off {@link BatchMappingContext} and attaches a Lucene column spanning the
+     * whole batch via {@link BatchMappingContext#addColumn} rather than adding a per-document
+     * {@link org.apache.lucene.document.Field}. Defaults to a no-op.
+     */
+    public void preColumnarParse(BatchMappingContext context) throws IOException {
+        // do nothing
+    }
+
+    /**
+     * Called once per batch, after all columnar field mapping, on the columnar bulk batch-mapping
+     * path (see {@code ShardBatchMapper}). Only invoked when {@link #supportsColumnarParse(IndexSettings)}
+     * returns {@code true}; mirrors the role of {@link #postParse} in the row-major path. Defaults
+     * to a no-op.
+     */
+    public void postColumnarParse(BatchMappingContext context) throws IOException {
+        // do nothing
+    }
+
+    /**
+     * Whether this metadata mapper can participate in the columnar bulk batch-mapping path.
+     */
+    public boolean supportsColumnarMetadataParse(IndexSettings indexSettings) {
+        // This allows some metadata mappers to not block columnar indexing but still force a fall back
+        // if we do not supportsColumnarParse on specific fields
+        return supportsColumnarParse(indexSettings);
+    }
+
+    @Override
+    protected final boolean isMetadataFieldMapper() {
+        return true;
     }
 
     @Override

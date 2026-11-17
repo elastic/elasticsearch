@@ -15,6 +15,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.aggregations.AggregationsPlugin;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.ValidationException;
@@ -314,13 +315,22 @@ public class PivotTests extends ESTestCase {
 
         try (var threadPool = createThreadPool()) {
             final var emptyAggregationClient = new MyMockClientWithEmptyAggregation(threadPool);
-            pivot.preview(emptyAggregationClient, null, new HashMap<>(), new SourceConfig("test"), null, 1, ActionListener.wrap(r -> {
-                responseHolder.set(r);
-                latch.countDown();
-            }, e -> {
-                exceptionHolder.set(e);
-                latch.countDown();
-            }));
+            pivot.preview(
+                emptyAggregationClient,
+                null,
+                new HashMap<>(),
+                new SourceConfig("test"),
+                IndicesOptions.LENIENT_EXPAND_OPEN,
+                null,
+                1,
+                ActionListener.wrap(r -> {
+                    responseHolder.set(r);
+                    latch.countDown();
+                }, e -> {
+                    exceptionHolder.set(e);
+                    latch.countDown();
+                })
+            );
             assertTrue(latch.await(100, TimeUnit.MILLISECONDS));
         }
         assertThat(exceptionHolder.get(), is(nullValue()));
@@ -350,13 +360,22 @@ public class PivotTests extends ESTestCase {
 
         try (var threadPool = createThreadPool()) {
             final var compositeAggregationClient = new MyMockClientWithCompositeAggregation(threadPool);
-            pivot.preview(compositeAggregationClient, null, new HashMap<>(), new SourceConfig("test"), null, 1, ActionListener.wrap(r -> {
-                responseHolder.set(r);
-                latch.countDown();
-            }, e -> {
-                exceptionHolder.set(e);
-                latch.countDown();
-            }));
+            pivot.preview(
+                compositeAggregationClient,
+                null,
+                new HashMap<>(),
+                new SourceConfig("test"),
+                IndicesOptions.LENIENT_EXPAND_OPEN,
+                null,
+                1,
+                ActionListener.wrap(r -> {
+                    responseHolder.set(r);
+                    latch.countDown();
+                }, e -> {
+                    exceptionHolder.set(e);
+                    latch.countDown();
+                })
+            );
             assertTrue(latch.await(100, TimeUnit.MILLISECONDS));
         }
 
@@ -580,7 +599,7 @@ public class PivotTests extends ESTestCase {
     private static void validate(Client client, SourceConfig source, Function pivot, boolean expectValid) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
-        pivot.validateQuery(client, emptyMap(), source, null, ActionListener.wrap(validity -> {
+        pivot.validateQuery(client, emptyMap(), source, IndicesOptions.LENIENT_EXPAND_OPEN, null, ActionListener.wrap(validity -> {
             assertEquals(expectValid, validity);
             latch.countDown();
         }, e -> {

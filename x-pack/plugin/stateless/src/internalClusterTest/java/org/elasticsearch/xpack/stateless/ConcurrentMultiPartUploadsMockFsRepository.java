@@ -53,6 +53,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -198,7 +199,8 @@ class ConcurrentMultiPartUploadsMockFsRepository extends FsRepository {
             String blobName,
             long blobSize,
             BlobMultiPartInputStreamProvider provider,
-            boolean failIfAlreadyExists
+            boolean failIfAlreadyExists,
+            Executor callerExecutor
         ) throws IOException {
             if (blobSize <= getLargeBlobThresholdInBytes()) {
                 try (var stream = provider.apply(0L, blobSize)) {

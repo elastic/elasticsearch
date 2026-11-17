@@ -59,7 +59,7 @@ public final class MvIntersectionDoubleEvaluator implements ExpressionEvaluator 
   }
 
   public DoubleBlock eval(int positionCount, DoubleBlock field1Block, DoubleBlock field2Block) {
-    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
         if (!field1Block.isNull(p)) {
@@ -90,7 +90,7 @@ public final class MvIntersectionDoubleEvaluator implements ExpressionEvaluator 
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }

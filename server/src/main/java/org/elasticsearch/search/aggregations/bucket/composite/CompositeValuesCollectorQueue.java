@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.elasticsearch.common.util.BigArrays;
@@ -61,9 +62,6 @@ final class CompositeValuesCollectorQueue extends ObjectArrayPriorityQueue<Integ
     private final Map<Slot, Integer> map;
     private final SingleDimensionValuesSource<?>[] arrays;
     private final CompetitiveBoundsChangedListener competitiveBoundsChangedListener;
-    // True if any source encodes slots in a per-segment space (e.g. segment ordinals); if so the value-to-slot map must
-    // be rebuilt at every segment boundary, after the sources have remapped their slots into the new segment.
-    private final boolean requiresMapRebuild;
 
     private LongArray docCounts;
     private boolean afterKeyIsSet = false;
@@ -73,8 +71,9 @@ final class CompositeValuesCollectorQueue extends ObjectArrayPriorityQueue<Integ
      *
      * @param sources     The list of {@link CompositeValuesSourceConfig} to build the composite buckets.
      * @param size        The number of composite buckets to keep.
+     * @param indexReader
      */
-    CompositeValuesCollectorQueue(BigArrays bigArrays, SingleDimensionValuesSource<?>[] sources, int size) {
+    CompositeValuesCollectorQueue(BigArrays bigArrays, SingleDimensionValuesSource<?>[] sources, int size, IndexReader indexReader) {
         super(size, bigArrays);
         this.bigArrays = bigArrays;
         this.maxSize = size;
@@ -82,21 +81,17 @@ final class CompositeValuesCollectorQueue extends ObjectArrayPriorityQueue<Integ
 
         boolean success = false;
         try {
-            // If the leading source can dynamically prune, track the highest competitive value so it can narrow the
-            // documents it visits once the queue is full. The per-segment iterator decides at collection time whether
-            // the competitive ordinal range is narrow enough to prune, so no up-front cardinality estimate is needed.
-            if (arrays[0] instanceof SegmentOrdinalValuesSource segmentOrdinalValuesSource
-                && segmentOrdinalValuesSource.mayDynamicallyPrune()) {
-                competitiveBoundsChangedListener = segmentOrdinalValuesSource::updateHighestCompetitiveValue;
+            // If the leading source is a GlobalOrdinalValuesSource we can apply an optimization which requires
+            // tracking the highest competitive value.
+            if (arrays[0] instanceof GlobalOrdinalValuesSource globalOrdinalValuesSource) {
+                if (shouldApplyGlobalOrdinalDynamicPruningForLeadingSource(sources, size, indexReader)) {
+                    competitiveBoundsChangedListener = globalOrdinalValuesSource::updateHighestCompetitiveValue;
+                } else {
+                    competitiveBoundsChangedListener = null;
+                }
             } else {
                 competitiveBoundsChangedListener = null;
             }
-
-            boolean rebuild = false;
-            for (SingleDimensionValuesSource<?> source : sources) {
-                rebuild |= source.requiresMapRebuildPerSegment();
-            }
-            this.requiresMapRebuild = rebuild;
 
             this.map = Maps.newMapWithExpectedSize(size);
             this.docCounts = bigArrays.newLongArray(1, false);
@@ -106,6 +101,49 @@ final class CompositeValuesCollectorQueue extends ObjectArrayPriorityQueue<Integ
                 super.close();
             }
         }
+    }
+
+    private static boolean shouldApplyGlobalOrdinalDynamicPruningForLeadingSource(
+        SingleDimensionValuesSource<?>[] sources,
+        int size,
+        IndexReader indexReader
+    ) {
+        if (sources.length == 0) {
+            return false;
+        }
+        if (sources[0] instanceof GlobalOrdinalValuesSource firstSource) {
+            if (firstSource.mayDynamicallyPrune(indexReader) == false) {
+                return false;
+            }
+
+            long approximateTotalNumberOfBuckets = firstSource.getUniqueValueCount();
+            if (sources.length > 1) {
+                // When there are multiple sources, it's hard to guess how many
+                // unique buckets there might be. Let's be conservative and
+                // assume that other sources increase the number of buckets by
+                // 3x.
+                approximateTotalNumberOfBuckets *= 3L;
+            }
+            // If the size is not significantly less than the total number of
+            // buckets then dynamic pruning can't help much.
+            if (size >= approximateTotalNumberOfBuckets / 8) {
+                return false;
+            }
+
+            // Try to estimate the width of the ordinal range that might be
+            // returned on each page. Since not all ordinals might match the
+            // query, we're increasing `size` by 25%.
+            long rangeWidthPerPage = size + (size / 4);
+            if (sources.length > 1) {
+                // Again assume other sources bump the number of buckets by 3x
+                rangeWidthPerPage /= 3;
+            }
+            if (rangeWidthPerPage > GlobalOrdinalValuesSource.MAX_TERMS_FOR_DYNAMIC_PRUNING) {
+                return false;
+            }
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -265,27 +303,12 @@ final class CompositeValuesCollectorQueue extends ObjectArrayPriorityQueue<Integ
     LeafBucketCollector getLeafCollector(LeafReaderContext context, LeafBucketCollector in) throws IOException {
         LeafBucketCollector leafBucketCollector = getLeafCollector(null, context, in);
 
-        // The map rebuild for per-segment sources happens inside the inner getLeafCollector above (so the index-sort
-        // path, which calls it directly, is also covered).
-
         // As we are starting to collect from a new segment we need to update the topChangedListener if present
         // and if the queue is full.
         if (competitiveBoundsChangedListener != null && size() >= maxSize) {
             competitiveBoundsChangedListener.boundsChanged(top());
         }
         return leafBucketCollector;
-    }
-
-    /**
-     * Rebuilds the value-to-slot {@link #map} from scratch over the currently active slots ({@code 0..size()-1}). Used
-     * by per-segment sources whose slot hashes change at each segment boundary (see {@link #requiresMapRebuild}).
-     */
-    private void rebuildMap() {
-        map.clear();
-        final int n = (int) size();
-        for (int slot = 0; slot < n; slot++) {
-            map.put(new Slot(slot), slot);
-        }
     }
 
     /**
@@ -305,15 +328,6 @@ final class CompositeValuesCollectorQueue extends ObjectArrayPriorityQueue<Integ
             collector = arrays[last].getLeafCollector(forciblyCast(forceLeadSourceValue), context, collector);
         } else {
             collector = arrays[last].getLeafCollector(context, collector);
-        }
-        // A per-segment source (e.g. segment ordinals) has just remapped its slots into this segment's encoding while
-        // building the leaf collectors above, so the existing slots' hashes are now expressed in the new segment. Rebuild
-        // the value-to-slot map so cross-segment bucket dedup keeps working. This must live here - the inner method that
-        // every collection path funnels through - and not only in the public getLeafCollector, because the index-sort
-        // path (processLeafFromQuery) bypasses the public method. The priority-queue order is preserved because the
-        // encoding is monotonic in _key in every segment, so no re-heapify is needed.
-        if (requiresMapRebuild) {
-            rebuildMap();
         }
         return collector;
     }

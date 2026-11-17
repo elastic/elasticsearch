@@ -58,8 +58,7 @@ public class TransportDeleteInferenceEndpointActionTests extends ESTestCase {
     private InferenceServiceRegistry mockInferenceServiceRegistry;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void createAction() throws Exception {
         threadPool = createThreadPool(inferenceUtilityExecutors());
         mockModelRegistry = mock(ModelRegistry.class);
         mockInferenceServiceRegistry = mock(InferenceServiceRegistry.class);
@@ -75,8 +74,7 @@ public class TransportDeleteInferenceEndpointActionTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void shutdownThreadPool() throws Exception {
         terminate(threadPool);
     }
 

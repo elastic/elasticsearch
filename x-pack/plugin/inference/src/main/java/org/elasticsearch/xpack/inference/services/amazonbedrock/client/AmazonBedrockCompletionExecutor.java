@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.client;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.core.inference.results.StreamingCompletionResults;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockCompletionRequest;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.response.AmazonBedrockResponseHandler;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.response.completion.AmazonBedrockChatCompletionResponseListener;
@@ -36,7 +36,7 @@ public class AmazonBedrockCompletionExecutor extends AmazonBedrockExecutor {
     protected void executeClientRequest(AmazonBedrockBaseClient awsBedrockClient) {
         if (completionRequest.isStreaming()) {
             var publisher = completionRequest.executeStreamCompletionRequest(awsBedrockClient);
-            inferenceResultsListener.onResponse(new StreamingChatCompletionResults(publisher));
+            inferenceResultsListener.onResponse(new StreamingCompletionResults(publisher));
         } else {
             var completionResponseListener = new AmazonBedrockChatCompletionResponseListener(
                 completionRequest,

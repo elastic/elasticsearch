@@ -134,7 +134,7 @@ public class DateHistogramGroupByIT extends ContinuousTestCase {
         Iterator<Map<String, Object>> destIterator = hits.iterator();
 
         while (sourceIterator.hasNext() && destIterator.hasNext()) {
-            var bucket = sourceIterator.next();
+            var bucket = nextNonEmptyAggregationBucket(sourceIterator, iteration);
             var searchHit = destIterator.next();
             var source = (Map<String, Object>) searchHit.get("_source");
 
@@ -148,12 +148,6 @@ public class DateHistogramGroupByIT extends ContinuousTestCase {
 
             if (transformBucketKey == null) {
                 transformBucketKey = MISSING_BUCKET_KEY;
-            }
-
-            // aggs return buckets with 0 doc_count while composite aggs skip over them
-            while ((Integer) bucket.get("doc_count") == 0) {
-                assertTrue(sourceIterator.hasNext());
-                bucket = sourceIterator.next();
             }
 
             // test correctness, the results from the aggregation and the results from the transform should be the same
@@ -188,7 +182,6 @@ public class DateHistogramGroupByIT extends ContinuousTestCase {
                 );
             }
         }
-        assertFalse(sourceIterator.hasNext());
-        assertFalse(destIterator.hasNext());
+        assertAggregationAndDestinationIteratorsExhausted(sourceIterator, destIterator, iteration);
     }
 }

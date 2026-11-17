@@ -141,20 +141,13 @@ abstract class SingleDimensionValuesSource<T extends Comparable<T>> implements R
     abstract SortedDocsProducer createSortedDocsProducerOrNull(IndexReader reader, Query query);
 
     /**
-     * Whether this source encodes slot values in a per-segment space (e.g. segment ordinals) so that the
-     * {@link CompositeValuesCollectorQueue} must rebuild its value-to-slot map at every segment boundary, after this
-     * source has remapped its slots in {@link #getLeafCollector(LeafReaderContext, LeafBucketCollector)}. Sources whose
-     * slot encoding is stable across segments (raw bytes, numeric values) return {@code false} (the default).
-     */
-    boolean requiresMapRebuildPerSegment() {
-        return false;
-    }
-
-    /**
      * Returns true if a {@link SortedDocsProducer} should be used to optimize the execution.
      */
+    // TODO: Implementing mayDynamicallyPrune(IndexReader)/getUniqueValueCount() on other subclasses than just GlobalOrdinalValuesSource
+    // would let CompositeAggregator#getLeafCollector return inner.competitiveIterator() for numeric and date sources too.
+    // This matters for logsdb and tsdb, where @timestamp is always skipper backed.
     protected boolean checkIfSortedDocsIsApplicable(IndexReader reader, MappedFieldType fieldType) {
-        if (fieldType == null || (missingBucket && afterValue == null) || fieldType.indexType().supportsSortShortcuts() == false ||
+        if (fieldType == null || (missingBucket && afterValue == null) || fieldType.indexType().hasDenseIndex() == false ||
         // inverse of the natural order
             reverseMul == -1) {
             return false;

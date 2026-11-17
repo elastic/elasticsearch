@@ -32,6 +32,16 @@ steps:
         - label: "pr-upgrade-part-{{matrix.PART}}"
           command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints -Dtests.bwc.main.version=${VERSION}-SNAPSHOT -Dtests.bwc.refspec.main=${BASE_COMMIT} bcUpgradeTestPart{{matrix.PART}}
           timeout_in_minutes: 300
+          retry:
+            automatic:
+              - exit_status: -1
+                limit: 2
+                signal_reason: none
+              - exit_status: 47
+                limit: 3
+                signal_reason: none
+              - signal_reason: agent_stop
+                limit: 2
           agents:
             provider: gcp
             image: family/elasticsearch-ubuntu-2404

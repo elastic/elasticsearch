@@ -173,6 +173,62 @@ public final class WriterConstants {
         false
     );
 
+    /**
+     * Allocation-charging variant of {@link #LAMBDA_BOOTSTRAP_HANDLE}: adds the {@code @allocates} estimator's
+     * owner/name/descriptor (three Strings before the injections varargs) so the generated lambda charges per invocation.
+     * Used only for annotated references under tracking; normal references use the plain handle.
+     */
+    public static final MethodType LAMBDA_ALLOC_BOOTSTRAP_TYPE = MethodType.methodType(
+        CallSite.class,
+        MethodHandles.Lookup.class,
+        String.class,
+        MethodType.class,
+        MethodType.class,
+        String.class,
+        int.class,
+        String.class,
+        MethodType.class,
+        int.class,
+        int.class,
+        int.class,
+        String.class,
+        String.class,
+        String.class,
+        Object[].class
+    );
+    public static final Handle LAMBDA_ALLOC_BOOTSTRAP_HANDLE = new Handle(
+        Opcodes.H_INVOKESTATIC,
+        Type.getInternalName(LambdaBootstrap.class),
+        "lambdaBootstrapWithAllocation",
+        LAMBDA_ALLOC_BOOTSTRAP_TYPE.toMethodDescriptorString(),
+        false
+    );
+
+    /**
+     * Bootstrap for the per-invocation allocation charge inside a charging lambda's interface method (see
+     * {@code LambdaBootstrap.chargeBootstrap}). Static args: the index of the script capture within the call-site
+     * parameters, the estimator method handle, where the delegate's injected constants go in the estimator, and those
+     * constants. Call-site type is {@code (captures..., samArgs...) -> void} with the script at that index (0 for the common
+     * script-first case; after the receiver for a dynamic bound reference).
+     */
+    public static final MethodType CHARGE_BOOTSTRAP_TYPE = MethodType.methodType(
+        CallSite.class,
+        MethodHandles.Lookup.class,
+        String.class,
+        MethodType.class,
+        int.class,
+        MethodHandle.class,
+        int.class,
+        Object[].class
+    );
+    public static final Handle CHARGE_BOOTSTRAP_HANDLE = new Handle(
+        Opcodes.H_INVOKESTATIC,
+        Type.getInternalName(LambdaBootstrap.class),
+        "chargeBootstrap",
+        CHARGE_BOOTSTRAP_TYPE.toMethodDescriptorString(),
+        false
+    );
+
     public static final MethodType MAKE_CONCAT_TYPE = MethodType.methodType(
         CallSite.class,
         MethodHandles.Lookup.class,
@@ -242,12 +298,49 @@ public final class WriterConstants {
     /** ASM {@link Type} for {@link AllocationGuard}, the log-and-throw helper called on a limit breach. */
     public static final Type ALLOCATION_GUARD_TYPE = Type.getType(AllocationGuard.class);
 
-    /** {@link AllocationGuard#allocationLimitExceeded(long, long, long)} — called from {@code $checkAllocBytes} on breach. */
+    /** {@link AllocationGuard#allocationLimitExceeded(String, long, long, long)} — called from {@code $checkAllocBytes} on breach. */
     public static final Method ALLOCATION_LIMIT_EXCEEDED = getAsmMethod(
         void.class,
         "allocationLimitExceeded",
+        String.class,
         long.class,
         long.class,
+        long.class
+    );
+
+    /** The static constant holding a metrics-enabled script class's recorder, set at compile time like {@code $DEFINITION}. */
+    public static final String ALLOC_METRICS_FIELD = "$allocMetrics";
+
+    /** ASM {@link Type} for {@link AllocationMetrics.ContextRecorder}. */
+    public static final Type ALLOC_METRICS_TYPE = Type.getType(AllocationMetrics.ContextRecorder.class);
+
+    /**
+     * {@link AllocationMetrics.ContextRecorder#recordExecutionAllocation(long)}, invoked on {@code $allocMetrics} from the
+     * {@code execute} return path.
+     */
+    public static final Method RECORD_EXECUTION_ALLOCATION = getAsmMethod(void.class, "recordExecutionAllocation", long.class);
+
+    /** {@link AllocationMetrics.ContextRecorder#recordLimitExceeded()}, called from {@code $checkAllocBytes} on breach. */
+    public static final Method RECORD_LIMIT_EXCEEDED = getAsmMethod(void.class, "recordLimitExceeded");
+
+    /** {@link AllocationGuard#sanitizeEstimate(long)} — normalizes an {@code @allocates} estimator's result. */
+    public static final Method SANITIZE_ESTIMATE = getAsmMethod(long.class, "sanitizeEstimate", long.class);
+
+    /** {@link AllocationGuard#checkDefConcatAlloc(PainlessScript, Object, Object)} — charges a {@code def} {@code +} string concat. */
+    public static final Method CHECK_DEF_CONCAT_ALLOC = getAsmMethod(
+        void.class,
+        "checkDefConcatAlloc",
+        PainlessScript.class,
+        Object.class,
+        Object.class
+    );
+
+    /** {@link AllocationGuard#checkDefConcatAlloc(PainlessScript, Object, long)}, the same charge for a {@code def + primitive}. */
+    public static final Method CHECK_DEF_CONCAT_PRIMITIVE_ALLOC = getAsmMethod(
+        void.class,
+        "checkDefConcatAlloc",
+        PainlessScript.class,
+        Object.class,
         long.class
     );
 
@@ -259,6 +352,9 @@ public final class WriterConstants {
 
     /** {@link AllocSizes#arrayBytes(long, int)} — saturating {@code pad8(ARRAY_HEADER + fieldSize * length)} for an array. */
     public static final Method ALLOC_ARRAY_BYTES = getAsmMethod(long.class, "arrayBytes", long.class, int.class);
+
+    /** {@link AllocSizes#stringConcatOperandBytes(Object)} — runtime byte cost of a reference operand in a string concat. */
+    public static final Method ALLOC_STRING_CONCAT_OPERAND_BYTES = getAsmMethod(long.class, "stringConcatOperandBytes", Object.class);
 
     private static Method getAsmMethod(final Class<?> rtype, final String name, final Class<?>... ptypes) {
         return new Method(name, MethodType.methodType(rtype, ptypes).toMethodDescriptorString());

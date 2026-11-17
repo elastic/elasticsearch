@@ -15,6 +15,10 @@ apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.bwc-test'
 apply plugin: 'elasticsearch.bc-upgrade-test'
 
+// Each suite is parameterized over the old and upgraded cluster and the old-cluster run sets up the state the upgraded run
+// asserts on, so a parameter that passed must still run when the other one is retried.
+smartRetry.pruneIndividualTests.set(false)
+
 buildParams.bwcVersions.withIndexCompatible { bwcVersion, baseName ->
   tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)

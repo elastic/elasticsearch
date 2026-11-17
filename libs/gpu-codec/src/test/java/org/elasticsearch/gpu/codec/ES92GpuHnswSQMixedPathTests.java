@@ -12,11 +12,11 @@ package org.elasticsearch.gpu.codec;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.TestUtil;
-import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.gpu.CuVSGPUSupport;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.codec.vectors.ESBaseKnnVectorsFormatTestCase;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.junit.BeforeClass;
 
@@ -27,15 +27,12 @@ import static org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat.DEFAULT_MAX_C
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 
 /**
- * Exercises the GPU SQ format with a resource manager that randomly fails {@code tryAcquire},
- * forcing a mix of GPU and CPU fallback paths across flush calls within the same index.
+ * Exercises the GPU SQ format with a resource manager that randomly fails {@code tryAcquire} and {@code acquire},
+ * forcing a mix of GPU and CPU fallback paths across flush and merge calls within the same index.
  * Requires a GPU — skipped on non-GPU nodes.
  */
-public class ES92GpuHnswSQMixedPathTests extends BaseKnnVectorsFormatTestCase {
-
-    static {
-        LogConfigurator.configureESLogging();
-    }
+@LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
+public class ES92GpuHnswSQMixedPathTests extends ESBaseKnnVectorsFormatTestCase {
 
     static Codec codec;
 
@@ -106,6 +103,11 @@ public class ES92GpuHnswSQMixedPathTests extends BaseKnnVectorsFormatTestCase {
 
     @Override
     public void testMismatchedFields() {
+        // No bytes support
+    }
+
+    @Override
+    public void testWriterByteVectorRamEstimate() {
         // No bytes support
     }
 

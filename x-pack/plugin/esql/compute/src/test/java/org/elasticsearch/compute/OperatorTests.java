@@ -58,6 +58,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.RowInTableLookupOperator;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.TestDriverFactory;
@@ -76,11 +77,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static org.elasticsearch.compute.test.OperatorTestCase.randomPageSize;
 import static org.elasticsearch.test.MapMatcher.assertMap;
@@ -279,8 +280,8 @@ public class OperatorTests extends MapperServiceTestCase {
 
     private static Set<Integer> searchForDocIds(IndexReader reader, Query query) throws IOException {
         IndexSearcher searcher = new IndexSearcher(reader);
-        Set<Integer> docIds = new HashSet<>();
-        searcher.search(query, new Collector() {
+        Set<Integer> docIds = ConcurrentHashMap.newKeySet();
+        searcher.search(query, collectorManager(() -> new Collector() {
             @Override
             public LeafCollector getLeafCollector(LeafReaderContext context) {
                 return new LeafCollector() {
@@ -301,7 +302,7 @@ public class OperatorTests extends MapperServiceTestCase {
             public ScoreMode scoreMode() {
                 return ScoreMode.COMPLETE_NO_SCORES;
             }
-        });
+        }));
         return docIds;
     }
 
@@ -513,7 +514,8 @@ public class OperatorTests extends MapperServiceTestCase {
             limit,
             false, // no scoring
             () -> 0L,
-            LuceneSliceQueue.MIN_DOCS_PER_SLICE
+            LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+            QueryWarnings.EMIT
         );
     }
 
@@ -532,7 +534,8 @@ public class OperatorTests extends MapperServiceTestCase {
             tagTypes,
             LuceneOperator.NO_LIMIT,
             () -> 0L,
-            LuceneSliceQueue.MIN_DOCS_PER_SLICE
+            LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+            QueryWarnings.EMIT
         );
     }
 }

@@ -38,18 +38,15 @@ public class ES93HnswVectorsFormat extends AbstractHnswVectorsFormat {
     private final FlatVectorsFormat flatVectorsFormat;
 
     public ES93HnswVectorsFormat() {
-        super(NAME, DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, DEFAULT_NUM_MERGE_WORKER, null, HNSW_GRAPH_THRESHOLD);
-        flatVectorsFormat = new ES93GenericFlatVectorsFormat();
+        this(DenseVectorFieldMapper.ElementType.FLOAT);
     }
 
     public ES93HnswVectorsFormat(DenseVectorFieldMapper.ElementType elementType) {
-        super(NAME, DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, DEFAULT_NUM_MERGE_WORKER, null, HNSW_GRAPH_THRESHOLD);
-        flatVectorsFormat = new ES93GenericFlatVectorsFormat(elementType, false);
+        this(DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, elementType);
     }
 
     public ES93HnswVectorsFormat(int maxConn, int beamWidth, DenseVectorFieldMapper.ElementType elementType) {
-        super(NAME, maxConn, beamWidth, DEFAULT_NUM_MERGE_WORKER, null, HNSW_GRAPH_THRESHOLD);
-        flatVectorsFormat = new ES93GenericFlatVectorsFormat(elementType, false);
+        this(maxConn, beamWidth, elementType, DEFAULT_NUM_MERGE_WORKER, null);
     }
 
     public ES93HnswVectorsFormat(
@@ -59,20 +56,24 @@ public class ES93HnswVectorsFormat extends AbstractHnswVectorsFormat {
         int numMergeWorkers,
         ExecutorService mergeExec
     ) {
-        super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec, HNSW_GRAPH_THRESHOLD);
-        flatVectorsFormat = new ES93GenericFlatVectorsFormat(elementType, false);
+        this(maxConn, beamWidth, elementType, numMergeWorkers, mergeExec, HNSW_GRAPH_THRESHOLD, false);
     }
 
+    /**
+     * @param onDiskMerge whether merges read the raw vectors with direct I/O (the field's {@code on_disk_merge} option);
+     *                    writes stay buffered, see {@link ES93GenericFlatVectorsFormat#withBufferedMergeWrites}
+     */
     public ES93HnswVectorsFormat(
         int maxConn,
         int beamWidth,
         DenseVectorFieldMapper.ElementType elementType,
         int numMergeWorkers,
         ExecutorService mergeExec,
-        int hnswGraphThreshold
+        int hnswGraphThreshold,
+        boolean onDiskMerge
     ) {
         super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec, resolveThreshold(hnswGraphThreshold, HNSW_GRAPH_THRESHOLD));
-        flatVectorsFormat = new ES93GenericFlatVectorsFormat(elementType, false);
+        flatVectorsFormat = ES93GenericFlatVectorsFormat.withBufferedMergeWrites(elementType, onDiskMerge);
     }
 
     @Override
@@ -86,6 +87,7 @@ public class ES93HnswVectorsFormat extends AbstractHnswVectorsFormat {
             state,
             maxConn,
             beamWidth,
+            flatVectorsFormat,
             flatVectorsFormat.fieldsWriter(state),
             numMergeWorkers,
             mergeExec,

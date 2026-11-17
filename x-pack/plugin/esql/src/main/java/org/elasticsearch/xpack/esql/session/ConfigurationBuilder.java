@@ -8,11 +8,11 @@
 package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.xpack.esql.Column;
-import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
+import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
+import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.time.Instant;
-import java.time.ZoneId;
 import java.util.Locale;
 import java.util.Map;
 
@@ -25,7 +25,7 @@ public class ConfigurationBuilder {
     private Instant now;
     private String clusterName;
     private String username;
-    private ZoneId zoneId;
+    private ResolvedSettings resolvedSettings;
     private QueryPragmas pragmas;
     private int resultTruncationMaxSizeRegular;
     private int resultTruncationDefaultSizeRegular;
@@ -36,18 +36,16 @@ public class ConfigurationBuilder {
     private boolean profile;
     private boolean allowPartialResults;
     private boolean explainOnly;
+    private boolean flattenedKeys;
     private Map<String, Map<String, Column>> tables;
     private long queryStartTimeNanos;
-    private String projectRouting;
-    private ApproximationSettings approximationSettings;
     private Map<String, String> viewQueries;
-    private long grokMatcherWatchdogMs;
 
     public ConfigurationBuilder(Configuration configuration) {
         now = configuration.now();
         clusterName = configuration.clusterName();
         username = configuration.username();
-        zoneId = configuration.zoneId();
+        resolvedSettings = configuration.resolvedSettings();
         pragmas = configuration.pragmas();
         resultTruncationMaxSizeRegular = configuration.resultTruncationMaxSize(false);
         resultTruncationDefaultSizeRegular = configuration.resultTruncationDefaultSize(false);
@@ -58,12 +56,10 @@ public class ConfigurationBuilder {
         profile = configuration.profile();
         allowPartialResults = configuration.allowPartialResults();
         explainOnly = configuration.explainOnly();
+        flattenedKeys = configuration.flattenedKeys();
         tables = configuration.tables();
         queryStartTimeNanos = configuration.queryStartTimeNanos();
-        projectRouting = configuration.projectRouting();
-        approximationSettings = configuration.approximationSettings();
         viewQueries = configuration.viewQueries();
-        grokMatcherWatchdogMs = configuration.grokMatcherWatchdogMs();
     }
 
     public ConfigurationBuilder now(Instant now) {
@@ -78,11 +74,6 @@ public class ConfigurationBuilder {
 
     public ConfigurationBuilder username(String username) {
         this.username = username;
-        return this;
-    }
-
-    public ConfigurationBuilder zoneId(ZoneId zoneId) {
-        this.zoneId = zoneId;
         return this;
     }
 
@@ -136,6 +127,11 @@ public class ConfigurationBuilder {
         return this;
     }
 
+    public ConfigurationBuilder flattenedKeys(boolean flattenedKeys) {
+        this.flattenedKeys = flattenedKeys;
+        return this;
+    }
+
     public ConfigurationBuilder tables(Map<String, Map<String, Column>> tables) {
         this.tables = tables;
         return this;
@@ -146,13 +142,14 @@ public class ConfigurationBuilder {
         return this;
     }
 
-    public ConfigurationBuilder projectRouting(String projectRouting) {
-        this.projectRouting = projectRouting;
+    public ConfigurationBuilder resolvedSettings(ResolvedSettings resolvedSettings) {
+        this.resolvedSettings = resolvedSettings;
         return this;
     }
 
-    public ConfigurationBuilder approximationSettings(ApproximationSettings approximationSettings) {
-        this.approximationSettings = approximationSettings;
+    /** Override one {@link QuerySettingDef} value on the resolved-settings view. Generic — caller names the setting. */
+    public <T> ConfigurationBuilder setting(QuerySettingDef<T> def, T value) {
+        this.resolvedSettings = resolvedSettings.withOverride(def, value);
         return this;
     }
 
@@ -161,14 +158,8 @@ public class ConfigurationBuilder {
         return this;
     }
 
-    public ConfigurationBuilder grokMatcherWatchdogMs(long grokMatcherWatchdogMs) {
-        this.grokMatcherWatchdogMs = grokMatcherWatchdogMs;
-        return this;
-    }
-
     public Configuration build() {
         return new Configuration(
-            zoneId,
             now,
             locale,
             username,
@@ -183,11 +174,10 @@ public class ConfigurationBuilder {
             allowPartialResults,
             resultTruncationMaxSizeTimeseries,
             resultTruncationDefaultSizeTimeseries,
-            projectRouting,
-            approximationSettings,
+            resolvedSettings,
             viewQueries,
             explainOnly,
-            grokMatcherWatchdogMs
+            flattenedKeys
         );
     }
 }

@@ -9,29 +9,50 @@ package org.elasticsearch.xpack.oteldata.otlp;
 
 import io.opentelemetry.proto.collector.logs.v1.ExportLogsServiceResponse;
 import io.opentelemetry.proto.common.v1.KeyValue;
+import io.opentelemetry.proto.logs.v1.LogRecord;
 import io.opentelemetry.proto.logs.v1.SeverityNumber;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 
+import org.apache.logging.log4j.Level;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.http.HttpTransportSettings;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.mockito.ArgumentCaptor;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 public class OTLPLogsTransportActionTests extends AbstractOTLPTransportActionTests {
 
     @Override
     protected AbstractOTLPTransportAction createAction() {
-        return new OTLPLogsTransportAction(mock(TransportService.class), mock(ActionFilters.class), mock(ThreadPool.class), client);
+        return new OTLPLogsTransportAction(
+            mock(TransportService.class),
+            mock(ActionFilters.class),
+            mock(ThreadPool.class),
+            client,
+            Settings.EMPTY
+        );
     }
 
     @Override
@@ -106,6 +127,71 @@ public class OTLPLogsTransportActionTests extends AbstractOTLPTransportActionTes
         );
 
         assertThat(indexRequest.getPipeline(), nullValue());
+    }
+
+    @TestLogging(value = "org.elasticsearch.xpack.oteldata.otlp.AbstractOTLPTransportAction:DEBUG", reason = "Verify rejection diagnostics")
+    public void testAttributeFanoutReturns413() {
+        Settings settings = Settings.builder()
+            .put(HttpTransportSettings.SETTING_HTTP_MAX_PROTOBUF_CONTENT_LENGTH.getKey(), "1kb")
+            .put(HttpTransportSettings.SETTING_HTTP_MAX_PROTOBUF_EXPANDED_CONTENT_LENGTH.getKey(), "10kb")
+            .build();
+        OTLPLogsTransportAction action = new OTLPLogsTransportAction(
+            mock(TransportService.class),
+            mock(ActionFilters.class),
+            mock(ThreadPool.class),
+            client,
+            settings
+        );
+
+        // ~1 KiB resource attribute × 15 log records — IndexRequest#ramBytesUsed() exceeds the 10 KiB limit
+        String largeValue = "x".repeat(1024);
+        List<LogRecord> logRecords = new ArrayList<>();
+        for (int i = 0; i < 15; i++) {
+            logRecords.add(OtlpLogUtils.createLogRecord("body", SeverityNumber.SEVERITY_NUMBER_INFO, "INFO"));
+        }
+        OTLPActionRequest request = new OTLPActionRequest(
+            new BytesArray(
+                OtlpLogUtils.createLogsRequest(List.of(OtlpUtils.keyValue("resource.large", largeValue)), logRecords).toByteArray()
+            )
+        );
+
+        for (int i = 0; i < 2; i++) {
+            try (MockLog mockLog = MockLog.capture(AbstractOTLPTransportAction.class)) {
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "rejection diagnostics are logged at debug level",
+                        AbstractOTLPTransportAction.class.getCanonicalName(),
+                        Level.DEBUG,
+                        "OTLP request rejected: expanded content would exceed limit [10240] bytes.*"
+                            + "has [15] telemetry items selected for conversion*"
+                    )
+                );
+                mockLog.addExpectation(
+                    new MockLog.UnseenEventExpectation(
+                        "rejection is not logged at warn level",
+                        AbstractOTLPTransportAction.class.getCanonicalName(),
+                        Level.WARN,
+                        "*"
+                    )
+                );
+                Exception exception = executeExpectingFailure(action, request);
+                assertThat(ExceptionsHelper.status(exception), equalTo(RestStatus.REQUEST_ENTITY_TOO_LARGE));
+                assertThat(exception.getMessage(), containsString("expanded content would exceed limit"));
+                assertThat(exception.getMessage(), containsString("[15] telemetry items selected for conversion"));
+                assertThat(exception.getMessage(), containsString("Estimated expanded size of the full request"));
+                mockLog.assertAllExpectationsMatched();
+            }
+        }
+        verify(client, never()).execute(any(), any(), any());
+    }
+
+    private static Exception executeExpectingFailure(OTLPLogsTransportAction action, OTLPActionRequest request) {
+        @SuppressWarnings("unchecked")
+        ActionListener<OTLPActionResponse> responseListener = mock(ActionListener.class);
+        action.doExecute(null, request, responseListener);
+        ArgumentCaptor<Exception> exception = ArgumentCaptor.forClass(Exception.class);
+        verify(responseListener).onFailure(exception.capture());
+        return exception.getValue();
     }
 
     private IndexRequest prepareIndexRequestWithAttributes(List<KeyValue> attributes) throws Exception {

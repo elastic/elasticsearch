@@ -142,6 +142,7 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
                 CustomUnifiedHighlighter highlighter = new CustomUnifiedHighlighter(
                     builder,
                     UnifiedHighlighter.OffsetSource.ANALYSIS,
+                    false,
                     locale,
                     "index",
                     "text",
@@ -153,7 +154,6 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
                     true,
                     true
                 );
-                highlighter.setFieldMatcher((name) -> "text".equals(name));
                 final Snippet[] snippets = highlighter.highlightField(getOnlyLeafReader(reader), topDocs.scoreDocs[0].doc, () -> rawValue);
                 assertEquals(expectedPassages.length, snippets.length);
                 for (int i = 0; i < snippets.length; i++) {

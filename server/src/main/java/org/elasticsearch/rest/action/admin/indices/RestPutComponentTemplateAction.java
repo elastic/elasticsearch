@@ -34,12 +34,14 @@ public class RestPutComponentTemplateAction extends BaseRestHandler {
     private static final String COMPONENT_TEMPLATE_TRACKING_INFO = "component_template_tracking_info";
     public static final String SUPPORTS_DOWNSAMPLING_METHOD = "dlm.downsampling_method";
     public static final String SUPPORTS_FROZEN_AFTER = "dlm.frozen_after";
+    public static final String FAILURE_STORE_LIFECYCLE_REJECTS_FROZEN_AFTER = "failure_store.lifecycle.frozen_after_rejected";
     private static final Set<String> CAPABILITIES = Set.of(
         SUPPORTS_FAILURE_STORE,
         SUPPORTS_FAILURE_STORE_LIFECYCLE,
         COMPONENT_TEMPLATE_TRACKING_INFO,
         SUPPORTS_DOWNSAMPLING_METHOD,
-        SUPPORTS_FROZEN_AFTER
+        SUPPORTS_FROZEN_AFTER,
+        FAILURE_STORE_LIFECYCLE_REJECTS_FROZEN_AFTER
     );
 
     @Override

@@ -94,7 +94,11 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
         this.licenseState = licenseState;
         this.trainedModelProvider = trainedModelProvider;
         this.adaptiveAllocationsScalerService = adaptiveAllocationsScalerService;
-        this.waitForAllocation = new InferenceWaitForAllocation(assignmentService, this::inferOnBlockedRequest);
+        this.waitForAllocation = new InferenceWaitForAllocation(
+            assignmentService,
+            this::inferOnBlockedRequest,
+            threadPool::relativeTimeInMillis
+        );
         this.threadPool = threadPool;
     }
 
@@ -277,13 +281,19 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
         }
 
         if (nodes.isEmpty()) {
-            String message = "Trained model deployment [" + request.getId() + "] is not allocated to any nodes";
+            String message = "Trained model deployment [" + assignment.getDeploymentId() + "] is not allocated to any nodes";
             boolean starting = adaptiveAllocationsScalerService.maybeStartAllocation(assignment);
             if (starting) {
                 message += "; starting deployment of one allocation";
                 logger.debug(message);
                 waitForAllocation.waitForAssignment(
-                    new InferenceWaitForAllocation.WaitingRequest(request, responseBuilder, parentTaskId, listener)
+                    new InferenceWaitForAllocation.WaitingRequest(
+                        assignment.getDeploymentId(),
+                        request,
+                        responseBuilder,
+                        parentTaskId,
+                        listener
+                    )
                 );
                 return;
             }

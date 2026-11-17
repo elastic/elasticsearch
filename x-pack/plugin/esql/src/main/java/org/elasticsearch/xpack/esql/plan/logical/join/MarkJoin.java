@@ -17,9 +17,11 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -130,6 +132,11 @@ public class MarkJoin extends AbstractSubqueryJoin {
     }
 
     @Override
+    protected LogicalPlan buildFilterPathPlanFromExpression(Expression condition, Source source) {
+        return new Eval(source, left(), List.of(markAlias(source, condition)));
+    }
+
+    @Override
     protected LogicalPlan buildHashJoinPathPlan(
         LogicalPlan leftSide,
         LocalRelation deduplicatedData,
@@ -142,9 +149,9 @@ public class MarkJoin extends AbstractSubqueryJoin {
         // already wrapped the left side in an {@code Eval(svKey = MvSingleValueOrNull(leftField))} so multi-valued positions become
         // NULL before the join. {@code leftJoinConfig.leftFields()} therefore refers to the SV-guarded attribute, which we use in the
         // CASE so NULL/MV keys collapse to mark=NULL.
-        Join leftJoin = new Join(source, leftSide, deduplicatedData, leftJoinConfig);
-        Attribute svKeyAttr = leftJoinConfig.leftFields().get(0);
-        Expression caseExpr = buildMarkCase(source, svKeyAttr, sentinelAttr, rightHadNulls);
+        Join leftJoin = new Join(source, leftSide, deduplicatedData, leftJoinConfig, ExecuteLocation.ANY);
+        List<Attribute> svKeyAttrs = leftJoinConfig.leftFields();
+        Expression caseExpr = buildMarkCase(source, svKeyAttrs, sentinelAttr, rightHadNulls);
         Eval eval = new Eval(source, leftJoin, List.of(markAlias(source, caseExpr)));
         // Keep the original left output and append the mark; drop the synthetic SV-guard attribute. Use {@code left().output()} rather
         // than {@code leftSide.output()} because the latter now includes the SV-guard attribute.
@@ -161,8 +168,9 @@ public class MarkJoin extends AbstractSubqueryJoin {
 
     /**
      * Build the CASE expression that derives the three-valued mark from the LEFT-join sentinel and the {@code rightHadNulls} flag,
-     * following SQL {@code IN} semantics. {@code keyAttr} is the SV-guarded left key, so a NULL key covers both originally NULL and
-     * originally multi-valued left keys (the SV guard collapsed MV positions to NULL).
+     * following SQL {@code IN} semantics. {@code keyAttrs} are the SV-guarded left keys, so a NULL in any key covers both originally
+     * NULL and originally multi-valued left keys (the SV guard collapsed MV positions to NULL). For multi-column keys the row is
+     * considered null-keyed when <em>any</em> component is NULL.
      * <p>
      * The mark has three outcomes:
      * <ul>
@@ -179,25 +187,24 @@ public class MarkJoin extends AbstractSubqueryJoin {
      *       non-match, including NULL/MV keys.</li>
      * </ul>
      */
-    private Expression buildMarkCase(Source source, Attribute keyAttr, Attribute sentinelAttr, boolean rightHadNulls) {
-        // The LEFT join leaves the sentinel non-NULL exactly for left rows that matched a right row.
+    private Expression buildMarkCase(Source source, List<Attribute> keyAttrs, Attribute sentinelAttr, boolean rightHadNulls) {
         Expression matched = new IsNotNull(source, sentinelAttr);
 
         if (rightHadNulls) {
-            // Even argument count => no trailing default, so the implicit ELSE is NULL:
-            // CASE WHEN matched THEN TRUE END
-            // matched -> TRUE left key equals some right value
-            // no match (ELSE) -> NULL x IN (.., NULL) is never FALSE; also covers NULL/MV keys
             return new Case(source, matched, List.of(Literal.TRUE));
         }
 
-        // No NULL on the right, so a non-match is a definite FALSE unless the key itself is NULL/MV; test the key first. The odd
-        // argument count makes the trailing FALSE an explicit ELSE:
-        // CASE WHEN key IS NULL THEN NULL WHEN matched THEN TRUE ELSE FALSE END
-        // key IS NULL -> NULL NULL/MV left key => x IN (...) is NULL
-        // matched -> TRUE non-NULL key equals some right value
-        // no match (ELSE) -> FALSE non-NULL key, no match, no NULL on the right
-        Expression keyIsNull = new IsNull(source, keyAttr);
+        // Key is considered null if ANY component is null (multi-column: any column null → no match)
+        Expression keyIsNull;
+        if (keyAttrs.size() == 1) {
+            keyIsNull = new IsNull(source, keyAttrs.get(0));
+        } else {
+            List<Expression> nullChecks = new ArrayList<>();
+            for (Attribute keyAttr : keyAttrs) {
+                nullChecks.add(new IsNull(source, keyAttr));
+            }
+            keyIsNull = Predicates.combineOr(nullChecks);
+        }
         Expression nullMark = new Literal(source, null, DataType.BOOLEAN);
         return new Case(source, keyIsNull, List.of(nullMark, matched, Literal.TRUE, Literal.FALSE));
     }

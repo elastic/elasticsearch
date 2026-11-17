@@ -136,6 +136,9 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
         var parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
         var rawClient = new ParentTaskAssigningClient(client, parentTaskId);
         var parentClient = cloudCredentialManager.wrapWithUiamIfPresent(rawClient, request.cloudCredential());
+        // These validation searches run under the caller's live credential (not the stored config
+        // headers). Scope cross-project resolution to whether that credential can actually fan out.
+        var sourceIndicesOptions = config.getSource().indicesOptions(request.cloudCredential() != null);
 
         // <6> Final listener
         ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(deducedMappings -> {
@@ -151,7 +154,14 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
             if (request.isDeferValidation()) {
                 deduceMappingsListener.onResponse(emptyMap());
             } else {
-                function.deduceMappings(parentClient, config.getHeaders(), config.getId(), config.getSource(), deduceMappingsListener);
+                function.deduceMappings(
+                    parentClient,
+                    config.getHeaders(),
+                    config.getId(),
+                    config.getSource(),
+                    sourceIndicesOptions,
+                    deduceMappingsListener
+                );
             }
         }, listener::onFailure);
 
@@ -160,12 +170,37 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
             if (request.isDeferValidation()) {
                 l.onResponse(true);
             } else {
-                function.validateQuery(parentClient, config.getHeaders(), config.getSource(), request.ackTimeout(), l);
+                function.validateQuery(
+                    parentClient,
+                    config.getHeaders(),
+                    config.getSource(),
+                    sourceIndicesOptions,
+                    request.ackTimeout(),
+                    l
+                );
+            }
+        });
+
+        // <3.5> A caller with no cloud credential cannot fan out cross-project, so reject an explicit
+        // remote/cross-project source before deduce-mappings tries (and fails) to obtain a request-scoped
+        // token for it. Only relevant when CPS is enabled; a cloud caller is allowed through to resolution
+        // (which surfaces "No such project" for an unknown linked project).
+        ActionListener<Boolean> validateRemoteSourceListener = validateConfigListener.delegateFailureAndWrap((l, ignored) -> {
+            if (SourceDestValidations.isCrossProjectSource(crossProjectModeDecider)
+                && request.cloudCredential() == null
+                && hasExplicitNonOriginRemoteSource(config.getSource().getIndex())) {
+                l.onFailure(
+                    new ValidationException().addValidationError(
+                        SourceDestValidator.REMOTE_SOURCE_AND_CROSS_PROJECT_INDICES_ARE_NOT_SUPPORTED
+                    )
+                );
+            } else {
+                l.onResponse(true);
             }
         });
 
         // <3> Validate Project Routing is not set when CPS is not supported
-        ActionListener<Boolean> validateProjectRoutingListener = validateConfigListener.delegateFailureAndWrap((l, ignored) -> {
+        ActionListener<Boolean> validateProjectRoutingListener = validateRemoteSourceListener.delegateFailureAndWrap((l, ignored) -> {
             if (config.getSource().getProjectRouting() == null || crossProjectModeDecider.crossProjectEnabled()) {
                 l.onResponse(true);
             } else {
@@ -189,8 +224,23 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
             config.getSource().getIndex(),
             config.getDestination().getIndex(),
             config.getDestination().getPipeline(),
-            SourceDestValidations.getValidations(request.isDeferValidation(), config.getAdditionalSourceDestValidations()),
+            SourceDestValidations.getValidations(
+                request.isDeferValidation(),
+                crossProjectModeDecider,
+                config.getAdditionalSourceDestValidations()
+            ),
             validateSourceDestListener
         );
+    }
+
+    // An explicit remote/cross-project source ("cluster:index"), other than the CPS local qualifier
+    // "_origin:", cannot be resolved by a caller that holds no cloud credential.
+    private static boolean hasExplicitNonOriginRemoteSource(String[] indices) {
+        for (String index : indices) {
+            if (RemoteClusterLicenseChecker.isRemoteIndex(index) && index.startsWith("_origin:") == false) {
+                return true;
+            }
+        }
+        return false;
     }
 }

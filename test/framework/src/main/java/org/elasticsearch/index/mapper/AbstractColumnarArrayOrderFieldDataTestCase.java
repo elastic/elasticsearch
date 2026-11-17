@@ -15,13 +15,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -33,23 +34,24 @@ import java.util.List;
  * nulls ({@link MultiValuedBinaryDocValuesField.ArrayOrderInlineNull}) instead of a sidecar {@code .offsets} field. Loads values through
  * the mapper's fielddata builder (so the mapper-to-fielddata wiring is exercised), which sorts within a document, drops nulls and keeps
  * duplicates. Concrete subclasses supply the field type (keyword, text, match_only_text).
+ *
+ * <p>This is the layout a strictly columnar index uses <em>without</em> the ColumNAR codec. The codec stores the same
+ * fields as a payload that hands its values back in the order they were written; that path is covered separately by
+ * {@code KeywordColumnarPayloadFieldDataTests}. Since the codec is used by every columnar index created from
+ * {@link IndexVersions#COLUMNAR_CODEC_NO_FEATURE_FLAG}, the index here is created just before that version so these
+ * tests keep exercising the sorting layout they were written for.
  */
 public abstract class AbstractColumnarArrayOrderFieldDataTestCase extends MapperServiceTestCase {
 
     protected abstract String fieldTypeName();
 
-    @Before
-    public void assumeColumnarFeatureEnabled() {
-        assumeTrue("columnar index mode requires a snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-    }
-
-    public final void setUp() throws Exception {
-        super.setUp();
-    }
-
     private MapperService columnarMapperService() throws IOException {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
-        return createMapperService(settings, mapping(b -> b.startObject("field").field("type", fieldTypeName()).endObject()));
+        return createMapperService(
+            IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_CODEC_NO_FEATURE_FLAG),
+            settings,
+            mapping(b -> b.startObject("field").field("type", fieldTypeName()).endObject())
+        );
     }
 
     /**
@@ -76,7 +78,7 @@ public abstract class AbstractColumnarArrayOrderFieldDataTestCase extends Mapper
             IndexFieldData<?> indexFieldData = mapperService.fieldType("field")
                 .fielddataBuilder(FieldDataContext.noRuntimeFields("test", "test"))
                 .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
-            SortedBinaryDocValues docValues = indexFieldData.load(leaf).getBytesValues();
+            SortableBinaryDocValues docValues = indexFieldData.load(leaf).getBytesValues();
             if (docValues.advanceExact(0)) {
                 hasValues[0] = true;
                 int count = docValues.docValueCount();

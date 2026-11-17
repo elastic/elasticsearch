@@ -68,6 +68,11 @@ extended.plugins=${extendedPlugins}
 #
 # 'has.native.controller': whether or not the plugin has a native controller
 has.native.controller=${hasNativeController}
+<% if (nativeControllerEnabledSettings) { %>
+#
+# 'native.controller.enabled.settings': node settings that must all resolve to true for this plugin's native controller to spawn
+native.controller.enabled.settings=${nativeControllerEnabledSettings}
+<% } %>
 <% } %>
 <% if (licensed) { %>
 # This plugin requires that a license agreement be accepted before installation

@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -37,13 +36,6 @@ import java.util.Objects;
  * Datasets participate in the index namespace (via {@link IndexAbstraction.Type#DATASET}).
  */
 public final class DatasetMetadata extends AbstractNamedDiffable<Metadata.ProjectCustom> implements Metadata.ProjectCustom {
-
-    /**
-     * Gates the ES|QL external data sources + datasets feature end-to-end. Lives on this server-resident
-     * custom so {@code server} and {@code x-pack} consumers share one source of truth (the data-source
-     * types live in x-pack). System property: {@code es.esql_external_datasources_feature_flag_enabled}.
-     */
-    public static final FeatureFlag ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG = new FeatureFlag("esql_external_datasources");
 
     /** Shared transport version for {@code DataSourceMetadata} and {@link DatasetMetadata} — introduced and evolved together. */
     public static final TransportVersion ESQL_DATASOURCES = TransportVersion.fromName("esql_datasources");
@@ -102,10 +94,7 @@ public final class DatasetMetadata extends AbstractNamedDiffable<Metadata.Projec
 
     @Override
     public EnumSet<Metadata.XContentContext> context() {
-        // API + GATEWAY. Datasets carry no secrets (credentials live on the parent data source), so full API exposure
-        // is intentional. SNAPSHOT is excluded to stay consistent with DataSourceMetadata: restoring datasets without
-        // their data sources would leave dangling references. Snapshot support is tracked as a future milestone.
-        return EnumSet.of(Metadata.XContentContext.API, Metadata.XContentContext.GATEWAY);
+        return EnumSet.of(Metadata.XContentContext.API, Metadata.XContentContext.GATEWAY, Metadata.XContentContext.SNAPSHOT);
     }
 
     @Override

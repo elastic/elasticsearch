@@ -27,7 +27,8 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
@@ -41,6 +42,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -125,6 +127,11 @@ public class FieldSortIT extends ESIntegTestCase {
     }
 
     protected boolean addMockHttpTransport() {
+        return false;
+    }
+
+    @Override
+    protected boolean forbidPrivateIndexSettings() {
         return false;
     }
 
@@ -1607,7 +1614,6 @@ public class FieldSortIT extends ESIntegTestCase {
     }
 
     public void testSortColumnarId() {
-        assumeTrue("feature flag must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         if (randomBoolean()) {
             prepareCreate("test", Settings.builder().put("index.mapping.use_columnar_id_mode_by_default", true)).get();
         } else {
@@ -1645,7 +1651,7 @@ public class FieldSortIT extends ESIntegTestCase {
     /**
      * Test case for issue 6150: https://github.com/elastic/elasticsearch/issues/6150
      */
-    public void testNestedSort() throws IOException, InterruptedException, ExecutionException {
+    public void testNestedSort() throws IOException {
         assertAcked(
             prepareCreate("test").setMapping(
                 XContentFactory.jsonBuilder()
@@ -1784,7 +1790,74 @@ public class FieldSortIT extends ESIntegTestCase {
         assertThat(exc.toString(), containsString("it is mandatory to set the [nested] context"));
     }
 
-    public void testSortDuelBetweenSingleShardAndMultiShardIndex() throws Exception {
+    public void testNestedIntegerSortOnOldIndex() throws Exception {
+        IndexVersion oldVersion = randomBoolean()
+            ? IndexVersionUtils.randomVersionBetween(
+                IndexVersions.MINIMUM_COMPATIBLE,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.INDEX_INT_SORT_INT_TYPE_8_19)
+            )
+            : IndexVersionUtils.randomVersionBetween(
+                IndexVersions.UPGRADE_TO_LUCENE_10_0_0,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.INDEX_INT_SORT_INT_TYPE)
+            );
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, oldVersion).build();
+        assertAcked(prepareCreate("test").setSettings(settings).setMapping("""
+            {
+                "properties": {
+                    "obj": {
+                        "type": "nested",
+                        "properties": {
+                            "value": { "type": "integer" }
+                        }
+                    },
+                    "values": { "type": "integer" }
+                }
+            }
+            """));
+        indexRandom(
+            true,
+            prepareIndex("test").setSource(
+                jsonBuilder().startObject().startObject("obj").field("value", 30).endObject().array("values", 1, 100).endObject()
+            ),
+            prepareIndex("test").setSource(
+                jsonBuilder().startObject().startObject("obj").field("value", 10).endObject().array("values", 20, 30).endObject()
+            ),
+            prepareIndex("test").setSource(
+                jsonBuilder().startObject().startObject("obj").field("value", 20).endObject().array("values", 40, 50).endObject()
+            )
+        );
+
+        assertNoFailuresAndResponse(
+            prepareSearch("test").setQuery(matchAllQuery())
+                .addSort(SortBuilders.fieldSort("obj.value").setNestedSort(new NestedSortBuilder("obj")).order(SortOrder.ASC)),
+            response -> assertSortValues(response, 10L, 20L, 30L)
+        );
+        assertNoFailuresAndResponse(
+            prepareSearch("test").setQuery(matchAllQuery())
+                .addSort(SortBuilders.fieldSort("obj.value").setNestedSort(new NestedSortBuilder("obj")).order(SortOrder.DESC)),
+            response -> assertSortValues(response, 30L, 20L, 10L)
+        );
+        assertNoFailuresAndResponse(
+            prepareSearch("test").setQuery(matchAllQuery())
+                .addSort(SortBuilders.fieldSort("values").sortMode(SortMode.MAX).order(SortOrder.DESC)),
+            response -> assertSortValues(response, 100L, 50L, 30L)
+        );
+        assertNoFailuresAndResponse(
+            prepareSearch("test").setQuery(matchAllQuery())
+                .addSort(SortBuilders.fieldSort("values").sortMode(SortMode.SUM).order(SortOrder.DESC)),
+            response -> assertSortValues(response, 101L, 90L, 50L)
+        );
+    }
+
+    private static void assertSortValues(SearchResponse response, long... expectedValues) {
+        SearchHit[] hits = response.getHits().getHits();
+        assertThat(hits.length, is(expectedValues.length));
+        for (int i = 0; i < expectedValues.length; i++) {
+            assertThat(((Number) hits[i].getSortValues()[0]).longValue(), equalTo(expectedValues[i]));
+        }
+    }
+
+    public void testSortDuelBetweenSingleShardAndMultiShardIndex() {
         String sortField = "sortField";
         assertAcked(
             prepareCreate("test1").setSettings(
@@ -1830,7 +1903,7 @@ public class FieldSortIT extends ESIntegTestCase {
         );
     }
 
-    public void testCustomFormat() throws Exception {
+    public void testCustomFormat() {
         // Use an ip field, which uses different internal/external
         // representations of values, to make sure values are both correctly
         // rendered and parsed (search_after)
@@ -1932,7 +2005,7 @@ public class FieldSortIT extends ESIntegTestCase {
         );
     }
 
-    public void testFieldAliasesWithMissingValues() throws Exception {
+    public void testFieldAliasesWithMissingValues() {
         // Create two indices and add the field 'route_length_miles' as an alias in
         // one, and a concrete field in the other.
         assertAcked(prepareCreate("old_index").setMapping("distance", "type=double", "route_length_miles", "type=alias,path=distance"));
@@ -2295,5 +2368,138 @@ public class FieldSortIT extends ESIntegTestCase {
         assertNoFailures(
             prepareSearch("index_long", "index_int", "index_other").addSort(new FieldSortBuilder("foo").unmappedType("boolean")).setSize(10)
         );
+    }
+
+    public void testSortOnFieldMappedInOneIndexWithIncompatibleUnmappedType() {
+        assertAcked(
+            prepareCreate("index_mapped").setMapping("field", "type=double"),
+            prepareCreate("index_unmapped").setMapping("other", "type=keyword")
+        );
+
+        prepareIndex("index_mapped").setId("mapped").setSource("field", 3.14).get();
+        prepareIndex("index_unmapped").setId("unmapped").setSource("other", "foo").get();
+        refresh();
+
+        for (SortOrder order : SortOrder.values()) {
+            // the docs of the index that doesn't map the field are sorted last by default, whatever the sort order is
+            assertNoFailuresAndResponse(
+                prepareSearch("index_mapped", "index_unmapped").addSort(new FieldSortBuilder("field").unmappedType("keyword").order(order)),
+                response -> {
+                    assertHitCount(response, 2);
+                    assertThat(response.getHits().getAt(0).getId(), equalTo("mapped"));
+                    assertThat(response.getHits().getAt(1).getId(), equalTo("unmapped"));
+                }
+            );
+            assertNoFailuresAndResponse(
+                prepareSearch("index_mapped", "index_unmapped").addSort(
+                    new FieldSortBuilder("field").unmappedType("keyword").order(order).missing("_first")
+                ),
+                response -> {
+                    assertHitCount(response, 2);
+                    assertThat(response.getHits().getAt(0).getId(), equalTo("unmapped"));
+                    assertThat(response.getHits().getAt(1).getId(), equalTo("mapped"));
+                }
+            );
+        }
+    }
+
+    /**
+     * The sort values of the docs of the index that doesn't map the field are rewritten to the numeric missing value when the shard
+     * results are merged. Paginating with search_after from those sort values must neither return docs twice nor skip any.
+     */
+    public void testSearchAfterOnFieldMappedInOneIndexWithIncompatibleUnmappedType() {
+        assertAcked(
+            prepareCreate("index_mapped").setMapping("field", "type=double", "seq", "type=long"),
+            prepareCreate("index_unmapped").setMapping("other", "type=keyword", "seq", "type=long")
+        );
+        // the docs of the index that doesn't map the field all tie on it, "seq" is the tiebreaker of the pagination
+        for (int i = 0; i < 3; i++) {
+            prepareIndex("index_mapped").setId("a" + i).setSource("field", i + 0.5, "seq", i).get();
+            prepareIndex("index_unmapped").setId("b" + i).setSource("other", "foo", "seq", 10 + i).get();
+        }
+        refresh();
+
+        // smaller than the number of docs of each index, so that a page boundary falls inside the docs of the unmapped index
+        int pageSize = 2;
+        for (SortOrder order : SortOrder.values()) {
+            for (String missing : new String[] { "_first", "_last" }) {
+                List<String> mapped = new ArrayList<>(List.of("a0", "a1", "a2"));
+                if (order == SortOrder.DESC) {
+                    Collections.reverse(mapped);
+                }
+                List<String> unmapped = List.of("b0", "b1", "b2");
+                List<String> expected = new ArrayList<>();
+                expected.addAll(missing.equals("_first") ? unmapped : mapped);
+                expected.addAll(missing.equals("_first") ? mapped : unmapped);
+
+                List<String> paginated = new ArrayList<>();
+                Object[] searchAfter = null;
+                // the full pages, then an empty one; the bound only keeps a pagination bug from looping forever
+                for (int page = 0; page <= expected.size() / pageSize; page++) {
+                    SearchRequestBuilder request = prepareSearch("index_mapped", "index_unmapped").addSort(
+                        new FieldSortBuilder("field").unmappedType("keyword").order(order).missing(missing)
+                    ).addSort(new FieldSortBuilder("seq").order(SortOrder.ASC)).setSize(pageSize);
+                    if (searchAfter != null) {
+                        request.searchAfter(searchAfter);
+                    }
+                    SearchResponse response = request.get();
+                    try {
+                        SearchHit[] hits = response.getHits().getHits();
+                        if (hits.length == 0) {
+                            break;
+                        }
+                        for (SearchHit hit : hits) {
+                            paginated.add(hit.getId());
+                        }
+                        searchAfter = hits[hits.length - 1].getSortValues();
+                    } finally {
+                        response.decRef();
+                    }
+                }
+                assertThat("order [" + order + "], missing [" + missing + "]", paginated, equalTo(expected));
+            }
+        }
+    }
+
+    public void testSortOnFieldWithValuesInOneIndexAndIncompatibleValuesInAnother() {
+        assertAcked(
+            prepareCreate("index_mapped").setMapping("field", "type=double"),
+            prepareCreate("index_keyword").setMapping("field", "type=keyword")
+        );
+
+        prepareIndex("index_mapped").setId("1").setSource("field", 3.14).get();
+        prepareIndex("index_keyword").setId("2").setSource("field", "foo").get();
+        refresh();
+
+        SearchPhaseExecutionException exc = expectThrows(
+            SearchPhaseExecutionException.class,
+            prepareSearch("index_mapped", "index_keyword").addSort(new FieldSortBuilder("field").unmappedType("keyword"))
+        );
+        assertThat(exc.getCause().toString(), containsString("Can't sort on field [field]; the field has incompatible sort types"));
+    }
+
+    /**
+     * A field mapped as a keyword in one index conflicts with the numeric mapping of another index even when none of the docs has a
+     * value for it: unlike an unmapped field, whose docs can be sorted as missing whatever the type of the field elsewhere.
+     */
+    public void testSortOnFieldWithValuesInOneIndexAndIncompatibleMappingWithoutValuesInAnother() {
+        assertAcked(
+            prepareCreate("index_mapped").setMapping("field", "type=double"),
+            prepareCreate("index_keyword").setMapping("field", "type=keyword", "other", "type=keyword")
+        );
+
+        prepareIndex("index_mapped").setId("1").setSource("field", 3.14).get();
+        prepareIndex("index_keyword").setId("2").setSource("other", "foo").get();
+        refresh();
+
+        for (String missing : new String[] { "_first", "_last" }) {
+            SearchPhaseExecutionException exc = expectThrows(
+                SearchPhaseExecutionException.class,
+                prepareSearch("index_mapped", "index_keyword").addSort(
+                    new FieldSortBuilder("field").unmappedType("keyword").missing(missing)
+                )
+            );
+            assertThat(exc.getCause().toString(), containsString("Can't sort on field [field]; the field has incompatible sort types"));
+        }
     }
 }

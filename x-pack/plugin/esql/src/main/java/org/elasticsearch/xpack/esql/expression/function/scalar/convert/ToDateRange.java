@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
@@ -49,18 +50,22 @@ public class ToDateRange extends AbstractConvertFunction implements Configuratio
         .unaryConfig(ToDateRange::new)
         .name("to_date_range", "to_daterange");
 
-    private Map<DataType, BuildFactory> lazyEvaluators = null;
+    /**
+     * Volatile because a plan's expressions are shared by the drivers of every shard on a node, which may call
+     * {@link #factories()} concurrently.
+     */
+    private volatile Map<DataType, BuildFactory> lazyEvaluators = null;
 
     private final Configuration configuration;
 
     @FunctionInfo(
         returnType = "date_range",
         preview = true,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.5.0") },
         briefSummary = "Converts a value to a date_range.",
         description = """
             Converts an input value to a `date_range` value.
-            A string will be parsed as a date range in the format `start..end`, where start and end are dates in ISO format. \
+            Strings are parsed as a date range in the format `start..end`, where `start` and `end` are dates in ISO format. \
             The range is half-open `[start, end)`.""",
         examples = { @Example(file = "date_range", tag = "to_date_range-str") }
     )
@@ -90,7 +95,7 @@ public class ToDateRange extends AbstractConvertFunction implements Configuratio
     @Override
     protected Map<DataType, BuildFactory> factories() {
         if (lazyEvaluators == null) {
-            DateFormatter formatter = DEFAULT_DATE_TIME_FORMATTER.withZone(configuration.zoneId());
+            DateFormatter formatter = DEFAULT_DATE_TIME_FORMATTER.withZone(QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()));
             BuildFactory fromString = (source, fieldEval) -> new ToDateRangeFromStringEvaluator.Factory(source, fieldEval, formatter);
             lazyEvaluators = Map.ofEntries(
                 Map.entry(DATE_RANGE, (source, fieldEval) -> fieldEval),

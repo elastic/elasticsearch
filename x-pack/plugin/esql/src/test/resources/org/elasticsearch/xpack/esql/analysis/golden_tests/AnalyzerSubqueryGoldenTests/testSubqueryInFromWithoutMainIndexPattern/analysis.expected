@@ -1,0 +1,4 @@
+Limit[1000[INTEGER],false,false]
+\_Filter[ISNOTNULL(language_name{f}#0)]
+  \_Filter[language_code{f}#1 > 1[INTEGER]]
+    \_EsRelation[languages][language_code{f}#1, language_name{f}#0]

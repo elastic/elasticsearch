@@ -67,6 +67,78 @@ public final class EmployeesParquetGenerator {
     /** Row holder used purely to keep {@link #employeesParquetBytes(EmployeeRow...)} call sites readable. */
     public record EmployeeRow(int empNo, String firstName, String lastName, int salary) {}
 
+    /** A row for {@link #eventLogParquetBytes(EventRow...)}: an id, a keyword category, and an epoch-millis event time. */
+    public record EventRow(int id, String category, long eventTimeMillis) {}
+
+    /**
+     * Four DOUBLE rows covering both signed zeros and a finite pair. {@code d * 1.0} throws on
+     * NaN, so NaN stays in the unit suite; this fixture is the REST-IT oracle against that
+     * pushdown-defeating rewrite.
+     */
+    public static byte[] signedZeroParquetBytes() throws IOException {
+        MessageType schema = new MessageType(
+            "signed_zero",
+            Types.required(PrimitiveType.PrimitiveTypeName.INT32).named("id"),
+            Types.required(PrimitiveType.PrimitiveTypeName.DOUBLE).named("d")
+        );
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        double[] values = { -0.0, 0.0, 1.0, -1.0 };
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(byteArrayOutputFile(baos))
+                .withConf(new PlainParquetConfiguration())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .build()
+        ) {
+            for (int i = 0; i < values.length; i++) {
+                Group g = factory.newGroup();
+                g.add("id", i + 1);
+                g.add("d", values[i]);
+                writer.write(g);
+            }
+        }
+        return baos.toByteArray();
+    }
+
+    /**
+     * Returns parquet bytes with schema {@code id:INT32, category:UTF8, event_time:INT64 TIMESTAMP(MILLIS, UTC)}.
+     * The timestamp-annotated INT64 is <em>inferred</em> as ES|QL {@code date} with no declared mapping — the column a
+     * dashboard time picker filters on. Used by the request-filter parity test to prove an out-of-band {@code range} on
+     * an inferred date selects the same rows on a dataset as on a mirror index.
+     */
+    public static byte[] eventLogParquetBytes(EventRow... rows) throws IOException {
+        MessageType schema = new MessageType(
+            "events",
+            Types.required(PrimitiveType.PrimitiveTypeName.INT32).named("id"),
+            Types.required(PrimitiveType.PrimitiveTypeName.BINARY).as(LogicalTypeAnnotation.stringType()).named("category"),
+            Types.required(PrimitiveType.PrimitiveTypeName.INT64)
+                .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
+                .named("event_time")
+        );
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        OutputFile outputFile = byteArrayOutputFile(baos);
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
+                .withConf(new PlainParquetConfiguration())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .build()
+        ) {
+            for (EventRow r : rows) {
+                Group g = factory.newGroup();
+                g.add("id", r.id);
+                g.add("category", r.category);
+                g.add("event_time", r.eventTimeMillis);
+                writer.write(g);
+            }
+        }
+        return baos.toByteArray();
+    }
+
     /**
      * Writes the supplied rows under the canonical 4-column employees schema and returns the
      * resulting parquet bytes. Exposed so additional REST ITs can build their own fixtures without

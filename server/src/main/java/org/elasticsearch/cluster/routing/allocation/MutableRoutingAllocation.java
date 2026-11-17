@@ -43,6 +43,7 @@ final class MutableRoutingAllocation extends RoutingAllocation {
      * @param clusterInfo {@link ClusterInfo} to use for allocation decisions
      * @param currentNanoTime the nano time to use for all delay allocation calculation (typically {@link System#nanoTime()})
      * @param isSimulating {@code true} if "transient" deciders should be ignored because we are simulating the final allocation
+     * @param preserveDecisionLabels whether decisions retain their decider label when not in debug mode
      */
     MutableRoutingAllocation(
         AllocationDeciders deciders,
@@ -52,9 +53,10 @@ final class MutableRoutingAllocation extends RoutingAllocation {
         SnapshotShardSizeInfo shardSizeInfo,
         long currentNanoTime,
         boolean isSimulating,
-        RoutingChangesObserver shardChangesObserver
+        RoutingChangesObserver shardChangesObserver,
+        boolean preserveDecisionLabels
     ) {
-        super(deciders, clusterState, clusterInfo, shardSizeInfo, currentNanoTime);
+        super(deciders, clusterState, clusterInfo, shardSizeInfo, currentNanoTime, preserveDecisionLabels);
         if (routingNodes == null || routingNodes.isReadOnly()) {
             throw new IllegalArgumentException("Must provide a mutable routing nodes instance");
         }
@@ -115,7 +117,8 @@ final class MutableRoutingAllocation extends RoutingAllocation {
                 : clusterState,
             clusterInfo,
             shardSizeInfo,
-            currentNanoTime
+            currentNanoTime,
+            preserveDecisionLabels
         );
     }
 
@@ -123,6 +126,9 @@ final class MutableRoutingAllocation extends RoutingAllocation {
     public void setSimulatedClusterInfo(ClusterInfo clusterInfo) {
         assert isSimulating : "Should be called only while simulating";
         this.clusterInfo = clusterInfo;
+        // The proportions are derived from the RoutingNodes and the ClusterInfo,
+        // so they must be recomputed for the new ClusterInfo.
+        invalidateNodeMaxShardWriteLoadProportion();
     }
 
     /**
@@ -185,17 +191,21 @@ final class MutableRoutingAllocation extends RoutingAllocation {
     /**
      * Whenever a shard moves in or out of {@link org.elasticsearch.cluster.routing.ShardRoutingState#STARTED}, we invalidate any
      * cached max write-load proportion values for the affected node(s)
+     * <p>
+     * Note that there are other transitions which would affect this number
+     * (e.g., shard failures, relocation failures), but they don't occur in
+     * desired balance computation or reconciliation, so we don't handle them.
      */
     private class MaxWriteLoadProportionCacheInvalidator implements RoutingChangesObserver {
 
         @Override
         public void shardStarted(ShardRouting initializingShard, ShardRouting startedShard) {
-            clusterInfo.invalidateNodeMaxShardWriteLoadProportion(startedShard.currentNodeId());
+            invalidateNodeMaxShardWriteLoadProportion(startedShard.currentNodeId());
         }
 
         @Override
         public void relocationStarted(ShardRouting startedShard, ShardRouting targetRelocatingShard, String reason) {
-            clusterInfo.invalidateNodeMaxShardWriteLoadProportion(startedShard.currentNodeId());
+            invalidateNodeMaxShardWriteLoadProportion(startedShard.currentNodeId());
         }
     }
 }

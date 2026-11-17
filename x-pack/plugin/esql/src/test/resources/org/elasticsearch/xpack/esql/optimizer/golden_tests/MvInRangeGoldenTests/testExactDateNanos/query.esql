@@ -1,0 +1,2 @@
+    FROM all_types
+    | WHERE mv_in_range(date_nanos, "2020-01-01"::date_nanos, "2021-01-01"::date_nanos)

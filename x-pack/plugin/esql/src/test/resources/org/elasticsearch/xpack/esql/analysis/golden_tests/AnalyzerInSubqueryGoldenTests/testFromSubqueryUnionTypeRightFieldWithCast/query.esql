@@ -1,0 +1,3 @@
+FROM employees
+| WHERE emp_no IN (FROM employees, (FROM employees_incompatible | KEEP emp_no) | EVAL id = emp_no::integer | KEEP id)
+| KEEP emp_no

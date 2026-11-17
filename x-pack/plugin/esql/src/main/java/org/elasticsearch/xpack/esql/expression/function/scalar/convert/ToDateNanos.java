@@ -23,10 +23,13 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
@@ -73,11 +76,17 @@ public class ToDateNanos extends AbstractConvertFunction implements Configuratio
         Map.entry(TEXT, (source, fieldEval) -> null)
     );
 
-    private Map<DataType, BuildFactory> lazyEvaluators = null;
+    /**
+     * Volatile because a plan's expressions are shared by the drivers of every shard on a node, which may call
+     * {@link #factories()} concurrently. Without it, a reader can see the map before {@code putAll} replaces the
+     * {@code null}-returning placeholders from {@link #STATIC_EVALUATORS}.
+     */
+    private volatile Map<DataType, BuildFactory> lazyEvaluators = null;
 
     private final Configuration configuration;
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "date_nanos",
         briefSummary = "Converts a value to a nanosecond-resolution date.",
         description = "Converts an input to a nanosecond-resolution date value (aka date_nanos).",
@@ -120,7 +129,7 @@ public class ToDateNanos extends AbstractConvertFunction implements Configuratio
                         (source, fieldEval) -> new ToDateNanosFromStringEvaluator.Factory(
                             source,
                             fieldEval,
-                            DEFAULT_DATE_NANOS_FORMATTER.withZone(configuration.zoneId())
+                            DEFAULT_DATE_NANOS_FORMATTER.withZone(QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()))
                         )
                     ),
                     Map.entry(
@@ -128,7 +137,7 @@ public class ToDateNanos extends AbstractConvertFunction implements Configuratio
                         (source, fieldEval) -> new ToDateNanosFromStringEvaluator.Factory(
                             source,
                             fieldEval,
-                            DEFAULT_DATE_NANOS_FORMATTER.withZone(configuration.zoneId())
+                            DEFAULT_DATE_NANOS_FORMATTER.withZone(QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()))
                         )
                     )
                 )

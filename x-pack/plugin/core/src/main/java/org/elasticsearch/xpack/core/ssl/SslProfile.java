@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.core.ssl;
 
 import org.apache.hc.core5.http.nio.ssl.TlsStrategy;
-import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
-import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.elasticsearch.common.ssl.SslConfiguration;
 
 import java.util.function.Consumer;
@@ -37,13 +35,6 @@ public interface SslProfile {
     SSLSocketFactory socketFactory();
 
     HostnameVerifier hostnameVerifier();
-
-    SSLConnectionSocketFactory connectionSocketFactory();
-
-    /**
-     * @return An object that is useful for configuring Apache Http Client v4.x
-     */
-    SSLIOSessionStrategy ioSessionStrategy();
 
     /**
      * @return An object that is useful for configuring Apache Http Client v5.x

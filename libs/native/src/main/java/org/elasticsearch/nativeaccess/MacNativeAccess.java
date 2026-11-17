@@ -11,9 +11,9 @@ package org.elasticsearch.nativeaccess;
 
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.foreign.LibraryProvider;
 import org.elasticsearch.foreign.adapter.MemorySegmentAdapter;
 import org.elasticsearch.nativeaccess.lib.MacCLibrary;
-import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary.RLimit;
 
 import java.io.IOException;
@@ -39,9 +39,9 @@ public class MacNativeAccess extends PosixNativeAccess {
 
     private final MacCLibrary macLibc;
 
-    MacNativeAccess(NativeLibraryProvider libraryProvider) {
-        super("MacOS", libraryProvider, new PosixConstants(9223372036854775807L, 5, 1, 6, 512, 144, 96, 104));
-        this.macLibc = libraryProvider.getLibrary(MacCLibrary.class);
+    MacNativeAccess() {
+        super("MacOS", new PosixConstants(9223372036854775807L, 5, 1, 6, 512));
+        this.macLibc = LibraryProvider.lookupLibrary(MacCLibrary.class);
     }
 
     @Override
@@ -107,6 +107,18 @@ public class MacNativeAccess extends PosixNativeAccess {
     }
 
     private void initMacSandbox() {
+        // macOS PIDs are 32-bit (pid_t); Math.toIntExact guards the implicit assumption
+        int pid = Math.toIntExact(ProcessHandle.current().pid());
+        int sandboxStatus = macLibc.sandbox_check(pid, null, 0);
+        if (sandboxStatus != 0) {
+            if (sandboxStatus < 0) {
+                logger.warn("sandbox_check returned {}; assuming already sandboxed, skipping seatbelt initialization", sandboxStatus);
+            } else {
+                logger.debug("already running inside a macOS sandbox; skipping seatbelt initialization");
+            }
+            return;
+        }
+
         // write rules to a temporary file, which will be passed to sandbox_init()
         Path rules;
         try {

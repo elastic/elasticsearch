@@ -26,6 +26,7 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.blobstore.OperationPurpose;
@@ -36,13 +37,16 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
+import org.elasticsearch.index.store.SelfAccountingIndexInput;
+import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -124,18 +128,6 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
         }
 
         @Override
-        public Collection<Object> createComponents(PluginServices services) {
-            final Collection<Object> components = super.createComponents(services);
-            components.add(
-                new PluginComponentBinding<>(
-                    StatelessCommitService.class,
-                    components.stream().filter(c -> c instanceof GenerationalFilesTrackingStatelessCommitService).findFirst().orElseThrow()
-                )
-            );
-            return components;
-        }
-
-        @Override
         protected IndexBlobStoreCacheDirectory createIndexBlobStoreCacheDirectory(
             StatelessSharedBlobCacheService cacheService,
             ShardId shardId
@@ -148,9 +140,16 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
             StatelessSharedBlobCacheService cacheService,
             CacheBlobReaderService cacheBlobReaderService,
             MutableObjectStoreUploadTracker objectStoreUploadTracker,
-            ShardId shardId
+            ShardId shardId,
+            IndexVersion creationVersion
         ) {
-            return new GenerationalFilesTrackingSearchDirectory(cacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId);
+            return new GenerationalFilesTrackingSearchDirectory(
+                cacheService,
+                cacheBlobReaderService,
+                objectStoreUploadTracker,
+                shardId,
+                creationVersion
+            );
         }
 
         @Override
@@ -321,7 +320,17 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
                         });
                     }
                 },
-                (int bytesRead, long timeToReadNanos) -> totalBytesReadFromObjectStore.add(bytesRead)
+                new MeteringCacheBlobReader.ReadCompleteCallback() {
+                    @Override
+                    public void onBytesRead(int bytesRead) {
+                        totalBytesReadFromObjectStore.add(bytesRead);
+                    }
+
+                    @Override
+                    public void onReadCompleted(final int totalBytesRead, final long timeToReadNanos) {
+                        // ignore
+                    }
+                }
             );
         }
 
@@ -337,9 +346,10 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
             StatelessSharedBlobCacheService cacheService,
             CacheBlobReaderService cacheBlobReaderService,
             MutableObjectStoreUploadTracker objectStoreUploadTracker,
-            ShardId shardId
+            ShardId shardId,
+            IndexVersion creationVersion
         ) {
-            super(cacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId);
+            super(cacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId, randomBoolean(), creationVersion);
         }
 
         @Override
@@ -367,27 +377,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
                 fail("Input already tracked for " + name);
                 return null;
             }
-            return new FilterIndexInput("tracked(" + name + ')', input) {
-                final AtomicBoolean closed = new AtomicBoolean();
-
-                @Override
-                public void close() throws IOException {
-                    if (closed.compareAndSet(false, true)) {
-                        try {
-                            super.close();
-                        } finally {
-                            untrack(input, nameAndLocation);
-                        }
-                    }
-                }
-
-                @Override
-                public IndexInput slice(String sliceDescription, long offset, long length) {
-                    var searchInput = asInstanceOf(BlobCacheIndexInput.class, getDelegate());
-                    // avoid BlobCacheBufferedIndexInput.trySliceBuffer which would read bytes from the heap instead of using the cache
-                    return searchInput.doSlice(sliceDescription, offset, length);
-                }
-            };
+            return new TrackedIndexInput(input, nameAndLocation);
         }
 
         private synchronized void untrack(IndexInput input, NameAndLocation nameAndLocation) {
@@ -425,6 +415,39 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
             var e = new IllegalStateException(directory.getClass() + " is not a generational files tracking directory");
             assert false : e;
             throw e;
+        }
+
+        private final class TrackedIndexInput extends FilterIndexInput implements SelfAccountingIndexInput {
+            final AtomicBoolean closed = new AtomicBoolean();
+            private final NameAndLocation nameAndLocation;
+
+            TrackedIndexInput(IndexInput input, NameAndLocation nameAndLocation) {
+                super("tracked(" + nameAndLocation.name() + ')', input);
+                this.nameAndLocation = nameAndLocation;
+            }
+
+            @Override
+            public void accountBytesReadTo(PluggableDirectoryMetricsHolder<StoreMetrics> holder) {
+                asInstanceOf(SelfAccountingIndexInput.class, getDelegate()).accountBytesReadTo(holder);
+            }
+
+            @Override
+            public void close() throws IOException {
+                if (closed.compareAndSet(false, true)) {
+                    try {
+                        super.close();
+                    } finally {
+                        untrack(getDelegate(), nameAndLocation);
+                    }
+                }
+            }
+
+            @Override
+            public IndexInput slice(String sliceDescription, long offset, long length) {
+                var searchInput = asInstanceOf(BlobCacheIndexInput.class, getDelegate());
+                // avoid BlobCacheBufferedIndexInput.trySliceBuffer which would read bytes from the heap instead of using the cache
+                return searchInput.doSlice(sliceDescription, offset, length);
+            }
         }
     }
 
@@ -649,6 +672,45 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
         );
         flush(indexName);
 
+        assertThat(indexEngine.getCurrentGeneration(), equalTo(7L));
+        assertBusyFilesLocations(
+            blobStoreCacheDirectory,
+            Map.ofEntries(
+                // BCC3
+                entry("segments_3", 3L),
+                // BCC4
+                entry("segments_4", 4L),
+                entry("_0.cfe", 4L),
+                entry("_0.cfs", 4L),
+                entry("_0.si", 4L),
+                // BCC5
+                entry("segments_5", 5L),
+                entry("_1.cfe", 5L),
+                entry("_1.cfs", 5L),
+                entry("_1.si", 5L),
+                // BCC6
+                entry("segments_6", 6L),
+                entry("_2.cfe", 6L),
+                entry("_2.cfs", 6L),
+                entry("_2.si", 6L),
+                // BCC7
+                entry("segments_7", 7L),
+                entry("_3.cfe", 7L),
+                entry("_3.cfs", 7L),
+                entry("_3.si", 7L),
+                entry("_0_1_Lucene90_0.dvd", 7L),
+                entry("_0_1_Lucene90_0.dvm", 7L),
+                entry("_0_1_Lucene90_0.dvs", 7L),
+                entry("_0_1.fnm", 7L)
+            )
+        );
+
+        // Wait until the background merge tries to read _0_1_Lucene90_0.dvd from BCC7
+        safeAwait(bccContainingFirstGenFileReadFirstMergeBlocked);
+
+        executeBulk(bulkRequest -> bulkRequest.add(client().prepareIndex(indexName).setSource("segment", "_5")));
+        flush(indexName);
+
         assertThat(indexEngine.getCurrentGeneration(), equalTo(8L));
         assertBusyFilesLocations(
             blobStoreCacheDirectory,
@@ -671,62 +733,20 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
                 entry("_2.cfs", 6L),
                 entry("_2.si", 6L),
                 // BCC7
-                // Deletes might cause a refresh when InternalEngine.getVersionFromMap is called,
-                // that will generate an empty commit (segments_7)
                 entry("segments_7", 7L),
-                entry("segments_8", 7L),
-                entry("_3.cfe", 7L),
-                entry("_3.cfs", 7L),
-                entry("_3.si", 7L),
-                entry("_0_1_Lucene90_0.dvd", 7L),
-                entry("_0_1_Lucene90_0.dvm", 7L),
-                entry("_0_1.fnm", 7L)
-            )
-        );
-
-        // Wait until the background merge tries to read _0_1_Lucene90_0.dvd from BCC7
-        safeAwait(bccContainingFirstGenFileReadFirstMergeBlocked);
-
-        executeBulk(bulkRequest -> bulkRequest.add(client().prepareIndex(indexName).setSource("segment", "_5")));
-        flush(indexName);
-
-        // The commit with generation 8 was reserved for the background merge, hence the jump to generation 9
-        assertThat(indexEngine.getCurrentGeneration(), equalTo(9L));
-        assertBusyFilesLocations(
-            blobStoreCacheDirectory,
-            Map.ofEntries(
-                // BCC3
-                entry("segments_3", 3L),
-                // BCC4
-                entry("segments_4", 4L),
-                entry("_0.cfe", 4L),
-                entry("_0.cfs", 4L),
-                entry("_0.si", 4L),
-                // BCC5
-                entry("segments_5", 5L),
-                entry("_1.cfe", 5L),
-                entry("_1.cfs", 5L),
-                entry("_1.si", 5L),
-                // BCC6
-                entry("segments_6", 6L),
-                entry("_2.cfe", 6L),
-                entry("_2.cfs", 6L),
-                entry("_2.si", 6L),
-                // BCC7
-                entry("segments_7", 7L),
-                entry("segments_8", 7L),
                 entry("_3.cfe", 7L),
                 entry("_3.cfs", 7L),
                 entry("_3.si", 7L),
                 // The generational doc value files are carried over but their BlobLocations do not after ES-8897
                 entry("_0_1_Lucene90_0.dvd", 7L),
                 entry("_0_1_Lucene90_0.dvm", 7L),
+                entry("_0_1_Lucene90_0.dvs", 7L),
                 entry("_0_1.fnm", 7L),
-                // BCC9 (segment _4 is reserved by the previous background merge)
-                entry("segments_9", 9L),
-                entry("_5.cfe", 9L),
-                entry("_5.cfs", 9L),
-                entry("_5.si", 9L)
+                // BCC8 (segment _4 is reserved by the previous background merge)
+                entry("segments_8", 8L),
+                entry("_5.cfe", 8L),
+                entry("_5.cfs", 8L),
+                entry("_5.si", 8L)
             )
         );
 
@@ -761,7 +781,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
         // Wait until the second background merge tries to read BCC7
         safeAwait(bccContainingFirstGenFileReadSecondMergeBlocked);
 
-        assertThat(indexEngine.getCurrentGeneration(), equalTo(10L));
+        assertThat(indexEngine.getCurrentGeneration(), equalTo(9L));
         assertBusyFilesLocations(
             blobStoreCacheDirectory,
             Map.ofEntries(
@@ -784,27 +804,28 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
                 entry("_2.si", 6L),
                 // BCC7
                 entry("segments_7", 7L),
-                entry("segments_8", 7L),
                 entry("_3.cfe", 7L),
                 entry("_3.cfs", 7L),
                 entry("_3.si", 7L),
                 // The generational doc value files are carried over but their BlobLocations do not after ES-8897
                 entry("_0_1_Lucene90_0.dvd", 7L),
                 entry("_0_1_Lucene90_0.dvm", 7L),
+                entry("_0_1_Lucene90_0.dvs", 7L),
                 entry("_0_1.fnm", 7L),
-                // BCC9 (segment _4 is reserved by the previous background merge)
+                // BCC8 (segment _4 is reserved by the previous background merge)
+                entry("segments_8", 8L),
+                entry("_5.cfe", 8L),
+                entry("_5.cfs", 8L),
+                entry("_5.si", 8L),
+                // BCC9 (It includes the new generational file with new deletions)
                 entry("segments_9", 9L),
-                entry("_5.cfe", 9L),
-                entry("_5.cfs", 9L),
-                entry("_5.si", 9L),
-                // BCC10 (It includes the new generational file with new deletions)
-                entry("segments_a", 10L),
-                entry("_6.cfe", 10L),
-                entry("_6.cfs", 10L),
-                entry("_6.si", 10L),
-                entry("_0_2_Lucene90_0.dvd", 10L),
-                entry("_0_2_Lucene90_0.dvm", 10L),
-                entry("_0_2.fnm", 10L)
+                entry("_6.cfe", 9L),
+                entry("_6.cfs", 9L),
+                entry("_6.si", 9L),
+                entry("_0_2_Lucene90_0.dvd", 9L),
+                entry("_0_2_Lucene90_0.dvm", 9L),
+                entry("_0_2_Lucene90_0.dvs", 9L),
+                entry("_0_2.fnm", 9L)
             )
         );
 
@@ -943,7 +964,8 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
             // new generational files for _0
             entry("_0_1.fnm", 6L),
             entry("_0_1_Lucene90_0.dvd", 6L),
-            entry("_0_1_Lucene90_0.dvm", 6L)
+            entry("_0_1_Lucene90_0.dvm", 6L),
+            entry("_0_1_Lucene90_0.dvs", 6L)
         );
 
         long deletedDocs = docsAfterSegment_0 / 10L;
@@ -954,10 +976,13 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
         assertBusyFilesLocations(indexDirectory, filesLocations);
 
         // .dvm and .fnm are also opened but then fully read once and closed.
-        assertBusyOpenedGenerationalFiles(indexDirectory.getBlobStoreCacheDirectory(), Map.of("_0_1_Lucene90_0.dvd", 6L));
+        assertBusyOpenedGenerationalFiles(
+            indexDirectory.getBlobStoreCacheDirectory(),
+            Map.of("_0_1_Lucene90_0.dvd", 6L, "_0_1_Lucene90_0.dvs", 6L)
+        );
 
         // batched compound commit for generation 6 exists in the object store (stateless_commit_6)
-        final String bccBlobName = StatelessCompoundCommit.blobNameFromGeneration(6L);
+        final String bccBlobName = BatchedCompoundCommit.blobNameFromGeneration(6L);
         var blobContainer = indexDirectory.getBlobStoreCacheDirectory().getBlobContainer(indexingShard.getOperationPrimaryTerm());
         assertBusy(() -> assertThat(blobContainer.listBlobs(OperationPurpose.INDICES).keySet(), hasItem(bccBlobName)));
 
@@ -972,7 +997,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
 
         assertBusyRefreshedGeneration(searchEngine, equalTo(6L));
         assertBusyFilesLocations(searchDirectory, filesLocations);
-        assertBusyOpenedGenerationalFiles(searchDirectory, Map.of("_0_1_Lucene90_0.dvd", 6L));
+        assertBusyOpenedGenerationalFiles(searchDirectory, Map.of("_0_1_Lucene90_0.dvd", 6L, "_0_1_Lucene90_0.dvs", 6L));
         assertThat(
             searchEngine.getAcquiredPrimaryTermAndGenerations(),
             contains(new PrimaryTermAndGeneration(1L, 4L), new PrimaryTermAndGeneration(1L, 5L), new PrimaryTermAndGeneration(1L, 6L))
@@ -1007,13 +1032,17 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
             entry("_3.si", 7L),
             entry("_0_1.fnm", 6L),
             entry("_0_1_Lucene90_0.dvd", 6L),
-            entry("_0_1_Lucene90_0.dvm", 6L)
+            entry("_0_1_Lucene90_0.dvm", 6L),
+            entry("_0_1_Lucene90_0.dvs", 6L)
         );
 
         assertThat(getShardGeneration.apply(indexingShard), equalTo(7L));
         assertBusyFilesLocations(indexDirectory, filesLocations);
 
-        assertBusyOpenedGenerationalFiles(indexDirectory.getBlobStoreCacheDirectory(), Map.of("_0_1_Lucene90_0.dvd", 6L));
+        assertBusyOpenedGenerationalFiles(
+            indexDirectory.getBlobStoreCacheDirectory(),
+            Map.of("_0_1_Lucene90_0.dvd", 6L, "_0_1_Lucene90_0.dvs", 6L)
+        );
         assertThat(indexingShard.docStats().getCount(), equalTo(docsAfterSegment_3));
 
         assertBusyRefreshedGeneration(searchEngine, equalTo(7L));
@@ -1040,10 +1069,11 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
                 // blob locations for generational files of _0 are not updated
                 entry("_0_1.fnm", 6L),
                 entry("_0_1_Lucene90_0.dvd", 6L),
-                entry("_0_1_Lucene90_0.dvm", 6L)
+                entry("_0_1_Lucene90_0.dvm", 6L),
+                entry("_0_1_Lucene90_0.dvs", 6L)
             )
         );
-        assertBusyOpenedGenerationalFiles(searchDirectory, Map.of("_0_1_Lucene90_0.dvd", 6L));
+        assertBusyOpenedGenerationalFiles(searchDirectory, Map.of("_0_1_Lucene90_0.dvd", 6L, "_0_1_Lucene90_0.dvs", 6L));
 
         assertThat(
             searchEngine.getAcquiredPrimaryTermAndGenerations(),
@@ -1072,17 +1102,21 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
             entry("_4.si", 8L),
             entry("_0_1.fnm", 6L),
             entry("_0_1_Lucene90_0.dvd", 6L),
-            entry("_0_1_Lucene90_0.dvm", 6L)
+            entry("_0_1_Lucene90_0.dvm", 6L),
+            entry("_0_1_Lucene90_0.dvs", 6L)
         );
 
         assertThat(getShardGeneration.apply(indexingShard), equalTo(8L));
         assertBusyFilesLocations(indexDirectory, filesLocations);
 
-        assertBusyOpenedGenerationalFiles(indexDirectory.getBlobStoreCacheDirectory(), Map.of("_0_1_Lucene90_0.dvd", 6L));
+        assertBusyOpenedGenerationalFiles(
+            indexDirectory.getBlobStoreCacheDirectory(),
+            Map.of("_0_1_Lucene90_0.dvd", 6L, "_0_1_Lucene90_0.dvs", 6L)
+        );
         assertThat(indexingShard.docStats().getCount(), equalTo(docsAfterSegment_3));
 
         assertBusyRefreshedGeneration(searchEngine, equalTo(8L));
-        assertBusyOpenedGenerationalFiles(searchDirectory, Map.of("_0_1_Lucene90_0.dvd", 6L));
+        assertBusyOpenedGenerationalFiles(searchDirectory, Map.of("_0_1_Lucene90_0.dvd", 6L, "_0_1_Lucene90_0.dvs", 6L));
 
         // When refreshing the Lucene index, Lucene only opens new segments and carries over the existing segment reader associated with
         // already opened segments (see SegmentReader and SegmentCoreReaders). It means that the generational docs values file
@@ -1109,7 +1143,8 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
                 // blob locations for generational files of _0 are not updated
                 entry("_0_1.fnm", 6L),
                 entry("_0_1_Lucene90_0.dvd", 6L),
-                entry("_0_1_Lucene90_0.dvm", 6L)
+                entry("_0_1_Lucene90_0.dvm", 6L),
+                entry("_0_1_Lucene90_0.dvs", 6L)
             )
         );
 
@@ -1136,7 +1171,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
         // files will be associated at the generation of the last commit.
         // * In the non-hollow relocation, the source shard does not flush a new commit if there are no new changes. By consequence,
         // the target node will recover commit 8 (and open generational files on it), and will then flush a new commit
-        // (see the flush in StatelessIndexEventListener#afterIndexShardRecovery()) 9. Therefore, even if we have segments_9,
+        // (see the flush in StatelessIndexNodeRecoveryListener#afterIndexShardRecovery()) 9. Therefore, even if we have segments_9,
         // the generational files will be on generation 8.
         // * In the hollow relocation, the source shard forces a flush (see IndexEngine#prepareForEngineReset()). Creating commit 9
         // on the source node (along with copies of the generational files). Therefore, the target node will recover commit 9,
@@ -1158,7 +1193,8 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
             entry("_4.si", hollowEnabled ? 9L : 8L),
             entry("_0_1.fnm", generationalFilesGen),
             entry("_0_1_Lucene90_0.dvd", generationalFilesGen),
-            entry("_0_1_Lucene90_0.dvm", generationalFilesGen)
+            entry("_0_1_Lucene90_0.dvm", generationalFilesGen),
+            entry("_0_1_Lucene90_0.dvs", generationalFilesGen)
         );
 
         assertThat(getShardGeneration.apply(indexingShard), equalTo(9L));
@@ -1168,7 +1204,10 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
             assertBusyOpenedGenerationalFiles(indexDirectory.getBlobStoreCacheDirectory(), Map.of());
         } else {
             // the new indexing shard opens the generational files on the generation 8L (flush before relocation)
-            assertBusyOpenedGenerationalFiles(indexDirectory.getBlobStoreCacheDirectory(), Map.of("_0_1_Lucene90_0.dvd", 8L));
+            assertBusyOpenedGenerationalFiles(
+                indexDirectory.getBlobStoreCacheDirectory(),
+                Map.of("_0_1_Lucene90_0.dvd", 8L, "_0_1_Lucene90_0.dvs", 8L)
+            );
         }
         assertThat(indexingShard.docStats().getCount(), equalTo(docsAfterSegment_3));
 
@@ -1179,7 +1218,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
         assertBusyRefreshedGeneration(searchEngine, equalTo(9L));
 
         // search shard still uses generation 6
-        assertBusyOpenedGenerationalFiles(searchDirectory, Map.of("_0_1_Lucene90_0.dvd", 6L));
+        assertBusyOpenedGenerationalFiles(searchDirectory, Map.of("_0_1_Lucene90_0.dvd", 6L, "_0_1_Lucene90_0.dvs", 6L));
         assertThat(
             searchEngine.getAcquiredPrimaryTermAndGenerations(),
             contains(
@@ -1204,7 +1243,8 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
                 // blob locations for generational files of _0 are not updated
                 entry("_0_1.fnm", 6L),
                 entry("_0_1_Lucene90_0.dvd", 6L),
-                entry("_0_1_Lucene90_0.dvm", 6L)
+                entry("_0_1_Lucene90_0.dvm", 6L),
+                entry("_0_1_Lucene90_0.dvs", 6L)
             )
         );
 
@@ -1213,7 +1253,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
         searchCacheService.forceEvict(fileCacheKey -> bccBlobName.equals(fileCacheKey.fileName()));
 
         // With ES-7496 resolved we can fully read the generational file without triggering a NoSuchFileException
-        try (var searcher = searchShard.acquireSearcher("test")) {
+        try (var searcher = searchShard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             assertThat(searcher.getDirectoryReader().getIndexCommit().getGeneration(), equalTo(9L));
             readGenerationalDocValues(searcher);
         }
@@ -1287,7 +1327,12 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
 
         // merge away the generational files
         forceMerge();
-        assertBusy(() -> assertThat(deletedGenerationalFiles, equalTo(Set.of("_0_1.fnm", "_0_1_Lucene90_0.dvd", "_0_1_Lucene90_0.dvm"))));
+        assertBusy(
+            () -> assertThat(
+                deletedGenerationalFiles,
+                equalTo(Set.of("_0_1.fnm", "_0_1_Lucene90_0.dvd", "_0_1_Lucene90_0.dvm", "_0_1_Lucene90_0.dvs"))
+            )
+        );
     }
 
     private static void executeBulk(Consumer<BulkRequestBuilder> consumer) {
@@ -1330,7 +1375,9 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
             var searchEngineTermAndGen = SearchEngineTestUtils.getCurrentPrimaryTermAndGeneration(searchEngine);
             assertThat(searchEngineTermAndGen.generation(), matcher);
 
-            try (var searcher = searchEngine.acquireSearcher("search_engine_directory_reader_generation")) {
+            try (
+                var searcher = searchEngine.acquireSearcher("search_engine_directory_reader_generation", SplitShardCountSummary.IRRELEVANT)
+            ) {
                 assertThat(searcher.getDirectoryReader().getIndexCommit().getGeneration(), matcher);
             }
         });

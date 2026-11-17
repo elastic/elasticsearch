@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.ValueBytes;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.query.LuceneSourceOperator;
 import org.elasticsearch.compute.operator.AbstractPageMappingToIteratorOperator;
@@ -240,7 +241,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
      * Builds a {@link LoaderAndConverter} for a given shard.
      */
     public interface BuildLoader {
-        LoaderAndConverter build(DriverContext.WarningsMode warningsMode, int shard);
+        LoaderAndConverter build(DriverContext driverContext, int shard);
     }
 
     /**
@@ -307,10 +308,18 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
     private final Map<String, Integer> readersBuilt = new TreeMap<>();
     long valuesLoaded;
     long bytesRead;
+    long bytesDecoded;
+    long sourceDocsLoaded;
+    long sourceFieldReads;
+    long sourceBytesLoaded;
     private final LongSupplier directoryBytesRead;
 
     private int lastShard = -1;
     private int lastSegment = -1;
+
+    private int sourceLoaderShard = -1;
+    private Set<String> sourceLoaderPaths;
+    private SourceLoader sourceLoader;
 
     /**
      * The maximum raw byte size of _source observed so far. This persists across pages so
@@ -364,12 +373,14 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
 
     @Override
     protected ReleasableIterator<Page> receive(Page page) {
-        acquireSourceLoadingReservation();
         DocVector docVector = page.<DocBlock>getBlock(docChannel).asVector();
-        return trackBytesRead(appendBlockArrays(page, valuesReader(docVector)));
+        docVector.ensureAttached("ValuesSourceReaderOperator");
+        acquireSourceLoadingReservation();
+        // The loaded blocks are appended after the ones this was given, so that count is where they start.
+        return trackBytesRead(page.getBlockCount(), appendBlockArrays(page, valuesReader(docVector)));
     }
 
-    private ReleasableIterator<Page> trackBytesRead(ReleasableIterator<Page> inner) {
+    private ReleasableIterator<Page> trackBytesRead(int loadedFrom, ReleasableIterator<Page> inner) {
         return new ReleasableIterator<>() {
             @Override
             public boolean hasNext() {
@@ -379,10 +390,13 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
             @Override
             public Page next() {
                 long bytesSnapshot = directoryBytesRead.getAsLong();
+                Page loaded = null;
                 try {
-                    return inner.next();
+                    loaded = inner.next();
+                    return loaded;
                 } finally {
                     recordBytesRead(bytesSnapshot);
+                    recordBytesDecoded(loaded, loadedFrom);
                 }
             }
 
@@ -391,6 +405,16 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
                 inner.close();
             }
         };
+    }
+
+    /** Adds what the blocks loaded into {@code page} spell to what this read has turned storage into. */
+    private void recordBytesDecoded(Page page, int loadedFrom) {
+        if (page == null) {
+            return;
+        }
+        for (int channel = loadedFrom; channel < page.getBlockCount(); channel++) {
+            bytesDecoded += ValueBytes.of(page.getBlock(channel));
+        }
     }
 
     private void recordBytesRead(long bytesSnapshot) {
@@ -444,11 +468,29 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
      */
     void trackSourceBytesAndRelease(BlockLoaderStoredFieldsFromLeafLoader storedFields) {
         long sourceBytes = storedFields.lastSourceBytesSize();
+        sourceBytesLoaded += sourceBytes;
         if (sourceBytes > lastKnownSourceSize) {
             lastKnownSourceSize = sourceBytes;
             acquireSourceLoadingReservation();
         }
         storedFields.releaseParsedSource();
+    }
+
+    void trackSourceFieldReads(int sourceBackedFieldCount) {
+        if (sourceBackedFieldCount > 0) {
+            sourceDocsLoaded++;
+            sourceFieldReads += sourceBackedFieldCount;
+        }
+    }
+
+    /** Reuses a source loader while the shard and requested source paths remain unchanged. */
+    SourceLoader sourceLoader(int shard, Set<String> sourcePaths) {
+        if (shard != sourceLoaderShard || sourcePaths.equals(sourceLoaderPaths) == false) {
+            sourceLoaderPaths = Set.copyOf(sourcePaths);
+            sourceLoaderShard = shard;
+            sourceLoader = shardContexts.get(shard).newSourceLoader().apply(sourceLoaderPaths);
+        }
+        return sourceLoader;
     }
 
     void positionFieldWork(int shard, int segment, int firstDoc) {
@@ -554,7 +596,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         }
 
         void newShard(int shard) {
-            LoaderAndConverter l = info.buildLoader.build(driverContext.warningsMode(), shard);
+            LoaderAndConverter l = info.buildLoader.build(driverContext, shard);
             loader = l.loader;
             converter = l.converter == null ? null : converterEvaluators.get(shard, fieldIdx, info.name, l.converter);
             log.debug("moved to shard {} {} {}", shard, loader, converter);
@@ -647,7 +689,11 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
             rowsReceived,
             rowsEmitted,
             valuesLoaded,
-            bytesRead
+            bytesRead,
+            bytesDecoded,
+            sourceDocsLoaded,
+            sourceFieldReads,
+            sourceBytesLoaded
         );
     }
 

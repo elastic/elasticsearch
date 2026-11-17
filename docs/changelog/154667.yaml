@@ -1,0 +1,6 @@
+area: PromQL
+issues:
+ - 152500
+pr: 154667
+summary: "PromQL: Support identifier params in label lists"
+type: enhancement

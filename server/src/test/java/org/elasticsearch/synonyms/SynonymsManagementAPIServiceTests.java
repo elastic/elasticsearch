@@ -57,17 +57,15 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
     private ClusterService clusterService;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void startClusterService() throws Exception {
         threadPool = createThreadPool();
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void stopClusterService() throws Exception {
         clusterService.close();
         terminate(threadPool);
-        super.tearDown();
     }
 
     private SynonymsManagementAPIService buildService(Client client, ClusterService cs, int maxRules, int chunkSize) {

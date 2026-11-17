@@ -34,6 +34,8 @@ import org.apache.logging.log4j.status.StatusConsoleListener;
 import org.apache.logging.log4j.status.StatusData;
 import org.apache.logging.log4j.status.StatusLogger;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
@@ -53,6 +55,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RequestBuilder;
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.TestPlainActionFuture;
@@ -69,6 +72,8 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.TemplateDecoratorRule;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.ReferenceDocs;
+import org.elasticsearch.common.TestUUIDSourceRule;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -82,6 +87,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.ChunkedLoggingStream;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.HeaderWarningAppender;
@@ -207,6 +213,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.TimeZone;
@@ -222,6 +229,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
@@ -241,7 +249,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
-import static org.junit.Assume.assumeFalse;
 
 /**
  * Base testcase for randomized unit testing with Elasticsearch
@@ -274,12 +281,35 @@ import static org.junit.Assume.assumeFalse;
 @LuceneTestCase.SuppressReproduceLine
 public abstract class ESTestCase extends LuceneTestCase {
 
+    private static final Logger STATIC_LOGGER = LogManager.getLogger(ESTestCase.class);
+
     protected static final List<String> JAVA_TIMEZONE_IDS;
     protected static final List<String> JAVA_ZONE_IDS;
 
     private static final AtomicInteger portGenerator = new AtomicInteger();
 
     private static final Collection<String> loggedLeaks = new ArrayList<>();
+
+    /**
+     * Promise warnings we tolerate instead of failing a test on. A listener that throws is normally one of our own
+     * callbacks breaking, which is what the DefaultPromise appender below exists to catch; these are third-party
+     * listeners throwing while their own library shuts down, where nothing on our side is wrong or fixable.
+     * <p>
+     * Each entry names the class that declares the listener, which is the stable part of what Netty reports: for a
+     * lambda it logs the declaring class followed by a generated suffix that differs from run to run. Deliberately not
+     * the package — that would also cover these clients' request paths, where a throw is worth seeing.
+     */
+    private static final List<String> TOLERATED_PROMISE_WARNINGS = List.of(
+        // gRPC's transport, throwing from a ChannelFutureListener for an HTTP/2 stream it had already closed, after
+        // FlightServer.close() returned. A known source of flakiness for the Arrow Flight based tests, which is where
+        // this first showed up. Logged as "An exception was thrown by io.grpc.netty.NettyServerHandler$X
+        // .operationComplete()". See #144244, #144263.
+        "An exception was thrown by io.grpc.netty.NettyServerHandler",
+        // The AWS SDK's connection pool. Its idle-count bookkeeping — on the acquire and release paths as well as on
+        // channel close — is submitted to an event executor that the client's own shutdown may already have terminated.
+        // See #161727.
+        "An exception was thrown by software.amazon.awssdk.http.nio.netty.internal.IdleConnectionCountingChannelPool"
+    );
 
     private HeaderWarningAppender headerWarningAppender;
 
@@ -340,11 +370,7 @@ public abstract class ESTestCase extends LuceneTestCase {
             public void append(LogEvent event) {
                 if (Level.WARN.equals(event.getLevel())) {
                     final String message = event.getMessage().getFormattedMessage();
-                    // gRPC's Netty transport can sometimes throw from an internal ChannelFutureListener during stream shutdown,
-                    // which Netty logs as a WARN on DefaultPromise:
-                    // "An exception was thrown by io.grpc.netty.NettyServerHandler$X.operationComplete()"
-                    // This is a known source of test flakiness for Arrow Flight based tests and is not actionable here.
-                    if (message.contains("An exception was thrown by io.grpc.netty.NettyServerHandler")) {
+                    if (TOLERATED_PROMISE_WARNINGS.stream().anyMatch(message::contains)) {
                         return;
                     }
                     synchronized (loggedLeaks) {
@@ -455,7 +481,6 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @SuppressForbidden(reason = "force log4j and netty sysprops")
     private static void setTestSysProps(Random random) {
-        System.setProperty("log4j.shutdownHookEnabled", "false");
         System.setProperty("log4j2.disable.jmx", "true");
 
         // Enable Netty leak detection and monitor logger for logged leak errors
@@ -477,6 +502,9 @@ public abstract class ESTestCase extends LuceneTestCase {
     // -----------------------------------------------------------------
     // Suite and test case setup/cleanup.
     // -----------------------------------------------------------------
+
+    @Rule
+    public final TestRule uuidSource = new TestUUIDSourceRule();
 
     @Rule
     public RuleChain failureAndSuccessEvents = RuleChain.outerRule(new TestRuleAdapter() {
@@ -551,6 +579,9 @@ public abstract class ESTestCase extends LuceneTestCase {
     @ClassRule
     public static final TestRule TEMPLATE_DECORATOR_RULE = TemplateDecoratorRule.initDefault();
 
+    @ClassRule
+    public static final TestRule SUITE_UUID_SOURCE = new TestUUIDSourceRule();
+
     // setup mock filesystems for this test run. we change PathUtils
     // so that all accesses are plumbed thru any mock wrappers
 
@@ -586,6 +617,18 @@ public abstract class ESTestCase extends LuceneTestCase {
             );
             Locale.setDefault(Locale.ENGLISH);
         }
+    }
+
+    @Override
+    public final void setUp() throws Exception {
+        // use an @Before method for per-test setup
+        super.setUp();
+    }
+
+    @Override
+    public final void tearDown() throws Exception {
+        // use an @After method for per-test cleanup
+        super.tearDown();
     }
 
     @Before
@@ -742,6 +785,16 @@ public abstract class ESTestCase extends LuceneTestCase {
         assertThat("unexpected warning headers", filterOutExcludedWarnings(getActualWarningStrings(true)), empty());
     }
 
+    /**
+     * Reads and clears the deprecation warnings currently recorded on the thread context, returning the raw warning
+     * messages. Like {@link #assertWarnings}, this consumes the warnings so a subsequent {@link #ensureNoWarnings()}
+     * passes; it exists for tests that must combine ThreadContext warnings with warnings captured through another
+     * channel before asserting on the union.
+     */
+    protected final List<String> takeResponseWarnings() {
+        return getActualWarningStrings(true);
+    }
+
     @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA) // remove
     public static final String LOGGER_CHILD_OVERRIDE_DEPRECATION_WARNING =
         "A settings update to logger levels overrides child loggers with explicitly configured levels."
@@ -755,6 +808,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         );
         filtered.add("Configuring [path.data] with a list is deprecated. Instead specify as a string value");
         filtered.add("setting [path.shared_data] is deprecated and will be removed in a future release");
+        filtered.add("Running Elasticsearch with Java 21-24 is deprecated.");
         filtered.add(
             "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed "
                 + "in a future release. See the breaking changes documentation for the next major version."
@@ -1062,6 +1116,18 @@ public abstract class ESTestCase extends LuceneTestCase {
         return random().nextBoolean();
     }
 
+    public static Settings.Builder randomBatchIndexing(Settings.Builder settings) {
+        if (BatchIndexingEnabled.FEATURE_FLAG.isEnabled()) {
+            int choice = randomIntBetween(0, 2);
+            if (choice == 0) {
+                settings.put(IndexSettings.BATCH_INDEXING.getKey(), true);
+            } else if (choice == 1) {
+                settings.put(IndexSettings.BATCH_INDEXING.getKey(), false);
+            }
+        }
+        return settings;
+    }
+
     public static Boolean randomOptionalBoolean() {
         return randomBoolean() ? Boolean.TRUE : randomFrom(Boolean.FALSE, null);
     }
@@ -1338,6 +1404,37 @@ public abstract class ESTestCase extends LuceneTestCase {
         Random random = random();
         for (int i = 0; i < length; i++) {
             sb.append(ALPHANUMERIC_CHARACTERS.charAt(random.nextInt(ALPHANUMERIC_CHARACTERS.length())));
+        }
+
+        return sb.toString();
+    }
+
+    /**
+     * Generate a random string containing only digit characters ({@code 0-9}), never starting
+     * with a redundant leading zero (e.g. never {@code "007"}), so the result reads as a normal
+     * base-10 integer with exactly {@code length} significant digits.
+     * @param length the length of the string to generate
+     * @return the generated string
+     */
+    public static String randomNumericOfLength(int length) {
+        return randomNumericOfLength(length, false);
+    }
+
+    /**
+     * Generate a random string containing only digit characters ({@code 0-9}).
+     * @param length the length of the string to generate
+     * @param allowLeadingZero if {@code false}, the first digit is chosen from {@code 1-9}
+     *                         instead of {@code 0-9} (so {@code length == 1} never produces
+     *                         {@code "0"})
+     * @return the generated string
+     */
+    public static String randomNumericOfLength(int length, boolean allowLeadingZero) {
+        StringBuilder sb = new StringBuilder();
+        Random random = random();
+        String firstDigitCandidates = allowLeadingZero ? DIGIT_CHARACTERS : DIGIT_CHARACTERS.substring(1);
+        for (int i = 0; i < length; i++) {
+            String candidates = (i == 0) ? firstDigitCandidates : DIGIT_CHARACTERS;
+            sb.append(candidates.charAt(random.nextInt(candidates.length())));
         }
 
         return sb.toString();
@@ -1766,23 +1863,24 @@ public abstract class ESTestCase extends LuceneTestCase {
     // After 1s, we stop growing the sleep interval exponentially and just sleep 1s until maxWaitTime
     private static final long AWAIT_BUSY_THRESHOLD = 1000L;
 
-    /**
-     * Periodically execute the supplied function until it returns true, or until the
-     * specified maximum wait time has elapsed. If at all possible, use
-     * {@link ESTestCase#assertBusy(CheckedRunnable)} instead.
-     *
-     * @param breakSupplier determines whether to return immediately or continue waiting.
-     * @param maxWaitTime the maximum amount of time to wait
-     * @param unit the unit of tie for <code>maxWaitTime</code>
-     * @return the last value returned by <code>breakSupplier</code>
-     */
+    /// Executes provided supplier until it returns `true` or provided maximum wait time elapses.
+    /// Up to 1 second of sleep is applied between executions of the supplier.
     public static boolean waitUntil(BooleanSupplier breakSupplier, long maxWaitTime, TimeUnit unit) {
-        long maxTimeInMillis = TimeUnit.MILLISECONDS.convert(maxWaitTime, unit);
+        return waitUntil(() -> Optional.of(breakSupplier.getAsBoolean()).filter(Boolean::booleanValue), new TimeValue(maxWaitTime, unit))
+            .isPresent();
+    }
+
+    /// Executes provided supplier until it returns a non-empty [Optional] or provided maximum wait time elapses.
+    /// Returns an empty optional if timed out.
+    /// Up to 1 second of sleep is applied between executions of the supplier.
+    public static <T> Optional<T> waitUntil(Supplier<Optional<T>> evaluation, TimeValue maxWaitTime) {
+        long maxTimeInMillis = maxWaitTime.millis();
         long timeInMillis = 1;
         long sum = 0;
         while (sum + timeInMillis < maxTimeInMillis) {
-            if (breakSupplier.getAsBoolean()) {
-                return true;
+            Optional<T> iterationResult = evaluation.get();
+            if (iterationResult.isPresent()) {
+                return iterationResult;
             }
             safeSleep(timeInMillis);
             sum += timeInMillis;
@@ -1790,7 +1888,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
         timeInMillis = maxTimeInMillis - sum;
         safeSleep(Math.max(timeInMillis, 0));
-        return breakSupplier.getAsBoolean();
+        return evaluation.get();
     }
 
     protected TestThreadPool createThreadPool(ExecutorBuilder<?>... executorBuilders) {
@@ -2208,19 +2306,42 @@ public abstract class ESTestCase extends LuceneTestCase {
             output.setTransportVersion(version);
             writer.write(output, original);
             if (randomBoolean()) {
-                try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
-                    in.setTransportVersion(version);
-                    return reader.read(in);
-                }
+                return readCopyFromBytesReference(output.bytes(), reader, version, namedWriteableRegistry);
             } else {
                 BytesReference bytesReference = output.copyBytes();
                 output.reset();
                 bytesReference.writeTo(output);
-                try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
-                    in.setTransportVersion(version);
-                    return reader.read(in);
-                }
+                return readCopyFromBytesReference(output.bytes(), reader, version, namedWriteableRegistry);
             }
+        }
+    }
+
+    private static <T extends Writeable> T readCopyFromBytesReference(
+        BytesReference bytesReference,
+        Writeable.Reader<T> reader,
+        TransportVersion version,
+        NamedWriteableRegistry namedWriteableRegistry
+    ) throws IOException {
+        try (StreamInput in = new NamedWriteableAwareStreamInput(bytesReference.streamInput(), namedWriteableRegistry)) {
+            in.setTransportVersion(version);
+            return reader.read(in);
+        } catch (Exception e) {
+            try (
+                var loggingStream = ChunkedLoggingStream.create(
+                    STATIC_LOGGER,
+                    Level.ERROR,
+                    "failed to copy object via BytesReference",
+                    ReferenceDocs.LOGGING
+                )
+            ) {
+                bytesReference.writeTo(loggingStream);
+            } catch (Exception e2) {
+                e.addSuppressed(e2);
+            }
+            STATIC_LOGGER.atError()
+                .withThrowable(e)
+                .log("failed to copy object via BytesReference; wire format at version [{}] is above", version);
+            throw e;
         }
     }
 
@@ -2410,8 +2531,12 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     public static void assertEqualsPercent(float expectedValue, float actualValue, float deltaPercent) {
-        var error = Math.max(expectedValue * deltaPercent, DEFAULT_DELTA);
-        var actualDelta = Math.abs(expectedValue - actualValue) - error;
+        assertEqualsPercent(expectedValue, actualValue, deltaPercent, DEFAULT_DELTA);
+    }
+
+    public static void assertEqualsPercent(float expectedValue, float actualValue, float deltaPercent, float absoluteDelta) {
+        float error = Math.max(expectedValue * deltaPercent, absoluteDelta);
+        float actualDelta = Math.abs(expectedValue - actualValue) - error;
         if (actualDelta > 0) {
             fail(Strings.format("expected:<%f> but was:<%f>", expectedValue, actualValue));
         }
@@ -2475,12 +2600,59 @@ public abstract class ESTestCase extends LuceneTestCase {
         Environment env = TestEnvironment.newEnvironment(nodeSettings);
         AnalysisModule analysisModule = new AnalysisModule(env, Arrays.asList(analysisPlugins), new StablePluginsRegistry());
         AnalysisRegistry analysisRegistry = analysisModule.getAnalysisRegistry();
+        Map<String, TokenFilterFactory> tokenFilters = analysisRegistry.buildTokenFilterFactories(indexSettings);
+        Map<String, TokenizerFactory> tokenizers = analysisRegistry.buildTokenizerFactories(indexSettings);
+        Map<String, CharFilterFactory> charFilters = analysisRegistry.buildCharFilterFactories(indexSettings);
+        assertValidSharingKeys(analysisRegistry, indexSettings, tokenFilters, tokenizers, charFilters);
         return new TestAnalysis(
             analysisRegistry.build(IndexCreationContext.CREATE_INDEX, indexSettings),
-            analysisRegistry.buildTokenFilterFactories(indexSettings),
-            analysisRegistry.buildTokenizerFactories(indexSettings),
-            analysisRegistry.buildCharFilterFactories(indexSettings)
+            tokenFilters,
+            tokenizers,
+            charFilters
         );
+    }
+
+    /**
+     * Validates the {@code sharingKey()} contract that the node-level analyzer cache depends on, for
+     * every factory any analysis test builds (across all modules and plugins, not just
+     * analysis-common). Rebuilds an independent set of factories from the same recipe and asserts
+     * that a key is never {@code null} and that whenever two independently-built factories of the
+     * same recipe compare {@code equal} they also hash {@code equal}.
+     *
+     * <p>The {@code equals => hashCode} check catches the classic bug of placing a raw
+     * {@link org.apache.lucene.analysis.CharArraySet} in a key (content {@code equals} but identity
+     * {@code hashCode}) instead of {@code Analysis.StableCharArraySet}, which would silently corrupt
+     * the cache map. It is universal and free of false positives: identity-keyed factories (e.g.
+     * {@code multiplexer}, the ICU opaque-object keys) compare unequal across builds, so the
+     * implication holds vacuously for them.
+     */
+    private static void assertValidSharingKeys(
+        AnalysisRegistry registry,
+        IndexSettings indexSettings,
+        Map<String, TokenFilterFactory> tokenFilters,
+        Map<String, TokenizerFactory> tokenizers,
+        Map<String, CharFilterFactory> charFilters
+    ) throws IOException {
+        Map<String, TokenFilterFactory> tokenFilters2 = registry.buildTokenFilterFactories(indexSettings);
+        Map<String, TokenizerFactory> tokenizers2 = registry.buildTokenizerFactories(indexSettings);
+        Map<String, CharFilterFactory> charFilters2 = registry.buildCharFilterFactories(indexSettings);
+        tokenFilters.forEach(
+            (name, f) -> assertValidSharingKey("token filter [" + name + "]", f.sharingKey(), tokenFilters2.get(name).sharingKey())
+        );
+        tokenizers.forEach(
+            (name, f) -> assertValidSharingKey("tokenizer [" + name + "]", f.sharingKey(), tokenizers2.get(name).sharingKey())
+        );
+        charFilters.forEach(
+            (name, f) -> assertValidSharingKey("char filter [" + name + "]", f.sharingKey(), charFilters2.get(name).sharingKey())
+        );
+    }
+
+    private static void assertValidSharingKey(String what, Object key, Object rebuiltKey) {
+        assertNotNull(what + " returned a null sharingKey()", key);
+        assertNotNull(what + " returned a null sharingKey() on rebuild", rebuiltKey);
+        if (key.equals(rebuiltKey)) {
+            assertEquals(what + " sharingKey() is equal across builds but hashCode differs", key.hashCode(), rebuiltKey.hashCode());
+        }
     }
 
     /**
@@ -3070,6 +3242,14 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * Same as {@link #runInParallel(Runnable...)} but also attempts to start all tasks at the same time by blocking execution on a
+     * barrier until all threads are started and ready to execute their task.
+     */
+    public static void startInParallel(Runnable... tasks) {
+        startInParallel(tasks.length, i -> tasks[i].run());
+    }
+
+    /**
      * Same as {@link #runInParallel(int, IntConsumer)} but also attempts to start all tasks at the same time by blocking execution on a
      * barrier until all threads are started and ready to execute their task.
      */
@@ -3141,11 +3321,37 @@ public abstract class ESTestCase extends LuceneTestCase {
         runInParallel(tasks.length, i -> tasks[i].run());
     }
 
+    /**
+     * Runs {@code task} to completion on a new thread other than the calling one, which waits for it. Any failure of the task, including
+     * a failed assertion, is rethrown on the calling thread as an {@link AssertionError}.
+     */
+    public static void onOtherThread(CheckedRunnable<Exception> task) {
+        final AtomicReference<Throwable> failure = new AtomicReference<>();
+        final Thread thread = new Thread(() -> {
+            try {
+                task.run();
+            } catch (Throwable t) {
+                failure.set(t);
+            }
+        }, "TEST-onOtherThread");
+        thread.start();
+        try {
+            thread.join();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("interrupted while waiting for the task on the other thread", e);
+        }
+        if (failure.get() != null) {
+            throw new AssertionError(failure.get());
+        }
+    }
+
     public static void ensureAllContextsReleased(SearchService searchService) {
         try {
             assertBusy(() -> {
                 assertThat(searchService.getActiveContexts(), equalTo(0));
                 assertThat(searchService.getOpenScrollContexts(), equalTo(0));
+                assertThat(searchService.queryScheduler().queries(), equalTo(0));
             });
         } catch (Exception e) {
             throw new AssertionError("Failed to verify search contexts", e);
@@ -3189,6 +3395,48 @@ public abstract class ESTestCase extends LuceneTestCase {
             return newSearcher(r, maybeWrap, wrapWithAssertions, Concurrency.INTER_SEGMENT);
         }
         return newSearcher(r, maybeWrap, wrapWithAssertions, Concurrency.NONE);
+    }
+
+    /**
+     * Wraps {@code collector} as a {@link CollectorManager} that reuses a single instance.
+     * Only safe with a sequential searcher either created without an executor or always searching a single slice.
+     * Note that reduce returns null. Results need to be collected by the provided collector.
+     */
+    public static <C extends Collector> CollectorManager<C, Void> singleThreadedCollectorManager(C collector) {
+        return new CollectorManager<>() {
+            private boolean created;
+
+            @Override
+            public C newCollector() {
+                assert created == false : "singleThreadedCollectorManager does not support concurrent search";
+                created = true;
+                return collector;
+            }
+
+            @Override
+            public Void reduce(Collection<C> collectors) {
+                assert collectors.size() == 1 : "Collectors must have only one collector";
+                return null;
+            }
+        };
+    }
+
+    /**
+     * A {@link CollectorManager} that creates a fresh collector for each slice.
+     * Note that reduce returns null. Results need to be externally gathered during collection.
+     */
+    public static <C extends Collector> CollectorManager<C, Void> collectorManager(CheckedSupplier<C, IOException> factory) {
+        return new CollectorManager<>() {
+            @Override
+            public C newCollector() throws IOException {
+                return factory.get();
+            }
+
+            @Override
+            public Void reduce(Collection<C> collectors) {
+                return null;
+            }
+        };
     }
 
     /**

@@ -15,11 +15,14 @@ import java.lang.invoke.MethodHandles.Lookup;
 
 public final class LinkerAdapter {
 
-    static final Linker.Option[] ALLOW_HEAP_ACCESS = new Linker.Option[] { Linker.Option.critical(true) };
-
-    /** Returns a linker option used to mark a foreign function as critical. */
-    public static Linker.Option[] critical() {
-        return ALLOW_HEAP_ACCESS;
+    /**
+     * Prepends {@code Linker.Option.critical(true)} to {@code extra} and returns the combined array.
+     */
+    public static Linker.Option[] criticalWith(Linker.Option[] extra) {
+        Linker.Option[] combined = new Linker.Option[extra.length + 1];
+        combined[0] = Linker.Option.critical(true);
+        System.arraycopy(extra, 0, combined, 1, extra.length);
+        return combined;
     }
 
     /**
@@ -28,6 +31,15 @@ public final class LinkerAdapter {
      * the generated {@code $Impl} bytecode resolves on both releases.
      */
     public static MethodHandle adaptCritical(Lookup lookup, MethodHandle rawHandle, Class<?> adapterClass, String methodName) {
+        return rawHandle;
+    }
+
+    /**
+     * JDK 22+ identity adapter for a {@code @Critical} binding declared with the
+     * {@code Critical.UnsupportedFallback} sentinel: on JDK 22+ the binding operates as a normal critical
+     * call and needs no fallback. Mirrors the JDK 21 signature so the generated {@code $Impl} resolves on both releases.
+     */
+    public static MethodHandle unsupportedFallback(MethodHandle rawHandle, String name) {
         return rawHandle;
     }
 

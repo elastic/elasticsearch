@@ -32,7 +32,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -51,7 +50,6 @@ import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettin
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectRealm;
@@ -185,16 +183,12 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
             clusterService = ClusterServiceUtils.createClusterService(threadPool);
         }
 
-        final MockLicenseState licenseState = mock(MockLicenseState.class);
-        when(licenseState.isAllowed(Security.TOKEN_SERVICE_FEATURE)).thenReturn(true);
-
         bytesRefRecycler = new MockBytesRefRecycler();
 
         tokenService = new TokenService(
             settings,
             Clock.systemUTC(),
             client,
-            licenseState,
             new SecurityContext(settings, threadContext),
             securityIndex,
             securityIndex,

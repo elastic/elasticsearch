@@ -19,8 +19,13 @@ public final class SearchableSnapshotRecoveryState extends RecoveryState {
     private boolean preWarmComplete;
     private boolean remoteTranslogSet;
 
-    public SearchableSnapshotRecoveryState(ShardRouting shardRouting, DiscoveryNode targetNode, @Nullable DiscoveryNode sourceNode) {
-        super(shardRouting, targetNode, sourceNode, new Index());
+    public SearchableSnapshotRecoveryState(
+        ShardRouting shardRouting,
+        DiscoveryNode targetNode,
+        @Nullable DiscoveryNode sourceNode,
+        int localRetries
+    ) {
+        super(shardRouting, targetNode, sourceNode, new Index(), localRetries);
     }
 
     @Override
@@ -39,6 +44,7 @@ public final class SearchableSnapshotRecoveryState extends RecoveryState {
 
         if (stage == Stage.INIT) {
             remoteTranslogSet = false;
+            ((Index) getIndex()).startTimer();
         }
 
         return super.setStage(stage);
@@ -117,8 +123,6 @@ public final class SearchableSnapshotRecoveryState extends RecoveryState {
 
         private Index() {
             super(new SearchableSnapshotRecoveryFilesDetails());
-            // We start loading data just at the beginning
-            super.start();
         }
 
         private synchronized void addFileToIgnore(String name) {
@@ -147,6 +151,12 @@ public final class SearchableSnapshotRecoveryState extends RecoveryState {
 
         @Override
         public synchronized void reset() {}
+
+        private synchronized void startTimer() {
+            if (startTime() == 0) {
+                super.start();
+            }
+        }
 
         private synchronized void stopTimer() {
             super.stop();

@@ -21,6 +21,7 @@ import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -29,9 +30,8 @@ import java.util.List;
 public class ValidateQueryRequestTests extends ESTestCase {
     private NamedWriteableRegistry namedWriteableRegistry;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initNamedWriteableRegistry() throws Exception {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(IndicesModule.getNamedWriteables());
@@ -92,15 +92,11 @@ public class ValidateQueryRequestTests extends ESTestCase {
         assertTrue(request.isRoutingFromSlice());
     }
 
-    public void testClearingSearchSliceClearsDerivedRouting() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        ValidateQueryRequest request = new ValidateQueryRequest().searchSlice("s1");
-        request.searchSlice(null);
+    public void testSearchSliceRejectsNull() {
+        ValidateQueryRequest request = new ValidateQueryRequest();
+        expectThrows(NullPointerException.class, () -> request.searchSlice(null));
         assertNull(request.searchSlice());
         assertFalse(request.isRoutingFromSlice());
-
         assertNull(request.routing());
-        request.routing("manual");
-        assertEquals("manual", request.routing());
     }
 }

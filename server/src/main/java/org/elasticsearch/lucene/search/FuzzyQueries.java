@@ -12,6 +12,7 @@ package org.elasticsearch.lucene.search;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.search.TopTermsRewrite;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.core.Nullable;
@@ -25,10 +26,13 @@ import java.util.BitSet;
  * retained {@link #queryRamBytes(FuzzyQuery)} and the parameter-driven
  * {@link FuzzyQueryCostEstimator} estimate are accumulated by {@code MaxClauseCountQueryVisitor}
  * during the once-per-phase walk in {@code AbstractQueryBuilder#toQuery}, alongside prefix,
- * wildcard, regexp, and range queries. Use {@link #estimateBytes(FuzzyQuery)} when accounting
+ * wildcard, regexp, and range queries. Use {@link #estimateBytes(FuzzyQuery, int)} when accounting
  * outside that walk (e.g. ad-hoc field-type callers) needs the same total.
  */
 public final class FuzzyQueries {
+
+    /** Segment-count fallback for {@link FuzzyQueryCostEstimator} when the real leaf count isn't available. */
+    public static final int DEFAULT_SEGMENT_COUNT_WHEN_UNKNOWN = 16;
 
     private FuzzyQueries() {}
 
@@ -57,16 +61,47 @@ public final class FuzzyQueries {
         return new FuzzyQuery(term, maxEdits, prefixLength, maxExpansions, transpositions, effectiveRewrite);
     }
 
+    public static long estimateBytes(FuzzyQuery query) {
+        return estimateBytes(query, DEFAULT_SEGMENT_COUNT_WHEN_UNKNOWN);
+    }
+
     /**
      * Total bytes the request circuit breaker should be charged for {@code query}: the retained
      * RAM of the query object plus the parameter-driven {@link FuzzyQueryCostEstimator} estimate.
      * Used by {@code MaxClauseCountQueryVisitor} for fuzzy clauses during the once-per-phase walk.
      */
-    public static long estimateBytes(FuzzyQuery query) {
+    public static long estimateBytes(FuzzyQuery query, int segmentCount) {
         BytesRef bytes = query.getTerm().bytes();
-        long cost = new FuzzyQueryCostEstimator(bytes.length, countDistinctUtf8Bytes(bytes), query.getMaxEdits(), query.getPrefixLength())
-            .estimate();
+        long cost = new FuzzyQueryCostEstimator(
+            bytes.length,
+            countDistinctUtf8Bytes(bytes),
+            query.getMaxEdits(),
+            query.getPrefixLength(),
+            effectiveMaxExpansions(query),
+            segmentCount
+        ).estimate();
         return queryRamBytes(query) + cost;
+    }
+
+    /**
+     * Effective expansion count for the breaker charge: a {@link TopTermsRewrite}'s configured size,
+     * {@link FuzzyQueryCostEstimator#MAX_CHARGED_EXPANSIONS} for the boolean-producing rewrites that
+     * can expand up to {@code IndexSearcher.getMaxClauseCount()} (which is never lower, since
+     * {@code SearchUtils.calculateMaxClauseValue} floors it at that same value), or
+     * {@link FuzzyQuery#defaultMaxExpansions} otherwise; clamped to
+     * {@code [1, }{@link FuzzyQueryCostEstimator#MAX_CHARGED_EXPANSIONS}{@code ]}.
+     */
+    private static int effectiveMaxExpansions(FuzzyQuery query) {
+        MultiTermQuery.RewriteMethod rewrite = query.getRewriteMethod();
+        final int requested;
+        if (rewrite instanceof TopTermsRewrite<?> topTerms) {
+            requested = topTerms.getSize();
+        } else if (rewrite == MultiTermQuery.SCORING_BOOLEAN_REWRITE || rewrite == MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE) {
+            requested = FuzzyQueryCostEstimator.MAX_CHARGED_EXPANSIONS;
+        } else {
+            requested = FuzzyQuery.defaultMaxExpansions;
+        }
+        return Math.clamp(requested, 1, FuzzyQueryCostEstimator.MAX_CHARGED_EXPANSIONS);
     }
 
     /** RAM bytes retained by the {@link FuzzyQuery} object (excluding compiled automata). */

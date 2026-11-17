@@ -1,5 +1,7 @@
 config:
   trigger-phrase: '.*run\W+elasticsearch-ci/bwc.*'
+  skip-target-branches:
+    - "patch/serverless-fix"
   skip-labels:
     - ">test-mute"
     - "test-full-bwc"
@@ -53,7 +55,7 @@ steps:
           buildDirectory: /dev/shm/bk
       - label: "{{matrix.BWC_VERSION}} / Part 4 / bwc-snapshots"
         key: "bwc-snapshots-part4"
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed -Dtests.bwc.mode=auto v{{matrix.BWC_VERSION}}#bwcTestPart5
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed -Dtests.bwc.mode=auto v{{matrix.BWC_VERSION}}#bwcTestPart4
         timeout_in_minutes: 300
         matrix:
           setup:

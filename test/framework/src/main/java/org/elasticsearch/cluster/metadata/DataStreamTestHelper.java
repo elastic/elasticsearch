@@ -806,7 +806,7 @@ public final class DataStreamTestHelper {
             DocumentMapper documentMapper = mock(DocumentMapper.class);
             when(documentMapper.mapping()).thenReturn(mapping);
             when(documentMapper.mappers()).thenReturn(MappingLookup.EMPTY);
-            when(documentMapper.mappingSource()).thenReturn(mapping.toCompressedXContent());
+            when(documentMapper.mappingSource()).thenReturn(Mapping.emptyCompressed());
             when(documentMapper.mappers()).thenReturn(mappingLookup);
             RoutingFieldMapper routingFieldMapper = mock(RoutingFieldMapper.class);
             when(routingFieldMapper.required()).thenReturn(false);
@@ -815,7 +815,7 @@ public final class DataStreamTestHelper {
             when(mapperService.documentMapper()).thenReturn(documentMapper);
             when(indexService.mapperService()).thenReturn(mapperService);
             when(mapperService.mappingLookup()).thenReturn(mappingLookup);
-            when(indexService.getIndexEventListener()).thenReturn(new IndexEventListener() {});
+            when(indexService.getIndexEventListener()).thenReturn(IndexEventListener.NOOP);
             when(indexService.getIndexSortSupplier()).thenReturn(() -> null);
             return ((CheckedFunction<IndexService, ?, ?>) invocationOnMock.getArguments()[1]).apply(indexService);
         });

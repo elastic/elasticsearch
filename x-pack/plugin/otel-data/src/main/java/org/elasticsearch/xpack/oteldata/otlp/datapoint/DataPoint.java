@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.oteldata.otlp.datapoint;
 
 import io.opentelemetry.proto.common.v1.KeyValue;
 import io.opentelemetry.proto.metrics.v1.AggregationTemporality;
+import io.opentelemetry.proto.metrics.v1.Exemplar;
 import io.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint;
 import io.opentelemetry.proto.metrics.v1.HistogramDataPoint;
 import io.opentelemetry.proto.metrics.v1.Metric;
@@ -17,6 +18,7 @@ import io.opentelemetry.proto.metrics.v1.SummaryDataPoint;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.oteldata.otlp.docbuilder.AbstractOTLPBatchBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.docbuilder.HistogramMapping;
 import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MappingHints;
 
@@ -61,6 +63,13 @@ public interface DataPoint {
      * @return a list of key-value pairs representing the attributes
      */
     List<KeyValue> getAttributes();
+
+    /**
+     * Returns the exemplars associated with the data point.
+     */
+    default List<Exemplar> getExemplars() {
+        return List.of();
+    }
 
     /**
      * Returns the unit of measurement for the data point.
@@ -123,6 +132,31 @@ public interface DataPoint {
      */
     long getDocCount();
 
+    /**
+     * Returns {@code true} when this data point can be written into an
+     * {@link AbstractOTLPBatchBuilder} as a scalar long or
+     * double field (i.e. via
+     * {@link #writeColumnarValue(AbstractOTLPBatchBuilder, int)}).
+     * Histogram, summary, and exponential-histogram data points return {@code false} because they write
+     * nested objects/arrays that the current ESCF batch builder does not yet support.
+     */
+    default boolean supportsColumnarValue() {
+        return false;
+    }
+
+    /**
+     * Writes the metric value as a scalar field at {@code columnIndex} into the given
+     * {@link AbstractOTLPBatchBuilder}. Only valid when
+     * {@link #supportsColumnarValue()} returns {@code true}.
+     *
+     * @param batchBuilder the batch builder to write into
+     * @param columnIndex  the pre-resolved column index for this metric name within {@code metrics}
+     *                     (see {@code OTLPMetricBatchBuilder})
+     */
+    default void writeColumnarValue(AbstractOTLPBatchBuilder batchBuilder, int columnIndex) {
+        throw new UnsupportedOperationException("writeColumnarValue not supported for " + getClass().getSimpleName());
+    }
+
     record Number(NumberDataPoint dataPoint, Metric metric) implements DataPoint {
 
         @Override
@@ -133,6 +167,11 @@ public interface DataPoint {
         @Override
         public List<KeyValue> getAttributes() {
             return dataPoint.getAttributesList();
+        }
+
+        @Override
+        public List<Exemplar> getExemplars() {
+            return dataPoint.getExemplarsList();
         }
 
         @Override
@@ -156,6 +195,11 @@ public interface DataPoint {
             switch (dataPoint.getValueCase()) {
                 case AS_DOUBLE -> builder.value(dataPoint.getAsDouble());
                 case AS_INT -> builder.value(dataPoint.getAsInt());
+                // Value-less data points are rejected by isValid before reaching this point. Fail loudly rather than
+                // writing a field name with no value, which would corrupt the document.
+                case VALUE_NOT_SET -> throw new IllegalStateException(
+                    "number data point without a value should have been filtered out: " + metric.getName()
+                );
             }
         }
 
@@ -196,7 +240,27 @@ public interface DataPoint {
 
         @Override
         public boolean isValid(Set<String> errors, MappingHints mappingHints) {
+            if (dataPoint.getValueCase() == NumberDataPoint.ValueCase.VALUE_NOT_SET) {
+                errors.add("number data point without a value, ignoring " + metric.getName());
+                return false;
+            }
             return true;
+        }
+
+        @Override
+        public boolean supportsColumnarValue() {
+            return dataPoint.getValueCase() != NumberDataPoint.ValueCase.VALUE_NOT_SET;
+        }
+
+        @Override
+        public void writeColumnarValue(AbstractOTLPBatchBuilder batchBuilder, int columnIndex) {
+            switch (dataPoint.getValueCase()) {
+                case AS_DOUBLE -> batchBuilder.doubleField(columnIndex, dataPoint.getAsDouble());
+                case AS_INT -> batchBuilder.longField(columnIndex, dataPoint.getAsInt());
+                case VALUE_NOT_SET -> throw new IllegalStateException(
+                    "number data point without a value should have been filtered out: " + metric.getName()
+                );
+            }
         }
     }
 
@@ -210,6 +274,11 @@ public interface DataPoint {
         @Override
         public List<KeyValue> getAttributes() {
             return dataPoint.getAttributesList();
+        }
+
+        @Override
+        public List<Exemplar> getExemplars() {
+            return dataPoint.getExemplarsList();
         }
 
         @Override
@@ -302,6 +371,11 @@ public interface DataPoint {
         @Override
         public List<KeyValue> getAttributes() {
             return dataPoint.getAttributesList();
+        }
+
+        @Override
+        public List<Exemplar> getExemplars() {
+            return dataPoint.getExemplarsList();
         }
 
         @Override

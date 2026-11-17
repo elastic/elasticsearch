@@ -24,6 +24,8 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -33,7 +35,9 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
@@ -110,6 +114,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         Map<String, Float> concreteIndexBoosts,
         Executor executor,
         SearchPhaseResults<SearchPhaseResult> resultConsumer,
+        CircuitBreaker circuitBreaker,
         SearchRequest request,
         ActionListener<SearchResponse> listener,
         List<SearchShardIterator> shardsIts,
@@ -142,6 +147,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             clusterState,
             task,
             resultConsumer,
+            circuitBreaker,
             request.getMaxConcurrentShardRequests(),
             clusters,
             searchResponseMetrics,
@@ -175,7 +181,15 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         // than creating an empty response in the search thread pool.
         // Note that, we have to disable this shortcut for queries that create a context (scroll and search context).
         request.canReturnNullResponseIfMatchNoDocs(hasShardResponse() && request.scroll() == null);
-        getSearchTransport().sendExecuteQuery(connection, request, getTask(), listener);
+        getSearchTransport().sendExecuteQuery(
+            connection,
+            request,
+            getTask(),
+            newShardResponseReservation(getName(), ShardResponseReservation.BREAKER_LABEL),
+            listener,
+            this::trackPhaseResultBytesRead,
+            this::trackPhaseRequestBytesWritten
+        );
     }
 
     @Override
@@ -201,17 +215,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     }
                 }
             }
-            try {
-                bottomSortCollector.consumeTopDocs(topDocs, queryResult.sortValueFormats());
-            } catch (Exception e) {
-                // In case the collecting fails, e.g. because of a formatting error, we log the error and continue
-                logger.debug(
-                    "failed to consume top docs for shard [{}] with sort fields [{}]: {}",
-                    result.getShardIndex(),
-                    Arrays.toString(topDocs.fields),
-                    e
-                );
-            }
+            bottomSortCollector.consumeTopDocs(topDocs, queryResult.sortValueFormats());
         }
         super.onShardResult(result);
     }
@@ -245,7 +249,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         private final Object[] results;
         private final Exception reductionFailure;
         private final SearchPhaseController.TopDocsStats topDocsStats;
-        private final QueryPhaseResultConsumer.MergeResult mergeResult;
+        private QueryPhaseResultConsumer.MergeResult mergeResult;
 
         public NodeQueryResponse(StreamInput in) throws IOException {
             this.results = in.readArray(i -> i.readBoolean() ? new QuerySearchResult(i) : i.readException(), Object[]::new);
@@ -267,6 +271,15 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
 
         Exception getReductionFailure() {
             return reductionFailure;
+        }
+
+        /**
+         * Hands the merge result, and responsibility for releasing its aggregations, over to the caller.
+         */
+        QueryPhaseResultConsumer.MergeResult takeMergeResult() {
+            final var taken = mergeResult;
+            mergeResult = null;
+            return taken;
         }
 
         @Override
@@ -316,6 +329,10 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     }
                     results[i] = null;
                 }
+                if (mergeResult != null) {
+                    QueryPhaseResultConsumer.releaseBatchedAggs(mergeResult.reducedAggs());
+                    mergeResult = null;
+                }
                 return true;
             }
             return false;
@@ -345,7 +362,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
      * Request for starting the query phase for multiple shards.
      */
     public static final class NodeQueryRequest extends AbstractTransportRequest implements IndicesRequest {
-        private final List<ShardToQuery> shards;
+        // package-private for testing
+        final List<ShardToQuery> shards;
         private final SearchRequest searchRequest;
         private final Map<String, AliasFilter> aliasFilters;
         private final int totalShards;
@@ -353,14 +371,16 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         private final String localClusterAlias;
         private final boolean enableShardResultsSkipRequest;
 
-        private NodeQueryRequest(SearchRequest searchRequest, int totalShards, long absoluteStartMillis, String localClusterAlias) {
+        // package-private for testing
+        NodeQueryRequest(SearchRequest searchRequest, int totalShards, long absoluteStartMillis, String localClusterAlias) {
             this.shards = new ArrayList<>();
             this.searchRequest = searchRequest;
             this.aliasFilters = new HashMap<>();
             this.totalShards = totalShards;
             this.absoluteStartMillis = absoluteStartMillis;
             this.localClusterAlias = localClusterAlias;
-            this.enableShardResultsSkipRequest = ShardSearchRequest.SHARD_RESULTS_SKIP_SHARD_SEARCH_REQUEST_FEATURE_FLAG.isEnabled();
+            // Coordinators always rebuild the ShardSearchRequest, so data nodes omit it from shard results.
+            this.enableShardResultsSkipRequest = true;
         }
 
         private NodeQueryRequest(StreamInput in) throws IOException {
@@ -416,7 +436,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         }
     }
 
-    private record ShardToQuery(
+    // package-private for testing
+    record ShardToQuery(
         float boost,
         String[] originalIndices,
         int shardIndex,
@@ -486,7 +507,14 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
     ) {
         final PointInTimeBuilder pointInTimeBuilder = request.pointInTimeBuilder();
         if (pointInTimeBuilder != null) {
-            return request.pointInTimeBuilder().getSearchContextId(namedWriteableRegistry).contains(contextId);
+            try {
+                return request.pointInTimeBuilder().getSearchContextId(namedWriteableRegistry).contains(contextId);
+            } catch (IllegalArgumentException e) {
+                // Can occur when the PIT was encoded by a coordinator running a newer version than this data node.
+                // Since the PIT cannot be decoded, membership cannot be determined, so return true as the
+                // conservative fallback.
+                return true;
+            }
         } else {
             return false;
         }
@@ -498,7 +526,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             super.doRun(shardIndexMap);
             return;
         }
-        AbstractSearchAsyncAction.doCheckNoMissingShards(getName(), request, shardsIts);
+        AbstractSearchAsyncAction.doCheckNoMissingShards(getName(), request, shardsIts, clusterState);
         final Map<CanMatchPreFilterSearchPhase.SendingTarget, NodeQueryRequest> perNodeQueries = new HashMap<>();
         final String localNodeId = searchTransportService.transportService().getLocalNode().getId();
         final int numberOfShardsTotal = shardsIts.size();
@@ -543,6 +571,10 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 executeAsSingleRequest(routing, request.shards.getFirst());
                 return;
             }
+            if (failedOnCoordinatorTrip()) {
+                // A node that already answered tripped, see doPerformPhaseOnShard for why the rest aren't sent
+                return;
+            }
             String nodeId = routing.nodeId();
             final Transport.Connection connection;
             try {
@@ -558,11 +590,24 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 return;
             }
             final ActionListener<? super SearchPhaseResult> statsCollector = searchTransportService.newStatsCollector(connection);
+            final Writeable.Reader<NodeQueryResponse> nodeQueryReader = SearchTransportService.countingReader(
+                NodeQueryResponse::new,
+                this::trackPhaseResultBytesRead
+            );
+            AbstractTransportRequest wrapper = searchTransportService.countingRequestForConnection(
+                request,
+                connection,
+                this::trackPhaseRequestBytesWritten
+            );
+            final ShardResponseReservation reservation = SearchTransportService.unlessProxied(
+                connection,
+                newShardResponseReservation(getName(), ShardResponseReservation.BREAKER_LABEL)
+            );
             searchTransportService.transportService()
-                .sendChildRequest(connection, NODE_SEARCH_ACTION_NAME, request, task, new TransportResponseHandler<NodeQueryResponse>() {
+                .sendChildRequest(connection, NODE_SEARCH_ACTION_NAME, wrapper, task, new TransportResponseHandler<NodeQueryResponse>() {
                     @Override
                     public NodeQueryResponse read(StreamInput in) throws IOException {
-                        return new NodeQueryResponse(in);
+                        return nodeQueryReader.read(in);
                     }
 
                     @Override
@@ -571,13 +616,18 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     }
 
                     @Override
+                    public Releasable reserveResponseBytes(int bytes) {
+                        return reservation == null ? NO_RESERVATION : reservation.reserve(bytes);
+                    }
+
+                    @Override
                     public void handleResponse(NodeQueryResponse response) {
                         if (results instanceof QueryPhaseResultConsumer queryPhaseResultConsumer) {
                             Exception reductionFailure = response.getReductionFailure();
                             if (reductionFailure != null) {
-                                queryPhaseResultConsumer.failure.compareAndSet(null, reductionFailure);
+                                queryPhaseResultConsumer.setFailure(reductionFailure);
                             } else {
-                                queryPhaseResultConsumer.addBatchedPartialResult(response.topDocsStats, response.mergeResult);
+                                queryPhaseResultConsumer.addBatchedPartialResult(response.topDocsStats, response.takeMergeResult());
                             }
                         }
                         SearchPhaseResult lastResult = null;
@@ -594,7 +644,12 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                                     onShardResult(q);
                                 }
                                 case null, default -> {
-                                    assert false : "impossible [" + response.results[i] + "]";
+                                    var e = new IllegalStateException("data node returned unexpected result for shard [" + s.shardId + "]");
+                                    logger.error(
+                                        "data node produced unexpected result[" + response.results[i] + "] for shard [" + s.shardId + "]",
+                                        e
+                                    );
+                                    onShardFailure(shardIdx, target, shardIterators[shardIdx], e);
                                 }
                             }
                         }
@@ -608,6 +663,10 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
 
                     @Override
                     public void handleException(TransportException e) {
+                        if (reservation != null && reservation.reportTrip()) {
+                            // The search has failed. On an older node, bwcHandleException would fail it a second time.
+                            return;
+                        }
                         if (connection.getTransportVersion().supports(BATCHED_RESPONSE_MIGHT_INCLUDE_REDUCTION_FAILURE) == false) {
                             bwcHandleException(e);
                             return;
@@ -636,7 +695,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                             // Remote failure that wasn't due to networking or cancellation means that the data node was unable to reduce
                             // its local results. Failure to reduce always fails the phase without exception so we fail the phase here.
                             if (results instanceof QueryPhaseResultConsumer queryPhaseResultConsumer) {
-                                queryPhaseResultConsumer.failure.compareAndSet(null, cause);
+                                queryPhaseResultConsumer.setFailure(cause);
                             }
                             onPhaseFailure(getName(), "", cause);
                         }
@@ -698,7 +757,13 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                         cancellableTask::isCancelled,
                         SearchProgressListener.NOOP,
                         shardCount,
-                        e -> logger.error("failed to merge on data node", e)
+                        e -> {
+                            if (ExceptionsHelper.unwrapCause(e) instanceof CircuitBreakingException) {
+                                logger.debug("failed to merge on data node", e);
+                            } else {
+                                logger.error("failed to merge on data node", e);
+                            }
+                        }
                     ),
                     request,
                     cancellableTask,
@@ -706,6 +771,10 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     dependencies,
                     namedWriteableRegistry
                 );
+                // merging the results of the shards of the request is work for them, by the docs each matched
+                List<ShardId> shardIds = request.shards.stream().map(ShardToQuery::shardId).toList();
+                var consumer = state.queryPhaseResultConsumer;
+                consumer.mergeLoad(searchService.searchLoad(shardIds, consumer::docsMatched));
                 // TODO: log activating or otherwise limiting parallelism might be helpful here
                 for (int i = 0; i < workers; i++) {
                     executeShardTasks(state);
@@ -794,27 +863,28 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 var pitBuilder = searchRequest.pointInTimeBuilder();
                 var shardToQuery = nodeQueryRequest.shards.get(dataNodeLocalIdx);
                 final var shardId = shardToQuery.shardId;
+                final ShardSearchRequest shardRequest = buildShardSearchRequest(
+                    shardId,
+                    nodeQueryRequest.localClusterAlias,
+                    shardToQuery.shardIndex,
+                    shardToQuery.contextId,
+                    new OriginalIndices(shardToQuery.originalIndices, nodeQueryRequest.indicesOptions()),
+                    nodeQueryRequest.aliasFilters.getOrDefault(shardId.getIndex().getUUID(), AliasFilter.EMPTY),
+                    pitBuilder == null ? null : pitBuilder.getKeepAlive(),
+                    shardToQuery.boost,
+                    searchRequest,
+                    nodeQueryRequest.totalShards,
+                    nodeQueryRequest.absoluteStartMillis,
+                    state.hasResponse.getAcquire(),
+                    shardToQuery.splitShardCountSummary,
+                    nodeQueryRequest.enableShardResultsSkipRequest
+                );
+                // The coordinating node cancels the node-level request if it drops the response, so the contexts the shards open
+                // belong to that request.
+                shardRequest.setParentTask(nodeQueryRequest.getParentTask());
+                shardRequest.setRequestId(nodeQueryRequest.getRequestId());
                 state.dependencies.searchService.executeQueryPhase(
-                    tryRewriteWithUpdatedSortValue(
-                        state.bottomSortCollector,
-                        state.trackTotalHitsUpTo,
-                        buildShardSearchRequest(
-                            shardId,
-                            nodeQueryRequest.localClusterAlias,
-                            shardToQuery.shardIndex,
-                            shardToQuery.contextId,
-                            new OriginalIndices(shardToQuery.originalIndices, nodeQueryRequest.indicesOptions()),
-                            nodeQueryRequest.aliasFilters.getOrDefault(shardId.getIndex().getUUID(), AliasFilter.EMPTY),
-                            pitBuilder == null ? null : pitBuilder.getKeepAlive(),
-                            shardToQuery.boost,
-                            searchRequest,
-                            nodeQueryRequest.totalShards,
-                            nodeQueryRequest.absoluteStartMillis,
-                            state.hasResponse.getAcquire(),
-                            shardToQuery.splitShardCountSummary,
-                            nodeQueryRequest.enableShardResultsSkipRequest
-                        )
-                    ),
+                    tryRewriteWithUpdatedSortValue(state.bottomSortCollector, state.trackTotalHitsUpTo, shardRequest),
                     state.task,
                     new SearchActionListener<>(
                         new SearchShardTarget(null, shardToQuery.shardId, nodeQueryRequest.localClusterAlias),
@@ -907,37 +977,68 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             if (countDown.countDown() == false) {
                 return;
             }
-            if (channel.getVersion().supports(BATCHED_RESPONSE_MIGHT_INCLUDE_REDUCTION_FAILURE) == false) {
-                bwcRespond();
+            ChannelActionListener<BytesTransportResponse> channelListener = new ChannelActionListener<>(channel);
+            final BytesTransportResponse response;
+            long startNanos = TaskLoadAttribution.startPart();
+            try {
+                response = buildResponse();
+            } catch (Exception e) {
+                try {
+                    releaseAllResultsContexts();
+                } catch (Exception releaseException) {
+                    logger.trace("failed to release contexts after batched query response failure", releaseException);
+                }
+                channelListener.onFailure(e);
                 return;
+            } finally {
+                chargeMerge(startNanos);
             }
-            var channelListener = new ChannelActionListener<>(channel);
-            RecyclerBytesStreamOutput out = dependencies.transportService.newNetworkBytesStream(null);
-            out.setTransportVersion(channel.getVersion());
+            ActionListener.respondAndRelease(channelListener, response);
+        }
 
+        /**
+         * Charges building the response to the shards of the request, as it merges their results in the task of the shard that
+         * completed last.
+         */
+        private void chargeMerge(long startNanos) {
+            TaskLoadAttribution.Target mergeLoad = queryPhaseResultConsumer.mergeLoad();
+            if (mergeLoad != null) {
+                long finishNanos = System.nanoTime();
+                TaskLoadAttribution.charge(mergeLoad, finishNanos - startNanos, finishNanos);
+            }
+        }
+
+        private BytesTransportResponse buildResponse() throws Exception {
+            if (channel.getVersion().supports(BATCHED_RESPONSE_MIGHT_INCLUDE_REDUCTION_FAILURE) == false) {
+                return bwcBuildResponse();
+            }
+            RecyclerBytesStreamOutput out = null;
             boolean success = false;
             try (queryPhaseResultConsumer) {
-                Exception reductionFailure = queryPhaseResultConsumer.failure.get();
+                // Inside the try, so a trip on the first page still closes the consumer.
+                out = newResponseStream();
+                Exception reductionFailure = queryPhaseResultConsumer.getFailure();
                 if (reductionFailure == null) {
                     writeSuccessfulResponse(out);
                 } else {
                     writeReductionFailureResponse(out, reductionFailure);
                 }
                 success = true;
-            } catch (IOException e) {
-                releaseAllResultsContexts();
-                channelListener.onFailure(e);
-                return;
             } finally {
-                if (success == false) {
+                if (success == false && out != null) {
                     out.close();
                 }
             }
+            return new BytesTransportResponse(out.moveToBytesReference(), out.getTransportVersion());
+        }
 
-            ActionListener.respondAndRelease(
-                channelListener,
-                new BytesTransportResponse(out.moveToBytesReference(), out.getTransportVersion())
+        /** The response can be large, so its bytes stay charged to the request breaker until the network write completes. */
+        private RecyclerBytesStreamOutput newResponseStream() {
+            RecyclerBytesStreamOutput out = dependencies.transportService.newNetworkBytesStream(
+                dependencies.searchService.getCircuitBreaker()
             );
+            out.setTransportVersion(channel.getVersion());
+            return out;
         }
 
         // Writes the "successful" response (see NodeQueryResponse for the corresponding read logic)
@@ -968,7 +1069,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             for (int i = 0; i < resultCount; i++) {
                 var result = queryPhaseResultConsumer.results.get(i);
                 if (result == null) {
-                    NodeQueryResponse.writePerShardException(out, failures.remove(i));
+                    NodeQueryResponse.writePerShardException(out, shardFailureOrUnknown(i));
                 } else {
                     // free context id and remove it from the result right away in case we don't need it anymore
                     maybeFreeContext(result, relevantShardIndices, namedWriteableRegistry);
@@ -986,7 +1087,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             for (int i = 0; i < resultCount; i++) {
                 var result = queryPhaseResultConsumer.results.get(i);
                 if (result == null) {
-                    NodeQueryResponse.writePerShardException(out, failures.remove(i));
+                    NodeQueryResponse.writePerShardException(out, shardFailureOrUnknown(i));
                 } else {
                     NodeQueryResponse.writePerShardResult(out, result);
                 }
@@ -996,33 +1097,37 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             releaseAllResultsContexts();
         }
 
+        private Exception shardFailureOrUnknown(int localIndex) {
+            Exception failure = failures.remove(localIndex);
+            if (failure == null) {
+                logger.error("data node produced null failure for shard [{}]", localIndex);
+                failure = new IllegalStateException(
+                    "shard [" + searchRequest.shards.get(localIndex).shardId + "] neither succeeded nor failed"
+                );
+            }
+            return failure;
+        }
+
         /**
          * This code is strictly for _snapshot_ backwards compatibility. The feature flag guarding batched execution
          * was not turned on when the transport version
          * {@link SearchQueryThenFetchAsyncAction#BATCHED_RESPONSE_MIGHT_INCLUDE_REDUCTION_FAILURE} was introduced.
+         * <p>
+         * Any exception thrown here propagates to the wrapper in {@link #onShardDone()}, which is
+         * responsible for releasing all result contexts and responding to the channel with an error.
          */
-        void bwcRespond() {
+        private BytesTransportResponse bwcBuildResponse() throws Exception {
             RecyclerBytesStreamOutput out = null;
             boolean success = false;
-            var channelListener = new ChannelActionListener<>(channel);
             try (queryPhaseResultConsumer) {
-                var failure = queryPhaseResultConsumer.failure.get();
+                var failure = queryPhaseResultConsumer.getFailure();
                 if (failure != null) {
-                    releaseAllResultsContexts();
-                    channelListener.onFailure(failure);
-                    return;
+                    throw failure;
                 }
-                final QueryPhaseResultConsumer.MergeResult mergeResult;
-                try {
-                    mergeResult = Objects.requireNonNullElse(
-                        queryPhaseResultConsumer.consumePartialMergeResultDataNode(),
-                        EMPTY_PARTIAL_MERGE_RESULT
-                    );
-                } catch (Exception e) {
-                    releaseAllResultsContexts();
-                    channelListener.onFailure(e);
-                    return;
-                }
+                final QueryPhaseResultConsumer.MergeResult mergeResult = Objects.requireNonNullElse(
+                    queryPhaseResultConsumer.consumePartialMergeResultDataNode(),
+                    EMPTY_PARTIAL_MERGE_RESULT
+                );
                 // translate shard indices to those on the coordinator so that it can interpret the merge result without adjustments,
                 // also collect the set of indices that may be part of a subsequent fetch operation here so that we can release all other
                 // indices without a roundtrip to the coordinating node
@@ -1035,36 +1140,26 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     }
                 }
                 final int resultCount = queryPhaseResultConsumer.getNumShards();
-                out = dependencies.transportService.newNetworkBytesStream(null);
-                out.setTransportVersion(channel.getVersion());
-                try {
-                    out.writeVInt(resultCount);
-                    for (int i = 0; i < resultCount; i++) {
-                        var result = queryPhaseResultConsumer.results.get(i);
-                        if (result == null) {
-                            NodeQueryResponse.writePerShardException(out, failures.remove(i));
-                        } else {
-                            // free context id and remove it from the result right away in case we don't need it anymore
-                            maybeFreeContext(result, relevantShardIndices, namedWriteableRegistry);
-                            NodeQueryResponse.writePerShardResult(out, result);
-                        }
+                out = newResponseStream();
+                out.writeVInt(resultCount);
+                for (int i = 0; i < resultCount; i++) {
+                    var result = queryPhaseResultConsumer.results.get(i);
+                    if (result == null) {
+                        NodeQueryResponse.writePerShardException(out, failures.remove(i));
+                    } else {
+                        // free context id and remove it from the result right away in case we don't need it anymore
+                        maybeFreeContext(result, relevantShardIndices, namedWriteableRegistry);
+                        NodeQueryResponse.writePerShardResult(out, result);
                     }
-                    NodeQueryResponse.writeMergeResult(out, mergeResult, queryPhaseResultConsumer.topDocsStats);
-                    success = true;
-                } catch (IOException e) {
-                    releaseAllResultsContexts();
-                    channelListener.onFailure(e);
-                    return;
                 }
+                NodeQueryResponse.writeMergeResult(out, mergeResult, queryPhaseResultConsumer.topDocsStats);
+                success = true;
             } finally {
                 if (success == false && out != null) {
                     out.close();
                 }
             }
-            ActionListener.respondAndRelease(
-                channelListener,
-                new BytesTransportResponse(out.moveToBytesReference(), out.getTransportVersion())
-            );
+            return new BytesTransportResponse(out.moveToBytesReference(), out.getTransportVersion());
         }
 
         private void maybeFreeContext(

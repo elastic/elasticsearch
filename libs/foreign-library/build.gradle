@@ -18,7 +18,7 @@ dependencies {
   api project(':libs:logging')
   api project(':libs:foreign-adapter')
 
-  testImplementation buildLibs.junit
+  testImplementation buildLibs.junit4
 }
 
 tasks.withType(CheckForbiddenApisTask).configureEach {

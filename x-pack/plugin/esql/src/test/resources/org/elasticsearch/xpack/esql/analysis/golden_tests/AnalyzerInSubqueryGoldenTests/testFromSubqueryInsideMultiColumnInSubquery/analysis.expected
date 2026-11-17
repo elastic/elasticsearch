@@ -1,0 +1,8 @@
+Limit[1000[INTEGER],false,false]
+\_SemiJoin[[emp_no{f}#0, salary{f}#1],[emp_no{r}#2, salary{r}#3]]
+  |_EsRelation[employees][avg_worked_seconds{f}#4, birth_date{f}#5, emp_no{f}#0, first_name{f}#6, gender{f}#7, height{f}#8, height.float{f}#9, height.half_float{f}#10, height.scaled_float{f}#11, hire_date{f}#12, is_rehired{f}#13, job_positions{f}#14, languages{f}#15, languages.byte{f}#16, languages.long{f}#17, languages.short{f}#18, last_name{f}#19, salary{f}#1, salary_change{f}#20, salary_change.int{f}#21, salary_change.keyword{f}#22, salary_change.long{f}#23, still_hired{f}#24]
+  \_Project[[emp_no{r}#2, salary{r}#3]]
+    \_BranchPlan[[null=INDEX, unnamed_view_1=SUBQUERY]]
+      |_EsRelation[employees][avg_worked_seconds{f}#25, birth_date{f}#26, emp_no{f}#27, first_name{f}#28, gender{f}#29, height{f}#30, height.float{f}#31, height.half_float{f}#32, height.scaled_float{f}#33, hire_date{f}#34, is_rehired{f}#35, job_positions{f}#36, languages{f}#37, languages.byte{f}#38, languages.long{f}#39, languages.short{f}#40, last_name{f}#41, salary{f}#42, salary_change{f}#43, salary_change.int{f}#44, salary_change.keyword{f}#45, salary_change.long{f}#46, still_hired{f}#47]
+      \_Project[[emp_no{f}#48, salary{f}#49]]
+        \_EsRelation[employees][avg_worked_seconds{f}#50, birth_date{f}#51, emp_no{f}#48, first_name{f}#52, gender{f}#53, height{f}#54, height.float{f}#55, height.half_float{f}#56, height.scaled_float{f}#57, hire_date{f}#58, is_rehired{f}#59, job_positions{f}#60, languages{f}#61, languages.byte{f}#62, languages.long{f}#63, languages.short{f}#64, last_name{f}#65, salary{f}#49, salary_change{f}#66, salary_change.int{f}#67, salary_change.keyword{f}#68, salary_change.long{f}#69, still_hired{f}#70]

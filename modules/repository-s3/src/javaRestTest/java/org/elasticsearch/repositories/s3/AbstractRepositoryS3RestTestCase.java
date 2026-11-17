@@ -24,6 +24,7 @@ import org.elasticsearch.test.rest.ObjectPath;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Locale;
 import java.util.Set;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
@@ -46,35 +47,55 @@ public abstract class AbstractRepositoryS3RestTestCase extends ESRestTestCase {
         }
 
         private Request getRegisterRequest(UnaryOperator<Settings> settingsUnaryOperator) throws IOException {
-            return newXContentRequest(
+            final var settings = settingsUnaryOperator.apply(
+                Settings.builder()
+                    .put("bucket", bucketName())
+                    .put("base_path", basePath())
+                    .put("client", clientName())
+                    .put("canned_acl", "private")
+                    .put("storage_class", "standard")
+                    .put(randomFrom(Settings.EMPTY, Settings.builder().put("disable_chunked_encoding", randomBoolean()).build()))
+                    .put(randomFrom(Settings.EMPTY, Settings.builder().put("always_sign_requests", randomBoolean()).build()))
+                    .put(randomFrom(Settings.EMPTY, Settings.builder().put("add_purpose_custom_query_parameter", randomBoolean()).build()))
+                    .put(
+                        randomFrom(Settings.EMPTY, Settings.builder().put("unsafely_omit_request_body_checksums", randomBoolean()).build())
+                    )
+                    .put(extraRepositorySettings)
+                    .build()
+            );
+            final var request = newXContentRequest(
                 HttpMethod.PUT,
                 "/_snapshot/" + repositoryName(),
-                (b, p) -> b.field("type", S3Repository.TYPE)
-                    .startObject("settings")
-                    .value(
-                        settingsUnaryOperator.apply(
-                            Settings.builder()
-                                .put("bucket", bucketName())
-                                .put("base_path", basePath())
-                                .put("client", clientName())
-                                .put("canned_acl", "private")
-                                .put("storage_class", "standard")
-                                .put(
-                                    randomFrom(Settings.EMPTY, Settings.builder().put("disable_chunked_encoding", randomBoolean()).build())
-                                )
-                                .put(randomFrom(Settings.EMPTY, Settings.builder().put("always_sign_requests", randomBoolean()).build()))
-                                .put(
-                                    randomFrom(
-                                        Settings.EMPTY,
-                                        Settings.builder().put("add_purpose_custom_query_parameter", randomBoolean()).build()
-                                    )
-                                )
-                                .put(extraRepositorySettings)
-                                .build()
-                        )
-                    )
-                    .endObject()
+                (b, p) -> b.field("type", S3Repository.TYPE).startObject("settings").value(settings).endObject()
             );
+
+            final var expectedWarnings = new ArrayList<String>();
+            if (S3Repository.UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.exists(settings)) {
+                expectedWarnings.add("""
+                    [unsafely_incompatible_with_s3_conditional_writes] setting was deprecated in Elasticsearch and will be removed \
+                    in a future release. See the breaking changes documentation for the next major version.""");
+            }
+            if (settings.keySet().contains("disable_chunked_encoding")) {
+                expectedWarnings.add("""
+                    [s3.client.placeholder.disable_chunked_encoding] setting was deprecated in Elasticsearch and will be removed \
+                    in a future release. See the breaking changes documentation for the next major version.""");
+            }
+            if (settings.keySet().contains("legacy_content_md5")) {
+                expectedWarnings.add("""
+                    [s3.client.placeholder.legacy_content_md5] setting was deprecated in Elasticsearch and will be removed \
+                    in a future release. See the breaking changes documentation for the next major version.""");
+            }
+            if (settings.keySet().contains("unsafely_omit_request_body_checksums")) {
+                expectedWarnings.add("""
+                    [s3.client.placeholder.unsafely_omit_request_body_checksums] setting was deprecated in Elasticsearch and \
+                    will be removed in a future release. See the breaking changes documentation for the next major version.""");
+            }
+            if (expectedWarnings.isEmpty() == false) {
+                request.setOptions(expectWarnings(expectedWarnings.toArray(String[]::new)));
+            }
+
+            return request;
+
         }
     }
 
@@ -90,6 +111,14 @@ public abstract class AbstractRepositoryS3RestTestCase extends ESRestTestCase {
 
     protected static String getIdentifierPrefix(String testSuiteName) {
         return testSuiteName + "-" + Integer.toString(Murmur3HashFunction.hash(testSuiteName + System.getProperty("tests.seed")), 16) + "-";
+    }
+
+    /// Whether a request header declares a checksum, a checksum trailer or the algorithm for one.
+    static boolean isChecksumRequestHeader(String headerName) {
+        final var lowerCaseName = headerName.toLowerCase(Locale.ROOT);
+        return lowerCaseName.startsWith("x-amz-checksum-")
+            || lowerCaseName.equals("x-amz-trailer")
+            || lowerCaseName.equals("x-amz-sdk-checksum-algorithm");
     }
 
     private TestRepository newTestRepository() {

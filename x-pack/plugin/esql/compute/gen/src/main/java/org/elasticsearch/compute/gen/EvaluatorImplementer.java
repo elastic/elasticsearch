@@ -33,7 +33,7 @@ import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 
-import static org.elasticsearch.compute.gen.Methods.buildFromFactory;
+import static org.elasticsearch.compute.gen.Methods.buildResultFromFactory;
 import static org.elasticsearch.compute.gen.Types.BLOCK;
 import static org.elasticsearch.compute.gen.Types.CONSTANT_METHOD_RESULT_SPECIALIZER;
 import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
@@ -219,9 +219,9 @@ public class EvaluatorImplementer {
 
         TypeName builderType = vectorize ? vectorFixedBuilderType(elementType(resultDataType)) : builderType(resultDataType);
         builder.beginControlFlow(
-            "try($T result = driverContext.blockFactory().$L(positionCount))",
+            "try($T result = driverContext.blockFactory().$L)",
             builderType,
-            buildFromFactory(builderType)
+            buildResultFromFactory(builderType, true)
         );
         {
             processFunction.args.forEach(a -> {
@@ -304,7 +304,7 @@ public class EvaluatorImplementer {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("warnings");
         builder.addModifiers(Modifier.PRIVATE).returns(WARNINGS);
         builder.beginControlFlow("if (warnings == null)");
-        builder.addStatement("this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source)");
+        builder.addStatement("this.warnings = driverContext.createWarnings(source)");
         builder.endControlFlow();
         builder.addStatement("return warnings");
         return builder.build();

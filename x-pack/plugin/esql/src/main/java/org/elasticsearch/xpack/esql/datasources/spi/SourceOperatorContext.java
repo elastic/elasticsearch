@@ -7,10 +7,13 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
+import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
 import org.elasticsearch.xpack.esql.datasources.ExternalSliceQueue;
 import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 
@@ -55,6 +58,7 @@ public record SourceOperatorContext(
     List<Expression> pushedExpressions,
     FileList fileList,
     Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
+    @Nullable ExternalSchema unifiedSchema,
     @Nullable ExternalSplit split,
     Set<String> partitionColumnNames,
     @Nullable ExternalSliceQueue sliceQueue,
@@ -62,11 +66,12 @@ public record SourceOperatorContext(
     int maxConcurrentOpenSegments,
     int maxRecordBytes,
     int parallelism,
-    @Nullable String datasetName,
-    boolean deferredExtraction
+    boolean deferredExtraction,
+    DeclaredReadSpec declaredReadSpec,
+    TransportVersion minTransportVersion
 ) {
     /**
-     * Single source of truth for the {@code max_concurrent_open_segments} default. Lives in this SPI (leaf)
+     * Single source of truth for the {@code external_max_concurrent_open_segments} default. Lives in this SPI (leaf)
      * layer so both the {@code QueryPragmas} setting and the datasources-side fallback defaults reference it
      * without {@code datasources} having to depend on {@code plugin}. Change here and it propagates.
      */
@@ -84,6 +89,8 @@ public record SourceOperatorContext(
         partitionColumnNames = partitionColumnNames != null && partitionColumnNames.isEmpty() == false
             ? Collections.unmodifiableSet(new LinkedHashSet<>(partitionColumnNames))
             : Set.of();
+        declaredReadSpec = declaredReadSpec != null ? declaredReadSpec : DeclaredReadSpec.NONE;
+        minTransportVersion = minTransportVersion != null ? minTransportVersion : TransportVersion.current();
 
         if (batchSize <= 0) {
             throw new IllegalArgumentException("batchSize must be positive, got: " + batchSize);
@@ -132,6 +139,7 @@ public record SourceOperatorContext(
             null,
             fileList,
             Map.of(),
+            null,
             split,
             null,
             null,
@@ -139,8 +147,9 @@ public record SourceOperatorContext(
             DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             1,
-            null,
-            false
+            false,
+            DeclaredReadSpec.NONE,
+            TransportVersion.current()
         );
     }
 
@@ -176,12 +185,14 @@ public record SourceOperatorContext(
             null,
             null,
             null,
+            null,
             1,
             DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             1,
-            null,
-            false
+            false,
+            DeclaredReadSpec.NONE,
+            TransportVersion.current()
         );
     }
 
@@ -216,12 +227,14 @@ public record SourceOperatorContext(
             null,
             null,
             null,
+            null,
             1,
             DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             1,
-            null,
-            false
+            false,
+            DeclaredReadSpec.NONE,
+            TransportVersion.current()
         );
     }
 
@@ -254,12 +267,14 @@ public record SourceOperatorContext(
             null,
             null,
             null,
+            null,
             1,
             DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             1,
-            null,
-            false
+            false,
+            DeclaredReadSpec.NONE,
+            TransportVersion.current()
         );
     }
 
@@ -284,18 +299,20 @@ public record SourceOperatorContext(
         private List<Expression> pushedExpressions;
         private FileList fileList;
         private Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap;
+        @Nullable
+        private ExternalSchema unifiedSchema;
         private ExternalSplit split;
         private Set<String> partitionColumnNames;
         private ExternalSliceQueue sliceQueue;
         private int parsingParallelism = 1;
         private int maxConcurrentOpenSegments = DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS;
         // Default matches StreamingParallelParsingCoordinator's record-growth cap (64 MiB); the planner
-        // overrides it from the max_record_size query pragma.
+        // overrides it from the external_max_record_size query pragma.
         private int maxRecordBytes = SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES;
         private int parallelism = 1;
-        @Nullable
-        private String datasetName;
         private boolean deferredExtraction;
+        private DeclaredReadSpec declaredReadSpec = DeclaredReadSpec.NONE;
+        private TransportVersion minTransportVersion = TransportVersion.current();
 
         public Builder sourceType(String sourceType) {
             this.sourceType = sourceType;
@@ -419,23 +436,42 @@ public record SourceOperatorContext(
         }
 
         /**
-         * Registered dataset identifier (from {@code FROM <dataset>}), or {@code null} for inline
-         * {@code EXTERNAL}. Consumed by the operator factory's per-file {@code _index} synthesizer
-         * so the column carries the user-facing dataset name rather than the resource path.
+         * Whether the plan pairs this source with an {@code ExternalFieldExtractExec} consuming
+         * deferred-encoded columns. The operator factory keys deferred extraction off this flag,
+         * not off {@code _rowPosition} presence in the projection — the latter is also produced
+         * for plain {@code _file.record_ref} composition with no extract operator downstream.
          */
-        public Builder datasetName(@Nullable String datasetName) {
-            this.datasetName = datasetName;
+        public Builder deferredExtraction(boolean deferredExtraction) {
+            this.deferredExtraction = deferredExtraction;
             return this;
         }
 
         /**
-         * Whether the plan pairs this source with an {@code ExternalFieldExtractExec} consuming
-         * deferred-encoded columns. The operator factory keys deferred extraction off this flag,
-         * not off {@code _rowPosition} presence in the projection — the latter is also produced
-         * for plain {@code _id} composition with no extract operator downstream.
+         * The pre-prune unified schema, distinct from {@code attributes}, which the optimizer prunes to the
+         * query projection. A projection-dependent schema cannot identify how a file is read: a coordinator
+         * resolving the full schema and a data node reading a subset would derive different identities.
          */
-        public Builder deferredExtraction(boolean deferredExtraction) {
-            this.deferredExtraction = deferredExtraction;
+        public Builder unifiedSchema(@Nullable ExternalSchema unifiedSchema) {
+            this.unifiedSchema = unifiedSchema;
+            return this;
+        }
+
+        /**
+         * The declared mapping's read-instructions (renames, per-column date formats), or {@link DeclaredReadSpec#NONE}.
+         * Consumed by {@code FileSourceFactory}: renames physicalize reader-facing names, date formats drive
+         * per-column date parsing.
+         */
+        public Builder declaredReadSpec(DeclaredReadSpec declaredReadSpec) {
+            this.declaredReadSpec = declaredReadSpec;
+            return this;
+        }
+
+        /**
+         * The oldest transport version in the cluster of the node that reads, which decides how the reader binds a file
+         * when part of the query may be read by an older node. Defaults to this build's version.
+         */
+        public Builder minTransportVersion(TransportVersion minTransportVersion) {
+            this.minTransportVersion = minTransportVersion;
             return this;
         }
 
@@ -456,6 +492,7 @@ public record SourceOperatorContext(
                 pushedExpressions,
                 fileList,
                 schemaMap,
+                unifiedSchema,
                 split,
                 partitionColumnNames,
                 sliceQueue,
@@ -463,8 +500,9 @@ public record SourceOperatorContext(
                 maxConcurrentOpenSegments,
                 maxRecordBytes,
                 parallelism,
-                datasetName,
-                deferredExtraction
+                deferredExtraction,
+                declaredReadSpec,
+                minTransportVersion
             );
         }
     }

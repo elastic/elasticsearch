@@ -1,0 +1,157 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.search.heappressure;
+
+import org.elasticsearch.client.Request;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.rest.HeapPressureTestCase;
+import org.junit.Before;
+import org.junit.ClassRule;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.concurrent.Future;
+
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
+
+/**
+ * Case-insensitive wildcard queries on a {@code keyword} runtime field ({@code StringScriptFieldWildcardQuery}) must have their
+ * automaton accounted by the request circuit breaker.
+ *
+ * <p>A wildcard pattern is bounded by the fixed determinization work limit (10,000), so one automaton allocates tens of MB and retains
+ * about 10 MB per shard. That cannot exhaust a normal heap, so the cluster runs with a deliberately small one, where the automatons of
+ * a few overlapping requests do. Charged to the breaker, the excess requests are rejected; uncharged, the node runs out of memory.
+ *
+ * <p>The index is a regular one, so the pausable field {@code p} and the runtime keyword {@code r} are both defined the same way as in
+ * a user's request or mapping.
+ */
+public class RuntimeKeywordWildcardHeapPressureIT extends HeapPressureTestCase {
+
+    private static final String INDEX = "runtime-keyword-heap-pressure";
+    private static final int SHARDS = 5;
+    // More than the REST client's default of 10 connections per route, so no more than that many are parked at once and the rest wait
+    // for one to be freed. Five shards each, even ten are enough to occupy the whole search pool.
+    private static final int THREAD_COUNT = 8;
+    // '*a' followed by N '?' determinizes to 2^N states: 8192 for N=11, the most the default 10,000 work limit accepts.
+    private static final String HEAVY_WILDCARD = "*a???????????*";
+    private static final String SMALL_WILDCARD = "*a????*";
+    // Set this to true to disable the circuit breaker and validate that the OOM actually happens instead of being caught by the breaker.
+    private static final boolean VALIDATE_OOM = false;
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .nodes(1)
+        .module("test-pausable-field")
+        .module("lang-painless")
+        // Parked requests hold one search thread each, so the pool has to be large enough for their automatons to add up to more than
+        // the heap.
+        .setting("thread_pool.search.size", "32")
+        .jvmArg("-Xms256m")
+        .jvmArg("-Xmx256m")
+        .apply(c -> {
+            if (VALIDATE_OOM) {
+                c.setting("indices.breaker.request.limit", "-1");
+                c.setting("indices.breaker.total.use_real_memory", "false");
+                c.setting("indices.breaker.total.limit", "100gb");
+            }
+        })
+        .build();
+
+    @Override
+    protected ElasticsearchCluster cluster() {
+        return cluster;
+    }
+
+    @Before
+    public void createTestIndex() throws IOException {
+        Request create = new Request("PUT", "/" + INDEX);
+        create.setJsonEntity(Strings.format("""
+            {
+              "settings": {"number_of_shards": %d, "number_of_replicas": 0},
+              "mappings": {
+                "runtime": {"r": {"type": "keyword", "script": {"source": "emit(params._source.src)"}}},
+                "properties": {"src": {"type": "keyword", "index": false}}
+              }
+            }
+            """, SHARDS));
+        client().performRequest(create);
+
+        // Automatons are built per shard however few documents it holds, so a few per shard is enough.
+        StringBuilder bulk = new StringBuilder();
+        for (int i = 0; i < SHARDS * 10; i++) {
+            bulk.append("{\"index\":{}}\n{\"src\":\"value-").append(i).append("-abcabcabc\"}\n");
+        }
+        Request bulkRequest = new Request("POST", "/" + INDEX + "/_bulk");
+        bulkRequest.addParameter("refresh", "true");
+        bulkRequest.setJsonEntity(bulk.toString());
+        client().performRequest(bulkRequest);
+    }
+
+    /**
+     * Heavy requests sent at the same time either complete or have shards rejected by the breaker, never anything else, and the node
+     * survives them. The pausable field is unblocked as soon as enough search threads are busy, which can be before any shard parks, so
+     * the overlap depends on timing.
+     *
+     * <p>The breaker rejects shards, not whole requests, and a request that keeps any of its shards returns partial results. Which
+     * shards get through depends on timing, so the test counts rejected shards.
+     */
+    public void testPausedHeavyCaseInsensitiveWildcardsTripBreaker() throws Exception {
+        /* A pattern that fits comfortably under the breaker is unaffected. */
+        assertNull(errorBodyOrNull(wildcardSearch(SMALL_WILDCARD, false)));
+
+        List<Future<Integer>> futures;
+        blockPauseField();
+        try {
+            futures = submit(THREAD_COUNT, () -> circuitBreakerRejectedShards(wildcardSearch(HEAVY_WILDCARD, true), SHARDS));
+            waitForOverlappingRequests(2);
+        } finally {
+            unblockPauseField();
+        }
+        int rejectedShards = 0;
+        for (Future<Integer> future : futures) {
+            rejectedShards += future.get();
+        }
+        assertThat("expected the request breaker to reject some of the overlapping shard requests", rejectedShards, greaterThan(0));
+        // Otherwise no shard ever holds its automaton, and the test only covers the cost of building one.
+        assertThat(
+            "expected some of the shard requests to get past the breaker and hold their automaton",
+            rejectedShards,
+            lessThan(THREAD_COUNT * SHARDS)
+        );
+        // Check that the node didn't OOM and is still alive.
+        assertNodeAlive();
+    }
+
+    /**
+     * A case-insensitive wildcard search on the runtime field {@code r}, which is never rewritten to a plain term, so the automaton is
+     * always built. It also filters on the runtime field {@code p}: the automaton is built with the query, and the script only runs
+     * later, when documents are scored, so while the field is blocked every such request keeps its automaton alive and parks a search
+     * thread.
+     */
+    private static Request wildcardSearch(String pattern, boolean pausable) {
+        String wildcard = Strings.format("""
+            {"wildcard": {"r": {"value": "%s", "case_insensitive": true}}}""", pattern);
+        Request search = new Request("POST", "/" + INDEX + "/_search");
+        // Each request has to build its automaton on every shard rather than be answered from the shard request cache.
+        search.addParameter("request_cache", "false");
+        search.setJsonEntity(pausable ? Strings.format("""
+            {
+              "size": 0,
+              "runtime_mappings": {"p": {"type": "long", "script": {"source": "", "lang": "pause"}}},
+              "query": {"bool": {"must": [%s], "filter": [{"term": {"p": 1}}]}}
+            }
+            """, wildcard) : Strings.format("""
+            {"size": 0, "query": %s}
+            """, wildcard));
+        return search;
+    }
+}

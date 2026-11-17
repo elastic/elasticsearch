@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.gcs;
 
 import com.google.cloud.storage.StorageException;
 
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -62,12 +63,24 @@ final class GcsTransientTypingInputStream extends FilterInputStream {
         // rather than reading only the immediate cause. Absent a StorageException, a mid-read transport fault is
         // still transient, just not throttling.
         boolean throttling = false;
+        long retryAfterMs = 0L;
         for (Throwable c = e.getCause(); c != null; c = c.getCause()) {
             if (c instanceof StorageException se) {
                 throttling = ExternalUnavailableException.isThrottlingStatus(se.getCode());
+                if (throttling) {
+                    retryAfterMs = GcsStorageObject.retryAfterMsFromChain(se);
+                }
                 break;
             }
         }
-        return new ExternalUnavailableException(throttling, e, "transient read failure for [{}]", path);
+        return new ExternalUnavailableException(
+            throttling ? Condition.STORE_THROTTLED : Condition.STORE_UNAVAILABLE,
+            path,
+            "",
+            "",
+            throttling,
+            retryAfterMs,
+            e
+        );
     }
 }

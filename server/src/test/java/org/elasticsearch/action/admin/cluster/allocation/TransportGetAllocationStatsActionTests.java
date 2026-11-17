@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsTests;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
@@ -68,10 +69,8 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
 
     private TransportGetAllocationStatsAction action;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initServices() throws Exception {
         startTimeMillis = 0L;
         allocationStatsCacheTTL = TimeValue.timeValueMinutes(1);
         threadPool = new ControlledRelativeTimeThreadPool(TransportClusterAllocationExplainActionTests.class.getName(), startTimeMillis);
@@ -95,15 +94,13 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
             transportService,
             clusterService,
             threadPool,
-            new ActionFilters(Set.of()),
+            ActionFilters.EMPTY,
             allocationStatsService
         );
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void closeServices() throws Exception {
         threadPool.shutdown();
         clusterService.close();
         transportService.close();
@@ -323,6 +320,7 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
 
         ControlledRelativeTimeThreadPool(String name, long startTimeMillis) {
             super(
+                new ThreadContext(Settings.EMPTY),
                 Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), name).build(),
                 MeterRegistry.NOOP,
                 new DefaultBuiltInExecutorBuilders()

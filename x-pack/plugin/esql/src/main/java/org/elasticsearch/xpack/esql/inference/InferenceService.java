@@ -29,7 +29,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class InferenceService {
 
-    public static final String COMPLETION_PRODUCT_USE_CASE = "internal_completion";
+    /** Value of the {@code X-Elastic-Product-Use-Case} header for ESQL requests. */
+    public static final String ESQL_PRODUCT_USE_CASE = "ESQL";
 
     private InferenceSettings inferenceSettings;
 
@@ -95,7 +96,12 @@ public class InferenceService {
                 GetInferenceModelAction.INSTANCE,
                 new GetInferenceModelAction.Request(inferenceId, TaskType.ANY),
                 new ThreadedActionListener<>(threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION), ActionListener.wrap(r -> {
-                    ResolvedInference resolvedInference = new ResolvedInference(inferenceId, r.getEndpoints().getFirst().getTaskType());
+                    var endpoint = r.getEndpoints().getFirst();
+                    ResolvedInference resolvedInference = new ResolvedInference(
+                        inferenceId,
+                        endpoint.getTaskType(),
+                        endpoint.getServiceSettings().similarity()
+                    );
                     inferenceResolutionBuilder.withResolvedInference(resolvedInference);
                     countdownListener.onResponse(null);
                 }, e -> {

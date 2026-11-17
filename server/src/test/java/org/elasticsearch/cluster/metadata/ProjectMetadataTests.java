@@ -14,6 +14,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -90,14 +91,9 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class ProjectMetadataTests extends ESTestCase {
 
-    /**
-     * Preamble for {@code ensureNoNameCollisions}. The enumeration is gated by the ES|QL external data sources
-     * feature flag (snapshot-on, release-off), so assertions must branch on the flag to pass in both states.
-     */
+    /** Preamble for {@code ensureNoNameCollisions}. */
     private static String collisionPreamble() {
-        return DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()
-            ? "index, alias, data stream, view, and dataset names need to be unique"
-            : "index, alias, data stream, and view names need to be unique";
+        return "index, alias, data stream, view, and dataset names need to be unique";
     }
 
     /** {@link #collisionPreamble()} followed by " but the following duplicates were found " — trailing space, no open bracket. */
@@ -2260,7 +2256,6 @@ public class ProjectMetadataTests extends ESTestCase {
     }
 
     public void testRetrieveIndexModeFromTemplateColumnar() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         // columnar:
         var columnarTemplate = new Template(Settings.builder().put("index.mode", "columnar").build(), new CompressedXContent("{}"), null);
         // Settings in component template:
@@ -2295,7 +2290,6 @@ public class ProjectMetadataTests extends ESTestCase {
     }
 
     public void testRetrieveIndexModeFromTemplateColumnarLogsdb() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         // logsdb_columnar:
         var columnarLogsdbTemplate = new Template(
             Settings.builder().put("index.mode", "logsdb_columnar").build(),
@@ -2944,6 +2938,22 @@ public class ProjectMetadataTests extends ESTestCase {
         );
         final BytesReference actual = XContentHelper.toXContent(projectMetadata, XContentType.JSON, params, randomBoolean());
         assertToXContentEquivalent(expected, actual, XContentType.JSON);
+    }
+
+    public void testIsProjectUnderDeletion() {
+        final ProjectId deletingProject = randomUniqueProjectId();
+        final ProjectId otherProject = randomUniqueProjectId();
+
+        assertFalse(ProjectMetadata.isProjectUnderDeletion(ClusterBlocks.EMPTY_CLUSTER_BLOCK, deletingProject));
+
+        final ClusterBlocks blocks = ClusterBlocks.builder()
+            .addProjectGlobalBlock(deletingProject, ProjectMetadata.PROJECT_UNDER_DELETION_BLOCK)
+            .addProjectGlobalBlock(otherProject, ProjectMetadata.PROJECT_UNDER_CREATION_BLOCK)
+            .build();
+        assertTrue(ProjectMetadata.isProjectUnderDeletion(blocks, deletingProject));
+        // only the deletion block counts, and only for the project that carries it
+        assertFalse(ProjectMetadata.isProjectUnderDeletion(blocks, otherProject));
+        assertFalse(ProjectMetadata.isProjectUnderDeletion(blocks, randomUniqueProjectId()));
     }
 
     private static ProjectMetadata prepareProjectMetadata() {

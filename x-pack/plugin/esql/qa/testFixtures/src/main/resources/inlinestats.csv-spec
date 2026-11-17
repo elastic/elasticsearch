@@ -432,7 +432,6 @@ abbrev:keyword |  type:keyword   | scalerank:integer | min_scalerank:integer
 ;
 
 byMultivaluedMvExpand
-skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: inline_stats
 
 FROM airports
@@ -449,7 +448,6 @@ GWL            |9                  |4                      |military
 ;
 
 byMvExpand
-skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: inline_stats
 required_capability: st_x_y_quantized
 // ST_X and ST_Y return slightly different precision in older versions
@@ -1448,7 +1446,6 @@ salary:integer |x:keyword|gender:keyword |min_sl:integer |emp_no:integer
 ;
 
 overridingGroupings
-skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: inline_stats
 
 FROM employees
@@ -1468,7 +1465,6 @@ salary:integer |x:integer      |gender:keyword |min_sl:integer |emp_no:integer
 ;
 
 overridingExpressionGroupings
-skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: inline_stats
 
 FROM employees
@@ -1842,6 +1838,7 @@ max:integer |max_a:integer|min:integer | min_a:integer | emp_no:integer|salary:i
 
 inlinestatsWithNullFilter
 required_capability: inline_stats
+required_capability: warn_null_misuse
 from employees
 | inline stats max = max(salary), max_a = max(salary) where null,
         min = min(salary), min_a = min(salary) where to_string(null) == "abc"
@@ -1849,6 +1846,8 @@ from employees
 | sort emp_no
 | limit 3
 ;
+warning:Line 2:35: Expression [max_a = max(salary) where null] always evaluates to NULL.
+warning:Line 3:46: Expression [to_string(null) == \"abc\"] always evaluates to NULL.
 
 max:integer |max_a:integer|min:integer | min_a:integer | emp_no:integer
 74999       |null         |25324       |null           |10001          
@@ -1858,6 +1857,7 @@ max:integer |max_a:integer|min:integer | min_a:integer | emp_no:integer
 
 inlinestatsWithAllFiltersFalse
 required_capability: inline_stats
+required_capability: warn_null_misuse
 from employees
 | inline stats max = max(height.float) where false,
         min = min(height.float) where to_string(null) == "abc",
@@ -1867,6 +1867,8 @@ from employees
 | keep emp_no, salary, max, min, count*
 | limit 3
 ;
+warning:Line 3:31: Expression [to_string(null) == \"abc\"] always evaluates to NULL.
+warning:Line 5:47: Expression [to_string(null) == \"def\"] always evaluates to NULL.
 
 emp_no:integer|salary:integer| max:double |min:double |count:long |count_distinct:long
 10100         |68431         |null        |null       |0          |0
@@ -1876,6 +1878,7 @@ emp_no:integer|salary:integer| max:double |min:double |count:long |count_distinc
 
 inlinestatsWithAllFiltersFalse_GroupByOneField
 required_capability: inline_stats
+required_capability: warn_null_misuse
 from employees
 | inline stats max = max(height.float) where false, 
         min = min(height.float) where to_string(null) == "abc", 
@@ -1885,6 +1888,8 @@ from employees
 | keep emp_no, salary, max, min, count*, gender
 | limit 5
 ;
+warning:Line 3:31: Expression [to_string(null) == \"abc\"] always evaluates to NULL.
+warning:Line 5:47: Expression [to_string(null) == \"def\"] always evaluates to NULL.
 
     emp_no:i   |    salary:i   |      max:d    |      min:d    |     count:l   |count_distinct:l|    gender:s     
 10100          |68431          |null           |null           |0              |0               |F              
@@ -1896,6 +1901,7 @@ from employees
 
 inlinestatsWithAllFiltersFalse_GroupByTwoFields
 required_capability: inline_stats
+required_capability: warn_null_misuse
 from employees
 | inline stats max = max(height.float) where false, 
         min = min(height.float) where to_string(null) == "abc", 
@@ -1905,6 +1911,8 @@ from employees
 | keep emp_no, salary, max, min, count*, gender, languages
 | limit 5
 ;
+warning:Line 3:31: Expression [to_string(null) == \"abc\"] always evaluates to NULL.
+warning:Line 5:47: Expression [to_string(null) == \"def\"] always evaluates to NULL.
 
     emp_no:i   |    salary:i   |      max:d    |      min:d    |     count:l   |count_distinct:l|    gender:s  |languages:i   
 10100          |68431          |null           |null           |0              |0               |F              |4              
@@ -1916,6 +1924,7 @@ from employees
 
 prunedInlinestatsFollowedByInlinestats_GroupByOneFieldEach_DifferentFields
 required_capability: inline_stats
+required_capability: warn_null_misuse
 from employees
 | eval my_length = length(concat(first_name, null))
 | inline stats count = count(my_length) where false,
@@ -1925,6 +1934,7 @@ from employees
 | sort emp_no
 | limit 3
 ;
+warning:Line 2:27: Expression [concat(first_name, null)] always evaluates to NULL.
 
     emp_no:i   |  first_name:s |   my_length:i |     count:l   |    values:s   |   languages:i |count_distinct:l|    gender:s     
 10001          |Georgi         |null           |0              |null           |2              |1               |M              
@@ -1934,6 +1944,7 @@ from employees
 
 prunedInlinestatsFollowedByInlinestats_GroupByOneFieldEach_SameFields
 required_capability: inline_stats
+required_capability: warn_null_misuse
 from employees 
 | eval my_length = length(concat(first_name, null)) 
 | inline stats count = count(my_length) where false,
@@ -1943,6 +1954,7 @@ from employees
 | sort emp_no
 | limit 3
 ;
+warning:Line 2:27: Expression [concat(first_name, null)] always evaluates to NULL.
 
     emp_no:i   |  first_name:s |   my_length:i |     count:l   |    values:s   |   gender:s    |count_distinct:l|   languages:i   
 10001          |Georgi         |null           |0              |null           |M              |1               |2              
@@ -1953,6 +1965,7 @@ from employees
 prunedInlinestatsFollowedByInlinestats_GroupByOneFieldOnSecondInlinestats
 required_capability: inline_stats
 required_capability: inline_stats_fix_pruning_null_filter
+required_capability: warn_null_misuse
 from employees
 | eval my_length = length(concat(first_name, null))
 | inline stats count = count(my_length) where false, 
@@ -1962,6 +1975,7 @@ from employees
 | sort emp_no
 | limit 3
 ; 
+warning:Line 2:27: Expression [concat(first_name, null)] always evaluates to NULL.
 
     emp_no:i   |  first_name:s |   my_length:i |     count:l   |    values:s |    gender:s   |count_distinct:l|   languages:i   
 10001          |Georgi         |null           |0              |null         |M              |1               |2              
@@ -1971,6 +1985,7 @@ from employees
 
 partial_PrunedInlinestatsFollowedByInlinestats_GroupByOneFieldOnFirstInlinestats
 required_capability: inline_stats
+required_capability: warn_null_misuse
 from employees
 | eval my_length = length(concat(first_name, null))
 | inline stats count = count(is_rehired) where true, 
@@ -1980,6 +1995,7 @@ from employees
 | sort emp_no
 | limit 10
 ; 
+warning:Line 2:27: Expression [concat(first_name, null)] always evaluates to NULL.
 
     emp_no:i   |  first_name:s |   my_length:i |     count:l   |    values:s   |   languages:i |    gender:s   |count_distinct:l 
 10001          |Georgi         |null           |111            |null           |2              |M              |3              
@@ -1997,6 +2013,7 @@ from employees
 
 partial_PrunedInlinestatsFollowedByInlinestats_GroupByOneFieldOnFirstInlinestats2
 required_capability: inline_stats
+required_capability: warn_null_misuse
 from employees
 | eval my_length = length(concat(first_name, null))
 | inline stats count = count(is_rehired) where true, 
@@ -2007,6 +2024,7 @@ from employees
 | sort emp_no
 | limit 10
 ; 
+warning:Line 2:27: Expression [concat(first_name, null)] always evaluates to NULL.
 
     emp_no:i   |  first_name:s |   my_length:i |     count:l   |    count_d:l  |    values:s   |   languages:i |    gender:s   |count_distinct:l 
 10001          |Georgi         |null           |111            |2              |null           |2              |M              |3              
@@ -2024,6 +2042,7 @@ from employees
 
 inlinestatsWithExpressionsAllFiltersFalse
 required_capability: inline_stats
+required_capability: warn_null_misuse
 from employees
 | keep height.f*, emp_no
 | sort emp_no desc
@@ -2033,6 +2052,8 @@ from employees
 | limit 3
 | drop height.float
 ;
+warning:Line 4:16: Expression [max = max(height.float + 1) where null] always evaluates to NULL.
+warning:Line 6:64: Expression [length(null)] always evaluates to NULL.
 
     emp_no:i   |      max:d    |     count:l   |      mix:d      
 10100          |null           |2              |null           
@@ -2042,6 +2063,7 @@ from employees
 
 inlinestatsWithFalseFilterAndGroup
 required_capability: inline_stats
+required_capability: warn_null_misuse
 from employees
 | inline stats max = max(height.float + 1) where null,
         count = count(height.float) + 2 where false
@@ -2050,6 +2072,7 @@ from employees
 | limit 4
 | keep emp_no, job_positions, height.float, max, count
 ;
+warning:Line 2:16: Expression [max = max(height.float + 1) where null] always evaluates to NULL.
 
     emp_no:i   |          job_positions:s                |   height.float:d |      max:d    |     count:l     
 10100          |Purchase Manager                         |1.7699999809265137|null           |2              
@@ -2060,6 +2083,7 @@ from employees
 
 inlinestatsWithFalseFiltersAndGroups
 required_capability: inline_stats
+required_capability: warn_null_misuse
 from employees
 | eval my_length = length(concat(first_name, null))
 | inline stats count_distinct = count_distinct(height.float + 1) where null,
@@ -2070,6 +2094,7 @@ from employees
 | limit 10
 | keep emp_no, my_length, count*, values, job_positions, is_rehired
 ;
+warning:Line 2:27: Expression [concat(first_name, null)] always evaluates to NULL.
 
  emp_no:integer|my_length:integer|count_distinct:long|     count:long   |values:keyword |                            job_positions:keyword                           |    is_rehired:boolean        
 10100          |null             |[0, 0]             |[2, 2]            |null           |Purchase Manager                                                            |[false, false, true, true]
@@ -2086,6 +2111,7 @@ from employees
 
 inlinestatsWithFalseFiltersAndGroups_DropEvaledValue
 required_capability: inline_stats
+required_capability: warn_null_misuse
 from employees
 | eval my_length = length(concat(first_name, null))
 | inline stats count_distinct = count_distinct(height.float + 1) where null,
@@ -2096,6 +2122,7 @@ from employees
 | limit 10
 | keep emp_no, count*, values, job_positions, is_rehired
 ;
+warning:Line 2:27: Expression [concat(first_name, null)] always evaluates to NULL.
 
 
  emp_no:integer|count_distinct:long|     count:long   |values:keyword |                            job_positions:keyword                           |    is_rehired:boolean        
@@ -2113,6 +2140,7 @@ from employees
 
 inlinestatsWithMixedFiltersAndGroup
 required_capability: inline_stats
+required_capability: warn_null_misuse
 from employees
 | eval my_length = length(concat(first_name, null))
 | inline stats count = count(my_length) where false,
@@ -2122,6 +2150,7 @@ from employees
 | limit 4
 | keep *length, count, values, job_positions, emp_no
 ;
+warning:Line 2:27: Expression [concat(first_name, null)] always evaluates to NULL.
 
 my_length:integer| count:long    |                            values:keyword                             |                        job_positions:keyword                         |emp_no:integer     
 null             |[0, 0]         |[Arumugam, Bojan, Arumugam, Basil]                                     |[Accountant, Senior Python Developer]                                 |10001          
@@ -2133,6 +2162,7 @@ null             |[0, 0, 0, 0]   |[Berni, Chirstian, Amabile, Berni, Bojan, Chir
 prunedInlinestatsFollowedByInlinestats
 required_capability: inline_stats
 required_capability: inline_stats_fix_pruning_null_filter
+required_capability: warn_null_misuse
 from employees
 | eval my_length = length(concat(first_name, null))
 | inline stats count = count(my_length) where false,
@@ -2142,6 +2172,7 @@ from employees
 | sort emp_no
 | limit 3
 ;
+warning:Line 2:27: Expression [concat(first_name, null)] always evaluates to NULL.
 
     emp_no:i   |  first_name:s |  my_length:i  |     count:l   | values:s |count_distinct:l
 10001          |Georgi         |null           |0              |null      |1              
@@ -2581,7 +2612,6 @@ FROM employees
 ;
 
 groupingFilterIsAlwaysTrue
-skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: inline_stats
 FROM employees
 | MV_EXPAND job_positions
@@ -2600,7 +2630,6 @@ FROM employees
 
 
 groupingFilterIsAlwaysFalse
-skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: inline_stats
 FROM employees
 | MV_EXPAND job_positions
@@ -2619,7 +2648,6 @@ null           |48942          |Patricio          |A                      |10012
 
 
 groupingFilterSometimesMatches
-skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: inline_stats
 FROM employees
 | MV_EXPAND job_positions
@@ -3827,6 +3855,25 @@ emp_no:integer | hire_date:datetime       |c:long  | yr:datetime
 10044          | 1994-05-21T00:00:00.000Z | 4      | 1994-01-01T00:00:00.000Z
 ;
 
+DateTruncInlinestatsCountStarWithFilterOnCount
+required_capability: inline_stats
+
+FROM employees
+| KEEP emp_no, hire_date
+| INLINE STATS c = count(*) by yr=date_trunc(1 year, hire_date)
+| WHERE c > 10
+| STATS n = count(*) BY yr, c
+| SORT yr
+;
+
+n:long | yr:datetime              | c:long
+11     | 1985-01-01T00:00:00.000Z | 11
+11     | 1986-01-01T00:00:00.000Z | 11
+15     | 1987-01-01T00:00:00.000Z | 15
+13     | 1989-01-01T00:00:00.000Z | 13
+12     | 1990-01-01T00:00:00.000Z | 12
+;
+
 ImplicitCastingMultiTypedBucketDateNanosByYear
 required_capability: inline_stats
 
@@ -4126,6 +4173,7 @@ Raleigh     |1
 
 inlinestatsOptimizedAsLocalRelation_before_EsqlSession1
 required_capability: inline_stats_fix_optimized_as_local_relation
+required_capability: warn_null_misuse
 
 from employees 
 | keep first_name, emp_no 
@@ -4134,6 +4182,7 @@ from employees
 | sort first_name 
 | limit 5
 ;
+warning:Line 3:27: Expression [concat(first_name, null)] always evaluates to NULL.
 
   first_name:s |    emp_no:i   |   my_length:i |     count:l     
 Alejandro      |10059          |null           |0              
@@ -4145,6 +4194,7 @@ Arumugam       |10094          |null           |0
 
 inlinestatsOptimizedAsLocalRelation_before_EsqlSession2
 required_capability: inline_stats_fix_optimized_as_local_relation
+required_capability: warn_null_misuse
 
 from employees 
 | eval my_length = concat(first_name, null) 
@@ -4153,6 +4203,7 @@ from employees
 | sort emp_no 
 | limit 3
 ;
+warning:Line 2:20: Expression [concat(first_name, null)] always evaluates to NULL.
 
     emp_no:i   |     count:l   |   my_length:s   
 10001          |0              |null           
@@ -4296,7 +4347,7 @@ skip_flattened_rewrite: match_family_rejects_field_extract
 required_capability: inline_stats_double_release_fix
 required_capability: join_lookup_v12
 
-from date*,decades,dense*,distances,*,-addresses_*,-hosts_ip_is_kwd
+from date*,decades,dense*,distances,*,-addresses_*,-hosts_ip_is_kwd,-prometheus-k8s
 | rename scalerank as other2
 | rename author.keyword as name_str
 | rename intersects as is_active_bool
@@ -5061,6 +5112,319 @@ FROM employees
 62060.27272727273 |3              |28941          
 ;
 
+aggFilter_FirstSeenShape_PastInlineJoin
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+
+FROM employees
+| INLINE STATS first_hired = MIN(hire_date) BY languages
+| WHERE hire_date == first_hired AND first_hired >= "1985-03-01"
+| KEEP emp_no, languages, hire_date, first_hired
+| SORT emp_no
+;
+
+emp_no:integer | languages:integer |       hire_date:date     |    first_hired:date
+10029          |null               |1985-11-20T00:00:00.000Z  |1985-11-20T00:00:00.000Z
+10080          |5                  |1985-11-19T00:00:00.000Z  |1985-11-19T00:00:00.000Z
+10090          |2                  |1986-03-14T00:00:00.000Z  |1986-03-14T00:00:00.000Z
+10098          |4                  |1985-05-13T00:00:00.000Z  |1985-05-13T00:00:00.000Z
+;
+
+aggFilter_FirstSeenShape_TwoKeys_PastInlineJoin
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+
+FROM employees
+| INLINE STATS first_hired = MIN(hire_date) BY languages, gender
+| WHERE hire_date == first_hired AND first_hired >= "1986-01-01"
+| KEEP emp_no, languages, gender, hire_date, first_hired
+| SORT emp_no
+;
+
+emp_no:integer | languages:integer | gender:keyword |       hire_date:date     |    first_hired:date
+10010          |4                  |null            |1989-08-24T00:00:00.000Z  |1989-08-24T00:00:00.000Z
+10014          |5                  |null            |1987-03-11T00:00:00.000Z  |1987-03-11T00:00:00.000Z
+10018          |2                  |null            |1987-04-03T00:00:00.000Z  |1987-04-03T00:00:00.000Z
+10027          |null               |F               |1989-07-07T00:00:00.000Z  |1989-07-07T00:00:00.000Z
+10079          |2                  |F               |1986-03-27T00:00:00.000Z  |1986-03-27T00:00:00.000Z
+10090          |2                  |M               |1986-03-14T00:00:00.000Z  |1986-03-14T00:00:00.000Z
+10095          |4                  |M               |1986-07-15T00:00:00.000Z  |1986-07-15T00:00:00.000Z
+;
+
+// A multi-valued grouping key joins every group of the row, so first_hired is multi-valued and both comparisons are null for
+// those rows. Filtering the groups before the join would leave some rows with a single value and return 10066 and 10071 too.
+aggFilter_FirstSeenShape_MultiValuedKey_PastInlineJoin
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+
+FROM employees
+| INLINE STATS first_hired = MIN(hire_date) BY job_positions
+| WHERE hire_date == first_hired AND first_hired >= "1986-01-01"
+| KEEP emp_no, job_positions, hire_date, first_hired
+| SORT emp_no
+;
+warning:Line 3:9: evaluation of [hire_date == first_hired] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 3:38: evaluation of [first_hired >= \"1986-01-01\"] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:38: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer | job_positions:keyword |       hire_date:date     |    first_hired:date
+10053          |Support Engineer       |1986-02-04T00:00:00.000Z  |1986-02-04T00:00:00.000Z
+;
+
+// Every grouping key needs its own multi-valued guard. job_positions is the only multi-valued key and sits between gender and
+// languages, so guarding only the first or only the last key would drop some of its groups and return 55 rows.
+aggFilter_FirstSeenShape_ThreeKeys_MultiValuedMiddleKey_PastInlineJoin
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+
+FROM employees
+| INLINE STATS first_hired = MIN(hire_date) BY gender, job_positions, languages
+| WHERE MV_MIN(first_hired) >= "1988-01-01"
+| STATS n = COUNT(*), s = SUM(emp_no)
+;
+
+n:long | s:long
+37     | 371737
+;
+
+aggFilter_ExistingKeyCount_PastInlineJoin
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+
+FROM employees
+| INLINE STATS k = COUNT(languages), s = SUM(salary) BY languages
+| WHERE s > 500000
+| STATS n = COUNT(*), sk = SUM(k), ss = SUM(s)
+;
+
+n:long | sk:long | ss:long
+100    | 1640    | 83020037
+;
+
+// AVG(languages) is computed from SUM(languages) and COUNT(languages), so the guard reuses that count too.
+aggFilter_ExistingKeyCountFromAvg_PastInlineJoin
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+
+FROM employees
+| INLINE STATS a = AVG(languages), m = MAX(salary) BY languages
+| WHERE m > 70000
+| STATS n = COUNT(*), sa = SUM(a), sm = SUM(m)
+;
+
+n:long | sa:double | sm:long
+79     | 176.0     | 5870513
+;
+
+// Left rows of a group without a matching right row get a null aggregate, which IS NULL accepts.
+nullAcceptingAggFilter_IsNull_PastInlineJoin
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+
+FROM employees
+| INLINE STATS max_salary = MAX(salary) WHERE salary > 73000 BY languages
+| WHERE max_salary IS NULL
+| STATS count = COUNT(*) BY languages
+| SORT languages
+;
+
+count:long | languages:integer
+21         |5
+;
+
+nullAcceptingAggFilter_Coalesce_PastInlineJoin
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+
+FROM employees
+| INLINE STATS max_salary = MAX(salary) WHERE salary > 73000 BY languages
+| WHERE COALESCE(max_salary, 0) < 74000
+| STATS count = COUNT(*) BY languages, max_salary
+| SORT languages
+;
+
+count:long | languages:integer | max_salary:integer
+15         |1                  |73717
+19         |2                  |73578
+21         |5                  |null
+;
+
+aggFilter_NoGrouping_NoMatch_PastInlineJoin
+required_capability: inline_stats
+
+FROM employees
+| INLINE STATS max_salary = MAX(salary)
+| WHERE max_salary > 80000
+| KEEP emp_no, max_salary
+;
+
+emp_no:integer | max_salary:integer
+;
+
+aggFilter_NoGrouping_AllMatch_PastInlineJoin
+required_capability: inline_stats
+
+FROM employees
+| INLINE STATS max_salary = MAX(salary)
+| WHERE max_salary > 70000
+| KEEP emp_no, salary, max_salary
+| SORT salary DESC
+| LIMIT 3
+;
+
+emp_no:integer | salary:integer | max_salary:integer
+10029          |74999           |74999
+10045          |74970           |74999
+10007          |74572           |74999
+;
+
+aggFilter_NoGroupMatches_PastInlineJoin
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+
+FROM employees
+| INLINE STATS m = MAX(salary) BY languages
+| WHERE m > 75000
+| KEEP emp_no, m
+;
+
+emp_no:integer | m:integer
+;
+
+aggFilter_NoGroupMatches_ThenStats_PastInlineJoin
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+
+FROM employees
+| INLINE STATS m = MAX(salary) BY languages
+| WHERE m > 75000
+| STATS n = COUNT(*)
+;
+
+n:long
+0
+;
+
+aggFilter_NoGroupMatches_ThenLookupJoin_PastInlineJoin
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+required_capability: join_lookup_v12
+
+FROM employees
+| INLINE STATS m = MAX(salary) BY languages
+| WHERE m > 75000
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| KEEP emp_no, language_name
+;
+
+emp_no:integer | language_name:keyword
+;
+
+aggFilter_ThenLookupJoin_PastInlineJoin
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+required_capability: join_lookup_v12
+
+FROM employees
+| INLINE STATS m = MAX(salary) BY languages
+| WHERE m > 70000
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| STATS n = COUNT(*) BY language_name
+| SORT language_name
+;
+
+n:long | language_name:keyword
+15     |English
+19     |French
+18     |German
+17     |Spanish
+10     |null
+;
+
+aggFilter_WithCountStar_PastInlineJoin
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+
+FROM employees
+| INLINE STATS c = COUNT(*), m = MAX(salary) BY languages
+| WHERE m > 70000
+| STATS n = COUNT(*), sm = SUM(m)
+;
+
+n:long | sm:long
+79     | 5870513
+;
+
+aggFilter_WithCountStarAndKeyCount_PastInlineJoin
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+
+FROM employees
+| INLINE STATS c = COUNT(*), k = COUNT(languages), m = MAX(salary) BY languages
+| WHERE m > 70000
+| KEEP emp_no, m
+| STATS n = COUNT(*), sm = SUM(m)
+;
+
+n:long | sm:long
+79     | 5870513
+;
+
+aggFilter_OnInnerOfTwoInlineJoins
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+
+FROM employees
+| INLINE STATS m = MAX(salary) BY languages
+| INLINE STATS g = MIN(salary) BY gender
+| WHERE m > 70000
+| DROP g
+| STATS n = COUNT(*), sm = SUM(m)
+;
+
+n:long | sm:long
+79     | 5870513
+;
+
+aggFilter_OnOuterOfTwoInlineJoins
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+
+FROM employees
+| INLINE STATS g = MIN(salary) BY gender
+| INLINE STATS m = MAX(salary) BY languages
+| WHERE m > 70000
+| DROP g
+| STATS n = COUNT(*), sm = SUM(m)
+;
+
+n:long | sm:long
+79     | 5870513
+;
+
+aggFilter_InForkBranches_PastInlineJoin
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+required_capability: fork_v9
+
+FROM employees
+| INLINE STATS m = MAX(salary), c = COUNT(*) BY languages
+| FORK (WHERE m > 74000 | KEEP emp_no, languages)
+       (WHERE c > 20 | KEEP emp_no, languages)
+| STATS n = COUNT(*) BY _fork, languages
+| SORT _fork, languages
+;
+
+n:long | _fork:keyword | languages:integer
+17     |fork1          |3
+18     |fork1          |4
+10     |fork1          |null
+21     |fork2          |5
+;
+
 doubleInlineStatsPrunning_With_MV_Functions
 required_capability: fix_inline_stats_incorrect_prunning
 
@@ -5180,10 +5544,12 @@ w:integer | x:null | y:null | z:integer | a:integer | b:null | c:null | d:double
 
 fixInlineStatsAggOnNullGivenMultipleAggsWithExpressionsAndBy
 required_capability: fix_agg_on_null_by_replacing_with_eval
+required_capability: warn_null_misuse
 
 ROW w = 1 * 10, x = null, y = null + 3, z = 42
 | INLINE STATS a = MIN(w) + 1, b = MIN(x), c = MAX(y) by z
 ;
+warning:Line 1:31: Expression [null + 3] always evaluates to NULL.
 
 w:integer | x:null | y:integer | a:integer | b:null | c:integer | z:integer
 10        | null   | null      | 11        | null   | null      | 42

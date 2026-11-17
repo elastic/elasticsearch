@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ccr.index.engine;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -62,6 +63,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -99,9 +102,8 @@ public class FollowingEngineTests extends ESTestCase {
     private AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
     private IndexMode indexMode;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initEngineTestResources() throws Exception {
         Settings settings = Settings.builder()
             .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), randomBoolean())
             .build();
@@ -118,10 +120,19 @@ public class FollowingEngineTests extends ESTestCase {
         indexMode = randomFrom(IndexMode.availableModes());
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void cleanupEngineTestResources() throws Exception {
         IOUtils.close(nodeEnvironment, () -> terminate(threadPool));
-        super.tearDown();
+    }
+
+    @Override
+    protected List<String> filteredWarnings() {
+        final var warnings = super.filteredWarnings();
+        warnings.add(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
+        );
+        return warnings;
     }
 
     public void testFollowingEngineRejectsNonFollowingIndex() throws IOException {
@@ -404,7 +415,7 @@ public class FollowingEngineTests extends ESTestCase {
             EngineTestCase.waitForOpsToComplete(follower, leader.getProcessedLocalCheckpoint());
             assertThat(follower.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(-1L));
             assertThat(getNumVersionLookups(follower), equalTo(0L));
-            assertThat(getDocIds(follower, true, false), equalTo(getDocIds(leader, true, false)));
+            assertThat(getDocIds(follower, true), equalTo(getDocIds(leader, true)));
 
             // Do not apply optimization for deletes or updates
             long versionLookUps = 0;
@@ -420,11 +431,11 @@ public class FollowingEngineTests extends ESTestCase {
             EngineTestCase.waitForOpsToComplete(follower, leader.getProcessedLocalCheckpoint());
             assertThat(getNumVersionLookups(follower), greaterThanOrEqualTo(versionLookUps));
             assertThat(follower.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(leader.getMaxSeqNoOfUpdatesOrDeletes()));
-            assertThat(getDocIds(follower, true, false), equalTo(getDocIds(leader, true, false)));
+            assertThat(getDocIds(follower, true), equalTo(getDocIds(leader, true)));
             // Apply optimization for documents that do not exist
             long moreDocs = between(1, 100);
             versionLookUps = getNumVersionLookups(follower);
-            Set<String> docIds = getDocIds(follower, true, false).stream().map(doc -> doc.id()).collect(Collectors.toSet());
+            Set<String> docIds = getDocIds(follower, true).stream().map(doc -> doc.id()).collect(Collectors.toSet());
             for (int i = 0; i < moreDocs; i++) {
                 String docId = randomValueOtherThanMany(docIds::contains, () -> Integer.toString(between(1, 1000)));
                 docIds.add(docId);
@@ -433,7 +444,7 @@ public class FollowingEngineTests extends ESTestCase {
             EngineTestCase.waitForOpsToComplete(follower, leader.getProcessedLocalCheckpoint());
             assertThat(follower.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(leader.getMaxSeqNoOfUpdatesOrDeletes()));
             assertThat(getNumVersionLookups(follower), equalTo(versionLookUps));
-            assertThat(getDocIds(follower, true, false), equalTo(getDocIds(leader, true, false)));
+            assertThat(getDocIds(follower, true), equalTo(getDocIds(leader, true)));
         });
     }
 
@@ -502,7 +513,7 @@ public class FollowingEngineTests extends ESTestCase {
         runFollowTest((leader, follower) -> {
             EngineTestCase.concurrentlyApplyOps(ops, leader);
             EngineTestCase.waitForOpsToComplete(follower, leader.getProcessedLocalCheckpoint());
-            assertThat(getDocIds(follower, true, false), equalTo(getDocIds(leader, true, false)));
+            assertThat(getDocIds(follower, true), equalTo(getDocIds(leader, true)));
 
             leader.delete(deleteForPrimary("id"));
             EngineTestCase.waitForOpsToComplete(follower, leader.getProcessedLocalCheckpoint());
@@ -627,7 +638,7 @@ public class FollowingEngineTests extends ESTestCase {
                     thread.join();
                 }
                 assertThat(follower.getMaxSeqNoOfUpdatesOrDeletes(), greaterThanOrEqualTo(leader.getMaxSeqNoOfUpdatesOrDeletes()));
-                assertThat(getDocIds(follower, true, false), equalTo(getDocIds(leader, true, false)));
+                assertSameLiveDocs(leader, follower);
                 EngineTestCase.assertConsistentHistoryBetweenTranslogAndLuceneIndex(follower);
                 EngineTestCase.assertAtMostOneLuceneDocumentPerSequenceNumber(follower);
             }
@@ -667,6 +678,50 @@ public class FollowingEngineTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    /**
+     * Asserts that the follower and the leader hold the same live documents. On mismatch, the failure message lists only the
+     * differing documents (and the engine sequence number state) because the full lists are huge and get truncated in CI reports.
+     */
+    private void assertSameLiveDocs(InternalEngine leader, FollowingEngine follower) throws IOException {
+        final List<DocIdSeqNoAndSource> leaderDocs = getDocIds(leader, true);
+        final List<DocIdSeqNoAndSource> followerDocs = getDocIds(follower, true);
+        if (leaderDocs.equals(followerDocs)) {
+            return;
+        }
+        final Set<DocIdSeqNoAndSource> followerSet = Set.copyOf(followerDocs);
+        final Set<DocIdSeqNoAndSource> leaderSet = Set.copyOf(leaderDocs);
+        final String onlyOnLeader = leaderDocs.stream()
+            .filter(doc -> followerSet.contains(doc) == false)
+            .map(FollowingEngineTests::describeDoc)
+            .collect(Collectors.joining("\n  ", "\n  ", ""));
+        final String onlyOnFollower = followerDocs.stream()
+            .filter(doc -> leaderSet.contains(doc) == false)
+            .map(FollowingEngineTests::describeDoc)
+            .collect(Collectors.joining("\n  ", "\n  ", ""));
+        throw new AssertionError(
+            Strings.format(
+                "follower live docs differ from leader live docs: leader has [%d] docs, follower has [%d] docs, "
+                    + "leader [processedCheckpoint=%d, maxSeqNo=%d, maxSeqNoOfUpdatesOrDeletes=%d], "
+                    + "follower [processedCheckpoint=%d, maxSeqNo=%d, maxSeqNoOfUpdatesOrDeletes=%d]"
+                    + "%nonly on leader:%s%nonly on follower:%s",
+                leaderDocs.size(),
+                followerDocs.size(),
+                leader.getProcessedLocalCheckpoint(),
+                leader.getSeqNoStats(-1).getMaxSeqNo(),
+                leader.getMaxSeqNoOfUpdatesOrDeletes(),
+                follower.getProcessedLocalCheckpoint(),
+                follower.getSeqNoStats(-1).getMaxSeqNo(),
+                follower.getMaxSeqNoOfUpdatesOrDeletes(),
+                onlyOnLeader,
+                onlyOnFollower
+            )
+        );
+    }
+
+    private static String describeDoc(DocIdSeqNoAndSource doc) {
+        return Strings.format("id=[%s] seqNo=[%d] primaryTerm=[%d] version=[%d]", doc.id(), doc.seqNo(), doc.primaryTerm(), doc.version());
     }
 
     private void fetchOperations(AtomicBoolean stopped, AtomicLong lastFetchedSeqNo, InternalEngine leader, FollowingEngine follower)
@@ -786,6 +841,7 @@ public class FollowingEngineTests extends ESTestCase {
             case LOGSDB:
             case COLUMNAR:
             case LOGSDB_COLUMNAR:
+            case VECTORDB_COLUMNAR:
                 settingsBuilder.put("index.mode", indexMode.getName());
                 settingsBuilder.put("index.disable_sequence_numbers", "false");
                 settingsBuilder.put("index.seq_no.index_options", "points_and_doc_values");
@@ -829,7 +885,7 @@ public class FollowingEngineTests extends ESTestCase {
                         1L,
                         VersionType.EXTERNAL,
                         Engine.Operation.Origin.PRIMARY,
-                        threadPool.relativeTimeInMillis(),
+                        System.nanoTime(),
                         -1,
                         true,
                         SequenceNumbers.UNASSIGNED_SEQ_NO,
@@ -846,21 +902,25 @@ public class FollowingEngineTests extends ESTestCase {
                         1L,
                         VersionType.EXTERNAL,
                         Engine.Operation.Origin.PRIMARY,
-                        threadPool.relativeTimeInMillis(),
+                        System.nanoTime(),
                         SequenceNumbers.UNASSIGNED_SEQ_NO,
                         0
                     )
                 );
             } else {
-                operations.add(
-                    new Engine.NoOp(i, primaryTerm.get(), Engine.Operation.Origin.PRIMARY, threadPool.relativeTimeInMillis(), "test-" + i)
-                );
+                operations.add(new Engine.NoOp(i, primaryTerm.get(), Engine.Operation.Origin.PRIMARY, System.nanoTime(), "test-" + i));
             }
         }
         Randomness.shuffle(operations);
         final long oldTerm = randomLongBetween(1, Integer.MAX_VALUE);
         primaryTerm.set(oldTerm);
-        try (Store store = createStore(shardId, indexSettings, newDirectory())) {
+        final BaseDirectoryWrapper directory = newDirectory();
+        if (useSyntheticId) {
+            // Synthetic _id terms report docFreq/totalTermFreq as 0 (postings are synthesized), which CheckIndex rejects. A merge can
+            // trigger a flush, which commits a segment with synthetic _id terms that CheckIndex then visits when the directory closes.
+            directory.setCheckIndexOnClose(false);
+        }
+        try (Store store = createStore(shardId, indexSettings, directory)) {
             final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, threadPoolMergeExecutorService, store);
             try (FollowingEngine followingEngine = createEngine(store, engineConfig)) {
                 followingEngine.advanceMaxSeqNoOfUpdatesOrDeletes(operations.size() - 1L);
@@ -892,7 +952,7 @@ public class FollowingEngineTests extends ESTestCase {
                         assertThat(failure.getExistingPrimaryTerm().getAsLong(), equalTo(operationWithTerms.get(op.seqNo())));
                     }
                 }
-                for (DocIdSeqNoAndSource docId : getDocIds(followingEngine, true, false)) {
+                for (DocIdSeqNoAndSource docId : getDocIds(followingEngine, true)) {
                     assertThat(docId.primaryTerm(), equalTo(operationWithTerms.get(docId.seqNo())));
                 }
                 // Replica should accept duplicates
@@ -906,7 +966,7 @@ public class FollowingEngineTests extends ESTestCase {
                     Engine.Result result = applyOperation(followingEngine, op, newTerm, nonPrimary);
                     assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
                 }
-                for (DocIdSeqNoAndSource docId : getDocIds(followingEngine, true, false)) {
+                for (DocIdSeqNoAndSource docId : getDocIds(followingEngine, true)) {
                     assertThat(docId.primaryTerm(), equalTo(operationWithTerms.get(docId.seqNo())));
                 }
             }

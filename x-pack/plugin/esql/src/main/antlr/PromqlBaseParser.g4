@@ -84,7 +84,12 @@ modifier
 // NB: PromQL explicitly allows a trailing comma for label enumeration
 // both inside aggregation functions and metric labels.
 labelList
-    : LP (labelName COMMA?)* RP
+    : LP (labelListItem COMMA?)* RP
+    ;
+
+labelListItem
+    : labelName
+    | NAMED_OR_POSITIONAL_DOUBLE_PARAMS
     ;
 
 labels
@@ -116,8 +121,11 @@ evaluation
     | at offset?
     ;
 
+// like Prometheus, the offset binds to its selector before any binary operator, so an unparenthesized
+// duration is a single literal: `foo offset 5m > 1` compares the offset selector with 1, and arithmetic
+// over the duration needs parentheses, as in `foo offset (5m - 1m)`
 offset
-    : OFFSET MINUS? duration
+    : OFFSET (PLUS | MINUS)? (timeValue | LP duration RP)
     ;
 
 // do timeunit validation and break-down inside the parser

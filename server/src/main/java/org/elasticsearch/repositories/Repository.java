@@ -24,6 +24,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.plugins.internal.ShardGenerationListener;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
@@ -89,6 +90,12 @@ public interface Repository extends LifecycleComponent {
     ProjectId getProjectId();
 
     /**
+     * Registers a listener that is told about each shard generation blob this repository writes. Repositories that do not write shard
+     * generation blobs ignore it.
+     */
+    default void setShardGenerationListener(ShardGenerationListener listener) {}
+
+    /**
      * Get the project qualified repository
      */
     default ProjectRepo getProjectRepo() {
@@ -99,6 +106,13 @@ public interface Repository extends LifecycleComponent {
      * Returns metadata about this repository.
      */
     RepositoryMetadata getMetadata();
+
+    /**
+     * Returns information about deprecated repository features in use.
+     */
+    default Collection<RepositoryDeprecationInfo> getDeprecationInfos() {
+        return List.of();
+    }
 
     /**
      * Reads a collection of {@link SnapshotInfo} instances from the repository.
@@ -199,7 +213,7 @@ public interface Repository extends LifecycleComponent {
      *                                     exceptionally.
      */
     void deleteSnapshots(
-        Collection<SnapshotId> snapshotIds,
+        Set<SnapshotId> snapshotIds,
         long repositoryDataGeneration,
         IndexVersion minimumNodeVersion,
         ActionListener<RepositoryData> repositoryDataUpdateListener,

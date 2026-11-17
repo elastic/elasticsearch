@@ -18,13 +18,13 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.ES95CodecClusterSettingProvider;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.xcontent.XContentType;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -48,11 +48,6 @@ public class TSDBES95CodecDefaultIT extends ESIntegTestCase {
         plugins.add(InternalSettingsPlugin.class);
         plugins.add(DataStreamsPlugin.class);
         return plugins;
-    }
-
-    @Before
-    public void requireFeatureFlag() {
-        assumeTrue("es95_codec feature flag must be enabled", IndexSettings.ES95_CODEC_FEATURE_FLAG.isEnabled());
     }
 
     public void testEs95EnabledByDefault() throws Exception {
@@ -85,6 +80,72 @@ public class TSDBES95CodecDefaultIT extends ESIntegTestCase {
         final Settings settings = indexSettingsFor(backingIndex);
 
         assertThat(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING.get(settings), equalTo(false));
+    }
+
+    public void testClusterSettingDisablesCodecForNewIndices() throws Exception {
+        final String clusterKey = ES95CodecClusterSettingProvider.TIME_SERIES_ES95_CODEC_CLUSTER_ENABLED_SETTING.getKey();
+        updateClusterSettings(Settings.builder().put(clusterKey, false));
+        try {
+            final String dataStreamName = randomDataStreamName();
+            putTsdbTemplate(dataStreamName, Settings.EMPTY);
+            triggerBackingIndexCreation(dataStreamName);
+
+            final String backingIndex = getDataStreamBackingIndexNames(dataStreamName).getFirst();
+            final Settings settings = indexSettingsFor(backingIndex);
+
+            assertThat(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING.get(settings), equalTo(false));
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(clusterKey));
+        }
+    }
+
+    public void testClusterSettingOverridesExplicitOptIn() throws Exception {
+        final String clusterKey = ES95CodecClusterSettingProvider.TIME_SERIES_ES95_CODEC_CLUSTER_ENABLED_SETTING.getKey();
+        updateClusterSettings(Settings.builder().put(clusterKey, false));
+        try {
+            final String dataStreamName = randomDataStreamName();
+            putTsdbTemplate(
+                dataStreamName,
+                Settings.builder().put(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING.getKey(), true).build()
+            );
+            triggerBackingIndexCreation(dataStreamName);
+
+            final String backingIndex = getDataStreamBackingIndexNames(dataStreamName).getFirst();
+            final Settings settings = indexSettingsFor(backingIndex);
+
+            assertThat(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING.get(settings), equalTo(false));
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(clusterKey));
+        }
+    }
+
+    public void testClusterSettingDisablesCodecForStandaloneIndex() throws Exception {
+        final String clusterKey = ES95CodecClusterSettingProvider.TIME_SERIES_ES95_CODEC_CLUSTER_ENABLED_SETTING.getKey();
+        updateClusterSettings(Settings.builder().put(clusterKey, false));
+        try {
+            final String indexName = "tsdb-standalone-" + randomIdentifier();
+            final Settings settings = Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+                .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of("hostname"))
+                .put("index.time_series.start_time", "2024-01-01T00:00:00Z")
+                .put("index.time_series.end_time", "2025-01-01T00:00:00Z")
+                .build();
+            final String mapping = """
+                {
+                  "properties": {
+                    "@timestamp": { "type": "date" },
+                    "hostname":   { "type": "keyword", "time_series_dimension": true },
+                    "metric":     { "type": "long" }
+                  }
+                }
+                """;
+            assertAcked(indicesAdmin().prepareCreate(indexName).setSettings(settings).setMapping(mapping));
+
+            final Settings indexSettings = indexSettingsFor(indexName);
+            assertThat(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING.get(indexSettings), equalTo(false));
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(clusterKey));
+        }
     }
 
     public void testSettingIsFinal() throws Exception {

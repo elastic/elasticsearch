@@ -18,6 +18,7 @@ import com.google.cloud.storage.StorageException;
 
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.BlobVersionMismatchException;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -37,10 +38,11 @@ import org.junit.ClassRule;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.NoSuchFileException;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import static org.elasticsearch.common.io.Streams.readFully;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
@@ -113,6 +115,35 @@ public class GoogleCloudStorageThirdPartyTests extends AbstractThirdPartyReposit
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
     }
 
+    public void testMultipartUpload() {
+        final BlobStoreRepository repo = getRepository();
+        final int partSize = GoogleCloudStorageBlobStore.LARGE_BLOB_THRESHOLD_BYTE_SIZE;
+        final int blobSize = randomIntBetween(partSize + 1, partSize * 6);
+        final int nbParts = (blobSize + partSize - 1) / partSize;
+        final byte[] data = randomByteArrayOfLength(blobSize);
+        final String blobKey = randomIdentifier();
+
+        final ExecutorService executor = Executors.newFixedThreadPool(nbParts);
+        try {
+            executeOnBlobStore(repo, container -> {
+                container.writeBlobAtomic(
+                    randomPurpose(),
+                    blobKey,
+                    blobSize,
+                    (offset, length) -> new ByteArrayInputStream(data, Math.toIntExact(offset), Math.toIntExact(length)),
+                    false,
+                    executor
+                );
+                try (InputStream stream = container.readBlob(randomPurpose(), blobKey)) {
+                    assertArrayEquals(data, stream.readAllBytes());
+                }
+                return null;
+            });
+        } finally {
+            executor.shutdown();
+        }
+    }
+
     public void testReadFromPositionLargerThanBlobLength() {
         testReadFromPositionLargerThanBlobLength(
             e -> asInstanceOf(StorageException.class, e.getCause()).getCode() == RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus()
@@ -143,8 +174,8 @@ public class GoogleCloudStorageThirdPartyTests extends AbstractThirdPartyReposit
                 container.writeBlob(randomPurpose(), blobKey, new BytesArray(updatedValue), false);
 
                 // Read the rest of the stream, it should throw because the contents changed
-                String message = assertThrows(NoSuchFileException.class, () -> readFully(inputStream)).getMessage();
-                assertThat(message, containsString("unavailable on resume (contents changed, or object deleted):"));
+                String message = assertThrows(BlobVersionMismatchException.class, () -> readFully(inputStream)).getMessage();
+                assertThat(message, containsString("is no longer available: contents were modified"));
             } catch (Exception e) {
                 fail(e);
             }
@@ -170,7 +201,8 @@ public class GoogleCloudStorageThirdPartyTests extends AbstractThirdPartyReposit
                 sourceBlobContainer,
                 sourceBlobName,
                 destinationBlobName,
-                blobBytes.length()
+                blobBytes.length(),
+                null
             );
             return destinationBlobContainer.readBlob(randomPurpose(), destinationBlobName).readAllBytes();
         });
@@ -254,7 +286,7 @@ public class GoogleCloudStorageThirdPartyTests extends AbstractThirdPartyReposit
 
                     // server-side copy (source is the small single-part blob written above)
                     final String copyName = randomIdentifier();
-                    blobContainer.copyBlob(purpose, blobContainer, singlePartName, copyName, singlePartBytes.length());
+                    blobContainer.copyBlob(purpose, blobContainer, singlePartName, copyName, singlePartBytes.length(), null);
                     assertStorageClass(blobStore, bucket, keyPrefix + copyName, expectedStorageClass, "server-side copy", purpose);
                 }
             } finally {

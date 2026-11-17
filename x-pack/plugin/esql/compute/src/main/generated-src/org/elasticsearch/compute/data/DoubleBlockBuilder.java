@@ -25,12 +25,21 @@ import java.util.Arrays;
 final class DoubleBlockBuilder extends AbstractBlockBuilder implements DoubleBlock.Builder {
 
     private double[] values;
+    private final boolean enablePooling;
+    private long extraPooledBytes;
 
-    DoubleBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
+    DoubleBlockBuilder(int estimatedSize, BlockFactory blockFactory, boolean enablePooling) {
         super(blockFactory);
+        this.enablePooling = enablePooling;
         int initialSize = Math.max(estimatedSize, 2);
-        adjustBreaker(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) initialSize * elementSize());
-        values = new double[initialSize];
+        if (enablePooling) {
+            values = blockFactory.acquireDoubles(initialSize);
+            estimatedBytes = LocalArrayPool.usedBytesForDoubles(values.length);
+            extraPooledBytes = LocalArrayPool.usedBytesForDoubles(values.length - initialSize);
+        } else {
+            adjustBreaker(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) initialSize * elementSize());
+            values = new double[initialSize];
+        }
     }
 
     @Override
@@ -56,6 +65,7 @@ final class DoubleBlockBuilder extends AbstractBlockBuilder implements DoubleBlo
     @Override
     protected void growValuesArray(int newSize) {
         values = Arrays.copyOf(values, newSize);
+        extraPooledBytes = 0;
     }
 
     @Override
@@ -163,27 +173,42 @@ final class DoubleBlockBuilder extends AbstractBlockBuilder implements DoubleBlo
         return this;
     }
 
+    @Override
+    public long estimatedBytes() {
+        return isReleased() ? 0 : estimatedBytes - extraPooledBytes;
+    }
+
     private DoubleBlock buildBigArraysBlock() {
-        final DoubleBlock theBlock;
-        final DoubleArray array = blockFactory.bigArrays().newDoubleArray(valueCount, false);
-        for (int i = 0; i < valueCount; i++) {
-            array.set(i, values[i]);
-        }
-        if (isDense() && singleValued()) {
-            theBlock = new DoubleBigArrayVector(array, positionCount, blockFactory).asBlock();
-        } else {
-            theBlock = new DoubleBigArrayBlock(array, positionCount, firstValueIndexes, nullsMask, mvOrdering, blockFactory);
-        }
         /*
-        * Update the breaker with the actual bytes used.
-        * We pass false below even though we've used the bytes. That's weird,
-        * but if we break here we will throw away the used memory, letting
-        * it be deallocated. The exception will bubble up and the builder will
-        * still technically be open, meaning the calling code should close it
-        * which will return all used memory to the breaker.
-        */
-        blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes - array.ramBytesUsed());
-        return theBlock;
+         * Keep ownership of the BigArray until adjustBreaker succeeds. If it throws after
+         * wrapping, release the array here; the incomplete block is abandoned without close
+         * so we do not need BigArrayBlock.closeInternal's overhead debit on the failure path.
+         */
+        DoubleArray array = blockFactory.bigArrays().newDoubleArray(valueCount, false);
+        try {
+            for (int i = 0; i < valueCount; i++) {
+                array.set(i, values[i]);
+            }
+            final DoubleBlock theBlock;
+            if (isDense() && singleValued()) {
+                theBlock = new DoubleBigArrayVector(array, positionCount, blockFactory).asBlock();
+            } else {
+                theBlock = new DoubleBigArrayBlock(array, positionCount, firstValueIndexes, nullsMask, mvOrdering, blockFactory);
+            }
+            /*
+             * Update the breaker with the actual bytes used.
+             * We pass false below even though we've used the bytes. That's weird,
+             * but if we break here we will throw away the used memory, letting
+             * it be deallocated. The exception will bubble up and the builder will
+             * still technically be open, meaning the calling code should close it
+             * which will return all used memory to the breaker.
+             */
+            blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes - array.ramBytesUsed());
+            array = null; // ownership transferred to theBlock
+            return theBlock;
+        } finally {
+            Releasables.close(array);
+        }
     }
 
     @Override
@@ -206,6 +231,9 @@ final class DoubleBlockBuilder extends AbstractBlockBuilder implements DoubleBlo
                     mvOrdering,
                     estimatedBytes
                 );
+            }
+            if (enablePooling) {
+                theBlock.enablePooling();
             }
             built();
             return theBlock;

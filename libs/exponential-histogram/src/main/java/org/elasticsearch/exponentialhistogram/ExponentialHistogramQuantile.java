@@ -98,19 +98,27 @@ public class ExponentialHistogramQuantile {
             if (value > 0 || inclusive) {
                 rank += histo.zeroBucket().count();
             }
-            rank += estimateRank(histo.positiveBuckets().iterator(), value, inclusive, histo.max());
+            rank += estimateRank(histo.positiveBuckets().iterator(), value, inclusive, histo.min(), histo.max());
             return rank;
         } else {
-            long numValuesGreater = estimateRank(histo.negativeBuckets().iterator(), -value, inclusive == false, -histo.min());
+            long numValuesGreater = estimateRank(
+                histo.negativeBuckets().iterator(),
+                -value,
+                inclusive == false,
+                -histo.max(),
+                -histo.min()
+            );
             return histo.negativeBuckets().valueCount() - numValuesGreater;
         }
     }
 
-    private static long estimateRank(BucketIterator buckets, double value, boolean inclusive, double maxValue) {
+    private static long estimateRank(BucketIterator buckets, double value, boolean inclusive, double minValue, double maxValue) {
         long rank = 0;
         while (buckets.hasNext()) {
             double bucketMidpoint = ExponentialScaleUtils.getPointOfLeastRelativeError(buckets.peekIndex(), buckets.scale());
-            bucketMidpoint = Math.min(bucketMidpoint, maxValue);
+            // no values outside of [minValue, maxValue] exist in the histogram, so clamp the midpoint accordingly.
+            // This e.g. matters when querying the rank of exactly the minimum or maximum with a midpoint slightly off
+            bucketMidpoint = Math.clamp(bucketMidpoint, minValue, maxValue);
             if (bucketMidpoint < value || (inclusive && bucketMidpoint == value)) {
                 rank += buckets.peekCount();
                 buckets.advance();

@@ -131,7 +131,7 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
             transportService,
             clusterService,
             threadPool,
-            new ActionFilters(emptySet()),
+            ActionFilters.EMPTY,
             reconfigurator
         ); // registers action
 

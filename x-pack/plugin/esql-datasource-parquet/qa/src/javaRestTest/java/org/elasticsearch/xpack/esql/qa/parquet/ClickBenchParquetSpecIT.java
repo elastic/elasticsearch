@@ -13,9 +13,13 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.elasticsearch.Version;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.xpack.esql.CsvSpecReader;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.CsvSpecReader.DatasetSource;
 import org.elasticsearch.xpack.esql.SpecReader;
+import org.elasticsearch.xpack.esql.datasources.DatasetRegistry;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
+import org.junit.AfterClass;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
@@ -26,10 +30,10 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 
@@ -40,7 +44,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
  *   <li>A single-file dataset ({@code clickbench/hits.parquet})</li>
  *   <li>A 5-file split dataset ({@code clickbench_multi/hits_*.parquet})</li>
  * </ul>
- * Every query in {@code external-clickbench.csv-spec} uses the generic {@code {{clickbench}}} template.
+ * Every query in {@code clickbench/external-clickbench.csv-spec} uses the generic {@code {{clickbench}}} template.
  * This class cross-products each test with both {@link Layout} values, so every query runs once against
  * each dataset layout (43 queries x 2 layouts = 86 tests).
  * <p>
@@ -81,9 +85,9 @@ public class ClickBenchParquetSpecIT extends EsqlSpecTestCase {
 
     @ParametersFactory(argumentFormatting = "clickbench:%2$s.%3$s[%7$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
-        List<URL> urls = classpathResources("/external-clickbench.csv-spec");
+        List<URL> urls = classpathResources("/clickbench/external-clickbench.csv-spec");
         assertFalse("No clickbench csv-spec files found", urls.isEmpty());
-        List<Object[]> baseTests = SpecReader.readScriptSpec(urls, specParser());
+        List<Object[]> baseTests = SpecReader.readScriptSpec(urls, CsvSpecReader::specParser);
         List<Object[]> parameterizedTests = new ArrayList<>();
         for (Object[] base : baseTests) {
             for (Layout layout : Layout.values()) {
@@ -118,11 +122,25 @@ public class ClickBenchParquetSpecIT extends EsqlSpecTestCase {
         assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
     }
 
+    @AfterClass
+    public static void cleanupDatasets() throws IOException {
+        try {
+            DatasetRegistry.cleanup(adminClient());
+        } finally {
+            DatasetRegistry.clearCaches();
+        }
+    }
+
     @Override
     protected void doTest() throws Throwable {
-        String query = testCase.query;
-        query = substituteClickBenchTemplates(query);
-        doTest(query);
+        // Register the local data_source once and the `clickbench` dataset for the active layout, resolving
+        // the {{clickbench}} template to the single-file or multi-file URI, then run the spec's FROM query.
+        String dataSource = DatasetRegistry.ensureDataSource(client(), "clickbench_local_ds", "local", Map.of("auth", "anonymous"));
+        for (DatasetSource source : testCase.datasetSources) {
+            String resource = substituteClickBenchTemplates(source.resource());
+            DatasetRegistry.ensureDataset(client(), source.name(), dataSource, resource, source.withJson());
+        }
+        doTest(testCase.query);
     }
 
     @Override

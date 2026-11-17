@@ -80,12 +80,13 @@ public final class DateDiffConstantMillisEvaluator implements ExpressionEvaluato
 
   public IntBlock eval(int positionCount, LongBlock startTimestampBlock,
       LongBlock endTimestampBlock) {
-    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
+        if (startTimestampBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (startTimestampBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -93,10 +94,11 @@ public final class DateDiffConstantMillisEvaluator implements ExpressionEvaluato
               result.appendNull();
               continue position;
         }
+        if (endTimestampBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (endTimestampBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -119,7 +121,7 @@ public final class DateDiffConstantMillisEvaluator implements ExpressionEvaluato
 
   public IntBlock eval(int positionCount, LongVector startTimestampVector,
       LongVector endTimestampVector) {
-    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         long startTimestamp = startTimestampVector.getLong(p);
         long endTimestamp = endTimestampVector.getLong(p);
@@ -146,7 +148,7 @@ public final class DateDiffConstantMillisEvaluator implements ExpressionEvaluato
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }

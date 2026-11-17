@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -97,7 +98,7 @@ public class HollowShardsService extends AbstractLifecycleComponent implements M
      */
     public static final Setting<TimeValue> SETTING_HOLLOW_INGESTION_TTL = Setting.positiveTimeSetting(
         "stateless.hollow_index_shards.ingestion.ttl",
-        TimeValue.timeValueDays(3),
+        TimeValue.timeValueDays(1),
         Setting.Property.NodeScope
     );
 
@@ -224,7 +225,12 @@ public class HollowShardsService extends AbstractLifecycleComponent implements M
 
     @Override
     protected void doClose() throws IOException {
-        assert hollowShards.isEmpty() : "no ingestion blocker should be installed at this point";
+        // IndicesService closes before plugin components. By then every shard on this node is CLOSED, either while stopping
+        // IndicesService or by an earlier cluster state. In the latter case the engine may still be closing asynchronously, so
+        // afterIndexShardClosed (which removes the ingestion blocker) may not have run yet. Release any remaining blockers.
+        assert indicesService.lifecycleState() == Lifecycle.State.CLOSED
+            : "indices service must be closed before the hollow shards service but was " + indicesService.lifecycleState();
+        hollowShards.keySet().forEach(shardId -> removeHollowShard(shardId, "hollow shards service closed", () -> {}));
     }
 
     /**
@@ -368,6 +374,7 @@ public class HollowShardsService extends AbstractLifecycleComponent implements M
     }
 
     protected void unhollow(ShardId shardId) {
+        assert commitService != null : "commit service must be initialized for index nodes";
         var hollowShardInfo = hollowShards.get(shardId);
         if (hollowShardInfo != null && hollowShardInfo.unhollowing.compareAndSet(false, true)) {
             threadPool.generic().execute(new AbstractRunnable() {
@@ -434,11 +441,14 @@ public class HollowShardsService extends AbstractLifecycleComponent implements M
                                 assert engine instanceof IndexEngine : shardId + ": expected IndexEngine but was " + engine.getClass();
                                 engine.flush(true, true, ActionListener.wrap(flushResult -> {
                                     assert flushResult.skippedDueToCollision() == false : "Flush was skipped";
+                                    // Check hollow state before removeHollowShard: once the shard leaves the hollow map a
+                                    // concurrent relocation can call prepareForEngineReset → flushHollow on this engine,
+                                    // which would overwrite lastCommittedSegmentInfos and cause a spurious assertion failure.
+                                    assert assertIndexEngineLastCommitHollow(shardId, engine, false);
                                     removeHollowShard(indexShard, "unhollowing gen " + flushResult.generation());
                                     logger.info("{} unhollowed shard with gen {}", shardId, flushResult.generation());
                                     metrics.unhollowSuccessCounter().increment();
                                     metrics.unhollowTimeMs().record(relativeTimeSupplierInMillis.getAsLong() - startTime);
-                                    assert assertIndexEngineLastCommitHollow(shardId, engine, false);
                                 }, e -> failedUnhollowing(shardId, e)));
                                 return null;
                             });

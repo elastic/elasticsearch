@@ -8,6 +8,9 @@
 package org.elasticsearch.xpack.monitoring.rest.action;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -27,9 +30,16 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestMonitoringMigrateAlertsAction extends BaseRestHandler {
 
+    static final String DEPRECATION_MESSAGE =
+        "Legacy monitoring API _monitoring/migrate/alerts is deprecated for removal in Elasticsearch 10.0.";
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestMonitoringMigrateAlertsAction.class);
+
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/_monitoring/migrate/alerts"));
+        return List.of(
+            Route.builder(POST, "/_monitoring/migrate/alerts").deprecatedForRemoval(DEPRECATION_MESSAGE, RestApiVersion.V_9).build()
+        );
     }
 
     @Override
@@ -39,6 +49,7 @@ public class RestMonitoringMigrateAlertsAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+        deprecationLogger.critical(DeprecationCategory.API, "monitoring-migrate-alerts-deprecated", DEPRECATION_MESSAGE);
         MonitoringMigrateAlertsRequest migrateRequest = new MonitoringMigrateAlertsRequest();
         return channel -> client.execute(MonitoringMigrateAlertsAction.INSTANCE, migrateRequest, getRestBuilderListener(channel));
     }

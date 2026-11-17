@@ -22,6 +22,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -71,6 +72,7 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.time.Clock;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -95,6 +97,7 @@ import static org.hamcrest.Matchers.matchesRegex;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Tests various indexer failure cases.
@@ -153,7 +156,8 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                     mock(CrossProjectModeDecider.class),
                     projectId -> false,
                     mock(ProjectResolver.class),
-                    mock(TransformCloudCredentialManager.class)
+                    mock(TransformCloudCredentialManager.class),
+                    Clock.systemUTC()
                 ),
                 checkpointProvider,
                 initialState,
@@ -319,8 +323,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             throw new SearchPhaseExecutionException(
                 "query",
                 "Partial shards failure",
-                new ShardSearchFailure[] {
-                    new ShardSearchFailure(new CircuitBreakingException("to much memory", 110, 100, Durability.TRANSIENT)) }
+                List.of(new ShardSearchFailure(new CircuitBreakingException("to much memory", 110, 100, Durability.TRANSIENT)))
             );
         };
 
@@ -430,7 +433,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             throw new SearchPhaseExecutionException(
                 "query",
                 "Partial shards failure",
-                new ShardSearchFailure[] {
+                List.of(
                     new ShardSearchFailure(
                         new ScriptException(
                             "runtime error",
@@ -439,7 +442,8 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                             "test",
                             "painless"
                         )
-                    ) }
+                    )
+                )
 
             );
         };
@@ -506,10 +510,11 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                 throw new SearchPhaseExecutionException(
                     "query",
                     "Partial shards failure",
-                    new ShardSearchFailure[] {
+                    List.of(
                         new ShardSearchFailure(
                             new ElasticsearchParseException("failed to parse date field", new IllegalArgumentException("illegal format"))
-                        ) }
+                        )
+                    )
                 );
             };
 
@@ -587,7 +592,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                 throw new SearchPhaseExecutionException(
                     "query",
                     "Partial shards failure",
-                    new ShardSearchFailure[] { new ShardSearchFailure(new ElasticsearchTimeoutException("timed out during dbq")) }
+                    List.of(new ShardSearchFailure(new ElasticsearchTimeoutException("timed out during dbq")))
                 );
             };
 
@@ -670,7 +675,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                         throw new SearchPhaseExecutionException(
                             "query",
                             "Partial shards failure",
-                            new ShardSearchFailure[] { new ShardSearchFailure(new Exception()) }
+                            List.of(new ShardSearchFailure(new Exception()))
                         );
                     }
                     searchResponse.mustIncRef();
@@ -800,7 +805,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             new SearchPhaseExecutionException(
                 "query",
                 "Partial shards failure",
-                new ShardSearchFailure[] { new ShardSearchFailure(new ElasticsearchTimeoutException("timeout_1")) }
+                List.of(new ShardSearchFailure(new ElasticsearchTimeoutException("timeout_1")))
             )
         );
 
@@ -808,10 +813,11 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             new SearchPhaseExecutionException(
                 "query",
                 "Partial shards failure",
-                new ShardSearchFailure[] {
+                List.of(
                     new ShardSearchFailure(
                         new BulkIndexingException("bulk_exception_1", new EsRejectedExecutionException("full queue"), false)
-                    ) }
+                    )
+                )
             )
         );
 
@@ -819,16 +825,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             new SearchPhaseExecutionException(
                 "query",
                 "Partial shards failure",
-                new ShardSearchFailure[] { new ShardSearchFailure(new ElasticsearchTimeoutException("timeout_2")) }
-            )
-        );
-
-        // not logged
-        indexer.handleFailure(
-            new SearchPhaseExecutionException(
-                "query",
-                "Partial shards failure",
-                new ShardSearchFailure[] { new ShardSearchFailure(new ElasticsearchTimeoutException("timeout_2")) }
+                List.of(new ShardSearchFailure(new ElasticsearchTimeoutException("timeout_2")))
             )
         );
 
@@ -837,7 +834,16 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             new SearchPhaseExecutionException(
                 "query",
                 "Partial shards failure",
-                new ShardSearchFailure[] { new ShardSearchFailure(new ElasticsearchTimeoutException("timeout_2")) }
+                List.of(new ShardSearchFailure(new ElasticsearchTimeoutException("timeout_2")))
+            )
+        );
+
+        // not logged
+        indexer.handleFailure(
+            new SearchPhaseExecutionException(
+                "query",
+                "Partial shards failure",
+                List.of(new ShardSearchFailure(new ElasticsearchTimeoutException("timeout_2")))
             )
         );
 
@@ -845,10 +851,11 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             new SearchPhaseExecutionException(
                 "query",
                 "Partial shards failure",
-                new ShardSearchFailure[] {
+                List.of(
                     new ShardSearchFailure(
                         new BulkIndexingException("bulk_exception_2", new EsRejectedExecutionException("full queue"), false)
-                    ) }
+                    )
+                )
             )
         );
 
@@ -1105,9 +1112,11 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             listener.onResponse(config);
             return null;
         }).when(transformConfigManager).getTransformConfiguration(any(), any());
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
         MockedTransformIndexer indexer = new MockedTransformIndexer(
             threadPool,
-            mock(ClusterService.class),
+            clusterService,
             mock(IndexNameExpressionResolver.class),
             mock(TransformExtension.class),
             transformConfigManager,

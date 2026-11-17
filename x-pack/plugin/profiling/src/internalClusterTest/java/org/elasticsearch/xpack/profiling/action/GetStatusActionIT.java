@@ -29,17 +29,13 @@ public class GetStatusActionIT extends ProfilingTestCase {
     }
 
     public void testTimeoutIfResourcesNotCreated() throws Exception {
-        updateProfilingTemplatesEnabled(false);
-        GetStatusAction.Request request = new GetStatusAction.Request(
-            TEST_REQUEST_TIMEOUT,
-            true,
-            // shorter than the default timeout to avoid excessively long execution:
-            TimeValue.timeValueSeconds(15)
-        );
+        // ECS enabled but templates haven't been installed yet; use a minimal timeout so it fires before
+        // the master can install them.
+        updateProfilingTemplatesEnabled(true);
+        GetStatusAction.Request request = new GetStatusAction.Request(TEST_REQUEST_TIMEOUT, true, TimeValue.timeValueMillis(1));
 
         GetStatusAction.Response response = client().execute(GetStatusAction.INSTANCE, request).get();
         assertEquals(RestStatus.REQUEST_TIMEOUT, response.status());
-        assertFalse(response.isResourcesCreated());
         assertFalse(response.hasData());
     }
 
@@ -49,7 +45,8 @@ public class GetStatusActionIT extends ProfilingTestCase {
 
         GetStatusAction.Response response = client().execute(GetStatusAction.INSTANCE, request).get();
         assertEquals(RestStatus.OK, response.status());
-        assertFalse(response.isResourcesCreated());
+        // ECS templates are disabled; no ECS resources have been created
+        assertFalse(response.isEcsResourcesCreated());
         assertFalse(response.hasData());
     }
 
@@ -64,7 +61,7 @@ public class GetStatusActionIT extends ProfilingTestCase {
 
         GetStatusAction.Response response = client().execute(GetStatusAction.INSTANCE, request).get();
         assertEquals(RestStatus.OK, response.status());
-        assertTrue(response.isResourcesCreated());
+        assertTrue(response.isEcsResourcesCreated());
         assertFalse(response.hasData());
     }
 
@@ -73,7 +70,7 @@ public class GetStatusActionIT extends ProfilingTestCase {
         GetStatusAction.Request request = new GetStatusAction.Request(TEST_REQUEST_TIMEOUT, true, TEST_REQUEST_TIMEOUT);
         GetStatusAction.Response response = client().execute(GetStatusAction.INSTANCE, request).get();
         assertEquals(RestStatus.OK, response.status());
-        assertTrue(response.isResourcesCreated());
+        assertTrue(response.isEcsResourcesCreated());
         assertTrue(response.hasData());
     }
 }

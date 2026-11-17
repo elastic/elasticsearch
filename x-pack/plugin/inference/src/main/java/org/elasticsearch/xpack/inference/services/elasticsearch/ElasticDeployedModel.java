@@ -14,7 +14,28 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 
+import java.util.Map;
+
 public class ElasticDeployedModel extends ElasticsearchInternalModel {
+
+    /**
+     * Creates an {@link ElasticDeployedModel} with the appropriate {@link ElasticsearchInternalServiceSettings} based on the task type.
+     */
+    public static ElasticDeployedModel of(
+        String inferenceEntityId,
+        TaskType taskType,
+        String service,
+        ElasticsearchInternalServiceSettings.Builder settingsBuilder,
+        Map<String, Object> serviceSettingsMap,
+        ChunkingSettings chunkingSettings
+    ) {
+        var deployedServiceSettings = taskType == TaskType.TEXT_EMBEDDING
+            ? ElasticsearchInternalTextEmbeddingServiceSettings.fromMap(serviceSettingsMap, settingsBuilder)
+            : settingsBuilder.build();
+
+        return new ElasticDeployedModel(inferenceEntityId, taskType, service, deployedServiceSettings, chunkingSettings);
+    }
+
     public ElasticDeployedModel(
         String inferenceEntityId,
         TaskType taskType,

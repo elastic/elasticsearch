@@ -8,17 +8,14 @@
 package org.elasticsearch.compute.lucene.query;
 
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Limiter;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.RefCounted;
-import org.elasticsearch.index.codec.tsdb.PartitionedDocValues;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -40,7 +37,8 @@ public final class TimeSeriesSourceOperator extends LuceneSourceOperator {
             int taskConcurrency,
             int maxPageSize,
             int limit,
-            LongSupplier directoryBytesRead
+            LongSupplier directoryBytesRead,
+            QueryWarnings singleValueQueryWarnings
         ) {
             super(
                 contexts,
@@ -53,7 +51,8 @@ public final class TimeSeriesSourceOperator extends LuceneSourceOperator {
                 limit,
                 false,
                 directoryBytesRead,
-                LuceneSliceQueue.MIN_DOCS_PER_SLICE
+                LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+                singleValueQueryWarnings
             );
         }
 
@@ -61,12 +60,13 @@ public final class TimeSeriesSourceOperator extends LuceneSourceOperator {
         public SourceOperator get(DriverContext driverContext) {
             return new TimeSeriesSourceOperator(
                 refCounteds,
-                driverContext.blockFactory(),
+                driverContext,
                 maxPageSize,
                 sliceQueue,
                 limit,
                 limiter,
-                directoryBytesRead
+                directoryBytesRead,
+                singleValueQueryWarnings
             );
         }
 
@@ -78,14 +78,27 @@ public final class TimeSeriesSourceOperator extends LuceneSourceOperator {
 
     public TimeSeriesSourceOperator(
         IndexedByShardId<? extends RefCounted> shardContextCounters,
-        BlockFactory blockFactory,
+        DriverContext driverContext,
         int maxPageSize,
         LuceneSliceQueue sliceQueue,
         int limit,
         Limiter limiter,
-        LongSupplier directoryBytesRead
+        LongSupplier directoryBytesRead,
+        QueryWarnings singleValueQueryWarnings
     ) {
-        super(shardContextCounters, blockFactory, maxPageSize, sliceQueue, limit, limiter, false, directoryBytesRead);
+        super(
+            shardContextCounters,
+            driverContext,
+            maxPageSize,
+            sliceQueue,
+            limit,
+            limiter,
+            false,
+            directoryBytesRead,
+            singleValueQueryWarnings,
+            null,
+            true
+        );
     }
 
     @Override
@@ -123,15 +136,11 @@ public final class TimeSeriesSourceOperator extends LuceneSourceOperator {
     }
 
     private static DataPartitioning.AutoStrategy partitioningStrategy(IndexedByShardId<? extends ShardContext> contexts) {
-        try {
-            for (ShardContext ctx : contexts.iterable()) {
-                if (PartitionedDocValues.canPartitionByTsidPrefix(ctx.searcher()) == false) {
-                    return limit -> q -> LuceneSliceQueue.PartitioningStrategy.SHARD;
-                }
+        for (ShardContext ctx : contexts.iterable()) {
+            if (ctx.canPartitionByTsidPrefix() == false) {
+                return limit -> (shardCtx, q) -> LuceneSliceQueue.PartitioningStrategy.SHARD;
             }
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
         }
-        return limit -> q -> LuceneSliceQueue.PartitioningStrategy.TIME_SERIES;
+        return limit -> (shardCtx, q) -> LuceneSliceQueue.PartitioningStrategy.TIME_SERIES;
     }
 }

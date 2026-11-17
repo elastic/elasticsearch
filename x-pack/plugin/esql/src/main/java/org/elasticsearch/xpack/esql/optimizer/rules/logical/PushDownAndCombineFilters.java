@@ -15,14 +15,17 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
@@ -42,7 +45,7 @@ import java.util.function.Predicate;
 
 /**
  * Perform filters as early as possible in the logical plan by pushing them past certain plan nodes (like {@link Eval},
- * {@link RegexExtract}, {@link Enrich}, {@link Project}, {@link OrderBy} and left {@link Join}s) where possible.
+ * {@link RegexExtract}, {@link Enrich}, {@link Highlight}, {@link Project}, {@link OrderBy} and left {@link Join}s) where possible.
  * Ideally, the filter ends up all the way down at the data source and can be turned into a Lucene query.
  * When pushing down past nodes, only conditions that do not depend on fields created by those nodes are pushed down; if the condition
  * consists of {@code AND}s, we split out the parts that do not depend on the previous node.
@@ -106,6 +109,9 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
             // Push down filters that do not rely on attributes created by Enrich
             var attributes = AttributeSet.of(Expressions.asAttributes(enrich.enrichFields()));
             plan = maybePushDownPastUnary(filter, enrich, attributes::contains, NO_OP);
+        } else if (child instanceof Highlight highlight) {
+            var attributes = AttributeSet.of(highlight.generatedAttributes());
+            plan = maybePushDownPastUnary(filter, highlight, attributes::contains, NO_OP);
         } else if (child instanceof Project) {
             return PushDownUtils.pushDownPastProject(filter);
         } else if (child instanceof OrderBy orderBy) {
@@ -181,6 +187,12 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
 
             // Split the filter condition in 3 parts.
             // For InlineJoin we use a scoping that allows pushing down filters either to right side only or to both sides.
+            // Left-only filters deliberately stay above an InlineJoin: it computes its right side from the left branch (through the
+            // StubRelation planted by stubSource), so filtering the left branch would also filter the aggregate's input and change
+            // its result. Note that relaxing this once the right side has been resolved into a LocalRelation, and thus no longer
+            // depends on the left, would be dead code today: the logical optimizer runs exactly once, before any sub-plan is
+            // executed, and the plan rebuilt after a sub-plan result is substituted in is marked optimized without being
+            // re-optimized (see the TODO in InlineJoin#newMainPlan).
             // For the rest of the joins we use the standard scoping:
             // - filters scoped to the left
             // - filters scoped to the right
@@ -280,7 +292,7 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
      * In this context pushable means that we can push the filter down to the right side of a LEFT join
      * We do not check if the filter is pushable to Lucene or not here
      */
-    private static boolean isRightPushableFilter(Expression filter, FoldContext foldCtx) {
+    static boolean isRightPushableFilter(Expression filter, FoldContext foldCtx) {
         // traverse the filter tree
         // replace any reference to an attribute with a null literal
         Expression nullifiedFilter = filter.transformUp(Attribute.class, r -> new Literal(r.source(), null, r.dataType()));
@@ -304,11 +316,20 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
         Function<Expression, Expression> resolveRenames
     ) {
         LogicalPlan plan;
+        List<Expression> conjuncts = Predicates.splitAnd(filter.condition());
+        List<Expression> resolved = conjuncts.stream().map(resolveRenames).toList();
+        // A search that stays above the unary only adds to _score once its filter has filtered, so a predicate on _score
+        // stays with it to see that score (see LocalExecutionPlanner#planFilter).
+        boolean scoringSearchStays = false;
+        for (int i = 0; i < conjuncts.size(); i++) {
+            scoringSearchStays |= resolved.get(i).anyMatch(cannotPush) && FullTextFunction.containsScoringSearch(conjuncts.get(i));
+        }
         List<Expression> pushable = new ArrayList<>();
         List<Expression> nonPushable = new ArrayList<>();
-        for (Expression exp : Predicates.splitAnd(filter.condition())) {
-            Expression resolvedExp = resolveRenames.apply(exp);
-            if (resolvedExp.anyMatch(cannotPush)) {
+        for (int i = 0; i < conjuncts.size(); i++) {
+            Expression exp = conjuncts.get(i);
+            Expression resolvedExp = resolved.get(i);
+            if (resolvedExp.anyMatch(cannotPush) || (scoringSearchStays && resolvedExp.anyMatch(MetadataAttribute::isScoreAttribute))) {
                 // Add the original expression to the non-pushables.
                 nonPushable.add(exp);
             } else {

@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -33,7 +34,6 @@ import java.util.Objects;
 import static org.elasticsearch.inference.ModelConfigurations.CHUNKING_SETTINGS;
 import static org.elasticsearch.inference.ModelConfigurations.SERVICE_SETTINGS;
 import static org.elasticsearch.inference.ModelConfigurations.TASK_SETTINGS;
-import static org.elasticsearch.ingest.IngestDocument.deepCopyMap;
 import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED;
 
 public class UpdateInferenceModelAction extends ActionType<UpdateInferenceModelAction.Response> {
@@ -221,19 +221,19 @@ public class UpdateInferenceModelAction extends ActionType<UpdateInferenceModelA
             @Nullable
             Map<String, Object> getServiceSettings() {
                 parseContentIfNeeded();
-                return serviceSettings != null ? deepCopyMap(serviceSettings) : null;
+                return serviceSettings != null ? CollectionUtils.deepCopy(serviceSettings) : null;
             }
 
             @Nullable
             Map<String, Object> getTaskSettings() {
                 parseContentIfNeeded();
-                return taskSettings != null ? deepCopyMap(taskSettings) : null;
+                return taskSettings != null ? CollectionUtils.deepCopy(taskSettings) : null;
             }
 
             @Nullable
             Map<String, Object> getChunkingSettings() {
                 parseContentIfNeeded();
-                return chunkingSettings != null ? deepCopyMap(chunkingSettings) : null;
+                return chunkingSettings != null ? CollectionUtils.deepCopy(chunkingSettings) : null;
             }
 
             @Nullable

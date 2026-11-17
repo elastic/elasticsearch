@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.inference.external.http.retry;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
@@ -70,4 +70,11 @@ public interface ResponseHandler {
         assert canHandleStreamingResponses() == false : "This must be implemented when canHandleStreamingResponses() == true";
         throw new UnsupportedOperationException("This must be implemented when canHandleStreamingResponses() == true");
     }
+
+    /**
+     * Builds the exception describing a response whose status code indicates failure. Only invoked when
+     * {@link HttpResult#isSuccessfulResponse()} returns {@code false}, on both the streaming and
+     * non-streaming paths, so implementations must always return an exception and never {@code null}.
+     */
+    RetryException buildFailureStatusCodeException(OutboundRequest outboundRequest, HttpResult result);
 }

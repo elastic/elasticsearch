@@ -13,7 +13,6 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.tests.analysis.CannedTokenStream;
 import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.apache.lucene.tests.analysis.Token;
@@ -71,6 +70,9 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
+        checker.registerIgnoredParameter("multi_value");
+        checker.registerIgnoredParameter("nullability");
+        checker.registerIgnoredParameter("on_failure");
         checker.registerConflictCheck("null_value", b -> b.field("null_value", 1));
         checker.registerConflictCheck("enable_position_increments", b -> b.field("enable_position_increments", false));
         checker.registerUpdateCheck(
@@ -114,16 +116,6 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
     public void testCountPositionsWithoutIncrements() throws IOException {
         Analyzer analyzer = createMockAnalyzer();
         assertThat(TokenCountFieldMapper.countPositions(analyzer, "", "", false), equalTo(2));
-    }
-
-    @Override
-    protected boolean supportsMultiValueParameter() {
-        return true;
-    }
-
-    @Override
-    protected DocValuesType expectedDocValuesTypeForMultiValueFalse() {
-        return DocValuesType.SORTED_NUMERIC;
     }
 
     private Analyzer createMockAnalyzer() {
@@ -288,6 +280,12 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
 
     @Override
     protected boolean supportsDocValuesSkippers() {
+        return false;
+    }
+
+    @Override
+    protected boolean supportsIndexSortRangeTest() {
+        // NOTE: The values of a token count field are the number of tokens of a text.
         return false;
     }
 }

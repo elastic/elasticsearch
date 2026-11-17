@@ -22,6 +22,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 
 /**
  * An {@link IndexSettingProvider} is a provider for index level settings that can be set
@@ -36,6 +37,10 @@ public interface IndexSettingProvider {
      *                                              otherwise <code>null</code>
      * @param templateIndexMode                     The index mode defined in template if template creates data streams,
      *                                              otherwise <code>null</code> is returned.
+     * @param registryInstalledTemplate             {@code true} when the matched composable index template is owned by an
+     *                                              {@code IndexTemplateRegistry}
+     *                                              {@code false} when no composable template matched or when the matched
+     *                                              template does not carry that flag
      * @param projectMetadata                       The current project metadata instance that doesn't yet contain the index to be created
      * @param resolvedAt                            The time the request to create this new index was accepted.
      * @param indexTemplateAndCreateRequestSettings All the settings resolved from the template that matches and any settings
@@ -51,6 +56,7 @@ public interface IndexSettingProvider {
         String indexName,
         @Nullable String dataStreamName,
         @Nullable IndexMode templateIndexMode,
+        boolean registryInstalledTemplate,
         ProjectMetadata projectMetadata,
         Instant resolvedAt,
         Settings indexTemplateAndCreateRequestSettings,
@@ -68,6 +74,16 @@ public interface IndexSettingProvider {
      * @param additionalSettings A settings builder to which additional settings can be added
      */
     default void onUpdateMappings(IndexMetadata indexMetadata, DocumentMapper documentMapper, Settings.Builder additionalSettings) {}
+
+    /**
+     * Exposes the keys of all the index settings this provider may add, either via
+     * {@link #provideAdditionalSettings} or via {@link #onUpdateMappings}. This allows other components to know upfront which
+     * settings can be affected by this provider, without having to invoke it.
+     *
+     * @return the keys of the settings this provider can affect, the provider does not necessarily set all of them
+     *         for every index
+     */
+    Set<String> affectedSettings();
 
     /**
      * Infrastructure class that holds services that can be used by {@link IndexSettingProvider} instances.

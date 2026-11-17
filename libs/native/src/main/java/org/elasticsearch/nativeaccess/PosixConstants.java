@@ -12,13 +12,4 @@ package org.elasticsearch.nativeaccess;
 /**
  * Code constants on POSIX systems.
  */
-record PosixConstants(
-    long RLIMIT_INFINITY,
-    int RLIMIT_AS,
-    int RLIMIT_FSIZE,
-    int RLIMIT_MEMLOCK,
-    int O_CREAT,
-    int statStructSize,
-    int statStructSizeOffset,
-    int statStructBlocksOffset
-) {}
+record PosixConstants(long RLIMIT_INFINITY, int RLIMIT_AS, int RLIMIT_FSIZE, int RLIMIT_MEMLOCK, int O_CREAT) {}

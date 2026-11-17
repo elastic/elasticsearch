@@ -12,13 +12,11 @@ package org.elasticsearch.search.vectors;
 import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.concurrent.atomic.LongAccumulator;
-
 public class IVFKnnSearchStrategyTests extends ESTestCase {
 
     public void testMaxScorePropagation() {
-        LongAccumulator accumulator = new LongAccumulator(Long::max, AbstractMaxScoreKnnCollector.LEAST_COMPETITIVE);
-        IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(0.5f, 100, 10, accumulator);
+        SharedMinCompetitiveScore sharedScore = new SharedMinCompetitiveScore();
+        IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(0.5f, 100, 10, sharedScore);
         MaxScoreTopKnnCollector collector = new MaxScoreTopKnnCollector(2, 1000, strategy);
         strategy.setCollector(collector);
 
@@ -26,22 +24,44 @@ public class IVFKnnSearchStrategyTests extends ESTestCase {
 
         // queue is not saturated, it should not be updated
         strategy.nextVectorsBlock();
-        assertEquals(AbstractMaxScoreKnnCollector.LEAST_COMPETITIVE, accumulator.get());
+        assertEquals(AbstractMaxScoreKnnCollector.LEAST_COMPETITIVE, sharedScore.get());
         assertEquals(AbstractMaxScoreKnnCollector.LEAST_COMPETITIVE, collector.getMinCompetitiveDocScore());
 
-        // accumulator should now be updated
+        // shared score should now be updated
         collector.collect(2, 0.9f);
         long competitiveScore = NeighborQueue.encodeRaw(2, 0.9f);
         strategy.nextVectorsBlock();
-        assertEquals(competitiveScore, accumulator.get());
+        assertEquals(competitiveScore, sharedScore.get());
         assertEquals(competitiveScore, collector.getMinCompetitiveDocScore());
 
-        // updated accumulator directly with more competitive score
+        // updated shared score directly with more competitive score
         competitiveScore = NeighborQueue.encodeRaw(3, 1.5f);
-        accumulator.accumulate(competitiveScore);
-        assertEquals(competitiveScore, accumulator.get());
+        sharedScore.publish(competitiveScore);
+        assertEquals(competitiveScore, sharedScore.get());
         strategy.nextVectorsBlock();
         assertEquals(competitiveScore, collector.getMinCompetitiveDocScore());
-        assertEquals(competitiveScore, accumulator.get());
+        assertEquals(competitiveScore, sharedScore.get());
+    }
+
+    public void testReadOnlySharedScoreIsNotPublishedTo() {
+        SharedMinCompetitiveScore sharedScore = new SharedMinCompetitiveScore();
+        IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(0.5f, 100, 10, sharedScore.readOnly());
+        MaxScoreTopKnnCollector collector = new MaxScoreTopKnnCollector(2, 1000, strategy);
+        strategy.setCollector(collector);
+
+        // saturated queue: its cutoff is not published
+        collector.collect(1, 0.9f);
+        collector.collect(2, 0.9f);
+        long collectorScore = NeighborQueue.encodeRaw(2, 0.9f);
+        strategy.nextVectorsBlock();
+        assertEquals(AbstractMaxScoreKnnCollector.LEAST_COMPETITIVE, sharedScore.get());
+        assertEquals(collectorScore, collector.getMinCompetitiveDocScore());
+
+        // a more competitive shared cutoff is still read
+        long otherLeafScore = NeighborQueue.encodeRaw(3, 1.5f);
+        sharedScore.publish(otherLeafScore);
+        strategy.nextVectorsBlock();
+        assertEquals(otherLeafScore, collector.getMinCompetitiveDocScore());
+        assertEquals(otherLeafScore, sharedScore.get());
     }
 }

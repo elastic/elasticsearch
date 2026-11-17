@@ -14,9 +14,12 @@ import org.apache.lucene.index.FieldInfo;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -181,6 +184,96 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
         assertHitCount(client().prepareSearch().setQuery(existsQuery("headers")), 1L);
         assertHitCount(client().prepareSearch().setQuery(existsQuery("headers.content-type")), 1L);
         assertHitCount(client().prepareSearch().setQuery(existsQuery("headers.nonexistent")), 0L);
+    }
+
+    public void testExistsOnDocValuesOnlyKeyedField() throws Exception {
+        // index:false -> SortedSet doc-values only, no inverted terms. Key-specific exists must scan doc-values (newSlowRangeQuery branch).
+        String index = "test-noindex-exists";
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("labels")
+            .field("type", "flattened")
+            .field("index", false)
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        createIndex(index, Settings.EMPTY, mapping);
+        prepareIndex(index).setId("1")
+            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
+            .setSource(XContentFactory.jsonBuilder().startObject().startObject("labels").field("a", "x").endObject().endObject())
+            .get();
+
+        assertHitCount(client().prepareSearch(index).setQuery(existsQuery("labels")), 1L);
+        assertHitCount(client().prepareSearch(index).setQuery(existsQuery("labels.a")), 1L);
+        assertHitCount(client().prepareSearch(index).setQuery(existsQuery("labels.b")), 0L);
+    }
+
+    /**
+     * Without terms, as with {@code index: false} or in columnar mode, a range on a key runs on its doc values, with both bounds or
+     * one, and stays within the key.
+     */
+    public void testRangeOnDocValuesOnlyKeyedField() throws Exception {
+        for (boolean columnar : new boolean[] { false, true }) {
+            String index = columnar ? "test-columnar-range" : "test-noindex-range";
+            IndexMode mode = columnar ? IndexMode.COLUMNAR : randomFrom(IndexMode.STANDARD, IndexMode.LOGSDB);
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), mode.getName()).build();
+            XContentBuilder mapping = XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("_doc")
+                .startObject("properties")
+                .startObject("labels")
+                .field("type", "flattened");
+            if (columnar == false) {
+                mapping.field("index", false);
+            }
+            mapping.endObject().endObject().endObject().endObject();
+            createIndex(index, settings, mapping);
+            BulkRequestBuilder bulk = client().prepareBulk(index).setRefreshPolicy(RefreshPolicy.IMMEDIATE);
+            bulk.add(client().prepareIndex().setId("error").setSource("""
+                {"@timestamp": "2026-01-01T00:00:00Z", "labels": {"severity": "error", "region": "ap-south"}}""", XContentType.JSON));
+            bulk.add(client().prepareIndex().setId("info").setSource("""
+                {"@timestamp": "2026-01-01T00:00:00Z", "labels": {"severity": "info", "region": "eu-west"}}""", XContentType.JSON));
+            bulk.add(client().prepareIndex().setId("warn").setSource("""
+                {"@timestamp": "2026-01-01T00:00:00Z", "labels": {"severity": "warn", "region": "us-east"}}""", XContentType.JSON));
+            assertNoFailures(bulk.get());
+
+            assertHitCountAndNoFailures(client().prepareSearch(index).setQuery(rangeQuery("labels.severity").gte("a").lte("g")), 1L);
+            assertHitCountAndNoFailures(client().prepareSearch(index).setQuery(rangeQuery("labels.severity").gt("info").lt("zzz")), 1L);
+            assertHitCountAndNoFailures(client().prepareSearch(index).setQuery(rangeQuery("labels.severity").lte("info")), 2L);
+            assertHitCountAndNoFailures(client().prepareSearch(index).setQuery(rangeQuery("labels.severity").gt("info")), 1L);
+            assertHitCountAndNoFailures(client().prepareSearch(index).setQuery(rangeQuery("labels.severity").gte("warn")), 1L);
+            assertHitCountAndNoFailures(client().prepareSearch(index).setQuery(rangeQuery("labels.severity").lt("a")), 0L);
+        }
+    }
+
+    public void testExistsOnColumnarKeyedField() throws Exception {
+        // Columnar mode stores flattened values as array-order binary doc-values with no inverted terms; key-specific exists scans them
+        // via the ScanningBinaryDocValuesPrefixQuery branch. A prefix collision ("a" vs "ab") must not be matched by exists on "a".
+        String index = "test-columnar-exists";
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("labels")
+            .field("type", "flattened")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        createIndex(index, settings, mapping);
+        prepareIndex(index).setId("1")
+            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
+            .setSource(XContentFactory.jsonBuilder().startObject().startObject("labels").field("ab", "x").endObject().endObject())
+            .get();
+
+        assertHitCount(client().prepareSearch(index).setQuery(existsQuery("labels")), 1L);
+        assertHitCount(client().prepareSearch(index).setQuery(existsQuery("labels.ab")), 1L);
+        assertHitCount(client().prepareSearch(index).setQuery(existsQuery("labels.a")), 0L);
+        assertHitCount(client().prepareSearch(index).setQuery(existsQuery("labels.missing")), 0L);
     }
 
     public void testCardinalityAggregation() throws IOException {
@@ -492,7 +585,7 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
 
         var indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex(indexName));
         var shard = indexService.getShard(0);
-        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             for (var leaf : searcher.getDirectoryReader().leaves()) {
                 for (FieldInfo fieldInfo : leaf.reader().getFieldInfos()) {
                     if (fieldInfo.name.equals("labels")) {
@@ -712,11 +805,11 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
     public void testKeyedSubFieldRangeQuery() throws Exception {
         BulkRequestBuilder bulk = client().prepareBulk("test").setRefreshPolicy(RefreshPolicy.IMMEDIATE);
         bulk.add(client().prepareIndex().setId("error").setSource("""
-            {"labels": {"severity": "error", "region": "ap-south"}}""", XContentType.JSON));
+            {"@timestamp": "2026-01-01T00:00:00Z", "labels": {"severity": "error", "region": "ap-south"}}""", XContentType.JSON));
         bulk.add(client().prepareIndex().setId("info").setSource("""
-            {"labels": {"severity": "info", "region": "eu-west"}}""", XContentType.JSON));
+            {"@timestamp": "2026-01-01T00:00:00Z", "labels": {"severity": "info", "region": "eu-west"}}""", XContentType.JSON));
         bulk.add(client().prepareIndex().setId("warn").setSource("""
-            {"labels": {"severity": "warn", "region": "us-east"}}""", XContentType.JSON));
+            {"@timestamp": "2026-01-01T00:00:00Z", "labels": {"severity": "warn", "region": "us-east"}}""", XContentType.JSON));
         assertNoFailures(bulk.get());
 
         assertHitCountAndNoFailures(client().prepareSearch("test").setQuery(rangeQuery("labels.severity").gte("a").lte("g")), 1L);

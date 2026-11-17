@@ -31,6 +31,7 @@ public class ParquetReaderCountersTests extends ESTestCase {
         // Row-group filter
         assertEquals(0L, snap.rowGroupsTotal());
         assertEquals(0L, snap.rowGroupsKept());
+        assertEquals(0L, snap.rowGroupsDictionaryFilterSkipped());
         // Page index
         assertEquals(false, snap.pageIndexUsed());
         assertEquals(0L, snap.rowsInKeptRowGroups());
@@ -39,8 +40,6 @@ public class ParquetReaderCountersTests extends ESTestCase {
         assertEquals(false, snap.lateMaterializationEnabled());
         assertEquals(false, snap.lateMaterializationUsed());
         assertEquals(List.of(), snap.predicateColumns());
-        // Aggregate
-        assertEquals(0L, snap.readNanos());
         // No per-column entries recorded
         assertTrue(snap.columns().isEmpty());
     }
@@ -77,6 +76,16 @@ public class ParquetReaderCountersTests extends ESTestCase {
         var snap = c.snapshot();
         assertEquals(3L, snap.rowGroupsTotal());
         assertEquals(1L, snap.rowGroupsKept());
+        assertEquals(0L, snap.rowGroupsDictionaryFilterSkipped());
+    }
+
+    public void testRowGroupsDictionaryFilterSkippedAccumulates() {
+        ParquetReaderCounters c = new ParquetReaderCounters();
+        c.addRowGroupsDictionaryFilterSkipped(2);
+        c.addRowGroupsDictionaryFilterSkipped(0);
+        c.addRowGroupsDictionaryFilterSkipped(5);
+
+        assertEquals(7L, c.snapshot().rowGroupsDictionaryFilterSkipped());
     }
 
     public void testPageIndexCounters() {
@@ -103,18 +112,6 @@ public class ParquetReaderCountersTests extends ESTestCase {
         List<String> predicates = snap.predicateColumns();
         // Sorted, deduplicated
         assertEquals(List.of("host", "status_code", "tenant_id"), List.copyOf(predicates));
-    }
-
-    public void testTotalReadNanos() {
-        ParquetReaderCounters c = new ParquetReaderCounters();
-        c.addTotalReadNanos(100L);
-        c.addTotalReadNanos(50L);
-        // Negative / zero ignored
-        c.addTotalReadNanos(0L);
-        c.addTotalReadNanos(-5L);
-
-        var snap = c.snapshot();
-        assertEquals(150L, snap.readNanos());
     }
 
     public void testPerColumnSnapshotShape() {
@@ -153,7 +150,6 @@ public class ParquetReaderCountersTests extends ESTestCase {
                     for (int i = 0; i < iterationsPerThread; i++) {
                         counters.addFooterRead(13L, 1L, 0);
                         counters.addRowGroupFiltered(true);
-                        counters.addTotalReadNanos(7L);
                         counters.perColumn("host").setMaterialization(PerColumnStatus.MATERIALIZATION_LATE);
                         if (i % 5 == 0) {
                             counters.addPredicateColumns(List.of("host"));
@@ -177,7 +173,6 @@ public class ParquetReaderCountersTests extends ESTestCase {
         assertEquals(expectedIters, snap.footerSizeBytes());
         assertEquals(expectedIters, snap.rowGroupsTotal());
         assertEquals(expectedIters, snap.rowGroupsKept());
-        assertEquals(expectedIters * 7L, snap.readNanos());
         Map<String, PerColumnStatus> columns = snap.columns();
         assertEquals(PerColumnStatus.MATERIALIZATION_LATE, columns.get("host").materialization());
         List<String> predicates = snap.predicateColumns();

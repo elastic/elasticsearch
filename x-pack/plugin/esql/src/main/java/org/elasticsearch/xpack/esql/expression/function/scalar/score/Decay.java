@@ -21,6 +21,7 @@ import org.elasticsearch.script.ScoreScriptUtils;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -40,6 +41,7 @@ import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.Signature;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
@@ -88,7 +90,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.isTimeDuration;
  * - Spatial types (geo_point, cartesian_point)
  * - Temporal types (datetime, date_nanos)
  */
-public class Decay extends EsqlScalarFunction implements OptionalArgument, PostOptimizationVerificationAware {
+public class Decay extends EsqlScalarFunction implements OptionalArgument, PostOptimizationVerificationAware, AnyNullIsNull {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Decay", Decay::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Decay.class).quaternary(Decay::new).name("decay");
@@ -130,6 +132,15 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
 
     @FunctionInfo(
         returnType = "double",
+        signatures = {
+            @Signature(params = { "integer", "integer", "integer", "named_parameters" }, returnType = "double"),
+            @Signature(params = { "long", "long", "long", "named_parameters" }, returnType = "double"),
+            @Signature(params = { "unsigned_long", "unsigned_long", "unsigned_long", "named_parameters" }, returnType = "double"),
+            @Signature(params = { "double", "double", "double", "named_parameters" }, returnType = "double"),
+            @Signature(params = { "geo_point", "geo_point", "STRING", "named_parameters" }, returnType = "double"),
+            @Signature(params = { "cartesian_point", "cartesian_point", "double", "named_parameters" }, returnType = "double"),
+            @Signature(params = { "date", "date", "time_duration", "named_parameters" }, returnType = "double"),
+            @Signature(params = { "date_nanos", "date_nanos", "time_duration", "named_parameters" }, returnType = "double") },
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") },
         briefSummary = "Calculates a relevance score that decays with distance from a target origin.",

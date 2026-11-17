@@ -115,7 +115,13 @@ public final class DoubleVectorBlock extends AbstractVectorBlock implements Doub
 
     @Override
     public void allowPassingToDifferentDriver() {
+        makeRefCountsThreadSafe();
         vector.allowPassingToDifferentDriver();
+    }
+
+    @Override
+    public void enablePooling() {
+        vector.enablePooling();
     }
 
     @Override

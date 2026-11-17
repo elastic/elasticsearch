@@ -5,22 +5,21 @@
  * 2.0.
  */
 
-apply plugin: 'elasticsearch.legacy-java-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 dependencies {
   javaRestTestImplementation(project(':modules:lang-mustache'))
 }
 
-testClusters.configureEach {
-  testDistribution = 'DEFAULT'
-  numberOfNodes = 3
-  setting 'xpack.security.enabled', 'false'
-  setting 'xpack.monitoring.elasticsearch.collection.enabled', 'false'
-  setting 'xpack.watcher.enabled', 'false'
-  setting 'xpack.ml.enabled', 'true'
-  setting 'xpack.license.self_generated.type', 'trial'
-  setting 'indices.lifecycle.history_index_enabled', 'false'
-  setting 'slm.history_index_enabled', 'false'
+tasks.named("javaRestTest").configure {
+  // Verified by experiment, not assumed: on INTEG_TEST the nodes fail to boot on the unregistered
+  // xpack.monitoring / slm / indices.lifecycle settings, and once those are dropped the master hits
+  // "expected [index.lifecycle.name] to be private" while installing the ML index templates.
+  usesDefaultDistribution("ML index templates need ILM, and the cluster sets monitoring/SLM/ILM settings")
+
+  // Both IT classes share one 3-node cluster (see Clusters#CLUSTER). Sharing is per-JVM, so parallel forks
+  // would each start their own cluster and negate the saving; measured 71s serial+shared vs 85-91s parallel.
+  maxParallelForks = 1
 }
 
 if (buildParams.inFipsJvm){

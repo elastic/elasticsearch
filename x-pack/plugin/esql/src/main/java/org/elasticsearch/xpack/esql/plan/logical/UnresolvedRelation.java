@@ -114,6 +114,12 @@ public final class UnresolvedRelation extends LeafPlan implements Unresolvable, 
         return indexPattern;
     }
 
+    public UnresolvedRelation withIndexPattern(IndexPattern newIndexPattern) {
+        return newIndexPattern.equals(indexPattern)
+            ? this
+            : new UnresolvedRelation(source(), newIndexPattern, frozen, metadataFields, indexMode, unresolvedMsg, commandName);
+    }
+
     public boolean frozen() {
         return frozen;
     }
@@ -204,6 +210,6 @@ public final class UnresolvedRelation extends LeafPlan implements Unresolvable, 
      *         which changes a number of behaviors in the planner.
      */
     public boolean isTimeSeriesMode() {
-        return indexMode == IndexMode.TIME_SERIES;
+        return indexMode.isTsdb();
     }
 }

@@ -13,8 +13,11 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.ParsedContentReservation;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.index.SliceIndexing;
@@ -22,6 +25,7 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
+import org.elasticsearch.rest.action.search.SearchParamsParser;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
@@ -43,6 +47,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchRequest;
@@ -213,7 +219,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         MultiSearchRequest request = parseMultiSearchRequestFromStringAndParams("""
             {}
             {"query":{"match_all":{}}}
-            """, Map.of(SliceIndexing.PARAM_NAME, "s1,s2"));
+            """, Map.of(SliceIndexing.FIELD_NAME, "s1,s2"));
         assertThat(request.requests().size(), equalTo(1));
         SearchRequest searchRequest = request.requests().getFirst();
         assertThat(searchRequest.routing(), equalTo("s1,s2"));
@@ -244,7 +250,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> parseMultiSearchRequestFromStringAndParams("""
             {"routing":"r1"}
             {"query":{"match_all":{}}}
-            """, Map.of(SliceIndexing.PARAM_NAME, "s1")));
+            """, Map.of(SliceIndexing.FIELD_NAME, "s1")));
         assertEquals("[routing] and [_slice] cannot be combined in the same _msearch request", ex.getMessage());
     }
 
@@ -276,6 +282,32 @@ public class MultiSearchRequestTests extends ESTestCase {
         assertThat(sliceRequest.searchSlice(), equalTo("s1"));
     }
 
+    public void testParseRequestIgnoresMrtInCpsAndWarns() throws IOException {
+        final String requestContent = """
+            {"index":"test","ccs_minimize_roundtrips":true}
+            {"query":{"match_all":{}}}
+            {"index":"test2"}
+            {"query":{"match_all":{}}}
+            """;
+        FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(
+            new BytesArray(requestContent),
+            XContentType.JSON
+        ).withParams(Map.of("ccs_minimize_roundtrips", "true")).build();
+
+        MultiSearchRequest request = RestMultiSearchAction.parseRequest(
+            restRequest,
+            true,
+            new UsageService().getSearchUsageHolder(),
+            nf -> false,
+            Optional.of(true)
+        );
+        assertThat(request.requests().size(), equalTo(2));
+        for (SearchRequest searchRequest : request.requests()) {
+            assertFalse(searchRequest.isCcsMinimizeRoundtrips());
+        }
+        assertWarnings(SearchParamsParser.MRT_SET_IN_CPS_WARN);
+    }
+
     public void testWriteSearchRequestParamsUsesSliceFieldWhenRoutingFromSlice() throws IOException {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         SearchRequest request = new SearchRequest();
@@ -288,7 +320,7 @@ public class MultiSearchRequestTests extends ESTestCase {
                 BytesReference.bytes(builder).streamInput(),
                 false
             );
-            assertThat(map.get(SliceIndexing.PARAM_NAME), equalTo("s1"));
+            assertThat(map.get(SliceIndexing.FIELD_NAME), equalTo("s1"));
             assertNull(map.get("routing"));
         }
     }
@@ -505,6 +537,51 @@ public class MultiSearchRequestTests extends ESTestCase {
         assertThat(parsedAll.searchSlice(), equalTo(SliceIndexing.SLICE_ALL));
     }
 
+    public void testEveryLineIsChargedToTheRequest() throws IOException {
+        // A header with many indices, so that it is charged more than its body.
+        String header = "{\"index\":["
+            + IntStream.range(0, 100).mapToObj(i -> "\"index-" + i + "\"").collect(Collectors.joining(","))
+            + "],\"preference\":\"_local\"}";
+        String body = "{\"query\":{\"match_all\":{}}}";
+        int searches = 3;
+        CheckedBiConsumer<SearchRequest, XContentParser, IOException> readBody = (request, parser) -> {
+            while (parser.nextToken() != null) {
+                // Read every token, so that the body is charged the same as on its own.
+            }
+        };
+        try (ParsedContentReservation reservation = new ParsedContentReservation(new NoopCircuitBreaker(CircuitBreaker.REQUEST), true)) {
+            MultiSearchRequest.readMultiLineFormat(
+                XContentType.JSON.xContent(),
+                parserConfig(),
+                reservation::track,
+                new BytesArray((header + "\n" + body + "\n").repeat(searches)),
+                readBody,
+                null,
+                null,
+                null,
+                null,
+                null,
+                true,
+                (name, value, request) -> false,
+                Optional.empty(),
+                null
+            );
+            assertThat(reservation.reservedBytes(), equalTo(searches * (lineCharge(header) + lineCharge(body))));
+        }
+    }
+
+    /** What a line is charged when it is read on its own. */
+    private long lineCharge(String line) throws IOException {
+        try (ParsedContentReservation reservation = new ParsedContentReservation(new NoopCircuitBreaker(CircuitBreaker.REQUEST), true)) {
+            try (XContentParser parser = reservation.track(createParser(JsonXContent.jsonXContent, line))) {
+                while (parser.nextToken() != null) {
+                    // Read every token.
+                }
+            }
+            return reservation.reservedBytes();
+        }
+    }
+
     public void testWritingExpandWildcards() throws IOException {
         assertExpandWildcardsValue(
             IndicesOptions.fromOptions(
@@ -690,7 +767,7 @@ public class MultiSearchRequestTests extends ESTestCase {
             assertThat(
                 e.getMessage(),
                 containsString(
-                    "Unexpected close marker '}': expected ']' (for root starting at "
+                    "Unexpected close marker '}': no open Object to close\n at "
                         + "[Source: (byte[])\"{ \"query\": {\"match_all\": {}}}}}}different error message\""
                 )
             );

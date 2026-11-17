@@ -58,6 +58,8 @@ public class JsonXContentImpl implements XContent {
         jsonFactory.configure(JsonParser.Feature.USE_FAST_DOUBLE_PARSER, true);
         // keeping existing behavior of including source, for now
         jsonFactory.configure(JsonParser.Feature.INCLUDE_SOURCE_IN_LOCATION, true);
+        // write supplementary Unicode characters (emoji etc.) as 4-byte UTF-8 rather than CESU-8 surrogate pairs
+        jsonFactory.configure(JsonGenerator.Feature.COMBINE_UNICODE_SURROGATES_IN_UTF8, true);
         jsonXContent = new JsonXContentImpl();
     }
 

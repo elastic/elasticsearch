@@ -9,10 +9,13 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -20,7 +23,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import java.io.IOException;
 import java.util.List;
 
-public class Sha1 extends AbstractHashFunction {
+public class Sha1 extends AbstractHashFunction implements AnyNullIsNull {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "SHA1", Sha1::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Sha1.class).unary(Sha1::new).name("sha1");
@@ -28,6 +31,7 @@ public class Sha1 extends AbstractHashFunction {
     private static final Hash.HashFunction SHA1 = Hash.HashFunction.create("SHA1");
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "keyword",
         briefSummary = "Computes the SHA1 hash of the input.",
         description = "Computes the SHA1 hash of the input.",

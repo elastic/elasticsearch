@@ -328,7 +328,7 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
     }
 
     private static SearchRequest buildStoredProgressSearch(String configId) {
-        SearchRequest searchRequest = new SearchRequest(AnomalyDetectorsIndex.jobStateIndexPattern());
+        SearchRequest searchRequest = new SearchRequest(AnomalyDetectorsIndex.jobStateIndexPatterns());
         searchRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
         searchRequest.source().size(1);
         searchRequest.source().query(QueryBuilders.idsQuery().addIds(StoredProgress.documentId(configId)));
@@ -449,12 +449,9 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
                 return true;
             }
             if (current instanceof SearchPhaseExecutionException spe) {
-                ShardSearchFailure[] shardFailures = spe.shardFailures();
-                if (shardFailures != null) {
-                    for (ShardSearchFailure shardFailure : shardFailures) {
-                        if (ExceptionsHelper.unwrapCause(shardFailure.getCause()) instanceof NoShardAvailableActionException) {
-                            return true;
-                        }
+                for (ShardSearchFailure shardFailure : spe.shardFailures()) {
+                    if (ExceptionsHelper.unwrapCause(shardFailure.getCause()) instanceof NoShardAvailableActionException) {
+                        return true;
                     }
                 }
             }

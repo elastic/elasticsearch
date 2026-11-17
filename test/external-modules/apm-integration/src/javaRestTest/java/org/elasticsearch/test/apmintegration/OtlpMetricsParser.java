@@ -74,6 +74,10 @@ public final class OtlpMetricsParser extends OtlpParser {
                                 builder.field("time_unix_nano", dp.getTimeUnixNano());
                                 writeTags(builder, scopeName, dp.getAttributesList());
                                 builder.startObject("samples").startObject(metric.getName());
+                                List<Double> bounds = dp.getExplicitBoundsList();
+                                if (bounds.isEmpty() == false) {
+                                    builder.field("bounds", bounds);
+                                }
                                 builder.field("counts", dp.getBucketCountsList());
                                 builder.endObject().endObject();
                                 String jsonLine = Strings.toString(builder.endObject().endObject());

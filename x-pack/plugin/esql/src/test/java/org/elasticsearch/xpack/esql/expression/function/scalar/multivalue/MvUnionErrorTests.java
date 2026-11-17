@@ -58,7 +58,8 @@ public class MvUnionErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
             DataType.EXPONENTIAL_HISTOGRAM,
             DataType.HISTOGRAM,
             DataType.TDIGEST,
-            DataType.DATE_RANGE
+            DataType.DATE_RANGE,
+            DataType.DOUBLE_RANGE
         );
         if (signature.getFirst() == DataType.NULL && unsupportedTypes.contains(signature.get(1))) {
             // resolveType() checks the non-null (second) arg; the error names that arg's type, not "null"
@@ -66,7 +67,7 @@ public class MvUnionErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
                 "argument of ["
                     + sourceForSignature(signature)
                     + "] must be [any type except counter types, dense_vector, "
-                    + "aggregate_metric_double, tdigest, histogram, exponential_histogram, or date_range"
+                    + "aggregate_metric_double, tdigest, histogram, exponential_histogram, date_range, or double_range"
                     + "], found value [] type ["
                     + signature.get(1).typeName()
                     + "]"
@@ -78,7 +79,7 @@ public class MvUnionErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
                     validPerPosition,
                     signature,
                     (v, p) -> "any type except counter types, dense_vector, "
-                        + "aggregate_metric_double, tdigest, histogram, exponential_histogram, or date_range"
+                        + "aggregate_metric_double, tdigest, histogram, exponential_histogram, date_range, or double_range"
                 )
             );
         } else {

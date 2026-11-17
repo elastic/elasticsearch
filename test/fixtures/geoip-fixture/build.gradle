@@ -15,7 +15,7 @@ dependencies {
   api project(':distribution:tools:geoip-cli')
   api project(":libs:cli")
   api project(":libs:x-content")
-  api("junit:junit:${versions.junit}") {
+  api("junit:junit:${versions.junit4}") {
     exclude module: 'hamcrest-core'
   }
 }

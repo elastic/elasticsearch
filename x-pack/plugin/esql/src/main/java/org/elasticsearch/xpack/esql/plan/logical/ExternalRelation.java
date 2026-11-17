@@ -13,13 +13,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.expression.VirtualAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
 import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
-import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -61,10 +60,11 @@ import java.util.Set;
  * carries all necessary information for the operator factory to create the appropriate
  * source operator via the SPI.
  */
-public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator {
+public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator, ClassifiedAs.Dataset {
 
     private static final TransportVersion ESQL_EXTERNAL_SOURCE_READ_SCHEMA = TransportVersion.fromName("esql_external_source_read_schema");
     private static final TransportVersion ESQL_EXTERNAL_DATASET_NAME = TransportVersion.fromName("esql_external_dataset_name");
+    private static final TransportVersion DATASET_DECLARED_SCHEMA = TransportVersion.fromName("dataset_declared_schema");
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
@@ -85,8 +85,8 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
     /**
      * METADATA-clause expressions threaded through from the parser for the verifier to discover
      * if any remain unresolvable after analysis. Mirrors the indexed {@code EsRelation} pattern:
-     * resolved standard / {@code _file.*} names are bound into {@link #output}; any name absent
-     * from {@code MetadataAttribute.ATTRIBUTES_MAP} and {@code FileMetadataColumns} stays here
+     * resolved standard / {@code _file.*} names are bound into {@link #output}; any name absent from
+     * both {@code ExternalMetadataColumns.STANDARD_NAMES} and {@code FileMetadataColumns} stays here
      * as an {@code UnresolvedMetadataAttributeExpression} so the verifier's
      * {@code checkUnresolvedAttributes} walk fires its native {@code "Unresolved metadata pattern
      * [...]"} error — same diagnostic users see on indexed {@code FROM x METADATA _typo}.
@@ -96,6 +96,13 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
      * and intentionally omitted from {@link #writeTo} / {@link #readFrom}.
      */
     private final List<? extends NamedExpression> metadataFields;
+    /**
+     * The declared mapping's read-instructions (logical&rarr;physical renames, per-column date formats), or
+     * {@link DeclaredReadSpec#NONE}. Threaded to {@link ExternalSourceExec} via {@link #toPhysicalExec} and consumed on
+     * the data node (physicalization of declared column names and date formats); rides the wire gated on
+     * {@code dataset_declared_schema}.
+     */
+    private final DeclaredReadSpec declaredReadSpec;
 
     public ExternalRelation(
         Source source,
@@ -105,7 +112,7 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
         FileList fileList,
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap
     ) {
-        this(source, sourcePath, metadata, output, fileList, schemaMap, null, List.of());
+        this(source, sourcePath, metadata, output, fileList, schemaMap, null, List.of(), DeclaredReadSpec.NONE);
     }
 
     public ExternalRelation(
@@ -117,7 +124,7 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
         @Nullable String datasetName
     ) {
-        this(source, sourcePath, metadata, output, fileList, schemaMap, datasetName, List.of());
+        this(source, sourcePath, metadata, output, fileList, schemaMap, datasetName, List.of(), DeclaredReadSpec.NONE);
     }
 
     public ExternalRelation(
@@ -128,7 +135,8 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
         FileList fileList,
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
         @Nullable String datasetName,
-        List<? extends NamedExpression> metadataFields
+        List<? extends NamedExpression> metadataFields,
+        DeclaredReadSpec declaredReadSpec
     ) {
         super(source);
         if (sourcePath == null) {
@@ -147,6 +155,7 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
         this.schemaMap = schemaMap != null ? schemaMap : Map.of();
         this.datasetName = datasetName;
         this.metadataFields = metadataFields != null ? metadataFields : List.of();
+        this.declaredReadSpec = declaredReadSpec != null ? declaredReadSpec : DeclaredReadSpec.NONE;
     }
 
     private static ExternalRelation readFrom(StreamInput in) throws IOException {
@@ -168,8 +177,21 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
             ? in.readNamedWriteableCollectionAsList(Attribute.class)
             : output;
         String datasetName = in.getTransportVersion().supports(ESQL_EXTERNAL_DATASET_NAME) ? in.readOptionalString() : null;
+        DeclaredReadSpec declaredReadSpec = in.getTransportVersion().supports(DATASET_DECLARED_SCHEMA)
+            ? DeclaredReadSpec.readFrom(in)
+            : DeclaredReadSpec.NONE;
         var metadata = new SimpleSourceMetadata(sourceSchema, sourceType, sourcePath, null, null, sourceMetadata, config);
-        return new ExternalRelation(source, sourcePath, metadata, output, FileList.UNRESOLVED, Map.of(), datasetName);
+        return new ExternalRelation(
+            source,
+            sourcePath,
+            metadata,
+            output,
+            FileList.UNRESOLVED,
+            Map.of(),
+            datasetName,
+            List.of(),
+            declaredReadSpec
+        );
     }
 
     @Override
@@ -187,6 +209,15 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
         if (out.getTransportVersion().supports(ESQL_EXTERNAL_DATASET_NAME)) {
             out.writeOptionalString(datasetName);
         }
+        if (out.getTransportVersion().supports(DATASET_DECLARED_SCHEMA)) {
+            declaredReadSpec.writeTo(out);
+        } else if (declaredReadSpec.isEmpty() == false) {
+            // Silently dropping a non-empty spec toward an older data node would return wrong rows (physical names,
+            // unparsed dates). Reject loudly instead — mirrors PutDatasetAction's older-master reject.
+            throw new IllegalArgumentException(
+                "declared dataset read-instructions are not supported on all nodes in the cluster; retry after the upgrade"
+            );
+        }
     }
 
     @Override
@@ -196,7 +227,18 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
 
     @Override
     protected NodeInfo<ExternalRelation> info() {
-        return NodeInfo.create(this, ExternalRelation::new, sourcePath, metadata, output, fileList, schemaMap, datasetName, metadataFields);
+        return NodeInfo.create(
+            this,
+            ExternalRelation::new,
+            sourcePath,
+            metadata,
+            output,
+            fileList,
+            schemaMap,
+            datasetName,
+            metadataFields,
+            declaredReadSpec
+        );
     }
 
     public String sourcePath() {
@@ -222,6 +264,14 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
     @Nullable
     public String datasetName() {
         return datasetName;
+    }
+
+    /**
+     * The declared mapping's read-instructions (renames, per-column date formats), or {@link DeclaredReadSpec#NONE}.
+     * Carried to {@link ExternalSourceExec} via {@link #toPhysicalExec}.
+     */
+    public DeclaredReadSpec declaredReadSpec() {
+        return declaredReadSpec;
     }
 
     @Override
@@ -271,7 +321,18 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
             fileList,
             schemaMap,
             List.of()
-        ).withUnifiedSchema(new ExternalSchema(dataOnlyUnifiedSchema())).withDatasetName(datasetName);
+        ).withUnifiedSchema(dataOnlyUnifiedSchema()).withDatasetName(datasetName).withDeclaredReadSpec(declaredReadSpec);
+    }
+
+    /**
+     * Names of the Hive-partition (path-derived) columns for this relation, read from the serialized stamp in
+     * {@code metadata.sourceMetadata()} — never from {@link #fileList()}, so the answer is identical on the
+     * coordinator and a data node (where the fileList deserializes to {@code UNRESOLVED}). Empty when the
+     * source is not partitioned. Delegates to the one canonical stamp reader, like the
+     * {@code partitionColumnNames()} accessor on {@code ExternalSourceExec}.
+     */
+    public Set<String> partitionColumnNames() {
+        return SourceStatisticsSerializer.partitionColumnNames(metadata.sourceMetadata());
     }
 
     /**
@@ -282,21 +343,24 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
      * than the per-file mapping. Seeding {@code ExternalSourceExec.unifiedSchema} from the
      * wider view causes {@code ColumnMapping.pruneToPerFileQuery} to read past
      * {@code index.length} when the optimizer also prunes the projection.
+     * <p>
+     * Partition names come from the serialized stamp ({@link #partitionColumnNames()}), NOT the fileList, so
+     * this produces the same narrow schema on a data node (where the fileList is {@code UNRESOLVED}) as on the
+     * coordinator — previously the data-node build silently kept the wider, partition-inclusive view.
+     * <p>
+     * Delegates to {@link ExternalSchema#dataAttributesOf(List, Set)}. {@code metadata.schema()} is
+     * constrained to {@code ReferenceAttribute}, so the virtual-column arm is a no-op: the metadata
+     * bind appends to the relation's {@code output}, not to {@code metadata.schema()}. A bound
+     * metadata name can therefore leave this unified view wider than the query schema;
+     * {@code ColumnMapping.pruneToPerFileQuery} drops the extra output slot.
      */
-    private List<Attribute> dataOnlyUnifiedSchema() {
-        PartitionMetadata partitionInfo = fileList != null ? fileList.partitionMetadata() : null;
-        Set<String> partitionNames = partitionInfo != null && partitionInfo.isEmpty() == false
-            ? partitionInfo.partitionColumns().keySet()
-            : Set.of();
-        return metadata.schema()
-            .stream()
-            .filter(a -> a instanceof VirtualAttribute == false && partitionNames.contains(a.name()) == false)
-            .toList();
+    private ExternalSchema dataOnlyUnifiedSchema() {
+        return ExternalSchema.dataAttributesOf(metadata.schema(), partitionColumnNames());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(sourcePath, metadata, output, fileList, schemaMap, datasetName, metadataFields);
+        return Objects.hash(sourcePath, metadata, output, fileList, schemaMap, datasetName, metadataFields, declaredReadSpec);
     }
 
     @Override
@@ -316,7 +380,8 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
             && Objects.equals(fileList, other.fileList)
             && Objects.equals(schemaMap, other.schemaMap)
             && Objects.equals(datasetName, other.datasetName)
-            && Objects.equals(metadataFields, other.metadataFields);
+            && Objects.equals(metadataFields, other.metadataFields)
+            && Objects.equals(declaredReadSpec, other.declaredReadSpec);
     }
 
     @Override
@@ -329,13 +394,66 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
 
     @Override
     public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
-        // sourcePath is a user-supplied external location (S3 URI / file / table path) — opaque
-        // free-form content; redact under anonymization. sourceType is a low-cardinality format enum.
-        sb.append(nodeName()).append("[").append(mapper.opaque(sourcePath)).append("][").append(sourceType()).append("]");
+        // Only the object name (last path segment) is included; bucket, prefix, and full URI are
+        // always omitted. sourceType is a low-cardinality format enum, never redacted.
+        sb.append(nodeName())
+            .append("[")
+            .append(mapper.location(StoragePath.objectName(sourcePath)))
+            .append("][")
+            .append(sourceType())
+            .append("]");
         NodeUtils.toString(sb, output, format, mapper);
     }
 
     public ExternalRelation withAttributes(List<Attribute> newAttributes) {
-        return new ExternalRelation(source(), sourcePath, metadata, newAttributes, fileList, schemaMap, datasetName, metadataFields);
+        return new ExternalRelation(
+            source(),
+            sourcePath,
+            metadata,
+            newAttributes,
+            fileList,
+            schemaMap,
+            datasetName,
+            metadataFields,
+            declaredReadSpec
+        );
+    }
+
+    /**
+     * Returns a copy of this relation with its {@link #fileList()} replaced. Used by the fragment discovery path to
+     * swap in {@link FileList#EMPTY} when coordinator-side split discovery prunes every file, so the read path scans
+     * nothing instead of reading the whole dataset only to have a downstream row filter drop every row.
+     */
+    public ExternalRelation withFileList(FileList newFileList) {
+        return new ExternalRelation(
+            source(),
+            sourcePath,
+            metadata,
+            output,
+            newFileList,
+            schemaMap,
+            datasetName,
+            metadataFields,
+            declaredReadSpec
+        );
+    }
+
+    /**
+     * Returns a copy with {@link #schemaMap()} replaced. Split discovery calls this with an empty map
+     * after the per-file schema has been copied onto the splits, so the coordinator does not keep the
+     * listing map for the rest of the query. The splits themselves stay on the read path.
+     */
+    public ExternalRelation withSchemaMap(Map<StoragePath, SchemaReconciliation.FileSchemaInfo> newSchemaMap) {
+        return new ExternalRelation(
+            source(),
+            sourcePath,
+            metadata,
+            output,
+            fileList,
+            newSchemaMap,
+            datasetName,
+            metadataFields,
+            declaredReadSpec
+        );
     }
 }

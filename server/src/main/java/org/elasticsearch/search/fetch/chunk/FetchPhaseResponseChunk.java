@@ -155,6 +155,20 @@ public class FetchPhaseResponseChunk implements Writeable, Releasable {
         drainDeserializedHits((hit, i) -> consumer.accept(hitPositions[i], hit));
     }
 
+    long estimatedRetainedBytes() throws IOException {
+        ensureDeserialized();
+        if (deserializedHits == null) {
+            return 0L;
+        }
+        long size = 0L;
+        for (SearchHit hit : deserializedHits) {
+            if (hit != null) {
+                size += hit.ramBytesUsed();
+            }
+        }
+        return size;
+    }
+
     /**
      * Walks {@code deserializedHits}, invoking {@code visitor} for each non-null slot and clearing
      * the slot afterwards so the same hit is never handed out twice. Shared by {@link #consumeHits}
@@ -277,5 +291,13 @@ public class FetchPhaseResponseChunk implements Writeable, Releasable {
          * @return a new RecyclerBytesStreamOutput from the network buffer pool
          */
         RecyclerBytesStreamOutput newNetworkBytesStream();
+
+        /**
+         * Called when the last chunk is held back to go out with the shard's fetch result, which can wait for a thread before it is
+         * sent. Returns the bytes to hold, by default {@code bytes} itself.
+         */
+        default ReleasableBytesReference holdLastChunk(ReleasableBytesReference bytes) {
+            return bytes;
+        }
     }
 }

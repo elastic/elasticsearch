@@ -20,7 +20,6 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
-import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
@@ -653,11 +652,8 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         indicesAdmin().preparePutTemplate("template_1").setPatterns(Collections.singletonList("te*")).addAlias(new Alias("index")).get();
 
         InvalidAliasNameException e = expectThrows(InvalidAliasNameException.class, () -> createIndex("test"));
-        // The AliasValidator message enumeration is gated by the ES|QL external data sources feature flag (snapshot-on,
-        // release-off), so the assertion must branch on the flag to pass in both states.
-        String expected = DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()
-            ? "Invalid alias name [index]: an index, data stream, ESQL view, or ESQL dataset exists with the same name as the alias"
-            : "Invalid alias name [index]: an index, data stream, or ESQL view exists with the same name as the alias";
+        String expected = "Invalid alias name [index]: an index, data stream, ESQL view, or ESQL dataset exists "
+            + "with the same name as the alias";
         assertThat(e.getMessage(), equalTo(expected));
     }
 

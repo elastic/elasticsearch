@@ -190,6 +190,7 @@ public class AllocateAction implements LifecycleAction {
         Settings.Builder newSettings = Settings.builder();
         if (numberOfReplicas != null) {
             newSettings.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas);
+            newSettings.putNull(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS);
         }
         include.forEach((key, value) -> newSettings.put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + key, value));
         exclude.forEach((key, value) -> newSettings.put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + key, value));

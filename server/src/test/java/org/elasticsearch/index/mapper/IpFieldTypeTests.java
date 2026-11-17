@@ -28,14 +28,16 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.index.mapper.BinaryDocValuesFormat.SEPARATE_COUNT;
+
 public class IpFieldTypeTests extends FieldTypeTestCase {
 
     private static Query convertToDocValuesQuery(Query query) {
-        return IpFieldMapper.IpFieldType.convertToDocValuesQuery(query, false, MOCK_CONTEXT);
+        return IpFieldMapper.IpFieldType.convertToDocValuesQuery(query, false, false, MOCK_CONTEXT);
     }
 
     private static Query convertToIndexOrDocValuesQuery(Query query) {
-        return IpFieldMapper.IpFieldType.convertToIndexOrDocValuesQuery(query, false, MOCK_CONTEXT);
+        return IpFieldMapper.IpFieldType.convertToIndexOrDocValuesQuery(query, false, false, MOCK_CONTEXT);
     }
 
     public void testValueFormat() throws Exception {
@@ -88,7 +90,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
         assertEquals(convertToDocValuesQuery(query), ftOnlyDocValues.termQuery(ip, MOCK_CONTEXT));
         BytesRef encodedIp = new BytesRef(InetAddressPoint.encode(inetIp));
         assertEquals(
-            new ScanningBinaryDocValuesRangeQuery("field", encodedIp, encodedIp),
+            new ScanningBinaryDocValuesRangeQuery("field", encodedIp, encodedIp, SEPARATE_COUNT),
             ftOnlyBinaryDocValues.termQuery(ip, MOCK_CONTEXT)
         );
 
@@ -100,7 +102,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
         assertEquals(convertToDocValuesQuery(query), ftOnlyDocValues.termQuery(ip, MOCK_CONTEXT));
         encodedIp = new BytesRef(InetAddressPoint.encode(inetIp));
         assertEquals(
-            new ScanningBinaryDocValuesRangeQuery("field", encodedIp, encodedIp),
+            new ScanningBinaryDocValuesRangeQuery("field", encodedIp, encodedIp, SEPARATE_COUNT),
             ftOnlyBinaryDocValues.termQuery(ip, MOCK_CONTEXT)
         );
 
@@ -115,7 +117,8 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
             new ScanningBinaryDocValuesRangeQuery(
                 "field",
                 new BytesRef(((PointRangeQuery) query).getLowerPoint()),
-                new BytesRef(((PointRangeQuery) query).getUpperPoint())
+                new BytesRef(((PointRangeQuery) query).getUpperPoint()),
+                SEPARATE_COUNT
             ),
             ftOnlyBinaryDocValues.termQuery(prefix, MOCK_CONTEXT)
         );

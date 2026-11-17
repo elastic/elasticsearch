@@ -1,0 +1,155 @@
+setup:
+  - requires:
+      cluster_features: "search.vectors.dense_vector_query"
+      test_runner_features: "close_to"
+      reason: 'dense_vector query introduced in 9.5'
+
+  - do:
+      indices.create:
+        index: dv_byte
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              vector:
+                type: dense_vector
+                element_type: byte
+                dims: 5
+                index: true
+                similarity: dot_product
+
+  # dv_unindexed_byte mirrors dv_byte's vectors so l2_norm override scoring can be compared against the
+  # indexed equivalent (different code path: binary doc values vs KNN byte vector values).
+  - do:
+      indices.create:
+        index: dv_unindexed_byte
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              vector:
+                type: dense_vector
+                element_type: byte
+                dims: 5
+                index: false
+
+  - do:
+      index:
+        index: dv_byte
+        id: "1"
+        body: { name: cow.jpg,    vector: [10, -20, 30, -40, 50] }
+  - do:
+      index:
+        index: dv_byte
+        id: "2"
+        body: { name: moose.jpg,  vector: [-10, 20, -30, 40, -50] }
+  - do:
+      index:
+        index: dv_byte
+        id: "3"
+        body: { name: rabbit.jpg, vector: [5, -10, 15, -20, 25] }
+
+  # dv_unindexed_byte mirrors dv_byte exactly.
+  - do:
+      index:
+        index: dv_unindexed_byte
+        id: "1"
+        body: { name: cow.jpg,    vector: [10, -20, 30, -40, 50] }
+  - do:
+      index:
+        index: dv_unindexed_byte
+        id: "2"
+        body: { name: moose.jpg,  vector: [-10, 20, -30, 40, -50] }
+  - do:
+      index:
+        index: dv_unindexed_byte
+        id: "3"
+        body: { name: rabbit.jpg, vector: [5, -10, 15, -20, 25] }
+
+  - do:
+      indices.refresh: {}
+
+---
+"dense_vector on a byte field: quantized flag is a no-op":
+  # BYTE fields have no codec-level quantization (the bytes are the storage). default and quantized
+  # must produce identical scores.
+  - do:
+      search:
+        index: dv_byte
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [10, -20, 30, -40, 50]
+  - set: { hits.hits.0._score: byte_score_0 }
+  - set: { hits.hits.1._score: byte_score_1 }
+  - set: { hits.hits.2._score: byte_score_2 }
+
+  - do:
+      search:
+        index: dv_byte
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [10, -20, 30, -40, 50]
+              quantized: true
+  - close_to: {hits.hits.0._score: {value: $byte_score_0, error: 0.000001}}
+  - close_to: {hits.hits.1._score: {value: $byte_score_1, error: 0.000001}}
+  - close_to: {hits.hits.2._score: {value: $byte_score_2, error: 0.000001}}
+
+---
+"similarity_function override on a byte field":
+  # Byte vectors go through a separate code path (createExactKnnByteQuery / RawByteVectorScorer).
+  # Override the dot_product-indexed byte field with l2_norm; EUCLIDEAN is applied directly to the stored
+  # integer byte values with no denormalization (no magnitude is stored for byte fields).
+  - do:
+      search:
+        index: dv_byte
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [4, -10, 15, -20, 25]
+              similarity_function: l2_norm
+  - match: {hits.hits.0._id: "3"}
+  # dist² from query [4,-10,15,-20,25] to doc 3 [5,-10,15,-20,25] = 1 → score = 1/(1+1) = 0.5.
+  - close_to: {hits.hits.0._score: {value: 0.5, error: 0.000001}}
+
+---
+"dense_vector raw scoring on a non-indexed byte field matches the indexed equivalent":
+  # A non-indexed byte field decodes stored binary doc values and applies the supplied similarity function.
+  # Scores must match the indexed dv_byte field under the same l2_norm override (both use RawByteVectorScorer
+  # / DocValuesByteVectorScorer with EUCLIDEAN on the raw integer byte values).
+  - do:
+      search:
+        index: dv_byte
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [4, -10, 15, -20, 25]
+              similarity_function: l2_norm
+  - match: { hits.total.value: 3 }
+  - set: { hits.hits.0._id: byte_top_id }
+  - set: { hits.hits.0._score: byte_indexed_score_0 }
+  - set: { hits.hits.1._score: byte_indexed_score_1 }
+  - set: { hits.hits.2._score: byte_indexed_score_2 }
+
+  - do:
+      search:
+        index: dv_unindexed_byte
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [4, -10, 15, -20, 25]
+              similarity_function: l2_norm
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._id: $byte_top_id }
+  - close_to: {hits.hits.0._score: {value: $byte_indexed_score_0, error: 0.000001}}
+  - close_to: {hits.hits.1._score: {value: $byte_indexed_score_1, error: 0.000001}}
+  - close_to: {hits.hits.2._score: {value: $byte_indexed_score_2, error: 0.000001}}
+

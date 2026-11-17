@@ -1,0 +1,84 @@
+setup:
+  - do:
+      inference.put:
+        task_type: text_embedding
+        inference_id: embedding-inference-id
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 10,
+              "similarity": "cosine",
+              "api_key": "abc64"
+            },
+            "task_settings": {}
+          }
+
+  - do:
+      indices.create:
+        index: test-embedding-index
+        body:
+          mappings:
+            properties:
+              content:
+                type: keyword
+              embedding:
+                type: dense_vector
+                dims: 10
+                similarity: cosine
+
+  - do:
+      index:
+        index: test-embedding-index
+        id: doc_1
+        body:
+          content: "first document"
+          embedding: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+
+  - do:
+      index:
+        index: test-embedding-index
+        id: doc_2
+        body:
+          content: "second document"
+          embedding: [1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1]
+        refresh: true
+
+---
+"knn query with query_vector_builder works when ML NLP is disabled":
+  # Verifies that CoordinatedInferenceAction is registered even when xpack.ml.nlp.enabled=false,
+  # so the text_embedding QVB can route to an inference endpoint rather than an ML deployment.
+  - do:
+      search:
+        index: test-embedding-index
+        body:
+          query:
+            knn:
+              field: embedding
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                text_embedding:
+                  model_id: embedding-inference-id
+                  model_text: "test query"
+
+  - match: { hits.total.value: 2 }
+
+---
+"knn retriever with query_vector_builder works when ML NLP is disabled":
+  - do:
+      search:
+        index: test-embedding-index
+        body:
+          retriever:
+            knn:
+              field: embedding
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                text_embedding:
+                  model_id: embedding-inference-id
+                  model_text: "test query"
+
+  - match: { hits.total.value: 2 }

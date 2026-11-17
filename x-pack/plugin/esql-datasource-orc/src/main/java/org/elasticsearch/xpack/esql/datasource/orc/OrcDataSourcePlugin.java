@@ -9,9 +9,12 @@ package org.elasticsearch.xpack.esql.datasource.orc;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.FeatureFlag;
+import org.elasticsearch.compute.operator.ProfileSchema;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderStatus;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 
 import java.util.List;
@@ -27,21 +30,48 @@ import java.util.Set;
  *
  * <p>Heavy dependencies (ORC, Hadoop) are isolated in this module to avoid jar hell issues
  * in the core ESQL plugin.
+ *
+ * <p>ORC is not in the released ship set yet, so format registration is gated on
+ * {@link #ESQL_EXTERNAL_ORC_FEATURE_FLAG}: the reader is available in snapshot/development builds and
+ * disabled in release. When the gate is off the {@code orc} format and {@code .orc} extension are not
+ * registered, so an ORC dataset resolves to the generic cannot-determine-how-to-read rejection, which
+ * names the formats that ARE registered.
  */
 public class OrcDataSourcePlugin extends Plugin implements DataSourcePlugin {
 
+    /**
+     * Gates the ORC format reader. Snapshot-on, release-off; override in release with
+     * {@code -Des.esql_external_orc_feature_flag_enabled=true}.
+     */
+    public static final FeatureFlag ESQL_EXTERNAL_ORC_FEATURE_FLAG = new FeatureFlag("esql_external_orc");
+
+    private static boolean enabled() {
+        return ESQL_EXTERNAL_ORC_FEATURE_FLAG.isEnabled();
+    }
+
     @Override
     public Set<FormatSpec> formatSpecs() {
+        if (enabled() == false) {
+            return Set.of();
+        }
         return Set.of(FormatSpec.of("orc", ".orc"));
     }
 
     @Override
     public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
-        return Map.of("orc", (s, blockFactory) -> new OrcFormatReader(blockFactory));
+        if (enabled() == false) {
+            return Map.of();
+        }
+        return Map.of("orc", (s, blockFactory) -> new OrcFormatReader(s, blockFactory));
     }
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return List.of(OrcReaderStatus.ENTRY);
+        return formatReaderProfileVariants().stream().map(ProfileSchema.Variant::namedWriteableEntry).toList();
+    }
+
+    @Override
+    public List<ProfileSchema.Variant<FormatReaderStatus>> formatReaderProfileVariants() {
+        return List.of(ProfileSchema.Variant.fromEntry(FormatReaderStatus.class, OrcReaderStatus.ENTRY, OrcReaderStatus.PROFILE_SCHEMA));
     }
 }

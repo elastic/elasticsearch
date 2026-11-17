@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.core.security.action.apikey;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -29,7 +29,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * (Base64(id + ":" + secret)). The new key has the same role descriptors as the source, with a new
  * name, id, and optional expiration and metadata.
  */
-public final class CloneApiKeyRequest extends LegacyActionRequest {
+public final class CloneApiKeyRequest extends UntypedActionRequest {
 
     private final String id;
     private SecureString apiKey;

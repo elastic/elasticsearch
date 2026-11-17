@@ -48,12 +48,14 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.AllocationId;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
@@ -66,6 +68,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
@@ -112,6 +115,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
+import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -280,11 +284,6 @@ public abstract class EngineTestCase extends ESTestCase {
         }
     }
 
-    @Override
-    public final void setUp() throws Exception {
-        super.setUp();
-    }
-
     @After
     public void verifyAndCloseEngines() throws Exception {
         try {
@@ -305,11 +304,6 @@ public abstract class EngineTestCase extends ESTestCase {
         } finally {
             IOUtils.close(replicaEngine, storeReplica, engine, store, () -> terminate(threadPool), nodeEnvironment);
         }
-    }
-
-    @Override
-    public final void tearDown() throws Exception {
-        super.tearDown();
     }
 
     protected static LuceneDocument testDocumentWithTextField() {
@@ -681,6 +675,18 @@ public abstract class EngineTestCase extends ESTestCase {
                 protected long doGenerateSeqNo() {
                     return seqNoForOperation != null ? seqNoForOperation.applyAsLong(this) : super.doGenerateSeqNo();
                 }
+
+                @Override
+                protected long doGenerateSeqNos(int count) {
+                    if (seqNoForOperation != null) {
+                        long first = doGenerateSeqNo();
+                        for (int i = 1; i < count; i++) {
+                            doGenerateSeqNo();
+                        }
+                        return first;
+                    }
+                    return super.doGenerateSeqNos(count);
+                }
             };
         } else {
             return new InternalTestEngine(config, IndexWriter.MAX_DOCS, localCheckpointTrackerSupplier) {
@@ -694,6 +700,18 @@ public abstract class EngineTestCase extends ESTestCase {
                 @Override
                 protected long doGenerateSeqNo() {
                     return seqNoForOperation != null ? seqNoForOperation.applyAsLong(this) : super.doGenerateSeqNo();
+                }
+
+                @Override
+                protected long doGenerateSeqNos(int count) {
+                    if (seqNoForOperation != null) {
+                        long first = doGenerateSeqNo();
+                        for (int i = 1; i < count; i++) {
+                            doGenerateSeqNo();
+                        }
+                        return first;
+                    }
+                    return super.doGenerateSeqNos(count);
                 }
             };
         }
@@ -949,7 +967,7 @@ public abstract class EngineTestCase extends ESTestCase {
         if (refresh) {
             engine.refresh("test");
         }
-        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             Integer totalHits = searcher.search(Queries.ALL_DOCS_INSTANCE, new TotalHitCountCollectorManager(searcher.getSlices()));
             assertThat(totalHits, equalTo(numDocs));
         }
@@ -1166,7 +1184,7 @@ public abstract class EngineTestCase extends ESTestCase {
 
         assertVisibleCount(replicaEngine, lastFieldValue == null ? 0 : 1);
         if (lastFieldValue != null) {
-            try (Engine.Searcher searcher = replicaEngine.acquireSearcher("test")) {
+            try (Engine.Searcher searcher = replicaEngine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                 Integer totalHits = searcher.search(
                     new TermQuery(new Term("value", lastFieldValue)),
                     new TotalHitCountCollectorManager(searcher.getSlices())
@@ -1222,7 +1240,7 @@ public abstract class EngineTestCase extends ESTestCase {
      * Gets a collection of tuples of docId, sequence number, and primary term of all live documents in the provided engine.
      */
     protected List<DocIdSeqNoAndSource> getDocIds(Engine engine, boolean refresh) throws IOException {
-        return EngineTestUtils.getDocIds(engine, refresh, false);
+        return EngineTestUtils.getDocIds(engine, refresh);
     }
 
     /**
@@ -1359,7 +1377,7 @@ public abstract class EngineTestCase extends ESTestCase {
         if (engine instanceof InternalEngine) {
             try {
                 engine.refresh("test");
-                try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+                try (Engine.Searcher searcher = engine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                     var indexSettings = engine.config().getIndexSettings();
                     var mapperService = engine.config().getMapperService();
                     assertAtMostOneLuceneDocumentPerSequenceNumber(indexSettings, mapperService, searcher.getDirectoryReader());
@@ -1592,7 +1610,13 @@ public abstract class EngineTestCase extends ESTestCase {
         if (readOnlyEngine.lazilyLoadSoftDeletes == false) {
             throw new IllegalStateException("method should only be called when lazily loading soft-deletes is enabled");
         }
-        try (Engine.Searcher searcher = readOnlyEngine.acquireSearcher("soft-deletes-check", Engine.SearcherScope.INTERNAL)) {
+        try (
+            Engine.Searcher searcher = readOnlyEngine.acquireSearcher(
+                "soft-deletes-check",
+                Engine.SearcherScope.INTERNAL,
+                SplitShardCountSummary.IRRELEVANT
+            )
+        ) {
             for (LeafReaderContext ctx : searcher.getIndexReader().getContext().leaves()) {
                 LazySoftDeletesDirectoryReaderWrapper.LazyBits lazyBits = lazyBits(ctx.reader());
                 if (lazyBits != null && lazyBits.initialized()) {
@@ -1660,5 +1684,115 @@ public abstract class EngineTestCase extends ESTestCase {
 
     public static void ensureOpen(Engine engine) {
         engine.ensureOpen();
+    }
+
+    public static IndexOperationBatch initFromRequests(IndexRequest[] requests) {
+        final BulkItemRequest[] items = new BulkItemRequest[requests.length];
+        for (int d = 0; d < requests.length; d++) {
+            items[d] = new BulkItemRequest(d, requests[d]);
+        }
+        return IndexOperationBatch.initFromBulk(items, 0, requests.length, null, Engine.Operation.Origin.PRIMARY, 0L, 0L, null);
+    }
+
+    public static IndexOperationBatch fromIndexOps(List<Engine.Index> operations, SourceBatch sourceBatch) {
+        assert operations.isEmpty() == false : "an IndexOperationBatch must contain at least one operation";
+        final int docCount = operations.size();
+        final BytesRef[] uids = new BytesRef[docCount];
+        final String[] ids = new String[docCount];
+        BytesRef[] routings = null;
+        final XContentType[] contentTypes = new XContentType[docCount];
+        final BytesReference[] sources = new BytesReference[docCount];
+        final long[] requestedVersion = new long[docCount];
+        final VersionType[] versionType = new VersionType[docCount];
+        long[] ifSeqNoBuf = null;
+        long[] ifPrimaryTermBuf = null;
+        final long[] autoGeneratedIdTimestamp = new long[docCount];
+        final boolean[] isRetry = new boolean[docCount];
+        long[] normalizedSizes = null;
+
+        final Engine.Operation.Origin origin = operations.getFirst().origin();
+        final long primaryTerm = operations.getFirst().primaryTerm();
+        final long startTime = operations.getFirst().startTime();
+
+        for (int d = 0; d < docCount; d++) {
+            final Engine.Index op = operations.get(d);
+            assert op.primaryTerm() == primaryTerm
+                : "all operations in a batch must share the same primary term; expected ["
+                    + primaryTerm
+                    + "] but op["
+                    + d
+                    + "] has ["
+                    + op.primaryTerm()
+                    + "]";
+            uids[d] = op.uid();
+            ids[d] = op.id();
+            final String routing = op.routing();
+            if (routing != null) {
+                if (routings == null) {
+                    routings = new BytesRef[docCount];
+                }
+                routings[d] = new BytesRef(routing);
+            }
+            final XContentType ct = op.parsedDoc().getXContentType();
+            contentTypes[d] = ct != null ? ct : XContentType.JSON;
+            sources[d] = op.source().originalBytes();
+            requestedVersion[d] = op.version();
+            versionType[d] = op.versionType();
+            final long ifSeq = op.getIfSeqNo();
+            if (ifSeq != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                if (ifSeqNoBuf == null) {
+                    ifSeqNoBuf = new long[docCount];
+                    Arrays.fill(ifSeqNoBuf, SequenceNumbers.UNASSIGNED_SEQ_NO);
+                }
+                ifSeqNoBuf[d] = ifSeq;
+            }
+            final long ifPT = op.getIfPrimaryTerm();
+            if (ifPT != 0L) {
+                if (ifPrimaryTermBuf == null) {
+                    ifPrimaryTermBuf = new long[docCount];
+                }
+                ifPrimaryTermBuf[d] = ifPT;
+            }
+            autoGeneratedIdTimestamp[d] = op.getAutoGeneratedIdTimestamp();
+            isRetry[d] = op.isRetry();
+            final long normalizedSize = op.parsedDoc().getNormalizedSize();
+            if (normalizedSize != XContentMeteringParserDecorator.UNKNOWN_SIZE) {
+                if (normalizedSizes == null) {
+                    normalizedSizes = new long[docCount];
+                    Arrays.fill(normalizedSizes, XContentMeteringParserDecorator.UNKNOWN_SIZE);
+                }
+                normalizedSizes[d] = normalizedSize;
+            }
+        }
+
+        final BytesRef seqNoBytes = new BytesRef(new byte[docCount * 8]);
+        for (int d = 0; d < docCount; d++) {
+            ByteUtils.writeLongLE(SequenceNumbers.UNASSIGNED_SEQ_NO, seqNoBytes.bytes, d * 8);
+        }
+
+        return new IndexOperationBatch(
+            origin,
+            startTime,
+            primaryTerm,
+            0,
+            docCount,
+            uids,
+            ids,
+            routings,
+            null,
+            contentTypes,
+            sources,
+            requestedVersion,
+            versionType,
+            ifSeqNoBuf,
+            ifPrimaryTermBuf,
+            autoGeneratedIdTimestamp,
+            isRetry,
+            normalizedSizes,
+            sourceBatch,
+            seqNoBytes,
+            new BytesRef(new byte[docCount * 8]),
+            new BytesRef(new byte[docCount * 8])
+        );
     }
 }

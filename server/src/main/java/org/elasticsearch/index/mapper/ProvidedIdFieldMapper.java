@@ -14,24 +14,25 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.InvertableType;
 import org.apache.lucene.document.StoredValue;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.plain.BinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
@@ -45,6 +46,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.sourcebatch.MappedColumns;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -57,18 +59,14 @@ import java.util.function.Supplier;
  * if the cluster is configured to allow it.
  */
 public class ProvidedIdFieldMapper extends IdFieldMapper {
-    public static final NodeFeature ID_FIELD_MODE_MAPPING_ATTRIBUTE = new NodeFeature("mapper.id_field.mode_mapping_attribute");
-
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ProvidedIdFieldMapper.class);
     static final String ID_FIELD_DATA_DEPRECATION_MESSAGE =
         "Loading the fielddata on the _id field is deprecated and will be removed in future versions. "
             + "If you require sorting or aggregating on this field you should also include the id in the "
             + "body of your documents, and map this field as a keyword field that has [doc_values] enabled";
 
-    public static final ProvidedIdFieldMapper DOCUMENT_ID = new ProvidedIdFieldMapper(Mode.DOCUMENT, false);
-    static final ProvidedIdFieldMapper DOCUMENT_ID_DEFAULT_COLUMNAR = new ProvidedIdFieldMapper(Mode.DOCUMENT, true);
-    static final ProvidedIdFieldMapper COLUMNAR_ID = new ProvidedIdFieldMapper(Mode.COLUMNAR, false);
-    static final ProvidedIdFieldMapper COLUMNAR_ID_DEFAULT_COLUMNAR = new ProvidedIdFieldMapper(Mode.COLUMNAR, true);
+    public static final ProvidedIdFieldMapper DOCUMENT_ID = new ProvidedIdFieldMapper(Mode.DOCUMENT);
+    static final ProvidedIdFieldMapper COLUMNAR_ID = new ProvidedIdFieldMapper(Mode.COLUMNAR);
 
     /**
      * Builder for {@link ProvidedIdFieldMapper} that supports the {@code mode} mapping parameter.
@@ -76,27 +74,20 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
     public static class Builder extends MetadataFieldMapper.Builder {
 
         private final Parameter<Mode> mode;
-        private final boolean columnarIdByDefault;
 
         Builder(boolean columnarIdByDefault) {
             super(NAME);
             mode = Parameter.enumParam(
                 "mode",
                 false,
-                m -> ((ProvidedIdFieldMapper) m).mode,
                 (Supplier<Mode>) () -> columnarIdByDefault ? Mode.COLUMNAR : Mode.DOCUMENT,
                 Mode.class
             );
-            this.columnarIdByDefault = columnarIdByDefault;
         }
 
         @Override
         protected Parameter<?>[] getParameters() {
-            if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
-                return new Parameter<?>[] { mode };
-            } else {
-                return new Parameter<?>[] {};
-            }
+            return new Parameter<?>[] { mode };
         }
 
         @Override
@@ -104,9 +95,9 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
             var mode = this.mode.getValue();
             switch (mode) {
                 case COLUMNAR:
-                    return columnarIdByDefault ? COLUMNAR_ID_DEFAULT_COLUMNAR : COLUMNAR_ID;
+                    return COLUMNAR_ID;
                 case DOCUMENT:
-                    return columnarIdByDefault ? DOCUMENT_ID_DEFAULT_COLUMNAR : DOCUMENT_ID;
+                    return DOCUMENT_ID;
                 default:
                     throw new IllegalArgumentException("Unsupported id field mode [" + mode + "]");
             }
@@ -115,6 +106,10 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
         @Override
         public String contentType() {
             return CONTENT_TYPE;
+        }
+
+        Mode getMode() {
+            return mode.getValue();
         }
     }
 
@@ -246,7 +241,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
             int bucketSize,
             BucketedSort.ExtraData extra
         ) {
-            throw new UnsupportedOperationException("can't sort on the [" + CONTENT_TYPE + "] field");
+            throw new IllegalArgumentException("Can't sort on the [" + CONTENT_TYPE + "] field");
         }
 
         private static LeafFieldData wrap(LeafFieldData in) {
@@ -266,9 +261,9 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
                 }
 
                 @Override
-                public SortedBinaryDocValues getBytesValues() {
-                    SortedBinaryDocValues inValues = in.getBytesValues();
-                    return new SortedBinaryDocValues(inValues.docIdIterator()) {
+                public SortableBinaryDocValues getBytesValues() {
+                    SortableBinaryDocValues inValues = in.getBytesValues();
+                    return new SortableBinaryDocValues(inValues.docIdIterator()) {
 
                         @Override
                         public BytesRef nextValue() throws IOException {
@@ -300,6 +295,11 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
                         public ValueMode getValueMode() {
                             return inValues.getValueMode();
                         }
+
+                        @Override
+                        public ValueOrder getValueOrder() {
+                            return inValues.getValueOrder();
+                        }
                     };
                 }
             };
@@ -307,12 +307,10 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
     }
 
     private final Mode mode;
-    private final boolean columnarIdByDefault;
 
-    public ProvidedIdFieldMapper(Mode mode, boolean columnarIdByDefault) {
+    public ProvidedIdFieldMapper(Mode mode) {
         super(mode == Mode.COLUMNAR ? new ColumnarIdFieldType() : new IdFieldType());
         this.mode = mode;
-        this.columnarIdByDefault = columnarIdByDefault;
     }
 
     @Override
@@ -321,10 +319,22 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
     }
 
     @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        Builder builder = new Builder(columnarIdByDefault);
-        builder.init(this);
-        return builder;
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+        return true;
+    }
+
+    @Override
+    public void preColumnarParse(BatchMappingContext context) {
+        // Mirror preParse: in columnar storage mode _id is indexed + BINARY doc values; otherwise it
+        // is indexed + stored.
+        final IndexableFieldType idFieldType = mode == Mode.COLUMNAR ? ColumnarIdField.TYPE : StringField.TYPE_STORED;
+        context.addColumn(MappedColumns.binaryColumn(context.uids(), NAME, idFieldType));
+    }
+
+    @Override
+    public void postColumnarParse(BatchMappingContext context) throws IOException {
+        super.postColumnarParse(context);
+        // TODO: Need to implement the id propagation to non-root documents when we support nested fields.
     }
 
     @Override
@@ -370,6 +380,14 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
     public static IndexableField columnarIdField(String id) {
         BytesRef encoded = Uid.encodeId(id);
         return new ColumnarIdField(NAME, encoded);
+    }
+
+    /**
+     * Columnar {@code _id} field for an already-encoded uid. Used by slice-enabled indices, whose identity term is the
+     * compound {@code (slice, id)} uid rather than a plain {@link Uid#encodeId(String)}.
+     */
+    public static IndexableField columnarIdField(BytesRef uid) {
+        return new ColumnarIdField(NAME, uid);
     }
 
     static final class ColumnarIdField extends Field {

@@ -679,7 +679,7 @@ public class BatchDriverTests extends ESTestCase {
      */
     private ExchangeSetup setupExchange(DriverContext driverContext, ThreadPool threadPool) {
         ExchangeSourceHandler sourceHandler = new ExchangeSourceHandler(10, threadPool.executor(ThreadPool.Names.SEARCH));
-        ExchangeSinkHandler sinkHandler = new ExchangeSinkHandler(driverContext.blockFactory(), 10, System::currentTimeMillis);
+        ExchangeSinkHandler sinkHandler = new ExchangeSinkHandler(10, System::currentTimeMillis);
         sourceHandler.addRemoteSink(sinkHandler::fetchPageAsync, true, () -> {}, 1, ActionListener.noop());
 
         ExchangeSourceOperator sourceOperator = new ExchangeSourceOperator(sourceHandler.createExchangeSource());

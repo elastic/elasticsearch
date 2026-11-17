@@ -211,7 +211,7 @@ public class TransportGetTransformActionTests extends ESTestCase {
         var future = new PlainActionFuture<GetTransformAction.Response>();
 
         respondWithoutDanglingTaskCheckOnFailure("_all", task(), withoutCheck, future).onFailure(
-            new SearchPhaseExecutionException("query", "all shards failed", ShardSearchFailure.EMPTY_ARRAY)
+            new SearchPhaseExecutionException("query", "all shards failed", List.of())
         );
 
         assertThat(future.actionGet(), sameInstance(withoutCheck));
@@ -264,7 +264,7 @@ public class TransportGetTransformActionTests extends ESTestCase {
         var future = new PlainActionFuture<GetTransformAction.Response>();
 
         respondWithDanglingTasks("_all", task(), Set.of("b"), List.of(), 2, future).onFailure(
-            new SearchPhaseExecutionException("query", "all shards failed", ShardSearchFailure.EMPTY_ARRAY)
+            new SearchPhaseExecutionException("query", "all shards failed", List.of())
         );
 
         assertThat(org.elasticsearch.common.Strings.toString(future.actionGet()), not(containsString("errors")));
@@ -329,7 +329,7 @@ public class TransportGetTransformActionTests extends ESTestCase {
         return new SearchPhaseExecutionException(
             "query",
             "all shards failed",
-            new ShardSearchFailure[] { new ShardSearchFailure(new SearchTimeoutException(null, "Time exceeded")) }
+            List.of(new ShardSearchFailure(new SearchTimeoutException(null, "Time exceeded")))
         );
     }
 

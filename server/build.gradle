@@ -213,6 +213,12 @@ tasks.named('heapPressureTest') {
 
 tasks.named('jacocoTestReport') {
   dependsOn 'test'
+  // CI turns the XML report into a single-page HTML artifact (.buildkite/scripts/jacoco/) and no
+  // longer uploads JaCoCo's own HTML report (~15k files), so skip writing it there.
+  reports {
+    xml.required = true
+    html.required = buildParams.ci == false
+  }
 }
 
 tasks.named('check') {

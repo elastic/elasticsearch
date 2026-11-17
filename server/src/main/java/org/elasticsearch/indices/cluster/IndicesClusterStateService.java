@@ -1776,7 +1776,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             createShard(currentRouting, currentState, ActionListener::noop);
         } catch (Exception e) {
             // should not be possible
-            final var wrappedException = new IllegalStateException("unexpected failure in handleRecoveryFailure on " + shardRouting, e);
+            final var wrappedException = new IllegalStateException("unexpected failure in retryRecovery on " + shardRouting, e);
             logger.error(wrappedException.getMessage(), e);
             assert false : e;
             failAndRemoveShard(

@@ -14,9 +14,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.TelemetryPlugin;
-import org.elasticsearch.telemetry.TelemetryProvider.NoopTelemetryProvider;
 import org.elasticsearch.telemetry.metric.Instrument;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -27,70 +25,74 @@ import java.util.List;
  */
 public class TestTelemetryPlugin extends Plugin implements TelemetryPlugin {
 
-    protected final RecordingMeterRegistry meter = new RecordingMeterRegistry();
+    protected final RecordingTelemetryProvider telemetryProvider = new RecordingTelemetryProvider();
 
     Registration getRegistration(Instrument instrument) {
-        return meter.getRecorder().getRegistration(instrument);
+        return meter().getRecorder().getRegistration(instrument);
     }
 
     public List<Measurement> getMetrics(Instrument instrument) {
-        return meter.getRecorder().getMeasurements(instrument);
+        return meter().getRecorder().getMeasurements(instrument);
     }
 
     public List<Measurement> getDoubleCounterMeasurement(String name) {
-        return meter.getRecorder().getMeasurements(InstrumentType.DOUBLE_COUNTER, name);
+        return meter().getRecorder().getMeasurements(InstrumentType.DOUBLE_COUNTER, name);
     }
 
     public List<Measurement> getLongCounterMeasurement(String name) {
-        return meter.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, name);
+        return meter().getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, name);
     }
 
     public List<Measurement> getLongAsyncCounterMeasurement(String name) {
-        return meter.getRecorder().getMeasurements(InstrumentType.LONG_ASYNC_COUNTER, name);
+        return meter().getRecorder().getMeasurements(InstrumentType.LONG_ASYNC_COUNTER, name);
     }
 
     public List<Measurement> getDoubleUpDownCounterMeasurement(String name) {
-        return meter.getRecorder().getMeasurements(InstrumentType.DOUBLE_UP_DOWN_COUNTER, name);
+        return meter().getRecorder().getMeasurements(InstrumentType.DOUBLE_UP_DOWN_COUNTER, name);
     }
 
     public List<Measurement> getLongUpDownCounterMeasurement(String name) {
-        return meter.getRecorder().getMeasurements(InstrumentType.LONG_UP_DOWN_COUNTER, name);
+        return meter().getRecorder().getMeasurements(InstrumentType.LONG_UP_DOWN_COUNTER, name);
     }
 
     public List<Measurement> getDoubleGaugeMeasurement(String name) {
-        return meter.getRecorder().getMeasurements(InstrumentType.DOUBLE_GAUGE, name);
+        return meter().getRecorder().getMeasurements(InstrumentType.DOUBLE_GAUGE, name);
     }
 
     public List<Measurement> getDoubleAsyncGaugeMeasurement(String name) {
-        return meter.getRecorder().getMeasurements(InstrumentType.DOUBLE_ASYNC_GAUGE, name);
+        return meter().getRecorder().getMeasurements(InstrumentType.DOUBLE_ASYNC_GAUGE, name);
     }
 
     public List<Measurement> getLongGaugeMeasurement(String name) {
-        return meter.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, name);
+        return meter().getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, name);
     }
 
     public List<Measurement> getLongAsyncGaugeMeasurement(String name) {
-        return meter.getRecorder().getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, name);
+        return meter().getRecorder().getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, name);
     }
 
     public List<Measurement> getDoubleHistogramMeasurement(String name) {
-        return meter.getRecorder().getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, name);
+        return meter().getRecorder().getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, name);
     }
 
     public List<Measurement> getLongHistogramMeasurement(String name) {
-        return meter.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, name);
+        return meter().getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, name);
     }
 
     public void collect() {
-        meter.getRecorder().collect();
+        meter().getRecorder().collect();
     }
 
     public void resetMeter() {
-        meter.getRecorder().resetCalls();
+        meter().getRecorder().resetCalls();
     }
 
     public ArrayList<String> getRegisteredMetrics(InstrumentType instrumentType) {
-        return meter.getRecorder().getRegisteredMetrics(instrumentType);
+        return meter().getRecorder().getRegisteredMetrics(instrumentType);
+    }
+
+    private RecordingMeterRegistry meter() {
+        return telemetryProvider.getMeterRegistry();
     }
 
     @Override
@@ -100,16 +102,11 @@ public class TestTelemetryPlugin extends Plugin implements TelemetryPlugin {
         List<TelemetryLoggingFilterProvider> filterProviders,
         TelemetryLogResourceProvider logResourceProvider
     ) {
-        return getTelemetryProvider(environment.settings());
+        return telemetryProvider;
     }
 
     /** Test-friendly entry point used directly by call sites that don't have an {@link Environment}. */
     public TelemetryProvider getTelemetryProvider(Settings settings) {
-        return new NoopTelemetryProvider() {
-            @Override
-            public MeterRegistry getMeterRegistry() {
-                return meter;
-            }
-        };
+        return telemetryProvider;
     }
 }

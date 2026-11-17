@@ -11,6 +11,7 @@ package org.elasticsearch.test.tasks;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -18,7 +19,7 @@ import org.elasticsearch.tasks.RemovedTaskListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collection;
@@ -50,13 +51,19 @@ public class MockTaskManager extends TaskManager {
     private final Collection<MockTaskManagerListener> listeners = new CopyOnWriteArrayList<>();
 
     public MockTaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
-        super(settings, threadPool, taskHeaders, Tracer.noop());
+        super(settings, threadPool, taskHeaders, TelemetryProvider.NOOP, UUIDs.randomBase64UUID());
     }
 
-    public static TaskManager create(Settings settings, ThreadPool threadPool, Set<String> taskHeaders, Tracer tracer, String nodeId) {
+    public static TaskManager create(
+        Settings settings,
+        ThreadPool threadPool,
+        Set<String> taskHeaders,
+        TelemetryProvider telemetryProvider,
+        String nodeId
+    ) {
         var taskManager = MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)
             ? new MockTaskManager(settings, threadPool, taskHeaders)
-            : new TaskManager(settings, threadPool, taskHeaders, tracer, nodeId);
+            : new TaskManager(settings, threadPool, taskHeaders, telemetryProvider, nodeId);
         return MockTaskManager.SPY_TASK_MANAGER_SETTING.get(settings) ? spy(taskManager) : taskManager;
     }
 

@@ -48,7 +48,6 @@ import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.TelemetryProvider;
-import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.LinkedProjectConfigService;
@@ -79,10 +78,10 @@ class NodeServiceProvider {
         Settings settings,
         ThreadPool threadPool,
         Set<String> taskHeaders,
-        Tracer tracer,
+        TelemetryProvider telemetryProvider,
         String nodeId
     ) {
-        return new TaskManager(settings, threadPool, taskHeaders, tracer, nodeId);
+        return new TaskManager(settings, threadPool, taskHeaders, telemetryProvider, nodeId);
     }
 
     ScriptService newScriptService(

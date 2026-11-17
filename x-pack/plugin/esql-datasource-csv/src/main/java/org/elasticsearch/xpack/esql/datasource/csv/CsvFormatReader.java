@@ -671,6 +671,54 @@ public class CsvFormatReader implements SegmentableFormatReader {
         List<String> configWarnings,
         boolean multilineFields
     ) {
+        this(
+            blockFactory,
+            options,
+            format,
+            extensions,
+            resolvedSchema,
+            schemaSampleSize,
+            schemaSampleBytes,
+            schemaMaxFields,
+            effectivePolicy,
+            canonicalConfig,
+            readConfig,
+            directBlockEnabled,
+            declaredDateFormats,
+            declaredProvenanceBinding,
+            headerBindingByProvenance,
+            configWarnings,
+            multilineFields,
+            createMapper(options)
+        );
+    }
+
+    /**
+     * Same as the options-derived constructor, but keeps {@code sharedCsvMapper}. Use when the copy
+     * does not change {@link #options}: {@link #createMapper} is not cheap, and after the per-query
+     * factory is never the node factory, {@link #withBlockFactory} would otherwise rebuild the mapper
+     * on every file/split.
+     */
+    private CsvFormatReader(
+        BlockFactory blockFactory,
+        CsvFormatOptions options,
+        String format,
+        List<String> extensions,
+        List<Attribute> resolvedSchema,
+        int schemaSampleSize,
+        long schemaSampleBytes,
+        int schemaMaxFields,
+        ErrorPolicy effectivePolicy,
+        String canonicalConfig,
+        String readConfig,
+        boolean directBlockEnabled,
+        Map<String, String> declaredDateFormats,
+        boolean declaredProvenanceBinding,
+        boolean headerBindingByProvenance,
+        List<String> configWarnings,
+        boolean multilineFields,
+        CsvMapper sharedCsvMapper
+    ) {
         this.multilineFields = multilineFields;
         this.blockFactory = blockFactory;
         this.options = options;
@@ -688,7 +736,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
         this.declaredProvenanceBinding = declaredProvenanceBinding;
         this.headerBindingByProvenance = headerBindingByProvenance;
         this.configWarnings = List.copyOf(configWarnings);
-        this.sharedCsvMapper = createMapper(options);
+        this.sharedCsvMapper = sharedCsvMapper;
+    }
+
+    /** Visible for tests. Copies that do not change {@link #options} reuse this mapper. */
+    CsvMapper sharedCsvMapper() {
+        return sharedCsvMapper;
     }
 
     /**
@@ -1452,7 +1505,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             declaredProvenanceBinding,
             headerBindingByProvenance,
             configWarnings,
-            multilineFields
+            multilineFields,
+            sharedCsvMapper
         );
     }
 
@@ -1478,7 +1532,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             declaredProvenanceBinding,
             headerBindingByProvenance,
             configWarnings,
-            multilineFields
+            multilineFields,
+            sharedCsvMapper
         );
     }
 

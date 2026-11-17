@@ -1185,6 +1185,31 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertEquals(0L, nodeBreaker.getUsed());
     }
 
+    /**
+     * {@code withBlockFactory} (every split after the per-query factory) and {@code withReadConfig}
+     * (every file) copy the reader with the same {@code WITH} options. Rebuilding {@code CsvMapper}
+     * there is wasted work; the copy must keep the receiver's mapper.
+     */
+    public void testWithBlockFactoryReusesSharedCsvMapper() {
+        BlockFactory other = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
+        CsvFormatReader nodeReader = new CsvFormatReader(blockFactory);
+        CsvFormatReader perRead = nodeReader.withBlockFactory(other);
+        assertNotSame("a distinct factory must copy, not mutate the node singleton", nodeReader, perRead);
+        assertSame(
+            "withBlockFactory must reuse sharedCsvMapper; options are unchanged",
+            nodeReader.sharedCsvMapper(),
+            perRead.sharedCsvMapper()
+        );
+
+        CsvFormatReader perFile = nodeReader.withReadConfig("0123456789abcdef0123456789abcdef");
+        assertNotSame(nodeReader, perFile);
+        assertSame(
+            "withReadConfig must reuse sharedCsvMapper; options are unchanged",
+            nodeReader.sharedCsvMapper(),
+            perFile.sharedCsvMapper()
+        );
+    }
+
     public void testReadWithBatching() throws IOException {
         StringBuilder csv = new StringBuilder("id:long,value:integer\n");
         for (int i = 1; i <= 25; i++) {

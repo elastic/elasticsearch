@@ -766,10 +766,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
         Map<Boolean, String> excerpt = Map.of(false, "col0=[1], col1=[not-a-date]", true, "1,not-a-date");
         for (boolean directBlock : List.of(false, true)) {
             String message = captureFailFastMessage(base.withDirectBlockEnabled(directBlock), null, content);
-            assertTrue(
-                "direct_block=" + directBlock + " message: " + message,
-                message.startsWith(prefix + excerpt.get(directBlock))
-            );
+            assertTrue("direct_block=" + directBlock + " message: " + message, message.startsWith(prefix + excerpt.get(directBlock)));
         }
     }
 

@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.GenerationContext;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
+import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 
 import java.util.List;
 import java.util.Map;
@@ -51,8 +52,7 @@ public class DedupGenerator implements CommandGenerator {
                 return EMPTY_DESCRIPTION;
             }
             // DEDUP also rejects union-type columns, which come back as unsupported with all of their types.
-            // Must stay in sync with Dedup#isUnionType.
-            if (dt == DataType.UNSUPPORTED && c.originalTypes().size() > 1) {
+            if (dt == DataType.UNSUPPORTED && Dedup.isUnionType(c.originalTypes())) {
                 return EMPTY_DESCRIPTION;
             }
         }

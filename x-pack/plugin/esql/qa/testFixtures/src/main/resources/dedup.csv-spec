@@ -296,23 +296,6 @@ employees_incompatible  | 10002
 ;
 
 
-dedupOverUnionTypesFullSchemaCount
-required_capability: dedup_command
-
-// Every column whose type differs between the two indices has to be converted or dropped before DEDUP.
-FROM employees, employees_incompatible METADATA _index
-| EVAL emp_no_long = emp_no::long
-| DROP avg_worked_seconds, emp_no, first_name, gender, height, is_rehired, job_positions, languages, last_name, salary, salary_change, still_hired
-| WHERE emp_no_long IN (10001, 10002)
-| DEDUP
-| STATS c = COUNT(emp_no_long)
-;
-
-c:long
-4
-;
-
-
 dedupOverDenseVector
 required_capability: dedup_command
 

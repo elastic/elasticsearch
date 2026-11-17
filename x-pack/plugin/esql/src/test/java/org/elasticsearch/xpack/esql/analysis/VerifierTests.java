@@ -80,6 +80,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.matchesRegex;
@@ -5353,20 +5354,92 @@ public class VerifierTests extends AnalyzerTestCase {
             );
     }
 
-    public void testDedupRejectsSubqueryColumnUnsupportedInOneBranch() {
+    public void testDedupSuggestsDropForSubqueryColumnUnsupportedInOneBranch() {
         assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
-        IndexResolution unsupportedX = IndexResolution.valid(
-            EsIndexGenerator.esIndex("unsupported_x", Map.of("x", new UnsupportedEsField("x", List.of("ip_range"))))
+        dedupUnsupportedInOneBranchAnalyzer().error(
+            "FROM (FROM unsupported_x | KEEP x), (FROM keyword_x | KEEP x) | DEDUP",
+            equalTo(
+                "1:65: DEDUP cannot compare columns with conflicting types: [x] with types [keyword, unsupported];"
+                    + " drop columns with an unsupported type, for example DROP `x`"
+            )
         );
-        IndexResolution keywordX = IndexResolution.valid(
-            EsIndexGenerator.esIndex("keyword_x", Map.of("x", new EsField("x", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)))
+    }
+
+    public void testDedupSuggestsConvertAndDropForMixedSubqueryColumns() {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        dedupUnsupportedInOneBranchAnalyzer().error(
+            "FROM (FROM unsupported_x | KEEP x, y), (FROM keyword_x | KEEP x, y) | DEDUP",
+            allOf(
+                startsWith("1:71: DEDUP cannot compare columns with conflicting types: "),
+                containsString("[x] with types [keyword, unsupported]"),
+                containsString("[y] with types [integer, long]"),
+                endsWith(
+                    "; convert each to a single type first, for example EVAL `y` = `y`::keyword, or DROP it;"
+                        + " drop columns with an unsupported type, for example DROP `x`"
+                )
+            )
         );
-        analyzer().addIndex("unsupported_x", unsupportedX)
-            .addIndex("keyword_x", keywordX)
+    }
+
+    public void testDedupRejectsUnionTypeColumnFromThreeSubqueries() {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        analyzer().addEmployees()
+            .addIndex("employees_incompatible", "mapping-default-incompatible.json")
             .error(
-                "FROM (FROM unsupported_x | KEEP x), (FROM keyword_x | KEEP x) | DEDUP",
-                containsString("DEDUP cannot compare columns with conflicting types: [x] with types [keyword, unsupported];")
+                "FROM (FROM employees | KEEP emp_no), (FROM employees | KEEP emp_no), (FROM employees_incompatible | KEEP emp_no) | DEDUP",
+                containsString("DEDUP cannot compare columns with conflicting types: [emp_no] with types [integer, long];")
             );
+    }
+
+    public void testDedupRejectsUnionTypeColumnKeptBeforeFork() {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        dedupUnionTypesAnalyzer().error(
+            "FROM test* | KEEP multi_typed, name | FORK (WHERE true) (WHERE true) | DEDUP",
+            containsString("DEDUP cannot compare columns with conflicting types: [multi_typed] with types [integer, long];")
+        );
+    }
+
+    public void testDedupRejectsUnionTypeColumnKeptAfterFork() {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        dedupUnionTypesAnalyzer().error(
+            "FROM test* | FORK (WHERE true) (WHERE true) | KEEP multi_typed | DEDUP",
+            containsString("DEDUP cannot compare columns with conflicting types: [multi_typed] with types [integer, long];")
+        );
+    }
+
+    public void testDedupRejectsUnionTypeColumnInForkBranch() {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        dedupUnionTypesAnalyzer().error(
+            "FROM test* | KEEP multi_typed, name | FORK (DEDUP) (WHERE true)",
+            containsString("DEDUP cannot compare columns with conflicting types: [multi_typed] with types [integer, long];")
+        );
+    }
+
+    public void testDedupRejectsUnionTypeColumnWithUnmappedFieldsLoad() {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        dedupUnionTypesAnalyzer().statementError(
+            "SET unmapped_fields=\"load\"; FROM test* | KEEP multi_typed | DEDUP",
+            containsString("DEDUP cannot compare columns with conflicting types: [multi_typed] with types [integer, long];")
+        );
+    }
+
+    public void testDedupRejectsUnionTypeColumnWithUnmappedFieldsNullify() {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        dedupUnionTypesAnalyzer().statementError(
+            "SET unmapped_fields=\"nullify\"; FROM test* | KEEP multi_typed | DEDUP",
+            containsString("DEDUP cannot compare columns with conflicting types: [multi_typed] with types [integer, long];")
+        );
+    }
+
+    public void testRenamingUnionTypeColumnBeforeDedupFailsAtRename() {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        dedupUnionTypesAnalyzer().error(
+            "FROM test* | RENAME multi_typed AS m | KEEP m | DEDUP",
+            equalTo(
+                "1:21: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                    + " [integer] in [test1], [long] in [test2]"
+            )
+        );
     }
 
     public void testDedupAcceptsUnionTypeColumnConvertedInPlace() {
@@ -5401,6 +5474,21 @@ public class VerifierTests extends AnalyzerTestCase {
             new EsField("name", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
         );
         return analyzer().addIndex("test*", IndexResolution.valid(EsIndexGenerator.esIndex("test*", mapping))).stripErrorPrefix(true);
+    }
+
+    /**
+     * Two indices for {@code FROM} subqueries: {@code x} is unsupported in one and {@code keyword} in the other, and {@code y} is
+     * {@code integer} in one and {@code long} in the other.
+     */
+    private TestAnalyzer dedupUnsupportedInOneBranchAnalyzer() {
+        EsField keywordX = new EsField("x", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
+        EsField integerY = new EsField("y", INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
+        EsField longY = new EsField("y", LONG, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
+        Map<String, EsField> unsupportedMapping = Map.of("x", new UnsupportedEsField("x", List.of("ip_range")), "y", integerY);
+        Map<String, EsField> keywordMapping = Map.of("x", keywordX, "y", longY);
+        return analyzer().addIndex("unsupported_x", IndexResolution.valid(EsIndexGenerator.esIndex("unsupported_x", unsupportedMapping)))
+            .addIndex("keyword_x", IndexResolution.valid(EsIndexGenerator.esIndex("keyword_x", keywordMapping)))
+            .stripErrorPrefix(true);
     }
 
     private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {

@@ -90,7 +90,7 @@ public class Dedup extends UnaryPlan implements SurrogateLogicalPlan, TelemetryA
             if (attr.synthetic()) {
                 continue;
             }
-            if (attr instanceof UnsupportedAttribute ua && isUnionType(ua)) {
+            if (attr instanceof UnsupportedAttribute ua && isUnionType(ua.originalTypes())) {
                 unionTyped.add(ua);
             } else {
                 Aggregate.checkUnsupportedGroupingType(attr, failures);
@@ -100,28 +100,40 @@ public class Dedup extends UnaryPlan implements SurrogateLogicalPlan, TelemetryA
             String columns = unionTyped.stream()
                 .map(ua -> "[" + ua.name() + "] with types " + new TreeSet<>(ua.originalTypes()))
                 .collect(Collectors.joining(", "));
-            // name() is unquoted. A field such as emp-no has to be quoted or the suggested EVAL does not parse.
-            String example = ParserUtils.quoteIdString(unionTyped.getFirst().name());
-            failures.add(
-                fail(
-                    this,
-                    "DEDUP cannot compare columns with conflicting types: {}; "
-                        + "convert each to a single type first, for example EVAL {} = {}::keyword, or DROP it",
-                    columns,
-                    example,
-                    example
-                )
-            );
+            List<String> advice = new ArrayList<>();
+            // name() is unquoted. A field such as emp-no has to be quoted or the suggested command does not parse.
+            unionTyped.stream()
+                .filter(ua -> hasUnsupportedType(ua) == false)
+                .findFirst()
+                .map(ua -> ParserUtils.quoteIdString(ua.name()))
+                .ifPresent(
+                    name -> advice.add(
+                        "convert each to a single type first, for example EVAL " + name + " = " + name + "::keyword, or DROP it"
+                    )
+                );
+            // A column whose type is unsupported in some of the data cannot be converted there, so it can only be dropped.
+            unionTyped.stream()
+                .filter(Dedup::hasUnsupportedType)
+                .findFirst()
+                .map(ua -> ParserUtils.quoteIdString(ua.name()))
+                .ifPresent(name -> advice.add("drop columns with an unsupported type, for example DROP " + name));
+            failures.add(fail(this, "DEDUP cannot compare columns with conflicting types: {}; {}", columns, String.join("; ", advice)));
         }
     }
 
     /**
-     * {@code originalTypes()} has one entry per distinct type, not per index, so more than one entry is a type conflict.
-     * Types ES|QL already combines, such as {@code date} and {@code date_nanos}, are a single type before this check.
-     * Exactly one entry is a type ES|QL does not support.
+     * Whether a column with these original types has different types in the indices or subqueries a query reads (a union type).
+     * A field mapped with conflicting types has one entry per type. A {@code FROM} subquery column has the types of every subquery,
+     * so entries can repeat, as in {@code [keyword, keyword, long]}. Types ES|QL already combines, such as {@code date} and
+     * {@code date_nanos}, are a single type before this check. A column of a type ES|QL does not support has a single entry.
+     * Public for {@code DedupGenerator}, which only has the {@code original_types} of a query response.
      */
-    private static boolean isUnionType(UnsupportedAttribute attr) {
-        return attr.originalTypes().size() > 1;
+    public static boolean isUnionType(List<String> originalTypes) {
+        return originalTypes.size() > 1;
+    }
+
+    private static boolean hasUnsupportedType(UnsupportedAttribute attr) {
+        return attr.originalTypes().contains(DataType.UNSUPPORTED.typeName());
     }
 
     @Override

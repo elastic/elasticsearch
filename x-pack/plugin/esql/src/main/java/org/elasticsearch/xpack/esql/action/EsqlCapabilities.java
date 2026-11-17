@@ -4631,6 +4631,14 @@ public class EsqlCapabilities {
         RUNTIME_SCORE_FIX,
 
         /**
+         * A column declared {@code date} over a Parquet column the file renders {@code date_nanos} decodes straight
+         * to milliseconds. The read this widens is {@code TIMESTAMP(MICROS)}: older nodes scaled to nanoseconds
+         * first, so a value outside 1677-09-21 .. 2262-04-11 answered {@code null} although {@code date} covers it.
+         * Gates the csv-spec cases asserting the wider domain, which such nodes still fail.
+         */
+        PARQUET_DECLARED_DATE_READS_MICROS_IN_ONE_STEP,
+
+        /**
          * The query-and-tags pushdown of {@code ROUND_TO} (and the {@code DATE_TRUNC} / {@code BUCKET} date histograms
          * rewritten to it) keeps documents without a value in the null bucket when there is a single rounding point.
          * Older nodes tagged the whole main query with the point, so e.g. {@code date_trunc(1 month, field)} returned

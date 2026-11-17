@@ -300,10 +300,6 @@ public class FetchServiceTests extends FetchContextsTestCase {
     }
 
     /**
-     * Waits until the request freed and dropped what it holds. The thread that answered schedules that on the generic
-     * pool, through the executor that frees search contexts, so once the search and generic pools are idle it is done.
-     */
-    /**
      * Waits until the node holds {@code expected} contexts, once the request freed the ones it should. Idle pools don't
      * prove the frees ran: an idle worker can take the free task straight from the queue of its pool, and for a moment
      * the pool shows neither an active nor a queued task.
@@ -312,6 +308,12 @@ public class FetchServiceTests extends FetchContextsTestCase {
         assertBusy(() -> assertThat(searchService().getActiveContexts(), equalTo(expected)));
     }
 
+    /**
+     * Waits until the search and generic pools are idle, before a test checks that a request freed nothing. The thread
+     * that answered schedules the release on the generic pool, through the executor that frees search contexts. This is
+     * best effort: idle pools don't prove the release ran (see {@link #awaitActiveContexts}), so a wrong free can slip
+     * past a check that follows. Only a hook in {@link FetchService} would close that gap.
+     */
     private void awaitTheRelease() throws Exception {
         ThreadPool threadPool = getInstanceFromNode(ThreadPool.class);
         Set<String> pools = Set.of(ThreadPool.Names.SEARCH, ThreadPool.Names.GENERIC);

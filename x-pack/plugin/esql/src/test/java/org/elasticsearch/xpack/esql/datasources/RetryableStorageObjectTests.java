@@ -53,11 +53,13 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -3928,6 +3930,50 @@ public class RetryableStorageObjectTests extends ESTestCase {
             assertThat(identityByAttempt, equalTo(List.of("issuing-user", "issuing-user")));
         } finally {
             terminate(sdkThread);
+        }
+    }
+
+    public void testAsyncReadAdmissionRetryRunsUnderIssuingContext() throws Exception {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        ExecutorService sdkThread = Executors.newSingleThreadExecutor();
+        try {
+            ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(1, false), 30_000L);
+            List<String> identityByAttempt = new CopyOnWriteArrayList<>();
+            BlockingQueue<Runnable> pending = new LinkedBlockingQueue<>();
+            RetryScheduler capturing = (command, delayMillis, executor) -> pending.add(command);
+            StorageObject limited = new ConcurrencyLimitedStorageObject(
+                sdkThreadObject(sdkThread, threadContext, 1, null, identityByAttempt),
+                limiter
+            );
+            RetryableStorageObject obj = new RetryableStorageObject(limited, new RetryPolicy(3, 5, 50), capturing, threadContext);
+            threadContext.putHeader(CONTEXT_HEADER, "issuing-user");
+            PlainActionFuture<String> observed = new PlainActionFuture<>();
+            obj.startReadBytesAsync(
+                0,
+                4,
+                len -> new DirectReadBuffer(ByteBuffer.allocate(len), () -> {}),
+                Runnable::run,
+                ActionListener.wrap(buffer -> observed.onResponse(threadContext.getHeader(CONTEXT_HEADER)), observed::onFailure)
+            );
+            Runnable storageRetry = pending.poll(10, TimeUnit.SECONDS);
+            assertNotNull(storageRetry);
+            limiter.acquire();
+            sdkThread.submit(() -> runOnEmptyContext(threadContext, storageRetry)).get(10, TimeUnit.SECONDS);
+            Runnable admissionRetry = pending.poll(10, TimeUnit.SECONDS);
+            assertNotNull("barge miss must schedule an admission retry", admissionRetry);
+            assertThat("the permit miss must not reach the delegate", identityByAttempt, equalTo(List.of("issuing-user")));
+            limiter.release();
+            sdkThread.submit(() -> runOnEmptyContext(threadContext, admissionRetry)).get(10, TimeUnit.SECONDS);
+            assertThat(observed.get(10, TimeUnit.SECONDS), equalTo("issuing-user"));
+            assertThat(identityByAttempt, equalTo(List.of("issuing-user", "issuing-user")));
+        } finally {
+            terminate(sdkThread);
+        }
+    }
+
+    private static void runOnEmptyContext(ThreadContext threadContext, Runnable command) {
+        try (ThreadContext.StoredContext ignored = threadContext.newEmptyContext()) {
+            command.run();
         }
     }
 

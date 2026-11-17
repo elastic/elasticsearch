@@ -34,6 +34,11 @@ Before using {{esql}} Data Federation, review the following requirements and lim
 
 ::::{applies-item} serverless: preview
 {{esql}} Data Federation is on and can't be turned off.
+
+:::{tip}
+:applies_to: elasticsearch: preview
+To pre-scale the Search tier for more query load, refer to [](esql-data-federation-querying.md#next-steps).
+:::
 ::::
 
 ::::{applies-item} stack: preview 9.6+

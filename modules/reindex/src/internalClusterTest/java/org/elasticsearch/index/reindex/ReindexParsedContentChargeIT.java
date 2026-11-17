@@ -17,16 +17,21 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.reindex.RethrottleRequestBuilder;
+import org.elasticsearch.reindex.management.ReindexManagementPlugin;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
@@ -51,7 +56,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
  * Tests that a reindex, update by query or delete by query started with {@code wait_for_completion=false} holds the charge of its parsed
- * request after the response with its task id, until the task ends.
+ * request after the response with its task id, until the task ends, and that a query it parses again for every batch does not add to it.
  */
 public class ReindexParsedContentChargeIT extends ESIntegTestCase {
 
@@ -59,7 +64,9 @@ public class ReindexParsedContentChargeIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(ReindexPlugin.class, TestTelemetryPlugin.class);
+        // The management plugin registers the feature that makes a reindex paginate with a point-in-time. Update and delete by query still
+        // paginate with a scroll.
+        return List.of(ReindexPlugin.class, ReindexManagementPlugin.class, TestTelemetryPlugin.class);
     }
 
     @Override
@@ -120,6 +127,49 @@ public class ReindexParsedContentChargeIT extends ESIntegTestCase {
         assertBusy(() -> assertThat(parsedRequestHeldBytes(), equalTo(0L)));
     }
 
+    /**
+     * A reindex that paginates with a point-in-time sends the original query with every batch, so the query inside a {@code wrapper} query
+     * is parsed again for each. Each parse is released once it is parsed, so the task holds only the request's own charge as batches run.
+     */
+    public void testWrapperQueryParsedForEveryBatchIsNotHeld() throws Exception {
+        assertTrue(
+            "reindex has to paginate with a point-in-time",
+            internalCluster().getCurrentMasterNodeInstance(FeatureService.class)
+                .clusterHasFeature(clusterService().state(), ReindexPlugin.REINDEX_PIT_SEARCH_FEATURE)
+        );
+        indexDocs(200);
+        // Many clauses, so that one parse of the query is a visible charge.
+        BoolQueryBuilder inner = QueryBuilders.boolQuery();
+        for (int i = between(50, 200); i > 0; i--) {
+            inner.should(QueryBuilders.termQuery("foo", "bar"));
+        }
+        Request request = new Request("POST", "/_reindex");
+        request.addParameter("wait_for_completion", "false");
+        request.addParameter("requests_per_second", "0.000001");
+        String query = Strings.toString(QueryBuilders.wrapperQuery(Strings.toString(inner)));
+        request.setJsonEntity(
+            "{\"source\":{\"index\":\"" + SOURCE + "\",\"size\":1,\"query\":" + query + "},\"dest\":{\"index\":\"dest\"}}"
+        );
+        TaskId taskId = new TaskId((String) performAndParse(request).get("task"));
+
+        // Throttled after its first batch, so no parse is in flight.
+        assertBusy(() -> assertTrue(isThrottled(taskId)));
+        long held = parsedRequestHeldBytes();
+        assertThat(held, greaterThan(0L));
+
+        new RethrottleRequestBuilder(client()).setTargetTaskId(taskId).setRequestsPerSecond(20f).get().rethrowFailures("Rethrottle");
+        assertBusy(() -> assertThat(status(taskId).getBatches(), greaterThanOrEqualTo(20)));
+        // Throttled again, so the task cannot finish while it is sampled.
+        new RethrottleRequestBuilder(client()).setTargetTaskId(taskId).setRequestsPerSecond(0.000001f).get().rethrowFailures("Rethrottle");
+        // Busy, since a sample can catch a parse in flight. Held parses would only add up, so it would never match.
+        assertBusy(() -> assertThat(parsedRequestHeldBytes(), equalTo(held)));
+        assertFalse("the task has to be running when sampled", clusterAdmin().prepareGetTask(taskId).get().getTask().isCompleted());
+
+        clusterAdmin().prepareCancelTasks().setTargetTaskId(taskId).get();
+        clusterAdmin().prepareGetTask(taskId).setWaitForCompletion(true).get();
+        assertBusy(() -> assertThat(parsedRequestHeldBytes(), equalTo(0L)));
+    }
+
     public void testChargeIsReleasedWhenTheTaskCannotBeRegistered() throws Exception {
         indexDocs(10);
 
@@ -146,7 +196,8 @@ public class ReindexParsedContentChargeIT extends ESIntegTestCase {
         assertBusy(() -> assertThat(parsedRequestHeldBytes(), equalTo(0L)));
     }
 
-    public void testChargeIsReleasedWhenTheRequestIsInvalid() throws Exception {
+    /** The request fails validation before the task is started, so it never takes the hold, and the response releases its charge. */
+    public void testChargeIsReleasedWhenTheRequestFailsBeforeTheHold() throws Exception {
         Request request = new Request("POST", "/_reindex");
         request.addParameter("wait_for_completion", "false");
         request.setJsonEntity("{\"source\":{\"index\":\"" + SOURCE + "\",\"_source\":false},\"dest\":{\"index\":\"dest\"}}");
@@ -211,6 +262,10 @@ public class ReindexParsedContentChargeIT extends ESIntegTestCase {
             .filter(BulkByPaginatedSearchTask.Status.class::isInstance)
             .map(s -> ((BulkByPaginatedSearchTask.Status) s).getThrottledUntil())
             .anyMatch(until -> until != null && until.nanos() > 0);
+    }
+
+    private BulkByPaginatedSearchTask.Status status(TaskId taskId) {
+        return (BulkByPaginatedSearchTask.Status) clusterAdmin().prepareGetTask(taskId).get().getTask().getTask().status();
     }
 
     /** A leader only rethrottles the slices that are running, so a slice that starts later would keep the throttle. */

@@ -1,4 +1,4 @@
-area: Search
+area: Reindex
 issues: []
 pr: 165996
 summary: Hold parsed request charge until reindex and by-query tasks end

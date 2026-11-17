@@ -51,6 +51,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.eql.EqlAsyncActionNames;
 import org.elasticsearch.xpack.core.esql.EsqlAsyncActionNames;
+import org.elasticsearch.xpack.core.esql.EsqlStreamActionNames;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.GetAsyncStatusAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
@@ -397,6 +398,10 @@ public class RBACEngine implements AuthorizationEngine {
                     // the same as the user that submitted the original request so no additional checks are needed here.
                     return SubscribableListener.newSucceeded(IndexAuthorizationResult.ALLOW_NO_INDICES);
                 }
+            } else if (isStreamRelatedAction(action)) {
+                // ES|QL stream actions that read a stored result have a custom security layer that checks if the current user is the
+                // same as the user that started the stream, so no additional checks are needed here.
+                return SubscribableListener.newSucceeded(IndexAuthorizationResult.ALLOW_NO_INDICES);
             } else if (action.equals(TransportClosePointInTimeAction.TYPE.name())) {
                 return SubscribableListener.newSucceeded(IndexAuthorizationResult.ALLOW_NO_INDICES);
             } else {
@@ -1166,6 +1171,10 @@ public class RBACEngine implements AuthorizationEngine {
             || action.equals(EsqlAsyncActionNames.ESQL_ASYNC_GET_RESULT_ACTION_NAME)
             || action.equals(EsqlAsyncActionNames.ESQL_ASYNC_STOP_ACTION_NAME)
             || action.equals(SqlAsyncActionNames.SQL_ASYNC_GET_RESULT_ACTION_NAME);
+    }
+
+    private static boolean isStreamRelatedAction(String action) {
+        return action.equals(EsqlStreamActionNames.ESQL_STREAM_GET_RESULT_ACTION_NAME);
     }
 
     static final class AuthorizedIndices implements AuthorizationEngine.AuthorizedIndices {

@@ -30,6 +30,11 @@ public interface StreamStorage {
 
     void appendPage(String streamId, long offset, Page page, ActionListener<Void> listener);
 
+    /**
+     * Marks the stream complete. Every page appended before this call must be readable with {@link #getPages} by the time
+     * {@link #getMetadata} reports the stream as complete: a reader treats a complete stream that returns fewer rows than
+     * {@code totalRows} as having lost pages, not as "not visible yet".
+     */
     void markComplete(String streamId, boolean isPartial, long totalRows, long totalPages, ActionListener<Void> listener);
 
     void markFailed(String streamId, Exception exception, ActionListener<Void> listener);

@@ -4224,7 +4224,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
             // A convert inside a view must see that view's unmapped_fields. The caller's mode decides the same convert
-            // outside the view. Keyed by node identity because transformUp hands us the original node.
+            // outside the view. Keyed by node identity: a node rebuilt because a child changed is not in the map and gets the
+            // context of the scope being resolved.
             Map<LogicalPlan, AnalyzerContext> contextByPlan = new IdentityHashMap<>();
             assignScopedContext(plan, context, contextByPlan);
             return resolveScope(plan, context, contextByPlan);
@@ -4244,7 +4245,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return plan.transformUpSkipBranch(IndependentSubqueryJoin::isSubqueryBranch, p -> {
                 AnalyzerContext planContext = contextByPlan.getOrDefault(p, context);
                 if (p instanceof IndependentSubqueryJoin join) {
-                    LogicalPlan right = resolveScope(join.right(), context, contextByPlan);
+                    LogicalPlan right = resolveScope(join.right(), planContext, contextByPlan);
                     if (right.equals(join.right()) == false) {
                         p = p.replaceChildren(List.of(join.left(), right));
                     }

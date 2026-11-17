@@ -12,6 +12,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.approximation.ApproximationVerifier;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
@@ -605,7 +607,7 @@ public class AnalyzerInSubqueryTests extends AnalyzerTestCase {
             """);
 
         assertThat(outputType(plan, "id_string"), equalTo(DataType.KEYWORD));
-        assertNoConvertedFieldInSubquery(plan, "id");
+        assertConvertedFields(plan, List.of("$$id$converted_to$keyword"), List.of());
     }
 
     public void testUnionTypeCastAfterInSubqueryIsNotLoadedBySubquery() {
@@ -616,23 +618,59 @@ public class AnalyzerInSubqueryTests extends AnalyzerTestCase {
             """);
 
         assertThat(outputType(plan, "id_string"), equalTo(DataType.KEYWORD));
-        assertNoConvertedFieldInSubquery(plan, "id");
+        assertConvertedFields(plan, List.of("$$id$converted_to$keyword"), List.of());
+    }
+
+    public void testUnionTypeCastAfterNotInSubqueryWithStats() {
+        LogicalPlan plan = analyzer().addIndex(unionIndexResolution()).addEmployees().query("""
+            FROM union_index*
+            | WHERE name NOT IN (FROM employees | STATS c = COUNT(*) BY last_name | KEEP last_name)
+            | EVAL id_string = id::keyword
+            """);
+
+        assertThat(outputType(plan, "id_string"), equalTo(DataType.KEYWORD));
+        assertConvertedFields(plan, List.of("$$id$converted_to$keyword"), List.of());
+    }
+
+    public void testUnionTypeCastAfterInSubqueryInDisjunctionWithStats() {
+        LogicalPlan plan = analyzer().addIndex(unionIndexResolution()).addEmployees().query("""
+            FROM union_index*
+            | WHERE name IN (FROM employees | STATS c = COUNT(*) BY last_name | KEEP last_name) OR id::keyword == "1"
+            | EVAL id_string = id::keyword
+            """);
+
+        assertThat(outputType(plan, "id_string"), equalTo(DataType.KEYWORD));
+        assertConvertedFields(plan, List.of("$$id$converted_to$keyword"), List.of());
+    }
+
+    public void testUnionTypeCastsInsideAndAfterInSubqueryStayInTheirScope() {
+        LogicalPlan plan = analyzer().addIndex(unionIndexResolution()).addEmployees().query("""
+            FROM union_index*
+            | WHERE name IN (FROM union_index* | STATS c = COUNT(*) BY k = id::integer | EVAL k = k::keyword | KEEP k)
+            | EVAL id_string = id::keyword
+            """);
+
+        assertThat(outputType(plan, "id_string"), equalTo(DataType.KEYWORD));
+        assertConvertedFields(plan, List.of("$$id$converted_to$keyword"), List.of("$$id$converted_to$integer"));
     }
 
     private static DataType outputType(LogicalPlan plan, String name) {
         return plan.output().stream().filter(attribute -> attribute.name().equals(name)).findFirst().orElseThrow().dataType();
     }
 
-    private static void assertNoConvertedFieldInSubquery(LogicalPlan plan, String field) {
-        List<SemiJoin> semiJoins = new ArrayList<>();
-        plan.forEachDown(SemiJoin.class, semiJoins::add);
-        assertThat(semiJoins, hasSize(1));
+    private static void assertConvertedFields(LogicalPlan plan, List<String> mainQueryFields, List<String> subqueryFields) {
+        List<AbstractSubqueryJoin> joins = new ArrayList<>();
+        plan.forEachDown(AbstractSubqueryJoin.class, joins::add);
+        assertThat(joins, hasSize(1));
+        assertThat(convertedFields(joins.getFirst().left()), equalTo(mainQueryFields));
+        assertThat(convertedFields(joins.getFirst().right()), equalTo(subqueryFields));
+    }
 
-        List<EsRelation> subqueryRelations = new ArrayList<>();
-        semiJoins.getFirst().right().forEachDown(EsRelation.class, subqueryRelations::add);
-        assertThat(subqueryRelations, hasSize(1));
-        String convertedPrefix = "$$" + field + "$converted_to$";
-        assertFalse(subqueryRelations.getFirst().output().stream().anyMatch(attribute -> attribute.name().startsWith(convertedPrefix)));
+    private static List<String> convertedFields(LogicalPlan plan) {
+        List<EsRelation> relations = new ArrayList<>();
+        plan.forEachDown(EsRelation.class, relations::add);
+        assertThat(relations, hasSize(1));
+        return relations.getFirst().output().stream().map(Attribute::name).filter(name -> name.contains("$converted_to$")).toList();
     }
 
     private static IndexResolution unionIndexResolution() {

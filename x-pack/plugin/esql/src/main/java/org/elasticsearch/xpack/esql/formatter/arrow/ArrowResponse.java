@@ -90,7 +90,7 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
                 }
                 boolean multivalued = false;
                 for (Page page : pages) {
-                    if (page.getBlock(blockIndex).mayHaveMultivaluedFields()) {
+                    if (converter.isMultivalued(column.name, page.getBlock(blockIndex))) {
                         multivalued = true;
                         break;
                     }
@@ -445,7 +445,7 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
 
             case INTEGER, COUNTER_INTEGER -> new BlockArrowFormatter.AsInt32(type);
             case LONG, COUNTER_LONG -> new BlockArrowFormatter.AsInt64(type);
-            case UNSIGNED_LONG -> new BlockArrowFormatter.AsUnsignedLong(type);
+            case UNSIGNED_LONG -> new BlockArrowFormatter.AsFlippedSignInt64(type);
 
             case DOUBLE, COUNTER_DOUBLE -> new BlockArrowFormatter.AsFloat64(type);
 
@@ -475,12 +475,16 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
             case TSID_DATA_TYPE -> new BlockArrowFormatter.AsVarBinary(type);
             case DENSE_VECTOR -> TO_BE_IMPLEMENTED_MARKER;
 
-            case AGGREGATE_METRIC_DOUBLE -> TO_BE_IMPLEMENTED_MARKER;
+            case AGGREGATE_METRIC_DOUBLE -> new BlockArrowFormatter.AsAggregateMetricDouble(type);
             case EXPONENTIAL_HISTOGRAM -> TO_BE_IMPLEMENTED_MARKER;
             case FLATTENED -> new BlockArrowFormatter.TransformedBytesRef(type, MinorType.VARCHAR, ValueConversions::sourceToJson);
-            case GEOHASH -> TO_BE_IMPLEMENTED_MARKER;
-            case GEOHEX -> TO_BE_IMPLEMENTED_MARKER;
-            case GEOTILE -> TO_BE_IMPLEMENTED_MARKER;
+            // Geo grid cells don't fit in GeoArrow. Geohash and geohex are output as their long block value.
+            // Geohash uses all 64 bits (60 bits of hash + 4 bits of level), so it's output as unsigned.
+            // Geohex never sets bit 63, so signed int64 is fine.
+            // Geotile is output as a struct with zoom, x and y fields.
+            case GEOHASH -> new BlockArrowFormatter.AsInt64(type, MinorType.UINT8);
+            case GEOHEX -> new BlockArrowFormatter.AsInt64(type);
+            case GEOTILE -> new BlockArrowFormatter.AsGeoTile(type);
             case HISTOGRAM -> TO_BE_IMPLEMENTED_MARKER;
             case TDIGEST -> TO_BE_IMPLEMENTED_MARKER;
 

@@ -167,7 +167,9 @@ public enum FeatureMetric {
         Aggregate.class, // STATS is managed in another way, see above
         LocalRelation.class, // produced as a short-circuit for empty index patterns (e.g. PROMQL on missing index)
         UnresolvedMetadata.class, // temporary plan node stripped in the Analyzer
-        NamedSubquery.class, // temporary plan node used as part of view resolution, but is removed by Analyzer
+        // temporary plan node removed by Analyzer: a resolved view (ViewSubquery) or a LET binding carrying its name to
+        // METADATA _name; VIEW and LET have their own counters
+        NamedSubquery.class,
         ViewShadowRelation.class, // CPS lenient-lookup marker, stripped by ViewCompactionPostAnalysis after ResolveTable
         DatasetShadowRelation.class, // CPS lenient-lookup marker for datasets, stripped by StripDatasetShadowRelations after ResolveTable
         TimeSeriesCollapse.class, // TS_COLLAPSE is rolled into the PROMQL counter via the wrapped PromqlCommand below it

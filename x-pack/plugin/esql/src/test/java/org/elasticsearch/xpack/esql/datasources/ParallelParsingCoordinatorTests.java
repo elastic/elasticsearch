@@ -376,6 +376,35 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         assertEquals("the proven walk must stop after the step that sees cancel", 1, opens.get());
     }
 
+    /**
+     * Quote-free quoted-mode CSV cannot prove a boundary at a mid-file offset, so segmentation falls through
+     * to {@link RecordSplitter#findRecordStartAtOrAfter}. A cancel observed there must still name the read,
+     * not split discovery: testers treated the leftover discovery phrase as a phase signal it was not.
+     */
+    public void testComputeSegmentsCancelDuringCsvRecordProbeDoesNotNameDiscovery() {
+        byte[] payload = ("x".repeat(128 * 1024 - 1) + "\n").getBytes(StandardCharsets.UTF_8);
+        AtomicInteger opens = new AtomicInteger();
+        StorageObject obj = new InMemoryStorageObject(payload) {
+            @Override
+            public InputStream newStream(long position, long length) {
+                opens.incrementAndGet();
+                return super.newStream(position, length);
+            }
+        };
+        CsvFormatReader csvReader = (CsvFormatReader) new CsvFormatReader(blockFactory()).withConfig(Map.of("multiline_fields", true));
+
+        TaskCancelledException thrown = expectThrows(
+            TaskCancelledException.class,
+            () -> StorageRetryCancellation.runWithCancellation(
+                () -> true,
+                () -> ParallelParsingCoordinator.computeSegments(csvReader, obj, payload.length, 4, 1)
+            )
+        );
+        assertEquals(RecordBoundaryProbe.READ_CANCELLED_MESSAGE, thrown.getMessage());
+        assertFalse("cancel during a CSV record probe must not look like split discovery", thrown.getMessage().contains("split discovery"));
+        assertThat("the exact-walk fallback must have opened a stream", opens.get(), Matchers.greaterThan(0));
+    }
+
     public void testComputeSegmentsAlignsToBoundaries() throws IOException {
         String content = "aaaa\nbbbb\ncccc\ndddd\n";
         StorageObject obj = new InMemoryStorageObject(content.getBytes(StandardCharsets.UTF_8));

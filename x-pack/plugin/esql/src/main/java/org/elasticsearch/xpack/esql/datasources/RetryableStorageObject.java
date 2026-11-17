@@ -368,7 +368,7 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
         AtomicReference<InflightSlot> inflight = new AtomicReference<>(InflightSlot.NONE);
         ActionListener<DirectReadBuffer> callerListener = listener;
         if (threadContext != null) {
-            callerListener = ContextPreservingActionListener.wrapPreservingContext(listener, threadContext);
+            callerListener = new ContextPreservingActionListener<>(threadContext.newRestorableContext(false), listener);
         }
         readBytesAsyncWithRetry(position, length, factory, executor, callerListener, 0, System.nanoTime(), 0L, 0L, inflight, cancelled);
         return () -> {

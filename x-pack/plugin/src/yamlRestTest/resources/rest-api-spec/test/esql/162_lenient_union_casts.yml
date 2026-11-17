@@ -572,6 +572,56 @@ setup:
           query: 'FROM lenient_bool | EVAL x = TO_LONG(f, 16) | KEEP x'
 
 ---
+"cast with a base on a union with a non-string type still errors":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [lenient_impossible_casts]
+      reason: "Casts with a base only accept strings, also in union types"
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM lenient_keyword,lenient_bool | EVAL x = TO_LONG(f, 16) | KEEP x'
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: "Cannot use field [f] due to ambiguities" }
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM lenient_keyword,lenient_bool | EVAL x = TO_INTEGER(f, 16) | KEEP x'
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: "Cannot use field [f] due to ambiguities" }
+
+---
+"cast with a base on a union of string types errors, and works after a cast to string":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [lenient_impossible_casts]
+      reason: "Casts with a base don't accept union types"
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM lenient_keyword,lenient_text | EVAL x = TO_LONG(f, 16) | KEEP x'
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: "Cannot use field [f] due to ambiguities" }
+  - do:
+      allowed_warnings_regex:
+        - ".*"
+      esql.query:
+        body:
+          query: 'FROM lenient_keyword,lenient_text | EVAL x = TO_LONG(f::keyword, 16), y = TO_INTEGER(f::keyword, 16) | KEEP x, y'
+  - length: { values: 2 }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.type: "integer" }
+
+---
 "impossible cast after STATS returns null":
   - requires:
       capabilities:

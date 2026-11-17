@@ -6483,6 +6483,61 @@ public class AnalyzerTests extends AnalyzerTestCase {
             );
     }
 
+    /**
+     * {@code TO_LONG(x, base)} and {@code TO_INTEGER(x, base)} only accept strings, so on a union-typed field they stay strict when
+     * any mapped type isn't a string.
+     */
+    public void testCastWithBaseOnUnionWithNonStringTypeFails() {
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("value", "keyword")),
+                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("value", "boolean"))
+            ),
+            List.of()
+        );
+        for (String function : List.of("TO_LONG", "TO_INTEGER")) {
+            analyzer().minimumTransportVersion(TransportVersion.current())
+                .addIndex(mergedResolution("foo,bar", caps))
+                .error(
+                    "FROM foo, bar | EVAL x = " + function + "(value, 16)",
+                    containsString("Cannot use field [value] due to ambiguities being mapped as [2] incompatible types")
+                );
+        }
+    }
+
+    /**
+     * Each index converts a union-typed field on its own, with no other input, so a base can't be applied there. Even a union of
+     * string types fails, and casting to a string first works.
+     */
+    public void testCastWithBaseOnUnionOfStringTypesFails() {
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("value", "keyword")),
+                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("value", "text"))
+            ),
+            List.of()
+        );
+        for (String function : List.of("TO_LONG", "TO_INTEGER")) {
+            analyzer().minimumTransportVersion(TransportVersion.current())
+                .addIndex(mergedResolution("foo,bar", caps))
+                .error(
+                    "FROM foo, bar | EVAL x = " + function + "(value, 16)",
+                    containsString("Cannot use field [value] due to ambiguities being mapped as [2] incompatible types")
+                );
+            analyzer().minimumTransportVersion(TransportVersion.current())
+                .addIndex(mergedResolution("foo,bar", caps))
+                .query("FROM foo, bar | EVAL x = " + function + "(value::keyword, 16)");
+        }
+    }
+
+    public void testIntegerCastWithBaseFails() {
+        defaultMapping().minimumTransportVersion(TransportVersion.current())
+            .error(
+                "FROM test | EVAL x = TO_INTEGER(salary, 16)",
+                containsString("first argument of [TO_INTEGER(salary, 16)] must be [string], found value [salary] type [integer]")
+            );
+    }
+
     private static void assertNullLiteral(Expression expression, DataType type) {
         Literal literal = as(expression, Literal.class);
         assertNull(literal.value());

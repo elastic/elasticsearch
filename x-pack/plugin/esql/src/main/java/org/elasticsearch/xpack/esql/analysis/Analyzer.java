@@ -4371,6 +4371,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             AnalyzerContext context
         ) {
             Expression convertExpression = (Expression) convert;
+            if (parsesOnlyStrings(convert)) {
+                // Each index converts the field on its own, with no other input, so a base can't be applied there.
+                return convertExpression;
+            }
             if (convert.field() instanceof FieldAttribute fa && fa.field() instanceof TypeConflictedField tcf) {
                 if (convert instanceof ToText toText && toText.valuesAnalyzer() != null) {
                     // For to_text on a type-conflicted field, the analyzer option is rejected here in the same way the
@@ -5537,6 +5541,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * {@code TO_INTEGER(x, base)}, and inputs of types a query can't return, like {@code date_period}, keep their errors.
      * </p>
      */
+    /**
+     * Whether the conversion parses strings, like {@code TO_LONG(x, base)} and {@code TO_INTEGER(x, base)}. These reject other types on
+     * purpose, so they stay strict instead of returning {@code null}, and don't accept union-typed fields: {@code x::string} first does.
+     */
+    private static boolean parsesOnlyStrings(ConvertFunction convert) {
+        return (convert instanceof ToLongSurrogate || convert instanceof ToIntegerSurrogate)
+            && ((Expression) convert).children().size() > 1;
+    }
+
     private static class ResolveImpossibleCasts extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
@@ -5568,9 +5581,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          */
         private static String impossibleInputType(ConvertFunction convert) {
             Expression cast = (Expression) convert;
-            // TO_LONG(x, base) and TO_INTEGER(x, base) parse strings, and reject other types on purpose.
-            if (cast.resolved()
-                || ((convert instanceof ToLongSurrogate || convert instanceof ToIntegerSurrogate) && cast.children().size() > 1)) {
+            if (cast.resolved() || parsesOnlyStrings(convert)) {
                 return null;
             }
             Expression input = convert.field();

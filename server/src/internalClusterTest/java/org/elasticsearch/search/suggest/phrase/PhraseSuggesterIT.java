@@ -19,6 +19,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.search.suggest.SuggestBuilders.phraseSuggestion;
@@ -56,7 +57,7 @@ public class PhraseSuggesterIT extends ESIntegTestCase {
                 assertThat(response.status(), equalTo(RestStatus.OK));
                 assertThat(response.getFailedShards(), greaterThan(0));
                 assertThat(response.getShardFailures().length, greaterThan(0));
-                checkShardFailures(response.getShardFailures());
+                checkShardFailures(response.shardFailuresList());
             });
         } catch (SearchPhaseExecutionException e) {
             // If all shards fail, we get a SearchPhaseExecutionException
@@ -64,7 +65,7 @@ public class PhraseSuggesterIT extends ESIntegTestCase {
         }
     }
 
-    private static void checkShardFailures(ShardSearchFailure[] shardFailures) {
+    private static void checkShardFailures(List<ShardSearchFailure> shardFailures) {
         for (ShardSearchFailure shardFailure : shardFailures) {
             assertTrue(shardFailure.getCause() instanceof IllegalArgumentException);
             assertEquals("At least one unigram is required but all tokens were ngrams", shardFailure.getCause().getMessage());

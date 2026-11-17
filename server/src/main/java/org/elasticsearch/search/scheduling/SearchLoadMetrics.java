@@ -73,7 +73,7 @@ public record SearchLoadMetrics(long loadNanos, long cpuNanos, long waitingNanos
 
     @Override
     public SearchLoadMetrics copy() {
-        return this;
+        return new SearchLoadMetrics(loadNanos, cpuNanos, waitingNanos);
     }
 
     @Override

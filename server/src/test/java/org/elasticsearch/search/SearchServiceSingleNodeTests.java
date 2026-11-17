@@ -3867,11 +3867,6 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     /**
-     * Verify that a single slice is created for requests that don't support parallel collection, while an executor is still
-     * provided to the searcher to parallelize other operations. Also ensure multiple slices are created for requests that do support
-     * parallel collection.
-     */
-    /**
      * Parallel segment searches are charged to the phase that created the context.
      */
     public void testSlicesAreChargedToThePhaseOfTheirContext() throws Exception {
@@ -3923,6 +3918,11 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         });
     }
 
+    /**
+     * Verify that a single slice is created for requests that don't support parallel collection, while an executor is still
+     * provided to the searcher to parallelize other operations. Also ensure multiple slices are created for requests that do support
+     * parallel collection.
+     */
     public void testSlicingBehaviourForParallelCollection() throws Exception {
         IndexService indexService = createIndex("index", Settings.EMPTY);
         ThreadPoolExecutor executor = (ThreadPoolExecutor) indexService.getThreadPool().executor(ThreadPool.Names.SEARCH);

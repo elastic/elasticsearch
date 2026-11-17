@@ -14,7 +14,6 @@ import org.elasticsearch.action.search.SearchCaptureContext;
 import org.elasticsearch.action.search.SearchCaptureContextBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -76,13 +75,14 @@ import java.util.concurrent.locks.LockSupport;
  * 3 warmup and 5 measurement iterations of 1 s, with an idle Elasticsearch node running beside it):
  * <pre>
  * scenario            1 thread          8 threads
- * disabled              0.5 ± 0.02        0.6 ± 0.00
- * not_a_knn_search      1.4 ± 0.08        1.4 ± 0.02
- * knn_not_captured      7.4 ± 0.09        9.6 ± 0.44
- * knn_captured        118.8 ± 1.80      250.5 ± 10.73
+ * disabled              0.5 ± 0.08        0.6 ± 0.00
+ * not_a_knn_search      1.3 ± 0.01        1.4 ± 0.20
+ * knn_not_captured      7.2 ± 0.08        9.4 ± 0.21
+ * knn_captured         94.2 ± 1.84      246.1 ± 3.23
  * </pre>
  * A search that is not captured pays a few nanoseconds, against search times in milliseconds. A captured one copies its query
- * and the hits of its response and hands them on, which costs about 120 ns alone and about 250 ns with eight threads at once.
+ * and the hits of its response and hands them on, which costs about 95 ns alone and about 250 ns with eight threads at once.
+ * What a capture hands on is retained by a blackhole, as the plugin retains it, so that the JIT cannot drop the copying.
  * <p>
  * The sink reads a clock on every kNN search, to bring its capture rate up to date once in a while. With
  * {@code System.nanoTime()} that read alone made a search that is not captured cost about 395 ns with eight threads on an
@@ -98,6 +98,12 @@ public class QueryCaptureSinkBenchmark {
 
     private static final int DIMENSIONS = 768;
     private static final int HITS = 10;
+
+    // what a capture hands on has to escape, as it does in the plugin, or the JIT may drop the copying that is measured; every
+    // thread has a blackhole of its own, as one shared by all would add contention of its own to the results
+    private static final ThreadLocal<Blackhole> CAPTURED = ThreadLocal.withInitial(
+        () -> new Blackhole("Today's password is swordfish. I understand instantiating Blackholes directly is dangerous.")
+    );
 
     @Param({ "disabled", "not_a_knn_search", "knn_not_captured", "knn_captured" })
     public String scenario;
@@ -133,7 +139,7 @@ public class QueryCaptureSinkBenchmark {
                 settings,
                 Set.of(QuerySamplingSettings.ENABLED, QuerySamplingSettings.CAPTURE_RATE, QuerySamplingSettings.MIN_CAPTURES_PER_HOUR)
             ),
-            captured -> {},
+            captured -> CAPTURED.get().consume(captured),
             () -> cachedMillis,
             ThreadLocalRandom::current // Randomness.get() fails in this JVM, which has the test framework but no test
         );
@@ -180,7 +186,7 @@ public class QueryCaptureSinkBenchmark {
                 1,
                 0,
                 1,
-                ShardSearchFailure.EMPTY_ARRAY,
+                List.of(),
                 SearchResponse.Clusters.EMPTY
             );
         } finally {

@@ -3647,30 +3647,30 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertOK(client().performRequest(delete));
     }
 
-    public void testDisableDataSourceRequiresManagePrivilege() throws IOException {
+    public void testCloseDataSourceRequiresManagePrivilege() throws IOException {
         assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
         ensureSecurityItDatasourcesForTests();
-        Request forbidden = new Request("POST", "/_query/data_source/" + SECURITY_IT_SHARED_DATASOURCE + "/_disable");
+        Request forbidden = new Request("POST", "/_query/data_source/" + SECURITY_IT_SHARED_DATASOURCE + "/_close");
         setUser(forbidden, "ds_read_metadata_datasource");
         ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(forbidden));
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
-        assertThat(ex.getMessage(), containsString("cluster:admin/esql/data_source/disable"));
+        assertThat(ex.getMessage(), containsString("cluster:admin/esql/data_source/close"));
 
-        Request forbiddenEnable = new Request("POST", "/_query/data_source/" + SECURITY_IT_SHARED_DATASOURCE + "/_enable");
+        Request forbiddenEnable = new Request("POST", "/_query/data_source/" + SECURITY_IT_SHARED_DATASOURCE + "/_open");
         setUser(forbiddenEnable, "ds_read_metadata_datasource");
         ResponseException enableEx = expectThrows(ResponseException.class, () -> client().performRequest(forbiddenEnable));
         assertThat(enableEx.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
-        assertThat(enableEx.getMessage(), containsString("cluster:admin/esql/data_source/enable"));
+        assertThat(enableEx.getMessage(), containsString("cluster:admin/esql/data_source/open"));
 
-        Request allowed = new Request("POST", "/_query/data_source/" + SECURITY_IT_SHARED_DATASOURCE + "/_disable");
+        Request allowed = new Request("POST", "/_query/data_source/" + SECURITY_IT_SHARED_DATASOURCE + "/_close");
         setUser(allowed, "ds_manage_datasource");
         assertOK(client().performRequest(allowed));
-        Request reenable = new Request("POST", "/_query/data_source/" + SECURITY_IT_SHARED_DATASOURCE + "/_enable");
+        Request reenable = new Request("POST", "/_query/data_source/" + SECURITY_IT_SHARED_DATASOURCE + "/_open");
         setUser(reenable, "ds_manage_datasource");
         assertOK(client().performRequest(reenable));
     }
 
-    public void testDisableDatasetRequiresManageDatasetPrivilege() throws IOException {
+    public void testCloseDatasetRequiresManageDatasetPrivilege() throws IOException {
         assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
         ensureSecurityItDatasourcesForTests();
         final String datasetName = "security_it_ds_toggle_" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
@@ -3684,21 +3684,21 @@ public class EsqlSecurityIT extends ESRestTestCase {
         setUser(put, "test-admin");
         assertOK(client().performRequest(put));
         try {
-            Request forbidden = new Request("POST", "/_query/dataset/" + datasetName + "/_disable");
+            Request forbidden = new Request("POST", "/_query/dataset/" + datasetName + "/_close");
             setUser(forbidden, "ds_dataset_read_metadata");
             ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(forbidden));
             assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
 
-            Request forbiddenEnable = new Request("POST", "/_query/dataset/" + datasetName + "/_enable");
+            Request forbiddenEnable = new Request("POST", "/_query/dataset/" + datasetName + "/_open");
             setUser(forbiddenEnable, "ds_dataset_read_metadata");
             ResponseException enableEx = expectThrows(ResponseException.class, () -> client().performRequest(forbiddenEnable));
             assertThat(enableEx.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
-            assertThat(enableEx.getMessage(), containsString("indices:admin/esql/dataset/enable"));
+            assertThat(enableEx.getMessage(), containsString("indices:admin/esql/dataset/open"));
 
-            Request allowed = new Request("POST", "/_query/dataset/" + datasetName + "/_disable");
+            Request allowed = new Request("POST", "/_query/dataset/" + datasetName + "/_close");
             setUser(allowed, "ds_dataset_manage");
             assertOK(client().performRequest(allowed));
-            Request reenable = new Request("POST", "/_query/dataset/" + datasetName + "/_enable");
+            Request reenable = new Request("POST", "/_query/dataset/" + datasetName + "/_open");
             setUser(reenable, "ds_dataset_manage");
             assertOK(client().performRequest(reenable));
         } finally {

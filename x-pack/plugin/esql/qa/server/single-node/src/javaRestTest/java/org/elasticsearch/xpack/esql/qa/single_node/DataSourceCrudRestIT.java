@@ -444,7 +444,7 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
         deleteDataSource(parent);
     }
 
-    public void testEnableDisableRoundTrip() throws IOException {
+    public void testCloseOpenRoundTrip() throws IOException {
         final String parent = "toggle_parent";
         final String dataset = "toggle_child";
         putDataSource(parent, "s3", Map.of("region", "us-east-1", "auth", "anonymous"));
@@ -453,45 +453,45 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
         Map<String, Object> got = getDataSource(parent);
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> dsHits = (List<Map<String, Object>>) got.get("data_sources");
-        assertThat(dsHits.get(0).get("enabled"), equalTo(true));
+        assertThat(dsHits.get(0).get("state"), equalTo("open"));
 
         assertThat(
-            client().performRequest(new Request("POST", "/_query/data_source/" + parent + "/_disable")).getStatusLine().getStatusCode(),
+            client().performRequest(new Request("POST", "/_query/data_source/" + parent + "/_close")).getStatusLine().getStatusCode(),
             equalTo(200)
         );
         got = getDataSource(parent);
         @SuppressWarnings("unchecked")
-        List<Map<String, Object>> disabledHits = (List<Map<String, Object>>) got.get("data_sources");
-        assertThat(disabledHits.get(0).get("enabled"), equalTo(false));
+        List<Map<String, Object>> closedHits = (List<Map<String, Object>>) got.get("data_sources");
+        assertThat(closedHits.get(0).get("state"), equalTo("closed"));
 
         ResponseException createEx = expectThrows(
             ResponseException.class,
-            () -> putDataset("new_against_disabled", parent, "s3://y/*.parquet", Map.of())
+            () -> putDataset("new_against_closed", parent, "s3://y/*.parquet", Map.of())
         );
         assertThat(createEx.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(EntityUtils.toString(createEx.getResponse().getEntity()), containsString("disabled data source"));
+        assertThat(EntityUtils.toString(createEx.getResponse().getEntity()), containsString("closed data source"));
 
         assertThat(
-            client().performRequest(new Request("POST", "/_query/data_source/" + parent + "/_enable")).getStatusLine().getStatusCode(),
+            client().performRequest(new Request("POST", "/_query/data_source/" + parent + "/_open")).getStatusLine().getStatusCode(),
             equalTo(200)
         );
 
         Map<String, Object> dsetGot = getDataset(dataset);
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> dsetHits = (List<Map<String, Object>>) dsetGot.get("datasets");
-        assertThat(dsetHits.get(0).get("enabled"), equalTo(true));
+        assertThat(dsetHits.get(0).get("state"), equalTo("open"));
 
         assertThat(
-            client().performRequest(new Request("POST", "/_query/dataset/" + dataset + "/_disable")).getStatusLine().getStatusCode(),
+            client().performRequest(new Request("POST", "/_query/dataset/" + dataset + "/_close")).getStatusLine().getStatusCode(),
             equalTo(200)
         );
         dsetGot = getDataset(dataset);
         @SuppressWarnings("unchecked")
-        List<Map<String, Object>> disabledDset = (List<Map<String, Object>>) dsetGot.get("datasets");
-        assertThat(disabledDset.get(0).get("enabled"), equalTo(false));
+        List<Map<String, Object>> closedDset = (List<Map<String, Object>>) dsetGot.get("datasets");
+        assertThat(closedDset.get(0).get("state"), equalTo("closed"));
 
         assertThat(
-            client().performRequest(new Request("POST", "/_query/dataset/" + dataset + "/_enable")).getStatusLine().getStatusCode(),
+            client().performRequest(new Request("POST", "/_query/dataset/" + dataset + "/_open")).getStatusLine().getStatusCode(),
             equalTo(200)
         );
 

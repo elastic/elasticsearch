@@ -327,6 +327,15 @@ public class QueryFailureTelemetryTests extends ESTestCase {
         );
     }
 
+    /** A closed dataset is neither a user's query mistake nor {@code other}, which raises alerts: it has its own category. */
+    public void testClosedDatasetIsItsOwnCategory() {
+        assertThat(QueryFailureTelemetry.classify(new DatasetClosedException("logs")), equalTo(new Failure("closed", "400")));
+        assertThat(
+            QueryFailureTelemetry.classify(new RuntimeException("wrapped", new DatasetClosedException("logs"))),
+            equalTo(new Failure("closed", "400"))
+        );
+    }
+
     public void testAnalysisFailuresAreVerification() {
         assertThat(
             QueryFailureTelemetry.classify(new VerificationException("Unknown column [x]")),

@@ -47,22 +47,18 @@ public class DatasourcePrivilegesTests extends AbstractNamedWriteableTestCase<Co
             permission.check(EsqlDataSourceActionNames.ESQL_PUT_DATA_SOURCE_ACTION_NAME, put, AuthenticationTestHelper.builder().build()),
             is(true)
         );
-        TransportRequest disable = new MockDataSourceRequest(EsqlDataSourceActionNames.ESQL_DISABLE_DATA_SOURCE_ACTION_NAME, "abc1");
+        TransportRequest close = new MockDataSourceRequest(EsqlDataSourceActionNames.ESQL_CLOSE_DATA_SOURCE_ACTION_NAME, "abc1");
         assertThat(
             permission.check(
-                EsqlDataSourceActionNames.ESQL_DISABLE_DATA_SOURCE_ACTION_NAME,
-                disable,
+                EsqlDataSourceActionNames.ESQL_CLOSE_DATA_SOURCE_ACTION_NAME,
+                close,
                 AuthenticationTestHelper.builder().build()
             ),
             is(true)
         );
-        TransportRequest enable = new MockDataSourceRequest(EsqlDataSourceActionNames.ESQL_ENABLE_DATA_SOURCE_ACTION_NAME, "abc1");
+        TransportRequest open = new MockDataSourceRequest(EsqlDataSourceActionNames.ESQL_OPEN_DATA_SOURCE_ACTION_NAME, "abc1");
         assertThat(
-            permission.check(
-                EsqlDataSourceActionNames.ESQL_ENABLE_DATA_SOURCE_ACTION_NAME,
-                enable,
-                AuthenticationTestHelper.builder().build()
-            ),
+            permission.check(EsqlDataSourceActionNames.ESQL_OPEN_DATA_SOURCE_ACTION_NAME, open, AuthenticationTestHelper.builder().build()),
             is(true)
         );
         TransportRequest putDenied = new MockDataSourceRequest(EsqlDataSourceActionNames.ESQL_PUT_DATA_SOURCE_ACTION_NAME, "zzz");
@@ -76,16 +72,16 @@ public class DatasourcePrivilegesTests extends AbstractNamedWriteableTestCase<Co
         );
         assertThat(
             permission.check(
-                EsqlDataSourceActionNames.ESQL_DISABLE_DATA_SOURCE_ACTION_NAME,
-                new MockDataSourceRequest(EsqlDataSourceActionNames.ESQL_DISABLE_DATA_SOURCE_ACTION_NAME, "zzz"),
+                EsqlDataSourceActionNames.ESQL_CLOSE_DATA_SOURCE_ACTION_NAME,
+                new MockDataSourceRequest(EsqlDataSourceActionNames.ESQL_CLOSE_DATA_SOURCE_ACTION_NAME, "zzz"),
                 AuthenticationTestHelper.builder().build()
             ),
             is(false)
         );
         assertThat(
             permission.check(
-                EsqlDataSourceActionNames.ESQL_ENABLE_DATA_SOURCE_ACTION_NAME,
-                new MockDataSourceRequest(EsqlDataSourceActionNames.ESQL_ENABLE_DATA_SOURCE_ACTION_NAME, "zzz"),
+                EsqlDataSourceActionNames.ESQL_OPEN_DATA_SOURCE_ACTION_NAME,
+                new MockDataSourceRequest(EsqlDataSourceActionNames.ESQL_OPEN_DATA_SOURCE_ACTION_NAME, "zzz"),
                 AuthenticationTestHelper.builder().build()
             ),
             is(false)

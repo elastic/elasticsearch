@@ -28,17 +28,17 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class EnableDatasetAction extends ActionType<AcknowledgedResponse> {
+public class OpenDatasetAction extends ActionType<AcknowledgedResponse> {
 
-    public static final EnableDatasetAction INSTANCE = new EnableDatasetAction();
-    public static final String NAME = EsqlDatasetActionNames.ESQL_ENABLE_DATASET_ACTION_NAME;
+    public static final OpenDatasetAction INSTANCE = new OpenDatasetAction();
+    public static final String NAME = EsqlDatasetActionNames.ESQL_OPEN_DATASET_ACTION_NAME;
 
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.builder()
         .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
         .indexAbstractionOptions(IndicesOptions.IndexAbstractionOptions.builder().resolveDatasets(true).build())
         .build();
 
-    private EnableDatasetAction() {
+    private OpenDatasetAction() {
         super(NAME);
     }
 

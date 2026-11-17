@@ -62,7 +62,9 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
      */
     private static final TransportVersion ESQL_DATASOURCE_DATASET_ENABLED = TransportVersion.fromName("esql_datasource_dataset_enabled");
 
-    private static final ParseField ENABLED = new ParseField("enabled");
+    private static final ParseField STATE = new ParseField("state");
+    private static final String STATE_OPEN = "open";
+    private static final String STATE_CLOSED = "closed";
 
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<Dataset, Void> PARSER = new ConstructingObjectParser<>(
@@ -75,7 +77,7 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
             (String) args[3],
             args[4] != null ? (Map<String, Object>) args[4] : Map.of(),
             DatasetMapping.assemble((DatasetMapping.Mappings) args[5]),
-            args[6] == null || (Boolean) args[6]
+            isOpen((String) args[6])
         )
     );
 
@@ -92,7 +94,7 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
         // cluster state, which on a cluster upgraded from 9.5 can still carry an `_id` block this version has no
         // field for, so it uses the tolerant entry point. The registration API uses the strict one.
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> DatasetMapping.parseStoredMappings(p), MAPPINGS);
-        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ENABLED);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), STATE);
     }
 
     private final String name;
@@ -196,11 +198,27 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
     }
 
     /**
-     * Whether this dataset is enabled for query use. When {@code false}, {@code FROM} queries against
-     * it fail. Admin GET/PUT of the definition still succeed.
+     * Whether this dataset is open for query use, the default. When {@code false} it is closed: {@code FROM} queries that
+     * name it fail and wildcards skip it. Admin GET/PUT of the definition still succeed. The flag is kept as a boolean
+     * (and is {@code enabled} on the wire), and the API shows it as {@link #state()}.
      */
     public boolean enabled() {
         return enabled;
+    }
+
+    /** {@code "open"} or {@code "closed"}, as the API shows the state, the way an index has an open or closed state. */
+    public String state() {
+        return enabled ? STATE_OPEN : STATE_CLOSED;
+    }
+
+    private static boolean isOpen(String state) {
+        if (state == null || STATE_OPEN.equals(state)) {
+            return true;
+        }
+        if (STATE_CLOSED.equals(state)) {
+            return false;
+        }
+        throw new IllegalArgumentException("unknown dataset state [" + state + "], expected [open] or [closed]");
     }
 
     /** Returns a copy of this dataset with the given enabled flag. */
@@ -230,7 +248,7 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
         if (mapping != null) {
             mapping.toXContentFragment(builder);
         }
-        builder.field(ENABLED.getPreferredName(), enabled);
+        builder.field(STATE.getPreferredName(), state());
         builder.endObject();
         return builder;
     }

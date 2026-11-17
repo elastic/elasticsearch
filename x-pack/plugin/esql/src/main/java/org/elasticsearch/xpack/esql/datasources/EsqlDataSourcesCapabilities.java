@@ -69,12 +69,12 @@ public final class EsqlDataSourcesCapabilities {
     public static final String DATA_SOURCE_DESCRIPTION_LENGTH_LIMIT = "data_source_description_length_limit";
 
     /**
-     * Signals that this node exposes enable/disable endpoints for data sources and datasets
-     * ({@code POST /_query/data_source/{name}/_enable|_disable} and
-     * {@code POST /_query/dataset/{name}/_enable|_disable}), and that GET responses include an
-     * {@code enabled} field.
+     * Signals that this node exposes open/close endpoints for data sources and datasets
+     * ({@code POST /_query/data_source/{name}/_open|_close} and
+     * {@code POST /_query/dataset/{name}/_open|_close}), and that GET responses include a
+     * {@code state} field.
      */
-    public static final String DATA_SOURCE_DATASET_ENABLE_DISABLE = "data_source_dataset_enable_disable";
+    public static final String DATA_SOURCE_DATASET_OPEN_CLOSE = "data_source_dataset_open_close";
 
     private EsqlDataSourcesCapabilities() {}
 }

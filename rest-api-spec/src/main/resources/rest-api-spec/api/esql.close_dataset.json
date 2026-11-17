@@ -1,8 +1,8 @@
 {
-  "esql.disable_data_source": {
+  "esql.close_dataset": {
     "documentation": {
-      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-data-source-disable",
-      "description": "Disable one or more ES|QL data sources to stop query use (for example for cost control)."
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-dataset-close",
+      "description": "Close one or more ES|QL datasets so that queries stop reading them (for example for cost control)."
     },
     "stability": "experimental",
     "visibility": "public",
@@ -17,14 +17,14 @@
     "url": {
       "paths": [
         {
-          "path": "/_query/data_source/{name}/_disable",
+          "path": "/_query/dataset/{name}/_close",
           "methods": [
             "POST"
           ],
           "parts": {
             "name": {
               "type": "list",
-              "description": "A comma-separated list of data sources to disable"
+              "description": "A comma-separated list of datasets to close"
             }
           }
         }

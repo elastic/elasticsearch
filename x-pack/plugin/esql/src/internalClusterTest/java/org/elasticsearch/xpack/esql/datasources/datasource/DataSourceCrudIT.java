@@ -34,10 +34,10 @@ import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
+import org.elasticsearch.xpack.esql.datasources.dataset.CloseDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
-import org.elasticsearch.xpack.esql.datasources.dataset.DisableDatasetAction;
-import org.elasticsearch.xpack.esql.datasources.dataset.EnableDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.GetDatasetAction;
+import org.elasticsearch.xpack.esql.datasources.dataset.OpenDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
@@ -937,7 +937,7 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
     }
 
-    public void testEnableDisableDataSourceAndDataset() throws Exception {
+    public void testCloseOpenDataSourceAndDataset() throws Exception {
         final String dsName = "toggle_ds";
         final String datasetName = "toggle_dataset";
 
@@ -949,22 +949,22 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         GetDatasetAction.Response dsetResp = client().execute(GetDatasetAction.INSTANCE, getDatasetRequest(datasetName)).get();
         assertThat(dsetResp.getDatasets().iterator().next().enabled(), equalTo(true));
 
-        assertAcked(client().execute(DisableDataSourceAction.INSTANCE, disableDataSourceRequest(dsName)));
+        assertAcked(client().execute(CloseDataSourceAction.INSTANCE, closeDataSourceRequest(dsName)));
         dsResp = client().execute(GetDataSourceAction.INSTANCE, getDataSourceRequest(dsName)).get();
         assertThat(dsResp.getDataSources().iterator().next().enabled(), equalTo(false));
 
-        // PUT replace preserves disabled flag
+        // PUT replace keeps a closed data source closed
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest(dsName, Map.of("region", "eu-west-1"))));
         dsResp = client().execute(GetDataSourceAction.INSTANCE, getDataSourceRequest(dsName)).get();
         assertThat(dsResp.getDataSources().iterator().next().enabled(), equalTo(false));
         assertThat(dsResp.getDataSources().iterator().next().settings().get("region").nonSecretValue(), equalTo("eu-west-1"));
 
-        // New dataset against disabled parent is rejected; existing replace still works
+        // New dataset against a closed parent is rejected; existing replace still works
         ExecutionException createEx = expectThrows(
             ExecutionException.class,
             () -> client().execute(PutDatasetAction.INSTANCE, putDatasetRequest("new_child", dsName, "test://x/", Map.of())).get()
         );
-        assertThat(createEx.getCause().getMessage(), containsString("disabled data source"));
+        assertThat(createEx.getCause().getMessage(), containsString("closed data source"));
         assertAcked(
             client().execute(PutDatasetAction.INSTANCE, putDatasetRequest(datasetName, dsName, "test://logs2/*.parquet", Map.of()))
         );
@@ -972,31 +972,31 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         assertThat(dsetResp.getDatasets().iterator().next().enabled(), equalTo(true));
         assertThat(dsetResp.getDatasets().iterator().next().resource(), equalTo("test://logs2/*.parquet"));
 
-        assertAcked(client().execute(EnableDataSourceAction.INSTANCE, enableDataSourceRequest(dsName)));
-        assertAcked(client().execute(DisableDatasetAction.INSTANCE, disableDatasetRequest(datasetName)));
+        assertAcked(client().execute(OpenDataSourceAction.INSTANCE, openDataSourceRequest(dsName)));
+        assertAcked(client().execute(CloseDatasetAction.INSTANCE, closeDatasetRequest(datasetName)));
         dsetResp = client().execute(GetDatasetAction.INSTANCE, getDatasetRequest(datasetName)).get();
         assertThat(dsetResp.getDatasets().iterator().next().enabled(), equalTo(false));
 
-        // PUT replace preserves dataset disabled flag
+        // PUT replace keeps a closed dataset closed
         assertAcked(
             client().execute(PutDatasetAction.INSTANCE, putDatasetRequest(datasetName, dsName, "test://logs3/*.parquet", Map.of()))
         );
         dsetResp = client().execute(GetDatasetAction.INSTANCE, getDatasetRequest(datasetName)).get();
         assertThat(dsetResp.getDatasets().iterator().next().enabled(), equalTo(false));
 
-        assertAcked(client().execute(EnableDatasetAction.INSTANCE, enableDatasetRequest(datasetName)));
-        // Idempotent enable
-        assertAcked(client().execute(EnableDatasetAction.INSTANCE, enableDatasetRequest(datasetName)));
+        assertAcked(client().execute(OpenDatasetAction.INSTANCE, openDatasetRequest(datasetName)));
+        // Idempotent open
+        assertAcked(client().execute(OpenDatasetAction.INSTANCE, openDatasetRequest(datasetName)));
 
         assertAcked(client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest(datasetName)));
         assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
     }
 
     /**
-     * Dataset enable/disable resolve their names like delete does: an explicit name that is not a dataset is a 404, while a
-     * wildcard that matches no dataset is an acknowledged no-op, and a wildcard that matches flips every matching dataset.
+     * Dataset close and open resolve their names like delete does: an explicit name that is not a dataset is a 404, while a
+     * wildcard that matches no dataset is an acknowledged no-op, and a wildcard that matches changes every matching dataset.
      */
-    public void testEnableDisableDatasetResolution() throws Exception {
+    public void testCloseOpenDatasetResolution() throws Exception {
         final String dsName = "toggle_resolution_ds";
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest(dsName, Map.of("region", "us-east-1"))));
         assertAcked(client().execute(PutDatasetAction.INSTANCE, putDatasetRequest("toggle_res_a", dsName, "test://a/", Map.of())));
@@ -1004,26 +1004,26 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         try {
             ExecutionException missing = expectThrows(
                 ExecutionException.class,
-                () -> client().execute(DisableDatasetAction.INSTANCE, disableDatasetRequest("toggle_res_missing")).get()
+                () -> client().execute(CloseDatasetAction.INSTANCE, closeDatasetRequest("toggle_res_missing")).get()
             );
             assertThat(missing.getCause(), instanceOf(ResourceNotFoundException.class));
             missing = expectThrows(
                 ExecutionException.class,
-                () -> client().execute(EnableDatasetAction.INSTANCE, enableDatasetRequest("toggle_res_missing")).get()
+                () -> client().execute(OpenDatasetAction.INSTANCE, openDatasetRequest("toggle_res_missing")).get()
             );
             assertThat(missing.getCause(), instanceOf(ResourceNotFoundException.class));
 
             // A wildcard matching nothing acknowledges and changes nothing.
-            assertAcked(client().execute(DisableDatasetAction.INSTANCE, disableDatasetRequest("no_such_prefix_*")));
+            assertAcked(client().execute(CloseDatasetAction.INSTANCE, closeDatasetRequest("no_such_prefix_*")));
             for (Dataset dataset : client().execute(GetDatasetAction.INSTANCE, getDatasetRequest("toggle_res_*")).get().getDatasets()) {
                 assertThat(dataset.name(), dataset.enabled(), equalTo(true));
             }
 
-            assertAcked(client().execute(DisableDatasetAction.INSTANCE, disableDatasetRequest("toggle_res_*")));
+            assertAcked(client().execute(CloseDatasetAction.INSTANCE, closeDatasetRequest("toggle_res_*")));
             for (Dataset dataset : client().execute(GetDatasetAction.INSTANCE, getDatasetRequest("toggle_res_*")).get().getDatasets()) {
                 assertThat(dataset.name(), dataset.enabled(), equalTo(false));
             }
-            assertAcked(client().execute(EnableDatasetAction.INSTANCE, enableDatasetRequest("toggle_res_*")));
+            assertAcked(client().execute(OpenDatasetAction.INSTANCE, openDatasetRequest("toggle_res_*")));
             for (Dataset dataset : client().execute(GetDatasetAction.INSTANCE, getDatasetRequest("toggle_res_*")).get().getDatasets()) {
                 assertThat(dataset.name(), dataset.enabled(), equalTo(true));
             }
@@ -1034,10 +1034,10 @@ public class DataSourceCrudIT extends ESIntegTestCase {
     }
 
     /**
-     * Enable/disable feed the config-change phone-home counters, and count only toggles that actually flip the flag:
-     * a toggle onto the state a resource already has is acknowledged but not counted, and a refused one is counted as rejected.
+     * Close and open feed the config-change phone-home counters, and count only changes of state: closing a closed
+     * resource, or opening an open one, is acknowledged but not counted, and a refused one is counted as rejected.
      */
-    public void testEnableDisableConfigChangeTelemetry() throws Exception {
+    public void testCloseOpenConfigChangeTelemetry() throws Exception {
         final String dsName = "toggle_telemetry_ds";
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest(dsName, Map.of("region", "us-east-1"))));
         assertAcked(client().execute(PutDatasetAction.INSTANCE, putDatasetRequest("toggle_tel_a", dsName, "test://a/", Map.of())));
@@ -1045,31 +1045,31 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         try {
             final String sources = "datasources.config.datasources.changes.by_op.";
             final String sets = "datasources.config.datasets.changes.by_op.";
-            final long sourcesDisabled = configCounter(sources + "disabled");
-            final long sourcesEnabled = configCounter(sources + "enabled");
-            final long setsDisabled = configCounter(sets + "disabled");
-            final long setsEnabled = configCounter(sets + "enabled");
+            final long sourcesClosed = configCounter(sources + "closed");
+            final long sourcesOpened = configCounter(sources + "opened");
+            final long setsClosed = configCounter(sets + "closed");
+            final long setsOpened = configCounter(sets + "opened");
             final long setsRejected = configCounter(sets + "rejected");
 
-            assertAcked(client().execute(DisableDataSourceAction.INSTANCE, disableDataSourceRequest(dsName)));
-            assertAcked(client().execute(DisableDataSourceAction.INSTANCE, disableDataSourceRequest(dsName)));
-            assertThat(configCounter(sources + "disabled"), equalTo(sourcesDisabled + 1));
-            assertAcked(client().execute(EnableDataSourceAction.INSTANCE, enableDataSourceRequest(dsName)));
-            assertAcked(client().execute(EnableDataSourceAction.INSTANCE, enableDataSourceRequest(dsName)));
-            assertThat(configCounter(sources + "enabled"), equalTo(sourcesEnabled + 1));
+            assertAcked(client().execute(CloseDataSourceAction.INSTANCE, closeDataSourceRequest(dsName)));
+            assertAcked(client().execute(CloseDataSourceAction.INSTANCE, closeDataSourceRequest(dsName)));
+            assertThat(configCounter(sources + "closed"), equalTo(sourcesClosed + 1));
+            assertAcked(client().execute(OpenDataSourceAction.INSTANCE, openDataSourceRequest(dsName)));
+            assertAcked(client().execute(OpenDataSourceAction.INSTANCE, openDataSourceRequest(dsName)));
+            assertThat(configCounter(sources + "opened"), equalTo(sourcesOpened + 1));
 
-            // A batch counts once per dataset that flipped; the one already disabled is skipped.
-            assertAcked(client().execute(DisableDatasetAction.INSTANCE, disableDatasetRequest("toggle_tel_a")));
-            assertThat(configCounter(sets + "disabled"), equalTo(setsDisabled + 1));
-            assertAcked(client().execute(DisableDatasetAction.INSTANCE, disableDatasetRequest("toggle_tel_*")));
-            assertThat(configCounter(sets + "disabled"), equalTo(setsDisabled + 2));
-            assertAcked(client().execute(EnableDatasetAction.INSTANCE, enableDatasetRequest("toggle_tel_*")));
-            assertThat(configCounter(sets + "enabled"), equalTo(setsEnabled + 2));
+            // A batch counts once per dataset that changed; the one already closed is skipped.
+            assertAcked(client().execute(CloseDatasetAction.INSTANCE, closeDatasetRequest("toggle_tel_a")));
+            assertThat(configCounter(sets + "closed"), equalTo(setsClosed + 1));
+            assertAcked(client().execute(CloseDatasetAction.INSTANCE, closeDatasetRequest("toggle_tel_*")));
+            assertThat(configCounter(sets + "closed"), equalTo(setsClosed + 2));
+            assertAcked(client().execute(OpenDatasetAction.INSTANCE, openDatasetRequest("toggle_tel_*")));
+            assertThat(configCounter(sets + "opened"), equalTo(setsOpened + 2));
 
             assertThat(configCounter(sets + "rejected"), equalTo(setsRejected));
             expectThrows(
                 ExecutionException.class,
-                () -> client().execute(DisableDatasetAction.INSTANCE, disableDatasetRequest("toggle_tel_missing")).get()
+                () -> client().execute(CloseDatasetAction.INSTANCE, closeDatasetRequest("toggle_tel_missing")).get()
             );
             assertThat(configCounter(sets + "rejected"), equalTo(setsRejected + 1));
         } finally {
@@ -1143,20 +1143,20 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         return new DeleteDatasetAction.Request(TEST_TIMEOUT, TEST_TIMEOUT, new String[] { name });
     }
 
-    private static EnableDataSourceAction.Request enableDataSourceRequest(String name) {
-        return new EnableDataSourceAction.Request(TEST_TIMEOUT, TEST_TIMEOUT, new String[] { name });
+    private static OpenDataSourceAction.Request openDataSourceRequest(String name) {
+        return new OpenDataSourceAction.Request(TEST_TIMEOUT, TEST_TIMEOUT, new String[] { name });
     }
 
-    private static DisableDataSourceAction.Request disableDataSourceRequest(String name) {
-        return new DisableDataSourceAction.Request(TEST_TIMEOUT, TEST_TIMEOUT, new String[] { name });
+    private static CloseDataSourceAction.Request closeDataSourceRequest(String name) {
+        return new CloseDataSourceAction.Request(TEST_TIMEOUT, TEST_TIMEOUT, new String[] { name });
     }
 
-    private static EnableDatasetAction.Request enableDatasetRequest(String name) {
-        return new EnableDatasetAction.Request(TEST_TIMEOUT, TEST_TIMEOUT, new String[] { name });
+    private static OpenDatasetAction.Request openDatasetRequest(String name) {
+        return new OpenDatasetAction.Request(TEST_TIMEOUT, TEST_TIMEOUT, new String[] { name });
     }
 
-    private static DisableDatasetAction.Request disableDatasetRequest(String name) {
-        return new DisableDatasetAction.Request(TEST_TIMEOUT, TEST_TIMEOUT, new String[] { name });
+    private static CloseDatasetAction.Request closeDatasetRequest(String name) {
+        return new CloseDatasetAction.Request(TEST_TIMEOUT, TEST_TIMEOUT, new String[] { name });
     }
 
     private void expectDataSourceMissing(String name) {

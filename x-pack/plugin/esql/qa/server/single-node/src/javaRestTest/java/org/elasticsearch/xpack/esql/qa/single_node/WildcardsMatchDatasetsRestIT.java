@@ -12,7 +12,6 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
@@ -114,50 +113,47 @@ public class WildcardsMatchDatasetsRestIT extends ESRestTestCase {
         assertThat(body, not(containsString("s3://bucket")));
     }
 
-    public void testDisabledDatasetIsRefusedByName() throws IOException {
-        toggle("dataset", DATA_SOURCE + "_1", "_disable");
+    public void testClosedDatasetIsRefusedByName() throws IOException {
+        toggle("dataset", DATA_SOURCE + "_1", "_close");
         try {
             ResponseException ex = expectThrows(ResponseException.class, () -> query("FROM " + DATA_SOURCE + "_1 | LIMIT 1"));
             assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-            assertThat(EntityUtils.toString(ex.getResponse().getEntity()), containsString("dataset [lake_1] is disabled"));
+            assertThat(EntityUtils.toString(ex.getResponse().getEntity()), containsString("dataset [lake_1] is closed"));
         } finally {
-            toggle("dataset", DATA_SOURCE + "_1", "_enable");
+            toggle("dataset", DATA_SOURCE + "_1", "_open");
         }
-        // Enabled again, the dataset is reached again: the query gets as far as listing its resource.
+        // Open again, the dataset is reached again: the query gets as far as listing its resource.
         ResponseException ex = expectThrows(ResponseException.class, () -> query("FROM " + DATA_SOURCE + "_1 | LIMIT 1"));
         assertThat(EntityUtils.toString(ex.getResponse().getEntity()), containsString("Access denied listing objects"));
     }
 
-    public void testDisabledDataSourceRefusesItsDatasets() throws IOException {
-        toggle("data_source", DATA_SOURCE, "_disable");
+    public void testClosedDataSourceRefusesItsDatasets() throws IOException {
+        toggle("data_source", DATA_SOURCE, "_close");
         try {
             ResponseException ex = expectThrows(ResponseException.class, () -> query("FROM " + DATA_SOURCE + "_1 | LIMIT 1"));
             assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
             String body = EntityUtils.toString(ex.getResponse().getEntity());
-            assertThat(body, containsString("dataset [lake_1] is disabled because its data source is disabled"));
+            assertThat(body, containsString("dataset [lake_1] is closed"));
             assertThat("the data source is not named", body, not(containsString("[lake]")));
         } finally {
-            toggle("data_source", DATA_SOURCE, "_enable");
+            toggle("data_source", DATA_SOURCE, "_open");
         }
     }
 
     /**
-     * A wildcard that reaches a disabled dataset skips it, with a warning, instead of failing the query: an admin switch must
-     * not break every query whose pattern happens to cover the dataset. Naming the dataset still fails, as above.
+     * A wildcard that reaches a closed dataset skips it silently, as it skips a closed index. Naming the dataset still
+     * fails, as above.
      */
-    public void testWildcardSkipsDisabledDataset() throws IOException {
-        toggle("dataset", DATA_SOURCE + "_1", "_disable");
+    public void testWildcardSkipsAClosedDataset() throws IOException {
+        toggle("dataset", DATA_SOURCE + "_1", "_close");
         try {
-            // lake_1* matches only the disabled dataset: nothing is left to read, so the query succeeds with no rows.
-            Map<String, Object> response = query(
-                "SET wildcards_match_datasets = true; FROM lake_1* | LIMIT 1",
-                "a wildcard in FROM skipped the disabled datasets [lake_1]"
-            );
+            // lake_1* matches only the closed dataset: nothing is left to read, so the query succeeds with no rows.
+            Map<String, Object> response = query("SET wildcards_match_datasets = true; FROM lake_1* | LIMIT 1");
             @SuppressWarnings("unchecked")
             List<List<Object>> values = (List<List<Object>>) response.get("values");
             assertThat(values, empty());
 
-            // lake_* still reaches the enabled datasets: the query gets as far as listing their resources.
+            // lake_* still reaches the open datasets: the query gets as far as listing their resources.
             ResponseException ex = expectThrows(
                 ResponseException.class,
                 () -> query("SET wildcards_match_datasets = true; FROM lake_* | LIMIT 1")
@@ -165,7 +161,7 @@ public class WildcardsMatchDatasetsRestIT extends ESRestTestCase {
             assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
             assertThat(EntityUtils.toString(ex.getResponse().getEntity()), containsString("Access denied listing objects"));
         } finally {
-            toggle("dataset", DATA_SOURCE + "_1", "_enable");
+            toggle("dataset", DATA_SOURCE + "_1", "_open");
         }
     }
 
@@ -204,20 +200,7 @@ public class WildcardsMatchDatasetsRestIT extends ESRestTestCase {
         return entityAsMap(resp);
     }
 
-    /** As {@link #query(String)}, for a query that is expected to answer with exactly these warnings. */
-    private static Map<String, Object> query(String esql, String... expectedWarnings) throws IOException {
-        Request req = new Request("POST", "/_query");
-        try (XContentBuilder b = jsonBuilder()) {
-            b.startObject().field("query", esql).endObject();
-            req.setJsonEntity(Strings.toString(b));
-        }
-        req.setOptions(
-            RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> warnings.equals(List.of(expectedWarnings)) == false)
-        );
-        return entityAsMap(client().performRequest(req));
-    }
-
-    /** {@code kind} is {@code dataset} or {@code data_source}; {@code op} is {@code _enable} or {@code _disable}. */
+    /** {@code kind} is {@code dataset} or {@code data_source}; {@code op} is {@code _open} or {@code _close}. */
     private static void toggle(String kind, String name, String op) throws IOException {
         Response r = client().performRequest(new Request("POST", "/_query/" + kind + "/" + name + "/" + op));
         assertThat(r.getStatusLine().getStatusCode(), equalTo(200));

@@ -30,16 +30,16 @@ import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class DataSourceServiceEnableDisableTests extends ESTestCase {
+public class DataSourceServiceOpenCloseTests extends ESTestCase {
 
     /**
-     * A node that predates the flag reads every data source as enabled, so while one is in the cluster the toggle is
-     * refused: the call must not report success for a disable that part of the cluster would ignore.
+     * A node that predates the state reads every data source as open, so while one is in the cluster closing or opening is
+     * refused: the call must not report success for a close that part of the cluster would ignore.
      * <p>
      * The cluster service and the encryption service are mocks because the refusal happens before anything but the cluster
      * state's minimum transport version is read, so neither is used; the state itself is a real one.
      */
-    public void testToggleIsRefusedUntilAllNodesSupportTheFlag() {
+    public void testCloseAndOpenAreRefusedUntilAllNodesSupportTheState() {
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(
             new ClusterSettings(Settings.EMPTY, Set.of(DataSourceService.MAX_DATA_SOURCES_COUNT_SETTING))

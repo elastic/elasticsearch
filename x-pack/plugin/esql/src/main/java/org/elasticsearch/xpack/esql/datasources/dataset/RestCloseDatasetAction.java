@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.datasources.datasource;
+package org.elasticsearch.xpack.esql.datasources.dataset;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
@@ -23,26 +23,26 @@ import java.util.Set;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 @ServerlessScope(Scope.PUBLIC)
-public class RestEnableDataSourceAction extends BaseRestHandler {
+public class RestCloseDatasetAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/_query/data_source/{name}/_enable"));
+        return List.of(new Route(POST, "/_query/dataset/{name}/_close"));
     }
 
     @Override
     public String getName() {
-        return "esql_enable_data_source";
+        return "esql_close_dataset";
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-        final EnableDataSourceAction.Request req = new EnableDataSourceAction.Request(
+        final CloseDatasetAction.Request req = new CloseDatasetAction.Request(
             RestUtils.getMasterNodeTimeout(request),
             RestUtils.getAckTimeout(request),
             Strings.splitStringByCommaToArray(request.param("name"))
         );
-        return channel -> client.execute(EnableDataSourceAction.INSTANCE, req, new RestToXContentListener<>(channel));
+        return channel -> client.execute(CloseDatasetAction.INSTANCE, req, new RestToXContentListener<>(channel));
     }
 
     @Override
@@ -50,7 +50,7 @@ public class RestEnableDataSourceAction extends BaseRestHandler {
         return Set.of(
             EsqlDataSourcesCapabilities.DATA_SOURCES,
             EsqlDataSourcesCapabilities.DATA_SOURCES_SERVERLESS_SCOPE,
-            EsqlDataSourcesCapabilities.DATA_SOURCE_DATASET_ENABLE_DISABLE
+            EsqlDataSourcesCapabilities.DATA_SOURCE_DATASET_OPEN_CLOSE
         );
     }
 }

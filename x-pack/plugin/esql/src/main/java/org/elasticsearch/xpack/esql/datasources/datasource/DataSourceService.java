@@ -154,7 +154,7 @@ public class DataSourceService {
             }
         }
         final Map<String, DataSourceSetting> validated = validator.validateDatasource(request.rawSettings(), existingSecretKeys);
-        // PUT create defaults to enabled; PUT replace preserves the existing flag (dedicated enable/disable APIs flip it).
+        // PUT create defaults to open; PUT replace preserves the existing state (the close and open APIs change it).
         final boolean enabled = current == null || current.enabled();
         return new DataSource(request.name(), request.type(), request.description(), validated, enabled);
     }
@@ -525,8 +525,8 @@ public class DataSourceService {
     }
 
     /**
-     * Enable or disable data sources by name. Idempotent if already in the target state; only names whose flag actually
-     * flipped are counted in the config-change telemetry. Fails with 404 if a name does not exist.
+     * Close ({@code enabled = false}) or open data sources by name. Idempotent if already in the target state; only names
+     * whose state actually changed are counted in the config-change telemetry. Fails with 404 if a name does not exist.
      */
     public void setDataSourcesEnabled(
         ProjectId projectId,
@@ -536,11 +536,11 @@ public class DataSourceService {
         boolean enabled,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        // A node that predates the enabled flag reads every resource as enabled, so a query it coordinates would ignore the
-        // disable while this call reported success. Refuse until every node knows the flag.
+        // A node that predates the state reads every resource as open, so a query it coordinates would ignore the
+        // close while this call reported success. Refuse until every node knows the state.
         if (clusterService.state().getMinTransportVersion().supports(DataSource.ESQL_DATASOURCE_DATASET_ENABLED) == false) {
             IllegalArgumentException e = new IllegalArgumentException(
-                "cannot enable or disable data sources until all nodes in the cluster are upgraded to a version that supports it"
+                "cannot close or open data sources until all nodes in the cluster are upgraded to a version that supports it"
             );
             recordRejected(null, e);
             listener.onFailure(e);
@@ -590,7 +590,7 @@ public class DataSourceService {
                     .build();
             }
         };
-        taskQueue.submitTask("set-enabled-esql-data-source-metadata-" + names, task, task.timeout());
+        taskQueue.submitTask("set-state-esql-data-source-metadata-" + names, task, task.timeout());
     }
 
     private ActionListener<AcknowledgedResponse> enabledRecordingListener(
@@ -604,7 +604,7 @@ public class DataSourceService {
                 for (String type : types) {
                     metrics.recordConfigChange(
                         ConfigChangeTelemetry.KIND_DATASOURCE,
-                        enabled ? ConfigChangeTelemetry.OP_ENABLED : ConfigChangeTelemetry.OP_DISABLED,
+                        enabled ? ConfigChangeTelemetry.OP_OPENED : ConfigChangeTelemetry.OP_CLOSED,
                         ConfigChangeTelemetry.typeToken(type),
                         null
                     );

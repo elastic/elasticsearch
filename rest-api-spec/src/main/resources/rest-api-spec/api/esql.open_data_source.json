@@ -1,8 +1,8 @@
 {
-  "esql.enable_data_source": {
+  "esql.open_data_source": {
     "documentation": {
-      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-data-source-enable",
-      "description": "Enable one or more ES|QL data sources for query use."
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-data-source-open",
+      "description": "Open one or more closed ES|QL data sources so that queries can read their datasets again."
     },
     "stability": "experimental",
     "visibility": "public",
@@ -17,14 +17,14 @@
     "url": {
       "paths": [
         {
-          "path": "/_query/data_source/{name}/_enable",
+          "path": "/_query/data_source/{name}/_open",
           "methods": [
             "POST"
           ],
           "parts": {
             "name": {
               "type": "list",
-              "description": "A comma-separated list of data sources to enable"
+              "description": "A comma-separated list of data sources to open"
             }
           }
         }

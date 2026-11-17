@@ -28,12 +28,12 @@ import org.elasticsearch.transport.TransportService;
 import java.util.Arrays;
 import java.util.List;
 
-public class TransportEnableDatasetAction extends AcknowledgedTransportMasterNodeProjectAction<EnableDatasetAction.Request> {
+public class TransportOpenDatasetAction extends AcknowledgedTransportMasterNodeProjectAction<OpenDatasetAction.Request> {
     private final DatasetService datasetService;
     private final DatasetResolutionService datasetResolutionService;
 
     @Inject
-    public TransportEnableDatasetAction(
+    public TransportOpenDatasetAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
@@ -43,12 +43,12 @@ public class TransportEnableDatasetAction extends AcknowledgedTransportMasterNod
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            EnableDatasetAction.NAME,
+            OpenDatasetAction.NAME,
             transportService,
             clusterService,
             threadPool,
             actionFilters,
-            EnableDatasetAction.Request::new,
+            OpenDatasetAction.Request::new,
             projectResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -59,7 +59,7 @@ public class TransportEnableDatasetAction extends AcknowledgedTransportMasterNod
     @Override
     protected void masterOperation(
         Task task,
-        EnableDatasetAction.Request request,
+        OpenDatasetAction.Request request,
         ProjectState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
@@ -97,7 +97,7 @@ public class TransportEnableDatasetAction extends AcknowledgedTransportMasterNod
     }
 
     @Override
-    protected ClusterBlockException checkBlock(EnableDatasetAction.Request request, ProjectState state) {
+    protected ClusterBlockException checkBlock(OpenDatasetAction.Request request, ProjectState state) {
         return state.blocks().globalBlockedException(state.projectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 }

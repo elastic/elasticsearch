@@ -151,22 +151,22 @@ public class DatasetServiceTests extends ESTestCase {
         assertThat(e.getMessage(), containsString(SHADOW_MESSAGE));
     }
 
-    /** A disabled data source takes no new dataset, and no existing one moving onto it. */
-    public void testRepointingAnExistingDatasetToADisabledDataSourceIsRejected() {
+    /** A closed data source takes no new dataset, and no existing one moving onto it. */
+    public void testRepointingAnExistingDatasetToAClosedDataSourceIsRejected() {
         DatasetService service = new DatasetService(clusterService, Map.of("strict", new AcceptAllValidator()));
-        ProjectMetadata project = projectWithDisabledParent(existingDataset("ds1", "parent"), null);
+        ProjectMetadata project = projectWithClosedParent(existingDataset("ds1", "parent"), null);
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> service.validatePutDataset(project, requestOn("off", "ds1"))
         );
-        assertThat(e.getMessage(), containsString("disabled data source [off]"));
+        assertThat(e.getMessage(), containsString("closed data source [off]"));
     }
 
-    /** Replacing a dataset that already sits on a now-disabled data source, without moving it, stays allowed. */
-    public void testReplacingADatasetOnItsOwnDisabledDataSourceIsAllowedAndKeepsItsFlag() {
+    /** Replacing a dataset that already sits on a now-closed data source, without moving it, stays allowed. */
+    public void testReplacingADatasetOnItsOwnClosedDataSourceIsAllowedAndKeepsItsState() {
         DatasetService service = new DatasetService(clusterService, Map.of("strict", new AcceptAllValidator()));
-        ProjectMetadata project = projectWithDisabledParent(existingDataset("ds1", "off").withEnabled(false), null);
+        ProjectMetadata project = projectWithClosedParent(existingDataset("ds1", "off").withEnabled(false), null);
 
         Dataset replaced = service.validatePutDataset(project, requestOn("off", "ds1"));
         assertThat(replaced.dataSource().getName(), equalTo("off"));
@@ -174,19 +174,19 @@ public class DatasetServiceTests extends ESTestCase {
     }
 
     /** A name taken by an index is a conflict whatever the data source's state, so it is reported as one. */
-    public void testNameConflictWithAnIndexIsReportedBeforeADisabledDataSource() {
+    public void testNameConflictWithAnIndexIsReportedBeforeAClosedDataSource() {
         DatasetService service = new DatasetService(clusterService, Map.of("strict", new AcceptAllValidator()));
         IndexMetadata.Builder index = IndexMetadata.builder("ds1").settings(indexSettings(IndexVersion.current(), 1, 0));
-        ProjectMetadata project = projectWithDisabledParent(null, index);
+        ProjectMetadata project = projectWithClosedParent(null, index);
 
         expectThrows(ResourceAlreadyExistsException.class, () -> service.validatePutDataset(project, requestOn("off", "ds1")));
     }
 
     /**
-     * A node that predates the flag reads every dataset as enabled, so while one is in the cluster the toggle is refused:
-     * the call must not report success for a disable that part of the cluster would ignore.
+     * A node that predates the state reads every dataset as open, so while one is in the cluster closing or opening is refused:
+     * the call must not report success for a close that part of the cluster would ignore.
      */
-    public void testToggleIsRefusedUntilAllNodesSupportTheFlag() {
+    public void testCloseAndOpenAreRefusedUntilAllNodesSupportTheState() {
         DatasetService service = new DatasetService(clusterService, Map.of("strict", new AcceptAllValidator()));
         ClusterServiceUtils.setState(
             clusterService,
@@ -215,8 +215,8 @@ public class DatasetServiceTests extends ESTestCase {
         return new Dataset(name, new DataSourceReference(dataSource), "s3://bucket/old/*.csv", null, Map.of());
     }
 
-    /** {@link #project()}'s data sources plus a disabled one named {@code off}, with an optional dataset and index. */
-    private static ProjectMetadata projectWithDisabledParent(Dataset dataset, IndexMetadata.Builder index) {
+    /** {@link #project()}'s data sources plus a closed one named {@code off}, with an optional dataset and index. */
+    private static ProjectMetadata projectWithClosedParent(Dataset dataset, IndexMetadata.Builder index) {
         ProjectMetadata base = project();
         DataSource off = new DataSource("off", "strict", null, Map.of(), false);
         Map<String, DataSource> sources = new HashMap<>(DataSourceMetadata.get(base).dataSources());

@@ -26,12 +26,12 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class EnableDataSourceAction extends ActionType<AcknowledgedResponse> {
+public class OpenDataSourceAction extends ActionType<AcknowledgedResponse> {
 
-    public static final EnableDataSourceAction INSTANCE = new EnableDataSourceAction();
-    public static final String NAME = EsqlDataSourceActionNames.ESQL_ENABLE_DATA_SOURCE_ACTION_NAME;
+    public static final OpenDataSourceAction INSTANCE = new OpenDataSourceAction();
+    public static final String NAME = EsqlDataSourceActionNames.ESQL_OPEN_DATA_SOURCE_ACTION_NAME;
 
-    private EnableDataSourceAction() {
+    private OpenDataSourceAction() {
         super(NAME);
     }
 

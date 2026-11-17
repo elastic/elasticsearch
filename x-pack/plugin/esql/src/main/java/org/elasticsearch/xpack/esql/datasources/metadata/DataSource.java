@@ -37,7 +37,9 @@ public final class DataSource implements Writeable, ToXContentObject {
     private static final ParseField TYPE_FIELD = new ParseField("type");
     private static final ParseField DESCRIPTION = new ParseField("description");
     private static final ParseField SETTINGS = new ParseField("settings");
-    private static final ParseField ENABLED = new ParseField("enabled");
+    private static final ParseField STATE = new ParseField("state");
+    private static final String STATE_OPEN = "open";
+    private static final String STATE_CLOSED = "closed";
 
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<DataSource, Void> PARSER = new ConstructingObjectParser<>(
@@ -48,7 +50,7 @@ public final class DataSource implements Writeable, ToXContentObject {
             (String) args[1],
             (String) args[2],
             (Map<String, DataSourceSetting>) args[3],
-            args[4] == null || (Boolean) args[4]
+            isOpen((String) args[4])
         )
     );
 
@@ -64,7 +66,7 @@ public final class DataSource implements Writeable, ToXContentObject {
             }
             return settings;
         }, SETTINGS);
-        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ENABLED);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), STATE);
     }
 
     private final String name;
@@ -129,12 +131,28 @@ public final class DataSource implements Writeable, ToXContentObject {
     }
 
     /**
-     * Whether this data source is enabled for query use. When {@code false}, queries that
-     * depend on this data source (via a dataset) fail, and new datasets cannot be created
-     * against it. Admin GET/PUT of the definition still succeed.
+     * Whether this data source is open for query use, the default. When {@code false} it is closed: queries that name a
+     * dataset on it fail, wildcards skip those datasets, and new datasets cannot be created on it. Admin GET/PUT of the
+     * definition still succeed. The flag is kept as a boolean (and is {@code enabled} on the wire), and the API shows it
+     * as {@link #state()}.
      */
     public boolean enabled() {
         return enabled;
+    }
+
+    /** {@code "open"} or {@code "closed"}, as the API shows the state, the way an index has an open or closed state. */
+    public String state() {
+        return enabled ? STATE_OPEN : STATE_CLOSED;
+    }
+
+    private static boolean isOpen(String state) {
+        if (state == null || STATE_OPEN.equals(state)) {
+            return true;
+        }
+        if (STATE_CLOSED.equals(state)) {
+            return false;
+        }
+        throw new IllegalArgumentException("unknown data source state [" + state + "], expected [open] or [closed]");
     }
 
     /** Returns a copy of this data source with the given enabled flag. */
@@ -166,7 +184,7 @@ public final class DataSource implements Writeable, ToXContentObject {
             }
         }
         builder.endObject();
-        builder.field(ENABLED.getPreferredName(), enabled);
+        builder.field(STATE.getPreferredName(), state());
         builder.endObject();
         return builder;
     }

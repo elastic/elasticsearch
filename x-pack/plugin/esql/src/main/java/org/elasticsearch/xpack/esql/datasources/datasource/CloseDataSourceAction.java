@@ -26,12 +26,12 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class DisableDataSourceAction extends ActionType<AcknowledgedResponse> {
+public class CloseDataSourceAction extends ActionType<AcknowledgedResponse> {
 
-    public static final DisableDataSourceAction INSTANCE = new DisableDataSourceAction();
-    public static final String NAME = EsqlDataSourceActionNames.ESQL_DISABLE_DATA_SOURCE_ACTION_NAME;
+    public static final CloseDataSourceAction INSTANCE = new CloseDataSourceAction();
+    public static final String NAME = EsqlDataSourceActionNames.ESQL_CLOSE_DATA_SOURCE_ACTION_NAME;
 
-    private DisableDataSourceAction() {
+    private CloseDataSourceAction() {
         super(NAME);
     }
 

@@ -109,11 +109,11 @@ public class DatasetService {
             );
         }
         final Dataset existing = getMetadata(projectMetadata).get(request.name());
-        // A disabled data source accepts no new dataset, and no existing one moving onto it; replacing a dataset that is
+        // A closed data source accepts no new dataset, and no existing one moving onto it; replacing a dataset that is
         // already on it, without changing its data source, stays allowed.
         final boolean joinsParent = existing == null || existing.dataSource().getName().equals(request.dataSource()) == false;
         if (parent.enabled() == false && joinsParent) {
-            throw new IllegalArgumentException("cannot create dataset against disabled data source [" + request.dataSource() + "]");
+            throw new IllegalArgumentException("cannot create dataset against closed data source [" + request.dataSource() + "]");
         }
         final DataSourceValidator validator = validatorsByType.get(parent.type());
         if (validator == null) {
@@ -147,7 +147,7 @@ public class DatasetService {
         // A `path` column rename is honored by all formats (translation is centralized at the reader boundary).
         DeclaredSchemaValidator.validate(request.mapping());
         Map<String, Object> settings = PartitionSpec.alignWithMapping(validatedSettings, request.mapping());
-        // PUT create defaults to enabled; PUT replace preserves the existing flag (dedicated enable/disable APIs flip it).
+        // PUT create defaults to open; PUT replace preserves the existing state (the close and open APIs change it).
         final boolean enabled = existing == null || existing.enabled();
         return new Dataset(
             request.name(),
@@ -314,9 +314,9 @@ public class DatasetService {
     }
 
     /**
-     * Enable or disable datasets by name. Idempotent if already in the target state; only names whose flag actually
-     * flipped are counted in the config-change telemetry, tagged with their parent data source's type. Fails with 404 if
-     * a name does not exist.
+     * Close ({@code enabled = false}) or open datasets by name. Idempotent if already in the target state; only names
+     * whose state actually changed are counted in the config-change telemetry, tagged with their parent data source's
+     * type. Fails with 404 if a name does not exist.
      */
     public void setDatasetsEnabled(
         ProjectId projectId,
@@ -326,11 +326,11 @@ public class DatasetService {
         boolean enabled,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        // A node that predates the enabled flag reads every resource as enabled, so a query it coordinates would ignore the
-        // disable while this call reported success. Refuse until every node knows the flag.
+        // A node that predates the state reads every resource as open, so a query it coordinates would ignore the
+        // close while this call reported success. Refuse until every node knows the state.
         if (clusterService.state().getMinTransportVersion().supports(DataSource.ESQL_DATASOURCE_DATASET_ENABLED) == false) {
             IllegalArgumentException e = new IllegalArgumentException(
-                "cannot enable or disable datasets until all nodes in the cluster are upgraded to a version that supports it"
+                "cannot close or open datasets until all nodes in the cluster are upgraded to a version that supports it"
             );
             recordRejected(null, e);
             listener.onFailure(e);
@@ -376,7 +376,7 @@ public class DatasetService {
                 return ClusterState.builder(currentState).putProjectMetadata(ProjectMetadata.builder(project).datasets(updated)).build();
             }
         };
-        taskQueue.submitTask("set-enabled-esql-dataset-metadata-" + names, task, task.timeout());
+        taskQueue.submitTask("set-state-esql-dataset-metadata-" + names, task, task.timeout());
     }
 
     private ActionListener<AcknowledgedResponse> enabledRecordingListener(
@@ -390,7 +390,7 @@ public class DatasetService {
                 for (String type : types) {
                     metrics.recordConfigChange(
                         ConfigChangeTelemetry.KIND_DATASET,
-                        enabled ? ConfigChangeTelemetry.OP_ENABLED : ConfigChangeTelemetry.OP_DISABLED,
+                        enabled ? ConfigChangeTelemetry.OP_OPENED : ConfigChangeTelemetry.OP_CLOSED,
                         ConfigChangeTelemetry.typeToken(type),
                         null
                     );

@@ -30,10 +30,10 @@ public final class ConfigChangeTelemetry {
     public static final String OP_UPDATED = "updated";
     public static final String OP_DELETED = "deleted";
     public static final String OP_REJECTED = "rejected";
-    /** An enable/disable that actually flipped the flag; a toggle onto the state a resource already has is not counted. */
-    public static final String OP_ENABLED = "enabled";
-    /** See {@link #OP_ENABLED}. */
-    public static final String OP_DISABLED = "disabled";
+    /** An open or close that actually changed the state; one onto the state a resource already has is not counted. */
+    public static final String OP_OPENED = "opened";
+    /** See {@link #OP_OPENED}. */
+    public static final String OP_CLOSED = "closed";
 
     public static final String REASON_VALIDATION = "validation";
     public static final String REASON_NOT_FOUND = "not_found";

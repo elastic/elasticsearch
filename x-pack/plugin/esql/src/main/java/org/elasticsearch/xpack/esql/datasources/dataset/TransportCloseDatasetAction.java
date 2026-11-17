@@ -28,12 +28,12 @@ import org.elasticsearch.transport.TransportService;
 import java.util.Arrays;
 import java.util.List;
 
-public class TransportDisableDatasetAction extends AcknowledgedTransportMasterNodeProjectAction<DisableDatasetAction.Request> {
+public class TransportCloseDatasetAction extends AcknowledgedTransportMasterNodeProjectAction<CloseDatasetAction.Request> {
     private final DatasetService datasetService;
     private final DatasetResolutionService datasetResolutionService;
 
     @Inject
-    public TransportDisableDatasetAction(
+    public TransportCloseDatasetAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
@@ -43,12 +43,12 @@ public class TransportDisableDatasetAction extends AcknowledgedTransportMasterNo
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            DisableDatasetAction.NAME,
+            CloseDatasetAction.NAME,
             transportService,
             clusterService,
             threadPool,
             actionFilters,
-            DisableDatasetAction.Request::new,
+            CloseDatasetAction.Request::new,
             projectResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -59,7 +59,7 @@ public class TransportDisableDatasetAction extends AcknowledgedTransportMasterNo
     @Override
     protected void masterOperation(
         Task task,
-        DisableDatasetAction.Request request,
+        CloseDatasetAction.Request request,
         ProjectState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
@@ -97,7 +97,7 @@ public class TransportDisableDatasetAction extends AcknowledgedTransportMasterNo
     }
 
     @Override
-    protected ClusterBlockException checkBlock(DisableDatasetAction.Request request, ProjectState state) {
+    protected ClusterBlockException checkBlock(CloseDatasetAction.Request request, ProjectState state) {
         return state.blocks().globalBlockedException(state.projectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 }

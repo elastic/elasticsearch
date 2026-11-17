@@ -108,7 +108,7 @@ public class GetDataSourceAction extends ActionType<GetDataSourceAction.Response
                     builder.field("description", ds.description());
                 }
                 builder.field("settings", ds.settings().toPresentationMap());
-                builder.field("enabled", ds.enabled());
+                builder.field("state", ds.state());
                 builder.endObject();
             }
             builder.endArray();

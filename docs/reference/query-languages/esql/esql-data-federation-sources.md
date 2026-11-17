@@ -67,6 +67,6 @@ With [audit logging enabled](docs-content://deploy-manage/security/logging-confi
 creating, updating, and deleting data sources generates `security_config_change` events. Refer to
 [put_data_source](../../elasticsearch/elasticsearch-audit-events.md#event-put-data-source), and
 [delete_data_source](../../elasticsearch/elasticsearch-audit-events.md#event-delete-data-source).
-{applies_to}`stack: preview 9.7+` Enabling and disabling a data source generates events too. Refer to
-[enable_data_source](../../elasticsearch/elasticsearch-audit-events.md#event-enable-data-source) and
-[disable_data_source](../../elasticsearch/elasticsearch-audit-events.md#event-disable-data-source).
+{applies_to}`stack: preview 9.7+` Closing and opening a data source generates events too. Refer to
+[open_data_source](../../elasticsearch/elasticsearch-audit-events.md#event-open-data-source) and
+[close_data_source](../../elasticsearch/elasticsearch-audit-events.md#event-close-data-source).

@@ -15,14 +15,14 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xpack.esql.datasources.dataset.CloseDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
-import org.elasticsearch.xpack.esql.datasources.dataset.DisableDatasetAction;
-import org.elasticsearch.xpack.esql.datasources.dataset.EnableDatasetAction;
+import org.elasticsearch.xpack.esql.datasources.dataset.OpenDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
+import org.elasticsearch.xpack.esql.datasources.datasource.CloseDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.DataSourceService;
 import org.elasticsearch.xpack.esql.datasources.datasource.DeleteDataSourceAction;
-import org.elasticsearch.xpack.esql.datasources.datasource.DisableDataSourceAction;
-import org.elasticsearch.xpack.esql.datasources.datasource.EnableDataSourceAction;
+import org.elasticsearch.xpack.esql.datasources.datasource.OpenDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
@@ -218,8 +218,8 @@ public class ExternalSourceConfigChangeForwardIT extends AbstractEsqlIntegTestCa
     }
 
     /**
-     * Enable/disable forwarded from a non-master node land once, on the master, one event per name that flipped, tagged with the
-     * data source's type (the parent's type for a dataset). A toggle onto the state the resource already has is acknowledged but
+     * Close and open forwarded from a non-master node land once, on the master, one event per name that changed, tagged with the
+     * data source's type (the parent's type for a dataset). A close or open onto the state the resource already has is acknowledged but
      * not counted.
      */
     public void testToggleFromNonMasterCountsOnceWithParentType() throws Exception {
@@ -238,37 +238,37 @@ public class ExternalSourceConfigChangeForwardIT extends AbstractEsqlIntegTestCa
             )
         );
 
-        long disabledBefore = clusterTotal(
-            a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASOURCE, DataSourceUsageAccumulator.OP_DISABLED) + a.configChanges(
+        long closedBefore = clusterTotal(
+            a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASOURCE, DataSourceUsageAccumulator.OP_CLOSED) + a.configChanges(
                 DataSourceUsageAccumulator.KIND_DATASET,
-                DataSourceUsageAccumulator.OP_DISABLED
+                DataSourceUsageAccumulator.OP_CLOSED
             )
         );
         resetAllMeters();
         for (int i = 0; i < 2; i++) {
             assertAcked(
                 client(coord).execute(
-                    DisableDataSourceAction.INSTANCE,
-                    new DisableDataSourceAction.Request(TIMEOUT, TIMEOUT, new String[] { "ds_fwd_toggle" })
+                    CloseDataSourceAction.INSTANCE,
+                    new CloseDataSourceAction.Request(TIMEOUT, TIMEOUT, new String[] { "ds_fwd_toggle" })
                 )
             );
             assertAcked(
                 client(coord).execute(
-                    DisableDatasetAction.INSTANCE,
-                    new DisableDatasetAction.Request(TIMEOUT, TIMEOUT, new String[] { "set_fwd_toggle" })
+                    CloseDatasetAction.INSTANCE,
+                    new CloseDatasetAction.Request(TIMEOUT, TIMEOUT, new String[] { "set_fwd_toggle" })
                 )
             );
         }
         collectAllMeters();
-        assertToggleCountedOnceOnMaster(master, coord, "disabled");
+        assertToggleCountedOnceOnMaster(master, coord, "closed");
         assertThat(
-            "phone-home disabled once per kind across the cluster",
+            "phone-home closed once per kind across the cluster",
             clusterTotal(
-                a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASOURCE, DataSourceUsageAccumulator.OP_DISABLED) + a.configChanges(
+                a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASOURCE, DataSourceUsageAccumulator.OP_CLOSED) + a.configChanges(
                     DataSourceUsageAccumulator.KIND_DATASET,
-                    DataSourceUsageAccumulator.OP_DISABLED
+                    DataSourceUsageAccumulator.OP_CLOSED
                 )
-            ) - disabledBefore,
+            ) - closedBefore,
             equalTo(2L)
         );
 
@@ -276,19 +276,19 @@ public class ExternalSourceConfigChangeForwardIT extends AbstractEsqlIntegTestCa
         for (int i = 0; i < 2; i++) {
             assertAcked(
                 client(coord).execute(
-                    EnableDataSourceAction.INSTANCE,
-                    new EnableDataSourceAction.Request(TIMEOUT, TIMEOUT, new String[] { "ds_fwd_toggle" })
+                    OpenDataSourceAction.INSTANCE,
+                    new OpenDataSourceAction.Request(TIMEOUT, TIMEOUT, new String[] { "ds_fwd_toggle" })
                 )
             );
             assertAcked(
                 client(coord).execute(
-                    EnableDatasetAction.INSTANCE,
-                    new EnableDatasetAction.Request(TIMEOUT, TIMEOUT, new String[] { "set_fwd_toggle" })
+                    OpenDatasetAction.INSTANCE,
+                    new OpenDatasetAction.Request(TIMEOUT, TIMEOUT, new String[] { "set_fwd_toggle" })
                 )
             );
         }
         collectAllMeters();
-        assertToggleCountedOnceOnMaster(master, coord, "enabled");
+        assertToggleCountedOnceOnMaster(master, coord, "opened");
     }
 
     private void assertToggleCountedOnceOnMaster(String master, String coord, String op) {
@@ -307,7 +307,7 @@ public class ExternalSourceConfigChangeForwardIT extends AbstractEsqlIntegTestCa
                 equalTo("gcs")
             );
             assertThat(
-                "a toggle carries no rejection reason",
+                "a close or open carries no rejection reason",
                 measurements.get(0).attributes().containsKey(ExternalSourceMetrics.REASON_ATTRIBUTE),
                 equalTo(false)
             );

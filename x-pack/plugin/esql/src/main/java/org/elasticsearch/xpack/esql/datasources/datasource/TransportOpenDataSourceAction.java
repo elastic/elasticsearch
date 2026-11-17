@@ -23,11 +23,11 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.Arrays;
 
-public class TransportEnableDataSourceAction extends AcknowledgedTransportMasterNodeProjectAction<EnableDataSourceAction.Request> {
+public class TransportOpenDataSourceAction extends AcknowledgedTransportMasterNodeProjectAction<OpenDataSourceAction.Request> {
     private final DataSourceService dataSourceService;
 
     @Inject
-    public TransportEnableDataSourceAction(
+    public TransportOpenDataSourceAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
@@ -36,12 +36,12 @@ public class TransportEnableDataSourceAction extends AcknowledgedTransportMaster
         ProjectResolver projectResolver
     ) {
         super(
-            EnableDataSourceAction.NAME,
+            OpenDataSourceAction.NAME,
             transportService,
             clusterService,
             threadPool,
             actionFilters,
-            EnableDataSourceAction.Request::new,
+            OpenDataSourceAction.Request::new,
             projectResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -51,7 +51,7 @@ public class TransportEnableDataSourceAction extends AcknowledgedTransportMaster
     @Override
     protected void masterOperation(
         Task task,
-        EnableDataSourceAction.Request request,
+        OpenDataSourceAction.Request request,
         ProjectState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
@@ -66,7 +66,7 @@ public class TransportEnableDataSourceAction extends AcknowledgedTransportMaster
     }
 
     @Override
-    protected ClusterBlockException checkBlock(EnableDataSourceAction.Request request, ProjectState state) {
+    protected ClusterBlockException checkBlock(OpenDataSourceAction.Request request, ProjectState state) {
         return state.blocks().globalBlockedException(state.projectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 }

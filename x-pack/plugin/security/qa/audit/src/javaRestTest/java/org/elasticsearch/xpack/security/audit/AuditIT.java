@@ -230,10 +230,10 @@ public class AuditIT extends ESRestTestCase {
             start
         );
 
-        assertToggleAudited("disable", "dataset", "/_query/dataset/" + datasetName, datasetName);
-        assertToggleAudited("enable", "dataset", "/_query/dataset/" + datasetName, datasetName);
-        assertToggleAudited("disable", "data_source", "/_query/data_source/" + dataSourceName, dataSourceName);
-        assertToggleAudited("enable", "data_source", "/_query/data_source/" + dataSourceName, dataSourceName);
+        assertToggleAudited("close", "dataset", "/_query/dataset/" + datasetName, datasetName);
+        assertToggleAudited("open", "dataset", "/_query/dataset/" + datasetName, datasetName);
+        assertToggleAudited("close", "data_source", "/_query/data_source/" + dataSourceName, dataSourceName);
+        assertToggleAudited("open", "data_source", "/_query/data_source/" + dataSourceName, dataSourceName);
 
         var deleteStart = Instant.now();
         var deleteDatasetRequest = new Request("DELETE", "/_query/dataset/" + datasetName);
@@ -280,8 +280,8 @@ public class AuditIT extends ESRestTestCase {
     }
 
     /**
-     * Enabling or disabling a data source or dataset is a configuration change like put and delete, so it must show up as a
-     * {@code security_config_change} event naming what was toggled. {@code objectType} is {@code dataset} or {@code data_source}.
+     * Closing or opening a data source or dataset is a configuration change like put and delete, so it must show up as a
+     * {@code security_config_change} event naming what was closed or opened. {@code objectType} is {@code dataset} or {@code data_source}.
      */
     private void assertToggleAudited(String op, String objectType, String path, String name) throws Exception {
         final String action = op + "_" + objectType;

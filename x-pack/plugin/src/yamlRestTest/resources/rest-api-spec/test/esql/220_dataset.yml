@@ -375,14 +375,14 @@ teardown:
   - match: { error.reason: "Validation Failed: 1: dataset description is too large: 1001 characters, the maximum allowed is 1000;" }
 
 ---
-"enable-disable-data-source-and-dataset":
+"close-open-data-source-and-dataset":
   - requires:
       capabilities:
         - method: POST
-          path: /_query/data_source/{name}/_disable
-          capabilities: [data_source_dataset_enable_disable]
+          path: /_query/data_source/{name}/_close
+          capabilities: [data_source_dataset_open_close]
       test_runner_features: capabilities
-      reason: "enable/disable APIs for data sources and datasets"
+      reason: "close and open APIs for data sources and datasets"
 
   - do:
       esql.put_data_source:
@@ -403,48 +403,48 @@ teardown:
       esql.get_data_source:
         name: toggle_parent
 
-  - match: { data_sources.0.enabled: true }
+  - match: { data_sources.0.state: open }
 
   - do:
-      esql.disable_data_source:
+      esql.close_data_source:
         name: toggle_parent
 
   - do:
       esql.get_data_source:
         name: toggle_parent
 
-  - match: { data_sources.0.enabled: false }
+  - match: { data_sources.0.state: closed }
 
   - do:
-      catch: /disabled data source/
+      catch: /closed data source/
       esql.put_dataset:
-        name: new_against_disabled
+        name: new_against_closed
         body:
           data_source: toggle_parent
           resource: "s3://y/*.csv"
 
   - do:
-      esql.enable_data_source:
+      esql.open_data_source:
         name: toggle_parent
 
   - do:
       esql.get_dataset:
         name: toggle_child
 
-  - match: { datasets.0.enabled: true }
+  - match: { datasets.0.state: open }
 
   - do:
-      esql.disable_dataset:
+      esql.close_dataset:
         name: toggle_child
 
   - do:
       esql.get_dataset:
         name: toggle_child
 
-  - match: { datasets.0.enabled: false }
+  - match: { datasets.0.state: closed }
 
   - do:
-      esql.enable_dataset:
+      esql.open_dataset:
         name: toggle_child
 
   - do:

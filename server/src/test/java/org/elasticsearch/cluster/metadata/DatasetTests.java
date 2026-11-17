@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -198,6 +199,34 @@ public class DatasetTests extends AbstractXContentSerializingTestCase<Dataset> {
 
     public void testRequiresResource() {
         expectThrows(NullPointerException.class, () -> new Dataset("test", new DataSourceReference("ds"), null, null, Map.of()));
+    }
+
+    public void testStateIsOpenByDefaultAndClosedWhenTheFlagIsOff() {
+        Dataset open = new Dataset("test", new DataSourceReference("ds"), "s3://b/p", null, Map.of());
+        assertEquals("open", open.state());
+        assertEquals("closed", open.withEnabled(false).state());
+    }
+
+    public void testStateIsShownAsOpenOrClosedInTheJson() {
+        Dataset open = new Dataset("test", new DataSourceReference("ds"), "s3://b/p", null, Map.of());
+        assertTrue(Strings.toString(open).contains("\"state\":\"open\""));
+        assertTrue(Strings.toString(open.withEnabled(false)).contains("\"state\":\"closed\""));
+        assertFalse(Strings.toString(open).contains("enabled"));
+    }
+
+    public void testStateParsing() throws IOException {
+        String base = "{\"name\":\"d\",\"data_source\":\"ds\",\"resource\":\"s3://b/p\"";
+        assertTrue("no state is open", parse(base + "}").enabled());
+        assertTrue(parse(base + ",\"state\":\"open\"}").enabled());
+        assertFalse(parse(base + ",\"state\":\"closed\"}").enabled());
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parse(base + ",\"state\":\"bogus\"}"));
+        assertTrue(e.getMessage(), e.getMessage().contains("bogus") || e.getCause() != null && e.getCause().getMessage().contains("bogus"));
+    }
+
+    private Dataset parse(String json) throws IOException {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            return Dataset.fromXContent(parser);
+        }
     }
 
     public void testNullDescription() throws IOException {

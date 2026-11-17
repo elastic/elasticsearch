@@ -23,26 +23,26 @@ import java.util.Set;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 @ServerlessScope(Scope.PUBLIC)
-public class RestDisableDataSourceAction extends BaseRestHandler {
+public class RestOpenDataSourceAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/_query/data_source/{name}/_disable"));
+        return List.of(new Route(POST, "/_query/data_source/{name}/_open"));
     }
 
     @Override
     public String getName() {
-        return "esql_disable_data_source";
+        return "esql_open_data_source";
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-        final DisableDataSourceAction.Request req = new DisableDataSourceAction.Request(
+        final OpenDataSourceAction.Request req = new OpenDataSourceAction.Request(
             RestUtils.getMasterNodeTimeout(request),
             RestUtils.getAckTimeout(request),
             Strings.splitStringByCommaToArray(request.param("name"))
         );
-        return channel -> client.execute(DisableDataSourceAction.INSTANCE, req, new RestToXContentListener<>(channel));
+        return channel -> client.execute(OpenDataSourceAction.INSTANCE, req, new RestToXContentListener<>(channel));
     }
 
     @Override
@@ -50,7 +50,7 @@ public class RestDisableDataSourceAction extends BaseRestHandler {
         return Set.of(
             EsqlDataSourcesCapabilities.DATA_SOURCES,
             EsqlDataSourcesCapabilities.DATA_SOURCES_SERVERLESS_SCOPE,
-            EsqlDataSourcesCapabilities.DATA_SOURCE_DATASET_ENABLE_DISABLE
+            EsqlDataSourcesCapabilities.DATA_SOURCE_DATASET_OPEN_CLOSE
         );
     }
 }

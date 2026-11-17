@@ -23,26 +23,26 @@ import java.util.Set;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 @ServerlessScope(Scope.PUBLIC)
-public class RestDisableDatasetAction extends BaseRestHandler {
+public class RestOpenDatasetAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/_query/dataset/{name}/_disable"));
+        return List.of(new Route(POST, "/_query/dataset/{name}/_open"));
     }
 
     @Override
     public String getName() {
-        return "esql_disable_dataset";
+        return "esql_open_dataset";
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-        final DisableDatasetAction.Request req = new DisableDatasetAction.Request(
+        final OpenDatasetAction.Request req = new OpenDatasetAction.Request(
             RestUtils.getMasterNodeTimeout(request),
             RestUtils.getAckTimeout(request),
             Strings.splitStringByCommaToArray(request.param("name"))
         );
-        return channel -> client.execute(DisableDatasetAction.INSTANCE, req, new RestToXContentListener<>(channel));
+        return channel -> client.execute(OpenDatasetAction.INSTANCE, req, new RestToXContentListener<>(channel));
     }
 
     @Override
@@ -50,7 +50,7 @@ public class RestDisableDatasetAction extends BaseRestHandler {
         return Set.of(
             EsqlDataSourcesCapabilities.DATA_SOURCES,
             EsqlDataSourcesCapabilities.DATA_SOURCES_SERVERLESS_SCOPE,
-            EsqlDataSourcesCapabilities.DATA_SOURCE_DATASET_ENABLE_DISABLE
+            EsqlDataSourcesCapabilities.DATA_SOURCE_DATASET_OPEN_CLOSE
         );
     }
 }

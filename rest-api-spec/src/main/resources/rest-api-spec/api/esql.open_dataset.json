@@ -1,8 +1,8 @@
 {
-  "esql.disable_dataset": {
+  "esql.open_dataset": {
     "documentation": {
-      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-dataset-disable",
-      "description": "Disable one or more ES|QL datasets to stop query use (for example for cost control)."
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-dataset-open",
+      "description": "Open one or more closed ES|QL datasets so that queries can read them again."
     },
     "stability": "experimental",
     "visibility": "public",
@@ -17,14 +17,14 @@
     "url": {
       "paths": [
         {
-          "path": "/_query/dataset/{name}/_disable",
+          "path": "/_query/dataset/{name}/_open",
           "methods": [
             "POST"
           ],
           "parts": {
             "name": {
               "type": "list",
-              "description": "A comma-separated list of datasets to disable"
+              "description": "A comma-separated list of datasets to open"
             }
           }
         }

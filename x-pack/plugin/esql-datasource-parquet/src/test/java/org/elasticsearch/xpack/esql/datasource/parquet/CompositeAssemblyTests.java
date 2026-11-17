@@ -32,11 +32,18 @@ import org.apache.parquet.schema.MessageTypeParser;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -51,9 +58,11 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.PrimitiveIterator;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 
@@ -724,6 +733,188 @@ public class CompositeAssemblyTests extends ESTestCase {
                 outputStream.write(b, off, len);
             }
         };
+    }
+
+    /**
+     * The binding half of the prototype: one ESQL column over several Parquet leaves.
+     * <p>
+     * Three things are asserted together because they are one claim. Without the switch {@code items} and
+     * {@code attrs} are {@link DataType#UNSUPPORTED}, which is what ships today. With it they are
+     * {@link DataType#KEYWORD}. And {@code tags}, a LIST of primitives, is KEYWORD either way -- the switch
+     * must not widen to the shape the reader already supports as a multivalue column, because that column
+     * would then arrive as JSON text instead of a multivalue of keywords.
+     */
+    public void testCompositeColumnsAreKeywordOnlyWithOption() throws IOException {
+        byte[] file = writeFile();
+        StorageObject storageObject = createStorageObject(file);
+        ParquetFormatReader off = newReader();
+        ParquetFormatReader on = newReader().withCompositeAssemblyForTests(true);
+
+        Map<String, DataType> withoutOption = typesByName(off.metadata(storageObject));
+        Map<String, DataType> withOption = typesByName(on.metadata(storageObject));
+
+        assertEquals("items is unsupported today", DataType.UNSUPPORTED, withoutOption.get("items"));
+        assertEquals("attrs is unsupported today", DataType.UNSUPPORTED, withoutOption.get("attrs"));
+        assertEquals("items assembles to text", DataType.KEYWORD, withOption.get("items"));
+        assertEquals("attrs assembles to text", DataType.KEYWORD, withOption.get("attrs"));
+
+        assertEquals("a list of primitives is a multivalue keyword column", DataType.KEYWORD, withoutOption.get("tags"));
+        assertEquals("the switch must not change a list of primitives", DataType.KEYWORD, withOption.get("tags"));
+        assertEquals(DataType.LONG, withOption.get("id"));
+        assertEquals(DataType.INTEGER, withOption.get("qty"));
+        assertEquals("the switch changes no other column", withoutOption.keySet(), withOption.keySet());
+    }
+
+    /**
+     * What a composite column's footer statistics say once it is no longer UNSUPPORTED, and the one place
+     * they say nothing. This is a finding pinned as a test rather than a fix: it should go red the day the
+     * gap is closed.
+     * <p>
+     * {@code items} is a top-level LIST, so it takes the arm that publishes a size marker and withholds the
+     * null count and the bounds -- leaf extrema are element-level and do not answer a row-level COUNT or
+     * IS NOT NULL. {@code attrs} is a top-level MAP, and nothing is published for it at all: the
+     * map/variant skip consumes its leaves before that arm is reached. While a MAP is UNSUPPORTED that is
+     * invisible, because the publish filter drops it anyway. Once it is a real column it is not, because an
+     * absent per-column statistic is not the same as an unknown one -- it reads as all-null under the
+     * footer implicit-nulls contract, so a COUNT over the column folds to zero rather than falling back to
+     * a scan, which is the exact failure the LIST arm's size marker exists to prevent.
+     * <p>
+     * Closing it is one line in {@code isTopLevelListLeaf}. It is not closed here because
+     * {@code ParquetFormatReaderTests#testHomogeneousMapPublishesNoFoldedSplitStat} asserts that a
+     * top-level MAP publishes no {@code size_bytes}, so the decision is already recorded the other way and
+     * is not a prototype's to reverse.
+     */
+    public void testAssembledCompositeStatisticsGap() throws IOException {
+        byte[] file = writeFile();
+        SourceMetadata metadata = newReader().withCompositeAssemblyForTests(true).metadata(createStorageObject(file));
+        Optional<SourceStatistics> stats = metadata.statistics();
+        assertTrue("the footer carries statistics", stats.isPresent());
+        Optional<Map<String, SourceStatistics.ColumnStatistics>> columns = stats.get().columnStatistics();
+        assertTrue("per-column statistics are published", columns.isPresent());
+
+        for (String list : List.of("items", "tags")) {
+            SourceStatistics.ColumnStatistics column = columns.get().get(list);
+            assertNotNull(list + " is a top-level list, so it publishes a size marker", column);
+            assertTrue(list + " publishes its size", column.sizeInBytes().isPresent());
+            assertThat(list + " size is positive", column.sizeInBytes().getAsLong(), greaterThan(0L));
+            assertTrue(list + " must not publish a row-level null count", column.nullCount().isEmpty());
+            assertTrue(list + " must not publish element-level bounds", column.minValue().isEmpty());
+            assertTrue(list + " must not publish element-level bounds", column.maxValue().isEmpty());
+        }
+
+        assertNull(
+            "a top-level MAP publishes no statistics at all, and once it is a real column that reads as"
+                + " all-null rather than as unknown -- closing this gap should fail this assertion",
+            columns.get().get("attrs")
+        );
+
+        SourceStatistics.ColumnStatistics id = columns.get().get("id");
+        assertNotNull("a flat column still publishes its bounds", id);
+        assertTrue("a flat required column has a known null count", id.nullCount().isPresent());
+        assertTrue("a flat column publishes a minimum", id.minValue().isPresent());
+    }
+
+    /**
+     * The decode sites that do not implement assembly must refuse a composite rather than read its first
+     * leaf. The baseline iterator would otherwise emit every {@code sku} in the row as the value of
+     * {@code items}: values that are in the file, under a column they do not belong to.
+     */
+    public void testBaselineIteratorRefusesComposites() throws IOException {
+        byte[] file = writeFile();
+        ParquetFormatReader baseline = new ParquetFormatReader(newBlockFactory(), false).withCompositeAssemblyForTests(true);
+        FormatReadContext context = FormatReadContext.builder().batchSize(64).projectedColumns(List.of("id", "items")).build();
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> baseline.read(createStorageObject(file), context));
+        assertThat(e.getMessage(), containsString("composite assembly is only implemented in the optimized iterator"));
+    }
+
+    /**
+     * Shapes the switch must decline. The main schema cannot reach any of them, and each is a rule the
+     * rest of the prototype leans on:
+     * <ul>
+     *   <li>{@code outer.items} -- a composite nested in a STRUCT. Only a top-level composite is shielded
+     *       in the two statistics producers; a nested one folds its string leaf and its long leaf onto one
+     *       name and the extrema are then compared across types.</li>
+     *   <li>{@code legacy} -- the two-level LIST encoding, where the repeated group IS the element. It
+     *       holds one field here, so a check counting fields would read it as the three-level wrapper and
+     *       pair the wrong values; the name is the only thing that distinguishes the two.</li>
+     *   <li>{@code dated} -- a struct element carrying an annotated primitive. The assembler writes an
+     *       INT32 as a bare number, so a DATE would be rendered as a day count rather than a date.</li>
+     *   <li>{@code longkey} -- a MAP whose key is not a string, which has no JSON object form.</li>
+     * </ul>
+     * No values are written into {@code outer}: typing is decided from the schema, and a nested
+     * LIST&lt;STRUCT&gt; carrying values trips the heterogeneous-extrema assertion in
+     * {@code compareStatExtremum} today, which is a defect of its own and not this test's subject.
+     */
+    public void testDeclinedCompositeShapes() throws IOException {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message declined_shapes {
+              required int64 id;
+              optional group outer {
+                optional group items (LIST) {
+                  repeated group list {
+                    optional group element {
+                      optional binary sku (STRING);
+                      optional int64 price;
+                    }
+                  }
+                }
+              }
+              optional group legacy (LIST) { repeated group array { optional binary sku (STRING); } }
+              optional group dated (LIST) {
+                repeated group list { optional group element { optional int32 day (DATE); } }
+              }
+              optional group longkey (MAP) {
+                repeated group key_value {
+                  required int64 key;
+                  optional int64 value;
+                }
+              }
+            }
+            """);
+        byte[] file = writeIdOnlyFile(schema);
+        Map<String, DataType> types = typesByName(newReader().withCompositeAssemblyForTests(true).metadata(createStorageObject(file)));
+        assertEquals(DataType.LONG, types.get("id"));
+        assertEquals("a composite nested in a STRUCT is not bound", DataType.UNSUPPORTED, types.get("outer.items"));
+        assertEquals("the two-level LIST encoding is not assembled", DataType.UNSUPPORTED, types.get("legacy"));
+        assertEquals("an annotated primitive in the element declines", DataType.UNSUPPORTED, types.get("dated"));
+        assertEquals("a non-string map key declines", DataType.UNSUPPORTED, types.get("longkey"));
+    }
+
+    /** One row carrying only {@code id}; every other field of {@code schema} must be optional. */
+    private byte[] writeIdOnlyFile(MessageType schema) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(createOutputFile(out))
+                .withType(schema)
+                .withConf(new PlainParquetConfiguration())
+                // Without this the writer reaches for Hadoop's CodecFactory, which is not on the classpath.
+                .withCodecFactory(new PlainCompressionCodecFactory())
+                .withCompressionCodec(codec)
+                .withWriterVersion(writerVersion)
+                .build()
+        ) {
+            for (int i = 0; i < 4; i++) {
+                writer.write(factory.newGroup().append("id", (long) i));
+            }
+        }
+        return out.toByteArray();
+    }
+
+    private static Map<String, DataType> typesByName(SourceMetadata metadata) {
+        Map<String, DataType> types = new LinkedHashMap<>();
+        for (Attribute attribute : metadata.schema()) {
+            types.put(attribute.name(), attribute.dataType());
+        }
+        return types;
+    }
+
+    private static BlockFactory newBlockFactory() {
+        return BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
+    }
+
+    private static ParquetFormatReader newReader() {
+        return new ParquetFormatReader(newBlockFactory());
     }
 
     private static StorageObject createStorageObject(byte[] data) {

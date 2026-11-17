@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
@@ -44,21 +45,20 @@ public class RestEsqlStreamQueryActionTests extends ESTestCase {
     public void testColumnarRejected() {
         EsqlQueryRequest esqlRequest = EsqlQueryRequest.syncEsqlQueryRequest("FROM idx");
         esqlRequest.columnar(true);
-        IllegalArgumentException e = expectThrows(
+        expectThrows(
             IllegalArgumentException.class,
+            containsString("columnar"),
             () -> RestEsqlStreamQueryAction.streamingChannelConsumer(esqlRequest, requestWithParams(Map.of()), null)
         );
-        assertThat(e.getMessage(), containsString("columnar"));
     }
 
     public void testFormatMustBeNdjson() {
         EsqlQueryRequest esqlRequest = EsqlQueryRequest.syncEsqlQueryRequest("FROM idx");
-        IllegalArgumentException e = expectThrows(
+        expectThrows(
             IllegalArgumentException.class,
+            allOf(containsString("ndjson"), containsString("csv")),
             () -> RestEsqlStreamQueryAction.streamingChannelConsumer(esqlRequest, requestWithParams(Map.of("format", "csv")), null)
         );
-        assertThat(e.getMessage(), containsString("ndjson"));
-        assertThat(e.getMessage(), containsString("csv"));
     }
 
     /**
@@ -70,11 +70,11 @@ public class RestEsqlStreamQueryActionTests extends ESTestCase {
     public void testUnrecognizedParametersAreRejected() {
         for (String unrecognized : new String[] { "batch_size", "streaming", "delimiter" }) {
             RestRequest request = requestWithQuery(Map.of("format", "ndjson", "header", "present", unrecognized, "x"));
-            IllegalArgumentException e = expectThrows(
+            expectThrows(
                 IllegalArgumentException.class,
+                containsString("contains unrecognized parameter: [" + unrecognized + "]"),
                 () -> handler.handleRequest(request, new FakeRestChannel(request, true), null)
             );
-            assertThat(e.getMessage(), containsString("contains unrecognized parameter: [" + unrecognized + "]"));
         }
     }
 
@@ -116,12 +116,11 @@ public class RestEsqlStreamQueryActionTests extends ESTestCase {
             "application/vnd.apache.arrow.stream",
             "text/*",
             "application/vnd.elasticsearch+json;compatible-with=9" }) {
-            IllegalArgumentException e = expectThrows(
+            expectThrows(
                 IllegalArgumentException.class,
+                allOf(containsString("application/x-ndjson"), containsString(accept)),
                 () -> RestEsqlStreamQueryAction.validateFormat(null, accept)
             );
-            assertThat(e.getMessage(), containsString("application/x-ndjson"));
-            assertThat(e.getMessage(), containsString(accept));
         }
     }
 

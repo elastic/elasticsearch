@@ -38,6 +38,7 @@ import java.util.regex.Pattern;
 
 import static org.elasticsearch.xpack.esql.EsqlStreamTestUtils.parseNdjson;
 import static org.elasticsearch.xpack.esql.EsqlStreamTestUtils.tolerateDefaultLimitWarning;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -327,19 +328,19 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
     public void testBatchSizeRejected() {
         ResponseException re = expectThrows(
             ResponseException.class,
+            containsString("[batch_size]"),
             () -> EsqlStreamTestUtils.rawStream(client(), "{\"query\": \"FROM stream-test | LIMIT 1\"}", "batch_size=10")
         );
         assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(re.getMessage(), containsString("[batch_size]"));
     }
 
     public void testFormatMustBeNdjson() throws IOException {
         ResponseException re = expectThrows(
             ResponseException.class,
+            containsString("ndjson"),
             () -> EsqlStreamTestUtils.rawStream(client(), "{\"query\": \"FROM stream-test | LIMIT 1\"}", "format=csv")
         );
         assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(re.getMessage(), containsString("ndjson"));
 
         Response response = EsqlStreamTestUtils.rawStream(client(), "{\"query\": \"FROM stream-test | LIMIT 1\"}", "format=ndjson");
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
@@ -381,18 +382,17 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
     public void testStreamingParametersRemovedFromQueryEndpoint() {
         Request request = new Request("POST", "/_query?streaming=true&format=ndjson");
         request.setJsonEntity("{\"query\": \"FROM stream-test | LIMIT 1\"}");
-        ResponseException re = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        ResponseException re = expectThrows(ResponseException.class, containsString("[streaming]"), () -> client().performRequest(request));
         assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(re.getMessage(), containsString("[streaming]"));
     }
 
     public void testColumnarRejected() {
         ResponseException re = expectThrows(
             ResponseException.class,
+            containsString("columnar"),
             () -> EsqlStreamTestUtils.rawStream(client(), "{\"query\": \"FROM stream-test | LIMIT 1\", \"columnar\": true}")
         );
         assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(re.getMessage(), containsString("columnar"));
     }
 
     @SuppressWarnings("unchecked")
@@ -462,27 +462,25 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
     public void testBothIncludeMetadataFlagsRejected() {
         ResponseException re = expectThrows(
             ResponseException.class,
+            allOf(containsString("include_execution_metadata"), containsString("include_ccs_metadata")),
             () -> EsqlStreamTestUtils.rawStream(
                 client(),
                 "{\"query\": \"FROM stream-test | LIMIT 1\", \"include_ccs_metadata\": true, \"include_execution_metadata\": true}"
             )
         );
         assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(re.getMessage(), containsString("include_execution_metadata"));
-        assertThat(re.getMessage(), containsString("include_ccs_metadata"));
     }
 
     public void testUnmappedFieldsLoadAllRejected() {
         ResponseException re = expectThrows(
             ResponseException.class,
+            allOf(containsString("LOAD_ALL"), containsString("POST /_query/stream")),
             () -> EsqlStreamTestUtils.rawStream(
                 client(),
                 "{\"query\": \"SET unmapped_fields=\\\"LOAD_ALL\\\"; FROM stream-test | LIMIT 1\"}"
             )
         );
         assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(re.getMessage(), containsString("LOAD_ALL"));
-        assertThat(re.getMessage(), containsString("POST /_query/stream"));
     }
 
     public void testUnmappedFieldsLoadStillWorks() throws IOException {
@@ -493,10 +491,10 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
     public void testDelimiterRejected() {
         ResponseException re = expectThrows(
             ResponseException.class,
+            containsString("delimiter"),
             () -> EsqlStreamTestUtils.rawStream(client(), "{\"query\": \"FROM stream-test | LIMIT 1\"}", "delimiter=,")
         );
         assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(re.getMessage(), containsString("delimiter"));
     }
 
     public void testHeaderAcceptedInertly() throws IOException {

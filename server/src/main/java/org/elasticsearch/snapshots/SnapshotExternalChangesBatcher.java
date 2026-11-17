@@ -35,6 +35,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Predicate;
 
 /**
@@ -330,7 +331,9 @@ final class SnapshotExternalChangesBatcher {
         }
 
         private static void addUpdatedRepository(Map<ProjectId, Set<String>> updatedRepositories, ProjectId projectId, String repository) {
-            updatedRepositories.computeIfAbsent(projectId, ignored -> new HashSet<>()).add(repository);
+            updatedRepositories.computeIfAbsent(projectId, HASHSET_FACTORY).add(repository);
         }
+
+        private static final Function<ProjectId, Set<String>> HASHSET_FACTORY = ignored -> new HashSet<>();
     }
 }

@@ -30,7 +30,8 @@ public abstract class UnaryPlan extends LogicalPlan {
 
     @Override
     public final UnaryPlan replaceChildren(List<LogicalPlan> newChildren) {
-        return replaceChild(newChildren.get(0));
+        // replaceChild mints a new id; put this node's identity back so a child rewrite is the same node.
+        return passIdentityTo(replaceChild(newChildren.get(0)));
     }
 
     public abstract UnaryPlan replaceChild(LogicalPlan newChild);

@@ -14,11 +14,11 @@ import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.elasticsearch.lucene.store.IndexInputUtils;
+import org.elasticsearch.lucene.store.ThreadConfinedArena;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 
@@ -47,7 +47,7 @@ public final class Int4VectorScorerSupplier implements RandomVectorScorerSupplie
         this.similarityType = similarityType;
         this.packedDims = dims / 2;
         this.vectorPitch = packedDims + Int4VectorScorer.CORRECTIONS_BYTES;
-        this.unpackedQuerySegment = Arena.ofAuto().allocate(dims, 32);
+        this.unpackedQuerySegment = ThreadConfinedArena.allocate(dims, 32);
         this.scratch = new FixedSizeSegmentScratch(vectorPitch);
         float centroidDP;
         try {

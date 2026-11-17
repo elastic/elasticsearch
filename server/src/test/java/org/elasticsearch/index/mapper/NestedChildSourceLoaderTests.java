@@ -27,8 +27,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class NestedChildSourceLoaderTests extends MapperServiceTestCase {
 
@@ -293,6 +295,30 @@ public class NestedChildSourceLoaderTests extends MapperServiceTestCase {
                 }
             };
         }
+    }
+
+    public void testRefusesStoredSourceFilteredByMapping() throws IOException {
+        MapperService mapperService = createMapperService(topMapping(b -> {
+            b.startObject("_source").array(randomFrom("includes", "excludes"), "id", "items.v").endObject();
+            b.startObject("properties");
+            {
+                b.startObject("id").field("type", "keyword").endObject();
+                b.startObject("items").field("type", "nested").startObject("properties");
+                b.startObject("v").field("type", "keyword").endObject();
+                b.endObject().endObject();
+            }
+            b.endObject();
+        }));
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> childLoader(mapperService));
+        assertThat(e.getMessage(), containsString("filtered _source"));
+    }
+
+    public void testFilteredStoredSourceWithoutNestedFieldsIsNotRefused() throws IOException {
+        MapperService mapperService = createMapperService(topMapping(b -> {
+            b.startObject("_source").array("excludes", "v").endObject();
+            b.startObject("properties").startObject("v").field("type", "keyword").endObject().endObject();
+        }));
+        assertThat(childLoader(mapperService), notNullValue());
     }
 
     private static CheckedConsumer<XContentBuilder, IOException> parent(String id, List<Map<String, Object>> items) {

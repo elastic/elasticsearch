@@ -49,6 +49,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.assumeHighlightImplicitQueryAndFieldsEnabled;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
@@ -5529,11 +5530,12 @@ public class VerifierTests extends AnalyzerTestCase {
      * An index pattern with two union-type columns, a column of an unsupported type and a regular one.
      */
     private TestAnalyzer dedupUnionTypesAnalyzer() {
+        // IndexResolver sorts the types, so the conflict error lists them in type order. Map.of alone would iterate in random order.
         Map<String, EsField> mapping = Map.of(
             "multi_typed",
-            new InvalidMappedField("multi_typed", Map.of("integer", Set.of("test1"), "long", Set.of("test2"))),
+            new InvalidMappedField("multi_typed", new TreeMap<>(Map.of("integer", Set.of("test1"), "long", Set.of("test2")))),
             "other_multi_typed",
-            new InvalidMappedField("other_multi_typed", Map.of("keyword", Set.of("test1"), "text", Set.of("test2"))),
+            new InvalidMappedField("other_multi_typed", new TreeMap<>(Map.of("keyword", Set.of("test1"), "text", Set.of("test2")))),
             "unsupported",
             new UnsupportedEsField("unsupported", List.of("ip_range")),
             "name",

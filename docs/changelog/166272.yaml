@@ -1,0 +1,6 @@
+area: Security
+issues: []
+pr: 166272
+summary: "[kibana_system] add nightshift-detection_engine-* privileges to `kibana_system`\
+  \ user"
+type: enhancement

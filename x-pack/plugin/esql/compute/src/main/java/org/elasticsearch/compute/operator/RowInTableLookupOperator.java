@@ -7,8 +7,6 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.aggregation.table.RowInTableLookup;
 import org.elasticsearch.compute.data.Block;
@@ -21,18 +19,15 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Deque;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Looks up each row of an input {@link Page} in a table of keys and appends
+ * Looks up each row of an input {@link Page} in a pre-built table and appends
  * the matching row index as a new {@link IntBlock}.
  * <p>
- *     The keys are supplied at construction time as an array of {@link Key}s,
+ *     The table is supplied at construction time as an array of {@link Key}s,
  *     each holding one key column. Input pages may have more columns than just
  *     the key columns; {@code blockMapping} selects which blocks in the input
  *     correspond to each key, in order.
@@ -80,22 +75,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * <p>
  *     The {@link Factory} holds the key {@link Block}s and is shared across
  *     all drivers. Every operator it creates probes one shared table, so the
- *     factory's blocks are never released by this operator. The first operator
- *     to receive input builds that table on its own driver thread. Until it is
- *     built the other operators take input until they hold
- *     {@link #MAX_PENDING_BYTES}, so their drivers keep scanning and loading
- *     keys during the build instead of idling, and then wait for the table.
+ *     factory's blocks are never released by this operator. The first
+ *     {@link Factory#get} builds that table.
  * </p>
  */
-public class RowInTableLookupOperator implements Operator {
-    /**
-     * Bytes of input one operator holds while another driver builds the shared table. A few pages are enough
-     * to keep the upstream operators busy for the length of a build without holding much of the input. The
-     * held pages are already charged to the breaker, so this bounds how much input waits on the build, not its
-     * accounting. The operator stops taking input once it reaches the limit, so the last page can go past it.
-     */
-    static final long MAX_PENDING_BYTES = ByteSizeValue.ofMb(1).getBytes();
-
+public class RowInTableLookupOperator extends AbstractPageMappingToIteratorOperator {
     /**
      * A single key column of the lookup table: its field name and the block
      * of values (one value per table row).
@@ -118,8 +102,8 @@ public class RowInTableLookupOperator implements Operator {
     /**
      * Factory for {@link RowInTableLookupOperator}. The {@link Block}s inside
      * the {@link Key}s are never closed by this factory. Every operator it creates
-     * shares one table: the first of them to receive input builds it and the last
-     * to close releases it. A table per driver would multiply the build time and the
+     * shares one table: the first {@link #get} builds it and the last operator to
+     * close releases it. A table per driver would multiply the build time and the
      * memory by the number of drivers, which matters once the table holds hundreds
      * of thousands of keys.
      */
@@ -152,11 +136,11 @@ public class RowInTableLookupOperator implements Operator {
         }
 
         /**
-         * Returns the shared table with a reference taken for the caller, creating an unbuilt one if no live one exists.
+         * Returns the shared table with a reference taken for the caller, building it if no live one exists.
          */
         private synchronized SharedLookup acquire(BlockFactory blockFactory) {
             if (shared == null || shared.tryIncRef() == false) {
-                shared = new SharedLookup(blockFactory, keys);
+                shared = new SharedLookup(buildLookup(blockFactory, keys));
             }
             return shared;
         }
@@ -168,83 +152,18 @@ public class RowInTableLookupOperator implements Operator {
     }
 
     /**
-     * A table and the count of operators using it. The first operator to receive input builds it. The others wait on
-     * listeners of their own, completed by {@link #built} once the build ends, which it always does: the claiming
-     * thread runs the build to completion and completes {@link #built} on every path. Building on a driver thread
-     * rather than a separate task ties the build to the query's lifetime, so the key blocks it reads cannot be
-     * released under it. The table is closed when the last operator releases it, which cannot happen mid-build
-     * because the building operator holds a reference.
+     * A table and the count of operators using it. The last of them to release it closes the table.
      */
     private static final class SharedLookup extends AbstractRefCounted {
-        private final BlockFactory blockFactory;
-        private final Key[] keys;
-        private final AtomicBoolean claimed = new AtomicBoolean();
-        private final SubscribableListener<Void> built = new SubscribableListener<>();
-        /**
-         * Written before {@link #built} completes and read only after, so completing the listener publishes them.
-         */
-        private RowInTableLookup table;
-        private Exception failure;
+        private final RowInTableLookup table;
 
-        private SharedLookup(BlockFactory blockFactory, Key[] keys) {
-            this.blockFactory = blockFactory;
-            this.keys = keys;
-        }
-
-        /**
-         * Builds the table unless another caller has claimed the build. Rethrows a failure of the build this
-         * thread did.
-         */
-        void buildIfUnclaimed() {
-            if (built.isDone() || claimed.compareAndSet(false, true) == false) {
-                return;
-            }
-            RowInTableLookup table;
-            try {
-                table = buildLookup(blockFactory, keys);
-            } catch (Exception e) {
-                onBuildFailure(e);
-                throw e;
-            } catch (Error e) {
-                // Wake the waiting operators rather than leave them blocked forever.
-                onBuildFailure(new IllegalStateException("failed to build the lookup table", e));
-                throw e;
-            }
+        private SharedLookup(RowInTableLookup table) {
             this.table = table;
-            built.onResponse(null);
-        }
-
-        private void onBuildFailure(Exception e) {
-            failure = e;
-            built.onFailure(e);
-        }
-
-        boolean isBuildDone() {
-            return built.isDone();
-        }
-
-        /**
-         * The built table. Rethrows the build failure, if any, so every operator fails the way the builder did.
-         */
-        RowInTableLookup table() {
-            assert isBuildDone() : "table is not built yet";
-            if (failure != null) {
-                throw failure instanceof RuntimeException re ? re : new IllegalStateException(failure);
-            }
-            return table;
-        }
-
-        @Override
-        public String toString() {
-            if (isBuildDone() == false) {
-                return "unbuilt";
-            }
-            return failure == null ? table.toString() : "failed";
         }
 
         @Override
         protected void closeInternal() {
-            Releasables.closeExpectNoException(table);
+            table.close();
         }
     }
 
@@ -293,29 +212,12 @@ public class RowInTableLookupOperator implements Operator {
     private final SharedLookup shared;
     private final Releasable releaseShared;
     private final int[] blockMapping;
-    private final Mapping mapping = new Mapping();
-    /**
-     * Input received before the table was built, in arrival order.
-     */
-    private final Deque<Page> pending = new ArrayDeque<>();
-    private long pendingBytes;
-    private boolean finished;
-    /**
-     * What this driver waits on while the table is being built, or {@code null} before it first blocks.
-     */
-    private SubscribableListener<Void> waiting;
 
     /**
      * Builds a table used by this operator alone.
      */
     public RowInTableLookupOperator(BlockFactory blockFactory, Key[] keys, int[] blockMapping) {
-        this(blockFactory, keyNames(keys), buildNow(blockFactory, keys), blockMapping);
-    }
-
-    private static SharedLookup buildNow(BlockFactory blockFactory, Key[] keys) {
-        SharedLookup shared = new SharedLookup(blockFactory, keys);
-        shared.buildIfUnclaimed();
-        return shared;
+        this(blockFactory, keyNames(keys), new SharedLookup(buildLookup(blockFactory, keys)), blockMapping);
     }
 
     /**
@@ -330,142 +232,23 @@ public class RowInTableLookupOperator implements Operator {
     }
 
     @Override
-    public boolean needsInput() {
-        if (finished) {
-            return false;
+    protected ReleasableIterator<Page> receive(Page page) {
+        Page mapped = page.projectBlocks(blockMapping);
+        try {
+            // lookup increments any references we need to keep for the iterator
+            return appendBlocks(page, shared.table.lookup(mapped, blockFactory, BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE));
+        } finally {
+            mapped.releaseBlocks();
         }
-        if (shared.isBuildDone() == false) {
-            return pendingBytes < MAX_PENDING_BYTES;
-        }
-        return pending.isEmpty() && mapping.needsInput();
-    }
-
-    @Override
-    public void addInput(Page page) {
-        if (shared.isBuildDone() == false) {
-            try {
-                shared.buildIfUnclaimed();
-            } catch (Exception e) {
-                page.releaseBlocks();
-                throw e;
-            }
-        }
-        if (shared.isBuildDone() && pending.isEmpty()) {
-            mapping.addInput(page);
-            return;
-        }
-        pending.add(page);
-        pendingBytes += page.ramBytesUsedByBlocks();
-    }
-
-    /**
-     * Moves held input into the mapping once the table is built, and finishes the mapping once nothing is held.
-     */
-    private void drainPending() {
-        if (shared.isBuildDone() == false) {
-            return;
-        }
-        while (pending.isEmpty() == false && mapping.needsInput()) {
-            Page page = pending.poll();
-            pendingBytes -= page.ramBytesUsedByBlocks();
-            mapping.addInput(page);
-        }
-        if (finished && pending.isEmpty()) {
-            mapping.finish();
-        }
-    }
-
-    @Override
-    public Page getOutput() {
-        drainPending();
-        return mapping.getOutput();
-    }
-
-    @Override
-    public void finish() {
-        finished = true;
-        if (pending.isEmpty()) {
-            mapping.finish();
-        }
-    }
-
-    @Override
-    public boolean isFinished() {
-        return finished && pending.isEmpty() && mapping.isFinished();
-    }
-
-    @Override
-    public boolean canProduceMoreDataWithoutExtraInput() {
-        return pending.isEmpty() == false || mapping.canProduceMoreDataWithoutExtraInput();
-    }
-
-    /**
-     * Blocked while another driver builds the table and this one can't take more input: it holds
-     * {@link #MAX_PENDING_BYTES} or no more input is coming. Below the limit it stays unblocked. When no page moves,
-     * the driver waits for one of the operators that report blocked, so reporting the wait earlier would stop a
-     * source that returns no page without blocking, as a selective Lucene scan does, from scanning during the build.
-     * The cost is that a driver whose upstream is blocked wakes when the upstream does, not when the build ends.
-     * <p>
-     *     Each operator waits on a listener of its own rather than on {@link SharedLookup#built}: a driver completes
-     *     the listener it waits on when it is cancelled or finishes early, which must not mark the shared table as
-     *     built. The listener is completed successfully even if the build fails, so the failure is thrown from
-     *     {@link #getOutput} on this driver's thread rather than failing this driver from the builder's.
-     * </p>
-     */
-    @Override
-    public IsBlockedResult isBlocked() {
-        if (shared.isBuildDone() || pending.isEmpty() || needsInput()) {
-            return NOT_BLOCKED;
-        }
-        if (waiting == null || waiting.isDone()) {
-            SubscribableListener<Void> listener = new SubscribableListener<>();
-            shared.built.addListener(ActionListener.running(() -> listener.onResponse(null)));
-            waiting = listener;
-        }
-        return new IsBlockedResult(waiting, "row in table lookup build");
-    }
-
-    @Override
-    public Status status() {
-        return mapping.status();
     }
 
     @Override
     public String toString() {
-        return "RowInTableLookup[" + shared + ", keys=" + keys + ", mapping=" + Arrays.toString(blockMapping) + "]";
+        return "RowInTableLookup[" + shared.table + ", keys=" + keys + ", mapping=" + Arrays.toString(blockMapping) + "]";
     }
 
     @Override
     public void close() {
-        Releasables.close(mapping, this::releasePending, releaseShared);
-    }
-
-    private void releasePending() {
-        Page page;
-        while ((page = pending.poll()) != null) {
-            page.releaseBlocks();
-        }
-        pendingBytes = 0;
-    }
-
-    /**
-     * Appends the matching row positions to each page once the table is built.
-     */
-    private class Mapping extends AbstractPageMappingToIteratorOperator {
-        @Override
-        protected ReleasableIterator<Page> receive(Page page) {
-            Page mapped = page.projectBlocks(blockMapping);
-            try {
-                // lookup increments any references we need to keep for the iterator
-                return appendBlocks(page, shared.table().lookup(mapped, blockFactory, BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE));
-            } finally {
-                mapped.releaseBlocks();
-            }
-        }
-
-        @Override
-        public String toString() {
-            return RowInTableLookupOperator.this.toString();
-        }
+        Releasables.close(super::close, releaseShared);
     }
 }

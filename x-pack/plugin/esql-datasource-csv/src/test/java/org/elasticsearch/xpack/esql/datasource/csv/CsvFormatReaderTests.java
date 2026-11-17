@@ -9237,6 +9237,31 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * The width exit builds its excerpt through rowExcerptIfRead(), which returns null outside fail_fast, and
+     * ErrorExcerpts.summarize renders null as "null". The sibling above asserts only the width text, so it would
+     * pass on a message that had lost the record; this pins the record itself on the one mode that prints it.
+     */
+    public void testDeclaredBindingRowWidthFailFastQuotesTheRecord() throws Exception {
+        String csv = "id:integer,tags:keyword,score:integer\n1,alpha,10,SURPLUS\n";
+        Map<String, Object> config = Map.of("header_row", true, "multi_value_syntax", "NONE", "error_mode", "fail_fast");
+        for (boolean directBlock : List.of(false, true)) {
+            CsvFormatReader reader = declaredReader(true, directBlock, config);
+            Exception e = expectThrows(
+                Exception.class,
+                () -> readRowCount(reader, createStorageObject(csv), idTagsScore(), List.of("id", "tags"))
+            );
+            assertThat("directBlock=" + directBlock, e.getMessage(), containsString("[4] columns, the header has [3]"));
+            assertThat("directBlock=" + directBlock, e.getMessage(), containsString("row: "));
+            assertThat(
+                "directBlock=" + directBlock + " must quote the record: " + e.getMessage(),
+                e.getMessage(),
+                containsString(directBlock ? "1,alpha,10,SURPLUS" : "col0=[1]")
+            );
+            drainWarnings();
+        }
+    }
+
     /** null_field drops a structurally malformed row like skip_row does; only field-level errors null-fill. */
     public void testDeclaredBindingRowWidthUnderNullField() throws Exception {
         Map<String, Object> config = Map.of(

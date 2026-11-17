@@ -91,33 +91,16 @@ public class CsvDirectRowExcerptCostTests extends ESTestCase {
         assertExcerptNotBuilt(ErrorPolicy.Mode.SKIP_ROW, 0);
     }
 
-    /**
-     * Control for the two cases above: {@code fail_fast} puts the record into the message it throws, so here the
-     * excerpt IS read and one is built. It proves the measurement can see a single record-sized copy, which is
-     * what makes a small difference in the other two cases evidence rather than a counter reading zero.
-     */
-    public void testFailFastDoesMaterializeTheRecord() throws IOException {
-        assumeAllocationCounterAvailable();
-        warmUp();
-
-        // One row each, pre-encoded, so the pad is the only difference between the two reads.
-        long padded = allocatedDuringFailingRead(utf8(buildCsv("notanumber", 1, PAD_CHARS)));
-        long unpadded = allocatedDuringFailingRead(utf8(buildCsv("notanumber", 1, 0)));
-
-        logger.info("fail_fast allocated {} bytes on padded records against {} on unpadded", padded, unpadded);
-        assertThat(
-            "fail_fast quotes the record, so a padded record must cost about one copy more",
-            padded - unpadded,
-            greaterThan((long) PAD_CHARS / 2)
-        );
-    }
-
     private void assertExcerptNotBuilt(ErrorPolicy.Mode mode, int expectedRowsFromBadFile) throws IOException {
         assumeAllocationCounterAvailable();
         warmUp();
 
         long clean = allocatedDuringRead(CLEAN, mode, ROWS);
         long erroring = allocatedDuringRead(ONE_BAD_COLUMN, mode, expectedRowsFromBadFile);
+
+        // Without this the comparison below is vacuous on a counter reading zero. It needs no second
+        // input, so no difference in input size can confound it.
+        assertThat("the allocation counter must move on a read this size", clean, greaterThan(RECORD_TEXT_BYTES / 4));
 
         logger.info(
             "{} read allocated: clean={} bytes, erroring={} bytes, delta={} bytes, record text={} bytes",

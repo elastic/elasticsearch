@@ -127,7 +127,7 @@ Compact binary encoding. To be used by applications.
 | --- | --- | --- |
 | `cbor` | `application/cbor` | [Concise Binary Object Representation](https://cbor.io/) |
 | `smile` | `application/smile` | [Smile](https://en.wikipedia.org/wiki/Smile_(data_interchange_format)) binary data format similarto CBOR |
-| `arrow` | `application/vnd.apache.arrow.stream` | **Experimental.** [Apache Arrow](https://arrow.apache.org/) dataframes, [IPC streaming format](https://arrow.apache.org/docs/format/Columnar.html#ipc-streaming-format) |
+| `arrow` | `application/vnd.apache.arrow.stream` | **Experimental.** [Arrow response format and type mappings](/reference/query-languages/esql/esql-arrow.md). [Apache Arrow](https://arrow.apache.org/) dataframes, [IPC streaming format](https://arrow.apache.org/docs/format/Columnar.html#ipc-streaming-format) |
 
 
 ## Filter using {{es}} Query DSL [esql-rest-filtering]

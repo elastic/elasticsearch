@@ -117,6 +117,7 @@ public class ArrowResponseTests extends ESTestCase {
     @AfterClass
     public static void afterClass() throws Exception {
         ALLOCATOR.close();
+        ArrowDocsSupport.renderDocs();
     }
 
     // ---------------------------------------------------------------------------------------------

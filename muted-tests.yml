@@ -643,3 +643,8 @@ tests:
   - :server:internalClusterTest
   method: testDirectoryMetricsRemoteOnlyMinimizeRoundtripsTrue
   issue: https://github.com/elastic/elasticsearch/issues/166258
+- class: org.elasticsearch.search.ccs.CrossClusterSearchDirectoryMetricsIT
+  tasks:
+  - :server:internalClusterTest
+  method: testDirectoryMetricsLocalAndRemoteMinimizeRoundtripsTrue
+  issue: https://github.com/elastic/elasticsearch/issues/166260

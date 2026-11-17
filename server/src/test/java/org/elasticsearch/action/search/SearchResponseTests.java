@@ -162,25 +162,6 @@ public class SearchResponseTests extends ESTestCase {
         assertEquals(0L, breaker.getUsed());
     }
 
-    public void testNoAggregationChargeIsAdoptedAsNull() {
-        SearchResponse response = new SearchResponse(
-            emptySections(),
-            null,
-            1,
-            1,
-            0,
-            0,
-            List.of(),
-            SearchResponse.Clusters.EMPTY,
-            null,
-            null,
-            null
-        );
-        response.adoptAggregationCharge(null);
-        assertFalse(response.hasAggregationCharge());
-        assertTrue(response.decRef());
-    }
-
     private static SearchResponseSections emptySections() {
         return new SearchResponseSections(
             SearchHits.empty(Lucene.TOTAL_HITS_EQUAL_TO_ZERO, Float.NaN),

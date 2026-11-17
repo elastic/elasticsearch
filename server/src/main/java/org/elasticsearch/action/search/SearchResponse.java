@@ -511,7 +511,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     /**
      * Takes the charge for the reduced aggregations, so it is held until this response is released and not until the search completes.
      */
-    void adoptAggregationCharge(@Nullable Releasable charge) {
+    void adoptAggregationCharge(Releasable charge) {
         assert aggregationCharge == null : "an aggregation charge was already adopted";
         aggregationCharge = charge;
     }

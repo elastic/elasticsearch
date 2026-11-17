@@ -34,13 +34,13 @@ import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchPhaseResult;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
@@ -266,7 +266,8 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
             }
         });
 
-        Releasable charge;
+        SearchResponse response = SearchResponseUtils.emptyWithTotalHits(null, 1, 1, 0, 0, List.of(), SearchResponse.Clusters.EMPTY);
+        long estimate;
         try (
             QueryPhaseResultConsumer consumer = new QueryPhaseResultConsumer(
                 searchRequest,
@@ -287,18 +288,16 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
                 result.decRef();
             }
             SearchPhaseController.ReducedQueryPhase reduced = consumer.reduce();
-            long estimate = reduced.aggregations().estimateHeapBytes();
+            estimate = reduced.aggregations().estimateHeapBytes();
             assertThat(estimate, greaterThan(DelayableWriteable.getUncompressedSerializedSize(reduced.aggregations())));
             assertEquals(estimate, circuitBreaker.getUsed());
 
-            charge = consumer.transferAggregationCharge();
-            assertNotNull(charge);
+            consumer.transferAggregationChargeTo(response);
+            assertTrue(response.hasAggregationCharge());
         }
-        assertThat("closing the consumer must leave the handed over charge", circuitBreaker.getUsed(), greaterThan(0L));
-        charge.close();
+        assertEquals("closing the consumer must leave the handed over charge", estimate, circuitBreaker.getUsed());
+        assertTrue(response.decRef());
         assertEquals(0L, circuitBreaker.getUsed());
-        charge.close();
-        assertEquals("the charge must be released once", 0L, circuitBreaker.getUsed());
     }
 
     /** Without aggregations nothing is charged, so there is no charge to hand over. */
@@ -332,8 +331,11 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
             result.decRef();
             consumer.reduce();
 
-            assertNull(consumer.transferAggregationCharge());
+            SearchResponse response = SearchResponseUtils.emptyWithTotalHits(null, 1, 1, 0, 0, List.of(), SearchResponse.Clusters.EMPTY);
+            consumer.transferAggregationChargeTo(response);
+            assertFalse(response.hasAggregationCharge());
             assertEquals(0L, circuitBreaker.getUsed());
+            assertTrue(response.decRef());
         }
     }
 

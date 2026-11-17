@@ -753,7 +753,7 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
                     }
                 } else {
                     // The response holds the aggregations, so it holds their charge.
-                    searchResponse.adoptAggregationCharge(queryPhaseResultConsumer.transferAggregationCharge());
+                    queryPhaseResultConsumer.transferAggregationChargeTo(searchResponse);
                 }
             }
             ActionListener.respondAndRelease(listener, searchResponse);

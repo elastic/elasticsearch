@@ -27,7 +27,6 @@ import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
@@ -188,18 +187,17 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     }
 
     /**
-     * Hands the charge for the reduced aggregations to the response that holds them.
-     *
-     * @return the charge, or {@code null} if there is none
+     * Moves the charge for the reduced aggregations to {@code response}, which holds them, so it is released with the response and
+     * not when this consumer is closed. Does nothing if there is no charge.
      */
-    @Nullable
-    synchronized Releasable transferAggregationCharge() {
+    synchronized void transferAggregationChargeTo(SearchResponse response) {
+        // Under the lock like every write to circuitBreakerBytes, so the bytes are released once, here or in doClose.
         long bytes = circuitBreakerBytes;
         if (bytes == 0) {
-            return null;
+            return;
         }
+        response.adoptAggregationCharge(Releasables.assertOnce(() -> circuitBreaker.addWithoutBreaking(-bytes)));
         circuitBreakerBytes = 0;
-        return Releasables.releaseOnce(() -> circuitBreaker.addWithoutBreaking(-bytes));
     }
 
     @Override

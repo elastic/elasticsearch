@@ -72,6 +72,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHitRamUsageEstimator;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -95,6 +96,7 @@ import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortMode;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.transport.LeakTracker;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -1087,8 +1089,12 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
                 switch (mode) {
                     // Only the buckets kept are replayed into the top_hits, 25 of them with the shard size of 10, which is
                     // nothing compared with the 20,000 terms, which would be about 240 KB if the state followed the ordinals. It is
-                    // about 500 bytes.
-                    case BREADTH_FIRST -> assertThat("breadth first, bytes more than a max", extra, lessThanOrEqualTo(4L * 1024));
+                    // about 500 bytes, plus the hit each of the 25 buckets builds.
+                    case BREADTH_FIRST -> assertThat(
+                        "breadth first, bytes more than a max",
+                        extra,
+                        lessThanOrEqualTo(4L * 1024 + 25 * SearchHitRamUsageEstimator.BASE_BYTES)
+                    );
                     // Every term is a bucket the top_hits collects before the terms picks the best ones.
                     case DEPTH_FIRST -> assertThat("depth first, bytes more than a max", extra, lessThanOrEqualTo(32L * termCount));
                     default -> throw new AssertionError("unexpected collect mode [" + mode + "]");
@@ -1155,6 +1161,48 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
     /** What the two hash maps of a {@code top_hits} that holds Lucene collectors cost a bucket, with room for them to grow. */
     private static final long MAPS_BYTES_PER_BUCKET = 64;
 
+    /** Indexes {@code buckets} terms, each with {@code documentsPerBucket} documents. The number field counts up from 0 in each term. */
+    private static CheckedConsumer<RandomIndexWriter, IOException> bucketsWithDocuments(int buckets, int documentsPerBucket) {
+        return iw -> {
+            for (int bucket = 0; bucket < buckets; bucket++) {
+                String term = String.format(Locale.ROOT, "term%06d", bucket);
+                for (int document = 0; document < documentsPerBucket; document++) {
+                    iw.addDocument(numberDocument(bucket + "_" + document, term, NumberFieldMapper.NumberType.LONG, document));
+                }
+            }
+        };
+    }
+
+    /**
+     * A {@code top_hits} sorted by score, by a keyword field, and by a number field. Only the number sort is collected by a
+     * {@code BucketedSort}.
+     */
+    private static List<TopHitsAggregationBuilder> topHitsByScoreKeywordAndNumber(int size) {
+        return List.of(
+            topHits("top").size(size),
+            topHits("top").size(size).sort("string", SortOrder.ASC),
+            topHits("top").size(size).sort(NUMBER_FIELD, SortOrder.ASC)
+        );
+    }
+
+    /** Leaves out the objects leak tracking adds to every hit, which production does not have, and keeps what they wrap. */
+    private static final RamUsageTester.Accumulator WITHOUT_LEAK_TRACKING = new RamUsageTester.Accumulator() {
+        @Override
+        public long accumulateObject(
+            Object o,
+            long shallowSize,
+            Map<java.lang.reflect.Field, Object> fieldValues,
+            Collection<Object> queue
+        ) {
+            if (o instanceof LeakTracker.TrackedResource) {
+                return 0;
+            }
+            long size = super.accumulateObject(o, shallowSize, fieldValues, queue);
+            // A LeakTracker wrapper around a hit's ref count. Counts what it wraps but not itself.
+            return o.getClass().getEnclosingClass() == LeakTracker.class ? size - shallowSize : size;
+        }
+    };
+
     /** A {@code terms} that keeps {@code buckets} buckets, each with {@code topHits}. */
     private static TermsAggregationBuilder termsOver(int buckets, TopHitsAggregationBuilder topHits) {
         return terms("term").field("string").size(buckets).subAggregation(topHits);
@@ -1213,6 +1261,8 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
             for (Aggregator.SubAggCollectionMode mode : Aggregator.SubAggCollectionMode.values()) {
                 // Breadth first only collects the top hits when the results are built, by replaying the documents of every bucket.
                 boolean build = mode == Aggregator.SubAggCollectionMode.BREADTH_FIRST;
+                // Building the results also charges the hit each bucket builds.
+                long builtHits = build ? buckets * SearchHitRamUsageEstimator.BASE_BYTES : 0;
                 long withMax = breakerBytesAfterCollecting(reader, termsWithMax(buckets).collectMode(mode), breakers, build);
                 for (LuceneTopHits luceneTopHits : List.of(byScore(), byKeyword())) {
                     long withTopHits = breakerBytesAfterCollecting(
@@ -1225,8 +1275,9 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
                     assertChargedBetween(
                         luceneTopHits.description() + " " + mode,
                         withTopHits - withMax,
-                        buckets * (luceneTopHits.collectorBytes() - MAX_BYTES_PER_BUCKET) - TopHitsAggregator.CHARGE_BATCH_BYTES,
-                        buckets * (luceneTopHits.collectorBytes() + MAPS_BYTES_PER_BUCKET)
+                        buckets * (luceneTopHits.collectorBytes() - MAX_BYTES_PER_BUCKET) - TopHitsAggregator.CHARGE_BATCH_BYTES
+                            + builtHits,
+                        buckets * (luceneTopHits.collectorBytes() + MAPS_BYTES_PER_BUCKET) + builtHits
                     );
                 }
             }
@@ -1379,6 +1430,69 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
                 }
             }
             assertThat("the breaker was expected to fail in some of the runs", failures, greaterThan(0));
+        });
+    }
+
+    /**
+     * Checks that building the results charges exactly {@link SearchHitRamUsageEstimator#BASE_BYTES} per hit, for each sort. The
+     * documents have no source or fields, so the fetch charges nothing. The same {@code terms} with a {@code max} is the baseline.
+     */
+    public void testBuiltHitsAreChargedForEachHit() throws Exception {
+        int buckets = 500;
+        int hitsPerBucket = 3;
+        withIndex(bucketsWithDocuments(buckets, hitsPerBucket), reader -> {
+            HierarchyCircuitBreakerService breakers = requestBreakers("1gb");
+            long maxCollected = breakerBytesAfterCollecting(reader, termsWithMax(buckets), breakers, false);
+            long maxBuilt = breakerBytesAfterCollecting(reader, termsWithMax(buckets), breakers, true);
+            for (TopHitsAggregationBuilder topHits : topHitsByScoreKeywordAndNumber(hitsPerBucket)) {
+                long collected = breakerBytesAfterCollecting(reader, termsOver(buckets, topHits), breakers, false) - maxCollected;
+                long built = breakerBytesAfterCollecting(reader, termsOver(buckets, topHits), breakers, true) - maxBuilt;
+                assertEquals(topHits.toString(), buckets * hitsPerBucket * SearchHitRamUsageEstimator.BASE_BYTES, built - collected);
+            }
+        });
+    }
+
+    /**
+     * Checks that {@link SearchHitRamUsageEstimator#BASE_BYTES} is between 0.9x and 4x of the measured size of a built hit. The
+     * documents have no source or fields, so the fetch charges nothing and {@code BASE_BYTES} has to cover the whole hit.
+     */
+    public void testBaseBytesStayWithinBoundsOfBuiltHits() throws Exception {
+        assumeTrue("the estimates are measured with compressed object pointers", RamUsageEstimator.COMPRESSED_REFS_ENABLED);
+        int buckets = 200;
+        int hitsPerBucket = 3;
+        withIndex(bucketsWithDocuments(buckets, hitsPerBucket), reader -> {
+            for (TopHitsAggregationBuilder topHits : topHitsByScoreKeywordAndNumber(hitsPerBucket)) {
+                collect(reader, Queries.ALL_DOCS_INSTANCE, termsOver(buckets, topHits), requestBreakers("1gb"), true, null, built -> {
+                    List<SearchHit> hits = new ArrayList<>();
+                    for (Terms.Bucket bucket : ((Terms) built).getBuckets()) {
+                        InternalTopHits bucketTopHits = bucket.getAggregations().get("top");
+                        hits.addAll(List.of(bucketTopHits.getHits().getHits()));
+                    }
+                    assertEquals(buckets * hitsPerBucket, hits.size());
+                    // Measured together, so what the hits share counts once. The array that holds them is taken out.
+                    long all = RamUsageTester.ramUsed(hits.toArray(), WITHOUT_LEAK_TRACKING);
+                    long measured = (all - RamUsageTester.ramUsed(new Object[hits.size()])) / hits.size();
+                    assertChargedBetween(topHits.toString(), SearchHitRamUsageEstimator.BASE_BYTES, measured * 9 / 10, measured * 4);
+                }, STRING_FIELD_TYPE, numberFieldType(NumberFieldMapper.NumberType.LONG));
+            }
+        });
+    }
+
+    /**
+     * The breaker has room for collecting the top hits, but only for half of the hits they build. It trips partway through building
+     * the results, and everything is released.
+     */
+    public void testBuiltHitsTripTheBreakerAndReleaseEverything() throws Exception {
+        int buckets = 2_000;
+        withIndex(uniqueBuckets(buckets), reader -> {
+            long built = breakerBytesAfterCollecting(reader, byScore().inTerms(buckets), requestBreakers("1gb"), true);
+            HierarchyCircuitBreakerService tight = requestBreakers((built - buckets * SearchHitRamUsageEstimator.BASE_BYTES / 2) + "b");
+            breakerBytesAfterCollecting(reader, byScore().inTerms(buckets), tight, false);
+            expectThrows(
+                CircuitBreakingException.class,
+                () -> breakerBytesAfterCollecting(reader, byScore().inTerms(buckets), tight, true)
+            );
+            assertEquals("the breaker is back to its baseline", 0L, tight.getBreaker(CircuitBreaker.REQUEST).getUsed());
         });
     }
 

@@ -77,6 +77,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -1157,6 +1158,33 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
         assertEquals(20, totalRows);
         assertEquals("draining to exhaustion then closing must leave the breaker at zero", 0L, breaker[0].getUsed());
+    }
+
+    /**
+     * A node-singleton reader stays on its construction factory. {@code withBlockFactory} copies
+     * configuration onto a per-read factory. The node breaker is one byte, so any sample or page
+     * that still hit it would trip; success plus live usage on the per-read breaker is the proof.
+     */
+    public void testWithBlockFactoryChargesThePerReadBreakerNotTheNodeFactory() throws IOException {
+        LimitedBreaker nodeBreaker = new LimitedBreaker("node", ByteSizeValue.ofBytes(1));
+        CircuitBreaker[] readBreaker = new CircuitBreaker[1];
+        BlockFactory nodeFactory = new BlockFactory(nodeBreaker, BigArrays.NON_RECYCLING_INSTANCE);
+        BlockFactory readFactory = trackingBlockFactory(readBreaker);
+        CsvFormatReader nodeReader = new CsvFormatReader(nodeFactory);
+        assertSame("same factory is a no-op so the node singleton is unchanged", nodeReader, nodeReader.withBlockFactory(nodeFactory));
+        CsvFormatReader perRead = nodeReader.withBlockFactory(readFactory);
+        assertNotSame("a distinct factory must copy, not mutate the node singleton", nodeReader, perRead);
+
+        String csv = "id,name\n1,Alice\n2,Bob\n";
+        try (CloseableIterator<Page> iterator = perRead.read(createStorageObject(csv), List.of("id", "name"), 8)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertThat("per-read page allocations must hit the bound factory", readBreaker[0].getUsed(), Matchers.greaterThan(0L));
+            assertEquals("the node singleton must not see those allocations", 0L, nodeBreaker.getUsed());
+            page.releaseBlocks();
+        }
+        assertEquals(0L, readBreaker[0].getUsed());
+        assertEquals(0L, nodeBreaker.getUsed());
     }
 
     public void testReadWithBatching() throws IOException {
@@ -9157,6 +9185,53 @@ public class CsvFormatReaderTests extends ESTestCase {
             List<String> warnings = drainWarnings();
             assertEquals(desc, 1, rows);
             assertTrue(desc + " got: " + warnings, warnings.stream().anyMatch(w -> w.contains("the header has [3]")));
+        }
+    }
+
+    /**
+     * The row-width rule is one rule, and every walker that counts a row must reach the same verdict on it. The read
+     * path counts a row in six places — both branches of the batch conversion, the three direct-to-block grammar
+     * walkers, and the fused bracket-aware walker — and a change that reaches one of them and misses another is the
+     * failure this pins. Each configuration below selects a different one of those six; all six see the same 4-field
+     * row against the same 3-column header and must report the same widths.
+     */
+    public void testRowWidthRuleAgreesAcrossEveryWalker() throws Exception {
+        String csv = "id:integer,tags:keyword,score:integer\n1,alpha,10,SURPLUS\n2,beta,20\n";
+        String quotedCsv = "id:integer,tags:keyword,score:integer\n\"1\",alpha,10,SURPLUS\n\"2\",beta,20\n";
+        Map<String, Object> base = Map.of("header_row", true, "error_mode", "skip_row", "max_errors", 100);
+
+        record Walker(String name, String file, boolean directBlock, Map<String, Object> extra, List<String> projection) {}
+        List<Walker> walkers = List.of(
+            // Batch conversion over materialized String[] rows: the regular branch, then the zero-column COUNT(*) branch.
+            new Walker("batch/projected", csv, false, Map.of("multi_value_syntax", "NONE"), List.of("id", "tags")),
+            new Walker("batch/count-star", csv, false, Map.of("multi_value_syntax", "NONE"), List.of()),
+            // Direct-to-block, three walkers. The quoted dialect enters through the optimistic walker and hands the
+            // whole row to the full quoted walker as soon as a field opens with a quote; escaped mode never reaches
+            // this path at all, since directEligible requires decodesEscapes() == false.
+            new Walker("direct/plain", csv, true, Map.of("multi_value_syntax", "NONE", "mode", "plain"), List.of("id", "tags")),
+            new Walker(
+                "direct/optimistic-quoted",
+                csv,
+                true,
+                Map.of("multi_value_syntax", "NONE", "mode", "quoted"),
+                List.of("id", "tags")
+            ),
+            new Walker("direct/quoted", quotedCsv, true, Map.of("multi_value_syntax", "NONE", "mode", "quoted"), List.of("id", "tags")),
+            // Fused bracket-aware walker: brackets exclude the direct walkers, so this is its own path.
+            new Walker("fused/bracket", csv, false, Map.of("multi_value_syntax", "BRACKETS"), List.of("id", "tags"))
+        );
+
+        for (Walker walker : walkers) {
+            Map<String, Object> config = new HashMap<>(base);
+            config.putAll(walker.extra());
+            CsvFormatReader reader = declaredReader(true, walker.directBlock(), config);
+            int rows = readRowCount(reader, createStorageObject(walker.file()), idTagsScore(), walker.projection());
+            List<String> warnings = drainWarnings();
+            assertEquals(walker.name() + " keeps only the well-formed row", 1, rows);
+            assertTrue(
+                walker.name() + " expected [4] columns, the header has [3]; got: " + warnings,
+                warnings.stream().anyMatch(w -> w.contains("[4] columns, the header has [3]"))
+            );
         }
     }
 

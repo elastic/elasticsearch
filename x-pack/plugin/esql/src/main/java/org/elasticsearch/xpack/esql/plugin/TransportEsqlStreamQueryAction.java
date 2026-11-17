@@ -229,8 +229,9 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         EsqlExecutionInfo executionInfo,
         PageStreamPublisher publisher,
         AtomicReference<Result> resultRef,
-        ActionListener<ActionResponse.Empty> listener
+        ActionListener<ActionResponse.Empty> streamListener
     ) {
+        ActionListener<ActionResponse.Empty> listener = computeService.coordinate(task, streamListener);
         EsqlFlags flags = computeService.createFlags();
         String sessionId = getOrCreateSessionID(task);
         AtomicBoolean streamStarted = new AtomicBoolean(false);

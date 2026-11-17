@@ -27,7 +27,7 @@ import java.util.function.Predicate;
  * Owns the role cache and the negative-lookup cache of the {@link CompositeRolesStore} and keeps them consistent with the role
  * sources across invalidations.
  * <p>
- * Every operation runs under this object's monitor, and nothing expensive runs there: resolving descriptors and building the
+ * Every operation takes this object's monitor, and nothing expensive runs under it: resolving descriptors and building the
  * role happen before {@link #putIfCurrent} is called, and a read hashes and compares the role key, whose cost grows with the
  * number of role names, before taking the monitor. To make that possible, each cached role key is interned to an
  * {@link InternedKey} whose equality is identity, and the role cache is keyed by that token, so a lookup under the monitor costs

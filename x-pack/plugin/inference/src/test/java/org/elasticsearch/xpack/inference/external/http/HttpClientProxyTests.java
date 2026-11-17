@@ -7,34 +7,21 @@
 
 package org.elasticsearch.xpack.inference.external.http;
 
-import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
-import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManager;
-import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManagerBuilder;
 import org.apache.hc.client5.http.protocol.HttpClientContext;
-import org.apache.hc.client5.http.ssl.ClientTlsStrategyBuilder;
-import org.apache.hc.client5.http.ssl.NoopHostnameVerifier;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.TestCircuitBreaker;
-import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.ssl.TestsSSLService;
-import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
-
-import javax.net.ssl.SSLContext;
 
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterService;
@@ -138,113 +125,8 @@ public class HttpClientProxyTests extends ESTestCase {
         }
     }
 
-    /**
-     * Documents a known limitation of the {@code https} proxy scheme rather than desired behavior: the Apache async client cannot
-     * layer the target's TLS session over a TLS connection to the proxy. The {@code CONNECT} handshake itself succeeds (the proxy is
-     * reached over TLS and grants the tunnel), but upgrading the granted tunnel to the target's TLS session fails with
-     * {@code TLS already activated}. Since every inference provider is an https target, an {@code https} proxy scheme currently
-     * breaks all requests through this client. If this test starts failing after an Apache HTTP client upgrade, the limitation is
-     * gone and the https scheme can be fully supported on this path.
-     */
-    public void testSend_CannotLayerTargetTlsOverTlsProxyConnection_WhenProxySchemeIsHttps() throws Exception {
-        var sslContext = buildSelfTrustedSslContext();
-
-        try (var tlsProxyServer = new MockHttpProxyServer(sslContext).grantingConnectTunnels()) {
-            var settings = Settings.builder()
-                .put(HttpSettings.ProxySettings.INFERENCE_PROXY_HOST_KEY, tlsProxyServer.getHost())
-                .put(HttpSettings.ProxySettings.INFERENCE_PROXY_PORT_KEY, tlsProxyServer.getPort())
-                .put(HttpSettings.ProxySettings.INFERENCE_PROXY_SCHEME_KEY, "https")
-                .build();
-
-            // an https target is required to trigger the tunnel upgrade; it is never actually reached
-            var httpPost = SimpleRequestBuilder.post("https://localhost:" + upstreamServer.getPort() + "/" + randomAlphaOfLength(3))
-                .build();
-            var httpRequest = new HttpRequest(httpPost, "inference-id");
-
-            var httpSettings = new HttpSettings(settings, mockClusterService(settings));
-            var connectionManager = createTlsCapableConnectionManager(sslContext);
-            try (
-                var httpClient = HttpClient.create(
-                    httpSettings,
-                    threadPool,
-                    connectionManager,
-                    mockThrottlerManager(),
-                    new TestCircuitBreaker()
-                )
-            ) {
-                httpClient.start();
-
-                PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
-                httpClient.send(httpRequest, HttpClientContext.create(), listener);
-                var exception = expectThrows(Exception.class, () -> listener.actionGet(TIMEOUT));
-
-                assertThat(causeChainMessages(exception), containsString("TLS already activated"));
-
-                // the handshake did reach the proxy over TLS, so the failure above is the TLS-over-TLS layering, not connectivity
-                assertThat(tlsProxyServer.proxiedRequestLines(), hasSize(1));
-                assertThat(
-                    tlsProxyServer.proxiedRequestLines().getFirst(),
-                    containsString("CONNECT localhost:" + upstreamServer.getPort())
-                );
-                assertThat(upstreamServer.requests(), empty());
-            }
-        }
-    }
-
     private HttpClient createHttpClient(Settings settings) throws Exception {
         var httpSettings = new HttpSettings(settings, mockClusterService(settings));
         return HttpClient.create(httpSettings, threadPool, createConnectionManager(), mockThrottlerManager(), new TestCircuitBreaker());
-    }
-
-    /**
-     * Mirrors the connection manager built by {@code HttpClientManager} in production: a TLS strategy backed by an
-     * {@link SSLContext} — here one that trusts the mock proxy's self-signed certificate so the proxy-hop TLS handshake succeeds.
-     */
-    private static PoolingAsyncClientConnectionManager createTlsCapableConnectionManager(SSLContext sslContext) {
-        var tlsStrategy = ClientTlsStrategyBuilder.create()
-            .setSslContext(sslContext)
-            .setHostnameVerifier(NoopHostnameVerifier.INSTANCE)
-            .buildAsync();
-        return PoolingAsyncClientConnectionManagerBuilder.create().setTlsStrategy(tlsStrategy).build();
-    }
-
-    /**
-     * A self-signed certificate that is both the proxy's identity and the client's only trust anchor, built from the shared
-     * {@code testnode} PEM fixtures on the x-pack core test classpath.
-     */
-    private SSLContext buildSelfTrustedSslContext() throws Exception {
-        // the fixtures live inside the x-pack core test-artifacts jar, so they must be materialized as files for the PEM settings
-        var tempDir = createTempDir();
-        var certPath = copyResourceToFile("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt", tempDir);
-        var keyPath = copyResourceToFile("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem", tempDir);
-        var secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.http.ssl.secure_key_passphrase", "testnode");
-        var environmentSettings = Settings.builder()
-            .put("path.home", createTempDir())
-            .put("xpack.http.ssl.key", keyPath)
-            .put("xpack.http.ssl.certificate", certPath)
-            .put("xpack.http.ssl.certificate_authorities", certPath)
-            .setSecureSettings(secureSettings)
-            .build();
-
-        var sslService = new TestsSSLService(TestEnvironment.newEnvironment(environmentSettings));
-        return sslService.sslContext("xpack.http.ssl");
-    }
-
-    private static Path copyResourceToFile(String resource, Path directory) throws IOException {
-        try (var resourceStream = HttpClientProxyTests.class.getResourceAsStream(resource)) {
-            assertNotNull("classpath resource not found: " + resource, resourceStream);
-            var target = directory.resolve(resource.substring(resource.lastIndexOf('/') + 1));
-            Files.copy(resourceStream, target);
-            return target;
-        }
-    }
-
-    private static String causeChainMessages(Throwable exception) {
-        var messages = new StringBuilder();
-        for (var current = exception; current != null && current.getCause() != current; current = current.getCause()) {
-            messages.append(current.getMessage()).append(" | ");
-        }
-        return messages.toString();
     }
 }

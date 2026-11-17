@@ -142,9 +142,14 @@ public class HttpSettings {
             return List.of(INFERENCE_PROXY_HOST, INFERENCE_PROXY_PORT, INFERENCE_PROXY_SCHEME);
         }
 
+        /**
+         * The schemes supported for connecting to the proxy. Only {@code http} is supported: the proxy is asked to tunnel the HTTPS
+         * connection to the inference provider via {@code CONNECT}. An {@code https} proxy would require layering the provider's TLS
+         * session on top of the TLS connection to the proxy, which the Apache async client cannot do (a connection only supports a
+         * single TLS session, see {@code InternalDataChannel#startTls} in httpcore5), so it is rejected instead of failing every request.
+         */
         public enum Scheme {
-            HTTP("http", 80),
-            HTTPS("https", 443);
+            HTTP("http", 80);
 
             private final String scheme;
             private final int defaultPort;
@@ -165,26 +170,26 @@ public class HttpSettings {
             public static Scheme parse(String value) {
                 return switch (value) {
                     case "http" -> HTTP;
-                    case "https" -> HTTPS;
-                    default -> throw new IllegalArgumentException("unsupported scheme for inference proxy [" + value + "]");
+                    default -> throw new IllegalArgumentException(unsupportedSchemeMessage(value));
                 };
             }
+        }
 
+        static String unsupportedSchemeMessage(String value) {
+            return format(
+                "%s only supports [http] but was [%s]. The proxy is used to tunnel HTTPS connections to inference providers using CONNECT, "
+                    + "[https] proxies are not supported",
+                INFERENCE_PROXY_SCHEME_KEY,
+                value
+            );
         }
 
         // visible for testing
-        // TODO: test
         static class ProxySchemeValidator implements Setting.Validator<String> {
 
             @Override
             public void validate(String value) {
-                if (Objects.isNull(value)) {
-                    throw new IllegalArgumentException(format("%s cannot be [null]", INFERENCE_PROXY_SCHEME_KEY));
-                }
-
-                if (("http".equals(value) == false) && ("https".equals(value) == false)) {
-                    throw new IllegalArgumentException(format("%s must either be [http] or [https]", INFERENCE_PROXY_SCHEME_KEY));
-                }
+                Scheme.parse(Objects.requireNonNull(value, () -> format("%s cannot be [null]", INFERENCE_PROXY_SCHEME_KEY)));
             }
         }
     }

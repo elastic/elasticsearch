@@ -23,7 +23,6 @@ import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.hc.core5.http.protocol.HttpContext;
 import org.apache.hc.core5.io.CloseMode;
 import org.elasticsearch.common.network.NetworkAddress;
-import org.elasticsearch.core.Nullable;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -36,19 +35,15 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import javax.net.ssl.SSLContext;
-
 /**
  * A mock web proxy server that forwards proxied requests to
  * their target host and records every request it handles, so tests can assert whether traffic was (or was not) routed through the proxy.
  * Each forwarded request is stamped with an {@link #VIA_HEADER} header so the upstream side of the hop can be verified as well.
  *
  * <p>Adapted from the {@code repository-gcs} test fixtures ({@code MockHttpProxyServer} and {@code WebProxyServer}). Only plain HTTP
- * forward-proxying is supported (absolute-URI request lines); {@code CONNECT} tunnel handshakes are recorded but never tunneled: by
- * default they are rejected with {@code 502 Bad Gateway}, so clients that only proxy by tunneling (e.g. the AWS SDK Netty client) can
- * still assert that their traffic was routed to the proxy without any bytes leaving the host. {@link #grantingConnectTunnels()} switches
- * to a {@code 200} response instead, for tests where the client is expected to fail on its own after the handshake. The proxy itself can
- * be served over TLS (the {@code https} proxy scheme) by passing an {@link SSLContext}.
+ * forward-proxying is supported (absolute-URI request lines); {@code CONNECT} tunnel handshakes are recorded but never tunneled, they
+ * are rejected with {@code 502 Bad Gateway}, so clients that only proxy by tunneling (e.g. the AWS SDK Netty client) can
+ * still assert that their traffic was routed to the proxy without any bytes leaving the host.
  */
 public class MockHttpProxyServer implements Closeable {
 
@@ -70,21 +65,11 @@ public class MockHttpProxyServer implements Closeable {
     private final HttpServer httpServer;
     private final CloseableHttpClient forwardingClient = HttpClients.createDefault();
     private final List<String> proxiedRequestLines = new CopyOnWriteArrayList<>();
-    private volatile int connectResponseStatus = HttpStatus.SC_BAD_GATEWAY;
 
     public MockHttpProxyServer() {
-        this(null);
-    }
-
-    /**
-     * With a non-null {@code sslContext} the proxy itself is served over TLS, i.e. clients must TLS-connect to the proxy (the
-     * {@code https} proxy scheme) before speaking HTTP to it.
-     */
-    public MockHttpProxyServer(@Nullable SSLContext sslContext) {
         httpServer = ServerBootstrap.bootstrap()
             .setLocalAddress(InetAddress.getLoopbackAddress())
             .setListenerPort(0)
-            .setSslContext(sslContext)
             // route every request to the handler: a forward-proxied request carries the target's authority, which would otherwise
             // be rejected as a misdirected request (421) because no handler is registered for that virtual host
             .setRequestRouter((request, context) -> this::handle)
@@ -96,23 +81,14 @@ public class MockHttpProxyServer implements Closeable {
         }
     }
 
-    /**
-     * Respond {@code 200} to {@code CONNECT} handshakes instead of rejecting them. No tunnel is actually established, so this is only
-     * suitable for tests where the client is expected to fail on its own before sending bytes through the granted tunnel.
-     */
-    public MockHttpProxyServer grantingConnectTunnels() {
-        connectResponseStatus = HttpStatus.SC_OK;
-        return this;
-    }
-
     private void handle(ClassicHttpRequest request, ClassicHttpResponse response, HttpContext context) throws IOException {
         try {
             proxiedRequestLines.add(requestLine(request));
 
             if ("CONNECT".equalsIgnoreCase(request.getMethod())) {
-                // Tunneling is never performed; the handshake is recorded and then rejected (or granted without a tunnel) so the client
-                // fails instead of talking to the target
-                response.setCode(connectResponseStatus);
+                // Tunneling is never performed; the handshake is recorded and then rejected so the client fails instead of talking to
+                // the target
+                response.setCode(HttpStatus.SC_BAD_GATEWAY);
                 return;
             }
 

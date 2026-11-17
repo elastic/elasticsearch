@@ -75,7 +75,7 @@ All requests of the inference API to external services will go through a proxy, 
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Specifies the port number to use to connect to the proxy server to use to connect to inference services.
 
 `xpack.inference.http.proxy.scheme`
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Protocol used to communicate with the proxy server. Valid values are `http` and `https`.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Protocol used to communicate with the proxy server. The only supported value is `http`, which is also the default. HTTPS connections to inference services are tunneled through the proxy using `CONNECT`. Proxies that must be connected to over TLS (`https`) are not supported.
 
 ## {{infer-cap}} API Input text [xpack-inference-input-text]
 

@@ -124,8 +124,6 @@ public class HttpClient implements Closeable {
     }
 
     private static void maybeDecorateWithProxy(HttpSettings settings, HttpAsyncClientBuilder clientBuilder) {
-        // An "https" proxy scheme breaks every request through this client: the async client cannot layer the target's TLS over a
-        // TLS proxy connection ("TLS already activated"). Either restrict the proxy scheme to "http" or document the limitation.
         var proxySettings = settings.proxy();
         if (proxySettings != null) {
             clientBuilder.setProxy(new HttpHost(proxySettings.scheme().scheme(), proxySettings.host(), proxySettings.port()));

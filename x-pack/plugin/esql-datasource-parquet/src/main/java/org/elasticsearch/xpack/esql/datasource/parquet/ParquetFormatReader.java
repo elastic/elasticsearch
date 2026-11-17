@@ -2860,7 +2860,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             columnInfos,
             declaredTypeColumns,
             errorPolicy,
-            warningSink
+            warningSink,
+            compositeAssembly
         );
         if (dropReason != null) {
             ColumnarRowDropHelper.dropWholeRead(sharedErrorBudget, errorPolicy, fileLocation, rowCount(reader), dropReason);
@@ -4234,7 +4235,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         ColumnInfo[] columnInfos,
         Set<String> declaredTypeColumns,
         ErrorPolicy errorPolicy,
-        @Nullable Consumer<String> warningSink
+        @Nullable Consumer<String> warningSink,
+        boolean compositeAssembly
     ) {
         MessageType fullSchema = reader.getFileMetaData().getSchema();
         // Reported once the loop is done, and only if no declared column drops the file's rows: a column of rows
@@ -4254,7 +4256,19 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             if (resolved == null) {
                 continue;
             }
-            DataType actualInFile = convertParquetTypeToEsql(resolved);
+            // An INDEPENDENT re-derivation of the file's type, so it has to apply the same rule the
+            // binding applied or it contradicts it. Without the first arm an assembled composite reads
+            // [unsupported] in the file against [keyword] in the query and the column is nulled -- the
+            // binding's own work undone one call later, with a warning blaming the file.
+            //
+            // The second arm is why this reconciliation is worth keeping for a composite rather than
+            // skipping it: a glob whose other file types the same column as a shape this cannot render
+            // (an element field annotated DATE, say) binds that file's column to its FIRST leaf, whose
+            // own ESQL type may well be KEYWORD too. UNSUPPORTED here is what nulls it instead of reading
+            // one leaf of a struct under the whole column's name.
+            DataType actualInFile = compositeAssembly && isAssembledCompositeColumn(fullSchema, attr.name())
+                ? DataType.KEYWORD
+                : convertParquetTypeToEsql(resolved);
             // The lossy-narrowing coercion escape is reserved for DECLARED columns; an inferred target may only widen.
             boolean declared = declaredTypeColumns.contains(attr.name());
             boolean declaredCoercible = declared && DeclaredTypeCoercions.supports(actualInFile, attr.dataType());
@@ -4559,7 +4573,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 columnInfos,
                 declaredTypeColumns,
                 errorPolicy,
-                warningSink
+                warningSink,
+                // Always false in effect: the guard above has already refused a composite on this route.
+                compositeAssembly
             );
             if (dropReason != null) {
                 // Charged once, here, so no row group of this file is decoded only to be dropped.

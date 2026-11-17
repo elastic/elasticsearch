@@ -35,7 +35,12 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -931,6 +936,81 @@ public class CompositeAssemblyTests extends ESTestCase {
         );
         assertThat(e.getMessage(), containsString("composite assembly is only implemented in the optimized iterator"));
         assertThat(e.getMessage(), containsString("items"));
+    }
+
+    /**
+     * The whole route, end to end: the production reader, the optimized iterator, the real pages. Every
+     * row of every page is compared to the oracle, selected by the {@code id} in the same position rather
+     * than by position in the page -- which is what lets the filtered tests reuse this comparison.
+     * <p>
+     * A batch size of 64 against 512-byte pages means batches cut across page boundaries of both leaves
+     * of {@code items}, so a batch that re-synchronized only at a batch boundary would disagree. The
+     * control column {@code tags} is in the projection on purpose: it is an ordinary list of primitives,
+     * so this also asserts that a composite and a list column share one row group's pages without either
+     * draining the other's page readers.
+     */
+    public void testUnfilteredReadMatchesOracle() throws IOException {
+        byte[] file = writeFile();
+        ParquetFormatReader reader = new ParquetFormatReader(newBlockFactory()).withCompositeAssemblyForTests(true);
+        List<String> projection = List.of("id", "items", "attrs", "tags");
+        int seen = 0;
+        try (
+            CloseableIterator<Page> pages = reader.read(
+                createStorageObject(file),
+                FormatReadContext.builder().batchSize(64).projectedColumns(projection).build()
+            )
+        ) {
+            while (pages.hasNext()) {
+                Page page = pages.next();
+                try {
+                    LongBlock ids = (LongBlock) page.getBlock(0);
+                    BytesRefBlock items = (BytesRefBlock) page.getBlock(1);
+                    BytesRefBlock attrs = (BytesRefBlock) page.getBlock(2);
+                    BytesRefBlock tags = (BytesRefBlock) page.getBlock(3);
+                    for (int pos = 0; pos < page.getPositionCount(); pos++) {
+                        int row = (int) ids.getLong(ids.getFirstValueIndex(pos));
+                        assertEquals("items at row " + row, expectedItemsJson(row), textAt(items, pos));
+                        assertEquals("attrs at row " + row, expectedAttrsJson(row), textAt(attrs, pos));
+                        assertEquals("tags at row " + row, expectedTagsValues(row), multivalueAt(tags, pos));
+                        seen++;
+                    }
+                } finally {
+                    Releasables.close(page::releaseBlocks);
+                }
+            }
+        }
+        assertEquals("every row must be read exactly once", ROWS, seen);
+    }
+
+    /** The tag values written for row {@code i}, which arrive as a multivalue keyword rather than as text. */
+    private static List<String> expectedTagsValues(int i) {
+        List<String> values = new ArrayList<>();
+        for (int k = 0; k <= i % 3; k++) {
+            values.add("t" + i + "-" + k);
+        }
+        return values;
+    }
+
+    /** The one assembled value at {@code pos}, or {@code null} for a null position. */
+    private static String textAt(BytesRefBlock block, int pos) {
+        if (block.isNull(pos)) {
+            return null;
+        }
+        assertEquals("an assembled composite is one value per row", 1, block.getValueCount(pos));
+        return block.getBytesRef(block.getFirstValueIndex(pos), new BytesRef()).utf8ToString();
+    }
+
+    /** Every value at {@code pos}, as a list, or {@code null} for a null position. */
+    private static List<String> multivalueAt(BytesRefBlock block, int pos) {
+        if (block.isNull(pos)) {
+            return null;
+        }
+        List<String> values = new ArrayList<>();
+        int first = block.getFirstValueIndex(pos);
+        for (int v = 0; v < block.getValueCount(pos); v++) {
+            values.add(block.getBytesRef(first + v, new BytesRef()).utf8ToString());
+        }
+        return values;
     }
 
     private static Map<String, DataType> typesByName(SourceMetadata metadata) {

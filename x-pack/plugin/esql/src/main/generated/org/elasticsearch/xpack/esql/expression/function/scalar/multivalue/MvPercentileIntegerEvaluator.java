@@ -66,7 +66,7 @@ public final class MvPercentileIntegerEvaluator implements ExpressionEvaluator {
   }
 
   public IntBlock eval(int positionCount, IntBlock valuesBlock, DoubleBlock percentileBlock) {
-    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
         if (!valuesBlock.isNull(p)) {

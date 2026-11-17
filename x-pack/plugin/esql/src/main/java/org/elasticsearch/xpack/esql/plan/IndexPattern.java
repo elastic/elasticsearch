@@ -21,7 +21,7 @@ public class IndexPattern implements NodeStringRenderable {
     private final Source source;
     private final String indexPattern;
     private final ViewScope viewScope;
-    // Part of the identity: under a request filter an EQL source resolves its pattern unfiltered, apart from a FROM on the same pattern.
+    // Part of the identity: an EQL source resolves its pattern unfiltered, apart from a FROM on the same pattern that a filter narrows.
     private final boolean eqlSource;
 
     /**

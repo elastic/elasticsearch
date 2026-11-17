@@ -56,6 +56,7 @@ import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
@@ -103,6 +104,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.queryClusterSettings;
 import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfoTests.createEsqlExecutionInfo;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLogTests.mockLogFieldProvider;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
@@ -317,6 +319,20 @@ public class EsqlSessionQueryTimeFilterTests extends ESTestCase {
         addView("logs_counts", "FROM logs-* | STATS c = COUNT(*) BY @timestamp");
         analyze("FROM logs_counts" + TIME_RANGE, null);
         assertThat(indexFilters, contains(nullValue()));
+    }
+
+    public void testEqlSourceIsResolvedWithoutTheTimeRangeOfAFromOnItsPattern() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+        List<String> columns = columns(analyze("FROM (FROM logs-*" + TIME_RANGE + "), (EQL logs-* \"any where true\")", null));
+        assertThat(indexFilters, containsInAnyOrder(TIME_FILTER, null));
+        assertThat(columns, hasItem("old_only"));
+    }
+
+    public void testTimeRangeAfterEqlSourceDoesNotFilterItsResolution() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+        List<String> columns = columns(analyze("EQL logs-* \"any where true\"" + TIME_RANGE, null));
+        assertThat(indexFilters, contains(nullValue()));
+        assertThat(columns, hasItem("old_only"));
     }
 
     /**

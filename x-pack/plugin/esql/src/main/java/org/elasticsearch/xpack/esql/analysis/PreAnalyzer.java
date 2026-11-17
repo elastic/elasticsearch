@@ -135,7 +135,8 @@ public class PreAnalyzer {
         // EQL is always STANDARD mode; reject a collision with a same-pattern non-STANDARD relation, matching the
         // UnresolvedRelation conflict above. Reachable via a mixed subquery (e.g. FROM (TS idx), (EQL idx "…")),
         // where it throws exactly as the FROM/TS twin does.
-        // Under a request filter an EQL pattern carries its own key (IndexPattern#forEqlSource), so it is neither shared nor in conflict.
+        // Under a request filter, or a time range of the query on the same pattern, an EQL pattern carries its own key
+        // (IndexPattern#forEqlSource), so it is neither shared nor in conflict.
         Set<IndexPattern> eqlPatterns = new LinkedHashSet<>();
         plan.forEachUp(UnresolvedEqlRelation.class, p -> {
             eqlPatterns.add(p.indexPattern());

@@ -1915,7 +1915,7 @@ public class EsqlSession {
             planningCpu.meteredCpu(logicalPlanListener.delegateFailureAndWrap((delegate, rewritten) -> {
                 datasetResolutionProfile.stop();
                 analyzedPlanAfterDatasetResolution(
-                    scopeEqlIndexPatterns(scopeIndexPatternsInViews(rewritten, unmappedResolution, viewSettings), requestFilter),
+                    scopeIndexPatternsInViews(rewritten, unmappedResolution, viewSettings),
                     unmappedResolution,
                     viewSettings,
                     configuration,
@@ -1929,7 +1929,7 @@ public class EsqlSession {
     }
 
     private void analyzedPlanAfterDatasetResolution(
-        LogicalPlan parsed,
+        LogicalPlan rewritten,
         UnmappedResolution unmappedResolution,
         Map<String, ViewQuerySettings> viewSettings,
         Configuration configuration,
@@ -1940,6 +1940,10 @@ public class EsqlSession {
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         assert planningCpu.isMeteringCurrentThread() : "analyzedPlanAfterDatasetResolution reached on an unmetered thread";
+        // The time range that the query itself restricts each index pattern to prunes index resolution like the request filter
+        // does, and next to it: both must match, and the query is often narrower than the time picker.
+        Map<IndexPattern, QueryBuilder> queryTimeFilters = queryTimeFilters(rewritten, unmappedResolution, viewSettings, configuration);
+        LogicalPlan parsed = scopeEqlIndexPatterns(rewritten, requestFilter, queryTimeFilters.keySet());
         TimeSpanMarker preAnalysisProfile = executionInfo.queryProfile().preAnalysis();
         preAnalysisProfile.start();
         PreAnalyzer.PreAnalysis parsedPreAnalysis = preAnalyzer.preAnalyze(parsed);
@@ -1970,9 +1974,6 @@ public class EsqlSession {
             configuration::absoluteStartedTimeInMillis,
             BoundSemantics.RANGE_QUERY
         );
-        // The time range that the query itself restricts each index pattern to prunes index resolution like the request filter
-        // does, and next to it: both must match, and the query is often narrower than the time picker.
-        Map<IndexPattern, QueryBuilder> queryTimeFilters = queryTimeFilters(parsed, unmappedResolution, viewSettings, configuration);
         String description = requestFilter == null && queryTimeFilters.isEmpty()
             ? "the only attempt without filter"
             : "first attempt with filter";
@@ -2769,11 +2770,20 @@ public class EsqlSession {
         return patterns;
     }
 
-    static LogicalPlan scopeEqlIndexPatterns(LogicalPlan plan, @Nullable QueryBuilder requestFilter) {
-        if (requestFilter == null) {
+    static LogicalPlan scopeEqlIndexPatterns(
+        LogicalPlan plan,
+        @Nullable QueryBuilder requestFilter,
+        Set<IndexPattern> queryTimeFilteredPatterns
+    ) {
+        if (requestFilter == null && queryTimeFilteredPatterns.isEmpty()) {
             return plan;
         }
-        return plan.transformUp(UnresolvedEqlRelation.class, r -> r.withIndexPattern(r.indexPattern().forEqlSource()));
+        return plan.transformUp(
+            UnresolvedEqlRelation.class,
+            r -> requestFilter != null || queryTimeFilteredPatterns.contains(r.indexPattern())
+                ? r.withIndexPattern(r.indexPattern().forEqlSource())
+                : r
+        );
     }
 
     @Nullable
@@ -2980,6 +2990,8 @@ public class EsqlSession {
         QueryBuilder requestFilter,
         ActionListener<PreAnalysisResult> listener
     ) {
+        assert requestFilter == null || preAnalysis.eqlPatterns().contains(indexPattern) == false
+            : "the pattern of an EQL source must be resolved unfiltered [" + indexPattern + "]";
         if (executionInfo.clusterAliases().isEmpty()) {
             // return empty resolution if the expression is pure CCS and resolved no remote clusters (like no-such-cluster*:index)
             listener.onResponse(result.withIndices(indexPattern, IndexResolution.empty(indexPattern.indexPattern())));
@@ -3164,6 +3176,8 @@ public class EsqlSession {
         @Nullable Consumer<TargetProjects> routingInfoCapture,
         ActionListener<PreAnalysisResult> listener
     ) {
+        assert requestFilter == null || preAnalysis.eqlPatterns().contains(indexPattern) == false
+            : "the pattern of an EQL source must be resolved unfiltered [" + indexPattern + "]";
         executionInfo.queryProfile().incFieldCapsCalls();
         indexResolver.resolveFlatIndicesVersioned(
             false /* lenient */,

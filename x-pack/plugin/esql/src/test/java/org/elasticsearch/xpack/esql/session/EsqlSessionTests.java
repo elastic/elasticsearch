@@ -1479,7 +1479,7 @@ public class EsqlSessionTests extends ESTestCase {
         }
     }
 
-    public void testScopeEqlIndexPatternsOnlyUnderARequestFilter() {
+    public void testScopeEqlIndexPatternsUnderARequestFilterOrATimeRangeOnTheirPattern() {
         UnresolvedRelation from = new UnresolvedRelation(
             EMPTY,
             new IndexPattern(EMPTY, "logs-*"),
@@ -1502,14 +1502,35 @@ public class EsqlSessionTests extends ESTestCase {
         children.put("eql", eql);
         LogicalPlan plan = new BranchPlan(EMPTY, children, Map.of(), List.of());
 
-        assertThat(EsqlSession.scopeEqlIndexPatterns(plan, null), sameInstance(plan));
+        assertThat(EsqlSession.scopeEqlIndexPatterns(plan, null, Set.of()), sameInstance(plan));
+        assertThat(EsqlSession.scopeEqlIndexPatterns(plan, null, Set.of(new IndexPattern(EMPTY, "metrics-*"))), sameInstance(plan));
 
-        BranchPlan scoped = (BranchPlan) EsqlSession.scopeEqlIndexPatterns(plan, QueryBuilders.termQuery("host", "a"));
-        IndexPattern eqlPattern = ((UnresolvedEqlRelation) scoped.namedSubqueries().get("eql")).indexPattern();
+        assertEqlScopedApartFrom(from, EsqlSession.scopeEqlIndexPatterns(plan, QueryBuilders.termQuery("host", "a"), Set.of()));
+        assertEqlScopedApartFrom(from, EsqlSession.scopeEqlIndexPatterns(plan, null, Set.of(from.indexPattern())));
+    }
+
+    private static void assertEqlScopedApartFrom(UnresolvedRelation from, LogicalPlan scoped) {
+        BranchPlan branches = (BranchPlan) scoped;
+        IndexPattern eqlPattern = ((UnresolvedEqlRelation) branches.namedSubqueries().get("eql")).indexPattern();
         assertTrue(eqlPattern.isEqlSource());
         assertThat(eqlPattern.indexPattern(), equalTo("logs-*"));
         assertThat(eqlPattern, not(equalTo(from.indexPattern())));
-        assertThat(scoped.namedSubqueries().get("from"), sameInstance(from));
+        assertThat(branches.namedSubqueries().get("from"), sameInstance(from));
+    }
+
+    public void testScopedEqlPatternDoesNotConflictWithATimeSeriesSourceOnItsPattern() {
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+        LogicalPlan plan = TEST_PARSER.parseQuery("FROM (TS p), (EQL p \"any where true\")");
+        expectThrows(
+            IllegalStateException.class,
+            containsString("index pattern 'p' found with different index mode"),
+            () -> new PreAnalyzer().preAnalyze(plan)
+        );
+
+        IndexPattern timeSeries = plan.collect(UnresolvedRelation.class).get(0).indexPattern();
+        LogicalPlan scoped = EsqlSession.scopeEqlIndexPatterns(plan, null, Set.of(timeSeries));
+        assertThat(new PreAnalyzer().preAnalyze(scoped).indexes().values(), containsInAnyOrder(IndexMode.TIME_SERIES, IndexMode.STANDARD));
     }
 
     public void testFieldCapsFilterSkipsEqlAndViewInternalPatterns() {

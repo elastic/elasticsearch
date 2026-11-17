@@ -289,6 +289,32 @@ public class EqlCommandIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testTimeRangeOfAFromDoesNotNarrowTheEqlColumnsOnItsPattern() {
+        for (String index : List.of("eql_range_old", "eql_range_new")) {
+            boolean old = index.equals("eql_range_old");
+            String onlyField = old ? "old_only" : "new_only";
+            assertAcked(
+                client().admin()
+                    .indices()
+                    .prepareCreate(index)
+                    .setMapping("@timestamp", "type=date", "event.category", "type=keyword", onlyField, "type=keyword")
+            );
+            client().prepareIndex(index)
+                .setSource("@timestamp", old ? "2020-01-01T00:00:00Z" : "2026-07-22T10:00:00Z", "event.category", "process", onlyField, "v")
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .get();
+        }
+        String query = "FROM (FROM eql_range_* | WHERE @timestamp >= \"2024-01-01T00:00:00Z\"), (EQL eql_range_* \"process where true\")";
+        try (EsqlQueryResponse resp = run(query)) {
+            List<String> names = resp.columns().stream().map(column -> column.name()).toList();
+            assertThat(names, containsInAnyOrder("@timestamp", "event.category", "new_only", "old_only"));
+            int oldOnly = names.indexOf("old_only");
+            List<List<Object>> rows = getValuesList(resp);
+            assertThat(rows, hasSize(3));
+            assertThat(rows.stream().filter(row -> "v".equals(Objects.toString(row.get(oldOnly), null))).count(), equalTo(1L));
+        }
+    }
+
     public void testDelegateRuntimeErrorSurfacesE2E() {
         // A query that passes ES|QL analysis but fails inside the EQL engine (an unknown timestamp_field) must surface
         // the engine's error to the client rather than hang or come back empty.

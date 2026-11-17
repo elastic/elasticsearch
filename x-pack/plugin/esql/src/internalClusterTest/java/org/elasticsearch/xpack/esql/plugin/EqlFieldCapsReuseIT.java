@@ -123,6 +123,15 @@ public class EqlFieldCapsReuseIT extends AbstractEsqlIntegTestCase {
         assertFieldCapsCalls(SHARED_PATTERN_QUERY, null, 1, 1);
     }
 
+    public void testSharedPatternWithTimeRangeResolvesFromAndEqlSeparately() {
+        String query = "FROM (FROM "
+            + INDEX
+            + " | WHERE @timestamp >= \"2026-01-01T00:00:00Z\" | KEEP process.name), (EQL "
+            + INDEX
+            + " \"process where true\" | KEEP process.name)";
+        assertFieldCapsCalls(query, null, 2, 2);
+    }
+
     public void testEqlPatternIsResolvedWithoutTheRequestFilter() {
         assertFieldCapsCalls("EQL " + INDEX + " \"process where true\" | KEEP process.name", PRUNES_EVERY_INDEX, 0, 1);
     }

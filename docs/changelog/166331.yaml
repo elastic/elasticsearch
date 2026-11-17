@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166331
+summary: Fix ROUND_TO type for unsigned_long points
+type: bug

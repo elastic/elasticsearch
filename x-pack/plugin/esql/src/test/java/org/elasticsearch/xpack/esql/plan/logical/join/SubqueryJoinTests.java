@@ -1151,6 +1151,17 @@ public class SubqueryJoinTests extends ESTestCase {
     }
 
     /**
+     * The shard parses a pushed date with the field's own format, which the coordinator cannot see, and a custom format rejects it, so
+     * date keys keep the default limit whatever the indices accept.
+     */
+    public void testFilterPathThresholdKeepsDefaultForDateKeys() {
+        for (DataType dateType : List.of(DataType.DATETIME, DataType.DATE_NANOS)) {
+            FieldAttribute key = getFieldAttribute("when", dateType);
+            assertDefaultFilterPathThreshold(semiJoin(key, relationOf(key), getFieldAttribute("when", dateType)));
+        }
+    }
+
+    /**
      * ANTI keeps the rows the list does not match, so the filter reads nearly every row either way, and MARK adds a column to every
      * row, so only SEMI is raised.
      */

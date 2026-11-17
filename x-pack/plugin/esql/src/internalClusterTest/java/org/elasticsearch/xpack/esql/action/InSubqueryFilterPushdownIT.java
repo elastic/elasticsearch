@@ -21,6 +21,8 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.versionfield.VersionFieldPlugin;
 
 import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -150,6 +152,37 @@ public class InSubqueryFilterPushdownIT extends AbstractEsqlIntegTestCase {
         assertThat(result.rowsRead(), greaterThanOrEqualTo(2L * DOCS));
     }
 
+    /**
+     * A date field with a custom format rejects the ISO dates a pushed IN list carries, so a date key must stay on the hash join even
+     * with more values than the default limit (https://github.com/elastic/elasticsearch/issues/166324).
+     */
+    public void testCustomFormatDateKeyStaysOnHashJoin() {
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("custom_dates")
+                .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+                .setMapping("d", "type=date,format=yyyy-MM-dd HH:mm:ss", "marker", "type=long")
+        );
+        DateTimeFormatter format = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneOffset.UTC);
+        Instant start = Instant.parse("2015-01-01T00:00:00Z");
+        BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (int i = 0; i < DOCS; i++) {
+            bulk.add(new IndexRequest("custom_dates").source("d", format.format(start.plusSeconds(i)), "marker", i));
+        }
+        BulkResponse response = bulk.get();
+        assertFalse(response.buildFailureMessage(), response.hasFailures());
+        ensureYellow("custom_dates");
+
+        String query = "FROM custom_dates | WHERE d IN (FROM custom_dates | WHERE marker < "
+            + MANY_VALUES
+            + " | KEEP d) | STATS matches = COUNT(*), total = SUM(marker)";
+        QueryResult result = runCounting(query, getPragmas());
+
+        assertThat(result.matches(), equalTo((long) MANY_VALUES));
+        assertThat(result.rowsRead(), greaterThanOrEqualTo((long) DOCS));
+    }
+
     // -- the key types, NULLs, multi-valued keys and an extra WHERE: the pushed list and the hash join agree --
 
     public void testKeywordKey() {
@@ -205,7 +238,11 @@ public class InSubqueryFilterPushdownIT extends AbstractEsqlIntegTestCase {
         assertThat(pushed.matches(), equalTo((long) expected.size()));
         assertThat(hashJoin.matches(), equalTo((long) expected.size()));
         long outerRows = extraWhere ? DOCS - FIRST_MARKER_KEPT_BY_WHERE : DOCS;
-        assertThat("the IN list was pushed to Lucene", pushed.rowsRead(), lessThan(outerRows));
+        if (type.pushed) {
+            assertThat("the IN list was pushed to Lucene", pushed.rowsRead(), lessThan(outerRows));
+        } else {
+            assertThat("this key stays on the hash join", pushed.rowsRead(), greaterThanOrEqualTo(outerRows));
+        }
         assertThat("a hash join reads every row", hashJoin.rowsRead(), greaterThanOrEqualTo(outerRows));
     }
 
@@ -271,43 +308,43 @@ public class InSubqueryFilterPushdownIT extends AbstractEsqlIntegTestCase {
     }
 
     private enum KeyType {
-        KEYWORD("keyword") {
+        KEYWORD("keyword", true) {
             @Override
             Object value(int i) {
                 return "s-" + i;
             }
         },
-        INTEGER("integer") {
+        INTEGER("integer", true) {
             @Override
             Object value(int i) {
                 return i * 3;
             }
         },
-        LONG("long") {
+        LONG("long", true) {
             @Override
             Object value(int i) {
                 return 10_000_000_000L + i;
             }
         },
-        IP("ip") {
+        IP("ip", true) {
             @Override
             Object value(int i) {
                 return "10.0." + (i / 256) + "." + (i % 256);
             }
         },
-        DATE("date") {
+        DATE("date", false) {
             @Override
             Object value(int i) {
                 return Instant.parse("2026-01-01T00:00:00Z").plusSeconds(i).toString();
             }
         },
-        DATE_NANOS("date_nanos") {
+        DATE_NANOS("date_nanos", false) {
             @Override
             Object value(int i) {
                 return Instant.parse("2026-01-01T00:00:00Z").plusNanos(i).toString();
             }
         },
-        VERSION("version") {
+        VERSION("version", true) {
             @Override
             Object value(int i) {
                 return "1.0." + i;
@@ -316,8 +353,15 @@ public class InSubqueryFilterPushdownIT extends AbstractEsqlIntegTestCase {
 
         private final String mapping;
 
-        KeyType(String mapping) {
+        /**
+         * Whether the IN list is pushed to Lucene. Date keys are not: the shard parses a pushed date with the field's own format,
+         * which the coordinator cannot see, and a custom format rejects it (https://github.com/elastic/elasticsearch/issues/166324).
+         */
+        private final boolean pushed;
+
+        KeyType(String mapping, boolean pushed) {
             this.mapping = mapping;
+            this.pushed = pushed;
         }
 
         /**

@@ -176,14 +176,15 @@ public abstract class AbstractSubqueryJoin extends Join implements SortPreservin
      * The relation whose index the filter path would query, or {@code null} when the IN list would be evaluated per row. This is a
      * prediction made without the shards: the key must be a plain field that {@link LucenePushdownPredicates#DEFAULT} treats as
      * queryable (indexed, or doc values only), on the relation or on a single {@link Filter} over it, which {@link #filterOnLeft}
-     * merges with the IN filter.
+     * merges with the IN filter. Date keys are left out: the shard parses the pushed values with the field's own format, which the
+     * coordinator cannot see, and a custom one rejects them (https://github.com/elastic/elasticsearch/issues/166324).
      */
     private EsRelation indexedFilterSource() {
         if (filterPathNarrowsSourceScan() == false || config().leftFields().size() != 1) {
             return null;
         }
         Attribute leftField = config().leftFields().get(0);
-        if (leftField instanceof FieldAttribute key) {
+        if (leftField instanceof FieldAttribute key && key.dataType() != DataType.DATETIME && key.dataType() != DataType.DATE_NANOS) {
             // Placeholder list: only pushability matters. A NULL literal reports YES_BUT_RECHECK_NEGATED, still pushed for a positive IN.
             In probe = new In(source(), key, List.of(new Literal(source(), null, key.dataType())));
             Translatable translatable = probe.translatable(LucenePushdownPredicates.DEFAULT);

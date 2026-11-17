@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -344,7 +345,11 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
             return translateUnion(context);
         }
         if (context.containerFunctions()
-            && (this instanceof VectorBinarySet || hasPackedLabels(left().output()) || hasPackedLabels(right().output()))) {
+            && (this instanceof VectorBinarySet
+                || hasPackedLabels(left().output())
+                || hasPackedLabels(right().output())
+                || left().anyMatch(VectorBinarySet.class::isInstance)
+                || right().anyMatch(VectorBinarySet.class::isInstance))) {
             return translateContainerJoin(context);
         }
         return translateJoin(context);
@@ -433,6 +438,9 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
     private static final String ONE_LABELS = "$prom_one";
     /** The many side's labels, read before the join so its page holds only what the join reads. */
     private static final String PROBE_LABELS = "$prom_many";
+    /** A union's value and step, under names no branch column has. */
+    private static final String UNION_VALUE = "$prom_value";
+    private static final String UNION_STEP = "$prom_step";
     /** The result labels, from which the result's label columns and packings read. */
     private static final String RESULT_LABELS = "$prom_labels";
 
@@ -496,7 +504,7 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         Alias probeValue = new Alias(
             cmd.source(),
             TemporaryNameGenerator.locallyUniqueTemporaryName(cmd.valueColumnName()),
-            probe.valueColumn()
+            new ToDouble(cmd.source(), probe.valueColumn())
         );
         var pinned = new ArrayList<Alias>(List.of(probeValue));
         Attribute probeLabels = null;
@@ -505,12 +513,28 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
             pinned.add(labelsColumn);
             probeLabels = labelsColumn.toAttribute();
         }
-        var pinnedColumns = new ArrayList<NamedExpression>(List.of(probeValue.toAttribute(), probe.step()));
+        Attribute probeValueColumn = TranslationContext.pinned(probeValue);
+        var pinnedColumns = new ArrayList<NamedExpression>(List.of(probeValueColumn, probe.step()));
         if (probeLabels != null) {
             pinnedColumns.add(probeLabels);
         }
         LogicalPlan probePinned = new Project(cmd.source(), new Eval(cmd.source(), probe.plan(), pinned), pinnedColumns);
-        probe = new IntermediateResult(probePinned, probe.schema(), probeValue.toAttribute(), probe.step(), null, probe.kind());
+        probe = new IntermediateResult(probePinned, probe.schema(), probeValueColumn, probe.step(), null, probe.kind());
+        // The build side's value is a double column under a name of its own too, which the join adds to the probe's rows.
+        Alias buildValue = new Alias(
+            cmd.source(),
+            TemporaryNameGenerator.locallyUniqueTemporaryName(cmd.valueColumnName()),
+            new ToDouble(cmd.source(), build.valueColumn())
+        );
+        Attribute buildValueColumn = TranslationContext.pinned(buildValue);
+        build = new IntermediateResult(
+            new Eval(cmd.source(), build.plan(), List.of(buildValue)),
+            build.schema(),
+            buildValueColumn,
+            build.step(),
+            null,
+            build.kind()
+        );
         Expression leftValue = probeRight ? build.value() : probe.value();
         Expression rightValue = probeRight ? probe.value() : build.value();
 
@@ -646,34 +670,44 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         for (var branch : List.of(new LabeledTable(leftPlan, left.valueColumn(), left.step(), leftLabels), right)) {
             // Each branch as the same columns: value, step and labels, without the rows that have no sample.
             LogicalPlan plan = new Filter(source, branch.plan(), new IsNotNull(source, branch.value()));
+            // Under names no branch column has: an Eval shadowing one leaves its channel in the page (#158164).
             plan = new Eval(
                 source,
                 plan,
                 List.of(
-                    new Alias(source, cmd.valueColumnName(), branch.value()),
-                    new Alias(source, cmd.stepColumnName(), branch.step()),
+                    new Alias(source, UNION_VALUE, new ToDouble(source, branch.value())),
+                    new Alias(source, UNION_STEP, branch.step()),
                     new Alias(source, RESULT_LABELS, branch.labels())
                 )
             );
             branches.add(
-                new Project(source, plan, plan.output().stream().filter(a -> isUnionColumn(cmd, a)).map(a -> (NamedExpression) a).toList())
+                new Project(
+                    source,
+                    plan,
+                    plan.output().stream().filter(VectorBinaryOperator::isUnionColumn).map(a -> (NamedExpression) a).toList()
+                )
             );
         }
-        List<Attribute> output = VectorBinarySet.unionOutputByName(branches);
-        LogicalPlan union = new UnionAll(source, branches, output);
-        Attribute value = TranslationContext.find(output, cmd.valueColumnName());
-        Attribute step = TranslationContext.find(output, cmd.stepColumnName());
-        Attribute unionLabels = TranslationContext.find(output, RESULT_LABELS);
+        // Typed up front: the branch values resolve only once the analyzer binds their aggregates, after which it would not
+        // resolve the union's own output again.
+        Attribute value = new ReferenceAttribute(source, UNION_VALUE, DataType.DOUBLE);
+        DataType stepType = cmd.stepAttribute().resolved() ? cmd.stepAttribute().dataType() : DataType.DATETIME;
+        Attribute step = new ReferenceAttribute(source, UNION_STEP, stepType);
+        Attribute unionLabels = new ReferenceAttribute(source, RESULT_LABELS, DataType.KEYWORD);
+        LogicalPlan union = new UnionAll(source, branches, List.of(value, step, unionLabels));
         // The step under an identity of its own: an enclosing join keeps a union's identities as they are (see reidentify), so
         // it must not share the enclosing frame's.
-        Alias stepAlias = new Alias(source, step.name(), step, new NameId());
-        LogicalPlan plan = new Eval(source, union, List.of(stepAlias));
-        return finish(context, new LabeledTable(plan, value, stepAlias.toAttribute(), unionLabels));
+        Alias stepAlias = new Alias(source, cmd.stepColumnName(), step, new NameId());
+        // The value under a column of its own: the analyzer pushes a conversion of a union's output into its branches as a
+        // column of their own, which a join over the union would not carry.
+        Alias valueAlias = new Alias(source, cmd.valueColumnName(), value, new NameId());
+        LogicalPlan plan = new Eval(source, union, List.of(valueAlias, stepAlias));
+        return finish(context, new LabeledTable(plan, valueAlias.toAttribute(), stepAlias.toAttribute(), unionLabels));
     }
 
-    private static boolean isUnionColumn(PromqlCommand cmd, Attribute attribute) {
+    private static boolean isUnionColumn(Attribute attribute) {
         String name = attribute.name();
-        return name.equals(cmd.valueColumnName()) || name.equals(cmd.stepColumnName()) || name.equals(RESULT_LABELS);
+        return name.equals(UNION_VALUE) || name.equals(UNION_STEP) || name.equals(RESULT_LABELS);
     }
 
     /** The labels two series match on: Prometheus' signature. */
@@ -909,9 +943,12 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
     private static IntermediateResult reidentify(PromqlCommand cmd, IntermediateResult input) {
         Map<NameId, NameId> ids = new HashMap<>();
         String valueName = TemporaryNameGenerator.locallyUniqueTemporaryName(cmd.valueColumnName());
-        if (input.plan().anyMatch(UnionAll.class::isInstance)) {
+        if (input.plan().anyMatch(UnionAll.class::isInstance)
+            || input.valueColumn() instanceof UnresolvedAttribute
+            || input.plan().collect(Aggregate.class).size() > 1) {
             // A union keeps its output aligned with its branches by attribute ids, which re-identifying its subtree would
-            // desync; only its value moves under a name of its own.
+            // desync, and a nested aggregate's value the analyzer has not bound yet loses its column when renamed in
+            // place; only the value moves under a name of its own.
             Alias renamed = new Alias(input.valueColumn().source(), valueName, input.valueColumn(), new NameId());
             LogicalPlan plan = new Eval(cmd.source(), input.plan(), List.of(renamed));
             return new IntermediateResult(plan, input.schema(), renamed.toAttribute(), input.step(), input.pendingFilter(), input.kind());
@@ -1024,6 +1061,10 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
 
     /** Renames an attribute or alias in a re-identification pass; other expressions pass through unchanged. */
     private static Expression renamed(Expression e, String from, String to) {
+        // An unresolved attribute has no type to rename with, so it is rebuilt by name.
+        if (e instanceof UnresolvedAttribute ua && ua.name().equals(from)) {
+            return new UnresolvedAttribute(ua.source(), ua.qualifier(), to, ua.id(), ua.unresolvedMessage());
+        }
         if (e instanceof Attribute a && a.name().equals(from)) {
             return a.withName(to);
         }

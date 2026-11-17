@@ -550,6 +550,17 @@ public record TranslationContext(
         return new DistinctBy(source, new PackDims(source, plan, keys, packed), packed, true);
     }
 
+    /**
+     * The double column {@code alias} defines, under its id even while its value is unresolved: an attribute taken from an
+     * unresolved alias is never bound again once a join or a projection holds it.
+     */
+    public static Attribute pinned(Alias alias) {
+        if (alias.resolved()) {
+            return alias.toAttribute();
+        }
+        return new ReferenceAttribute(alias.source(), null, alias.name(), DataType.DOUBLE, Nullability.TRUE, alias.id(), true);
+    }
+
     /** {@code packing} leaving {@code labels} out as well: the canonical label container of the remaining labels. */
     public static Expression unset(Expression packing, Stream<String> labels) {
         List<Expression> names = labels.sorted().<Expression>map(label -> Literal.keyword(packing.source(), label)).toList();

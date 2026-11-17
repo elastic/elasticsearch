@@ -1249,6 +1249,70 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
         }
     }
 
+    public void testOfflineWarmingTasksSkippedOnceRecoveryCancellationRequested() throws Exception {
+        final long primaryTerm = randomLongBetween(1, 10);
+        final var capturedTasks = new ArrayList<ActionListener<Releasable>>();
+
+        try (var node = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+            @Override
+            protected SharedBlobCacheWarmingService createSharedBlobCacheWarmingService(
+                StatelessSharedBlobCacheService cacheService,
+                ThreadPool threadPool,
+                TelemetryProvider telemetryProvider,
+                ClusterSettings clusterSettings,
+                WarmingRatioProvider warmingRatioProvider,
+                SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
+            ) {
+                return new SharedBlobCacheWarmingService(
+                    cacheService,
+                    threadPool,
+                    telemetryProvider,
+                    clusterSettings,
+                    searchRecoveryTimeoutCalculationService
+                ) {
+                    // Capture tasks instead of submitting them so we control when they run relative to the cancellation request.
+                    @Override
+                    protected void scheduleWarmingTask(AbstractWarmingTask task) {
+                        capturedTasks.add(task);
+                    }
+                };
+            }
+        }) {
+            // The shard is mocked because a real IndexShard would need a full recovery in flight to accept a cancellation request.
+            final var indexShard = mock(IndexShard.class);
+            when(indexShard.store()).thenReturn(node.searchStore);
+            when(indexShard.shardId()).thenReturn(node.shardId);
+
+            final int numBlobs = randomIntBetween(1, 5);
+            final Map<BlobFile, SharedBlobCacheWarmingService.WarmTarget> warmTargets = new HashMap<>();
+            for (int i = 0; i < numBlobs; i++) {
+                final long gen = i + 1L;
+                warmTargets.put(
+                    new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(gen), new PrimaryTermAndGeneration(primaryTerm, gen)),
+                    SharedBlobCacheWarmingService.WarmTarget.withUnknownTimestamp(randomLongBetween(1, 1024), 1024)
+                );
+            }
+
+            final PlainActionFuture<Void> warmListener = new PlainActionFuture<>();
+            node.warmingService.warmBlobOffsets(indexShard, node.searchDirectory, warmTargets, warmListener);
+            assertThat(capturedTasks, hasSize(numBlobs));
+            assertFalse("listener must not fire while tasks are pending", warmListener.isDone());
+
+            // The store stays open: only the shard's recovery cancellation flag is set.
+            when(indexShard.isRecoveryCancellationRequested()).thenReturn(true);
+            for (var task : capturedTasks) {
+                task.onResponse(() -> {});
+            }
+
+            safeGet(warmListener);
+            assertThat(
+                "no blob data should have been read once cancelled",
+                node.searchDirectory.totalBytesWarmedFromObjectStore(),
+                equalTo(0L)
+            );
+        }
+    }
+
     public void testPopulateCacheWithSharedSourceInputStreamFactory() throws Exception {
 
         var actualRangeInputStreamPosition = new SetOnce<Long>();

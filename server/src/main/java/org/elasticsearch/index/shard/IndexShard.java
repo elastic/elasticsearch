@@ -2154,11 +2154,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
+    /// Returns whether a cancellation has been requested via [#requestRecoveryCancellation].
+    ///
+    /// See also [#ensureRecoveryNotCancelled] for a variant that throws.
+    public boolean isRecoveryCancellationRequested() {
+        return recoveryCancellationRequested;
+    }
+
     /// Throws [RecoveryCancelledException] if a cancellation has been requested via [#requestRecoveryCancellation].
     ///
     /// Must only be called from within the active recovery sequence, at natural checkpoint boundaries.
     /// Callers should let the exception propagate up the call stack, or catch it to forward it unchanged or wrapped
     /// (preserving it as the cause), e.g. via `onFailure`.
+    ///
+    /// See also [#isRecoveryCancellationRequested()] for a non-throwing variant.
     public void ensureRecoveryNotCancelled() throws RecoveryCancelledException {
         if (recoveryCancellationRequested) {
             final RecoveryState currentRecoveryState = recoveryState;

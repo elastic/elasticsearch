@@ -1353,6 +1353,7 @@ public class SharedBlobCacheWarmingService {
             try (
                 var warmer = new BlobByteRangeWarmer(
                     warmingRun,
+                    indexShard,
                     blobFile,
                     byteRangeToWarm,
                     blobSize,
@@ -1683,6 +1684,7 @@ public class SharedBlobCacheWarmingService {
      * The caller must ensure that the {@link ByteRange} is inside the limits of the blob file.
      */
     private class BlobByteRangeWarmer extends SharedBlobCacheWarmingService.AbstractWarmer {
+        private final IndexShard indexShard;
         private final BlobFile blobFile;
         private final ByteRange byteRangeToWarm;
         private final long blobSize;
@@ -1690,6 +1692,7 @@ public class SharedBlobCacheWarmingService {
 
         BlobByteRangeWarmer(
             SharedBlobCacheWarmingService.WarmingRun warmingRun,
+            IndexShard indexShard,
             BlobFile blobFile,
             ByteRange byteRangeToWarm,
             long blobSize,
@@ -1699,6 +1702,7 @@ public class SharedBlobCacheWarmingService {
             ActionListener<Void> listener
         ) {
             super(warmingRun, isStoreClosing, directory, listener);
+            this.indexShard = indexShard;
             this.blobFile = blobFile;
             this.byteRangeToWarm = byteRangeToWarm;
             this.blobSize = blobSize;
@@ -1709,6 +1713,13 @@ public class SharedBlobCacheWarmingService {
             scheduleWarmingTask(
                 new WarmBlobByteRangeTask(warmingRun.type, blobFile, byteRangeToWarm, blobSize, timestampMillis, listeners.acquire())
             );
+        }
+
+        @Override
+        protected boolean isCancelled() {
+            // A direct recovery cancellation does not close the store, so also stop warming once one has been requested, otherwise the
+            // recovery cannot notice it until warming completes or times out.
+            return super.isCancelled() || indexShard.isRecoveryCancellationRequested();
         }
 
         @Override

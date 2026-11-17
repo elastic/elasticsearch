@@ -3955,6 +3955,7 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testRequestRecoveryCancellationThrowsWhenShardHasAlreadyStarted() throws IOException {
         final IndexShard shard = newStartedShard();
         expectThrows(IndexShardNotRecoveringException.class, shard::requestRecoveryCancellation);
+        assertFalse(shard.isRecoveryCancellationRequested());
         shard.ensureRecoveryNotCancelled();
         closeShards(shard);
     }
@@ -3964,6 +3965,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(shard.state(), equalTo(IndexShardState.CREATED));
         shard.requestRecoveryCancellation();
         shard.markAsRecovering("store");
+        assertTrue(shard.isRecoveryCancellationRequested());
         expectThrows(RecoveryCancelledException.class, shard::ensureRecoveryNotCancelled);
         closeShards(shard);
     }
@@ -3972,6 +3974,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final IndexShard shard = reinitShard(newStartedShard(true));
         shard.markAsRecovering("store");
         shard.requestRecoveryCancellation();
+        assertTrue(shard.isRecoveryCancellationRequested());
         expectThrows(RecoveryCancelledException.class, shard::ensureRecoveryNotCancelled);
         closeShards(shard);
     }
@@ -3982,6 +3985,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         shard.requestRecoveryCancellation();
         shard.markAsRecovering("store");
+        assertTrue(shard.isRecoveryCancellationRequested());
         expectThrows(RecoveryCancelledException.class, shard::ensureRecoveryNotCancelled);
         closeShards(shard);
     }
@@ -3993,6 +3997,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final IndexShard replica = newShard(primary.shardId(), false, "node2", metadata, null);
         replica.markAsRecovering("peer");
         replica.requestRecoveryCancellation();
+        assertTrue(replica.isRecoveryCancellationRequested());
         expectThrows(RecoveryCancelledException.class, replica::ensureRecoveryNotCancelled);
         closeShards(primary, replica);
     }
@@ -4006,6 +4011,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         replica.requestRecoveryCancellation();
         replica.markAsRecovering("peer");
+        assertTrue(replica.isRecoveryCancellationRequested());
         expectThrows(RecoveryCancelledException.class, replica::ensureRecoveryNotCancelled);
 
         closeShards(primary, replica);

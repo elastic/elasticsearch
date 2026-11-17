@@ -4623,6 +4623,12 @@ public class EsqlCapabilities {
         NAMED_SUBQUERY_LET(Build.current().isSnapshot()),
 
         /**
+         * {@code METADATA _class, _name} on a {@code LET} binding referenced in {@code FROM} answers {@code subquery} and the
+         * binding name, instead of {@code null} for both.
+         */
+        NAMED_SUBQUERY_LET_METADATA_CLASS_AND_NAME(Build.current().isSnapshot()),
+
+        /**
          * {@code DESCRIBE} returns one row per input column with its role, origin, metric type, unit and a usage hint,
          * and {@code column_metadata} reports the same field semantics as {@code _meta.field}.
          */

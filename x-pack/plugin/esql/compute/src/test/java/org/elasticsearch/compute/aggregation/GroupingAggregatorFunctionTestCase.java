@@ -103,6 +103,21 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         return simpleWithMode(options, mode, Function.identity());
     }
 
+    /**
+     * The key the tests group by. Half the time it is built as the index's primary sort field, which hands its group ids
+     * to the aggregators as runs; that must agree with the plain path for any ids, sorted or not.
+     */
+    private BlockHash.GroupSpec longGroup() {
+        primarySortedGroup = randomBoolean();
+        return new BlockHash.GroupSpec(0, ElementType.LONG, null, null, primarySortedGroup);
+    }
+
+    /**
+     * Whether the last {@link #longGroup()} was built as the primary sort field. A hash built that way says so in its
+     * {@link Object#toString}.
+     */
+    private boolean primarySortedGroup;
+
     protected List<Integer> channels(AggregatorMode mode) {
         return mode.isInputPartial()
             ? range(1, 1 + aggregatorIntermediateBlockCount()).boxed().toList()
@@ -127,14 +142,14 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
 
         if (options.requiresDeterministicFactory()) {
             return HashAggregationOperatorTests.randomBuilder()
-                .groups(List.of(new BlockHash.GroupSpec(0, ElementType.LONG)))
+                .groups(List.of(longGroup()))
                 .mode(mode)
                 .aggregators(List.of(supplier.groupingAggregatorFactory(mode, channels(mode))))
                 .build();
         } else {
 
             return new RandomizingHashAggregationOperatorFactory(
-                new HashAggregationOperator.Builder().groups(List.of(new BlockHash.GroupSpec(0, ElementType.LONG)))
+                new HashAggregationOperator.Builder().groups(List.of(longGroup()))
                     .mode(mode)
                     .aggregators(List.of(supplier.groupingAggregatorFactory(mode, channels(mode))))
                     .partialEmit(between(1, 1000), randomDoubleBetween(0.1, 1.0, true))
@@ -151,7 +166,9 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
 
     @Override
     protected final Matcher<String> expectedToStringOfSimple() {
-        String hash = "blockHash=LongBlockHash{channel=0, entries=0, seenNull=false}";
+        String hash = "blockHash=LongBlockHash{channel=0, entries=0, seenNull=false"
+            + (primarySortedGroup ? ", primarySorted=true, sortedPages=0" : "")
+            + "}";
         return equalTo(
             "HashAggregationOperator["
                 + hash
@@ -372,7 +389,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
 
     private Operator.OperatorFactory chunkedFactory(AggregatorMode mode) {
         return HashAggregationOperatorTests.randomBuilder()
-            .groups(List.of(new BlockHash.GroupSpec(0, ElementType.LONG)))
+            .groups(List.of(longGroup()))
             .mode(mode)
             .aggregators(List.of(aggregatorFunction().groupingAggregatorFactory(mode, channels(mode))))
             .maxPageSize(1)

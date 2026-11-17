@@ -106,6 +106,24 @@ public interface GroupingAggregatorFunction extends Releasable {
          *                 or multivalued
          */
         void add(int positionOffset, IntVector groupIds);
+
+        /**
+         * Send a page of group ids that the hash already split into {@link GroupRuns runs}, which it does when the grouping
+         * key is the field the index is sorted on, so equal keys are adjacent. An implementation can combine a whole run
+         * and touch its group's state once, instead of once per position.
+         * <p>
+         *     The runs are a statement about the shape of the ids, never about their order: a group may appear in many
+         *     runs, and the result must equal what {@link #add(int, IntVector)} produces for the expanded ids. The default
+         *     does exactly that.
+         * </p>
+         * @param positionOffset offset into the {@link Page} used to build this {@link AddInput} of the first run
+         * @param runs the runs. They are only valid until this method returns.
+         */
+        default void addRuns(int positionOffset, GroupRuns runs) {
+            try (IntVector groupIds = runs.toVector()) {
+                add(positionOffset, groupIds);
+            }
+        }
     }
 
     /**

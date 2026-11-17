@@ -92,13 +92,18 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunctio
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
+import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec.Sort;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
+import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
+import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.ReadDimsExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.DriverParallelism;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
@@ -655,6 +660,50 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         int instanceCount = Math.max(1, luceneFactory.taskConcurrency());
         context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, instanceCount));
         return PhysicalOperation.fromSource(luceneFactory, layout.build());
+    }
+
+    @Override
+    protected boolean isGroupKeyPrimarySortField(FieldAttribute fieldAttribute, AggregateExec aggregateExec) {
+        if (aggregateExec.getMode().isInputPartial()) {
+            // Only a stage reading raw rows directly from Lucene (INITIAL, SINGLE) can rely on the index sort order;
+            // a stage merging intermediate state from other nodes (INTERMEDIATE, FINAL) has no such guarantee.
+            return false;
+        }
+        EsQueryExec esQueryExec = findEsQueryExec(aggregateExec.child());
+        if (esQueryExec == null || (esQueryExec.sorts() != null && esQueryExec.sorts().isEmpty() == false)) {
+            // A competing ORDER BY pushed down as a Lucene sort means rows are not read in the index's native sort order.
+            return false;
+        }
+        if (shardContexts.isEmpty()) {
+            return false;
+        }
+        String fieldName = getFieldName(fieldAttribute);
+        // Decided once per fragment: if any shard contributing to it is not sorted on the field, none of them is treated as such.
+        for (ShardContext shardContext : shardContexts.iterable()) {
+            if (shardContext.indexSettings().getIndexSortConfig().hasPrimarySortOnField(fieldName) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Walks down the child subtree of an {@link AggregateExec} looking for the {@link EsQueryExec} feeding it, skipping the
+     * nodes a {@code STATS ... BY} is commonly planned with. None of {@link FilterExec}, {@link ProjectExec},
+     * {@link FieldExtractExec} or {@link EvalExec} reorders rows, so the sort order of the source still holds above them.
+     * Returns {@code null} when no {@link EsQueryExec} is found, for example when the aggregation does not read directly
+     * from a Lucene source.
+     */
+    @Nullable
+    private static EsQueryExec findEsQueryExec(PhysicalPlan plan) {
+        PhysicalPlan current = plan;
+        while (current instanceof FilterExec
+            || current instanceof ProjectExec
+            || current instanceof FieldExtractExec
+            || current instanceof EvalExec) {
+            current = ((UnaryExec) current).child();
+        }
+        return current instanceof EsQueryExec esQueryExec ? esQueryExec : null;
     }
 
     List<ValuesSourceReaderOperator.FieldInfo> extractFields(FieldExtractExec fieldExtractExec) {

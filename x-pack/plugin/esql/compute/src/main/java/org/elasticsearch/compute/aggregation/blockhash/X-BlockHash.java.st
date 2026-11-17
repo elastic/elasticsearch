@@ -13,6 +13,9 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.$Hash$Table;
+$if(long || int)$
+import org.elasticsearch.compute.aggregation.GroupRuns;
+$endif$
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -69,6 +72,25 @@ $endif$
      */
     private boolean seenNull;
 
+$if(long || int)$
+    /**
+     * When {@code true}, the input to {@link #add(Page, GroupingAggregatorFunction.AddInput)} is known to arrive from Lucene
+     * ordered by this field (it is the shard's primary {@code index.sort.field}), so equal values are adjacent. Pages without
+     * nulls or multivalues are then split into {@link GroupRuns runs} of equal values that are hashed once each.
+     */
+    private final boolean primarySorted;
+
+    /**
+     * Scratch for the runs of the page being added, reused for every page. Only created for a {@link #primarySorted} hash.
+     */
+    private GroupRuns runs;
+
+    /**
+     * How many pages took the runs path, so a profile can confirm that the sorted path was really used.
+     */
+    private long sortedPages;
+
+$endif$
 $if(BytesRef)$
     private static final int PREFETCH_BATCH = 128;
     private final PrefetchBarrier prefetchBarrier = new PrefetchBarrier();
@@ -87,11 +109,25 @@ $if(long)$
     private final int[] batchHashes = new int[PREFETCH_BATCH];
 $endif$
 
+$if(long || int)$
+    $Type$BlockHash(int channel, BlockFactory blockFactory, boolean primarySorted) {
+        super(blockFactory);
+        this.channel = channel;
+        this.hash = HashImplFactory.new$Hash$(blockFactory);
+        this.primarySorted = primarySorted;
+    }
+
+    $Type$BlockHash(int channel, BlockFactory blockFactory) {
+        this(channel, blockFactory, false);
+    }
+
+$else$
     $Type$BlockHash(int channel, BlockFactory blockFactory) {
         super(blockFactory);
         this.channel = channel;
         this.hash = HashImplFactory.new$Hash$(blockFactory);
     }
+$endif$
 
     @Override
     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
@@ -113,6 +149,12 @@ $if(hasVector)$
             }
             return;
         }
+$if(long || int)$
+        if (primarySorted && vector.getPositionCount() > 0) {
+            addRuns(vector, addInput);
+            return;
+        }
+$endif$
         try (IntVector groupIds = add(vector)) {
             addInput.add(0, groupIds);
         }
@@ -168,6 +210,59 @@ $endif$
     }
 $endif$
 
+$if(long || int)$
+    /**
+     * Path of {@link #add(Page, GroupingAggregatorFunction.AddInput)} for a {@link #primarySorted} vector page. First finds the
+     * runs of equal adjacent values with a plain comparison per row, then hashes one value per run and hands the runs
+     * to the aggregators, which then do not have to look for the same boundaries again.
+     * <p>
+     *     Splitting the work in two keeps the prefetching hash lookups available: even when the key is nearly unique and
+     *     every run has one row, the run values are still hashed in prefetched batches.
+     * </p>
+     */
+    private void addRuns($Type$Vector vector, GroupingAggregatorFunction.AddInput addInput) {
+        if (runs == null) {
+            runs = new GroupRuns(blockFactory);
+        }
+        sortedPages++;
+        runs.reset();
+        int positions = vector.getPositionCount();
+        $type$ prev = vector.get$Type$(0);
+        for (int i = 1; i < positions; i++) {
+            $type$ v = vector.get$Type$(i);
+            if (v != prev) {
+                runs.appendRunEnd(i);
+                prev = v;
+            }
+        }
+        runs.appendRunEnd(positions);
+        int runCount = runs.runCount();
+$if(long)$
+        if (hash instanceof LongSwissHash swiss && swiss.shouldPrefetch()) {
+            int dummy = 0;
+            for (int offset = 0; offset < runCount; offset += PREFETCH_BATCH) {
+                int batchSize = Math.min(PREFETCH_BATCH, runCount - offset);
+                for (int i = 0; i < batchSize; i++) {
+                    batchHashes[i] = LongSwissHash.hash(vector.getLong(runs.start(offset + i)));
+                    dummy ^= swiss.prefetch(batchHashes[i]);
+                }
+                for (int i = 0; i < batchSize; i++) {
+                    final long id = swiss.addWithHash(vector.getLong(runs.start(offset + i)), batchHashes[i]);
+                    runs.setGroupId(offset + i, Math.toIntExact(hashOrdToGroupNullReserved(id)));
+                }
+            }
+            prefetchBarrier.consume(dummy);
+            addInput.addRuns(0, runs);
+            return;
+        }
+$endif$
+        for (int run = 0; run < runCount; run++) {
+            runs.setGroupId(run, Math.toIntExact(hashOrdToGroupNullReserved(hash.add(vector.get$Type$(runs.start(run))))));
+        }
+        addInput.addRuns(0, runs);
+    }
+
+$endif$
 $if(BytesRef)$
     private IntVector addWithPrefetch(BytesRefVector vector, BytesRefSwissHash swiss) {
         int positions = vector.getPositionCount();
@@ -588,6 +683,11 @@ $elseif(DoubleRange)$
         b.append(", size=").append(ByteSizeValue.ofBytes(hash.ramBytesUsed()));
 $endif$
         b.append(", seenNull=").append(seenNull);
+$if(long || int)$
+        if (primarySorted) {
+            b.append(", primarySorted=true, sortedPages=").append(sortedPages);
+        }
+$endif$
         return b.append('}').toString();
     }
 }

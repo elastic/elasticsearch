@@ -13,6 +13,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.LongHashTable;
+import org.elasticsearch.compute.aggregation.GroupRuns;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -56,10 +57,32 @@ final class IntBlockHash extends PartitionedBlockHash {
      */
     private boolean seenNull;
 
-    IntBlockHash(int channel, BlockFactory blockFactory) {
+    /**
+     * When {@code true}, the input to {@link #add(Page, GroupingAggregatorFunction.AddInput)} is known to arrive from Lucene
+     * ordered by this field (it is the shard's primary {@code index.sort.field}), so equal values are adjacent. Pages without
+     * nulls or multivalues are then split into {@link GroupRuns runs} of equal values that are hashed once each.
+     */
+    private final boolean primarySorted;
+
+    /**
+     * Scratch for the runs of the page being added, reused for every page. Only created for a {@link #primarySorted} hash.
+     */
+    private GroupRuns runs;
+
+    /**
+     * How many pages took the runs path, so a profile can confirm that the sorted path was really used.
+     */
+    private long sortedPages;
+
+    IntBlockHash(int channel, BlockFactory blockFactory, boolean primarySorted) {
         super(blockFactory);
         this.channel = channel;
         this.hash = HashImplFactory.newLongHash(blockFactory);
+        this.primarySorted = primarySorted;
+    }
+
+    IntBlockHash(int channel, BlockFactory blockFactory) {
+        this(channel, blockFactory, false);
     }
 
     @Override
@@ -81,6 +104,10 @@ final class IntBlockHash extends PartitionedBlockHash {
             }
             return;
         }
+        if (primarySorted && vector.getPositionCount() > 0) {
+            addRuns(vector, addInput);
+            return;
+        }
         try (IntVector groupIds = add(vector)) {
             addInput.add(0, groupIds);
         }
@@ -98,6 +125,38 @@ final class IntBlockHash extends PartitionedBlockHash {
             }
             return builder.build();
         }
+    }
+
+    /**
+     * Path of {@link #add(Page, GroupingAggregatorFunction.AddInput)} for a {@link #primarySorted} vector page. First finds the
+     * runs of equal adjacent values with a plain comparison per row, then hashes one value per run and hands the runs
+     * to the aggregators, which then do not have to look for the same boundaries again.
+     * <p>
+     *     Splitting the work in two keeps the prefetching hash lookups available: even when the key is nearly unique and
+     *     every run has one row, the run values are still hashed in prefetched batches.
+     * </p>
+     */
+    private void addRuns(IntVector vector, GroupingAggregatorFunction.AddInput addInput) {
+        if (runs == null) {
+            runs = new GroupRuns(blockFactory);
+        }
+        sortedPages++;
+        runs.reset();
+        int positions = vector.getPositionCount();
+        int prev = vector.getInt(0);
+        for (int i = 1; i < positions; i++) {
+            int v = vector.getInt(i);
+            if (v != prev) {
+                runs.appendRunEnd(i);
+                prev = v;
+            }
+        }
+        runs.appendRunEnd(positions);
+        int runCount = runs.runCount();
+        for (int run = 0; run < runCount; run++) {
+            runs.setGroupId(run, Math.toIntExact(hashOrdToGroupNullReserved(hash.add(vector.getInt(runs.start(run))))));
+        }
+        addInput.addRuns(0, runs);
     }
 
     /**
@@ -293,6 +352,9 @@ final class IntBlockHash extends PartitionedBlockHash {
         b.append("IntBlockHash{channel=").append(channel);
         b.append(", entries=").append(hash.size());
         b.append(", seenNull=").append(seenNull);
+        if (primarySorted) {
+            b.append(", primarySorted=true, sortedPages=").append(sortedPages);
+        }
         return b.append('}').toString();
     }
 }

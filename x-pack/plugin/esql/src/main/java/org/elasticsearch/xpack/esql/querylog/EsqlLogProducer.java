@@ -82,6 +82,9 @@ public class EsqlLogProducer implements ActivityLogProducer<EsqlCaptureContext> 
             msg.field(PROFILE_PREFIX + "read_cpu_nanos", rollup.readCpuNanos());
             msg.field(PROFILE_PREFIX + "cpu_nanos", rollup.cpuNanos());
             msg.field(PROFILE_PREFIX + "driver_nanos", rollup.driverNanos());
+            msg.field(PROFILE_PREFIX + "search_load_nanos", rollup.searchLoadNanos());
+            msg.field(PROFILE_PREFIX + "search_cpu_nanos", rollup.searchCpuNanos());
+            msg.field(PROFILE_PREFIX + "search_waiting_nanos", rollup.searchWaitingNanos());
         });
         var clusters = context.getClusters();
         var remotes = context.getRemoteClusterAliases(clusters);

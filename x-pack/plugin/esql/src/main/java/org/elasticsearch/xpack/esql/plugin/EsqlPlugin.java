@@ -989,13 +989,20 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             // consume their output. Max is the heap- and CPU-scaled concurrency knob (memory-capped,
             // ceiling 100, or a max_concurrent_requests override still clipped by the memory term) that also
             // sizes the permit semaphore, so pool capacity tracks the concurrency the reads are permitted.
-            // Scales from 0 so idle nodes pay nothing.
+            // Scales from 0 so idle nodes pay nothing. Tracks execution time so TaskLoadAttribution.charging
+            // can attribute CPU of I/O tasks to the query (wall time is dropped by the CPU-only adapter).
             new ScalingExecutorBuilder(
                 EXTERNAL_IO_THREAD_POOL_NAME,
                 0,
                 ExternalSourceSettings.externalIoThreads(settings),
                 TimeValue.timeValueSeconds(30),
-                false
+                false,
+                "thread_pool." + EXTERNAL_IO_THREAD_POOL_NAME,
+                EsExecutors.TaskTrackingConfig.builder()
+                    .trackExecutionTime(ESQL_WORKER_EXECUTION_TIME_EWMA_ALPHA)
+                    .attributeTaskLoad()
+                    .build(),
+                EsExecutors.HotThreadsOnLargeQueueConfig.DISABLED
             )
         );
     }

@@ -27,6 +27,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
@@ -67,6 +68,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -144,6 +146,7 @@ import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rank.feature.RankFeatureShardRequest;
 import org.elasticsearch.search.rank.feature.RankFeatureShardResult;
+import org.elasticsearch.search.scheduling.QueryLoad;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelHelper;
@@ -3874,6 +3877,58 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                 assertTrue(IndicesService.canCache(sizeZeroShardRequest, ctx));
             }
         }
+    }
+
+    /**
+     * Parallel segment searches are charged to the phase that created the context.
+     */
+    public void testSlicesAreChargedToThePhaseOfTheirContext() throws Exception {
+        IndexService indexService = createIndex("index", Settings.EMPTY);
+        Executor executor = indexService.getThreadPool().executor(ThreadPool.Names.SEARCH);
+        for (int i = 0; i < 30; i++) {
+            prepareIndex("index").setId(String.valueOf(i)).setSource("field", "value").get();
+            if (i % 5 == 0) {
+                indicesAdmin().prepareRefresh("index").get();
+            }
+        }
+        final IndexShard indexShard = indexService.getShard(0);
+        ShardSearchRequest request = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            new SearchRequest().allowPartialSearchResults(randomBoolean()),
+            indexShard.shardId(),
+            0,
+            indexService.numberOfShards(),
+            AliasFilter.EMPTY,
+            1f,
+            System.currentTimeMillis(),
+            null
+        );
+        SearchService service = getInstanceFromNode(SearchService.class);
+        QueryLoad phaseLoad = new QueryLoad();
+        TaskLoadAttribution.Target phaseTarget = phaseLoad.charging(indexShard.shardSearchStats().searchLoadTarget());
+        long chargedBefore = indexShard.shardSearchStats().totalSearchLoadNanos();
+        try (ReaderContext readerContext = createReaderContext(indexService, indexShard)) {
+            SearchShardTask task = new SearchShardTask(0, "type", "action", "description", null, emptyMap());
+            PlainActionFuture<SearchContext> created = new PlainActionFuture<>();
+            executor.execute(ActionRunnable.supply(created, () -> {
+                TaskLoadAttribution.attribute(phaseTarget);
+                return service.createContext(readerContext, request, task, ResultsType.QUERY, true);
+            }));
+            try (SearchContext searchContext = created.get()) {
+                ContextIndexSearcher searcher = searchContext.searcher();
+                assertTrue(searcher.hasExecutor());
+                assertThat(searcher.getSlices().length, greaterThan(1));
+                searcher.search(
+                    new NonCountingTermQuery(new Term("field", "value")),
+                    new TotalHitCountCollectorManager(searcher.getSlices())
+                );
+            }
+        }
+        assertBusy(() -> {
+            long charged = indexShard.shardSearchStats().totalSearchLoadNanos() - chargedBefore;
+            assertThat(charged, greaterThan(0L));
+            assertThat(phaseLoad.nanos(), equalTo(charged));
+        });
     }
 
     /**

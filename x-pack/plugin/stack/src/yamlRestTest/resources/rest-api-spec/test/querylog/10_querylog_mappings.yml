@@ -1,0 +1,44 @@
+---
+setup:
+  # Wait for the query log template registry to finish installing its templates.
+  - do:
+      cluster.health:
+        wait_for_events: languid
+
+---
+teardown:
+  - do:
+      indices.delete_data_stream:
+        name: logs-elasticsearch.querylog-default
+        ignore: 404
+
+---
+"Search load fields of both engines are mapped as non indexed longs":
+  - do:
+      index:
+        index: logs-elasticsearch.querylog-default
+        op_type: create
+        refresh: true
+        body:
+          "@timestamp": "2026-11-15T00:00:00Z"
+          elasticsearch.querylog.search_load_nanos: 3000
+          elasticsearch.querylog.search_cpu_nanos: 2000
+          elasticsearch.querylog.search_waiting_nanos: 1000
+          elasticsearch.querylog.esql.profile.search_load_nanos: 3000
+          elasticsearch.querylog.esql.profile.search_cpu_nanos: 2000
+          elasticsearch.querylog.esql.profile.search_waiting_nanos: 1000
+
+  - do:
+      indices.get_data_stream:
+        name: logs-elasticsearch.querylog-default
+  - set: { data_streams.0.indices.0.index_name: idx }
+
+  - do:
+      indices.get_mapping:
+        index: logs-elasticsearch.querylog-default
+  - match: { $body.$idx.mappings.properties.elasticsearch.properties.querylog.properties.search_load_nanos: { type: long, index: false } }
+  - match: { $body.$idx.mappings.properties.elasticsearch.properties.querylog.properties.search_cpu_nanos: { type: long, index: false } }
+  - match: { $body.$idx.mappings.properties.elasticsearch.properties.querylog.properties.search_waiting_nanos: { type: long, index: false } }
+  - match: { $body.$idx.mappings.properties.elasticsearch.properties.querylog.properties.esql.properties.profile.properties.search_load_nanos: { type: long, index: false } }
+  - match: { $body.$idx.mappings.properties.elasticsearch.properties.querylog.properties.esql.properties.profile.properties.search_cpu_nanos: { type: long, index: false } }
+  - match: { $body.$idx.mappings.properties.elasticsearch.properties.querylog.properties.esql.properties.profile.properties.search_waiting_nanos: { type: long, index: false } }

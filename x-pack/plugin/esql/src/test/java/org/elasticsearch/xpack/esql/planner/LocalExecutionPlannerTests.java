@@ -30,8 +30,11 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -172,6 +175,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -746,6 +750,67 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         assertThat(context.fileReadExecutor(), sameInstance(fileRead));
     }
 
+    /**
+     * {@code executeProducer} submits an {@link AbstractRunnable} with force-execution through the
+     * planner-wrapped producer executor. Wrapping the executor (never the task) must keep the force
+     * flag and still call {@code onRejection}.
+     */
+    public void testPlanExternalSourceChargingPreservesForceExecution() throws IOException {
+        AtomicReference<SourceOperatorContext> captured = new AtomicReference<>();
+        AtomicBoolean forceSeen = new AtomicBoolean();
+        AtomicBoolean rejected = new AtomicBoolean();
+        Executor producer = command -> {
+            assertThat(command, instanceOf(AbstractRunnable.class));
+            forceSeen.set(((AbstractRunnable) command).isForceExecution());
+            ((AbstractRunnable) command).onRejection(new EsRejectedExecutionException("full", false));
+        };
+        OperatorFactoryRegistry operatorFactoryRegistry = new OperatorFactoryRegistry(
+            Map.of(),
+            Map.of("file", capturingProvider(captured)),
+            producer,
+            r -> r.run()
+        );
+        planner(
+            operatorFactoryRegistry,
+            true,
+            null,
+            true,
+            new LocalExecutionPlanner.ExternalComputeContext(new TaskId("test-node", 7), (nanos, cpuNanos, finishNanos) -> {}, null)
+        ).plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            simpleFileSource(),
+            EmptyIndexedByShardId.instance(),
+            randomBoolean()
+        );
+
+        AbstractRunnable forceTask = new AbstractRunnable() {
+            @Override
+            public boolean isForceExecution() {
+                return true;
+            }
+
+            @Override
+            protected void doRun() {
+                fail("must not run when rejected");
+            }
+
+            @Override
+            public void onRejection(Exception e) {
+                rejected.set(true);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail(e.toString());
+            }
+        };
+        captured.get().executor().execute(forceTask);
+        assertTrue(forceSeen.get());
+        assertTrue(rejected.get());
+    }
+
     public void testPlanExternalFieldExtractWrapsFileReadExecutor() throws IOException {
         Executor producer = r -> r.run();
         Executor fileRead = r -> r.run();
@@ -822,6 +887,27 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         } finally {
             terminate(threadPool);
         }
+    }
+
+    public void testCpuOnlyChargesCpuAsLoad() {
+        AtomicLong wall = new AtomicLong();
+        AtomicLong cpu = new AtomicLong();
+        AtomicLong finish = new AtomicLong();
+        TaskLoadAttribution.Target inner = (nanos, cpuNanos, finishNanos) -> {
+            wall.addAndGet(nanos);
+            cpu.addAndGet(cpuNanos);
+            finish.set(finishNanos);
+        };
+        var cpuOnly = LocalExecutionPlanner.ExternalComputeContext.cpuOnly(inner);
+        cpuOnly.charge(100, 40, 7);
+        assertThat(wall.get(), equalTo(40L));
+        assertThat(cpu.get(), equalTo(40L));
+        assertThat(finish.get(), equalTo(7L));
+        wall.set(0);
+        cpu.set(0);
+        cpuOnly.charge(100, 0, 0);
+        assertThat("blocked I/O (CPU=0) must not inflate load", wall.get(), equalTo(0L));
+        assertThat(cpu.get(), equalTo(0L));
     }
 
     /**

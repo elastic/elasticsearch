@@ -128,7 +128,10 @@ public class EsqlCaptureContext extends QueryCaptureContext {
                 response.readNanos(),
                 response.readCpuNanos(),
                 response.cpuNanos(),
-                response.driverNanos()
+                response.driverNanos(),
+                response.searchLoadNanos(),
+                response.searchCpuNanos(),
+                response.searchWaitingNanos()
             )
         );
     }
@@ -142,7 +145,10 @@ public class EsqlCaptureContext extends QueryCaptureContext {
         long readNanos,
         long readCpuNanos,
         long cpuNanos,
-        long driverNanos
+        long driverNanos,
+        long searchLoadNanos,
+        long searchCpuNanos,
+        long searchWaitingNanos
     ) {}
 
     @Override

@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.core.CheckedRunnable;
@@ -309,14 +310,22 @@ public class DriverContext {
      * <p>
      * Hand off to another thread that can let the driver finish only after {@code work} returns. The driver publishes
      * its final status once the async actions are done, and CPU time added after that is not counted. Removing an async
-     * action inside {@code work} is safe, see {@link #removeAsyncAction()}.
+     * action inside {@code work} is safe, see {@link #removeAsyncAction()}. For the same reason, the pool task running
+     * {@code work} is charged its search load so far when {@code work} returns.
      * <p>
      * Measures nothing when the current thread's innermost open measurement already belongs to this driver, such as
      * inside {@link Driver#run}. Otherwise pauses the innermost open measurement, such as another driver's, until
      * {@code work} returns. See {@link CpuTracker}.
      */
     public <T, E extends Exception> T meteredCpu(CheckedSupplier<T, E> work) throws E {
-        return cpuTracker.meteredCpu(work);
+        try {
+            return cpuTracker.meteredCpu(work);
+        } finally {
+            TaskLoadAttribution.Target target = TaskLoadAttribution.target();
+            if (target != null) {
+                TaskLoadAttribution.chargeSoFar(target, System.nanoTime());
+            }
+        }
     }
 
     /** {@link #meteredCpu(CheckedSupplier)} for work that returns nothing. */

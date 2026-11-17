@@ -9,8 +9,11 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -20,6 +23,10 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_POOL_SIZE;
@@ -190,5 +197,106 @@ public class EsqlWorkerThreadPoolTests extends ESTestCase {
             .orElseThrow(() -> new AssertionError("queue_size setting not registered"));
 
         assertEquals(expectedQueueSize, queueSizeSetting.getDefault(Settings.EMPTY));
+    }
+
+    public void testExternalIoPoolTracksExecutionTime() throws Exception {
+        EsqlPlugin plugin = new EsqlPlugin();
+        var builders = plugin.getExecutorBuilders(Settings.EMPTY);
+        var threadPool = new TestThreadPool(getTestName(), builders.get(0), builders.get(1));
+        try {
+            assertThat(threadPool.executor(EXTERNAL_IO_THREAD_POOL_NAME), instanceOf(TaskExecutionTimeTrackingEsThreadPoolExecutor.class));
+            var io = (TaskExecutionTimeTrackingEsThreadPoolExecutor) threadPool.executor(EXTERNAL_IO_THREAD_POOL_NAME);
+            io.execute(() -> spinNanos(25_000));
+            assertBusy(() -> assertThat(io.getCompletedTaskCount(), equalTo(1L)));
+            assertThat("no target, so the pool attributes nothing", io.getAttributedTaskExecutionTime(), equalTo(0L));
+
+            AtomicLong charged = new AtomicLong();
+            Executor charging = TaskLoadAttribution.charging(io, (nanos, cpuNanos, finishNanos) -> charged.addAndGet(nanos));
+            charging.execute(() -> spinNanos(25_000));
+            assertBusy(() -> assertThat(charged.get(), greaterThan(0L)));
+            assertThat(io.getAttributedTaskExecutionTime(), greaterThan(0L));
+        } finally {
+            terminate(threadPool);
+        }
+    }
+
+    /**
+     * {@code executeProducer} submits an {@link AbstractRunnable} with {@code isForceExecution=true}.
+     * Wrapping the executor (never the task) must keep the force flag and still call {@code onRejection}.
+     */
+    public void testChargingPreservesForceExecutionAndOnRejection() throws Exception {
+        EsqlPlugin plugin = new EsqlPlugin();
+        var builders = plugin.getExecutorBuilders(Settings.EMPTY);
+        var threadPool = new TestThreadPool(getTestName(), builders.get(0), builders.get(1));
+        try {
+            var worker = threadPool.executor(ESQL_WORKER_THREAD_POOL_NAME);
+            AtomicBoolean forceSeen = new AtomicBoolean();
+            Executor inspectThenRun = command -> {
+                assertThat(command, instanceOf(AbstractRunnable.class));
+                forceSeen.set(((AbstractRunnable) command).isForceExecution());
+                worker.execute(command);
+            };
+            AtomicBoolean ran = new AtomicBoolean();
+            AbstractRunnable forceTask = new AbstractRunnable() {
+                @Override
+                public boolean isForceExecution() {
+                    return true;
+                }
+
+                @Override
+                protected void doRun() {
+                    ran.set(true);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail(e.toString());
+                }
+            };
+            TaskLoadAttribution.charging(inspectThenRun, (nanos, cpuNanos, finishNanos) -> {}).execute(forceTask);
+            assertBusy(() -> assertTrue(ran.get()));
+            assertTrue("charging wrapper must keep isForceExecution", forceSeen.get());
+
+            AtomicBoolean rejected = new AtomicBoolean();
+            AtomicReference<Exception> failure = new AtomicReference<>();
+            Executor rejecting = command -> {
+                assertThat(command, instanceOf(AbstractRunnable.class));
+                assertTrue(((AbstractRunnable) command).isForceExecution());
+                ((AbstractRunnable) command).onRejection(new EsRejectedExecutionException("full", false));
+            };
+            AbstractRunnable rejectedTask = new AbstractRunnable() {
+                @Override
+                public boolean isForceExecution() {
+                    return true;
+                }
+
+                @Override
+                protected void doRun() {
+                    fail("must not run when rejected");
+                }
+
+                @Override
+                public void onRejection(Exception e) {
+                    rejected.set(true);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    failure.set(e);
+                }
+            };
+            TaskLoadAttribution.charging(rejecting, (nanos, cpuNanos, finishNanos) -> {}).execute(rejectedTask);
+            assertTrue("rejection must call onRejection, not onFailure", rejected.get());
+            assertNull(failure.get());
+        } finally {
+            terminate(threadPool);
+        }
+    }
+
+    private static void spinNanos(long nanos) {
+        long start = System.nanoTime();
+        while (System.nanoTime() - start < nanos) {
+            Thread.onSpinWait();
+        }
     }
 }

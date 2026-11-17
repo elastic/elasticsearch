@@ -1190,6 +1190,82 @@ book_no:keyword | _score:double
 7400            | null
 ;
 
+// A nested union whose only _score is an explicit null in one branch, and is missing from the other, is still empty:
+// the missing column is null-filled during alignment. The scored sibling stays in charge, so the runtime match adds its
+// score to the sibling's rows and the nested union's rows stay null.
+subqueryInFromWithNestedExplicitNullAndMissingScoreThenRuntimeMatch
+required_capability: subquery_in_from_command
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: from_subquery_merge_keeps_metadata_score
+
+FROM (FROM (FROM books | WHERE year >= 2005 | EVAL _score = null::double), (FROM books | WHERE year < 2005) | LIMIT 100),
+     (FROM books METADATA _score)
+| EVAL content = TO_TEXT(CONCAT(title, " ", description))
+| WHERE MATCH(content, "Karenina Tolstoy")
+| KEEP book_no, _score
+| SORT book_no, _score NULLS LAST
+;
+
+book_no:keyword | _score:double
+2776            | 1.0
+2776            | null
+6818            | 1.0
+6818            | null
+7400            | 2.0
+7400            | null
+;
+
+// Same as above with the scored branch first: the position of the nested union does not matter.
+subqueryInFromWithScoredBranchBeforeNestedExplicitNullAndMissingScoreThenRuntimeMatch
+required_capability: subquery_in_from_command
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: from_subquery_merge_keeps_metadata_score
+
+FROM (FROM books METADATA _score),
+     (FROM (FROM books | WHERE year >= 2005 | EVAL _score = null::double), (FROM books | WHERE year < 2005) | LIMIT 100)
+| EVAL content = TO_TEXT(CONCAT(title, " ", description))
+| WHERE MATCH(content, "Karenina Tolstoy")
+| KEEP book_no, _score
+| SORT book_no, _score NULLS LAST
+;
+
+book_no:keyword | _score:double
+2776            | 1.0
+2776            | null
+6818            | 1.0
+6818            | null
+7400            | 2.0
+7400            | null
+;
+
+// A branch of a nested union that computed its own _score makes the nested union's _score a user-defined column, which
+// in turn keeps the outer union's _score out of scoring: neither the nested 100.0 nor the scored sibling's 0.0 baseline
+// gets the runtime match score added. The nested rows of the branch without a _score stay null.
+subqueryInFromWithUserDefinedScoreInNestedBranchThenRuntimeMatch
+required_capability: subquery_in_from_command
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: from_subquery_merge_keeps_metadata_score
+
+FROM (FROM (FROM books METADATA _score | WHERE year >= 2005 | EVAL _score = 100.0), (FROM books | WHERE year < 2005) | LIMIT 100),
+     (FROM books METADATA _score)
+| EVAL content = TO_TEXT(CONCAT(title, " ", description))
+| WHERE MATCH(content, "Karenina Tolstoy")
+| KEEP book_no, _score
+| SORT book_no, _score NULLS LAST
+;
+
+book_no:keyword | _score:double
+2776            | 0.0
+2776            | null
+6818            | 0.0
+6818            | 100.0
+7400            | 0.0
+7400            | 100.0
+;
+
 // A null column renamed to _score is as empty as one null-filled under that name.
 subqueryInFromWithRenamedNullScoreThenRuntimeMatch
 required_capability: subquery_in_from_command

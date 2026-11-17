@@ -2293,6 +2293,45 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         }
     }
 
+    /**
+     * Test null-only {@code _score} branch or branch with missing {@code _score} in a nested UnionAll is recognized correctly.
+     */
+    public void testUnionAllMergesScoreAsMetadataWithNestedUnionAll() {
+        for (String from : List.of(
+            "FROM (FROM (FROM test METADATA _score), (FROM test) | LIMIT 5), (FROM test)",
+            "FROM (FROM test), (FROM (FROM test METADATA _score), (FROM test) | LIMIT 5)",
+            "FROM (FROM (FROM test), (FROM test) | LIMIT 5), (FROM test METADATA _score)",
+            "FROM (FROM test METADATA _score), (FROM (FROM test), (FROM test) | LIMIT 5)",
+            "FROM (FROM (FROM test METADATA _score), (FROM test) | LIMIT 5), (FROM test | EVAL _score = null::double)",
+            "FROM (FROM test | EVAL _score = null::double), (FROM (FROM test METADATA _score), (FROM test) | LIMIT 5)",
+            "FROM (FROM (FROM test | EVAL _score = null::double), (FROM test) | LIMIT 5), (FROM test METADATA _score)",
+            "FROM (FROM test METADATA _score), (FROM (FROM test | EVAL _score = null::double), (FROM test) | LIMIT 5)",
+            "FROM (FROM (FROM test), (FROM test | EVAL _score = null::double) | LIMIT 5), (FROM test METADATA _score)"
+        )) {
+            Attribute score = mergedScore(from);
+            assertThat(from, score, instanceOf(MetadataAttribute.class));
+            assertThat(from, score.dataType(), is(DOUBLE));
+        }
+    }
+
+    /**
+     * Test score column is {@code MetadataAttribute} when a branch in nested UnionAll computes its own {@code _score}.
+     */
+    public void testUnionAllMergesScoreAsReferenceWithNestedUnionAll() {
+        for (String from : List.of(
+            "FROM (FROM (FROM test METADATA _score), (FROM test | EVAL _score = 1.0) | LIMIT 5), (FROM test)",
+            "FROM (FROM test), (FROM (FROM test METADATA _score), (FROM test | EVAL _score = 1.0) | LIMIT 5)",
+            "FROM (FROM (FROM test METADATA _score), (FROM test | EVAL _score = 1.0) | LIMIT 5), (FROM test METADATA _score)",
+            "FROM (FROM test METADATA _score), (FROM (FROM test METADATA _score), (FROM test | EVAL _score = 1.0) | LIMIT 5)",
+            "FROM (FROM (FROM test), (FROM test | EVAL _score = 1.0) | LIMIT 5), (FROM test METADATA _score)",
+            "FROM (FROM test METADATA _score), (FROM (FROM test), (FROM test | EVAL _score = 1.0) | LIMIT 5)"
+        )) {
+            Attribute score = mergedScore(from);
+            assertThat(from, score, instanceOf(ReferenceAttribute.class));
+            assertThat(from, score.dataType(), is(DOUBLE));
+        }
+    }
+
     /** The {@code _score} column of the {@link UnionAll} that {@code from} resolves to, with every branch aligned to it. */
     private Attribute mergedScore(String from) {
         LogicalPlan plan = analyzer().addEmployees("test").query(from);

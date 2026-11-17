@@ -37,7 +37,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
@@ -361,23 +360,20 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
                 });
                 case MergePlan merge -> {
                     if (merge.children().isEmpty() == false) {
-                        Set<String> nullsFromMerge = null;
+                        // A name is null-only if no branch outputs it as a non-null column. A branch that lacks the name
+                        // entirely contributes nulls, so it neither adds to nor removes from the result.
+                        Set<String> nullsFromMerge = new HashSet<>();
+                        Set<String> nonNullNames = new HashSet<>();
                         for (LogicalPlan child : merge.children()) {
-                            Set<String> nullsInBranch = child.output()
-                                .stream()
-                                .filter(attr -> onlyNull.contains(attr.id()))
-                                .map(Attribute::name)
-                                .collect(Collectors.toSet());
-
-                            if (nullsFromMerge == null) {
-                                nullsFromMerge = nullsInBranch;
-                            } else {
-                                nullsFromMerge.retainAll(nullsInBranch);
-                            }
-                            if (nullsFromMerge.isEmpty()) {
-                                break;
+                            for (Attribute childAttr : child.output()) {
+                                if (onlyNull.contains(childAttr.id())) {
+                                    nullsFromMerge.add(childAttr.name());
+                                } else {
+                                    nonNullNames.add(childAttr.name());
+                                }
                             }
                         }
+                        nullsFromMerge.removeAll(nonNullNames);
                         for (Attribute out : merge.output()) {
                             if (nullsFromMerge.contains(out.name())) {
                                 onlyNull.add(out.id());

@@ -370,15 +370,17 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction
             if (block.isNull(position)) {
                 return null;
             }
-            if (scratch == null) {
-                int dims = block.getValueCount(position);
-                if (dims > 0) {
-                    scratch = new float[dims];
-                }
+            int dims = block.getValueCount(position);
+            if (dims == 0) {
+                return null;
             }
-            if (scratch != null) {
-                readFloatArray(block, block.getFirstValueIndex(position), scratch);
+            // Expression-produced vectors (including external numeric lists) can vary in length within a Page.
+            // Read exactly this row so the similarity function can reject mismatched dimensions, rather than
+            // truncating a longer vector or reading values from the next row into a shorter one.
+            if (scratch == null || scratch.length != dims) {
+                scratch = new float[dims];
             }
+            readFloatArray(block, block.getFirstValueIndex(position), scratch);
             return scratch;
         }
 

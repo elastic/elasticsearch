@@ -1608,6 +1608,11 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
             viewSettings("SET unmapped_fields=\"load\"; PROMQL index=emp step=5m sum(network.bytes_in)").unmappedFields(),
             equalTo(UnmappedResolution.LOAD)
         );
+        // DEFAULT asks for the query type's own behavior, which for PromQL is to nullify.
+        assertThat(
+            viewSettings("SET unmapped_fields=\"default\"; PROMQL index=emp step=5m sum(network.bytes_in)").unmappedFields(),
+            equalTo(UnmappedResolution.NULLIFY)
+        );
         // The setting stays implicit: only an explicit SET counts as supplied by the view author.
         assertThat(viewSettings("PROMQL index=emp step=5m sum(network.bytes_in)").supplied(), empty());
     }

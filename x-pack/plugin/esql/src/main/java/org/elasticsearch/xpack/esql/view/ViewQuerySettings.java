@@ -83,8 +83,9 @@ public record ViewQuerySettings(
      * request body, which belongs to the caller: the cluster defaults in {@code clusterState} and {@code nodeSettings},
      * then the definition's {@code SET}. Call {@link #validate} first; this assumes the statement carries only allowed settings.
      * <p>
-     * A {@code PROMQL} body that does not {@code SET unmapped_fields} itself gets {@code NULLIFY}, whatever the cluster default,
-     * as a query containing {@code PROMQL} does in {@code EsqlSession}: PromQL treats a missing label or metric as absent. The
+     * A {@code PROMQL} body gets {@code NULLIFY}, as a query containing {@code PROMQL} does in {@code EsqlSession}: PromQL treats a
+     * missing label or metric as absent. Only the view's own {@code SET} of a mode other than {@code DEFAULT} overrides that.
+     * A cluster default does not, and {@code DEFAULT} means the query type's own behavior, which for PromQL is this one. The
      * view's own scope is where that belongs, so the view behaves the same whatever its caller {@code SET}s, and its
      * {@code PROMQL} does not change how the caller's query resolves.
      */
@@ -102,8 +103,8 @@ public record ViewQuerySettings(
             new SettingsValidationContext(false, true)
         );
         UnmappedResolution unmappedFields = QuerySettings.UNMAPPED_FIELDS.get(resolved);
-        if (supplied.contains(QuerySettings.UNMAPPED_FIELDS.name()) == false
-            && statement.plan().anyMatch(PromqlCommand.class::isInstance)) {
+        boolean viewSetsMode = supplied.contains(QuerySettings.UNMAPPED_FIELDS.name()) && unmappedFields != UnmappedResolution.DEFAULT;
+        if (viewSetsMode == false && statement.plan().anyMatch(PromqlCommand.class::isInstance)) {
             unmappedFields = UnmappedResolution.NULLIFY;
         }
         return new ViewQuerySettings(

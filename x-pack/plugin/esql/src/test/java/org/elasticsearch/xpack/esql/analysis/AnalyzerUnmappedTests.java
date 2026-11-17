@@ -2338,13 +2338,15 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     /**
      * PROMQL nullifies a missing label or metric, so the session analyzes any query containing PROMQL with NULLIFY. A caller
      * SET keeps view boundaries, and the PROMQL body of a view without its own SET must still be nullified in its own scope
-     * rather than fail with "Unknown column".
+     * rather than fail with "Unknown column". The same holds for a view that sets {@code unmapped_fields="default"}, which asks
+     * for PromQL's own behavior.
      */
     public void testCallerSetUnmappedNullifiesMissingLabelsInPromQlView() {
         assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
         for (String body : List.of(
             "PROMQL index=k8s step=5m sum(network.total_bytes_in{no_such_label=\"x\"})",
-            "PROMQL index=k8s step=5m sum(no_such_metric)"
+            "PROMQL index=k8s step=5m sum(no_such_metric)",
+            "SET unmapped_fields=\"default\"; PROMQL index=k8s step=5m sum(network.total_bytes_in{no_such_label=\"x\"})"
         )) {
             for (String query : List.of(setUnmappedNullify("FROM promql_view"), setUnmappedLoad("FROM promql_view"))) {
                 LogicalPlan plan = analyzer().addK8s().addView("promql_view", body).statement(query);

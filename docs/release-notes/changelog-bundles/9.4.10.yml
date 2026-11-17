@@ -1,0 +1,82 @@
+version: 9.4.10
+released: false
+generated: 2026-11-17T09:17:35.114895Z
+changelogs:
+  - pr: 156238
+    summary: Fix source filtering for fields containing backslashes
+    area: Search
+    type: bug
+    issues:
+      - 136302
+  - pr: 162670
+    summary: Skip already indexed buckets on downsample resume
+    area: Downsampling
+    type: bug
+    issues: []
+  - pr: 163257
+    summary: Update semantic highlighter to only use knn queries that target the highlighted field
+    area: Highlighting
+    type: bug
+    issues:
+      - 163241
+  - pr: 163541
+    summary: "Fix(security): hide doc values skippers of FLS-hidden fields"
+    area: Authorization
+    type: bug
+    issues: []
+  - pr: 163903
+    summary: "Fix(tsdb): retain legacy `_id` breaker reservations"
+    area: TSDB
+    type: bug
+    issues: []
+  - pr: 163937
+    summary: Fix NPE when previewing aggregated datafeed
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 164088
+    summary: Fix a byte buffer leak on proxy nodes handling batched query responses
+    area: Search
+    type: bug
+    issues: []
+  - pr: 164229
+    summary: Forbid changing searchable snapshot identity on restore
+    area: Searchable Snapshots
+    type: bug
+    issues: []
+  - pr: 164437
+    summary: Fix deadlock in `ChunkedZipResponse`
+    area: Infra/REST API
+    type: bug
+    issues: []
+  - pr: 164482
+    summary: Use confined arenas for temporary files when writing stored fields
+    area: Codec
+    type: bug
+    issues: []
+  - pr: 164529
+    summary: Make OTLP metric names hash order-independent
+    area: TSDB
+    type: bug
+    issues: []
+  - pr: 164595
+    summary: Emit the top docs of a driver that ends after the status interval
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 164602
+    summary: Keep implicit @timestamp off STATS groupings
+    area: ES|QL
+    type: bug
+    issues:
+      - 164599
+  - pr: 164870
+    summary: "[DiskBBQ] Wait for queue saturation in `DiversifyingNearestChildrenKnnCollector`"
+    area: Vector Search
+    type: bug
+    issues: []
+  - pr: 164933
+    summary: Handle exception from `cloneShardSnapshot`
+    area: Snapshot/Restore
+    type: bug
+    issues: []

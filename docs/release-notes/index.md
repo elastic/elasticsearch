@@ -20,6 +20,54 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % ### Fixes [elasticsearch-next-fixes]
 % *
 
+## 9.4.10 [elasticsearch-9.4.10-release-notes]
+```{applies_to}
+stack: ga 9.4.10
+```
+
+### Fixes [elasticsearch-9.4.10-fixes]
+
+Authorization:
+* Fix(security): hide doc values skippers of FLS-hidden fields [#163541](https://github.com/elastic/elasticsearch/pull/163541)
+
+Codec:
+* Use confined arenas for temporary files when writing stored fields [#164482](https://github.com/elastic/elasticsearch/pull/164482)
+
+Downsampling:
+* Skip already indexed buckets on downsample resume [#162670](https://github.com/elastic/elasticsearch/pull/162670)
+
+ES|QL:
+* Emit the top docs of a driver that ends after the status interval [#164595](https://github.com/elastic/elasticsearch/pull/164595)
+* Keep implicit @timestamp off STATS groupings [#164602](https://github.com/elastic/elasticsearch/pull/164602) (issue: [#164599](https://github.com/elastic/elasticsearch/issues/164599))
+
+Highlighting:
+* Update semantic highlighter to only use knn queries that target the highlighted field [#163257](https://github.com/elastic/elasticsearch/pull/163257) (issue: [#163241](https://github.com/elastic/elasticsearch/issues/163241))
+
+Infra/REST API:
+* Fix deadlock in `ChunkedZipResponse` [#164437](https://github.com/elastic/elasticsearch/pull/164437)
+
+Machine Learning:
+* Fix NPE when previewing aggregated datafeed [#163937](https://github.com/elastic/elasticsearch/pull/163937)
+
+Search:
+* Fix a byte buffer leak on proxy nodes handling batched query responses [#164088](https://github.com/elastic/elasticsearch/pull/164088)
+* Fix source filtering for fields containing backslashes [#156238](https://github.com/elastic/elasticsearch/pull/156238) (issue: [#136302](https://github.com/elastic/elasticsearch/issues/136302))
+
+Searchable Snapshots:
+* Forbid changing searchable snapshot identity on restore [#164229](https://github.com/elastic/elasticsearch/pull/164229)
+
+Snapshot/Restore:
+* Handle exception from `cloneShardSnapshot` [#164933](https://github.com/elastic/elasticsearch/pull/164933)
+
+TSDB:
+* Fix(tsdb): retain legacy `_id` breaker reservations [#163903](https://github.com/elastic/elasticsearch/pull/163903)
+* Make OTLP metric names hash order-independent [#164529](https://github.com/elastic/elasticsearch/pull/164529)
+
+Vector Search:
+* [DiskBBQ] Wait for queue saturation in `DiversifyingNearestChildrenKnnCollector` [#164870](https://github.com/elastic/elasticsearch/pull/164870)
+
+
+
 ## 9.5.6 [elasticsearch-9.5.6-release-notes]
 
 ### Highlights [elasticsearch-9.5.6-highlights]

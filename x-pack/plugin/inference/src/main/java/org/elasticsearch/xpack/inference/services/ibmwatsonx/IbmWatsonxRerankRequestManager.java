@@ -11,6 +11,7 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.external.http.HttpSettings;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.ExecutableInferenceRequest;
@@ -35,15 +36,22 @@ public class IbmWatsonxRerankRequestManager extends IbmWatsonxRequestManager {
         );
     }
 
-    public static IbmWatsonxRerankRequestManager of(IbmWatsonxRerankModel model, ThreadPool threadPool) {
-        return new IbmWatsonxRerankRequestManager(Objects.requireNonNull(model), Objects.requireNonNull(threadPool));
+    public static IbmWatsonxRerankRequestManager of(
+        IbmWatsonxRerankModel model,
+        ThreadPool threadPool,
+        HttpSettings.ProxySettings proxySettings
+    ) {
+        return new IbmWatsonxRerankRequestManager(Objects.requireNonNull(model), Objects.requireNonNull(threadPool), proxySettings);
     }
 
     private final IbmWatsonxRerankModel model;
 
-    public IbmWatsonxRerankRequestManager(IbmWatsonxRerankModel model, ThreadPool threadPool) {
+    private final HttpSettings.ProxySettings proxySettings;
+
+    public IbmWatsonxRerankRequestManager(IbmWatsonxRerankModel model, ThreadPool threadPool, HttpSettings.ProxySettings proxySettings) {
         super(threadPool, model);
         this.model = model;
+        this.proxySettings = proxySettings;
     }
 
     @Override
@@ -58,14 +66,19 @@ public class IbmWatsonxRerankRequestManager extends IbmWatsonxRequestManager {
             new ExecutableInferenceRequest(
                 requestSender,
                 logger,
-                getRerankRequest(rerankInput.getQueryAsString(), rerankInput.getDocsAsStrings(), model),
+                getRerankRequest(rerankInput.getQueryAsString(), rerankInput.getDocsAsStrings(), model, proxySettings),
                 HANDLER,
                 timedListener
             )
         );
     }
 
-    protected IbmWatsonxRerankRequest getRerankRequest(String query, List<String> chunks, IbmWatsonxRerankModel model) {
-        return new IbmWatsonxRerankRequest(query, chunks, model);
+    protected IbmWatsonxRerankRequest getRerankRequest(
+        String query,
+        List<String> chunks,
+        IbmWatsonxRerankModel model,
+        HttpSettings.ProxySettings proxySettings
+    ) {
+        return new IbmWatsonxRerankRequest(query, chunks, model, proxySettings);
     }
 }

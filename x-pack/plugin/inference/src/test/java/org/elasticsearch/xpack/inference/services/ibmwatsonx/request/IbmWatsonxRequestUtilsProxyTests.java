@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.ibmwatsonx.request;
 
-import org.apache.http.client.methods.HttpPost;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
@@ -23,6 +23,7 @@ import java.net.URI;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
 public class IbmWatsonxRequestUtilsProxyTests extends ESTestCase {
@@ -48,16 +49,17 @@ public class IbmWatsonxRequestUtilsProxyTests extends ESTestCase {
             .build();
         var proxySettings = HttpSettings.ProxySettings.fromSettings(settings);
 
-        var httpPost = new HttpPost("https://localhost/ml/v1/text/embeddings");
+        var httpPost = SimpleRequestBuilder.post("https://localhost/ml/v1/text/embeddings").build();
         var secretSettings = new DefaultSecretSettings(new SecureString("api-key".toCharArray()));
 
         // the proxy rejects the tunnel handshake with a 502, which the bearer token client surfaces as the response, so the request
         // must fail instead of reaching IBM's IAM endpoint directly
         var exception = expectThrows(
-            RetryException.class,
+            RuntimeException.class,
             () -> IbmWatsonxRequestUtils.decorateWithBearerToken(httpPost, secretSettings, INFERENCE_ID, proxySettings)
         );
-        assertThat(exception.getCause().getMessage(), containsString("status [502]"));
+        assertThat(exception.getCause(), instanceOf(RetryException.class));
+        assertThat(exception.getCause().getCause().getMessage(), containsString("status [502]"));
 
         // Assert that the bearer token client asked the proxy to open a tunnel to IBM's IAM endpoint
         assertThat(proxyServer.proxiedRequestLines(), not(empty()));

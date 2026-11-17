@@ -7,16 +7,14 @@
 
 package org.elasticsearch.xpack.inference.external.http;
 
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.protocol.HttpClientContext;
-import org.apache.http.config.RegistryBuilder;
-import org.apache.http.conn.ssl.NoopHostnameVerifier;
-import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
-import org.apache.http.impl.nio.reactor.DefaultConnectingIOReactor;
-import org.apache.http.nio.conn.NoopIOSessionStrategy;
-import org.apache.http.nio.conn.SchemeIOSessionStrategy;
-import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManager;
+import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManagerBuilder;
+import org.apache.hc.client5.http.protocol.HttpClientContext;
+import org.apache.hc.client5.http.ssl.ClientTlsStrategyBuilder;
+import org.apache.hc.client5.http.ssl.NoopHostnameVerifier;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -52,7 +50,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Verifies that the shared inference {@link HttpClient} routes outbound requests through the proxy configured via the
- * {@code xpack.inference.proxy.*} settings, and connects directly to the target host when no proxy is configured. Requests are sent
+ * {@code xpack.inference.http.proxy.*} settings, and connects directly to the target host when no proxy is configured. Requests are sent
  * through a recording forward proxy ({@link MockHttpProxyServer}) to a {@link MockWebServer} upstream, so both hops of the proxied
  * exchange can be asserted at the socket level rather than by inspecting client configuration.
  */
@@ -98,7 +96,7 @@ public class HttpClientProxyTests extends ESTestCase {
             httpClient.send(httpPost, HttpClientContext.create(), listener);
             var result = listener.actionGet(TIMEOUT);
 
-            assertThat(result.response().getStatusLine().getStatusCode(), equalTo(responseCode));
+            assertThat(result.response().getCode(), equalTo(responseCode));
             assertThat(new String(result.body(), StandardCharsets.UTF_8), is(body));
 
             // the proxy handled the request; a forward-proxied request line carries the absolute target URI
@@ -129,7 +127,7 @@ public class HttpClientProxyTests extends ESTestCase {
             httpClient.send(httpPost, HttpClientContext.create(), listener);
             var result = listener.actionGet(TIMEOUT);
 
-            assertThat(result.response().getStatusLine().getStatusCode(), equalTo(responseCode));
+            assertThat(result.response().getCode(), equalTo(responseCode));
             assertThat(new String(result.body(), StandardCharsets.UTF_8), is(body));
 
             // the proxy saw nothing and the upstream was reached directly (no proxy hop marker)
@@ -141,12 +139,12 @@ public class HttpClientProxyTests extends ESTestCase {
     }
 
     /**
-     * Documents a known limitation of the {@code https} proxy scheme rather than desired behavior: httpasyncclient 4.x cannot layer
-     * the target's TLS session over a TLS connection to the proxy. The {@code CONNECT} handshake itself succeeds (the proxy is reached
-     * over TLS and grants the tunnel), but upgrading the granted tunnel to the target's TLS session fails because
-     * {@code SSLIOSessionStrategy#upgrade} rejects a session that is already TLS. Since every inference provider is an https target,
-     * an {@code https} proxy scheme currently breaks all requests through this client. If this test starts failing after an Apache
-     * HTTP client upgrade (e.g. to 5.x), the limitation is gone and the https scheme can be fully supported on this path.
+     * Documents a known limitation of the {@code https} proxy scheme rather than desired behavior: the Apache async client cannot
+     * layer the target's TLS session over a TLS connection to the proxy. The {@code CONNECT} handshake itself succeeds (the proxy is
+     * reached over TLS and grants the tunnel), but upgrading the granted tunnel to the target's TLS session fails with
+     * {@code TLS already activated}. Since every inference provider is an https target, an {@code https} proxy scheme currently
+     * breaks all requests through this client. If this test starts failing after an Apache HTTP client upgrade, the limitation is
+     * gone and the https scheme can be fully supported on this path.
      */
     public void testSend_CannotLayerTargetTlsOverTlsProxyConnection_WhenProxySchemeIsHttps() throws Exception {
         var sslContext = buildSelfTrustedSslContext();
@@ -159,19 +157,28 @@ public class HttpClientProxyTests extends ESTestCase {
                 .build();
 
             // an https target is required to trigger the tunnel upgrade; it is never actually reached
-            var httpPost = new HttpPost("https://localhost:" + upstreamServer.getPort() + "/" + randomAlphaOfLength(3));
+            var httpPost = SimpleRequestBuilder.post("https://localhost:" + upstreamServer.getPort() + "/" + randomAlphaOfLength(3))
+                .build();
             var httpRequest = new HttpRequest(httpPost, "inference-id");
 
             var httpSettings = new HttpSettings(settings, mockClusterService(settings));
             var connectionManager = createTlsCapableConnectionManager(sslContext);
-            try (var httpClient = HttpClient.create(httpSettings, threadPool, connectionManager, mockThrottlerManager())) {
+            try (
+                var httpClient = HttpClient.create(
+                    httpSettings,
+                    threadPool,
+                    connectionManager,
+                    mockThrottlerManager(),
+                    new TestCircuitBreaker()
+                )
+            ) {
                 httpClient.start();
 
                 PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
                 httpClient.send(httpRequest, HttpClientContext.create(), listener);
                 var exception = expectThrows(Exception.class, () -> listener.actionGet(TIMEOUT));
 
-                assertThat(causeChainMessages(exception), containsString("already upgraded to TLS/SSL"));
+                assertThat(causeChainMessages(exception), containsString("TLS already activated"));
 
                 // the handshake did reach the proxy over TLS, so the failure above is the TLS-over-TLS layering, not connectivity
                 assertThat(tlsProxyServer.proxiedRequestLines(), hasSize(1));
@@ -186,19 +193,19 @@ public class HttpClientProxyTests extends ESTestCase {
 
     private HttpClient createHttpClient(Settings settings) throws Exception {
         var httpSettings = new HttpSettings(settings, mockClusterService(settings));
-        return HttpClient.create(httpSettings, threadPool, createConnectionManager(), mockThrottlerManager());
+        return HttpClient.create(httpSettings, threadPool, createConnectionManager(), mockThrottlerManager(), new TestCircuitBreaker());
     }
 
     /**
-     * Mirrors the connection manager built by {@code HttpClientManager} in production: an {@code https} scheme strategy backed by an
+     * Mirrors the connection manager built by {@code HttpClientManager} in production: a TLS strategy backed by an
      * {@link SSLContext} — here one that trusts the mock proxy's self-signed certificate so the proxy-hop TLS handshake succeeds.
      */
-    private static PoolingNHttpClientConnectionManager createTlsCapableConnectionManager(SSLContext sslContext) throws Exception {
-        var sessionStrategyRegistry = RegistryBuilder.<SchemeIOSessionStrategy>create()
-            .register("http", NoopIOSessionStrategy.INSTANCE)
-            .register("https", new SSLIOSessionStrategy(sslContext, NoopHostnameVerifier.INSTANCE))
-            .build();
-        return new PoolingNHttpClientConnectionManager(new DefaultConnectingIOReactor(), sessionStrategyRegistry);
+    private static PoolingAsyncClientConnectionManager createTlsCapableConnectionManager(SSLContext sslContext) {
+        var tlsStrategy = ClientTlsStrategyBuilder.create()
+            .setSslContext(sslContext)
+            .setHostnameVerifier(NoopHostnameVerifier.INSTANCE)
+            .buildAsync();
+        return PoolingAsyncClientConnectionManagerBuilder.create().setTlsStrategy(tlsStrategy).build();
     }
 
     /**

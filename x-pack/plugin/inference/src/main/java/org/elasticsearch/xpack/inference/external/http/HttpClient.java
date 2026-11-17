@@ -12,10 +12,12 @@ import org.apache.hc.client5.http.async.methods.SimpleRequestProducer;
 import org.apache.hc.client5.http.async.methods.SimpleResponseConsumer;
 import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.impl.async.CloseableHttpAsyncClient;
+import org.apache.hc.client5.http.impl.async.HttpAsyncClientBuilder;
 import org.apache.hc.client5.http.impl.async.HttpAsyncClients;
 import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManager;
 import org.apache.hc.client5.http.protocol.HttpClientContext;
 import org.apache.hc.core5.concurrent.FutureCallback;
+import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.HttpResponse;
 import org.apache.hc.core5.http.Message;
 import org.apache.hc.core5.io.CloseMode;
@@ -63,15 +65,19 @@ public class HttpClient implements Closeable {
         ThrottlerManager throttlerManager,
         CircuitBreaker circuitBreaker
     ) {
-        var client = createAsyncClient(Objects.requireNonNull(connectionManager));
+        var client = createAsyncClient(Objects.requireNonNull(connectionManager), settings);
 
         return new HttpClient(settings, client, threadPool, throttlerManager, circuitBreaker);
     }
 
-    private static CloseableHttpAsyncClient createAsyncClient(PoolingAsyncClientConnectionManager connectionManager) {
+    private static CloseableHttpAsyncClient createAsyncClient(
+        PoolingAsyncClientConnectionManager connectionManager,
+        HttpSettings settings
+    ) {
         var clientBuilder = HttpAsyncClients.custom()
             .setConnectionManager(connectionManager)
             .setIOReactorConfig(IOReactorConfig.custom().setSoKeepAlive(true).build());
+        maybeDecorateWithProxy(settings, clientBuilder);
         // The apache client will be shared across all connections because it can be expensive to create it
         // so we don't want to support cookies to avoid accidental authentication for unauthorized users
         clientBuilder.disableCookieManagement();
@@ -115,6 +121,15 @@ public class HttpClient implements Closeable {
           not to be sufficient we can add a keep-alive strategy to the builder below.
          */
         return clientBuilder.build();
+    }
+
+    private static void maybeDecorateWithProxy(HttpSettings settings, HttpAsyncClientBuilder clientBuilder) {
+        // An "https" proxy scheme breaks every request through this client: the async client cannot layer the target's TLS over a
+        // TLS proxy connection ("TLS already activated"). Either restrict the proxy scheme to "http" or document the limitation.
+        var proxySettings = settings.proxy();
+        if (proxySettings != null) {
+            clientBuilder.setProxy(new HttpHost(proxySettings.scheme().scheme(), proxySettings.host(), proxySettings.port()));
+        }
     }
 
     // Default for testing

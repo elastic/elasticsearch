@@ -12,6 +12,7 @@ import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
 import org.apache.hc.core5.http.ContentType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.xpack.inference.external.http.HttpSettings;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.external.request.OutboundRerankRequest;
@@ -30,14 +31,21 @@ public class IbmWatsonxRerankRequest implements OutboundRerankRequest {
     private final List<String> input;
     private final IbmWatsonxRerankTaskSettings taskSettings;
     private final IbmWatsonxRerankModel model;
+    private final HttpSettings.ProxySettings proxySettings;
 
-    public IbmWatsonxRerankRequest(String query, List<String> input, IbmWatsonxRerankModel model) {
+    public IbmWatsonxRerankRequest(
+        String query,
+        List<String> input,
+        IbmWatsonxRerankModel model,
+        HttpSettings.ProxySettings proxySettings
+    ) {
         Objects.requireNonNull(model);
 
         this.input = Objects.requireNonNull(input);
         this.query = Objects.requireNonNull(query);
         taskSettings = model.getTaskSettings();
         this.model = model;
+        this.proxySettings = proxySettings;
     }
 
     @Override
@@ -65,7 +73,7 @@ public class IbmWatsonxRerankRequest implements OutboundRerankRequest {
             ContentType.APPLICATION_JSON
         );
 
-        model.authHeaderDecorator().accept(httpPost, model);
+        model.authHeaderDecorator().apply(httpPost, model, proxySettings);
 
         listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
     }

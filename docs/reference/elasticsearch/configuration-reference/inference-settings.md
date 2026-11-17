@@ -64,6 +64,18 @@ When a third-party service returns a transient failure code (for example, 429), 
 `xpack.inference.http.retry.timeout`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Specifies the maximum amount of time a request can be retried. Once the request exceeds this time, the request will no longer be retried and a failure will be returned. Defaults to 30 seconds (`30s`).
 
+### {{infer-cap}} HTTP Proxy settings [xpack-inference-http-proxy-settings]
+
+All requests of the inference API to external services will go through a proxy, if configured.
+
+`xpack.inference.http.proxy.host`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Specifies the address of the proxy server to use to connect to inference services.
+
+`xpack.inference.http.proxy.port`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Specifies the port number to use to connect to the proxy server to use to connect to inference services.
+
+`xpack.inference.http.proxy.scheme`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Protocol used to communicate with the proxy server. Valid values are `http` and `https`.
 
 ## {{infer-cap}} API Input text [xpack-inference-input-text]
 

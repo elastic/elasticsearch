@@ -81,6 +81,7 @@ import static org.elasticsearch.xpack.core.inference.results.RankedDocsResults.R
 import static org.elasticsearch.xpack.core.inference.results.RankedDocsResultsTests.buildExpectationRerank;
 import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
+import static org.elasticsearch.xpack.inference.Utils.mockHttpSettings;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.SenderServiceTests.createMockSender;
@@ -619,7 +620,9 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
             getUrl(webServer)
         );
 
-        try (var service = new IbmWatsonxService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+        try (
+            var service = new IbmWatsonxService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty(), mockHttpSettings())
+        ) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
 
             service.infer(model, List.of(""), false, new HashMap<>(), InputType.INGEST, null, listener);
@@ -643,7 +646,14 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new IbmWatsonxService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+        try (
+            var service = new IbmWatsonxService(
+                senderFactory,
+                createWithEmptySettings(threadPool),
+                mockClusterServiceEmpty(),
+                mockHttpSettings()
+            )
+        ) {
             String responseJson = """
                 {
                      "results": [
@@ -853,7 +863,14 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
             API_KEY_VALUE,
             getUrl(webServer)
         );
-        try (var service = new IbmWatsonxService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+        try (
+            var service = new IbmWatsonxService(
+                senderFactory,
+                createWithEmptySettings(threadPool),
+                mockClusterServiceEmpty(),
+                mockHttpSettings()
+            )
+        ) {
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
             service.chunkedInfer(model, List.of(), new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
 
@@ -868,7 +885,14 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new IbmWatsonxService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+        try (
+            var service = new IbmWatsonxService(
+                senderFactory,
+                createWithEmptySettings(threadPool),
+                mockClusterServiceEmpty(),
+                mockHttpSettings()
+            )
+        ) {
             String responseJson = """
                 {
                      "results": [
@@ -951,7 +975,14 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
     public void testInfer_ResourceNotFound() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new IbmWatsonxService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+        try (
+            var service = new IbmWatsonxService(
+                senderFactory,
+                createWithEmptySettings(threadPool),
+                mockClusterServiceEmpty(),
+                mockHttpSettings()
+            )
+        ) {
 
             String responseJson = """
                 {
@@ -1101,7 +1132,8 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
         return new IbmWatsonxService(
             HttpRequestSenderTests.createSenderFactory(threadPool, clientManager),
             createWithEmptySettings(threadPool),
-            mockClusterServiceEmpty()
+            mockClusterServiceEmpty(),
+            mockHttpSettings()
         );
     }
 

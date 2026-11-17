@@ -31,6 +31,8 @@ public final class GoogleVertexAiRequestUtils {
             GoogleCredentials credentials = ServiceAccountCredentials.fromStream(
                 new ByteArrayInputStream(secretSettings.serviceAccountJson().toString().getBytes(StandardCharsets.UTF_8))
             ).createScoped(AUTH_SCOPE);
+            // TODO: this token refresh performs HTTP via the Google auth library's own transport and bypasses the
+            // xpack.inference.http.proxy.* settings; in egress-restricted environments it will fail or skip the proxy
             credentials.refreshIfExpired();
             httpPost.setHeader(createAuthBearerHeader(new SecureString(credentials.getAccessToken().getTokenValue().toCharArray())));
         } catch (Exception e) {

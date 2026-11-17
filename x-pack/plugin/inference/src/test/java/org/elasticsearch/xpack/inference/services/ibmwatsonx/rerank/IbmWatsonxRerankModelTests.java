@@ -49,7 +49,7 @@ public class IbmWatsonxRerankModelTests extends ESTestCase {
             new IbmWatsonxRerankServiceSettings(uri, apiVersion, modelId, projectId, null),
             new IbmWatsonxRerankTaskSettings(topN, returnDocuments, truncateInputTokens),
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
-            (httpPost, model) -> httpPost.setHeader(HttpHeaders.AUTHORIZATION, authHeaderValue)
+            (httpPost, model, proxySettings) -> httpPost.setHeader(HttpHeaders.AUTHORIZATION, authHeaderValue)
         );
     }
 }

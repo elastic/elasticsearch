@@ -29,13 +29,15 @@ import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
+import static org.elasticsearch.xpack.inference.Utils.mockHttpSettings;
+
 public class AmazonBedrockMockRequestSender implements Sender {
 
     public static class Factory extends AmazonBedrockRequestSender.Factory {
         private final Sender sender;
 
         public Factory(ServiceComponents serviceComponents, ClusterService clusterService) {
-            super(serviceComponents, clusterService);
+            super(serviceComponents, clusterService, mockHttpSettings());
             this.sender = new AmazonBedrockMockRequestSender();
         }
 

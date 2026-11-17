@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.common.Truncator;
+import org.elasticsearch.xpack.inference.external.http.HttpSettings;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.OutboundDenseEmbeddingRequest;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
@@ -28,11 +29,18 @@ public class IbmWatsonxEmbeddingsRequest implements OutboundDenseEmbeddingReques
     private final Truncator truncator;
     private final Truncator.TruncationResult truncationResult;
     private final IbmWatsonxEmbeddingsModel model;
+    private final HttpSettings.ProxySettings proxySettings;
 
-    public IbmWatsonxEmbeddingsRequest(Truncator truncator, Truncator.TruncationResult input, IbmWatsonxEmbeddingsModel model) {
+    public IbmWatsonxEmbeddingsRequest(
+        Truncator truncator,
+        Truncator.TruncationResult input,
+        IbmWatsonxEmbeddingsModel model,
+        HttpSettings.ProxySettings proxySettings
+    ) {
         this.truncator = Objects.requireNonNull(truncator);
         this.truncationResult = Objects.requireNonNull(input);
         this.model = Objects.requireNonNull(model);
+        this.proxySettings = proxySettings;
     }
 
     @Override
@@ -50,7 +58,7 @@ public class IbmWatsonxEmbeddingsRequest implements OutboundDenseEmbeddingReques
             ContentType.APPLICATION_JSON
         );
 
-        model.authHeaderDecorator().accept(httpPost, model);
+        model.authHeaderDecorator().apply(httpPost, model, proxySettings);
 
         listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
     }
@@ -81,7 +89,7 @@ public class IbmWatsonxEmbeddingsRequest implements OutboundDenseEmbeddingReques
     public OutboundRequest truncate() {
         var truncatedInput = truncator.truncate(truncationResult.input());
 
-        return new IbmWatsonxEmbeddingsRequest(truncator, truncatedInput, model);
+        return new IbmWatsonxEmbeddingsRequest(truncator, truncatedInput, model, proxySettings);
     }
 
     @Override

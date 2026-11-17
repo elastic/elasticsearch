@@ -134,7 +134,13 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
      * once. A second bind of the same instance is a no-op besides re-attaching this scheduler.
      */
     void bind(RowGroupIo io) {
-        if (io == null || maxPermits <= 0) {
+        if (io == null) {
+            return;
+        }
+        if (queryId != null && queryId.isSet()) {
+            io.setQueryId(queryId);
+        }
+        if (maxPermits <= 0) {
             return;
         }
         lock.lock();
@@ -143,9 +149,6 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
                 return;
             }
             io.attachScheduler(this);
-            if (queryId != null && queryId.isSet()) {
-                io.setQueryId(queryId);
-            }
             if (registry.contains(io) == false) {
                 io.setStartSeq(nextStartSeq++);
                 registry.add(io);

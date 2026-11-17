@@ -99,15 +99,18 @@ public class CsvDirectRowExcerptCostTests extends ESTestCase {
         assumeAllocationCounterAvailable();
         warmUp();
 
-        long clean = allocatedDuringRead(utf8(buildCsv("1")), ErrorPolicy.Mode.SKIP_ROW, ROWS);
-        long tooWide = allocatedDuringRead(utf8(tooWideRows()), ErrorPolicy.Mode.SKIP_ROW, 0);
+        // Both lenient modes drop a too-wide row -- it is structural, so null_field does not null-fill it.
+        for (ErrorPolicy.Mode mode : List.of(ErrorPolicy.Mode.SKIP_ROW, ErrorPolicy.Mode.NULL_FIELD)) {
+            long clean = allocatedDuringRead(utf8(buildCsv("1")), mode, ROWS);
+            long tooWide = allocatedDuringRead(utf8(tooWideRows()), mode, 0);
 
-        logger.info("width rejection allocated: clean={} bytes, wide={} bytes, delta={} bytes", clean, tooWide, tooWide - clean);
-        assertThat(
-            "a row rejected for its width must not pay for a record excerpt nobody reads",
-            tooWide - clean,
-            lessThan(RECORD_TEXT_BYTES / 4)
-        );
+            logger.info("{} width rejection allocated: clean={} wide={} delta={}", mode, clean, tooWide, tooWide - clean);
+            assertThat(
+                "a row rejected for its width under " + mode + " must not pay for an excerpt nobody reads",
+                tooWide - clean,
+                lessThan(RECORD_TEXT_BYTES / 4)
+            );
+        }
     }
 
     /**

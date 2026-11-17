@@ -94,12 +94,8 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
             return;
         }
         final SearchRequest searchRequest = createSearchRequest(request, submitTask, keepAlive);
-        try (var ignored = threadContext.newTraceContext()) {
-            AsyncSearchTask searchTask = (AsyncSearchTask) taskManager.register(
-                "transport",
-                TransportSearchAction.TYPE.name(),
-                searchRequest
-            );
+        AsyncSearchTask searchTask = (AsyncSearchTask) taskManager.register("transport", TransportSearchAction.TYPE.name(), searchRequest);
+        try (var ignored = taskManager.tracer().storeSpanInThreadContext(searchTask)) {
             // If the search runs past wait_for_completion_timeout, the submit responds first, so the search holds the parsed request's
             // charge until it ends. The task keeps the request uncharged until its result is stored.
             searchAction.execute(

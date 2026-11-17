@@ -424,7 +424,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -588,7 +587,7 @@ public class ActionModule extends AbstractModule {
     public void copyRequestHeadersToThreadContext(HttpPreRequest request, ThreadContext threadContext) {
         // the request's thread-context must always be populated (by calling this method) before undergoing any request related processing
         // we use this opportunity to first record the request processing start time
-        threadContext.putTransient(Task.TRACE_START_TIME, Instant.now());
+        threadContext.putTransient(Task.LOCAL_TRACE_START_TIME, Instant.now());
         for (final RestHeaderDefinition restHeader : headersToCopy) {
             final String name = restHeader.getName();
             final List<String> headerValues = request.getHeaders().get(name);
@@ -596,18 +595,12 @@ public class ActionModule extends AbstractModule {
                 final List<String> distinctHeaderValues = headerValues.stream().distinct().toList();
                 if (restHeader.isMultiValueAllowed() == false && distinctHeaderValues.size() > 1) {
                     throw new IllegalArgumentException("multiple values for single-valued header [" + name + "].");
-                } else if (name.equals(Task.TRACE_PARENT_HTTP_HEADER)) {
-                    String traceparent = distinctHeaderValues.get(0);
-                    Optional<String> traceId = RestUtils.extractTraceId(traceparent);
-                    if (traceId.isPresent()) {
-                        threadContext.putHeader(Task.TRACE_ID, traceId.get());
-                        threadContext.putTransient(Task.PARENT_TRACE_PARENT_HEADER, traceparent);
-                    }
-                } else if (name.equals(Task.TRACE_STATE)) {
-                    threadContext.putTransient(Task.PARENT_TRACE_STATE, distinctHeaderValues.get(0));
-                } else {
-                    threadContext.putHeader(name, String.join(",", distinctHeaderValues));
                 }
+                if (name.equals(Task.TRACE_PARENT_HTTP_HEADER)) {
+                    String traceparent = distinctHeaderValues.get(0);
+                    RestUtils.extractTraceId(traceparent).ifPresent(traceId -> threadContext.putHeader(Task.TRACE_ID, traceId));
+                }
+                threadContext.putHeader(name, String.join(",", distinctHeaderValues));
             }
         }
     }

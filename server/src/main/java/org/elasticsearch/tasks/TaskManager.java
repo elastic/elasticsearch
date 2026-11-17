@@ -144,8 +144,6 @@ public class TaskManager implements ClusterStateApplier {
         long maxSize = maxHeaderSize.getBytes();
         ThreadContext threadContext = threadPool.getThreadContext();
 
-        assert threadContext.hasApmTraceContext() == false : "Expected threadContext to have no APM trace context";
-
         for (String key : taskHeaders) {
             String httpHeader = threadContext.getHeader(key);
             if (httpHeader != null) {
@@ -175,7 +173,7 @@ public class TaskManager implements ClusterStateApplier {
             Task previousTask = tasks.put(task.getId(), task);
             assert previousTask == null;
             if (traceRequest) {
-                maybeStartTrace(threadContext, task);
+                startTrace(task);
             }
         }
         for (AddedTaskListener listener : addedTaskListeners) {
@@ -185,18 +183,34 @@ public class TaskManager implements ClusterStateApplier {
     }
 
     /**
-     * Start a new trace span if a parent trace context already exists.
-     * For REST actions this will be the case, otherwise {@link Tracer#startTrace} can be used.
+     * Starts the span of the task, as a child of the span of its parent task if that is registered here, or else of the span that is
+     * current in the thread context, if there is one. The span is not made current in any thread context: a task starts and ends in
+     * different places.
      */
-    void maybeStartTrace(ThreadContext threadContext, Task task) {
-        if (threadContext.hasParentApmTraceContext() == false) {
-            return;
-        }
-        TaskId parentTask = task.getParentTaskId();
-        Map<String, Object> attributes = parentTask.isSet()
-            ? Map.of(Tracer.AttributeKeys.TASK_ID, task.getId(), Tracer.AttributeKeys.PARENT_TASK_ID, parentTask.toString())
+    void startTrace(Task task) {
+        TaskId parentTaskId = task.getParentTaskId();
+        Map<String, Object> attributes = parentTaskId.isSet()
+            ? Map.of(Tracer.AttributeKeys.TASK_ID, task.getId(), Tracer.AttributeKeys.PARENT_TASK_ID, parentTaskId.toString())
             : Map.of(Tracer.AttributeKeys.TASK_ID, task.getId());
-        tracer.startTrace(task, task.getAction(), attributes);
+
+        final Task parentTask = parentTaskId.isSet() && Objects.equals(parentTaskId.getNodeId(), nodeId)
+            ? getTask(parentTaskId.getId())
+            : null;
+        if (parentTask == null) {
+            // the span is a child of the span that is current in the thread context, if there is one
+            tracer.startTrace(task, task.getAction(), attributes);
+        } else {
+            // the span of a task is not made current in any thread context, as it starts and ends in different places, so the span of the
+            // parent task is made the parent of this one by hand
+            try (var ignored = tracer.storeSpanInThreadContext(parentTask)) {
+                tracer.startTrace(task, task.getAction(), attributes);
+            }
+        }
+    }
+
+    // FIXME: remove in next PR
+    public Tracer tracer() {
+        return tracer;
     }
 
     public <Request extends ActionRequest, Response extends ActionResponse> Task registerAndExecute(
@@ -213,7 +227,7 @@ public class TaskManager implements ClusterStateApplier {
             unregisterChildNode = null;
         }
 
-        try (var ignored = threadPool.getThreadContext().newTraceContext()) {
+        try (var ignored = threadPool.getThreadContext().newStoredContextPreservingResponseHeaders()) {
             final Task task;
             try {
                 task = register(type, action.actionName, request);
@@ -221,37 +235,41 @@ public class TaskManager implements ClusterStateApplier {
                 Releasables.close(unregisterChildNode);
                 throw e;
             }
-            action.execute(task, request, new ActionListener<>() {
-                @Override
-                public void onResponse(Response response) {
-                    try {
-                        release();
-                    } finally {
-                        taskListener.onResponse(response);
-                    }
-                }
 
-                @Override
-                public void onFailure(Exception e) {
-                    try {
-                        if (request.getParentTask().isSet()) {
-                            cancelChildLocal(request.getParentTask(), request.getRequestId(), e.toString());
+            // the action is run with the task span in thread context
+            try (var ignored2 = tracer.storeSpanInThreadContext(task)) {
+                action.execute(task, request, new ActionListener<>() {
+                    @Override
+                    public void onResponse(Response response) {
+                        try {
+                            release();
+                        } finally {
+                            taskListener.onResponse(response);
                         }
-                        release();
-                    } finally {
-                        taskListener.onFailure(e);
                     }
-                }
 
-                @Override
-                public String toString() {
-                    return this.getClass().getName() + "{" + taskListener + "}{" + task + "}";
-                }
+                    @Override
+                    public void onFailure(Exception e) {
+                        try {
+                            if (request.getParentTask().isSet()) {
+                                cancelChildLocal(request.getParentTask(), request.getRequestId(), e.toString());
+                            }
+                            release();
+                        } finally {
+                            taskListener.onFailure(e);
+                        }
+                    }
 
-                private void release() {
-                    Releasables.close(unregisterChildNode, () -> unregister(task));
-                }
-            });
+                    @Override
+                    public String toString() {
+                        return this.getClass().getName() + "{" + taskListener + "}{" + task + "}";
+                    }
+
+                    private void release() {
+                        Releasables.close(unregisterChildNode, () -> unregister(task));
+                    }
+                });
+            }
             return task;
         }
     }
@@ -261,7 +279,7 @@ public class TaskManager implements ClusterStateApplier {
         CancellableTaskHolder holder = new CancellableTaskHolder(cancellableTask);
         cancellableTasks.put(task, requestId, holder);
         if (traceRequest) {
-            maybeStartTrace(threadPool.getThreadContext(), task);
+            startTrace(task);
         }
         // Check if this task was banned before we start it.
         if (task.getParentTaskId().isSet()) {

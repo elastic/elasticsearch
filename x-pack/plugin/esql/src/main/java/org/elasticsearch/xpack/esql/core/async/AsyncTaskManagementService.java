@@ -249,13 +249,13 @@ public class AsyncTaskManagementService<
             return;
         }
         String nodeId = clusterService.localNode().getId();
-        try (var ignored = threadPool.getThreadContext().newTraceContext()) {
-            @SuppressWarnings("unchecked")
-            T searchTask = (T) taskManager.register(
-                "transport",
-                action + ASYNC_ACTION_SUFFIX,
-                new AsyncRequestWrapper(request, nodeId, resolvedKeepAlive)
-            );
+        @SuppressWarnings("unchecked")
+        T searchTask = (T) taskManager.register(
+            "transport",
+            action + ASYNC_ACTION_SUFFIX,
+            new AsyncRequestWrapper(request, nodeId, resolvedKeepAlive)
+        );
+        try (var ignored = taskManager.tracer().storeSpanInThreadContext(searchTask)) {
             boolean operationStarted = false;
             try {
                 AtomicBoolean skipExecute = new AtomicBoolean();

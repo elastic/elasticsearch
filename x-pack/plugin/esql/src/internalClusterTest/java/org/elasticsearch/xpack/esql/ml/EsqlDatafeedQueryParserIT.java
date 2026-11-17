@@ -9,15 +9,22 @@ package org.elasticsearch.xpack.esql.ml;
 
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.parser.ParserUtils;
+import org.elasticsearch.xpack.esql.parser.QueryParam;
+import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.ParsedEsqlQuery;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.TimeBucket;
 import org.junit.Before;
 
+import java.util.List;
 import java.util.Optional;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -75,5 +82,46 @@ public class EsqlDatafeedQueryParserIT extends AbstractEsqlIntegTestCase {
 
     public void testRawQueryShouldReportNoSpan() {
         assertThat(timeBucket("FROM logs | KEEP @timestamp, v", "@timestamp"), equalTo(Optional.empty()));
+    }
+
+    public void testTimeSeriesSourceProbeShouldNotReadStandardIndices() {
+        client().admin()
+            .indices()
+            .prepareCreate("metrics-tsdb")
+            .setSettings(
+                Settings.builder()
+                    .put("index.mode", "time_series")
+                    .put("index.routing_path", "host")
+                    .put("index.time_series.start_time", "2025-01-01T00:00:00Z")
+                    .put("index.time_series.end_time", "2025-01-02T00:00:00Z")
+            )
+            .setMapping("@timestamp", "type=date", "host", "type=keyword,time_series_dimension=true", "cpu", "type=double")
+            .get();
+        client().prepareIndex("metrics-tsdb")
+            .setSource("@timestamp", "2025-01-01T10:30:00Z", "host", "a", "cpu", 1.0)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        client().admin().indices().prepareCreate("metrics-standard").setMapping("@timestamp", "type=date", "cpu", "type=double").get();
+        client().prepareIndex("metrics-standard")
+            .setSource("@timestamp", "2025-01-01T10:30:00Z", "cpu", 2.0)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        ParsedEsqlQuery parsed = parser.parse(
+            "TS metrics-* | STATS m = max(cpu) BY b = TBUCKET(1 hour)",
+            internalCluster().getCurrentMasterNodeInstance(ClusterService.class)
+        );
+        var summary = parsed.sourceRangeSummaryQuery("@timestamp");
+        var request = syncEsqlQueryRequest(summary.query());
+        request.params(
+            new QueryParams(
+                List.of(new QueryParam("timeField", "@timestamp", DataType.KEYWORD, ParserUtils.ParamClassification.IDENTIFIER))
+            )
+        );
+        try (EsqlQueryResponse response = run(request)) {
+            List<Object> row = getValuesList(response).getFirst();
+            int totalHits = response.columns().stream().map(c -> c.name()).toList().indexOf(ParsedEsqlQuery.TOTAL_HITS_COLUMN);
+            assertThat(row.get(totalHits), equalTo(1L));
+        }
     }
 }

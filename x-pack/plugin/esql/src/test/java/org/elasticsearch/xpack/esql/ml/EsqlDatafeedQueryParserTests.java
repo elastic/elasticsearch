@@ -352,10 +352,37 @@ public class EsqlDatafeedQueryParserTests extends ESTestCase {
         assertThat(query.indexPatterns(), containsInAnyOrder("logs-*", "-logs-secret", "remote:b", "quoted:idx"));
     }
 
-    public void testTimeSeriesSourceShouldBeProbedWithFrom() {
+    public void testTimeSeriesSourceShouldBeProbedWithFromScopedToTimeSeriesIndices() {
         ParsedEsqlQuery query = parse("TS metrics METADATA _index | STATS max(cpu) BY TBUCKET(1 hour)");
-        assertThat(query.sourceRangeSummaryQuery("@timestamp").query(), containsString("FROM metrics METADATA _index | STATS"));
-        assertThat(query.sourceTimeFieldProbeQuery("@timestamp").query(), containsString("FROM metrics METADATA _index | KEEP"));
+        String scoped = "FROM metrics METADATA _index, _index_mode | WHERE _index_mode == \"time_series\" | ";
+        assertThat(query.sourceRangeSummaryQuery("@timestamp").query(), containsString(scoped + "STATS"));
+        assertThat(query.sourceTimeFieldProbeQuery("@timestamp").query(), containsString(scoped + "KEEP"));
+    }
+
+    public void testTimeSeriesSourceWithoutMetadataShouldGetIndexModeMetadata() {
+        ParsedEsqlQuery query = parse("TS metrics | STATS max(cpu) BY TBUCKET(1 hour)");
+        assertThat(
+            query.sourceTimeFieldProbeQuery("@timestamp").query(),
+            containsString("FROM metrics METADATA _index_mode | WHERE _index_mode == \"time_series\" | KEEP")
+        );
+    }
+
+    public void testTimeSeriesSourceWithIndexModeMetadataShouldNotRepeatIt() {
+        ParsedEsqlQuery query = parse("TS metrics METADATA _index_mode | STATS max(cpu) BY TBUCKET(1 hour)");
+        assertThat(
+            query.sourceTimeFieldProbeQuery("@timestamp").query(),
+            containsString("FROM metrics METADATA _index_mode | WHERE _index_mode == \"time_series\" | KEEP")
+        );
+    }
+
+    public void testPromqlShouldBeRejected() {
+        ParsingException e = expectThrows(ParsingException.class, () -> parse("PROMQL index=metrics step=5m avg(foo)"));
+        assertThat(e.getMessage(), containsString("[PROMQL] is not supported in ES|QL datafeeds"));
+    }
+
+    public void testColumnMetadataSettingShouldBeRejected() {
+        ParsingException e = expectThrows(ParsingException.class, () -> parse("SET column_metadata=false; FROM logs | LIMIT 1"));
+        assertThat(e.getMessage(), containsString("[SET column_metadata] is not supported in ES|QL datafeeds"));
     }
 
     public void testInSubqueryShouldBeRejected() {

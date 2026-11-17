@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
@@ -61,6 +62,7 @@ import java.util.OptionalInt;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.EsqlQueryParam.ParamClassification.IDENTIFIER;
@@ -70,6 +72,9 @@ import static org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.E
  * Settings and limits are resolved against the cluster the way {@code EsqlSession} does for a query it runs.
  */
 public class EsqlDatafeedQueryParser implements EsqlQueryParser {
+
+    private static final Pattern METADATA = Pattern.compile("\\bMETADATA\\b", Pattern.CASE_INSENSITIVE);
+    private static final Pattern INDEX_MODE_METADATA = Pattern.compile("\\b_index_mode\\b");
 
     /** Built on first use, so loading this provider at node startup does not build a function registry. */
     private static final class Holder {
@@ -99,6 +104,14 @@ public class EsqlDatafeedQueryParser implements EsqlQueryParser {
             statement,
             validation
         );
+        // The probe sets column_metadata itself, and the last SET of a setting wins.
+        if (statement.settings().stream().anyMatch(setting -> QuerySettings.COLUMN_METADATA.name().equals(setting.name()))) {
+            throw new ParsingException(
+                statement.plan().source(),
+                "[SET {}] is not supported in ES|QL datafeeds",
+                QuerySettings.COLUMN_METADATA.name()
+            );
+        }
         if (statement.letBindings().isEmpty() == false) {
             throw unsupported("LET", statement.plan());
         }
@@ -148,13 +161,26 @@ public class EsqlDatafeedQueryParser implements EsqlQueryParser {
         if (node instanceof LookupJoin) {
             return "LOOKUP JOIN";
         }
+        if (node instanceof PromqlCommand) {
+            return "PROMQL";
+        }
         return null;
     }
 
-    /** Source probes aggregate with {@code COUNT(*)}, which {@code TS} rejects, so a time series source is read with {@code FROM}. */
+    /**
+     * Source probes aggregate with {@code COUNT(*)}, which {@code TS} rejects, so a {@code TS} source is read with {@code FROM}.
+     * {@code TS} only reads time series indices, so the {@code FROM} keeps that scope with an {@code _index_mode} filter.
+     */
     private static String sourceCommand(UnresolvedRelation relation) {
         String text = relation.source().text();
-        return relation.isTimeSeriesMode() ? "FROM" + text.substring(2) : text;
+        if (relation.isTimeSeriesMode() == false) {
+            return text;
+        }
+        String from = "FROM" + text.substring(2);
+        if (INDEX_MODE_METADATA.matcher(from).find() == false) {
+            from += METADATA.matcher(from).find() ? ", _index_mode" : " METADATA _index_mode";
+        }
+        return from + " | WHERE _index_mode == \"time_series\"";
     }
 
     private static ParsingException unsupported(String command, LogicalPlan node) {

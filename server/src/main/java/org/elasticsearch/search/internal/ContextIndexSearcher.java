@@ -362,9 +362,21 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         final Weight weight = chargingExecutionMemory(query, query.createWeight(this, scoreMode, boost));
         final QueryCache queryCache = getQueryCache();
         if (scoreMode.needsScores() == false && queryCache != null) {
-            return queryCache.doCache(weight, getQueryCachingPolicy());
+            return queryCache.doCache(chargingCachePopulation(weight), getQueryCachingPolicy());
         }
         return weight;
+    }
+
+    /**
+     * Wraps {@code weight} so that the query cache, when it decides to build an entry for a leaf, reserves the entry's heap on
+     * the request circuit breaker and leaves the leaf uncached if the breaker refuses. See {@link QueryCacheBreakerWeight}.
+     */
+    private Weight chargingCachePopulation(Weight weight) {
+        if (executionAccounting.breaker() == null) {
+            return weight;
+        }
+        executionAccounting.ensureCreated();
+        return new QueryCacheBreakerWeight(this, weight);
     }
 
     /** Wraps {@code weight} so that the memory {@code query} allocates to score a leaf is charged to the request circuit breaker. */

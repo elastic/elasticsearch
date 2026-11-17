@@ -8,11 +8,15 @@
  */
 package org.elasticsearch.search.lookup;
 
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -51,5 +55,39 @@ public class LeafStoredFieldsLookupTests extends ESTestCase {
         assertNotNull(values);
         assertEquals(1, values.size());
         assertEquals(12.718, values.get(0));
+    }
+
+    /** The read and enumeration methods reject the call with a client error; the mutators are unsupported. */
+    public void testEnumerationThrowsIllegalArgument() {
+        LeafStoredFieldsLookup fieldsLookup = buildFieldsLookup();
+        FieldLookup fieldLookup = fieldsLookup.get("field");
+        assertNotEnumerable(fieldsLookup::size, "size");
+        assertNotEnumerable(fieldsLookup::isEmpty, "isEmpty");
+        assertNotEnumerable(() -> fieldsLookup.containsValue(fieldLookup), "containsValue");
+        assertNotEnumerable(fieldsLookup::keySet, "keySet");
+        assertNotEnumerable(fieldsLookup::values, "values");
+        assertNotEnumerable(fieldsLookup::entrySet, "entrySet");
+
+        expectThrows(UnsupportedOperationException.class, () -> fieldsLookup.put("field", fieldLookup));
+        expectThrows(UnsupportedOperationException.class, () -> fieldsLookup.remove("field"));
+        expectThrows(UnsupportedOperationException.class, () -> fieldsLookup.putAll(Map.of()));
+        expectThrows(UnsupportedOperationException.class, fieldsLookup::clear);
+    }
+
+    /** A map holding the lookup, such as a script's {@code params}, is rejected by the self-reference check. */
+    public void testEnsureNoSelfReferencesRejectsStoredFieldsLookup() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("_fields", buildFieldsLookup());
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> CollectionUtils.ensureNoSelfReferences(params, "test")
+        );
+        assertThat(e.getMessage(), containsString("[_fields] does not support [isEmpty]"));
+    }
+
+    private static void assertNotEnumerable(ThrowingRunnable call, String method) {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, call);
+        assertThat(e.getMessage(), containsString("[_fields] does not support [" + method + "]"));
+        assertThat(e.getMessage(), containsString("params._fields['field']"));
     }
 }

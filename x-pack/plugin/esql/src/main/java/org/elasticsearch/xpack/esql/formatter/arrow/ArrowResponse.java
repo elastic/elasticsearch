@@ -482,7 +482,7 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
             case GEOHEX -> TO_BE_IMPLEMENTED_MARKER;
             case GEOTILE -> TO_BE_IMPLEMENTED_MARKER;
             case HISTOGRAM -> TO_BE_IMPLEMENTED_MARKER;
-            case TDIGEST -> TO_BE_IMPLEMENTED_MARKER;
+            case TDIGEST -> new BlockArrowFormatter.AsTDigest(type);
 
             // Types that should not appear in ESQL outputs
             case SHORT -> null;

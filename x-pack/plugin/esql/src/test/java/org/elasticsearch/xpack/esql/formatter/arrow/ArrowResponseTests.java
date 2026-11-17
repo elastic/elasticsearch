@@ -61,6 +61,8 @@ import org.elasticsearch.compute.data.LongRangeBlock;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder.LongRange;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.TDigestBlock;
+import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.geo.GeometryTestUtils;
@@ -69,6 +71,7 @@ import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.analytics.mapper.EncodedTDigest;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -369,6 +372,69 @@ public class ArrowResponseTests extends ESTestCase {
         }
     };
 
+    /**
+     * TDIGEST: struct with min/max/sum float64 children ({@code NaN} when absent), and centroids/counts list children.
+     * Values are compared as {@link TDigestHolder}s. A fifth of the digests are empty ones, which must be valid structs.
+     */
+    static final ValueType TDIGEST_VALUES = new ValueType() {
+        @Override
+        public Block.Builder createBlockBuilder(BlockFactory factory) {
+            return factory.newTDigestBlockBuilder(0);
+        }
+
+        @Override
+        public void addValue(Block.Builder builder, Density density) {
+            if (density.nextIsNull()) {
+                builder.appendNull();
+            } else if (randomInt(4) == 0) {
+                TDigestHolder empty = new TDigestHolder();
+                empty.reset(EncodedTDigest.encodeCentroids(List.of(), List.of()), Double.NaN, Double.NaN, Double.NaN, 0L);
+                ((TDigestBlock.Builder) builder).appendTDigest(empty);
+            } else {
+                ((TDigestBlock.Builder) builder).appendTDigest(EsqlTestUtils.randomTDigest());
+            }
+        }
+
+        @Override
+        public Object valueAt(Block block, int position, BytesRef scratch) {
+            TDigestHolder holder = ((TDigestBlock) block).getTDigestHolder(block.getFirstValueIndex(position), new TDigestHolder());
+            // Copy the encoded digest, as it refers to the block's memory
+            TDigestHolder copy = new TDigestHolder();
+            copy.reset(BytesRef.deepCopyOf(holder.getEncodedDigest()), holder.getMin(), holder.getMax(), holder.getSum(), holder.size());
+            return copy;
+        }
+
+        @Override
+        public Object valueAt(ValueVector arrowVec, int position) {
+            StructVector vector = (StructVector) arrowVec;
+            Float8Vector min = (Float8Vector) vector.getChild("min");
+            Float8Vector max = (Float8Vector) vector.getChild("max");
+            Float8Vector sum = (Float8Vector) vector.getChild("sum");
+            // Only the struct is nullable
+            assertEquals(0, min.getNullCount());
+            assertEquals(0, max.getNullCount());
+            assertEquals(0, sum.getNullCount());
+            ListVector centroidsVector = (ListVector) vector.getChild("centroids");
+            ListVector countsVector = (ListVector) vector.getChild("counts");
+            assertFalse(centroidsVector.isNull(position));
+            assertFalse(countsVector.isNull(position));
+            @SuppressWarnings("unchecked")
+            List<Double> centroids = (List<Double>) (List<?>) centroidsVector.getObject(position);
+            @SuppressWarnings("unchecked")
+            List<Long> counts = (List<Long>) (List<?>) countsVector.getObject(position);
+            assertEquals(centroids.size(), counts.size());
+            TDigestHolder holder = new TDigestHolder();
+            holder.reset(
+                EncodedTDigest.encodeCentroids(centroids, counts),
+                min.get(position),
+                max.get(position),
+                sum.get(position),
+                counts.stream().mapToLong(Long::longValue).sum()
+            );
+            return holder;
+        }
+    };
+
     static final Map<DataType, ValueType> VALUE_TYPES = Map.ofEntries(
         Map.entry(DataType.INTEGER, INTEGER_VALUES),
         Map.entry(DataType.COUNTER_INTEGER, INTEGER_VALUES),
@@ -401,14 +467,15 @@ public class ArrowResponseTests extends ESTestCase {
 
         Map.entry(DataType.DATE_RANGE, DATE_RANGE_VALUES),
         Map.entry(DataType.DOUBLE_RANGE, DOUBLE_RANGE_VALUES),
-        Map.entry(DataType.AGGREGATE_METRIC_DOUBLE, AGGREGATE_METRIC_DOUBLE_VALUES)
+        Map.entry(DataType.AGGREGATE_METRIC_DOUBLE, AGGREGATE_METRIC_DOUBLE_VALUES),
+        Map.entry(DataType.TDIGEST, TDIGEST_VALUES)
     );
 
     /**
      * Types whose blocks are always single-valued, so tests can't build multivalued columns of them. Kept independent of
      * the formatters so that a formatter that wrongly rejects multivalued columns fails the tests instead of skipping them.
      */
-    static final Set<DataType> SINGLE_VALUED_TYPES = EnumSet.of(DataType.AGGREGATE_METRIC_DOUBLE);
+    static final Set<DataType> SINGLE_VALUED_TYPES = EnumSet.of(DataType.AGGREGATE_METRIC_DOUBLE, DataType.TDIGEST);
 
     // ---------------------------------------------------------------------------------------------
     // Tests

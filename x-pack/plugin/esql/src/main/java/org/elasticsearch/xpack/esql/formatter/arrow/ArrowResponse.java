@@ -469,7 +469,7 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
             case DOUBLE_RANGE -> new BlockArrowFormatter.AsDoubleRange(type);
 
             case TSID_DATA_TYPE -> new BlockArrowFormatter.AsVarBinary(type);
-            case DENSE_VECTOR -> new BlockArrowFormatter.AsFloat32(type);
+            case DENSE_VECTOR -> new BlockArrowFormatter.AsDenseVector(type);
 
             case AGGREGATE_METRIC_DOUBLE -> new BlockArrowFormatter.AsAggregateMetricDouble(type);
             case EXPONENTIAL_HISTOGRAM -> TO_BE_IMPLEMENTED_MARKER;

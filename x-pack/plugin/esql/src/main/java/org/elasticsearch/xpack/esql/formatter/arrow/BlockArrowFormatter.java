@@ -136,11 +136,12 @@ public abstract class BlockArrowFormatter {
     );
 
     /**
-     * Preserves the precision of FloatBlock values, including dense-vector coordinates inside Arrow lists.
+     * Encodes dense vectors as Arrow lists with {@code float32} elements. Byte and bit vector elements have already been
+     * widened to floats by the field loader.
      */
-    public static class AsFloat32 extends BlockArrowFormatter {
+    public static class AsDenseVector extends BlockArrowFormatter {
 
-        public AsFloat32(DataType esqlType) {
+        public AsDenseVector(DataType esqlType) {
             super(esqlType, Types.MinorType.FLOAT4);
         }
 
@@ -152,19 +153,15 @@ public abstract class BlockArrowFormatter {
         @Override
         public void convert(Block b, boolean asList, List<ArrowBuf> bufs, List<BufWriter> bufWriters, List<Releasable> releasables) {
             FloatBlock block = (FloatBlock) b;
-            if (asList) {
-                addListOffsets(bufs, bufWriters, block);
-            }
-            accumulateVectorValidity(bufs, bufWriters, block, asList);
+            assert asList;
+            addListOffsets(bufs, bufWriters, block);
+            accumulateVectorValidity(bufs, bufWriters, block, true);
 
-            long byteSize = (long) Float.BYTES * arrowValueCount(block, asList);
+            long byteSize = (long) Float.BYTES * block.getTotalValueCount();
             bufs.add(dummyArrowBuf(byteSize));
             bufWriters.add(out -> {
                 for (int position = 0; position < block.getPositionCount(); position++) {
                     if (block.isNull(position)) {
-                        if (asList == false) {
-                            out.writeIntLE(0);
-                        }
                         continue;
                     }
                     int start = block.getFirstValueIndex(position);

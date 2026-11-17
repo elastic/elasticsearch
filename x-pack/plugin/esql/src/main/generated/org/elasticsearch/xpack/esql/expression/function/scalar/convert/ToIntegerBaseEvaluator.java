@@ -73,7 +73,7 @@ public final class ToIntegerBaseEvaluator implements ExpressionEvaluator {
   }
 
   public IntBlock eval(int positionCount, BytesRefBlock stringBlock, IntBlock baseBlock) {
-    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount, true)) {
       BytesRef stringScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         if (stringBlock.isNull(p)) {
@@ -114,7 +114,7 @@ public final class ToIntegerBaseEvaluator implements ExpressionEvaluator {
   }
 
   public IntBlock eval(int positionCount, BytesRefVector stringVector, IntVector baseVector) {
-    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount, true)) {
       BytesRef stringScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         BytesRef string = stringVector.getBytesRef(p, stringScratch);

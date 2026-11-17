@@ -132,6 +132,32 @@ indexPatternAndMetadataFields
 indexPatternOrSubquery
     : indexPattern
     | subquery
+    | sourceFunction
+    ;
+
+// A source function in a source list: FROM foo, bar*, SOMEFUNC("a_name", {"key": "value"}).
+// The name is not resolved here and the parser never consults the registry, so any name followed by '('
+// parses. An unknown one is refused during analysis, at the position it was written.
+//
+// Narrower than functionExpression's arguments, and with no slot of its own for a trailing map: a map is one
+// alternative of sourceFunctionArgument, so it may be written in any position; see that rule for why.
+sourceFunction
+    : {this.isDevVersion()}? name=DEV_SOURCE_FUNCTION_NAME (sourceFunctionArgument (COMMA sourceFunctionArgument)*)? RP
+    ;
+
+// Narrower than functionExpression's booleanExpression, and only here: a source list is read before anything
+// is in scope for an expression to refer to, so there is nothing one could mean. What is left is a constant,
+// which is the precedent `limitCommand` already sets -- a position that must be a literal is pinned in the
+// grammar rather than checked against a folded expression in code. The tokens are the same ones
+// DEV_SOURCE_FUNCTION_NAME's mode hands to EXPRESSION_MODE, so admitting every constant costs no lexer change.
+//
+// No bare identifier, so a name is written as a string. An expression over constants is refused the way
+// LIMIT 5*3 is: `constant` has no alternative an operator could join, and nothing here reaches
+// `arithmeticBinary`. A value parameter is one of `constant`'s alternatives and so is admitted -- the
+// identifier form (??p) is `doubleParameter` and is not.
+sourceFunctionArgument
+    : constant
+    | mapExpression
     ;
 
 subquery

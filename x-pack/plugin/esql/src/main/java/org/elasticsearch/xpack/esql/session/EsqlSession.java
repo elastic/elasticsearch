@@ -146,6 +146,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedSourceFunctionRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
@@ -170,6 +171,7 @@ import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
+import org.elasticsearch.xpack.esql.sourcefunction.SourceFunctionResolver;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
@@ -281,6 +283,7 @@ public class EsqlSession {
     private final EnrichPolicyResolver enrichPolicyResolver;
     private final ViewResolver viewResolver;
     private final DatasetResolver datasetResolver;
+    private final SourceFunctionResolver sourceFunctionResolver;
     private final ExternalSourceResolver externalSourceResolver;
     /**
      * Thread CPU spent in this query's planning, on every thread that runs it. Sessions are one-shot, so one tracker
@@ -433,6 +436,7 @@ public class EsqlSession {
         EnrichPolicyResolver enrichPolicyResolver,
         ViewResolver viewResolver,
         DatasetResolver datasetResolver,
+        SourceFunctionResolver sourceFunctionResolver,
         ExternalSourceResolver externalSourceResolver,
         EsqlParser parser,
         PreAnalyzer preAnalyzer,
@@ -455,6 +459,7 @@ public class EsqlSession {
         this.enrichPolicyResolver = enrichPolicyResolver;
         this.viewResolver = viewResolver;
         this.datasetResolver = datasetResolver;
+        this.sourceFunctionResolver = sourceFunctionResolver;
         this.externalSourceResolver = externalSourceResolver;
         this.parser = parser;
         this.preAnalyzer = preAnalyzer;
@@ -673,6 +678,7 @@ public class EsqlSession {
         if (explainContext == null && request.analyzeOnly() == false) {
             // stack telemetry
             gatherViewMetrics(viewResolution);
+            gatherSourceFunctionMetrics(viewResolution.plan());
             gatherInSubqueryMetrics(viewResolution);
             gatherLetMetrics(statement);
             gatherSettingsMetrics(request, statement, resolved, viewResolution.viewSettings());
@@ -1913,6 +1919,26 @@ public class EsqlSession {
         return supplied;
     }
 
+    /**
+     * Counts a query that calls a source function, read off the plan view expansion produced.
+     * <p>
+     * Not a predicate on {@link FeatureMetric}'s own walk, which is the Verifier's and runs on the analyzed plan:
+     * by then every call has become the relation its function returned, so a call would be counted as whatever
+     * came back and a function that builds its own rows would be counted as nothing. Read here instead, where the
+     * calls are still in the plan -- the same place and for the same reason as the view counter below.
+     * <p>
+     * One per query rather than one per call, as every other counter here is: the question it answers is whether
+     * anyone uses the construct, and a query naming two functions is still one query that did.
+     */
+    private void gatherSourceFunctionMetrics(LogicalPlan plan) {
+        if (metrics == null) {
+            return;
+        }
+        if (plan.anyMatch(UnresolvedSourceFunctionRelation.class::isInstance)) {
+            metrics.inc(FeatureMetric.SOURCE_FUNCTION);
+        }
+    }
+
     private void gatherViewMetrics(ViewResolver.ViewResolutionResult viewResolution) {
         if (metrics == null || viewResolution.viewQueries().isEmpty()) {
             return;
@@ -2014,31 +2040,49 @@ public class EsqlSession {
         assert planningCpu.isMeteringCurrentThread() : "analyzedPlan reached on an unmetered thread";
         executionInfo.queryProfile().setUnmappedResolution(unmappedResolution);
 
-        TimeSpanMarker datasetResolutionProfile = executionInfo.queryProfile().datasetResolution();
-        datasetResolutionProfile.start();
-        // Rewrite FROM <dataset> targets into UnresolvedExternalRelation, which external resolution binds during
-        // analysis. The resolver first read-authorizes the names through the security filter — they are stripped
-        // from the plan here and would otherwise never reach authorization. Completes synchronously when no FROM
-        // pattern can match a registered dataset.
-        datasetResolver.replaceDatasets(
+        // First the source functions a source list named, each becoming whatever relation its function returns.
+        // Ahead of the dataset rewrite rather than after it, and the rule behind that is: after the last phase
+        // that can produce a call, and before every phase that can complete one. View expansion is the only
+        // producer — it parses a view body, so it is the only thing that can put a call into the plan the user
+        // did not write there — and it has already run by the time this method is entered. Dataset rewriting,
+        // view scoping and field resolution each complete a relation, and all three are downstream of here.
+        //
+        // Completes synchronously when the query names no source function, which is the ordinary case.
+        sourceFunctionResolver.resolveSourceFunctions(
             parsed,
             projectMetadata,
-            QuerySettings.WILDCARDS_MATCH_DATASETS.get(configuration.resolvedSettings()),
-            viewSettings,
-            indexViewOrigins,
-            configuration.pragmas(),
-            flags,
-            planningCpu.meteredCpu(logicalPlanListener.delegateFailureAndWrap((delegate, rewritten) -> {
-                datasetResolutionProfile.stop();
-                analyzedPlanAfterDatasetResolution(
-                    scopeIndexPatternsInViews(rewritten, unmappedResolution, viewSettings),
-                    unmappedResolution,
+            planningCpu.meteredCpu(logicalPlanListener.delegateFailureAndWrap((delegate, withFunctionRelations) -> {
+                // Declared here rather than above the binds so the span still opens where the rewrite begins.
+                // It measured the rewrite alone before this pass was moved ahead of it and it measures the
+                // rewrite alone now -- the binds are outside it either way, so no profile a query already
+                // reported changes meaning.
+                TimeSpanMarker datasetResolutionProfile = executionInfo.queryProfile().datasetResolution();
+                datasetResolutionProfile.start();
+                // Then rewrite FROM <dataset> targets into UnresolvedExternalRelation, which external resolution
+                // binds during analysis. The resolver first read-authorizes the names through the security filter
+                // — they are stripped from the plan here and would otherwise never reach authorization.
+                // Completes synchronously when no FROM pattern can match a registered dataset.
+                datasetResolver.replaceDatasets(
+                    withFunctionRelations,
+                    projectMetadata,
+                    QuerySettings.WILDCARDS_MATCH_DATASETS.get(configuration.resolvedSettings()),
                     viewSettings,
-                    configuration,
-                    executionInfo,
-                    requestFilter,
                     indexViewOrigins,
-                    delegate
+                    configuration.pragmas(),
+                    flags,
+                    planningCpu.meteredCpu(delegate.delegateFailureAndWrap((datasetDelegate, rewritten) -> {
+                        datasetResolutionProfile.stop();
+                        analyzedPlanAfterDatasetResolution(
+                            scopeIndexPatternsInViews(rewritten, unmappedResolution, viewSettings),
+                            unmappedResolution,
+                            viewSettings,
+                            configuration,
+                            executionInfo,
+                            requestFilter,
+                            indexViewOrigins,
+                            datasetDelegate
+                        );
+                    }))
                 );
             }))
         );

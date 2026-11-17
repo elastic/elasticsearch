@@ -152,7 +152,15 @@ public enum FeatureMetric {
     IN_SUBQUERY(plan -> false),
     // LET bindings are consumed by LetResolver before analysis, so they are never visible to the plan walk.
     // The counter is incremented in EsqlSession.gatherLetMetrics, from the parsed statement.
-    LET(plan -> false);
+    LET(plan -> false),
+    // A call is replaced by the relation its function returned during analysis, and the walk that reads these
+    // predicates is the Verifier's, which runs after that -- so there is never an UnresolvedSourceFunctionRelation
+    // here for a predicate to match, and a call would otherwise be counted as whatever came back: FROM for a
+    // returned index, EXTERNAL for a dataset, and nothing at all for rows the function built, since a
+    // LocalRelation is excluded below. Counted in EsqlSession.gatherSourceFunctionMetrics instead, off the plan
+    // view expansion produced, which is where the calls still are. VIEW above does the same thing for the same
+    // reason.
+    SOURCE_FUNCTION(plan -> false);
 
     /**
      * List here plans we want to exclude from telemetry

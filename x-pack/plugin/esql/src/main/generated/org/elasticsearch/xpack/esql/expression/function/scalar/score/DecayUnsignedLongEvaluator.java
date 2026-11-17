@@ -99,7 +99,7 @@ public final class DecayUnsignedLongEvaluator implements ExpressionEvaluator {
   }
 
   public DoubleVector eval(int positionCount, LongVector valueVector) {
-    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
+    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         long value = valueVector.getLong(p);
         result.appendDouble(p, Decay.processUnsignedLong(value, this.origin, this.scale, this.offset, this.decay, this.decayFunction));

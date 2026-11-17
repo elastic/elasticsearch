@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.fetch;
 
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -35,7 +36,9 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractTransportRequest;
+import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
@@ -70,9 +73,17 @@ public class FetchContextTrackerTests extends ESSingleNodeTestCase {
         return List.of(MockSearchService.TestPlugin.class, MockTransportService.TestPlugin.class);
     }
 
+    /**
+     * The listeners that {@link #countFreeRequests} added, which outlive the rules of the transport service.
+     */
+    private final List<TransportMessageListener> freeCounters = new ArrayList<>();
+
     @After
     public void clearTransportRules() {
-        ((MockTransportService) getInstanceFromNode(TransportService.class)).clearAllRules();
+        MockTransportService transportService = (MockTransportService) getInstanceFromNode(TransportService.class);
+        transportService.clearAllRules();
+        freeCounters.forEach(transportService::removeMessageListener);
+        freeCounters.clear();
     }
 
     /**
@@ -89,7 +100,7 @@ public class FetchContextTrackerTests extends ESSingleNodeTestCase {
         tracker.close();
 
         assertAllFreed();
-        assertBusy(() -> assertThat(freeRequests.get(), equalTo(SHARDS)));
+        assertThat(freeRequests.get(), equalTo(SHARDS));
     }
 
     /**
@@ -202,7 +213,7 @@ public class FetchContextTrackerTests extends ESSingleNodeTestCase {
         }
 
         assertAllFreed();
-        assertBusy(() -> assertThat(freeRequests.get(), equalTo(SHARDS)));
+        assertThat(freeRequests.get(), equalTo(SHARDS));
     }
 
     /**
@@ -219,7 +230,7 @@ public class FetchContextTrackerTests extends ESSingleNodeTestCase {
         tracker.close();
 
         assertBusy(() -> assertThat(searchService().getActiveContexts(), equalTo(1)));
-        assertBusy(() -> assertThat(freeRequests.get(), equalTo(SHARDS - 1)));
+        assertThat(freeRequests.get(), equalTo(SHARDS - 1));
         // the node of these tests didn't free it, the test does
         searchService().freeReaderContext(kept.getFirst().contextId());
         assertAllFreed();
@@ -395,17 +406,29 @@ public class FetchContextTrackerTests extends ESSingleNodeTestCase {
     }
 
     /**
-     * Counts the free requests that this node receives from now on.
+     * Counts the free requests that this node sends from now on. The tracker sends them on the thread that frees, and the
+     * count goes up there, before the node handles the request on another thread. So once a call to the tracker returned,
+     * the count holds every free it sent, and a count of zero proves it sent none.
      */
     private AtomicInteger countFreeRequests() {
         AtomicInteger freeRequests = new AtomicInteger();
-        ((MockTransportService) getInstanceFromNode(TransportService.class)).<TransportRequest>addRequestHandlingBehavior(
-            SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME,
-            (handler, request, channel, task) -> {
-                freeRequests.incrementAndGet();
-                handler.messageReceived(request, channel, task);
+        TransportMessageListener counter = new TransportMessageListener() {
+            @Override
+            public void onRequestSent(
+                DiscoveryNode node,
+                long requestId,
+                String action,
+                TransportRequest request,
+                TransportRequestOptions finalOptions,
+                int networkMessageSize
+            ) {
+                if (SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME.equals(action)) {
+                    freeRequests.incrementAndGet();
+                }
             }
-        );
+        };
+        ((MockTransportService) getInstanceFromNode(TransportService.class)).addMessageListener(counter);
+        freeCounters.add(counter);
         return freeRequests;
     }
 }

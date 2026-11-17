@@ -9,17 +9,30 @@
 
 package org.elasticsearch.search.fetch;
 
+import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.index.FilterLeafReader;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.index.StoredFields;
+import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterDirectory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
@@ -27,12 +40,17 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
+import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.IdLoader;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.index.store.DirectoryMetricsTests;
@@ -52,8 +70,11 @@ import org.elasticsearch.transport.BytesRefRecycler;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -66,6 +87,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -1384,6 +1406,441 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             }
         } finally {
             ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+        }
+    }
+
+    /**
+     * With prefetching enabled, every segment that has hits is asked to prefetch its {@code _id} doc values and then the stored fields
+     * of its hits before the first hit is loaded, all doc values before any stored fields, and segments without hits are left alone.
+     * With prefetching disabled nothing is prefetched ahead of loading. Either way the loaded hits are the same.
+     */
+    public void testPrefetchesHitSegmentsBeforeLoadingTheFirstHit() throws IOException {
+        doTestPrefetch(false);
+    }
+
+    /**
+     * Same as {@link #testPrefetchesHitSegmentsBeforeLoadingTheFirstHit} for {@link StreamingFetchPhaseDocsIterator#iterateAsync}.
+     */
+    public void testIterateAsyncPrefetchesHitSegmentsBeforeLoadingTheFirstHit() throws IOException {
+        doTestPrefetch(true);
+    }
+
+    private void doTestPrefetch(boolean streaming) throws IOException {
+        try (PrefetchRecordingDirectory directory = new PrefetchRecordingDirectory(new ByteBuffersDirectory())) {
+            // No compound files, so that each prefetch can be attributed to the segment and the file it reads, and the default codec,
+            // whose doc values and stored fields readers implement prefetching.
+            IndexWriterConfig config = new IndexWriterConfig().setCodec(TestUtil.getDefaultCodec())
+                .setMergePolicy(NoMergePolicy.INSTANCE)
+                .setUseCompoundFile(false);
+            int docCount = randomIntBetween(100, 300);
+            try (IndexWriter writer = new IndexWriter(directory, config)) {
+                for (int i = 0; i < docCount; i++) {
+                    Document doc = new Document();
+                    // the _id as an index that loads it from doc values stores it, see IdLoader.DocValuesIdLoader
+                    doc.add(new BinaryDocValuesField(IdFieldMapper.NAME, Uid.encodeId("id-" + i)));
+                    doc.add(new StoredField("field", "value-" + i));
+                    writer.addDocument(doc);
+                    if (i % 20 == 19) {
+                        writer.commit();
+                    }
+                }
+                writer.commit();
+            }
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                List<LeafReaderContext> leaves = reader.leaves();
+                assertThat(leaves.size(), greaterThan(2));
+                // hits in some segments only, and at least one segment without hits
+                Set<String> segmentsWithHits = new HashSet<>();
+                List<Integer> hitDocs = new ArrayList<>();
+                int skipped = randomIntBetween(0, leaves.size() - 1);
+                for (LeafReaderContext leaf : leaves) {
+                    if (leaf.ord == skipped || (randomBoolean() && hitDocs.isEmpty() == false)) {
+                        continue;
+                    }
+                    segmentsWithHits.add(segmentName(leaf));
+                    for (int doc = 0; doc < leaf.reader().maxDoc(); doc++) {
+                        if (doc == 0 || rarely()) {
+                            hitDocs.add(leaf.docBase + doc);
+                        }
+                    }
+                }
+                Collections.shuffle(hitDocs, random());
+                int[] docIds = hitDocs.stream().mapToInt(Integer::intValue).toArray();
+                boolean loadsStoredFields = randomBoolean();
+
+                LoadingIterator withPrefetch = new LoadingIterator(directory, true, loadsStoredFields);
+                List<String> loadedWithPrefetch = withPrefetch.run(reader, docIds, streaming);
+                LoadingIterator withoutPrefetch = new LoadingIterator(directory, false, loadsStoredFields);
+                List<String> loadedWithoutPrefetch = withoutPrefetch.run(reader, docIds, streaming);
+
+                // prefetching does not change the result
+                assertThat(loadedWithPrefetch, equalTo(loadedWithoutPrefetch));
+                assertThat(loadedWithPrefetch.size(), equalTo(docIds.length));
+
+                // without prefetching, nothing is prefetched before the first hit is loaded
+                assertThat(withoutPrefetch.eventsBeforeFirstLoad(), equalTo(List.of()));
+
+                // with prefetching, the _id doc values and then the stored fields of every segment with hits are prefetched first
+                List<PrefetchRecordingDirectory.Event> prefetched = withPrefetch.eventsBeforeFirstLoad();
+                Set<String> idPrefetched = new HashSet<>();
+                Set<String> storedFieldsPrefetched = new HashSet<>();
+                boolean storedFieldsSeen = false;
+                for (PrefetchRecordingDirectory.Event event : prefetched) {
+                    assertTrue("prefetched a segment without hits: " + event, segmentsWithHits.contains(event.segment()));
+                    switch (event.extension()) {
+                        case "dvd" -> {
+                            assertFalse("doc values prefetched after stored fields: " + prefetched, storedFieldsSeen);
+                            idPrefetched.add(event.segment());
+                        }
+                        case "fdt" -> {
+                            storedFieldsSeen = true;
+                            storedFieldsPrefetched.add(event.segment());
+                        }
+                        default -> fail("unexpected prefetch " + event);
+                    }
+                }
+                assertThat(idPrefetched, equalTo(segmentsWithHits));
+                assertThat(storedFieldsPrefetched, equalTo(loadsStoredFields ? segmentsWithHits : Set.of()));
+            }
+        }
+    }
+
+    /**
+     * With more hits than {@link SearchService#FETCH_PHASE_PREFETCH_MAX_DOCS}, the stored fields of at most that many hits are
+     * prefetched ahead of the hit being loaded, every hit is prefetched exactly once before it is loaded, and the next hits are
+     * prefetched in waves of about half the window rather than one hit at a time.
+     */
+    public void testPrefetchesStoredFieldsInABoundedWindow() throws IOException {
+        doTestPrefetchWindow(false);
+    }
+
+    /**
+     * Same as {@link #testPrefetchesStoredFieldsInABoundedWindow} for {@link StreamingFetchPhaseDocsIterator#iterateAsync}.
+     */
+    public void testIterateAsyncPrefetchesStoredFieldsInABoundedWindow() throws IOException {
+        doTestPrefetchWindow(true);
+    }
+
+    private void doTestPrefetchWindow(boolean streaming) throws IOException {
+        try (PrefetchRecordingDirectory directory = new PrefetchRecordingDirectory(new ByteBuffersDirectory())) {
+            IndexWriterConfig config = new IndexWriterConfig().setCodec(TestUtil.getDefaultCodec()).setMergePolicy(NoMergePolicy.INSTANCE);
+            int docCount = randomIntBetween(100, 300);
+            try (IndexWriter writer = new IndexWriter(directory, config)) {
+                for (int i = 0; i < docCount; i++) {
+                    Document doc = new Document();
+                    doc.add(new BinaryDocValuesField(IdFieldMapper.NAME, Uid.encodeId("id-" + i)));
+                    doc.add(new StoredField("field", "value-" + i));
+                    writer.addDocument(doc);
+                    if (i % 40 == 39) {
+                        writer.commit();
+                    }
+                }
+                writer.commit();
+            }
+            List<String> events = new CopyOnWriteArrayList<>();
+            try (DirectoryReader reader = recordingStoredFieldsPrefetch(DirectoryReader.open(directory), events)) {
+                int[] docIds = IntStream.range(0, docCount).filter(doc -> randomBoolean()).toArray();
+                assumeTrue("needs hits", docIds.length > 0);
+                int maxDocs = randomIntBetween(1, 16);
+
+                LoadingIterator withPrefetch = new LoadingIterator(directory, true, true, maxDocs, events);
+                List<String> loadedWithPrefetch = withPrefetch.run(reader, docIds, streaming);
+                List<String> withPrefetchEvents = List.copyOf(events);
+                events.clear();
+                LoadingIterator withoutPrefetch = new LoadingIterator(directory, false, true, maxDocs, events);
+                assertThat(withoutPrefetch.run(reader, docIds, streaming), equalTo(loadedWithPrefetch));
+                assertThat(events.stream().filter(e -> e.startsWith("prefetch")).toList(), equalTo(List.of()));
+
+                // replay: every hit is prefetched exactly once, before it is loaded, and at most maxDocs hits are prefetched ahead
+                Set<String> prefetched = new HashSet<>();
+                Set<String> loaded = new HashSet<>();
+                int waves = 0;
+                boolean previousWasPrefetch = false;
+                for (String event : withPrefetchEvents) {
+                    String doc = event.substring(event.indexOf(':') + 1);
+                    if (event.startsWith("prefetch")) {
+                        assertTrue("prefetched twice: " + doc, prefetched.add(doc));
+                        assertFalse("prefetched after loading: " + doc, loaded.contains(doc));
+                        assertThat("prefetched too far ahead", prefetched.size() - loaded.size(), lessThanOrEqualTo(maxDocs));
+                        if (previousWasPrefetch == false) {
+                            waves++;
+                        }
+                        previousWasPrefetch = true;
+                    } else {
+                        assertTrue("loaded before prefetching: " + doc, prefetched.contains(doc));
+                        loaded.add(doc);
+                        previousWasPrefetch = false;
+                    }
+                }
+                assertThat(prefetched.size(), equalTo(docIds.length));
+                assertThat(loaded.size(), equalTo(docIds.length));
+                // the first window, then one wave per half window loaded
+                int wavesBound = 1 + (int) Math.ceil(Math.max(0, docIds.length - maxDocs) / Math.ceil(maxDocs / 2.0));
+                assertThat(waves, lessThanOrEqualTo(wavesBound));
+            }
+        }
+    }
+
+    /**
+     * Wraps the reader so that {@link StoredFields#prefetch} calls are recorded as {@code prefetch:<global doc id>}.
+     */
+    private static DirectoryReader recordingStoredFieldsPrefetch(DirectoryReader in, List<String> events) throws IOException {
+        Map<LeafReader, Integer> docBases = new IdentityHashMap<>();
+        DirectoryReader wrapped = new FilterDirectoryReader(in, new FilterDirectoryReader.SubReaderWrapper() {
+            @Override
+            public LeafReader wrap(LeafReader reader) {
+                return new FilterLeafReader(reader) {
+                    @Override
+                    public StoredFields storedFields() throws IOException {
+                        StoredFields storedFields = in.storedFields();
+                        LeafReader leaf = this;
+                        return new StoredFields() {
+                            @Override
+                            public void prefetch(int docID) throws IOException {
+                                events.add("prefetch:" + (docBases.get(leaf) + docID));
+                                storedFields.prefetch(docID);
+                            }
+
+                            @Override
+                            public void document(int docID, StoredFieldVisitor visitor) throws IOException {
+                                storedFields.document(docID, visitor);
+                            }
+                        };
+                    }
+
+                    @Override
+                    public CacheHelper getCoreCacheHelper() {
+                        return in.getCoreCacheHelper();
+                    }
+
+                    @Override
+                    public CacheHelper getReaderCacheHelper() {
+                        return in.getReaderCacheHelper();
+                    }
+                };
+            }
+        }) {
+            @Override
+            protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public CacheHelper getReaderCacheHelper() {
+                return in.getReaderCacheHelper();
+            }
+        };
+        for (LeafReaderContext leaf : wrapped.leaves()) {
+            docBases.put(leaf.reader(), leaf.docBase);
+        }
+        return wrapped;
+    }
+
+    private static String segmentName(LeafReaderContext ctx) {
+        return Lucene.segmentReader(ctx.reader()).getSegmentName();
+    }
+
+    /**
+     * Loads the {@code _id} from doc values and, optionally, a stored field of every hit, the way {@link FetchPhase} does, and records
+     * when it starts loading the hits of a segment.
+     */
+    private static class LoadingIterator extends StreamingFetchPhaseDocsIterator {
+        private final PrefetchRecordingDirectory directory;
+        private final boolean prefetch;
+        private final boolean loadsStoredFields;
+        private final int maxDocs;
+        @Nullable
+        private final List<String> events;
+        private final IdLoader idLoader = IdLoader.fromDocValues();
+        private final List<String> loaded = new ArrayList<>();
+        private List<PrefetchRecordingDirectory.Event> eventsBeforeFirstLoad;
+        private int docBase;
+        private IdLoader.Leaf leafIdLoader;
+        private StoredFields storedFields;
+
+        LoadingIterator(PrefetchRecordingDirectory directory, boolean prefetch, boolean loadsStoredFields) {
+            this(directory, prefetch, loadsStoredFields, Integer.MAX_VALUE, null);
+        }
+
+        LoadingIterator(
+            PrefetchRecordingDirectory directory,
+            boolean prefetch,
+            boolean loadsStoredFields,
+            int maxDocs,
+            @Nullable List<String> events
+        ) {
+            super(DirectoryMetrics.Capture.NOOP);
+            this.directory = directory;
+            this.prefetch = prefetch;
+            this.loadsStoredFields = loadsStoredFields;
+            this.maxDocs = maxDocs;
+            this.events = events;
+        }
+
+        @Override
+        protected int prefetchMaxDocs() {
+            return maxDocs;
+        }
+
+        @Override
+        protected boolean prefetch() {
+            return prefetch;
+        }
+
+        @Override
+        protected void prefetchDocValues(LeafReaderContext ctx) throws IOException {
+            idLoader.prefetch(ctx.reader());
+        }
+
+        @Override
+        protected boolean loadsStoredFields() {
+            return loadsStoredFields;
+        }
+
+        @Override
+        protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) throws IOException {
+            if (eventsBeforeFirstLoad == null) {
+                eventsBeforeFirstLoad = directory.events();
+            }
+            docBase = ctx.docBase;
+            leafIdLoader = idLoader.leaf(null, ctx.reader(), docsInLeaf);
+            storedFields = loadsStoredFields ? ctx.reader().storedFields() : null;
+        }
+
+        @Override
+        protected SearchHit nextDoc(int doc) throws IOException {
+            String id = leafIdLoader.getId(doc - docBase);
+            String value = storedFields == null ? null : storedFields.document(doc - docBase).get("field");
+            loaded.add(doc + ":" + id + ":" + value);
+            if (events != null) {
+                events.add("load:" + doc);
+            }
+            return new SearchHit(doc, id);
+        }
+
+        List<PrefetchRecordingDirectory.Event> eventsBeforeFirstLoad() {
+            return eventsBeforeFirstLoad;
+        }
+
+        List<String> run(IndexReader reader, int[] docIds, boolean streaming) throws IOException {
+            directory.startRecording();
+            if (streaming) {
+                CircuitBreaker circuitBreaker = newLimitedBreaker(ByteSizeValue.ofBytes(Long.MAX_VALUE));
+                PlainActionFuture<IterateResult> future = new PlainActionFuture<>();
+                CountDownLatch refsComplete = new CountDownLatch(1);
+                RefCountingListener refs = new RefCountingListener(ActionListener.running(refsComplete::countDown));
+                iterateAsync(
+                    createShardTarget(),
+                    reader,
+                    docIds,
+                    new TestChunkWriter(circuitBreaker),
+                    1024,
+                    refs,
+                    4,
+                    new AtomicReference<>(),
+                    () -> false,
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                    future
+                );
+                safeGet(future).close();
+                refs.close();
+                safeAwait(refsComplete);
+                assertThat(circuitBreaker.getUsed(), equalTo(0L));
+            } else {
+                for (SearchHit hit : iterate(null, reader, docIds, randomBoolean(), new QuerySearchResult()).hits) {
+                    hit.decRef();
+                }
+            }
+            // loaded in doc id order: sort by doc id to compare runs
+            return loaded.stream().sorted(Comparator.comparingInt(s -> Integer.parseInt(s.substring(0, s.indexOf(':'))))).toList();
+        }
+    }
+
+    /**
+     * Records the {@link IndexInput#prefetch} calls on its files, including on clones and slices, so that tests can observe what is
+     * prefetched and in which order. A {@link FilterDirectory} because the prefetch calls are made deep in the codec.
+     */
+    private static class PrefetchRecordingDirectory extends FilterDirectory {
+        record Event(String segment, String extension) {}
+
+        private final List<Event> events = new CopyOnWriteArrayList<>();
+        private volatile boolean recording;
+
+        PrefetchRecordingDirectory(Directory in) {
+            super(in);
+        }
+
+        void startRecording() {
+            events.clear();
+            recording = true;
+        }
+
+        List<Event> events() {
+            return List.copyOf(events);
+        }
+
+        @Override
+        public IndexInput openInput(String name, IOContext context) throws IOException {
+            return new RecordingIndexInput(name, super.openInput(name, context));
+        }
+
+        private class RecordingIndexInput extends IndexInput {
+            private final String fileName;
+            private final IndexInput in;
+
+            RecordingIndexInput(String fileName, IndexInput in) {
+                super("recording(" + in + ")");
+                this.fileName = fileName;
+                this.in = in;
+            }
+
+            @Override
+            public void prefetch(long offset, long length) throws IOException {
+                if (recording) {
+                    events.add(new Event(IndexFileNames.parseSegmentName(fileName), IndexFileNames.getExtension(fileName)));
+                }
+                in.prefetch(offset, length);
+            }
+
+            @Override
+            public IndexInput clone() {
+                return new RecordingIndexInput(fileName, in.clone());
+            }
+
+            @Override
+            public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
+                return new RecordingIndexInput(fileName, in.slice(sliceDescription, offset, length));
+            }
+
+            @Override
+            public void close() throws IOException {
+                in.close();
+            }
+
+            @Override
+            public long getFilePointer() {
+                return in.getFilePointer();
+            }
+
+            @Override
+            public void seek(long pos) throws IOException {
+                in.seek(pos);
+            }
+
+            @Override
+            public long length() {
+                return in.length();
+            }
+
+            @Override
+            public byte readByte() throws IOException {
+                return in.readByte();
+            }
+
+            @Override
+            public void readBytes(byte[] b, int offset, int len) throws IOException {
+                in.readBytes(b, offset, len);
+            }
         }
     }
 

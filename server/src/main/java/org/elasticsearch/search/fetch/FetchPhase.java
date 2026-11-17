@@ -92,10 +92,28 @@ public final class FetchPhase {
     private static final Logger LOGGER = LogManager.getLogger(FetchPhase.class);
 
     private final FetchSubPhase[] fetchSubPhases;
+    private volatile boolean prefetch;
+    private volatile int prefetchMaxDocs = SearchService.FETCH_PHASE_PREFETCH_MAX_DOCS.getDefault(Settings.EMPTY);
 
     public FetchPhase(List<FetchSubPhase> fetchSubPhases) {
         this.fetchSubPhases = fetchSubPhases.toArray(new FetchSubPhase[fetchSubPhases.size() + 1]);
         this.fetchSubPhases[fetchSubPhases.size()] = new InnerHitsPhase(this);
+    }
+
+    /**
+     * Sets whether to prefetch the {@code _id} doc values and the stored fields of the hits of every segment before loading the first
+     * hit. See {@link SearchService#FETCH_PHASE_PREFETCH_ENABLED}.
+     */
+    public void setPrefetch(boolean prefetch) {
+        this.prefetch = prefetch;
+    }
+
+    /**
+     * Sets the maximum number of hits whose stored fields are prefetched ahead of the hit being loaded. See
+     * {@link SearchService#FETCH_PHASE_PREFETCH_MAX_DOCS}.
+     */
+    public void setPrefetchMaxDocs(int prefetchMaxDocs) {
+        this.prefetchMaxDocs = prefetchMaxDocs;
     }
 
     /**
@@ -376,6 +394,9 @@ public final class FetchPhase {
         StoredFieldLoader storedFieldLoader = profiler.storedFields(StoredFieldLoader.fromSpec(storedFieldsSpec));
         IdLoader idLoader = context.newIdLoader();
         boolean requiresSource = storedFieldsSpec.requiresSource();
+        final boolean prefetch = this.prefetch;
+        final int prefetchMaxDocs = this.prefetchMaxDocs;
+        final boolean loadsStoredFields = storedFieldsSpec.noRequirements() == false;
         final int[] locallyAccumulatedSourceBytes = new int[1];
         // Buffered here and only charged once the buffer crosses memAccountingBufferSize(), like _source.
         final long[] locallyAccumulatedFieldBytes = new long[1];
@@ -425,6 +446,26 @@ public final class FetchPhase {
             @Override
             public long getRequestBreakerBytes() {
                 return super.getRequestBreakerBytes() + innerHitsBreakerBytes[0] + streamingHeldBytes[0];
+            }
+
+            @Override
+            protected boolean prefetch() {
+                return prefetch;
+            }
+
+            @Override
+            protected int prefetchMaxDocs() {
+                return prefetchMaxDocs;
+            }
+
+            @Override
+            protected void prefetchDocValues(LeafReaderContext ctx) throws IOException {
+                idLoader.prefetch(ctx.reader());
+            }
+
+            @Override
+            protected boolean loadsStoredFields() {
+                return loadsStoredFields;
             }
 
             @Override

@@ -74,6 +74,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combineAndNullable;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels.PROMETHEUS_LABELS_PREFIX;
@@ -401,9 +402,20 @@ public record TranslationContext(
         // Every packing is materialized under its derived name, finest first, and every label the relation has is a
         // key too. Every column is functionally dependent on the finest packing, so grouping by all of them
         // preserves per-series granularity while making the full schema available to the surrounding query.
+        // With the label container functions only the finest packing loads: each coarser one leaves more labels out of
+        // it after the aggregate, as the source loads one _timeseries per relation.
         var groupKeys = new ArrayList<NamedExpression>();
         var outKeys = new ArrayList<NamedExpression>();
+        var derived = new ArrayList<Alias>();
+        Set<String> finest = null;
+        Attribute finestPacking = null;
         for (Set<String> skip : finestFirst(schema.skips())) {
+            if (finestPacking != null && containerFunctions() && skip.containsAll(finest)) {
+                var extra = new TreeSet<>(skip);
+                extra.removeAll(finest);
+                derived.add(new Alias(source, mapOpen(skip), unset(finestPacking, extra.stream())));
+                continue;
+            }
             List<Expression> excluded = skip.stream().<Expression>map(label -> {
                 Attribute resolved = find(plan.output(), label);
                 return resolved != null ? resolved : mapToRef(label);
@@ -411,6 +423,10 @@ public record TranslationContext(
             Alias packing = new Alias(source, mapOpen(skip), new TimeSeriesWithout(source, excluded));
             groupKeys.add(packing);
             outKeys.add(packing.toAttribute());
+            if (finestPacking == null) {
+                finest = skip;
+                finestPacking = packing.toAttribute();
+            }
         }
         for (String label : schema.labels()) {
             Attribute carrier = find(plan.output(), label);
@@ -420,7 +436,7 @@ public record TranslationContext(
             }
         }
 
-        return new TimeSeriesAggregate(
+        LogicalPlan collapse = new TimeSeriesAggregate(
             source,
             plan,
             groupings(stepBucketAlias, groupKeys),
@@ -430,6 +446,13 @@ public record TranslationContext(
             TimeSeriesAggregate.Origin.PROMQL_COMMAND,
             false
         );
+        return derived.isEmpty() ? collapse : new Eval(source, collapse, derived);
+    }
+
+    /** {@code packing} leaving {@code labels} out as well: the canonical label container of the remaining labels. */
+    public static Expression unset(Expression packing, Stream<String> labels) {
+        List<Expression> names = labels.sorted().<Expression>map(label -> Literal.keyword(packing.source(), label)).toList();
+        return new TimeSeriesMetadataFilter(packing.source(), packing, names, true);
     }
 
     /**

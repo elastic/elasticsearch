@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocatio
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
@@ -122,7 +123,7 @@ public class StatelessDataNodeRecoveryThrottlingIT extends AbstractStatelessPlug
             .put(
                 StatelessThrottlingConcurrentRecoveriesAllocationDecider.MIN_HEAP_REQUIRED_FOR_CONCURRENT_PRIMARY_RECOVERIES_SETTING
                     .getKey(),
-                "0b"
+                ByteSizeValue.ZERO
             )
             .put(
                 StatelessThrottlingConcurrentRecoveriesAllocationDecider.CONCURRENT_PRIMARY_RECOVERIES_PER_HEAP_GB.getKey(),
@@ -985,7 +986,7 @@ public class StatelessDataNodeRecoveryThrottlingIT extends AbstractStatelessPlug
         // `max(1, round(heapGb * 0))` allows a single concurrent primary relocation whatever the heap.
         settings.put(
             StatelessThrottlingConcurrentRecoveriesAllocationDecider.MIN_HEAP_REQUIRED_FOR_CONCURRENT_PRIMARY_RECOVERIES_SETTING.getKey(),
-            "0b"
+            ByteSizeValue.ZERO
         ).put(StatelessThrottlingConcurrentRecoveriesAllocationDecider.CONCURRENT_PRIMARY_RECOVERIES_PER_HEAP_GB.getKey(), 0.0);
         updateClusterSettings(settings);
 

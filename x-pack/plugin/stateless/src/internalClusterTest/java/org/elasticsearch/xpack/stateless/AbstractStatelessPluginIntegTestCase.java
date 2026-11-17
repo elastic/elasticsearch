@@ -190,7 +190,7 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
     // TODO(szybia): remove once merge blobs are uploaded for real
     private MockLog mergeBlobLogCapture;
     // Drawn once per test so that all nodes share the same recovery throttling configuration
-    private Settings dnrtSettings = Settings.EMPTY;
+    private Settings recoveryThrottlingSettings = Settings.EMPTY;
 
     @Before
     public void setup() {
@@ -206,7 +206,8 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
             hollowIndexShardsZeroTtl = true;
         }
         if (randomBoolean()) {
-            dnrtSettings = randomDataNodeRecoveryThrottlingSettings();
+            recoveryThrottlingSettings = randomDataNodeRecoveryThrottlingSettings();
+            logger.info("Overriding recovery throttling settings with: {}", recoveryThrottlingSettings);
         }
         if (MERGE_BLOBS_ENABLED) {
             final boolean injectMergeBlobs = randomBoolean();
@@ -525,7 +526,7 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
             var cacheBoostPreference = StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING;
             builder.put(cacheBoostPreference.getKey(), cacheBoostPreference.getDefault(Settings.EMPTY));
         }
-        builder.put(dnrtSettings);
+        builder.put(recoveryThrottlingSettings);
         return builder;
     }
 

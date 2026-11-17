@@ -35,7 +35,8 @@ import java.util.Set;
  * which search uses, it gives a nested child document the slice of its root's {@code _source} it was indexed from, and caches
  * the root's source for the root's other children. Unlike it, it reads the root with whatever loader the index's {@code _source}
  * needs, stored or synthetic, rather than only the stored bytes. It requires the root's source to hold every object of the
- * nested field, which a mapping-level {@code _source} filter can break; see {@link MappingLookup#newNestedChildSourceLoader}.
+ * nested field, which a mapping-level {@code _source} filter can break, so {@link MappingLookup#newNestedChildSourceLoader}
+ * refuses such an index.
  *
  * <p>A synthetic root loader reads doc values, so its documents must be read in increasing doc ID order.
  */

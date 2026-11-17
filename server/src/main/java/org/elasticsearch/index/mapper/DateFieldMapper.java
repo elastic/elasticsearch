@@ -506,7 +506,8 @@ public final class DateFieldMapper extends FieldMapper {
                 nullValue.getValue(),
                 scriptValues(),
                 meta.getValue(),
-                readInArrayOrder
+                readInArrayOrder,
+                script.get() == null && docValuesParameters.getValue().multiValue() == false
             );
 
             Long nullTimestamp = parseNullValue(ft);
@@ -543,6 +544,7 @@ public final class DateFieldMapper extends FieldMapper {
         private final FieldValues<Long> scriptValues;
         private final boolean isSyntheticSource;
         private final boolean readInArrayOrder;
+        private final boolean staticallySingleValued;
 
         public DateFieldType(
             String name,
@@ -555,7 +557,7 @@ public final class DateFieldMapper extends FieldMapper {
             FieldValues<Long> scriptValues,
             Map<String, String> meta
         ) {
-            this(name, indexType, isStored, isSyntheticSource, dateTimeFormatter, resolution, nullValue, scriptValues, meta, false);
+            this(name, indexType, isStored, isSyntheticSource, dateTimeFormatter, resolution, nullValue, scriptValues, meta, false, false);
         }
 
         public DateFieldType(
@@ -568,7 +570,8 @@ public final class DateFieldMapper extends FieldMapper {
             String nullValue,
             FieldValues<Long> scriptValues,
             Map<String, String> meta,
-            boolean readInArrayOrder
+            boolean readInArrayOrder,
+            boolean staticallySingleValued
         ) {
             super(name, indexType, isStored, meta);
             this.dateTimeFormatter = dateTimeFormatter;
@@ -578,6 +581,12 @@ public final class DateFieldMapper extends FieldMapper {
             this.scriptValues = scriptValues;
             this.isSyntheticSource = isSyntheticSource;
             this.readInArrayOrder = readInArrayOrder;
+            this.staticallySingleValued = staticallySingleValued;
+        }
+
+        @Override
+        public boolean isStaticallySingleValued() {
+            return staticallySingleValued;
         }
 
         public DateFieldType(
@@ -1183,7 +1192,6 @@ public final class DateFieldMapper extends FieldMapper {
     private final DocValuesFieldFactory dvFactory;
     private final boolean ignoreMalformed;
     private final Long nullValue;
-    private final String nullValueAsString;
     private final Resolution resolution;
     private final boolean isSourceSynthetic;
 
@@ -1215,7 +1223,6 @@ public final class DateFieldMapper extends FieldMapper {
             builder.indexSettings.getIndexVersionCreated()
         );
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
-        this.nullValueAsString = builder.nullValue.getValue();
         this.nullValue = nullValue;
         this.resolution = resolution;
         this.isSourceSynthetic = isSourceSynthetic;
@@ -1243,7 +1250,7 @@ public final class DateFieldMapper extends FieldMapper {
 
     @Override
     public boolean isNullable() {
-        return docValuesParameters.nullability() || nullValueAsString != null;
+        return docValuesParameters.nullability() || nullValue != null;
     }
 
     @Override

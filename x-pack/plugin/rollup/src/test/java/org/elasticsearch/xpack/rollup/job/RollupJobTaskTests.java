@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.Client;
@@ -607,7 +606,6 @@ public class RollupJobTaskTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             assertTrue(threadContext.getHeaders().isEmpty());
             SearchResponse r = mock(SearchResponse.class);
-            when(r.getShardFailures()).thenReturn(ShardSearchFailure.EMPTY_ARRAY);
             InternalComposite compositeAgg = mock(InternalComposite.class);
             when(compositeAgg.getBuckets()).thenReturn(Collections.emptyList());
             when(compositeAgg.getName()).thenReturn(RollupField.NAME);
@@ -716,7 +714,6 @@ public class RollupJobTaskTests extends ESTestCase {
             assertThat(threadContext.getHeaders().get("_xpack_security_authentication"), equalTo("bar"));
 
             SearchResponse r = mock(SearchResponse.class);
-            when(r.getShardFailures()).thenReturn(ShardSearchFailure.EMPTY_ARRAY);
             InternalComposite compositeAgg = mock(InternalComposite.class);
             when(compositeAgg.getBuckets()).thenReturn(Collections.emptyList());
             when(compositeAgg.getName()).thenReturn(RollupField.NAME);
@@ -826,7 +823,6 @@ public class RollupJobTaskTests extends ESTestCase {
             assertThat(threadContext.getHeaders().get("_xpack_security_authentication"), equalTo("bar"));
 
             SearchResponse r = mock(SearchResponse.class);
-            when(r.getShardFailures()).thenReturn(ShardSearchFailure.EMPTY_ARRAY);
             InternalComposite compositeAgg = mock(InternalComposite.class);
             when(compositeAgg.getBuckets()).thenReturn(Collections.emptyList());
             when(compositeAgg.getName()).thenReturn(RollupField.NAME);

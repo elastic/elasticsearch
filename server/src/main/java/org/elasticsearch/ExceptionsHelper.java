@@ -535,40 +535,17 @@ public final class ExceptionsHelper {
      */
     public static List<ShardOperationFailedException> groupBy(List<? extends ShardOperationFailedException> failures) {
         if (failures.isEmpty()) {
-            return List.of();
+            return Collections.emptyList();
         }
         List<ShardOperationFailedException> uniqueFailures = new ArrayList<>();
         Set<GroupBy> reasons = new HashSet<>();
         for (ShardOperationFailedException failure : failures) {
             GroupBy reason = new GroupBy(failure);
-            if (reasons.contains(reason) == false) {
-                reasons.add(reason);
+            if (reasons.add(reason)) {
                 uniqueFailures.add(failure);
             }
         }
-        return List.copyOf(uniqueFailures);
-    }
-
-    /**
-     * Deduplicate the failures by exception message and index.
-     * @param failures array to deduplicate
-     * @return deduplicated array; if failures is null or empty, it will be returned without modification
-     */
-    @Deprecated // Use List<ShardOperationFailedException> instead
-    public static ShardOperationFailedException[] groupBy(ShardOperationFailedException[] failures) {
-        if (failures == null || failures.length == 0) {
-            return failures;
-        }
-        List<ShardOperationFailedException> uniqueFailures = new ArrayList<>();
-        Set<GroupBy> reasons = new HashSet<>();
-        for (ShardOperationFailedException failure : failures) {
-            GroupBy reason = new GroupBy(failure);
-            if (reasons.contains(reason) == false) {
-                reasons.add(reason);
-                uniqueFailures.add(failure);
-            }
-        }
-        return uniqueFailures.toArray(new ShardOperationFailedException[0]);
+        return Collections.unmodifiableList(uniqueFailures);
     }
 
     /**

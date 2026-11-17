@@ -185,8 +185,10 @@ public class EsqlSearchLoadIT extends AbstractExternalDataSourceIT {
         ThreadPool dataPool = internalCluster().getInstance(ThreadPool.class, dataNode);
         ThreadPool coordPool = internalCluster().getInstance(ThreadPool.class, coordinator);
         var dataWorkers = (TaskExecutionTimeTrackingEsThreadPoolExecutor) dataPool.executor(EsqlPlugin.computePool());
+        var dataIo = (TaskExecutionTimeTrackingEsThreadPoolExecutor) dataPool.executor(EsqlPlugin.externalBlobStorePool());
         var coordWorkers = (TaskExecutionTimeTrackingEsThreadPoolExecutor) coordPool.executor(EsqlPlugin.computePool());
         long dataAttributedBefore = dataWorkers.getAttributedTaskExecutionTime();
+        long dataIoAttributedBefore = dataIo.getAttributedTaskExecutionTime();
         long coordAttributedBefore = coordWorkers.getAttributedTaskExecutionTime();
 
         try (var response = client(coordinator).execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query)).actionGet()) {
@@ -195,7 +197,11 @@ public class EsqlSearchLoadIT extends AbstractExternalDataSourceIT {
             assertThat(response.searchCpuNanos(), lessThanOrEqualTo(response.searchLoadNanos()));
         }
 
-        assertBusy(() -> assertThat(dataWorkers.getAttributedTaskExecutionTime() - dataAttributedBefore, greaterThan(0L)));
+        assertBusy(() -> {
+            assertThat(dataWorkers.getAttributedTaskExecutionTime() - dataAttributedBefore, greaterThan(0L));
+            // I/O-pool attrib is 0 unless esql_external_io tracks and the planner wrap has a target.
+            assertThat(dataIo.getAttributedTaskExecutionTime() - dataIoAttributedBefore, greaterThan(0L));
+        });
         assertThat(coordWorkers.getAttributedTaskExecutionTime() - coordAttributedBefore, equalTo(0L));
     }
 

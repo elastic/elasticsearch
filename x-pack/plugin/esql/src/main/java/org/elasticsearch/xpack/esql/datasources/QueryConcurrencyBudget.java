@@ -44,6 +44,7 @@ import java.util.function.BooleanSupplier;
  * to done (fewest remaining GETs) once it leads by {@link #PREEMPT_GAP}, otherwise to the oldest
  * bound lease. Null leases stay FIFO among themselves and never become favoured, except a null
  * waiter that has sat for {@link #NULL_LEASE_MAX_WAIT_MS} takes the next grant.
+ * Optional {@code queryId} is stall/debug identity only; it does not change fair-share.
  */
 class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
 
@@ -556,11 +557,7 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
         return waiterLabel(queryId, rest);
     }
 
-    /**
-     * Prefixes {@code suffix} with the query id when one is set. Caps the id so stall WARN
-     * graphs stay readable when many waiters dump together. Truncates the node-id prefix so
-     * the unique {@code :taskId} suffix survives.
-     */
+    /** Prefixes {@code suffix} with query id when set. Caps length by dropping the node-id prefix. */
     static String waiterLabel(@Nullable TaskId queryId, String suffix) {
         if (queryId == null || queryId.isSet() == false) {
             return suffix;

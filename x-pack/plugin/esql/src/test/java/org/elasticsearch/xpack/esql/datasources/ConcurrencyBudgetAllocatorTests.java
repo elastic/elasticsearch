@@ -233,6 +233,8 @@ public class ConcurrencyBudgetAllocatorTests extends ESTestCase {
         RowGroupIo lease = new RowGroupIo();
         budget.bind(lease);
         assertEquals(new TaskId("coord", 9), lease.queryId());
+        budget.bind(lease);
+        assertEquals(new TaskId("coord", 9), lease.queryId());
         budget.close();
     }
 

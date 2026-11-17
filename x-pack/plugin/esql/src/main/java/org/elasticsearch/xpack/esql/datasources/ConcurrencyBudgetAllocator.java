@@ -63,17 +63,12 @@ class ConcurrencyBudgetAllocator implements AdmissionGate {
 
     /**
      * Registers a new source-node and returns its concurrency budget. Existing budgets are
-     * rebalanced to accommodate the new entrant.
+     * rebalanced to accommodate the new entrant. {@code queryId} is stall/debug identity only.
      */
     QueryConcurrencyBudget register() {
         return register(null);
     }
 
-    /**
-     * Same as {@link #register()}, tagging the budget with {@code queryId} for stall/debug labels.
-     * {@code null} is allowed: labels then stay lease/thread identity only. Does not change the
-     * fair-share formula.
-     */
     QueryConcurrencyBudget register(@Nullable TaskId queryId) {
         if (totalBudget <= 0) {
             return QueryConcurrencyBudget.UNLIMITED;

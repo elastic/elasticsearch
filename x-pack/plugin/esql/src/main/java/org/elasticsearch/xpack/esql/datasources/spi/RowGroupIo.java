@@ -147,9 +147,11 @@ public final class RowGroupIo {
         return queryId;
     }
 
-    /** Records the query that owns this lease. Called once from the query budget under its lock. */
+    /** First-wins. Later stamps, including a second {@code bind}, leave the original id. */
     public void setQueryId(TaskId queryId) {
-        this.queryId = queryId;
+        if (this.queryId == null) {
+            this.queryId = queryId;
+        }
     }
 
     /**

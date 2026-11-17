@@ -11,6 +11,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -44,11 +45,11 @@ public final class ToIntegerFromBooleanEvaluator extends AbstractConvertFunction
     if (vector.isConstant()) {
       return driverContext.blockFactory().newConstantIntBlockWith(evalValue(vector, 0), positionCount);
     }
-    try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(positionCount, true)) {
+    try (IntVector.FixedBuilder builder = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount, true)) {
       for (int p = 0; p < positionCount; p++) {
-        builder.appendInt(evalValue(vector, p));
+        builder.appendInt(p, evalValue(vector, p));
       }
-      return builder.build();
+      return builder.build().asBlock();
     }
   }
 

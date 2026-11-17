@@ -94,7 +94,7 @@ public abstract class ModNonFiniteDoublesByConstantEvaluator implements Expressi
   }
 
   public DoubleVector eval(int positionCount, DoubleVector lhsVector) {
-    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
+    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         double lhs = lhsVector.getDouble(p);
         result.appendDouble(p, Mod.processNonFiniteDoublesByConstant(lhs, rhs()));

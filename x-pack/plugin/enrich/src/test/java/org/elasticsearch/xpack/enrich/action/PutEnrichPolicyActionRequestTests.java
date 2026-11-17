@@ -24,7 +24,16 @@ public class PutEnrichPolicyActionRequestTests extends AbstractWireSerializingTe
 
     @Override
     protected PutEnrichPolicyAction.Request mutateInstance(PutEnrichPolicyAction.Request instance) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+        String name = instance.getName();
+        EnrichPolicy policy = instance.getPolicy();
+
+        switch (between(0, 1)) {
+            case 0 -> name = randomValueOtherThan(name, () -> randomAlphaOfLength(3));
+            case 1 -> policy = randomValueOtherThan(policy, () -> randomEnrichPolicy(XContentType.JSON));
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+
+        return new PutEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, name, policy);
     }
 
     @Override

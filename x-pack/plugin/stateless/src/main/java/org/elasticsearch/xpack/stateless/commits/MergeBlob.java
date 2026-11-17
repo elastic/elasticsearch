@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 /// - `gen` is the generation of the last commit when the merge started. Together with the primary term of the container the blob is
 ///   stored in, it only approximately links the merge blob to BCCs: it is **not** the generation of the BCC under which the merged
 ///   segment was first committed.
-/// - `segment` is the name of the merged segment without its leading `_`.
+/// - `segment` is the name of the merged Lucene segment without the leading `_` that it always has.
 /// - `discriminator` is a fixed width string of 16 lowercase hexadecimal characters, unique per engine instance.
 ///
 /// @param blobName    the name of the blob, from which the merge start generation, the segment and the discriminator are deduced

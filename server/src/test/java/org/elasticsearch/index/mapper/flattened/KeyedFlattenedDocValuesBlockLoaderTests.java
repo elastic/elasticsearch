@@ -118,12 +118,12 @@ public class KeyedFlattenedDocValuesBlockLoaderTests extends ESTestCase {
     }
 
     private static RandomIndexWriter newRandomIndexWriter(Directory dir, Layout layout) throws IOException {
+        // NOTE: a random merge policy may reorder the documents on forceMerge, and the test reads them by position.
+        IndexWriterConfig iwc = newIndexWriterConfig().setMergePolicy(newLogMergePolicy());
         if (layout != Layout.SORTED_SET) {
-            IndexWriterConfig iwc = newIndexWriterConfig();
             iwc.setCodec(TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat()));
-            return new RandomIndexWriter(random(), dir, iwc);
         }
-        return new RandomIndexWriter(random(), dir);
+        return new RandomIndexWriter(random(), dir, iwc);
     }
 
     private static void addDoc(RandomIndexWriter writer, Layout layout, String... keyedValues) throws IOException {

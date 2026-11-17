@@ -18,7 +18,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.telemetry.tracing.AttributeKeys;
 import org.elasticsearch.telemetry.tracing.Span;
 import org.elasticsearch.telemetry.tracing.SpanBuilder;
 
@@ -147,8 +146,6 @@ public class APMSpanBuilder implements SpanBuilder {
             otelSpanBuilder.setAllAttributes(attributesBuilder.build());
         }
 
-        setCommonAttributes(otelSpanBuilder);
-
         if (hasLocalParentSpan == false) {
             Instant startTime = threadContext.removeTransient(Task.LOCAL_TRACE_START_TIME);
             if (startTime != null) {
@@ -161,22 +158,6 @@ public class APMSpanBuilder implements SpanBuilder {
 
         logger.trace("Starting span [{}]", name);
         return contextForNewSpan;
-    }
-
-    private void setCommonAttributes(io.opentelemetry.api.trace.SpanBuilder spanBuilder) {
-        spanBuilder.setAttribute(AttributeKeys.NODE_NAME, tracer.nodeName());
-        spanBuilder.setAttribute(AttributeKeys.CLUSTER_NAME, tracer.clusterName());
-
-        final var threadContext = tracer.threadContext();
-        final String xOpaqueId = threadContext.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER);
-        if (xOpaqueId != null) {
-            spanBuilder.setAttribute("es.x-opaque-id", xOpaqueId);
-        }
-
-        final String projectId = threadContext.getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER);
-        if (projectId != null) {
-            spanBuilder.setAttribute("project.id", projectId);
-        }
     }
 
     private static Context emptyContext() {

@@ -38,8 +38,6 @@ public class APMTracer implements Tracer {
     private final AtomicBoolean recordExceptionStacks;
 
     private volatile CharacterRunAutomaton labelFilterAutomaton = PatternAutomata.compile(List.of(), List.of());
-    private volatile String clusterName;
-    private volatile String nodeName;
 
     public APMTracer(
         ThreadContext threadContext,
@@ -87,22 +85,6 @@ public class APMTracer implements Tracer {
 
     public void setLabelFilters(List<String> labelFilters) {
         this.labelFilterAutomaton = PatternAutomata.compile(labelFilters, List.of());
-    }
-
-    public void setClusterName(String clusterName) {
-        this.clusterName = clusterName;
-    }
-
-    public void setNodeName(String nodeName) {
-        this.nodeName = nodeName;
-    }
-
-    String clusterName() {
-        return clusterName;
-    }
-
-    String nodeName() {
-        return nodeName;
     }
 
     /** Whether the value of an attribute with the given key is sensitive and must be redacted. */

@@ -48,6 +48,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -617,7 +618,17 @@ class RepositoryIntegrityVerifier {
                         return;
                     }
 
-                    final var snapshotFiles = getFilesByPhysicalName(blobStoreIndexShardSnapshot.indexFiles());
+                    final List<String> duplicatePhysicalNames = new ArrayList<>(1);
+                    final var snapshotFiles = getFilesByPhysicalName(blobStoreIndexShardSnapshot.indexFiles(), duplicatePhysicalNames);
+                    if (duplicatePhysicalNames.isEmpty() == false) {
+                        assert snapshotFiles.isEmpty();
+                        anomaly("duplicate physical file name in snapshot").snapshotId(snapshotId)
+                            .shardDescription(indexDescription, shardId)
+                            .shardGeneration(shardContainerContents.shardGeneration())
+                            .physicalFileName(duplicatePhysicalNames.getFirst())
+                            .write(listener);
+                        return;
+                    }
 
                     for (final var summaryFile : summaryFilesByPhysicalName.values()) {
                         final var snapshotFile = snapshotFiles.get(summaryFile.physicalName());
@@ -747,32 +758,67 @@ class RepositoryIntegrityVerifier {
                                 .write(l.map(v -> null));
                         }
                     })
+                    // validate and reindex its contents
+                    .<Map<String, Map<String, BlobStoreIndexShardSnapshot.FileInfo>>>andThen(
+                        (l, blobStoreIndexShardSnapshots) -> getFilesByPhysicalNameBySnapshotName(
+                            blobStoreIndexShardSnapshots,
+                            indexDescription,
+                            shardId,
+                            shardGen,
+                            l
+                        )
+                    )
                     .andThenApply(
-                        blobStoreIndexShardSnapshots -> new ShardContainerContents(
+                        filesByPhysicalNameBySnapshotName -> new ShardContainerContents(
                             shardId,
                             blobsByName,
                             shardGen,
-                            getFilesByPhysicalNameBySnapshotName(blobStoreIndexShardSnapshots),
+                            filesByPhysicalNameBySnapshotName,
                             ConcurrentCollections.newConcurrentMap()
                         )
                     )
                     .addListener(listener);
             }
 
-            private static Map<String, Map<String, BlobStoreIndexShardSnapshot.FileInfo>> getFilesByPhysicalNameBySnapshotName(
-                BlobStoreIndexShardSnapshots blobStoreIndexShardSnapshots
+            private void getFilesByPhysicalNameBySnapshotName(
+                @Nullable BlobStoreIndexShardSnapshots blobStoreIndexShardSnapshots,
+                IndexDescription indexDescription,
+                int shardId,
+                ShardGeneration shardGeneration,
+                ActionListener<Map<String, Map<String, BlobStoreIndexShardSnapshot.FileInfo>>> listener
             ) {
                 if (blobStoreIndexShardSnapshots == null) {
-                    return null;
+                    listener.onResponse(null);
+                    return;
                 }
-
+                final List<String> duplicatePhysicalNames = new ArrayList<>(1);
                 final Map<String, Map<String, BlobStoreIndexShardSnapshot.FileInfo>> filesByPhysicalNameBySnapshotName = Maps
                     .newHashMapWithExpectedSize(blobStoreIndexShardSnapshots.snapshots().size());
                 for (final var snapshotFiles : blobStoreIndexShardSnapshots.snapshots()) {
-                    filesByPhysicalNameBySnapshotName.put(snapshotFiles.snapshot(), getFilesByPhysicalName(snapshotFiles.indexFiles()));
+                    final var filesByPhysicalName = getFilesByPhysicalName(snapshotFiles.indexFiles(), duplicatePhysicalNames);
+                    if (duplicatePhysicalNames.isEmpty() == false) {
+                        assert filesByPhysicalName.isEmpty();
+                        anomaly("duplicate physical file name in shard generation for snapshot").shardDescription(indexDescription, shardId)
+                            .shardGeneration(shardGeneration)
+                            .snapshotId(snapshotIdByName(snapshotFiles.snapshot()))
+                            .physicalFileName(duplicatePhysicalNames.getFirst())
+                            .write(listener.map(ignored -> null));
+                        return;
+                    }
+                    // snapshot name is an object key on disk so duplicates prevent loading
+                    filesByPhysicalNameBySnapshotName.put(snapshotFiles.snapshot(), filesByPhysicalName);
                 }
-                return filesByPhysicalNameBySnapshotName;
+                listener.onResponse(filesByPhysicalNameBySnapshotName);
             }
+        }
+
+        private SnapshotId snapshotIdByName(String snapshotName) {
+            for (final var snapshotId : repositoryData.getSnapshotIds()) {
+                if (snapshotId.getName().equals(snapshotName)) {
+                    return snapshotId;
+                }
+            }
+            return new SnapshotId(snapshotName, "_na_");
         }
 
         private SubscribableListener<Void> blobContentsListeners(
@@ -809,11 +855,16 @@ class RepositoryIntegrityVerifier {
     }
 
     private static Map<String, BlobStoreIndexShardSnapshot.FileInfo> getFilesByPhysicalName(
-        List<BlobStoreIndexShardSnapshot.FileInfo> fileInfos
+        List<BlobStoreIndexShardSnapshot.FileInfo> fileInfos,
+        List<String> duplicatePhysicalNames
     ) {
+        assert duplicatePhysicalNames.isEmpty();
         final Map<String, BlobStoreIndexShardSnapshot.FileInfo> filesByPhysicalName = Maps.newHashMapWithExpectedSize(fileInfos.size());
         for (final var fileInfo : fileInfos) {
-            filesByPhysicalName.put(fileInfo.physicalName(), fileInfo);
+            if (filesByPhysicalName.put(fileInfo.physicalName(), fileInfo) != null) {
+                duplicatePhysicalNames.add(fileInfo.physicalName());
+                return Map.of();
+            }
         }
         return filesByPhysicalName;
     }

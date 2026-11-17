@@ -74,6 +74,7 @@ import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.INDEX_SHARD_SNAPSHOTS_FORMAT;
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.INDEX_SHARD_SNAPSHOT_FORMAT;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.SNAPSHOT_FORMAT;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.allOf;
@@ -700,6 +701,85 @@ public class RepositoryVerifyIntegrityIT extends AbstractSnapshotIntegTestCase {
             }
             return result;
         }, "snapshot shard generation mismatch");
+    }
+
+    public void testDuplicatePhysicalFileNameInShardGeneration() throws IOException {
+        final var testContext = createTestContext();
+        runInconsistentShardGenerationBlobTest(testContext, blobStoreIndexShardSnapshots -> {
+            final var metadata = new StoreFileMetadata("extra", 1L, "checksum", Build.current().version());
+            BlobStoreIndexShardSnapshots result = BlobStoreIndexShardSnapshots.EMPTY;
+            var duplicated = false;
+            for (final var snapshotFiles : blobStoreIndexShardSnapshots.snapshots()) {
+                if (duplicated == false) {
+                    result = result.withAddedSnapshot(
+                        new SnapshotFiles(
+                            snapshotFiles.snapshot(),
+                            CollectionUtils.appendToCopy(
+                                CollectionUtils.appendToCopy(
+                                    snapshotFiles.indexFiles(),
+                                    new BlobStoreIndexShardSnapshot.FileInfo("extra0", metadata, ByteSizeValue.ONE)
+                                ),
+                                new BlobStoreIndexShardSnapshot.FileInfo("extra1", metadata, ByteSizeValue.ONE)
+                            ),
+                            snapshotFiles.shardStateIdentifier()
+                        )
+                    );
+                    duplicated = true;
+                } else {
+                    result = result.withAddedSnapshot(snapshotFiles);
+                }
+            }
+            assertTrue("shard generation contained no snapshots", duplicated);
+            return result;
+        }, "duplicate physical file name in shard generation for snapshot");
+    }
+
+    public void testDuplicatePhysicalFileNameInShardSnapshot() throws IOException {
+        final var testContext = createTestContext();
+
+        final var shardSnapshotBlob = BlobStoreCorruptionUtils.getRandomFileToCorrupt(
+            testContext.repositoryRootPath(),
+            RepositoryFileType.SHARD_SNAPSHOT_INFO
+        );
+
+        final BlobStoreIndexShardSnapshot shardSnapshot;
+        try (var inputStream = Files.newInputStream(shardSnapshotBlob)) {
+            shardSnapshot = INDEX_SHARD_SNAPSHOT_FORMAT.deserialize(
+                new ProjectRepo(ProjectId.DEFAULT, testContext.repositoryName()),
+                xContentRegistry(),
+                inputStream
+            );
+        }
+
+        final var indexFiles = new ArrayList<>(shardSnapshot.indexFiles());
+        assertFalse(indexFiles.isEmpty());
+        indexFiles.add(indexFiles.get(0));
+
+        final Response response;
+        try (var ignored = new BlobStoreIndexShardSnapshotsIntegritySuppressor()) {
+            try (var outputStream = Files.newOutputStream(shardSnapshotBlob)) {
+                INDEX_SHARD_SNAPSHOT_FORMAT.serialize(
+                    new BlobStoreIndexShardSnapshot(
+                        shardSnapshot.snapshot(),
+                        indexFiles,
+                        shardSnapshot.startTime(),
+                        shardSnapshot.time(),
+                        shardSnapshot.incrementalFileCount(),
+                        shardSnapshot.incrementalSize()
+                    ),
+                    shardSnapshotBlob.toString(),
+                    randomBoolean(),
+                    outputStream
+                );
+            }
+            response = getRestClient().performRequest(testContext.getVerifyIntegrityRequest());
+        } finally {
+            assertAcked(
+                client().admin().cluster().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, testContext.repositoryName())
+            );
+        }
+        assertEquals(200, response.getStatusLine().getStatusCode());
+        assertThat(getAnomalies(ObjectPath.createFromResponse(response)), equalTo(Set.of("duplicate physical file name in snapshot")));
     }
 
     public void testBlobInSnapshotNotShardGeneration() throws IOException {

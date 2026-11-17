@@ -109,6 +109,9 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
 
                 MockIndexShard shard = indicesService.getShardOrNull(shardRouting.shardId());
                 final var failedShard = failedShardFor(pendingAllocationStates, shardRouting.shardId());
+                final boolean isAwaitingRetry = pendingAllocationStates.get(
+                    IndicesClusterStateService.ShardAllocationKey.fromRouting(shardRouting)
+                ) instanceof IndicesClusterStateService.PendingAllocationState.AwaitingRecoveryRetry;
 
                 if (state.blocks().disableStatePersistence()) {
                     if (shard != null) {
@@ -135,12 +138,15 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
                                 + failedShard
                         );
                     }
-                    if (shard == null && failedShard == null) {
-                        // shard must either be there or there must be a failure
+                    if (shard == null && failedShard == null && isAwaitingRetry == false) {
+                        // shard must either be there, have failed, or be waiting to retry locally
                         fail("Shard with id " + shardRouting + " expected but missing in indicesService and pendingAllocationStates");
                     }
                     if (enableRandomFailures == false) {
-                        if (shard == null && shardRouting.initializing() && failedShard.routing() == shardRouting) {
+                        if (shard == null
+                            && isAwaitingRetry == false
+                            && shardRouting.initializing()
+                            && failedShard.routing() == shardRouting) {
                             // initializing a shard should succeed when enableRandomFailures is disabled
                             fail("Shard with id " + shardRouting + " expected but missing in indicesService " + failedShard);
                         }

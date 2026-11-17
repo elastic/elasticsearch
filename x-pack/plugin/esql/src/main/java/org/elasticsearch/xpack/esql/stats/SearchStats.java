@@ -39,6 +39,14 @@ public interface SearchStats {
         return hasDocValues(field);
     }
 
+    /**
+     * Whether a shard here reads {@code field} as the key of a {@code flattened} field, a {@code keyword} whatever the type of the
+     * field other indices map.
+     */
+    default boolean readsKey(FieldName field) {
+        return false;
+    }
+
     boolean hasExactSubfield(FieldName field);
 
     long count();

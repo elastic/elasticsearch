@@ -21,7 +21,8 @@ import java.util.function.Consumer;
 /**
  * Charges a shard response to the coordinating node's request breaker from when it starts arriving until it is read, see
  * {@link TransportResponseHandler#reserveResponseBytes}. A trip means this node has no room for the response, not that the shard
- * failed, so it is reported to the search, which fails as a whole instead of retrying the shard on another copy.
+ * failed, so it is reported to the search, which fails as a whole instead of retrying the shard on another copy. A remote cluster's
+ * response in a CCS search with minimized round trips is charged the same way.
  * <p>
  * Holds the state of one response, so each request needs its own.
  */

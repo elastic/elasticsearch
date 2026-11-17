@@ -72,7 +72,7 @@ public final class RuntimeSearchScoreLuceneQueryEvaluator implements ExpressionE
   }
 
   public DoubleBlock eval(int positionCount, BytesRefBlock fieldBlockBlock) {
-    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         result.appendDouble(RuntimeSearch.scoreLuceneQuery(p, fieldBlockBlock, this.analyzer, this.query, this.memoryIndex, this.scratch));
       }

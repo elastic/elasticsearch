@@ -1,0 +1,6 @@
+area: Aggregations
+issues:
+ - 139336
+pr: 161333
+summary: Skip null numeric value-script results in aggs
+type: bug

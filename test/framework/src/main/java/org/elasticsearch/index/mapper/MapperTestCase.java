@@ -87,6 +87,7 @@ import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matcher;
 import org.junit.Assert;
@@ -95,7 +96,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -754,6 +757,57 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
      */
     protected boolean supportsCopyTo() {
         return true;
+    }
+
+    /**
+     * Override to disable testing that a multi-field can be added to the mapped field by a dynamic update, in fields that
+     * don't support multi-fields.
+     */
+    protected boolean supportsDynamicallyAddedMultiFields() {
+        return true;
+    }
+
+    /**
+     * A multi-field discovered while parsing a document is added to a field that is already mapped. The update that results has to
+     * restate the field as it is mapped, so that merging it adds the sub-field and leaves everything else about the field as it was.
+     */
+    public final void testDynamicMultiField() throws IOException {
+        assumeTrue("Field doesn't support dynamically added multi-fields", supportsDynamicallyAddedMultiFields());
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        assertParseMinimalWarnings();
+        Map<String, Object> expected = XContentHelper.convertToMap(
+            mapperService.documentMapper().mappingSource().uncompressed(),
+            true,
+            XContentType.JSON
+        ).v2();
+
+        MappingParserContext parserContext = mapperService.parserContext();
+        FieldMapper.Builder multiField = (FieldMapper.Builder) parserContext.typeParser("keyword")
+            .parse("dynamic_sub", new HashMap<>(), parserContext);
+        DocumentParserContext context = new TestDocumentParserContext(parserContext, mapperService.mappingLookup());
+        context.updateMapping("field", builder -> ((FieldMapper.Builder) builder).addMultiField(multiField));
+        List<Mapper.Builder> added = context.getDynamicMappers("field");
+        assertThat(added, hasSize(1));
+
+        merge(
+            mapperService,
+            MapperService.MergeReason.MAPPING_AUTO_UPDATE,
+            "{\"_doc\":{\"properties\":" + Strings.toString(added.get(0)) + "}}"
+        );
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> properties = (Map<String, Object>) ((Map<String, Object>) expected.get("_doc")).get("properties");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> field = (Map<String, Object>) properties.get("field");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> fields = (Map<String, Object>) field.computeIfAbsent("fields", k -> new LinkedHashMap<String, Object>());
+        fields.put("dynamic_sub", Map.of("type", "keyword"));
+        assertEquals(
+            expected,
+            XContentHelper.convertToMap(mapperService.documentMapper().mappingSource().uncompressed(), true, XContentType.JSON).v2()
+        );
+        // parsing the stored mapping again to merge into it warns as creating it did
+        assertParseMinimalWarnings();
     }
 
     protected void metaMapping(XContentBuilder b) throws IOException {
@@ -2661,6 +2715,79 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             assertThat(mvFalseBlock[1], nullValue());          // sparse / unset middle document
             assertNotNull(mvFalseBlock[2]);
         }
+    }
+
+    /**
+     * With {@code multi_value=false} and {@code on_failure=ignore}, the diverted second value is still in {@code _source}, but block
+     * loaders must not return it. {@link MappedFieldType#isStaticallySingleValued()} relies on that.
+     */
+    public void testMultiValueFalseOnFailureIgnoreBlockLoaderSeesOneValue() throws IOException {
+        assumeTrue("supports doc_values multi_value parameter", supportsMultiValueParameter());
+        assertDivertedValueIsNotLoaded(getSampleValueForDocument());
+    }
+
+    /**
+     * Indexes {@code sample} twice into a field with {@code multi_value=false} and {@code on_failure=ignore}, and checks that block
+     * loaders return the same single value as for a document that holds it once. It runs for every source mode that allows
+     * {@code multi_value=false} and every field extract preference. Mapper tests that do not run
+     * {@link #testMultiValueFalseOnFailureIgnoreBlockLoaderSeesOneValue} can call it directly.
+     */
+    protected final void assertDivertedValueIsNotLoaded(Object sample) throws IOException {
+        for (SourceFieldMapper.Mode sourceMode : IndexMode.COLUMNAR.supportedSourceModes()) {
+            for (MappedFieldType.FieldExtractPreference preference : BlockLoaderTestCase.PREFERENCES) {
+                var params = new BlockLoaderTestCase.Params(IndexMode.COLUMNAR, sourceMode, preference);
+                MapperService mapperService = createMapperService(
+                    BlockLoaderTestCase.getSettingsForParams(params).build(),
+                    fieldMapping(b -> {
+                        minimalMapping(b);
+                        b.field("multi_value", false);
+                        b.field("on_failure", "ignore");
+                    })
+                );
+                // The second value is diverted: it is accepted, and it is not in the doc values or the stored fields.
+                Object diverted = loadSingleDocument(mapperService, params, b -> b.array("field", sample, sample));
+                Object once = loadSingleDocument(mapperService, params, b -> b.field("field", sample));
+                String message = "source mode " + sourceMode + ", preference " + preference;
+                assertNotNull(message + ": a value that is held once must load", once);
+                assertThat(message + ": a value that is held once is not a list", once instanceof List, equalTo(false));
+                assertThat(message + ": a diverted value must not load", diverted, equalTo(once));
+            }
+        }
+    }
+
+    /**
+     * An index-time script can emit multiple values, even if the {@code multi_value} param is false, so a scripted field is not
+     * statically single-valued. Call it from a mapper test whose mapper accepts {@code script}, with the id of a script it compiles.
+     */
+    protected final void assertScriptedFieldIsNotStaticallySingleValued(String script) throws IOException {
+        Settings columnar = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperService plain = createMapperService(columnar, fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("multi_value", false);
+        }));
+        assertTrue(plain.mappingLookup().getFieldType("field").isStaticallySingleValued());
+
+        MapperService scripted = createMapperService(columnar, fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("script", script);
+            b.field("multi_value", false);
+        }));
+        assertFalse(scripted.mappingLookup().getFieldType("field").isStaticallySingleValued());
+    }
+
+    private Object loadSingleDocument(
+        MapperService mapperService,
+        BlockLoaderTestCase.Params params,
+        CheckedConsumer<XContentBuilder, IOException> document
+    ) throws IOException {
+        Object[] loaded = new Object[1];
+        BlockLoaderTestRunner runner = new BlockLoaderTestRunner(params).mapperService(mapperService)
+            .breaker(newLimitedBreaker(BlockLoaderTestCase.TEST_BREAKER_SIZE))
+            .fieldName("field")
+            .matcher((expected, actual) -> loaded[0] = actual);
+        runner.document(mapperService.documentMapper().parse(source(document)));
+        runner.run(null);
+        return loaded[0];
     }
 
     /**

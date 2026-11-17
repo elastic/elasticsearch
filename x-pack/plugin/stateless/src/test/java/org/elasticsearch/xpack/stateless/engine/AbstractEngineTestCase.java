@@ -132,8 +132,8 @@ import java.util.function.LongSupplier;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.DIRECT_EXECUTOR_SERVICE;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.stateless.StatelessPlugin.SHARD_READ_THREAD_POOL;
-import static org.elasticsearch.xpack.stateless.StatelessPlugin.SHARD_READ_THREAD_POOL_SETTING;
+import static org.elasticsearch.xpack.stateless.StatelessThreadPools.SHARD_READ_THREAD_POOL;
+import static org.elasticsearch.xpack.stateless.StatelessThreadPools.SHARD_READ_THREAD_POOL_SETTING;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -779,16 +779,28 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
     }
 
     protected static Engine.Index randomDoc(String id) throws IOException {
+        return randomDoc(id, XContentMeteringParserDecorator.UNKNOWN_SIZE);
+    }
+
+    protected static Engine.Index randomDoc(String id, long normalizedSize) throws IOException {
         CheckedBiConsumer<XContentBuilder, LuceneDocument, IOException> sourceBuilder = (builder, doc) -> {
             builder.startObject();
             builder.field("value", randomUnicodeOfCodepointLengthBetween(1, 10));
             builder.endObject();
         };
-        return randomDoc(id, sourceBuilder);
+        return randomDoc(id, sourceBuilder, normalizedSize);
     }
 
     protected static Engine.Index randomDoc(String id, CheckedBiConsumer<XContentBuilder, LuceneDocument, IOException> sourceBuilder)
         throws IOException {
+        return randomDoc(id, sourceBuilder, XContentMeteringParserDecorator.UNKNOWN_SIZE);
+    }
+
+    protected static Engine.Index randomDoc(
+        String id,
+        CheckedBiConsumer<XContentBuilder, LuceneDocument, IOException> sourceBuilder,
+        long normalizedSize
+    ) throws IOException {
         final LuceneDocument document = new LuceneDocument();
         document.add(new StringField("_id", Uid.encodeId(id), Field.Store.YES));
         var version = new NumericDocValuesField("_version", 0);
@@ -811,7 +823,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             source,
             XContentType.JSON,
             null,
-            XContentMeteringParserDecorator.UNKNOWN_SIZE
+            normalizedSize
         );
         return new Engine.Index(Uid.encodeId(id), 1L, doc);
     }

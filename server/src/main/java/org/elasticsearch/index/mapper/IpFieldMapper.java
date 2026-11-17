@@ -124,17 +124,13 @@ public class IpFieldMapper extends FieldMapper {
 
         private final Parameter<Boolean> indexed;
         private final DocValuesParameter docValuesParameters;
-        private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
+        private final Parameter<Boolean> stored = Parameter.storeParam(false);
 
         private final Parameter<Boolean> ignoreMalformed;
-        private final Parameter<String> nullValue = Parameter.stringParam("null_value", false, m -> toType(m).nullValueAsString, null)
-            .acceptsNull();
+        private final Parameter<String> nullValue = Parameter.stringParam("null_value", false, null).acceptsNull();
 
-        private final Parameter<Script> script = Parameter.scriptParam(m -> toType(m).script);
-        private final Parameter<OnScriptError> onScriptErrorParam = Parameter.onScriptErrorParam(
-            m -> toType(m).builderParams.onScriptError(),
-            script
-        );
+        private final Parameter<Script> script = Parameter.scriptParam();
+        private final Parameter<OnScriptError> onScriptErrorParam = Parameter.onScriptErrorParam(script);
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
         private final Parameter<Boolean> dimension;
@@ -148,12 +144,7 @@ public class IpFieldMapper extends FieldMapper {
             super(name);
             this.indexSettings = indexSettings;
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
-            this.ignoreMalformed = Parameter.boolParam(
-                "ignore_malformed",
-                true,
-                m -> toType(m).ignoreMalformed,
-                IGNORE_MALFORMED_SETTING.get(indexSettings.getSettings())
-            );
+            this.ignoreMalformed = Parameter.boolParam("ignore_malformed", true, IGNORE_MALFORMED_SETTING.get(indexSettings.getSettings()));
             this.script.precludesParameters(nullValue, ignoreMalformed);
 
             this.docValuesParameters = DocValuesParameter.of(
@@ -162,12 +153,11 @@ public class IpFieldMapper extends FieldMapper {
                     DocValuesParameter.Values.ENABLED_LOW_CARDINALITY,
                     DocValuesParameter.Values.Cardinality.HIGH
                 ),
-                m -> toType(m).docValuesParameters(),
                 indexSettings
             );
 
-            this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension, () -> docValuesParameters.get().enabled());
-            this.indexed = Parameter.indexParam(m -> toType(m).indexed, indexSettings, dimension);
+            this.dimension = TimeSeriesParams.dimensionParam(() -> docValuesParameters.get().enabled());
+            this.indexed = Parameter.indexParam(indexSettings, dimension);
             addScriptValidation(script, indexed, () -> docValuesParameters.getValue().enabled());
         }
 
@@ -385,6 +375,11 @@ public class IpFieldMapper extends FieldMapper {
             this.useArrayOrderBinaryDocValues = useArrayOrderBinaryDocValues;
             this.indexVersion = indexVersion;
             this.docValuesParams = docValuesParams;
+        }
+
+        @Override
+        public boolean isStaticallySingleValued() {
+            return scriptValues == null && docValuesParams != null && docValuesParams.multiValue() == false;
         }
 
         public IpFieldType(String name) {
@@ -794,12 +789,9 @@ public class IpFieldMapper extends FieldMapper {
     private final boolean writeDimensionRouting;
 
     private final InetAddress nullValue;
-    private final String nullValueAsString;
 
     private final IndexSettings indexSettings;
-    private final Script script;
     private final FieldValues<InetAddress> scriptValues;
-    private final ScriptCompiler scriptCompiler;
 
     private final String offsetsFieldName;
 
@@ -822,10 +814,7 @@ public class IpFieldMapper extends FieldMapper {
         this.stored = builder.stored.getValue();
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
         this.nullValue = builder.parseNullValue();
-        this.nullValueAsString = builder.nullValue.getValue();
-        this.script = builder.script.get();
         this.scriptValues = builder.scriptValues();
-        this.scriptCompiler = builder.scriptCompiler;
         this.dimension = builder.dimension.getValue();
         this.writeDimensionRouting = this.dimension
             && builder.indexSettings.getIndexRouting() instanceof IndexRouting.ExtractFromSource efs
@@ -856,7 +845,7 @@ public class IpFieldMapper extends FieldMapper {
 
     @Override
     public boolean isNullable() {
-        return docValuesParameters.nullability() || nullValueAsString != null;
+        return docValuesParameters.nullability() || nullValue != null;
     }
 
     @Override
@@ -996,15 +985,15 @@ public class IpFieldMapper extends FieldMapper {
 
                 BytesRef utf8Value = cursor.value();
 
-                // Explicit JSON null: apply null_value substitution if configured; otherwise record a
-                // null doc-values slot (no ignore check), mirroring the row-path's
-                // ArrayOrderInlineNull.recordNull for an absent value with no null_value.
+                // Explicit JSON null: apply null_value substitution if configured; otherwise record a null doc-values slot (no ignore
+                // check) for a null inside the field's own array, mirroring the row path's ArrayOrderInlineNull.recordNull. A bare
+                // null is the field being absent and records nothing, as on the row path (see keepsNullSlot).
                 if (utf8Value == null) {
                     if (nullValueEncoded != null) {
                         pos = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.appendSlot(docBlob, pos, nullValueEncoded);
                         docSlotCount++;
                         hasNonNull = true;
-                    } else {
+                    } else if (source.isNull(currentDoc) == false) {
                         pos = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.appendSlot(docBlob, pos, null);
                         docSlotCount++;
                         // hasNonNull stays false: null slots do not produce a binary dv blob.
@@ -1135,8 +1124,9 @@ public class IpFieldMapper extends FieldMapper {
         }
         if (fieldType().usesArrayOrderBinaryDocValues()) {
             // In-order path: non-null values are recorded in indexValue (in document order); here we record null slots so their position
-            // is preserved. Non-null values record no slot here as they are already recorded above.
-            if (address == null) {
+            // is preserved. Non-null values record no slot here as they are already recorded above. A null that is not an element of
+            // the field's own array has no position to preserve and is the field being absent; see keepsNullSlot.
+            if (address == null && MultiValuedBinaryDocValuesField.keepsNullSlot(context, indexSettings.getMode())) {
                 MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordNull(context.doc(), fieldType().name());
             }
         } else if (FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, docValuesParameters.multiValue())) {
@@ -1144,7 +1134,7 @@ public class IpFieldMapper extends FieldMapper {
                 BytesRef sortableValue = address.binaryValue();
                 context.getOffSetContext().recordOffset(offsetsFieldName, sortableValue, OFFSETS_FALLBACK);
             } else {
-                context.getOffSetContext().recordNull(offsetsFieldName, OFFSETS_FALLBACK);
+                context.getOffSetContext().recordNull(context, offsetsFieldName, OFFSETS_FALLBACK);
             }
         }
     }
@@ -1203,11 +1193,6 @@ public class IpFieldMapper extends FieldMapper {
             doc,
             value -> indexValue(documentParserContext, new ESInetAddressPoint(fieldType().name(), value))
         );
-    }
-
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), scriptCompiler, indexSettings).dimension(dimension).init(this);
     }
 
     @Override

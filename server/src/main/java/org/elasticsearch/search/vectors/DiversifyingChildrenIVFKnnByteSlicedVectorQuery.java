@@ -13,9 +13,9 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfQueryConfigResolver;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
 
 import java.util.Objects;
-import java.util.concurrent.atomic.LongAccumulator;
 
 /**
  * IVF kNN search over a slice of an index for byte vectors, with nested (block-join) diversification
@@ -70,8 +70,14 @@ public class DiversifyingChildrenIVFKnnByteSlicedVectorQuery extends IVFKnnByteS
     }
 
     @Override
-    protected IVFCollectorManager getKnnCollectorManager(int k, LongAccumulator longAccumulator) {
-        return new DiversifiedIVFKnnCollectorManager(k, longAccumulator, parentsFilter);
+    protected IVFCollectorManager getKnnCollectorManager(int k, SharedMinCompetitiveScore sharedScore) {
+        return new DiversifiedIVFKnnCollectorManager(k, sharedScore, parentsFilter);
+    }
+
+    @Override
+    int leafCollectorBudget(float segmentOversample) {
+        // The parent-keyed heap absorbs overspill duplicates, so no extra headroom is needed.
+        return IvfSegmentConfig.shardMergeBudget(k, segmentOversample);
     }
 
     @Override

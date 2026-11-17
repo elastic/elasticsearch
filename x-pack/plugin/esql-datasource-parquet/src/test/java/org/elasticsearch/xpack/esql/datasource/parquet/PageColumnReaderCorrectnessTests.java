@@ -490,6 +490,41 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
         }
     }
 
+    /**
+     * A dictionary-encoded column whose FIRST read is a sparse one, which is the TopN shape this hoist
+     * targets. The loop decodes its runs through {@code decodeBatchAs} rather than {@code readBatch},
+     * so it still loads the dictionary; decoding through {@code readBatchAs} directly would leave the
+     * dictionary null and fail. Four distinct values keep the writer on its dictionary encoding, and a
+     * string column declared {@code long} is a pair that takes the conversion.
+     */
+    public void testSparseReadIsTheFirstReadOfADictionaryEncodedConvertingColumn() throws IOException {
+        byte[] data = writeTestFile(
+            ParquetProperties.WriterVersion.PARQUET_1_0,
+            CompressionCodecName.UNCOMPRESSED,
+            DICT_CONVERSION_SCHEMA,
+            SPARSE_ROWS,
+            (g, r) -> g.append("num_str", Integer.toString(r % 4))
+        );
+        int[] survivors = { 1, 5, 9, 14 };
+        try (
+            Block sparse = declaredRead(data, "num_str", DataType.KEYWORD, DataType.LONG, survivors);
+            Block whole = declaredRead(data, "num_str", DataType.KEYWORD, DataType.LONG, null)
+        ) {
+            assertEquals(survivors.length, sparse.getPositionCount());
+            LongBlock s = (LongBlock) sparse;
+            LongBlock w = (LongBlock) whole;
+            for (int i = 0; i < survivors.length; i++) {
+                assertEquals("value at source position " + survivors[i], w.getLong(survivors[i]), s.getLong(i));
+            }
+        }
+    }
+
+    private static final MessageType DICT_CONVERSION_SCHEMA = Types.buildMessage()
+        .required(BINARY)
+        .as(LogicalTypeAnnotation.stringType())
+        .named("num_str")
+        .named("dictionary_conversion_test");
+
     private byte[] sparseFile() throws IOException {
         return writeTestFile(
             ParquetProperties.WriterVersion.PARQUET_1_0,

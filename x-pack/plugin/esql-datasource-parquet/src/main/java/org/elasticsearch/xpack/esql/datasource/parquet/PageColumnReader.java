@@ -211,15 +211,6 @@ final class PageColumnReader implements Releasable {
     }
 
     Block readBatch(int maxRows, BlockFactory blockFactory) {
-        // A banked pre-jump means the physical cursor is ahead of the caller's logical position; only
-        // skipRows may spend that credit. Decoding here would read from the wrong source rows and
-        // silently undercount an aggregate. The check is per-batch, so failing loudly costs nothing.
-        if (pendingPrejumped != 0) {
-            throw new IllegalStateException(
-                "readBatch called with " + pendingPrejumped + " banked pre-jump rows; physical cursor is ahead of logical position"
-            );
-        }
-        loadDictionaryIfNeeded();
         // Declared-type coercion beyond the fused pairs: decode the column at the file's own type
         // with the arms below, then coerce the block to the declared type. Per-value failures
         // follow the read's error policy: a live coercionWarnings sink nulls the cell + emits a
@@ -227,7 +218,7 @@ final class PageColumnReader implements Releasable {
         DataType declared = info.esqlType();
         DataType fileType = info.fileEsqlType();
         if (DeclaredTypeCoercions.needsBlockCast(fileType, declared, info.dateFormatter() != null)) {
-            Block physical = readBatchAs(fileType, maxRows, blockFactory);
+            Block physical = decodeBatchAs(fileType, maxRows, blockFactory);
             try {
                 return DeclaredTypeCoercions.castBlock(
                     physical,
@@ -243,7 +234,29 @@ final class PageColumnReader implements Releasable {
                 physical.close();
             }
         }
-        return readBatchAs(declared, maxRows, blockFactory);
+        return decodeBatchAs(declared, maxRows, blockFactory);
+    }
+
+    /**
+     * Decodes a batch at {@code type}, after the two things every decode of a batch needs first.
+     * {@link #readBatchSparse} decodes its runs through here rather than through {@link #readBatch},
+     * so that taking the coercion out of its loop does not also take the dictionary load and the
+     * pre-jump check out of it -- a dictionary-encoded column whose first read is a sparse one would
+     * otherwise decode against a null dictionary.
+     *
+     * <p>A banked pre-jump means the physical cursor is ahead of the caller's logical position; only
+     * {@link #skipRows} may spend that credit. Decoding with one banked would read from the wrong
+     * source rows and silently undercount an aggregate. The check is per-batch, so failing loudly
+     * costs nothing.
+     */
+    private Block decodeBatchAs(DataType type, int maxRows, BlockFactory blockFactory) {
+        if (pendingPrejumped != 0) {
+            throw new IllegalStateException(
+                "batch decode called with " + pendingPrejumped + " banked pre-jump rows; physical cursor is ahead of logical position"
+            );
+        }
+        loadDictionaryIfNeeded();
+        return readBatchAs(type, maxRows, blockFactory);
     }
 
     private Block readBatchAs(DataType type, int maxRows, BlockFactory blockFactory) {
@@ -428,7 +441,7 @@ final class PageColumnReader implements Releasable {
                 }
                 int runLength = runEnd - runStart;
 
-                chunks.add(coerceOnce ? readBatchAs(fileType, runLength, blockFactory) : readBatch(runLength, blockFactory));
+                chunks.add(coerceOnce ? decodeBatchAs(fileType, runLength, blockFactory) : readBatch(runLength, blockFactory));
                 cursor += runLength;
                 runStart = runEnd;
             }

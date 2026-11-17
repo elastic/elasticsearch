@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunctio
 import org.elasticsearch.xpack.esql.expression.function.scalar.score.DecayScorers.CartesianScorer;
 import org.elasticsearch.xpack.esql.expression.function.scalar.score.DecayScorers.GeoScorer;
 import org.elasticsearch.xpack.esql.expression.function.scalar.score.DecayScorers.NumericScorer;
+import org.elasticsearch.xpack.esql.expression.function.scalar.score.DecayScorers.Scorer;
 import org.elasticsearch.xpack.esql.expression.function.scalar.score.DecayScorers.TemporalScorer;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
@@ -132,8 +133,6 @@ public class Decay extends EsqlScalarFunction
     private final Expression scale;
     private final Expression options;
 
-    private final Map<String, Object> resolvedOptions;
-
     @FunctionInfo(
         returnType = "double",
         signatures = {
@@ -214,7 +213,6 @@ public class Decay extends EsqlScalarFunction
         this.origin = origin;
         this.scale = scale;
         this.options = options;
-        this.resolvedOptions = new HashMap<>();
     }
 
     private Decay(StreamInput in) throws IOException {
@@ -408,11 +406,12 @@ public class Decay extends EsqlScalarFunction
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        return evaluatorFactory(toEvaluator.apply(value), toEvaluator.foldCtx());
+        return scorer(toEvaluator.foldCtx()).factory(source(), value.dataType(), toEvaluator.apply(value));
     }
 
-    private ExpressionEvaluator.Factory evaluatorFactory(ExpressionEvaluator.Factory valueFactory, FoldContext foldCtx) {
+    private Scorer scorer(FoldContext foldCtx) {
         DataType valueDataType = value.dataType();
+        Map<String, Object> resolvedOptions = new HashMap<>();
         Options.populateMapWithExpressionsMultipleDataTypesAllowed(
             (MapExpression) options,
             resolvedOptions,
@@ -436,25 +435,12 @@ public class Decay extends EsqlScalarFunction
         DecayFunction decayFunction = DecayFunction.fromBytesRef(typeExpr != null ? (BytesRef) typeExpr.fold(foldCtx) : DEFAULT_FUNCTION);
 
         return switch (valueDataType) {
-            case INTEGER -> new DecayIntEvaluator.Factory(
-                source(),
-                valueFactory,
-                numericScorer(decayFunction, originFolded, scaleFolded, offsetExpr, offsetFolded, decayFolded)
-            );
-            case DOUBLE -> new DecayDoubleEvaluator.Factory(
-                source(),
-                valueFactory,
-                numericScorer(decayFunction, originFolded, scaleFolded, offsetExpr, offsetFolded, decayFolded)
-            );
-            case LONG -> new DecayLongEvaluator.Factory(
-                source(),
-                valueFactory,
-                numericScorer(decayFunction, originFolded, scaleFolded, offsetExpr, offsetFolded, decayFolded)
-            );
-            case UNSIGNED_LONG -> new DecayUnsignedLongEvaluator.Factory(
-                source(),
-                valueFactory,
-                numericScorer(decayFunction, originFolded, scaleFolded, offsetExpr, offsetFolded, decayFolded)
+            case INTEGER, DOUBLE, LONG, UNSIGNED_LONG -> NumericScorer.of(
+                decayFunction,
+                toDoubleParam(originFolded, origin.dataType()),
+                numericScale(scaleFolded),
+                numericOffset(offsetExpr, offsetFolded),
+                decayFolded
             );
             case GEO_POINT -> {
                 String scaleString = BytesRefs.toString(scaleFolded);
@@ -463,69 +449,24 @@ public class Decay extends EsqlScalarFunction
                 checkScale(geoScale, scaleString);
                 double geoOffset = parseDistance(OFFSET, offsetString);
                 checkOffset(geoOffset, offsetString);
-                yield new DecayGeoPointEvaluator.Factory(
-                    source(),
-                    valueFactory,
-                    GeoScorer.of(decayFunction, (BytesRef) originFolded, geoScale, geoOffset, decayFolded)
-                );
+                yield GeoScorer.of(decayFunction, (BytesRef) originFolded, geoScale, geoOffset, decayFolded);
             }
-            case CARTESIAN_POINT -> new DecayCartesianPointEvaluator.Factory(
-                source(),
-                valueFactory,
-                CartesianScorer.of(
-                    decayFunction,
-                    (BytesRef) originFolded,
-                    numericScale(scaleFolded),
-                    numericOffset(offsetExpr, offsetFolded),
-                    decayFolded
-                )
+            case CARTESIAN_POINT -> CartesianScorer.of(
+                decayFunction,
+                (BytesRef) originFolded,
+                numericScale(scaleFolded),
+                numericOffset(offsetExpr, offsetFolded),
+                decayFolded
             );
-            case DATETIME -> new DecayDatetimeEvaluator.Factory(
-                source(),
-                valueFactory,
-                temporalScorer(decayFunction, originFolded, scaleFolded, offsetFolded, decayFolded, valueDataType)
-            );
-            case DATE_NANOS -> new DecayDateNanosEvaluator.Factory(
-                source(),
-                valueFactory,
-                temporalScorer(decayFunction, originFolded, scaleFolded, offsetFolded, decayFolded, valueDataType)
+            case DATETIME, DATE_NANOS -> TemporalScorer.of(
+                decayFunction,
+                temporalOrigin(originFolded, valueDataType),
+                temporalScale(scaleFolded, valueDataType),
+                temporalOffset(offsetFolded, valueDataType),
+                decayFolded
             );
             default -> throw new UnsupportedOperationException("Unsupported data type: " + valueDataType);
         };
-    }
-
-    private NumericScorer numericScorer(
-        DecayFunction decayFunction,
-        Object originFolded,
-        Object scaleFolded,
-        Expression offsetExpr,
-        Object offsetFolded,
-        double decay
-    ) {
-        return NumericScorer.of(
-            decayFunction,
-            toDoubleParam(originFolded, origin.dataType()),
-            numericScale(scaleFolded),
-            numericOffset(offsetExpr, offsetFolded),
-            decay
-        );
-    }
-
-    private TemporalScorer temporalScorer(
-        DecayFunction decayFunction,
-        Object originFolded,
-        Object scaleFolded,
-        Object offsetFolded,
-        double decay,
-        DataType valueDataType
-    ) {
-        return TemporalScorer.of(
-            decayFunction,
-            temporalOrigin(originFolded, valueDataType),
-            temporalScale(scaleFolded, valueDataType),
-            temporalOffset(offsetFolded, valueDataType),
-            decay
-        );
     }
 
     @Override
@@ -538,9 +479,9 @@ public class Decay extends EsqlScalarFunction
         });
         if (origin instanceof Literal && scale instanceof Literal) {
             // Data nodes only check the constants when they build the evaluator, which never happens for a target without
-            // shards, so check them here on the coordinator too. The value is not needed for that.
+            // shards, so check them here on the coordinator too.
             try {
-                evaluatorFactory(null, FoldContext.small());
+                scorer(FoldContext.small());
             } catch (InvalidArgumentException e) {
                 failures.add(fail(this, "{}", e.getMessage()));
             }

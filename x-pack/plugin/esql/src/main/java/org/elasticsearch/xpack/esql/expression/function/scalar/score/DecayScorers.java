@@ -10,7 +10,10 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.score;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.scalar.score.Decay.DecayFunction;
@@ -26,11 +29,35 @@ final class DecayScorers {
     private DecayScorers() {}
 
     /**
+     * The {@link Decay} constants, folded and checked. Built on the coordinator to reject invalid constants early,
+     * and again wherever the evaluator is built.
+     */
+    sealed interface Scorer {
+        /**
+         * The factory for the evaluator that scores values of {@code valueType} with this scorer.
+         */
+        ExpressionEvaluator.Factory factory(Source source, DataType valueType, ExpressionEvaluator.Factory value);
+    }
+
+    /**
      * Scores numeric values by their absolute difference from the origin.
      */
-    record NumericScorer(DecayFunction function, double origin, double scale, double offset, double decay, double scaling) {
+    record NumericScorer(DecayFunction function, double origin, double scale, double offset, double decay, double scaling)
+        implements
+            Scorer {
         static NumericScorer of(DecayFunction function, double origin, double scale, double offset, double decay) {
             return new NumericScorer(function, origin, scale, offset, decay, function.scaling(scale, decay));
+        }
+
+        @Override
+        public ExpressionEvaluator.Factory factory(Source source, DataType valueType, ExpressionEvaluator.Factory value) {
+            return switch (valueType) {
+                case INTEGER -> new DecayIntEvaluator.Factory(source, value, this);
+                case LONG -> new DecayLongEvaluator.Factory(source, value, this);
+                case DOUBLE -> new DecayDoubleEvaluator.Factory(source, value, this);
+                case UNSIGNED_LONG -> new DecayUnsignedLongEvaluator.Factory(source, value, this);
+                default -> throw new IllegalStateException("not a numeric type [" + valueType + "]");
+            };
         }
 
         double score(double value) {
@@ -41,18 +68,17 @@ final class DecayScorers {
     /**
      * Scores {@code geo_point} values by arc distance in meters.
      */
-    record GeoScorer(
-        DecayFunction function,
-        double originLat,
-        double originLon,
-        double scale,
-        double offset,
-        double decay,
-        double scaling
-    ) {
+    record GeoScorer(DecayFunction function, double originLat, double originLon, double scale, double offset, double decay, double scaling)
+        implements
+            Scorer {
         static GeoScorer of(DecayFunction function, BytesRef origin, double scale, double offset, double decay) {
             Point originPoint = SpatialCoordinateTypes.UNSPECIFIED.wkbAsPoint(origin);
             return new GeoScorer(function, originPoint.getY(), originPoint.getX(), scale, offset, decay, function.scaling(scale, decay));
+        }
+
+        @Override
+        public ExpressionEvaluator.Factory factory(Source source, DataType valueType, ExpressionEvaluator.Factory value) {
+            return new DecayGeoPointEvaluator.Factory(source, value, this);
         }
 
         double score(BytesRef value) {
@@ -73,7 +99,7 @@ final class DecayScorers {
         double offset,
         double decay,
         double scaling
-    ) {
+    ) implements Scorer {
         static CartesianScorer of(DecayFunction function, BytesRef origin, double scale, double offset, double decay) {
             Point originPoint = SpatialCoordinateTypes.UNSPECIFIED.wkbAsPoint(origin);
             return new CartesianScorer(
@@ -85,6 +111,11 @@ final class DecayScorers {
                 decay,
                 function.scaling(scale, decay)
             );
+        }
+
+        @Override
+        public ExpressionEvaluator.Factory factory(Source source, DataType valueType, ExpressionEvaluator.Factory value) {
+            return new DecayCartesianPointEvaluator.Factory(source, value, this);
         }
 
         double score(BytesRef value) {
@@ -99,9 +130,18 @@ final class DecayScorers {
      * Scores {@code datetime} and {@code date_nanos} values. The origin and offset are in the value's unit,
      * milliseconds or nanoseconds. The distance is computed in {@code long} and then scored like a number.
      */
-    record TemporalScorer(DecayFunction function, long origin, long scale, long offset, double decay, double scaling) {
+    record TemporalScorer(DecayFunction function, long origin, long scale, long offset, double decay, double scaling) implements Scorer {
         static TemporalScorer of(DecayFunction function, long origin, long scale, long offset, double decay) {
             return new TemporalScorer(function, origin, scale, offset, decay, function.scaling(scale, decay));
+        }
+
+        @Override
+        public ExpressionEvaluator.Factory factory(Source source, DataType valueType, ExpressionEvaluator.Factory value) {
+            return switch (valueType) {
+                case DATETIME -> new DecayDatetimeEvaluator.Factory(source, value, this);
+                case DATE_NANOS -> new DecayDateNanosEvaluator.Factory(source, value, this);
+                default -> throw new IllegalStateException("not a temporal type [" + valueType + "]");
+            };
         }
 
         double score(long value) {

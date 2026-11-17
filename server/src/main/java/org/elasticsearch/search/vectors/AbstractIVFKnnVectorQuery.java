@@ -299,7 +299,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                 scoreDoc.doc = globalDoc;
                 dedupByDoc.put(globalDoc, scoreDoc);
             } else if (scoreDoc.score > existing.score) {
-                // overspill copies are scored against different centroids; leaf results are unsorted, so keep the better score
+                // SOAR overspill copies of a doc score differently; keep the best
                 existing.score = scoreDoc.score;
             }
         }

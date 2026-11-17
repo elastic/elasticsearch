@@ -1126,6 +1126,83 @@ public class CompositeAssemblyTests extends ESTestCase {
         assertThat("batches must be dropped, or no composite needs advancing", seenIds.size(), lessThan(ROWS));
     }
 
+    /**
+     * A row limit, which produces row ranges from no predicate at all and cuts a row group mid-page. The
+     * composite must stop where the limit stops and the rows it did return must still be its own.
+     */
+    public void testLimitedReadMatchesOracle() throws IOException {
+        byte[] file = writeFile();
+        for (int limit : new int[] { 1, 700, ROWS - 1 }) {
+            ParquetFormatReader reader = new ParquetFormatReader(newBlockFactory()).withCompositeAssemblyForTests(true);
+            List<Long> seenIds = new ArrayList<>();
+            try (
+                CloseableIterator<Page> pages = reader.read(
+                    createStorageObject(file),
+                    FormatReadContext.builder()
+                        .batchSize(64)
+                        .rowLimit(limit)
+                        .projectedColumns(List.of("id", "qty", "items", "attrs"))
+                        .build()
+                )
+            ) {
+                while (pages.hasNext()) {
+                    Page page = pages.next();
+                    try {
+                        LongBlock ids = (LongBlock) page.getBlock(0);
+                        BytesRefBlock items = (BytesRefBlock) page.getBlock(2);
+                        BytesRefBlock attrs = (BytesRefBlock) page.getBlock(3);
+                        for (int pos = 0; pos < page.getPositionCount(); pos++) {
+                            int row = (int) ids.getLong(ids.getFirstValueIndex(pos));
+                            assertEquals("items at row " + row, expectedItemsJson(row), textAt(items, pos));
+                            assertEquals("attrs at row " + row, expectedAttrsJson(row), textAt(attrs, pos));
+                            seenIds.add((long) row);
+                        }
+                    } finally {
+                        Releasables.close(page::releaseBlocks);
+                    }
+                }
+            }
+            List<Long> expected = new ArrayList<>();
+            for (long id = 0; id < limit; id++) {
+                expected.add(id);
+            }
+            assertEquals("limit " + limit + ": the first " + limit + " rows, in order", expected, seenIds);
+        }
+    }
+
+    /**
+     * The same read with the list of primitives out of the projection. It is the reason the iterator built a
+     * {@code ColumnReadStoreImpl} at all in the other tests, and a composite needs none -- so this is the case
+     * where that store is absent and the composite's own record reader is the only reader of repeated data.
+     */
+    public void testProjectionWithoutControlListMatchesOracle() throws IOException {
+        byte[] file = writeFile();
+        ParquetFormatReader reader = new ParquetFormatReader(newBlockFactory()).withCompositeAssemblyForTests(true);
+        int seen = 0;
+        try (
+            CloseableIterator<Page> pages = reader.read(
+                createStorageObject(file),
+                FormatReadContext.builder().batchSize(64).projectedColumns(List.of("id", "items")).build()
+            )
+        ) {
+            while (pages.hasNext()) {
+                Page page = pages.next();
+                try {
+                    LongBlock ids = (LongBlock) page.getBlock(0);
+                    BytesRefBlock items = (BytesRefBlock) page.getBlock(1);
+                    for (int pos = 0; pos < page.getPositionCount(); pos++) {
+                        int row = (int) ids.getLong(ids.getFirstValueIndex(pos));
+                        assertEquals("items at row " + row, expectedItemsJson(row), textAt(items, pos));
+                        seen++;
+                    }
+                } finally {
+                    Releasables.close(page::releaseBlocks);
+                }
+            }
+        }
+        assertEquals("every row must be read exactly once", ROWS, seen);
+    }
+
     /** The tag values written for row {@code i}, which arrive as a multivalue keyword rather than as text. */
     private static List<String> expectedTagsValues(int i) {
         List<String> values = new ArrayList<>();

@@ -2462,6 +2462,8 @@ public class EsqlCapabilities {
          */
         PACK_DIMENSIONS_IN_TS,
 
+        PACK_DOUBLE_FLOAT_DIMENSIONS,
+
         /**
          * Support for exponential_histogram fields in the state of when it first was released into tech preview.
          */
@@ -3812,6 +3814,14 @@ public class EsqlCapabilities {
          * {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available.
          */
         OPTIONAL_FIELDS_LOAD_ALL_FORK,
+
+        /**
+        /**
+         * Under {@code unmapped_fields="LOAD_ALL"}, the {@code _unmapped_fields} column is the last one of the output, wherever the
+         * commands of the query add their own: it used to sit right after the columns of the relation. Only meaningful when
+         * {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available. See https://github.com/elastic/elasticsearch/issues/162506.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_UNMAPPED_FIELDS_LAST(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
         /**
          * Support for {@code GROK}, {@code DISSECT}, {@code MV_EXPAND} and {@code SAMPLE} under {@code unmapped_fields="LOAD_ALL"}.

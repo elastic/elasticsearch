@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
-import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -37,48 +36,75 @@ public class TimeSeriesMetadataPathTests extends AbstractScalarFunctionTestCase 
         this.testCase = testCaseSupplier.get();
     }
 
-    @BeforeClass
-    public static void requireTimeSeriesType() {
-        // Every case takes a _timeseries container, which release builds can't serialize while it is under construction.
-        assumeTrue("_timeseries is under construction", DataType.TIME_SERIES_METADATA_DATA_TYPE.supportedVersion().supportedLocally());
-    }
-
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        for (DataType labelType : DataType.stringTypes()) {
-            suppliers.add(read("single value", labelType, "{\"job\":\"api\",\"pod\":\"a\"}", "pod", equalTo(new BytesRef("a"))));
-            suppliers.add(read("absent label", labelType, "{\"job\":\"api\"}", "pod", nullValue()));
-            suppliers.add(read("empty label container", labelType, "{}", "pod", nullValue()));
-            suppliers.add(
-                read(
-                    "multiple values",
-                    labelType,
-                    "{\"pod\":[\"b\",\"a\",\"b\"]}",
-                    "pod",
-                    equalTo(List.of(new BytesRef("b"), new BytesRef("a"), new BytesRef("b")))
-                )
-            );
-            suppliers.add(
-                read(
-                    "escaped name and value",
-                    labelType,
-                    "{\"label\\\"\\\\\":\"value\\\"\\\\\\n\u03bb\ud83d\ude00\"}",
-                    "label\"\\",
-                    equalTo(new BytesRef("value\"\\\n\u03bb\ud83d\ude00"))
-                )
-            );
+        for (DataType type : TimeSeriesMetadataFilterTests.containerTypes()) {
+            for (DataType labelType : DataType.stringTypes()) {
+                suppliers.addAll(cases(type, labelType));
+            }
         }
+        // A keyword container is the source document: nested, prefixed and in any order, read into the canonical form.
+        String source = "{\"pod\":\"a\",\"labels\":{\"job\":\"api\"},\"k8s\":{\"node\":[\"n\",\"\",\"m\"]}}";
+        suppliers.add(read("prefixed label", DataType.KEYWORD, DataType.KEYWORD, source, "job", equalTo(new BytesRef("api"))));
+        suppliers.add(
+            read(
+                "nested label",
+                DataType.KEYWORD,
+                DataType.KEYWORD,
+                source,
+                "k8s.node",
+                equalTo(List.of(new BytesRef("n"), new BytesRef("m")))
+            )
+        );
+        suppliers.add(read("prefix is not a label", DataType.KEYWORD, DataType.KEYWORD, source, "labels.job", nullValue()));
         return parameterSuppliersFromTypedData(suppliers);
     }
 
-    private static TestCaseSupplier read(String name, DataType labelType, String labelContainer, String label, Matcher<?> expected) {
-        return new TestCaseSupplier(name, List.of(DataType.TIME_SERIES_METADATA_DATA_TYPE, labelType), () -> {
+    private static List<TestCaseSupplier> cases(DataType type, DataType labelType) {
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+        suppliers.add(read("single value", type, labelType, "{\"job\":\"api\",\"pod\":\"a\"}", "pod", equalTo(new BytesRef("a"))));
+        suppliers.add(read("absent label", type, labelType, "{\"job\":\"api\"}", "pod", nullValue()));
+        suppliers.add(read("empty label container", type, labelType, "{}", "pod", nullValue()));
+        suppliers.add(
+            read(
+                "multiple values",
+                type,
+                labelType,
+                "{\"pod\":[\"b\",\"a\",\"b\"]}",
+                "pod",
+                equalTo(List.of(new BytesRef("b"), new BytesRef("a"), new BytesRef("b")))
+            )
+        );
+        suppliers.add(
+            read(
+                "escaped name and value",
+                type,
+                labelType,
+                "{\"label\\\"\\\\\":\"value\\\"\\\\\\n\u03bb\ud83d\ude00\"}",
+                "label\"\\",
+                equalTo(new BytesRef("value\"\\\n\u03bb\ud83d\ude00"))
+            )
+        );
+        return suppliers;
+    }
+
+    private static TestCaseSupplier read(
+        String name,
+        DataType type,
+        DataType labelType,
+        String labelContainer,
+        String label,
+        Matcher<?> expected
+    ) {
+        return new TestCaseSupplier(name, List.of(type, labelType), () -> {
             List<TestCaseSupplier.TypedData> data = List.of(
-                new TestCaseSupplier.TypedData(new BytesRef(labelContainer), DataType.TIME_SERIES_METADATA_DATA_TYPE, "labelContainer"),
+                new TestCaseSupplier.TypedData(new BytesRef(labelContainer), type, "labelContainer"),
                 new TestCaseSupplier.TypedData(new BytesRef(label), labelType, "label").forceLiteral()
             );
-            String evaluator = "TimeSeriesMetadataFunctionEvaluator[operation=GET, names=["
+            String evaluator = "TimeSeriesMetadataFunctionEvaluator[operation=GET"
+                + (type == DataType.KEYWORD ? ", keyword" : "")
+                + ", names=["
                 + label
                 + "], labelContainer=Attribute[channel=0]]";
             return new TestCaseSupplier.TestCase(data, evaluator, DataType.KEYWORD, expected);
@@ -103,13 +129,9 @@ public class TimeSeriesMetadataPathTests extends AbstractScalarFunctionTestCase 
         }
     }
 
-    /** Only a typed label container can be read: its keyword form is not one. */
-    public void testLabelContainerMustBeTyped() {
-        var path = new TimeSeriesMetadataPath(
-            Source.EMPTY,
-            field("labelContainer", DataType.KEYWORD),
-            Literal.keyword(Source.EMPTY, "pod")
-        );
+    /** Only a label container can be read, typed or keyword. */
+    public void testLabelContainerMustBeOne() {
+        var path = new TimeSeriesMetadataPath(Source.EMPTY, field("labelContainer", DataType.LONG), Literal.keyword(Source.EMPTY, "pod"));
         assertThat(path.typeResolved().message(), containsString("_timeseries"));
     }
 
@@ -129,7 +151,7 @@ public class TimeSeriesMetadataPathTests extends AbstractScalarFunctionTestCase 
     private void read(Object labelContainer) {
         var path = new TimeSeriesMetadataPath(
             Source.EMPTY,
-            field("labelContainer", DataType.TIME_SERIES_METADATA_DATA_TYPE),
+            field("labelContainer", randomFrom(TimeSeriesMetadataFilterTests.containerTypes())),
             Literal.keyword(Source.EMPTY, "pod")
         );
         try (

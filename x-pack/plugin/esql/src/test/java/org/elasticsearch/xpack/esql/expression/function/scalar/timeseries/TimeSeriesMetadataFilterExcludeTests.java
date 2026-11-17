@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
-import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -36,49 +35,58 @@ public class TimeSeriesMetadataFilterExcludeTests extends AbstractScalarFunction
         this.testCase = testCaseSupplier.get();
     }
 
-    @BeforeClass
-    public static void requireTimeSeriesType() {
-        // Every case takes a _timeseries container, which release builds can't serialize while it is under construction.
-        assumeTrue("_timeseries is under construction", DataType.TIME_SERIES_METADATA_DATA_TYPE.supportedVersion().supportedLocally());
-    }
-
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        String labels = "{\"job\":\"api\",\"pod\":\"a\"}";
-        suppliers.add(remove("one label", labels, List.of("pod"), "{\"job\":\"api\"}"));
-        suppliers.add(remove("repeated and absent labels", labels, List.of("pod", "pod", "missing"), "{\"job\":\"api\"}"));
-        suppliers.add(remove("absent label", labels, List.of("missing"), labels));
-        suppliers.add(remove("every label", labels, List.of("job", "pod"), "{}"));
-        suppliers.add(remove("empty label container", "{}", List.of("pod"), "{}"));
+        for (DataType type : TimeSeriesMetadataFilterTests.containerTypes()) {
+            suppliers.addAll(cases(type));
+        }
+        // A keyword container is the source document: nested, prefixed and in any order, read into the canonical form.
+        String source = "{\"pod\":\"a\",\"labels\":{\"job\":\"api\"},\"k8s\":{\"node\":\"n\"}}";
+        suppliers.add(remove("source document", DataType.KEYWORD, source, List.of("pod"), "{\"job\":\"api\",\"k8s.node\":\"n\"}"));
         suppliers.add(
-            remove("multiple values", "{\"pod\":[\"b\",\"a\"],\"single\":\"one\"}", List.of("single"), "{\"pod\":[\"b\",\"a\"]}")
+            remove("source document, no label", DataType.KEYWORD, source, List.of(), "{\"job\":\"api\",\"k8s.node\":\"n\",\"pod\":\"a\"}")
+        );
+        return parameterSuppliersFromTypedData(suppliers);
+    }
+
+    private static List<TestCaseSupplier> cases(DataType type) {
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+        String labels = "{\"job\":\"api\",\"pod\":\"a\"}";
+        suppliers.add(remove("one label", type, labels, List.of("pod"), "{\"job\":\"api\"}"));
+        suppliers.add(remove("repeated and absent labels", type, labels, List.of("pod", "pod", "missing"), "{\"job\":\"api\"}"));
+        suppliers.add(remove("absent label", type, labels, List.of("missing"), labels));
+        suppliers.add(remove("every label", type, labels, List.of("job", "pod"), "{}"));
+        suppliers.add(remove("empty label container", type, "{}", List.of("pod"), "{}"));
+        suppliers.add(
+            remove("multiple values", type, "{\"pod\":[\"b\",\"a\"],\"single\":\"one\"}", List.of("single"), "{\"pod\":[\"b\",\"a\"]}")
         );
         suppliers.add(
             remove(
                 "escaped name and value",
+                type,
                 "{\"job\":\"api\",\"label\\\"\\\\\":\"value\\\"\\\\\\n\u03bb\ud83d\ude00\"}",
                 List.of("job"),
                 "{\"label\\\"\\\\\":\"value\\\"\\\\\\n\u03bb\ud83d\ude00\"}"
             )
         );
-        return parameterSuppliersFromTypedData(suppliers);
+        return suppliers;
     }
 
-    private static TestCaseSupplier remove(String name, String labelContainer, List<String> labels, String expected) {
+    private static TestCaseSupplier remove(String name, DataType type, String labelContainer, List<String> labels, String expected) {
         List<DataType> types = new ArrayList<>();
-        types.add(DataType.TIME_SERIES_METADATA_DATA_TYPE);
+        types.add(type);
         labels.forEach(label -> types.add(DataType.KEYWORD));
         return new TestCaseSupplier(name, types, () -> {
             List<TestCaseSupplier.TypedData> data = new ArrayList<>();
-            data.add(
-                new TestCaseSupplier.TypedData(new BytesRef(labelContainer), DataType.TIME_SERIES_METADATA_DATA_TYPE, "labelContainer")
-            );
+            data.add(new TestCaseSupplier.TypedData(new BytesRef(labelContainer), type, "labelContainer"));
             labels.forEach(label -> data.add(new TestCaseSupplier.TypedData(new BytesRef(label), DataType.KEYWORD, label).forceLiteral()));
-            String evaluator = "TimeSeriesMetadataFunctionEvaluator[operation=DROP, names="
+            String evaluator = "TimeSeriesMetadataFunctionEvaluator[operation=DROP"
+                + (type == DataType.KEYWORD ? ", keyword" : "")
+                + ", names="
                 + labels
                 + ", labelContainer=Attribute[channel=0]]";
-            return new TestCaseSupplier.TestCase(data, evaluator, DataType.TIME_SERIES_METADATA_DATA_TYPE, equalTo(new BytesRef(expected)));
+            return new TestCaseSupplier.TestCase(data, evaluator, type, equalTo(new BytesRef(expected)));
         });
     }
 
@@ -112,11 +120,11 @@ public class TimeSeriesMetadataFilterExcludeTests extends AbstractScalarFunction
         }
     }
 
-    /** Only a typed label container can be rewritten: its keyword form is not one. */
-    public void testLabelContainerMustBeTyped() {
+    /** Only a label container can be rewritten, typed or keyword. */
+    public void testLabelContainerMustBeOne() {
         var transform = new TimeSeriesMetadataFilter(
             Source.EMPTY,
-            field("labelContainer", DataType.KEYWORD),
+            field("labelContainer", DataType.LONG),
             List.of(Literal.keyword(Source.EMPTY, "pod")),
             true
         );
@@ -139,7 +147,7 @@ public class TimeSeriesMetadataFilterExcludeTests extends AbstractScalarFunction
     private void remove(Object labelContainer) {
         var transform = new TimeSeriesMetadataFilter(
             Source.EMPTY,
-            field("labelContainer", DataType.TIME_SERIES_METADATA_DATA_TYPE),
+            field("labelContainer", randomFrom(TimeSeriesMetadataFilterTests.containerTypes())),
             List.of(Literal.keyword(Source.EMPTY, "pod")),
             true
         );

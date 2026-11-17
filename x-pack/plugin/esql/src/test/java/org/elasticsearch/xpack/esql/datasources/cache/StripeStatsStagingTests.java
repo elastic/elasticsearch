@@ -685,6 +685,52 @@ public class StripeStatsStagingTests extends ESTestCase {
         }
     }
 
+    /**
+     * The records of one read share ONE schema list, because a reader hands each chunk its own.
+     * <p>
+     * {@code NdJsonFormatReader} merges the bound schema with the projection once per chunk and returns a fresh
+     * list, cloning any attribute whose nullability differs from the chunk-0 inference. A staged record keeps the
+     * list it was staged with until the query ends, so without the share a long read retains one list of every
+     * column per completing chunk: 9,640,554 live attributes against 94,096 staged records on a 105-column NDJSON
+     * read, where the arm that flattens each piece immediately held about twenty thousand.
+     * <p>
+     * Identity is the assertion, not equality — equality holds either way, which is the whole reason the copies
+     * were invisible. The clones must come from {@code withNullability} on a shared base so they keep their
+     * {@code id()} and the lists compare equal: a freshly constructed {@link ReferenceAttribute} mints a new
+     * {@code NameId}, the lists would not be equal, nothing would be shared and this would fail for the wrong
+     * reason. {@code assertEquals} below pins that precondition. Nothing here reads a value back through
+     * {@code get}, which would pin the flat form and let a later assertion answer from the kept map.
+     */
+    public void testTheRecordsOfOneReadShareOneSchemaList() {
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        StripeStatsStaging staging = new StripeStatsStaging(sink);
+
+        List<Attribute> first = perChunkSchema();
+        List<Attribute> second = perChunkSchema();
+        assertNotSame("the fixture must hand the two chunks distinct lists", first, second);
+        assertNotSame("and distinct attributes in them", first.get(0), second.get(0));
+        assertEquals("which must still be equal, or nothing would be shared for a trivial reason", first, second);
+
+        chunk(staging, 1024, false, MTIME, 0, 1024, READ_CONFIG, true, first, row(0, 7L, "m"));
+        chunk(staging, 1024, true, MTIME, 1024, 2048, READ_CONFIG, true, second, row(1024, 9L, "z"));
+
+        List<Map<String, Object>> staged = staged(sink);
+        assertEquals("two covered stripes stage two records", 2, staged.size());
+        assertSame(
+            "the records of one read must share one schema list",
+            ((StagedStripeRecord) staged.get(0)).schema(),
+            ((StagedStripeRecord) staged.get(1)).schema()
+        );
+    }
+
+    /**
+     * What a reader hands one chunk: a new list of clones that keep their {@code id()}, so it is equal to every
+     * other chunk's and shares no object with them.
+     */
+    private static List<Attribute> perChunkSchema() {
+        return SCHEMA.stream().map(a -> a.withNullability(Nullability.FALSE)).toList();
+    }
+
     private static Row row(long offset, long number, String keyword) {
         return new Row(offset, number, new BytesRef(keyword));
     }
@@ -734,12 +780,31 @@ public class StripeStatsStagingTests extends ESTestCase {
         boolean licensed,
         Row... rows
     ) {
+        chunk(staging, stripeSize, fileFinal, mtime, start, end, readConfig, licensed, SCHEMA, rows);
+    }
+
+    /**
+     * As above, with the schema this chunk hands to {@code emit}. A reader can hand each chunk an equal but
+     * DISTINCT list, so a test about sharing has to be able to pass two of them.
+     */
+    private void chunk(
+        @Nullable StripeStatsStaging staging,
+        long stripeSize,
+        boolean fileFinal,
+        long mtime,
+        long start,
+        long end,
+        @Nullable String readConfig,
+        boolean licensed,
+        List<Attribute> schema,
+        Row... rows
+    ) {
         StripeStatsHarvester harvester = new StripeStatsHarvester(stripeSize, fileFinal, staging);
         for (Row r : rows) {
             StripeStatsHarvester.StripeAccum accum = harvester.getOrCreate(harvester.ordinalOf(r.offset()));
             accum.rows++;
             if (accum.cols == null) {
-                accum.cols = ColumnStatsAccumulator.forProjectedAttributes(SCHEMA.toArray(new Attribute[0]));
+                accum.cols = ColumnStatsAccumulator.forProjectedAttributes(schema.toArray(new Attribute[0]));
             }
             if (r.number() == null) {
                 accum.cols.acceptNullAt(0);
@@ -752,7 +817,7 @@ public class StripeStatsStagingTests extends ESTestCase {
                 accum.cols.acceptBytesRefAt(1, r.keyword());
             }
         }
-        harvester.emit(PATH, start, end - start, mtime, FINGERPRINT, readConfig, licensed, SCHEMA);
+        harvester.emit(PATH, start, end - start, mtime, FINGERPRINT, readConfig, licensed, schema);
     }
 
     /**

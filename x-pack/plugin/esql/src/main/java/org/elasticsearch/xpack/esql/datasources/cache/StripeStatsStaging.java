@@ -37,7 +37,7 @@ import java.util.concurrent.ConcurrentMap;
  * coverage of bytes no chunk read.
  * <p>
  * One instance serves one read of one storage object and is shared by every chunk's parser thread. The staged
- * state is small (one record per stripe in flight) and a critical section runs once per stripe a closing chunk
+ * state is small (one record per stripe in flight) and the critical sections run twice per stripe a closing chunk
  * overlapped — a chunk hands over one piece per ordinal in its byte range — so a single monitor is cheaper than
  * per-stripe locks and makes {@link #flush} trivially consistent.
  */
@@ -109,6 +109,18 @@ public final class StripeStatsStaging implements StripeStatsSink {
     private final ConcurrentMap<String, List<Map<String, Object>>> sink;
     private final Map<StripeKey, List<StripeSpan>> open = new HashMap<>();
 
+    /**
+     * The one schema list the records of this read share. A reader may hand a chunk an EQUAL BUT DISTINCT list:
+     * {@code NdJsonFormatReader} merges the bound read schema with its resolved-schema projection once per chunk,
+     * and {@link Attribute#withNullability} clones an attribute whose nullability differs from the projection's,
+     * so each chunk can carry its own copy of every column. A
+     * staged record keeps the list it was staged with until the query ends, so without this the read retains one
+     * list per completing chunk rather than one per read -- measured at 9,640,554 live attributes against 94,096
+     * staged records on a 105-column NDJSON read, where the control arm held about twenty thousand because it
+     * flattened each piece immediately and let the list die with its iterator.
+     */
+    private List<Attribute> sharedSchema;
+
     public StripeStatsStaging(ConcurrentMap<String, List<Map<String, Object>>> sink) {
         this.sink = Objects.requireNonNull(sink, "a staging area needs a sink to stage into");
     }
@@ -140,7 +152,7 @@ public final class StripeStatsStaging implements StripeStatsSink {
         if (compact == null) {
             return;
         }
-        StripeSpan span = new StripeSpan(identity, schema, start, end, atStripeStart, atStripeEnd, eof, compact);
+        StripeSpan span = new StripeSpan(identity, shared(schema), start, end, atStripeStart, atStripeEnd, eof, compact);
         StripeKey key = new StripeKey(sourceLocation, ordinal);
         synchronized (this) {
             List<StripeSpan> spans = open.computeIfAbsent(key, k -> new ArrayList<>(1));
@@ -220,6 +232,26 @@ public final class StripeStatsStaging implements StripeStatsSink {
                 span.schema
             )
         );
+    }
+
+    /**
+     * The shared list equal to {@code schema}, or {@code schema} itself when this read has not seen an equal one.
+     * <p>
+     * Synchronized because the only caller builds its span OUTSIDE the critical section below, on whichever
+     * parser thread closed the chunk. Equality is what makes the substitution invisible: a clone keeps the
+     * attribute's {@code id()}, so the per-chunk lists of one read compare equal element-wise, and only names are
+     * ever read back out of the list -- {@code TextFormatStats.buildColumns} uses the schema solely as
+     * {@code cached.get(a.name())}. Where the lists are NOT equal nothing is shared and nothing changes.
+     */
+    private synchronized List<Attribute> shared(List<Attribute> schema) {
+        if (schema == null) {
+            return null;
+        }
+        if (sharedSchema == null) {
+            sharedSchema = schema;
+            return schema;
+        }
+        return sharedSchema.equals(schema) ? sharedSchema : schema;
     }
 
 }

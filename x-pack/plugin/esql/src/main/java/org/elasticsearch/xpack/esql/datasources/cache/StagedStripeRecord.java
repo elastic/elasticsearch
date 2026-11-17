@@ -24,12 +24,13 @@ import java.util.Set;
  * {@code _stats.*} map every consumer of a contribution expects.
  * <p>
  * A read stages one of these per stripe and they live until the query ends, so what they hold is what the read
- * costs: the compact form of a 105-column stripe is a few arrays, the column extrema, and this record's own copy
- * of every column name — {@link SplitStats#fold} resolves each name into a fresh String, so a folded record
- * shares its names with neither its siblings nor the schema. The flat map over the same values is some four
- * hundred string-keyed entries, and each of those keys is another String carrying the column name again, so what
- * the compact form saves is the entries and their keys rather than the names. The flat map is built when someone
- * asks for it and the compact form is what is kept.
+ * costs: the compact form of a 105-column stripe is a few arrays, the column extrema, and its column names —
+ * which it mostly does not own. {@link SplitStats#fold} returns the dictionary's own string for a single-segment
+ * name, so an ordinary column's name is one String shared by the record, its pieces and the schema it was split
+ * from; only a DOTTED name is rejoined from its segments, and a record carries its own copy of those. The flat map
+ * over the same values is some four hundred string-keyed entries, and each of those keys is another String
+ * carrying the column name again, so what the compact form saves is the entries and their keys rather than the
+ * names. The flat map is built when someone asks for it and the compact form is what is kept.
  * <p>
  * Building it on demand divides the consumers in three. A WRITER walks the map
  * once — {@code writeGenericMap} asks the size and then the entries — and wants nothing left behind, because it
@@ -112,6 +113,14 @@ final class StagedStripeRecord extends AbstractMap<String, Object> {
         this.eof = eof;
         this.stats = stats;
         this.schema = schema;
+    }
+
+    /**
+     * The schema list this record holds, so a test can assert that the records of one read share ONE list rather
+     * than a copy each. Not part of the map contract and not read on any production path.
+     */
+    List<Attribute> schema() {
+        return schema;
     }
 
     @Override

@@ -711,7 +711,9 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
      */
     private IntermediateResult translateFilter(TranslationContext context, VectorBinaryComparison comparison) {
         boolean scalarLeft = PromqlPlan.returnsScalar(left());
-        IntermediateResult vector = context.translate(scalarLeft ? right() : left());
+        // The comparison filters each series, so the vector keeps one row per series up to the filter.
+        TranslationContext perSeries = context.withRequired(union(context.required(), open()));
+        IntermediateResult vector = perSeries.translate(scalarLeft ? right() : left());
         IntermediateResult scalar = context.translate(scalarLeft ? left() : right());
         IntermediateResult table = vector.kind().afterInitialAggregation
             ? vector
@@ -738,6 +740,10 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         IntermediateResult right = context.translate(right());
         Expression rightExpr = new ToDouble(right.value().source(), right.value());
         Expression binaryExpr = binaryOp().asFunction().create(source(), leftExpr, rightExpr, context.configuration());
+        if (this instanceof VectorBinaryComparison) {
+            // bool yields 1 or 0: a number, which an enclosing aggregate reads like any other value
+            binaryExpr = new ToDouble(source(), binaryExpr);
+        }
 
         LogicalPlan plan;
         Expression filter;

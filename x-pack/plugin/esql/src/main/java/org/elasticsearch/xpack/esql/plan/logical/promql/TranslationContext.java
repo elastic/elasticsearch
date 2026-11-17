@@ -288,6 +288,9 @@ public record TranslationContext(
         for (Attribute attr : unionOutput) {
             if (attr.name().equals(cmd.branchColumnName())) {
                 branchAttr = attr;
+            } else if (attr.name().startsWith(MetadataAttribute.TIMESERIES + "$")) {
+                // a packing a branch derives from its _timeseries, which already keys the series
+                continue;
             } else if (attr.name().equals(MetadataAttribute.TIMESERIES) && containerFunctions()) {
                 Alias signature = new Alias(source, "$prom_sig", unset(attr, Stream.of(LabelMatcher.NAME)));
                 plan = new Eval(source, plan, List.of(signature));
@@ -511,7 +514,9 @@ public record TranslationContext(
         for (Set<String> skip : wanted.skips()) {
             skips.add(skip.isEmpty() ? promoted : skip);
         }
-        skips.add(promoted);
+        if (skips.isEmpty()) {
+            skips.add(promoted);
+        }
         for (Set<String> skip : skips) {
             columns.add(new Alias(source, mapOpen(skip), unset(labels, skip.stream())));
         }

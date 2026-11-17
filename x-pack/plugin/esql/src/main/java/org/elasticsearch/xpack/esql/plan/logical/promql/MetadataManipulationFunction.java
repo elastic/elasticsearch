@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -187,8 +188,17 @@ public final class MetadataManipulationFunction extends PromqlFunctionCall {
      */
     @Override
     public IntermediateResult translate(TranslationContext context) {
-        // The child must expose the labels the derivation reads, on top of whatever the enclosing translation requires.
+        // The child must expose the labels the derivation reads, on top of whatever the enclosing translation requires. A
+        // relabel that may overwrite a label of raw series needs every label of them too, to check two are left apart.
         TranslationSchema childRequired = union(context.required(), finite(sourceLabels()));
+        boolean concrete = child().output().stream().noneMatch(a -> MetadataAttribute.isTimeSeriesAttributeName(a.name()));
+        String name = TranslationContext.mapFinite(destination());
+        boolean overwrites = concrete
+            ? child().output().stream().anyMatch(label -> TranslationContext.mapFinite(label).equals(name))
+            : context.cmd().child().output().stream().anyMatch(field -> PromqlLabels.labelName(field).equals(name));
+        if (context.containerFunctions() && overwrites && concrete == false) {
+            childRequired = union(childRequired, TranslationSchema.open());
+        }
         IntermediateResult child = context.withRequired(childRequired).translate(child());
         if (child.kind().constant) {
             return child;
@@ -211,7 +221,6 @@ public final class MetadataManipulationFunction extends PromqlFunctionCall {
             destinationValue = new Case(source, empty, List.of(new Literal(source, null, DataType.KEYWORD), destinationValue));
         }
 
-        String name = TranslationContext.mapFinite(destination);
         Alias derived = new Alias(source, destination.name(), destinationValue, destination.id());
         LogicalPlan plan = new Eval(context.cmd().source(), aggregated.plan(), List.of(derived));
         boolean opaque = aggregated.schema().isOpen();
@@ -240,13 +249,10 @@ public final class MetadataManipulationFunction extends PromqlFunctionCall {
         }
         TranslationSchema schema = union(aggregated.schema(), finite(List.of(name)));
         // A relabel that may overwrite a label can leave two series with one label set, which Prometheus fails. The check reads
-        // every label of a series, so only where the packing and the label columns hold them all.
+        // every label of a series: the label columns of a concrete input, or the packing with the label columns it leaves out.
         Set<String> finest = schema.finestSkip();
-        boolean overwrites = aggregated.label(name) != null
-            || opaque
-                && finest.contains(name) == false
-                && context.cmd().child().output().stream().anyMatch(field -> PromqlLabels.labelName(field).equals(name));
-        if (context.containerFunctions() && overwrites && finest != null && schema.labels().containsAll(finest)) {
+        boolean complete = concrete || finest != null && schema.labels().containsAll(finest);
+        if (context.containerFunctions() && overwrites && complete) {
             var labels = new ArrayList<Attribute>();
             Attribute packing = opaque ? TranslationContext.find(plan.output(), TranslationContext.mapOpen(schema.finestSkip())) : null;
             if (packing != null) {

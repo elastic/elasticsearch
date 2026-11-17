@@ -611,6 +611,16 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                     if (binaryOperator instanceof VectorBinarySet setOp) {
                         verifySetOperator(failures, setOp, topLevelUnions.contains(setOp), containerFunctions);
                     }
+                    if ((binaryOperator.match().filter() == VectorMatch.Filter.ON
+                        && binaryOperator.match().filterLabels().contains(LabelMatcher.NAME))
+                        || binaryOperator.match().groupingLabels().contains(LabelMatcher.NAME)) {
+                        // A series whose metric is a field stores no __name__ and reads it as absent, so on(__name__) would
+                        // match the series of different metrics, which Prometheus keeps apart. Which series store it is
+                        // known only from the data, so it is rejected for all.
+                        // TODO: Match on __name__ once the metric name is a dimension value.
+                        // https://github.com/elastic/elasticsearch/issues/146989
+                        failures.add(fail(lp, "matching on __name__ is not supported at this time [{}]", lp.sourceText()));
+                    }
                     boolean labelMatched = binaryOperator.match().filter() != VectorMatch.Filter.NONE;
                     if (labelMatched == false
                         && containerFunctions == false

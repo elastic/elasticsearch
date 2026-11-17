@@ -88,6 +88,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 
 public class CsvFormatReaderTests extends ESTestCase {
@@ -2051,13 +2052,53 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertThat(e.getMessage(), Matchers.containsString("Expected 'name:type'"));
     }
 
+    public void testHeaderTextIsNotEchoedWholeIntoTheError() {
+        String blob = "HEADER_START_" + "Z".repeat(200_000) + "_HEADER_END";
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        ExternalClientException unknownType = expectThrows(
+            ExternalClientException.class,
+            () -> reader.schema(createStorageObject("id:" + blob + "\n"))
+        );
+        ExternalClientException malformed = expectThrows(
+            ExternalClientException.class,
+            () -> reader.schema(createStorageObject("id:long," + blob + ":a:b\n"))
+        );
+        ExternalClientException duplicates = expectThrows(
+            ExternalClientException.class,
+            () -> reader.schema(createStorageObject(blob + ":long," + blob + ":long\n"))
+        );
+        List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "ts", DataType.LONG));
+        CsvFormatReader declared = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
+            .withDeclaredProvenanceBinding(true);
+        Exception binding = expectThrows(
+            IllegalArgumentException.class,
+            () -> declared.read(
+                createStorageObject(blob + ",ts," + blob + "\n1,2,3\n"),
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+            )
+        );
+
+        for (Exception failure : List.of(unknownType, malformed, duplicates, binding)) {
+            String message = failure.getMessage();
+            assertThat("header text carried whole", message.length(), lessThan(2048));
+            assertThat(message, containsString("HEADER_START_"));
+            assertThat(message, containsString("_HEADER_END"));
+            assertThat(message, containsString("truncated"));
+        }
+        assertThat(unknownType.getMessage(), containsString(blob.length() + " chars total"));
+        assertThat(malformed.getMessage(), containsString((blob.length() + ":a:b".length()) + " chars total"));
+        assertThat(duplicates.getMessage(), containsString((blob.length() + "['']".length()) + " chars total"));
+        assertThat(binding.getMessage(), containsString(blob.length() + " chars total"));
+    }
+
     public void testUnsupportedType() {
         String csv = "id:unsupported_type\n";
         StorageObject object = createStorageObject(csv);
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
 
         ExternalClientException e = expectThrows(ExternalClientException.class, () -> reader.schema(object));
-        assertTrue(e.getMessage().contains("illegal data type"));
+        assertThat(e.getMessage(), containsString("illegal data type [UNSUPPORTED_TYPE]"));
     }
 
     public void testDefaultErrorPolicyIsStrict() {
@@ -3858,6 +3899,40 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
+     * A byte budget exhausted before a later widening value is sampled infers from the prefix actually
+     * read: the column stays INTEGER, matching a row-budget cut at the same boundary.
+     */
+    public void testSchemaSampleBytesStopsBeforeTypeWideningRow() throws IOException {
+        String csv = "id\n1\n2\nhello\n";
+        StorageObject object = createStorageObject(csv);
+        // 4 bytes is smaller than header plus two data rows, so sampling stops after the first
+        // numeric row (at least one complete record is always kept) and never reaches hello.
+        CsvFormatReader cut = (CsvFormatReader) new CsvFormatReader(blockFactory).withSchemaSampleBytes(4)
+            .withConfig(Map.of("schema_sample_size", 10));
+        assertEquals(
+            "a 4-byte budget must stop after the first numeric row and keep INTEGER",
+            DataType.INTEGER,
+            cut.schema(object).get(0).dataType()
+        );
+        CsvFormatReader full = (CsvFormatReader) new CsvFormatReader(blockFactory).withSchemaSampleBytes(csv.length())
+            .withConfig(Map.of("schema_sample_size", 10));
+        assertEquals("a budget that covers hello must still widen to KEYWORD", DataType.KEYWORD, full.schema(object).get(0).dataType());
+    }
+
+    /**
+     * A first data record wider than the decoded-byte sample cap is still fully read (CSV cannot
+     * truncate mid-record without FAIL_FAST treating it as malformed), then refused so a declared
+     * schema is required — matching NDJSON and the documented contract.
+     */
+    public void testSchemaSampleBytesRefusesWhenFirstRecordExceedsBudget() throws IOException {
+        String csv = "id,blob\n1," + "x".repeat(200) + "\n";
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withSchemaSampleBytes(50);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> reader.metadata(createStorageObject(csv)));
+        assertThat(e.getMessage(), containsString("decoded-byte sample limit"));
+        assertThat(e.getMessage(), containsString("declare a schema"));
+    }
+
+    /**
      * A sample shared by several files takes an even share of the configured rows from each, never fewer than the
      * floor, and keeps the harvest fingerprint: the data node reads with the unshared configuration, so its statistics
      * must still match the entry planning seeds from this read.
@@ -3872,13 +3947,15 @@ public class CsvFormatReaderTests extends ESTestCase {
 
         assertEquals(800, configured.schemaSampleSize());
         assertEquals(200, quarter.schemaSampleSize());
+        assertEquals(ExternalSourceSettings.DEFAULT_SCHEMA_SAMPLE_BYTES.getBytes(), configured.schemaSampleBytes());
+        assertEquals(ExternalSourceSettings.DEFAULT_SCHEMA_SAMPLE_BYTES.getBytes() / 4, quarter.schemaSampleBytes());
         assertEquals(800, configured.metadata(createStorageObject(csv.toString())).sampleRows());
         assertEquals(200, quarter.metadata(createStorageObject(csv.toString())).sampleRows());
-        assertEquals(
-            FormatReader.MIN_SHARED_SCHEMA_SAMPLE_SIZE,
-            configured.withSchemaSampleShare(64).metadata(createStorageObject(csv.toString())).sampleRows()
-        );
+        CsvFormatReader floored = configured.withSchemaSampleShare(64);
+        assertEquals(FormatReader.MIN_SHARED_SCHEMA_SAMPLE_SIZE, floored.metadata(createStorageObject(csv.toString())).sampleRows());
+        assertEquals(FormatReader.MIN_SHARED_SCHEMA_SAMPLE_BYTES, floored.schemaSampleBytes());
         assertEquals(configured.harvestFingerprintForTests(), quarter.harvestFingerprintForTests());
+        assertEquals(configured.harvestFingerprintForTests(), floored.harvestFingerprintForTests());
     }
 
     /**
@@ -3902,6 +3979,28 @@ public class CsvFormatReaderTests extends ESTestCase {
         List<Attribute> half = configured.withSchemaSampleShare(2).metadata(createStorageObject(csv.toString())).schema();
         assertEquals(2, half.size());
         assertEquals(DataType.INTEGER, half.get(0).dataType());
+    }
+
+    /**
+     * The decoded-byte cap is a transfer bound: a file far larger than a few kilobytes must not be pulled
+     * onto the coordinator past that prefix. CSV stops after complete records, so the BufferedReader may
+     * prefetch about 64 KiB; the rest of the body must still be aborted.
+     */
+    public void testMetadataStopsAtSchemaSampleBytes() throws IOException {
+        StringBuilder csv = new StringBuilder("id,name,value\n");
+        for (int i = 0; i < 50_000; i++) {
+            csv.append(i).append(",n_").append(i).append(',').append(i * 1.5).append('\n');
+        }
+        byte[] bytes = csv.toString().getBytes(StandardCharsets.UTF_8);
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        StorageObject object = DrainSimulatingStorageObject.create(bytes, tracking);
+        new CsvFormatReader(blockFactory).withSchemaSampleBytes(4096).metadata(object);
+        assertThat(
+            "metadata() must stop near the decoded-byte cap; consumed " + tracking.bytesConsumed.get() + " of " + bytes.length,
+            tracking.bytesConsumed.get(),
+            Matchers.lessThan(128_000L)
+        );
+        assertThat(tracking.bytesConsumed.get(), Matchers.lessThan((long) bytes.length / 2));
     }
 
     /** Sharing that would not narrow the sample returns the reader itself, which is how the planner tells it does not apply. */
@@ -5917,26 +6016,58 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("-999-05-12 14:30:45"));
     }
 
-    public void testDatetimeFastPathInvalidIsoFallsThroughCleanly() throws IOException {
+    public void testDatetimeImpossibleDayUnderFailFastFailsNamingTheValue() throws IOException {
         // Regression for the Stage 1 catch path: an ISO-shaped but calendar-invalid input like
         // 2021-02-30T10:00:00 succeeds in Iso8601Parser's lexical parse but fails inside
         // DateFormatters.from(...) with a generic DateTimeException (not DateTimeParseException).
-        // Without the catch, the batch would abort with an uncaught exception. The catch routes
-        // the row through Stage 3, whose JDK SMART resolver leniently maps Feb 30 to Feb 28 (same
-        // behaviour as before this change). The second row is a sanity-check that the batch
-        // continues normally.
+        // The Stage 1 catch routes the row to Stage 3, whose strict resolver refuses Feb 30, so the cell is an
+        // invalid field handled by error_mode instead of being read as another date. Without the catch, the
+        // batch would abort with an uncaught exception. This test and the two that follow pin one error_mode
+        // each: fail_fast, null_field and skip_row.
         String csv = "ts:datetime\n2021-02-30T10:00:00\n2021-01-01T00:00:00Z\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("error_mode", "fail_fast"));
+
+        ExternalClientException e = expectThrows(ExternalClientException.class, () -> {
+            try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+                iterator.next();
+            }
+        });
+        assertThat(e.getMessage(), containsString("2021-02-30T10:00:00"));
+        drainWarnings();
+    }
+
+    public void testDatetimeImpossibleDayUnderNullFieldNullsCellAndWarns() throws IOException {
+        String csv = "ts:datetime\n2021-02-30T10:00:00\n2021-01-01T00:00:00Z\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader nullField = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("error_mode", "null_field"));
+        try (CloseableIterator<Page> iterator = nullField.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            LongBlock block = page.getBlock(0);
+            assertTrue(block.isNull(0));
+            assertEquals(Instant.parse("2021-01-01T00:00:00Z").toEpochMilli(), block.getLong(1));
+        }
+        List<String> warnings = drainWarnings();
+        assertTrue("got: " + warnings, warnings.stream().anyMatch(w -> w.contains("cannot read [2021-02-30T10:00:00]")));
+    }
+
+    public void testDatetimeImpossibleDayUnderSkipRowDropsRowAndWarns() throws IOException {
+        String csv = "ts:datetime,n:long\n2021-02-30T10:00:00,1\n2021-01-01T00:00:00Z,2\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("error_mode", "skip_row"));
 
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
             Page page = iterator.next();
-            assertEquals(2, page.getPositionCount());
-            LongBlock block = (LongBlock) page.getBlock(0);
-            assertEquals(Instant.parse("2021-02-28T10:00:00Z").toEpochMilli(), block.getLong(0));
-            assertEquals(Instant.parse("2021-01-01T00:00:00Z").toEpochMilli(), block.getLong(1));
+            assertEquals(1, page.getPositionCount());
+            assertEquals(Instant.parse("2021-01-01T00:00:00Z").toEpochMilli(), ((LongBlock) page.getBlock(0)).getLong(0));
+            assertEquals(2L, ((LongBlock) page.getBlock(1)).getLong(0));
         }
+        List<String> warnings = drainWarnings();
+        assertTrue("got: " + warnings, warnings.stream().anyMatch(w -> w.contains("cannot be read; skipping them")));
+        assertTrue("got: " + warnings, warnings.stream().anyMatch(w -> w.startsWith("row [1]")));
     }
 
     public void testDatetimeFastPathRouting() throws IOException {

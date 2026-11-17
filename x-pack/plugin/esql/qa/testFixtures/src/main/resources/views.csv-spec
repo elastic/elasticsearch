@@ -1179,6 +1179,87 @@ max_rate:double
 13.173725
 ;
 
+tsViewBareRateOutputsDimensions
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+required_capability: metrics_group_by_all
+required_capability: metrics_group_by_all_with_ts_dimensions
+
+FROM view_k8s_bare_rate_by_tbucket
+| SORT rate DESC
+;
+ignoreOrder:true
+
+rate:double        | _timeseries:keyword                                   | tbucket:datetime
+1.6554700854700857 | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"       | 2024-05-10T00:00:00.000Z
+2.5258595644176904 | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"     | 2024-05-10T00:00:00.000Z
+2.621423611111111  | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"   | 2024-05-10T00:00:00.000Z
+2.830347222222222  | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}" | 2024-05-10T00:00:00.000Z
+2.874194651741293  | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"       | 2024-05-10T00:00:00.000Z
+3.1304347826086953 | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"   | 2024-05-10T00:00:00.000Z
+3.3457754629629632 | "{""cluster"":""qa"",""pod"":""three""}"                        | 2024-05-10T00:00:00.000Z
+3.959770114942529  | "{""cluster"":""qa"",""pod"":""one""}"                          | 2024-05-10T00:00:00.000Z
+4.379885057471264  | "{""cluster"":""qa"",""pod"":""two""}"                          | 2024-05-10T00:00:00.000Z
+;
+
+tsViewBareRateOutputsDimensionsSetUnmappedNullify
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+required_capability: metrics_group_by_all
+required_capability: metrics_group_by_all_with_ts_dimensions
+required_capability: optional_fields_nullify_tech_preview
+required_capability: views_implicit_timeseries_column_fix
+
+SET unmapped_fields="nullify"\;
+FROM view_k8s_bare_rate_by_tbucket
+| SORT rate DESC
+;
+ignoreOrder:true
+
+rate:double        | _timeseries:keyword                                   | tbucket:datetime
+1.6554700854700857 | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"       | 2024-05-10T00:00:00.000Z
+2.5258595644176904 | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"     | 2024-05-10T00:00:00.000Z
+2.621423611111111  | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"   | 2024-05-10T00:00:00.000Z
+2.830347222222222  | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}" | 2024-05-10T00:00:00.000Z
+2.874194651741293  | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"       | 2024-05-10T00:00:00.000Z
+3.1304347826086953 | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"   | 2024-05-10T00:00:00.000Z
+3.3457754629629632 | "{""cluster"":""qa"",""pod"":""three""}"                        | 2024-05-10T00:00:00.000Z
+3.959770114942529  | "{""cluster"":""qa"",""pod"":""one""}"                          | 2024-05-10T00:00:00.000Z
+4.379885057471264  | "{""cluster"":""qa"",""pod"":""two""}"                          | 2024-05-10T00:00:00.000Z
+;
+
+tsViewBareRateOutputsDimensionsSetUnmappedLoad
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+required_capability: metrics_group_by_all
+required_capability: metrics_group_by_all_with_ts_dimensions
+required_capability: optional_fields_v5
+required_capability: views_implicit_timeseries_column_fix
+
+SET unmapped_fields="load"\;
+FROM view_k8s_bare_rate_by_tbucket
+| SORT rate DESC
+;
+ignoreOrder:true
+
+rate:double        | _timeseries:keyword                                   | tbucket:datetime
+1.6554700854700857 | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"       | 2024-05-10T00:00:00.000Z
+2.5258595644176904 | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"     | 2024-05-10T00:00:00.000Z
+2.621423611111111  | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"   | 2024-05-10T00:00:00.000Z
+2.830347222222222  | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}" | 2024-05-10T00:00:00.000Z
+2.874194651741293  | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"       | 2024-05-10T00:00:00.000Z
+3.1304347826086953 | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"   | 2024-05-10T00:00:00.000Z
+3.3457754629629632 | "{""cluster"":""qa"",""pod"":""three""}"                        | 2024-05-10T00:00:00.000Z
+3.959770114942529  | "{""cluster"":""qa"",""pod"":""one""}"                          | 2024-05-10T00:00:00.000Z
+4.379885057471264  | "{""cluster"":""qa"",""pod"":""two""}"                          | 2024-05-10T00:00:00.000Z
+;
+
 tsViewDownsampled
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
@@ -3805,4 +3886,132 @@ null                           | Disconnected    | fork2
 2023-10-23T13:33:34.937Z       | Disconnected    | fork1
 2023-10-23T13:33:34.937Z       | Disconnected    | fork1
 2023-10-23T13:33:34.937123456Z | Disconnected    | fork1
+;
+
+forkAfterViewWithFork
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: allow_fork_across_subquery_view_let_boundary
+
+FROM view_fork_sample_data
+| FORK (WHERE event_duration > 3000000) (WHERE event_duration <= 3000000)
+| KEEP event_duration, _fork
+| SORT _fork, event_duration
+;
+
+event_duration:long | _fork:keyword
+3450233             | fork1
+5033755             | fork1
+8268153             | fork1
+725448              | fork2
+1232382             | fork2
+1756467             | fork2
+2764889             | fork2
+;
+
+forkAfterViewWithForkStats
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: allow_fork_across_subquery_view_let_boundary
+
+FROM view_fork_sample_data
+| FORK (WHERE event_duration > 3000000) (WHERE event_duration <= 3000000)
+| STATS c = COUNT(*) BY _fork
+| SORT _fork
+;
+
+c:long | _fork:keyword
+3      | fork1
+4      | fork2
+;
+
+forkAfterViewWithInSubqueryContainingFork
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_view
+required_capability: allow_fork_across_subquery_view_let_boundary
+
+FROM view_in_subquery_with_fork
+| FORK (WHERE emp_no <= 10001) (WHERE emp_no >= 10002)
+| SORT _fork, emp_no
+| KEEP emp_no, _fork
+;
+
+emp_no:integer | _fork:keyword
+10001          | fork1
+10002          | fork2
+10003          | fork2
+;
+
+forkAfterInSubqueryOverViewWithFork
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_view
+required_capability: allow_fork_across_subquery_view_let_boundary
+
+FROM employees
+| WHERE emp_no <= 10005
+| WHERE emp_no IN (FROM view_fork_employees | KEEP emp_no)
+| FORK (WHERE emp_no <= 10001) (WHERE emp_no >= 10002)
+| SORT _fork, emp_no
+| KEEP emp_no, _fork
+;
+
+emp_no:integer | _fork:keyword
+10001          | fork1
+10002          | fork2
+10003          | fork2
+;
+
+forkOverViewWithForkInsideInSubquery
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_view
+required_capability: allow_fork_across_subquery_view_let_boundary
+
+FROM employees
+| WHERE emp_no IN (
+    FROM view_fork_employees
+    | FORK (WHERE emp_no <= 10001) (WHERE emp_no >= 10002)
+    | KEEP emp_no
+  )
+| SORT emp_no
+| KEEP emp_no
+;
+
+emp_no:integer
+10001
+10002
+10003
+;
+
+forkInsideInSubqueryInEvalOverViewWithFork
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_view
+required_capability: eval_in_subquery
+required_capability: allow_fork_across_subquery_view_let_boundary
+
+FROM view_fork_employees
+| WHERE emp_no <= 10004
+| EVAL m = emp_no IN (FROM view_fork_employees | FORK (WHERE emp_no <= 10001) (WHERE emp_no >= 10002) | KEEP emp_no)
+| FORK (WHERE m == true) (WHERE m == false)
+| SORT _fork, emp_no
+| KEEP emp_no, m, _fork
+;
+
+emp_no:integer | m:boolean | _fork:keyword
+10001          | true      | fork1
+10002          | true      | fork1
+10003          | true      | fork1
 ;

@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.plan.logical.DocPreserving;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
@@ -189,9 +190,14 @@ public class ReplaceAggregateAggExpressionWithEval extends OptimizerRules.Optimi
     /**
      * Collects the aliases that hold on every row reaching the aggregate being optimized, the only ones safe for comparing its
      * aggregate functions. The walk only follows {@link DocPreserving} plans that keep their input's values and the left-hand side
-     * of joins; any other plan stops it, which at worst computes a duplicate aggregate function twice.
+     * of joins; any other plan stops it, which at worst computes a duplicate aggregate function twice. A {@link Row} ends the walk
+     * with its own fields, which hold on its only row.
      */
     private static void collectAliases(LogicalPlan plan, Consumer<Alias> consumer) {
+        if (plan instanceof Row row) {
+            row.fields().forEach(consumer);
+            return;
+        }
         LogicalPlan input = passThroughInput(plan);
         if (input != null) {
             plan.forEachExpression(Alias.class, consumer);

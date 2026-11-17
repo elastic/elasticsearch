@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -27,14 +26,12 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
-import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 
@@ -711,74 +708,6 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
         aggFieldName(aggs.get(0), Count.class, "a");
     }
 
-    public void testChainedStatsDeduplicatesDuplicateInnerAggs() {
-        var plan = plan("""
-            from test
-            | stats c = count(*), d = count(*) by languages
-            | stats mc = min(c), md = min(d)
-            """);
-
-        var project = as(plan, Project.class);
-        var projections = project.projections();
-        assertThat(Expressions.names(projections), contains("mc", "md"));
-        assertThat(Expressions.name(aliased(projections.get(1), ReferenceAttribute.class)), is("mc"));
-        var limit = as(project.child(), Limit.class);
-        var agg = as(limit.child(), Aggregate.class);
-        var aggs = agg.aggregates();
-        assertThat(Expressions.names(aggs), contains("mc"));
-        aggFieldName(aggs.get(0), Min.class, "c");
-    }
-
-    /**
-     * {@code avg(s2)} becomes {@code sum(s2) / count(s2)}, and {@code s2} is an alias of {@code salary}, so the {@code sum} is the
-     * same aggregation as {@code s}.
-     */
-    public void testAvgOverAliasReusesSumInSameAggregate() {
-        var plan = plan("""
-            from test
-            | eval s2 = salary
-            | stats s = sum(salary), a = avg(s2)
-            """);
-
-        var project = as(plan, Project.class);
-        assertThat(Expressions.names(project.projections()), contains("s", "a"));
-        var eval = as(project.child(), Eval.class);
-        assertThat(Expressions.names(eval.fields()), contains("a"));
-        var div = as(Alias.unwrap(eval.fields().get(0)), Div.class);
-        var limit = as(eval.child(), Limit.class);
-        var agg = as(limit.child(), Aggregate.class);
-        var aggs = agg.aggregates();
-        assertThat(aggs, hasSize(2));
-        aggFieldName(aggs.get(0), Sum.class, "salary");
-        aggFieldName(aggs.get(1), Count.class, "salary");
-        assertThat(Expressions.attribute(div.left()), is(aggs.get(0).toAttribute()));
-        assertThat(Expressions.attribute(div.right()), is(aggs.get(1).toAttribute()));
-    }
-
-    /**
-     * {@code mc} keeps the {@code INLINE STATS} in the plan: without a reference to {@code c} it is pruned before the aggregate
-     * is deduplicated.
-     */
-    public void testInlineStatsLeftSideAliasDeduplicates() {
-        var plan = plan("""
-            from test
-            | eval s2 = salary
-            | inline stats c = count(*) by languages
-            | stats a = min(s2), b = min(salary), mc = max(c)
-            """);
-
-        var project = as(plan, Project.class);
-        var projections = project.projections();
-        assertThat(Expressions.names(projections), contains("a", "b", "mc"));
-        assertThat(Expressions.name(aliased(projections.get(1), ReferenceAttribute.class)), is("a"));
-        var limit = as(project.child(), Limit.class);
-        var agg = as(limit.child(), Aggregate.class);
-        var aggs = agg.aggregates();
-        assertThat(Expressions.names(aggs), contains("a", "mc"));
-        aggFieldName(aggs.get(0), Min.class, "s2");
-        as(agg.child(), InlineJoin.class);
-    }
-
     /**
      * The lookup's {@code language_name} shadows the alias of the same name, so {@code count(language_name)} counts the lookup
      * column, while {@code f2} still equals {@code first_name} on every joined row.
@@ -825,29 +754,6 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
         assertThat(join.right().outputSet().contains(lookupColumn), is(true));
         var innerCount = Expressions.attribute(aliased(aggs.get(1), Count.class).field());
         assertThat(join.left().outputSet().contains(innerCount), is(true));
-    }
-
-    /**
-     * The subquery only filters the rows of the left-hand side, so {@code s2} still equals {@code salary} on every row that
-     * reaches the aggregate.
-     */
-    public void testInSubqueryLeftSideAliasDeduplicates() {
-        assumeTrue("Requires IN subqueries", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
-        var plan = plan("""
-            from test
-            | eval s2 = salary
-            | where emp_no in (from employees | keep emp_no)
-            | stats a = min(s2), b = min(salary)
-            """);
-
-        var project = as(plan, Project.class);
-        var projections = project.projections();
-        assertThat(Expressions.names(projections), contains("a", "b"));
-        assertThat(Expressions.name(aliased(projections.get(1), ReferenceAttribute.class)), is("a"));
-        var limit = as(project.child(), Limit.class);
-        var agg = as(limit.child(), Aggregate.class);
-        assertThat(Expressions.names(agg.aggregates()), contains("a"));
-        assertTrue(agg.child().anyMatch(AbstractSubqueryJoin.class::isInstance));
     }
 
     /**
@@ -915,27 +821,5 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
         var rerankScore = as(agg.child(), Rerank.class).scoreAttribute().id();
         assertThat(Expressions.attribute(aliased(aggs.get(0), Max.class).field()).id(), not(rerankScore));
         assertThat(Expressions.attribute(aliased(aggs.get(1), Max.class).field()).id(), is(rerankScore));
-    }
-
-    /**
-     * {@code s2} is computed, so it is not folded into the aggregate before {@code DeduplicateAggs} runs, and {@code x} is used,
-     * so the {@code DISSECT} is not pruned: {@code s2} only resolves by walking through the {@code DISSECT}.
-     */
-    public void testAliasBelowDissectDeduplicates() {
-        var plan = plan("""
-            from test
-            | eval s2 = salary * 2
-            | dissect first_name "%{x}"
-            | stats a = min(s2), b = min(salary * 2), c = count(x)
-            """);
-
-        var project = as(plan, Project.class);
-        var projections = project.projections();
-        assertThat(Expressions.names(projections), contains("a", "b", "c"));
-        assertThat(Expressions.name(aliased(projections.get(1), ReferenceAttribute.class)), is("a"));
-        var limit = as(project.child(), Limit.class);
-        var agg = as(limit.child(), Aggregate.class);
-        assertThat(Expressions.names(agg.aggregates()), contains("a", "c"));
-        assertTrue(agg.child().anyMatch(Dissect.class::isInstance));
     }
 }

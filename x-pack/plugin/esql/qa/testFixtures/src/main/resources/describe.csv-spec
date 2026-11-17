@@ -1,0 +1,183 @@
+// DESCRIBE: one row per input column with what the mappings say about it.
+
+describeRoles
+required_capability: describe_command
+
+FROM k8s
+| DESCRIBE
+| WHERE name IN ("@timestamp", "cluster", "event", "event_log", "client.ip", "network.bytes_in", "network.total_bytes_in", "network.eth0.rx")
+| KEEP name, type, role, origin, metric_type, unit
+| SORT name
+;
+
+name:keyword           | type:keyword  | role:keyword | origin:keyword | metric_type:keyword | unit:keyword
+@timestamp             | date          | time         | mapped         | null                | null
+client.ip              | ip            | attribute    | mapped         | null                | null
+cluster                | keyword       | dimension    | mapped         | null                | null
+event                  | keyword       | attribute    | mapped         | null                | null
+event_log              | text          | text         | mapped         | null                | null
+network.bytes_in       | long          | numeric      | mapped         | null                | null
+network.eth0.rx        | integer       | metric       | mapped         | gauge               | packets
+network.total_bytes_in | counter_long  | metric       | mapped         | counter             | bytes
+;
+
+describeMetricsUnderTs
+required_capability: describe_command
+
+TS k8s
+| DESCRIBE
+| WHERE role == "metric"
+| KEEP name, metric_type, unit
+| SORT name
+;
+
+name:keyword            | metric_type:keyword | unit:keyword
+network.eth0.rx         | gauge               | packets
+network.eth0.tx         | gauge               | packets
+network.total_bytes_in  | counter             | bytes
+network.total_bytes_out | counter             | bytes
+network.total_cost      | counter             | usd
+;
+
+describeRolesSummary
+required_capability: describe_command
+
+FROM k8s
+| DESCRIBE
+| STATS fields = COUNT(*) BY role
+| SORT role
+;
+
+fields:long | role:keyword
+7           | attribute
+3           | dimension
+5           | metric
+4           | numeric
+2           | other
+1           | text
+1           | time
+;
+
+describeLineage
+required_capability: describe_command
+
+FROM employees
+| KEEP emp_no, salary, first_name
+| RENAME salary AS pay
+| EVAL bonus = pay * 2
+| DESCRIBE
+| KEEP name, type, field, origin, role
+;
+
+name:keyword | type:keyword | field:keyword | origin:keyword | role:keyword
+emp_no       | integer      | emp_no        | mapped         | numeric
+pay          | integer      | salary        | renamed        | numeric
+first_name   | keyword      | first_name    | mapped         | attribute
+bonus        | integer      | null          | computed       | null
+;
+
+describeAfterStats
+required_capability: describe_command
+skip_flattened_rewrite: describe_sees_rewritten_field_as_computed
+
+TS k8s
+| STATS rate = SUM(RATE(network.total_bytes_in)) BY cluster, bucket = TBUCKET(1 hour)
+| EVAL kib_rate = rate / 1024
+| DESCRIBE
+| KEEP name, type, origin, role, metric_type
+;
+
+name:keyword | type:keyword | origin:keyword | role:keyword | metric_type:keyword
+rate         | double       | computed       | null         | null
+cluster      | keyword      | mapped         | dimension    | null
+bucket       | date         | computed       | null         | null
+kib_rate     | double       | computed       | null         | null
+;
+
+describeRolesAfterStats
+required_capability: describe_command
+skip_flattened_rewrite: describe_sees_rewritten_field_as_computed
+
+FROM employees
+| STATS avg_salary = AVG(salary), hires = COUNT(*) BY gender
+| DESCRIBE
+| KEEP name, origin, role
+;
+
+name:keyword | origin:keyword | role:keyword
+avg_salary   | computed       | null
+hires        | computed       | null
+gender       | mapped         | attribute
+;
+
+describeUnitsThroughAggregationsAndArithmetic
+required_capability: describe_command
+skip_flattened_rewrite: describe_sees_rewritten_field_as_computed
+
+TS k8s
+| STATS bytes_rate = SUM(RATE(network.total_bytes_in)), out_rate = SUM(RATE(network.total_bytes_out)), rx = MAX(MAX_OVER_TIME(network.eth0.rx)), cost = SUM(INCREASE(network.total_cost)) BY cluster
+| EVAL kib_rate = bytes_rate / 1024, bits_rate = bytes_rate * 8, cost_per_packet = cost / rx, in_per_out = bytes_rate / out_rate
+| DESCRIBE
+| KEEP name, origin, unit
+;
+
+name:keyword    | origin:keyword | unit:keyword
+bytes_rate      | computed       | bytes/s
+out_rate        | computed       | bytes/s
+rx              | computed       | packets
+cost            | computed       | usd
+cluster         | mapped         | null
+kib_rate        | computed       | KiB/s
+bits_rate       | computed       | bits/s
+cost_per_packet | computed       | usd/packets
+in_per_out      | computed       | 1
+;
+
+describeUnitsThroughRename
+required_capability: describe_command
+
+FROM k8s
+| KEEP network.total_bytes_in, network.bytes_in
+| RENAME network.total_bytes_in AS total
+| DESCRIBE
+| KEEP name, field, origin, unit
+;
+
+name:keyword     | field:keyword          | origin:keyword | unit:keyword
+total            | network.total_bytes_in | renamed        | bytes
+network.bytes_in | network.bytes_in       | mapped         | null
+;
+
+describeUnitsThroughBucket
+required_capability: describe_command
+
+FROM k8s
+| STATS c = COUNT(*) BY b = BUCKET(network.eth0.rx, 100)
+| DESCRIBE
+| KEEP name, origin, unit
+;
+
+name:keyword | origin:keyword | unit:keyword
+c            | computed       | 1
+b            | computed       | packets
+;
+
+describeStatsAfterTs
+required_capability: describe_command
+
+TS k8s
+| DESCRIBE
+| STATS fields = COUNT(*) BY role, metric_type
+| SORT role, metric_type
+;
+
+fields:long | role:keyword | metric_type:keyword
+7           | attribute    | null
+3           | dimension    | null
+3           | metric       | counter
+2           | metric       | gauge
+4           | numeric      | null
+2           | other        | null
+1           | text         | null
+1           | time         | null
+;

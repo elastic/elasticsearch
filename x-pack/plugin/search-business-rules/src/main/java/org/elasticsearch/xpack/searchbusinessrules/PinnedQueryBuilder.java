@@ -19,10 +19,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.LeafQueryBuilder;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -44,7 +45,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * system will identify the promotions associated with a user's query string and use this object to ensure these are "pinned" to the top of
  * the other search results.
  */
-public class PinnedQueryBuilder extends LeafQueryBuilder<PinnedQueryBuilder> {
+public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder> {
     public static final String NAME = "pinned";
     public static final int MAX_NUM_PINNED_HITS = 100;
 
@@ -54,7 +55,7 @@ public class PinnedQueryBuilder extends LeafQueryBuilder<PinnedQueryBuilder> {
 
     private final List<String> ids;
     private final List<SpecifiedDocument> docs;
-    private QueryBuilder organicQuery;
+    private final QueryBuilder organicQuery;
 
     // Organic queries will have their scores capped to this number range,
     // We reserve the highest float exponent for scores of pinned queries
@@ -232,16 +233,17 @@ public class PinnedQueryBuilder extends LeafQueryBuilder<PinnedQueryBuilder> {
     }
 
     @Override
-    protected Query doToQuery(SearchExecutionContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context, MaxClauseCountQueryVisitor visitor) throws IOException {
         MappedFieldType idField = context.getFieldType(IdFieldMapper.NAME);
         if (idField == null) {
+            Queries.NO_MAPPINGS.visit(visitor);
             return Queries.NO_MAPPINGS;
         }
         List<SpecifiedDocument> specifiedDocuments = (docs != null)
             ? docs
             : ids.stream().map(id -> new SpecifiedDocument(null, id)).toList();
         if (specifiedDocuments.isEmpty()) {
-            return new CappedScoreQuery(organicQuery.toQuery(context), MAX_ORGANIC_SCORE);
+            return new CappedScoreQuery(organicQuery.toQuery(context, visitor), MAX_ORGANIC_SCORE);
         } else {
             List<Query> pinnedQueries = new ArrayList<>();
 
@@ -257,6 +259,7 @@ public class PinnedQueryBuilder extends LeafQueryBuilder<PinnedQueryBuilder> {
                 if (specifiedDocument.index() == null || context.indexMatches(specifiedDocument.index())) {
                     // Ensure the pin order using a Boost query with the relevant boost factor
                     Query idQuery = new BoostQuery(new ConstantScoreQuery(idField.termQuery(specifiedDocument.id(), context)), pinScore);
+                    idQuery.visit(visitor);
                     pinnedQueries.add(idQuery);
                 }
             }
@@ -266,7 +269,7 @@ public class PinnedQueryBuilder extends LeafQueryBuilder<PinnedQueryBuilder> {
             List<Query> organicAndPinned = new ArrayList<>();
             organicAndPinned.add(new DisjunctionMaxQuery(pinnedQueries, 0));
             // Cap the scores of the organic query
-            organicAndPinned.add(new CappedScoreQuery(organicQuery.toQuery(context), MAX_ORGANIC_SCORE));
+            organicAndPinned.add(new CappedScoreQuery(organicQuery.toQuery(context, visitor), MAX_ORGANIC_SCORE));
             return new DisjunctionMaxQuery(organicAndPinned, 0);
         }
 

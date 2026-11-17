@@ -54,7 +54,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
-import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult.Kind;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator;
@@ -244,8 +244,8 @@ public record TranslationContext(
         var plan = ir.plan();
         var value = ir.value();
         // A vector match self-filters each operand's own source with that operand's own @timestamp; a combined outer
-        // source-time filter would push one operand's @timestamp across both sources - skip over InnerJoin.
-        Expression timeFilter = plan.anyMatch(p -> p instanceof InnerJoin) ? null : emitBySrcTimeFilter(branch);
+        // source-time filter would push one operand's @timestamp across both sources - skip over HashJoin.
+        Expression timeFilter = plan.anyMatch(p -> p instanceof HashJoin) ? null : emitBySrcTimeFilter(branch);
         var filter = combineAndNullable(Arrays.asList(ir.pendingFilter(), timeFilter));
         if (filter != null) {
             plan = pushDownSrcTimestampFilter(plan, filter);
@@ -395,7 +395,8 @@ public record TranslationContext(
             aggregates(value, input.step(), outKeys),
             null,
             time,
-            TimeSeriesAggregate.Origin.PROMQL_COMMAND
+            TimeSeriesAggregate.Origin.PROMQL_COMMAND,
+            false
         );
     }
 

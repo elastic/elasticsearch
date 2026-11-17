@@ -213,15 +213,17 @@ help, because the result is still not an index-mapped field. To filter on an ext
 `==`, `LIKE`, `RLIKE`, or `WILDCARD` instead.
 
 `MATCH`, `MATCH_PHRASE`, and the `:` operator accept a `FIELD_EXTRACT` expression. There is no indexed field
-behind the extracted value, so the match is evaluated at runtime, row by row, rather than pushed to the index.
+behind the extracted value, so the match is a [runtime search](esql-runtime-search.md), evaluated row by row
+rather than pushed to the index.
 
 {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview`
 `KNN` also works on values extracted with `FIELD_EXTRACT` after you convert them to a `dense_vector`. Use
 [`TO_DENSE_VECTOR`](functions-operators/type-conversion-functions/to_dense_vector.md) to cast a hex-encoded byte vector,
 or the [`DENSE_VECTOR`](commands/dense-vector.md) command to generate embeddings from the extracted text.
 
-In 9.6.0, passing an inline `TO_DENSE_VECTOR` conversion as the `KNN` field argument doesn't return correct results.
-As a workaround, use `EVAL` to create the `dense_vector` column first and pass that column to `KNN`.
+In 9.6.0, passing an inline `TO_DENSE_VECTOR` conversion as the `KNN` field argument returns no rows or fails
+([#163402](https://github.com/elastic/elasticsearch/issues/163402)). As a workaround, use `EVAL` to create the
+`dense_vector` column first and pass that column to `KNN`.
 For details, refer to [known issues](/release-notes/known-issues.md#elasticsearch-9.6.0-known-issues).
 
 ## Related resources [esql-flattened-fields-related]

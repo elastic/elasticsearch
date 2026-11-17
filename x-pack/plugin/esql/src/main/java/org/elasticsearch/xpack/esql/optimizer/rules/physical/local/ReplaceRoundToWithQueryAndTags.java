@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
-import org.elasticsearch.compute.lucene.query.DataPartitioning;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.FuzzyQueryBuilder;
@@ -369,8 +368,7 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
                 return null;
             }
             // prefer partitioning by tsid prefixes
-            var partitioning = ctx.configuration().pragmas().dataPartitioning(ctx.plannerSettings().defaultDataPartitioning());
-            if (partitioning != DataPartitioning.SHARD && ctx.searchStats().canPartitionByTsidPrefix()) {
+            if (ctx.searchStats().canPartitionByTsidPrefix()) {
                 return null;
             }
         }

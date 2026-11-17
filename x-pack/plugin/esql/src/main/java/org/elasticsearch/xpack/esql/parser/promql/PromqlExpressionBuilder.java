@@ -189,7 +189,13 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
         OffsetContext offsetContext = ctx.offset();
         if (offsetContext != null) {
             // an offset may be zero or negative (`offset (5s - 8)`); a range may not
-            offset = duration(offsetContext.duration(), false);
+            TimeValueContext timeValue = offsetContext.timeValue();
+            if (timeValue == null) {
+                offset = duration(offsetContext.duration().expression(), false);
+            } else {
+                // like Prometheus, a number of seconds truncates to the millisecond, where visitTimeValue rounds
+                offset = duration(timeValue.number() != null ? timeValue.number() : timeValue, false);
+            }
             // PromQL durations are unsigned magnitudes; the optional leading `-` (look ahead) is a separate token.
             // Fold the sign into a single signed duration literal, mirroring how the `@` modifier is handled above.
             if (offsetContext.MINUS() != null && offset.value() instanceof Duration d) {
@@ -202,14 +208,11 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
     /** A range or resolution: a duration greater than zero. */
     @Override
     public Literal visitDuration(DurationContext ctx) {
-        return duration(ctx, true);
+        return ctx == null ? Literal.NULL : duration(ctx.expression(), true);
     }
 
-    private Literal duration(DurationContext ctx, boolean positive) {
-        if (ctx == null) {
-            return Literal.NULL;
-        }
-        Object o = visit(ctx.expression());
+    private Literal duration(ParserRuleContext ctx, boolean positive) {
+        Object o = visit(ctx);
 
         // unwrap expressions to get the underlying value
         o = switch (o) {

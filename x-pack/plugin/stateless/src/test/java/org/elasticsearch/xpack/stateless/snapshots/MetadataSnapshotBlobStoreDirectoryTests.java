@@ -44,6 +44,7 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommitTestUtils.randomNonZeroPositiveLong;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
@@ -145,7 +146,7 @@ public class MetadataSnapshotBlobStoreDirectoryTests extends ESTestCase {
             // Write files at a non-zero offset within a single blob (simulating compound commit)
             final var blobContainer = createBlobContainer();
             final long primaryTerm = randomNonNegativeLong();
-            final long generation = randomNonNegativeLong();
+            final long generation = randomNonZeroPositiveLong();
             final String blobName = "stateless_commit_" + generation;
             final Map<String, BlobLocation> blobLocations = new HashMap<>();
 

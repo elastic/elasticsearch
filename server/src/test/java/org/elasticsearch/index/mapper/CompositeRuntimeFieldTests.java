@@ -167,7 +167,7 @@ public class CompositeRuntimeFieldTests extends MapperServiceTestCase {
             """
                 {"_doc":{"runtime":{"message":{"type":"composite","meta":{"test-meta":"value"},\
                 "script":{"source":"dummy","lang":"painless"},"fields":{"response":{"type":"long"}}}}}}""",
-            Strings.toString(mapperService.mappingLookup().getMapping())
+            mapperService.documentMapper().mappingSource().string()
         );
     }
 

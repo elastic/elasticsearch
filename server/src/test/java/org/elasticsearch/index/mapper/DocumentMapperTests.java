@@ -71,7 +71,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         }));
 
         MergeReason reason = randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.INDEX_TEMPLATE, MergeReason.MAPPING_AUTO_UPDATE);
-        Mapping merged = mapperService.mergeMappings(stage2.mappingSource(), reason, Long.MAX_VALUE);
+        MapperService.MergedMapping merged = mapperService.mergeMappings(stage2.mappingSource(), reason, Long.MAX_VALUE);
         // stage1 mapping should not have been modified
         assertThat(stage1.mappers().getMapper("age"), nullValue());
         assertThat(stage1.mappers().getMapper("obj1.prop1"), nullValue());
@@ -79,8 +79,8 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         DocumentParser documentParser = new DocumentParser(null, null);
         DocumentMapper mergedMapper = new DocumentMapper(
             documentParser,
-            merged,
-            merged.toCompressedXContent(),
+            merged.mapping(),
+            merged.builder().toCompressedXContent(),
             IndexVersion.current(),
             MapperMetrics.NOOP,
             "myIndex",
@@ -98,12 +98,12 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         DocumentMapper withDynamicMapper = createDocumentMapper(topMapping(b -> b.field("dynamic", "false")));
         assertThat(withDynamicMapper.mapping().getRoot().dynamic(), equalTo(ObjectMapper.Dynamic.FALSE));
 
-        Mapping merged = mapperService.mergeMappings(
+        MapperService.MergedMapping merged = mapperService.mergeMappings(
             withDynamicMapper.mappingSource(),
             randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.MAPPING_AUTO_UPDATE),
             Long.MAX_VALUE
         );
-        assertThat(merged.getRoot().dynamic(), equalTo(ObjectMapper.Dynamic.FALSE));
+        assertThat(merged.mapping().getRoot().dynamic(), equalTo(ObjectMapper.Dynamic.FALSE));
     }
 
     public void testMergeObjectAndNested() throws Exception {
@@ -257,12 +257,12 @@ public class DocumentMapperTests extends MapperServiceTestCase {
 
         DocumentMapper updatedMapper = createDocumentMapper(fieldMapping(b -> b.field("type", "text")));
 
-        Mapping merged = mapperService.mergeMappings(
+        MapperService.MergedMapping merged = mapperService.mergeMappings(
             updatedMapper.mappingSource(),
             randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.MAPPING_AUTO_UPDATE),
             Long.MAX_VALUE
         );
-        assertThat(merged.getMeta().get("foo"), equalTo("bar"));
+        assertThat(merged.mapping().getMeta().get("foo"), equalTo("bar"));
 
         updatedMapper = createDocumentMapper(topMapping(b -> b.startObject("_meta").field("foo", "new_bar").endObject()));
         merged = mapperService.mergeMappings(
@@ -270,7 +270,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
             randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.MAPPING_AUTO_UPDATE),
             Long.MAX_VALUE
         );
-        assertThat(merged.getMeta().get("foo"), equalTo("new_bar"));
+        assertThat(merged.mapping().getMeta().get("foo"), equalTo("new_bar"));
     }
 
     public void testMergeMetaForIndexTemplate() throws IOException {
@@ -315,7 +315,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
     public void testEmptyDocumentMapper() {
         MapperService mapperService = createMapperService(IndexVersion.current(), Settings.EMPTY, () -> false);
         DocumentMapper documentMapper = DocumentMapper.createEmpty(mapperService);
-        assertEquals("{\"_doc\":{}}", Strings.toString(documentMapper.mapping()));
+        assertEquals("{\"_doc\":{}}", documentMapper.mappingSource().string());
         assertTrue(documentMapper.mappers().hasMappings());
         assertNotNull(documentMapper.mappers().getMapper(IdFieldMapper.NAME));
         assertNotNull(documentMapper.sourceMapper());

@@ -10,6 +10,7 @@ package org.elasticsearch.percolator;
 
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse.Item;
 import org.elasticsearch.action.support.WriteRequest;
@@ -63,7 +64,9 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xcontent.XContentFactory.yamlBuilder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.IsNull.notNullValue;
@@ -73,6 +76,27 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(PercolatorPlugin.class);
+    }
+
+    public void testGetFieldMappingsDoesNotReportGeneratedFields() {
+        assertAcked(indicesAdmin().prepareCreate("test").setMapping("field1", "type=keyword", "query", "type=percolator"));
+
+        Map<String, GetFieldMappingsResponse.FieldMappingMetadata> all = indicesAdmin().prepareGetFieldMappings("test")
+            .setFields("*")
+            .get()
+            .mappings()
+            .get("test");
+        assertThat(all.keySet(), hasItems("field1", "query"));
+        assertThat(all.keySet().stream().filter(field -> field.startsWith("query.")).toList(), empty());
+
+        assertThat(indicesAdmin().prepareGetFieldMappings("test").setFields("query.*").get().mappings().get("test").keySet(), empty());
+        assertThat(
+            indicesAdmin().prepareGetFieldMappings("test")
+                .setFields("query.extracted_terms")
+                .get()
+                .fieldMappings("test", "query.extracted_terms"),
+            nullValue()
+        );
     }
 
     public void testPercolatorQuery() throws Exception {

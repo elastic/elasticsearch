@@ -177,7 +177,7 @@ serverless: ga
 A view that starts with [`TS`](/reference/query-languages/esql/commands/ts.md)
 must also contain a `STATS` command after it. A view without `STATS` is
 rejected when you create or update it. This ensures the view returns plain
-tabular results. A `PROMQL` view must also use an aggregation function.
+tabular results.
 
 Query a time series view with `FROM view_name`. A view name cannot be used as a
 source in `TS` or `PROMQL`. An exact view name in one of those source commands is

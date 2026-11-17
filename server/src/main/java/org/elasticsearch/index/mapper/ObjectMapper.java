@@ -48,6 +48,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 
 public class ObjectMapper extends Mapper {
@@ -254,6 +255,17 @@ public class ObjectMapper extends Mapper {
         }
 
         /**
+         * Descends into the children: an object contributes no field of its own.
+         */
+        @Override
+        public void collectFieldBuilders(@Nullable String parentPath, BiConsumer<String, Mapper.Builder> consumer) {
+            String fullPath = fullPath(parentPath);
+            for (Mapper.Builder child : mappersBuilders) {
+                child.collectFieldBuilders(fullPath, consumer);
+            }
+        }
+
+        /**
          * The context this builder's children are normalized and built under
          */
         protected MapperBuilderContext childContext(MapperBuilderContext context) {
@@ -338,8 +350,8 @@ public class ObjectMapper extends Mapper {
         }
 
         /**
-         * Writes the children under {@code properties}, sorted by name as {@link ObjectMapper#serializeMappers} sorts
-         * the mappers built from them. A flattened child has a dotted name, which sorts the same way its full path does.
+         * Writes the children under {@code properties}, sorted by name, which keeps the serialized
+         * mapping deterministic across nodes. A flattened child has a dotted name, which sorts the same way its full path does.
          */
         protected final void serializeChildren(XContentBuilder builder, Params params) throws IOException {
             List<Mapper.Builder> sortedChildren = mappersBuilders.stream()
@@ -1100,63 +1112,6 @@ public class ObjectMapper extends Mapper {
      */
     protected void validateSubField(Mapper mapper, MappingLookup mappers) {
         mapper.validate(mappers);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        toXContent(builder, params, null);
-        return builder;
-    }
-
-    void toXContent(XContentBuilder builder, Params params, ToXContent custom) throws IOException {
-        builder.startObject(leafName());
-        if (mappers.isEmpty() && custom == null) {
-            // only write the object content type if there are no properties, otherwise, it is automatically detected
-            builder.field("type", CONTENT_TYPE);
-        }
-        if (dynamic != null) {
-            builder.field("dynamic", dynamic.name().toLowerCase(Locale.ROOT));
-        }
-        if (isEnabled() != Defaults.ENABLED) {
-            builder.field("enabled", enabled.value());
-        }
-        if (subobjects.explicit()) {
-            builder.field("subobjects", subobjects.value().printedValue);
-        }
-        if (sourceKeepMode.isPresent()) {
-            builder.field("synthetic_source_keep", sourceKeepMode.get());
-        }
-        if (custom != null) {
-            custom.toXContent(builder, params);
-        }
-
-        doXContent(builder, params);
-        serializeMappers(builder, params);
-        builder.endObject();
-    }
-
-    protected void serializeMappers(XContentBuilder builder, Params params) throws IOException {
-        // sort the mappers so we get consistent serialization format
-        Mapper[] sortedMappers = mappers.values().toArray(Mapper[]::new);
-        Arrays.sort(sortedMappers, Comparator.comparing(Mapper::fullPath));
-
-        int count = 0;
-        for (Mapper mapper : sortedMappers) {
-            if (mapper instanceof MetadataFieldMapper) {
-                continue;
-            }
-            if (count++ == 0) {
-                builder.startObject("properties");
-            }
-            mapper.toXContent(builder, params);
-        }
-        if (count > 0) {
-            builder.endObject();
-        }
-    }
-
-    protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-
     }
 
     public ObjectMapper findParentMapper(String leafFieldPath) {

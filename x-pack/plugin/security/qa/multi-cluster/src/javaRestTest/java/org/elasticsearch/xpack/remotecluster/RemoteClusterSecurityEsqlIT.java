@@ -546,6 +546,94 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
     }
 
     /**
+     * The EQL source command delegates to the EQL search action, which for a remote pattern runs cross-cluster. The
+     * fulfilling cluster's document- and field-level security must apply to that delegated search too — the same as a
+     * cross-cluster {@code FROM}. Uses a dedicated EQL-compatible index matched by the cross-cluster API key's
+     * {@code index*} grant (which carries no DLS/FLS), so this isolates the role's remote_indices DLS/FLS.
+     */
+    @SuppressWarnings("unchecked")
+    public void testCrossClusterEqlCommandWithRemoteDLSAndFLS() throws Exception {
+        assumeTrue("EQL command is snapshot-only", Build.current().isSnapshot());
+        configureRemoteCluster();
+        populateData();
+
+        Request createEqlIndex = new Request("PUT", "index_eql_events");
+        createEqlIndex.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "@timestamp": { "type": "date" },
+                  "event": { "properties": { "category": { "type": "keyword" } } },
+                  "emp_id": { "type": "keyword" },
+                  "department": { "type": "keyword" }
+                }
+              }
+            }""");
+        assertOK(performRequestAgainstFulfillingCluster(createEqlIndex));
+        Request bulk = new Request("POST", "/index_eql_events/_bulk?refresh=true");
+        bulk.setJsonEntity("""
+            { "index": {} }
+            { "@timestamp": "2024-01-01T00:00:01Z", "event": { "category": "process" }, "emp_id": "21", "department": "engineering" }
+            { "index": {} }
+            { "@timestamp": "2024-01-01T00:00:02Z", "event": { "category": "process" }, "emp_id": "25", "department": "engineering" }
+            """);
+        assertOK(performRequestAgainstFulfillingCluster(bulk));
+
+        // Role grants remote read on the EQL index, with DLS restricting to emp_id = 21.
+        final var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
+        putRoleRequest.setJsonEntity("""
+            {
+              "indices": [{"names": [""], "privileges": ["read"]}],
+              "remote_indices": [
+                {
+                  "names": ["index_eql_events"],
+                  "privileges": ["read"],
+                  "clusters": ["my_remote_cluster"],
+                  "query": {"term": {"emp_id": "21"}}
+                }
+              ]
+            }""");
+        assertOK(adminClient().performRequest(putRoleRequest));
+
+        // The delegated cross-cluster EQL search must honor the remote DLS: only emp_id 21 comes back, not 25.
+        Response dls = performRequestWithRemoteSearchUser(esqlRequest("""
+            EQL my_remote_cluster:index_eql_events "any where true"
+            | KEEP emp_id
+            | SORT emp_id
+            | LIMIT 100"""));
+        assertOK(dls);
+        List<List<Object>> dlsValues = (List<List<Object>>) entityAsMap(dls).get("values");
+        assertThat(dlsValues.stream().map(row -> row.get(0)).collect(Collectors.toList()), containsInAnyOrder("21"));
+
+        // Add FLS: grant only the EQL-required fields plus department, denying emp_id. METADATA _source must drop it.
+        putRoleRequest.setJsonEntity("""
+            {
+              "indices": [{"names": [""], "privileges": ["read"]}],
+              "remote_indices": [
+                {
+                  "names": ["index_eql_events"],
+                  "privileges": ["read"],
+                  "clusters": ["my_remote_cluster"],
+                  "query": {"term": {"emp_id": "21"}},
+                  "field_security": {"grant": ["@timestamp", "event.category", "department"]}
+                }
+              ]
+            }""");
+        assertOK(adminClient().performRequest(putRoleRequest));
+
+        Response fls = performRequestWithRemoteSearchUser(esqlRequest("""
+            EQL my_remote_cluster:index_eql_events "any where true" METADATA _source
+            | KEEP _source
+            | LIMIT 100"""));
+        assertOK(fls);
+        List<List<Object>> flsValues = (List<List<Object>>) entityAsMap(fls).get("values");
+        assertThat(flsValues.size(), equalTo(1));
+        Map<String, Object> source = (Map<String, Object>) flsValues.get(0).get(0);
+        assertFalse("FLS-hidden emp_id leaked into the cross-cluster EQL _source: " + source, source.containsKey("emp_id"));
+        assertTrue("granted department must remain in _source: " + source, source.containsKey("department"));
+    }
+
+    /**
      * Note: invalid_remote is "invalid" because it has a bogus API key
      */
     @SuppressWarnings("unchecked")

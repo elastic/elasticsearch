@@ -280,7 +280,8 @@ public class ColumnarLongCodecTests extends ESSingleNodeTestCase {
 
     /**
      * Malformed values of an {@code ignore_malformed} field aren't in the column; synthetic source reads them back from the field's
-     * own fallback column, which strict columnar indices write in place of {@code _ignored_source}.
+     * own fallback column, which strict columnar indices write in place of {@code _ignored_source}. So a document's valid values
+     * come back first, in the order they were written, and its malformed values after them, as they do without the setting.
      */
     public void testSourceKeepsMalformedValues() throws IOException {
         final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
@@ -297,9 +298,15 @@ public class ColumnarLongCodecTests extends ESSingleNodeTestCase {
         arrays.put("values", "[3, 1, 2]");
         indexIntoBoth(arrays, true);
 
+        final Map<String, Object> expected = new HashMap<>();
+        expected.put("malformed", "foo");
+        expected.put("only-malformed", List.of("foo", "bar"));
+        expected.put("malformed-among-values", List.of(3, 1, 3, "foo", "bar"));
+        expected.put("malformed-among-nulls", List.of(2, "foo"));
+        expected.put("malformed-and-null", "foo");
+        expected.put("values", List.of(3, 1, 2));
         final Map<String, Object> withCodec = sourceValues(WITH_CODEC, arrays.size());
-        assertEquals("foo", withCodec.get("malformed"));
-        assertEquals(List.of(3, 1, 2), withCodec.get("values"));
+        assertEquals(expected, withCodec);
         assertEquals(sourceValues(WITHOUT_CODEC, arrays.size()), withCodec);
         assertSameHits(QueryBuilders.existsQuery(FIELD));
         assertSameHits(QueryBuilders.rangeQuery(FIELD).gte(2));

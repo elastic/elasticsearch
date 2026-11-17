@@ -7664,6 +7664,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
         private void onRowErrorImpl(String message, Exception cause, String rowExcerpt, boolean structural) {
             if (modeOrdinal == ErrorPolicy.Mode.FAIL_FAST.ordinal()) {
+                assert rowExcerpt != null : "fail_fast quotes the row, so a caller must supply its excerpt";
                 String hint = structural
                     ? "; set [error_mode] to [skip_row] to skip the row instead"
                     : "; set [error_mode] to [null_field] to return null instead";

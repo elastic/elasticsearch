@@ -55,8 +55,7 @@ import static org.hamcrest.Matchers.lessThan;
  *
  * <p>What this cannot pin: {@code withDirectBlockEnabled(true)} is a request, and no reader status reports which
  * walk served a read. If the reader ever declined the direct path for this schema, projection or mode, these
- * cases would measure the batch path and still pass. Reverting {@code rowExcerptIfRead} and watching them fail
- * is what establishes they cover the guarded code.
+ * cases would measure the batch path and still pass.
  */
 public class CsvDirectRowExcerptCostTests extends ESTestCase {
 
@@ -74,10 +73,9 @@ public class CsvDirectRowExcerptCostTests extends ESTestCase {
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
     }
 
-    @Override
-    protected boolean enableWarningsCheck() {
-        // Every lenient read here emits response-header warnings by design; they are not what this measures.
-        return false;
+    /** Lenient reads emit response-header warnings by design; drain them as the sibling tests do. */
+    private void drainWarnings() {
+        threadContext.stashContext();
     }
 
     /** Under {@code null_field} the row is kept and the failure reported per column, so nothing quotes the record. */
@@ -117,11 +115,9 @@ public class CsvDirectRowExcerptCostTests extends ESTestCase {
      * The control for the two cases above, and the reason their comparisons mean anything: under
      * {@code fail_fast} an excerpt IS read, so one is built, and the counter must see it.
      *
-     * <p>Both reads walk every record of an identically sized file — the bad cell is in the LAST row — so the
-     * only difference between them is that one throws and quotes its record. Earlier versions compared a
-     * one-row read against a full one and were defeated three times by differences in work rather than in the
-     * excerpt: the row count itself, then UTF-8 encoding inside the measured window, then
-     * {@code CsvLogicalRecordReader} growing its 256-character buffer to the record.
+     * <p>The two reads must differ only in the excerpt, so they share a row count — the bad cell is in the LAST
+     * row of an identically sized file — they do their UTF-8 encoding outside the measured window, and they run
+     * after a warm-up that has already grown the record buffer past its initial 256 characters.
      */
     public void testFailFastDoesMaterializeTheRecord() throws IOException {
         assumeAllocationCounterAvailable();
@@ -161,6 +157,11 @@ public class CsvDirectRowExcerptCostTests extends ESTestCase {
     }
 
     private void assumeAllocationCounterAvailable() {
+        logger.info(
+            "per-thread allocation counter: supported={} enabled={}",
+            SunThreadInfo.INSTANCE.isThreadAllocatedMemorySupported(),
+            SunThreadInfo.INSTANCE.isThreadAllocatedMemoryEnabled()
+        );
         assumeTrue(
             "JVM does not report per-thread allocation",
             SunThreadInfo.INSTANCE.isThreadAllocatedMemorySupported() && SunThreadInfo.INSTANCE.isThreadAllocatedMemoryEnabled()
@@ -173,20 +174,25 @@ public class CsvDirectRowExcerptCostTests extends ESTestCase {
         read(utf8(buildCsv("notanumber", 4, 64)), ErrorPolicy.Mode.NULL_FIELD, 4);
         read(utf8(buildCsv("notanumber", 4, 64)), ErrorPolicy.Mode.SKIP_ROW, 0);
         expectThrows(Exception.class, () -> read(utf8(buildCsv("notanumber", 4, 64)), ErrorPolicy.Mode.FAIL_FAST, 0));
+        drainWarnings();
     }
 
     private long allocatedDuringRead(byte[] content, ErrorPolicy.Mode mode, int expectedRows) throws IOException {
         long id = Thread.currentThread().threadId();
         long before = SunThreadInfo.INSTANCE.getThreadAllocatedBytes(id);
         read(content, mode, expectedRows);
-        return SunThreadInfo.INSTANCE.getThreadAllocatedBytes(id) - before;
+        long after = SunThreadInfo.INSTANCE.getThreadAllocatedBytes(id);
+        drainWarnings();
+        return after - before;
     }
 
     private long allocatedDuringFailingRead(byte[] content) {
         long id = Thread.currentThread().threadId();
         long before = SunThreadInfo.INSTANCE.getThreadAllocatedBytes(id);
         expectThrows(Exception.class, () -> read(content, ErrorPolicy.Mode.FAIL_FAST, 0));
-        return SunThreadInfo.INSTANCE.getThreadAllocatedBytes(id) - before;
+        long after = SunThreadInfo.INSTANCE.getThreadAllocatedBytes(id);
+        drainWarnings();
+        return after - before;
     }
 
     /**

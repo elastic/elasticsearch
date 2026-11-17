@@ -122,7 +122,6 @@ public class CsvDirectRowExcerptCostTests extends ESTestCase {
         long clean = allocatedDuringRead(utf8(buildCsv("1")), mode, ROWS);
         long erroring = allocatedDuringRead(utf8(buildCsv("notanumber")), mode, expectedRowsFromBadFile);
 
-
         logger.info(
             "{} read allocated: clean={} bytes, erroring={} bytes, delta={} bytes, record text={} bytes",
             mode,

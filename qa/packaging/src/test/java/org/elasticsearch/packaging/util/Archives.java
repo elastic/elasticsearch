@@ -262,8 +262,13 @@ public class Archives {
         if (parameters != null && parameters.isEmpty() == false) {
             command.addAll(parameters);
         }
+        // Matches the prompt of both KeyStoreWrapper and the security auto-configuration CLI. Fail on timeout: when the
+        // prompt didn't match, expect used to wait out the whole timeout and send the password anyway.
         String keystoreScript = keystorePassword == null ? "" : String.format(Locale.ROOT, """
-            expect "Elasticsearch keystore password:"
+            expect {
+              "Enter password for the elasticsearch keystore" {}
+              timeout { send_user "\\nTimed out waiting for the keystore password prompt\\n"; exit 1 }
+            }
             send "%s\\r"
             """, keystorePassword);
         String checkStartupScript = daemonize

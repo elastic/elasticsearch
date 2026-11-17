@@ -17,13 +17,16 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -632,6 +635,38 @@ public class IndexOperationBatchTests extends ESTestCase {
             assertThat(record.uids()[2], nullValue());
             assertThat(record.noOpReasons()[2], nullValue());
         }
+    }
+
+    public void testExplodeKeepsDoubleSpellingInJsonSource() throws IOException {
+        final BytesArray json = new BytesArray("{\"d\":-1.90}");
+        try (EscfBatch escf = EscfEncoder.encode(List.of(json), XContentType.JSON)) {
+            final Translog.Index replayed = explodeSingleRow(json, XContentType.JSON, escf);
+            assertThat(replayed.source().utf8ToString(), equalTo("{\"d\":-1.90}"));
+        }
+
+        final BytesReference cbor;
+        try (XContentBuilder builder = XContentBuilder.builder(XContentType.CBOR.xContent())) {
+            cbor = BytesReference.bytes(builder.startObject().field("f", 123.42f).endObject());
+        }
+        try (EscfBatch escf = EscfEncoder.encode(List.of(cbor), XContentType.CBOR)) {
+            final Translog.Index replayed = explodeSingleRow(cbor, XContentType.CBOR, escf);
+            final Object f = XContentHelper.convertToMap(replayed.source(), false, XContentType.CBOR).v2().get("f");
+            assertThat(f, equalTo(123.41999816894531));
+        }
+    }
+
+    private static Translog.Index explodeSingleRow(BytesReference source, XContentType contentType, EscfBatch escf) throws IOException {
+        final BulkItemRequest[] items = { new BulkItemRequest(0, new IndexRequest("index").id("doc-0").source(source, contentType)) };
+        final IndexOperationBatch batch = IndexOperationBatch.initFromBulk(items, 0, 1, escf, Engine.Operation.Origin.PRIMARY, 7L, 0L);
+        ByteUtils.writeLongLE(10L, batch.seqNoBytes().bytes, 0);
+        ByteUtils.writeLongLE(1L, batch.versionBytes().bytes, 0);
+        final IndexOperationBatch.TranslogRecord record = batch.toTranslogRecord(
+            new byte[] { IndexOperationBatch.TranslogRecord.ROW_INDEXED },
+            null
+        );
+        final List<Translog.Operation> ops = record.explode();
+        assertThat(ops.size(), equalTo(1));
+        return (Translog.Index) ops.get(0);
     }
 
     public void testToTranslogRecordOnSliceUsesSliceCoordinates() throws IOException {

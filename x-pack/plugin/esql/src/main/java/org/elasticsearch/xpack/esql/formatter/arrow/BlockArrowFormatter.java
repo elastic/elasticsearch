@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.formatter.arrow;
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.vector.ipc.message.ArrowFieldNode;
 import org.apache.arrow.vector.types.Types;
+import org.apache.arrow.vector.types.pojo.ArrowType.ExtensionType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.lucene.util.BytesRef;
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 
 import java.io.IOException;
 import java.util.BitSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
@@ -39,9 +41,13 @@ public abstract class BlockArrowFormatter {
     private final FieldType fieldType;
 
     protected BlockArrowFormatter(DataType esqlType, Types.MinorType minorType) {
+        this(esqlType, minorType, Map.of());
+    }
+
+    protected BlockArrowFormatter(DataType esqlType, Types.MinorType minorType, Map<String, String> extraMetadata) {
         // Add the exact ESQL type as field metadata
-        var outputType = esqlType.outputType();
-        var meta = Map.of(ESQL_TYPE_METADATA, outputType);
+        var meta = new HashMap<>(extraMetadata);
+        meta.put(ESQL_TYPE_METADATA, esqlType.outputType());
         this.fieldType = new FieldType(true, minorType.getType(), null, meta);
     }
 
@@ -318,6 +324,10 @@ public abstract class BlockArrowFormatter {
             super(esqlType, minorType);
         }
 
+        protected BytesReFormatter(DataType esqlType, Types.MinorType minorType, Map<String, String> extraMetadata) {
+            super(esqlType, minorType, extraMetadata);
+        }
+
         @Override
         public void convert(Block b, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters, List<Releasable> releasables) {
             BytesRefBlock block = (BytesRefBlock) b;
@@ -470,6 +480,42 @@ public abstract class BlockArrowFormatter {
     public static class AsVarBinary extends BytesReFormatter {
         public AsVarBinary(DataType esqlType) {
             super(esqlType, Types.MinorType.VARBINARY);
+        }
+    }
+
+    /**
+     * Geometries stored as WKB in a {@code BytesRefBlock}, exposed as a variable-size binary vector tagged with the
+     * <a href="https://geoarrow.org/extension-types.html#wkb">{@code geoarrow.wkb}</a> Arrow extension type.
+     */
+    public static class AsGeoArrowWkb extends BytesReFormatter {
+        public static final String GEOARROW_WKB = "geoarrow.wkb";
+
+        /**
+         * GeoArrow extension metadata for geographic types: the CRS is {@code OGC:CRS84} (WGS 84, longitude/latitude order),
+         * given as an authority code.
+         */
+        private static final String GEO_CRS_METADATA = "{\"crs\":\"OGC:CRS84\",\"crs_type\":\"authority_code\"}";
+
+        public AsGeoArrowWkb(DataType esqlType) {
+            super(esqlType, Types.MinorType.VARBINARY, extensionMetadata(esqlType));
+        }
+
+        /**
+         * Geo types declare the CRS as lon/lat. Cartesian types omit the {@code crs}, which GeoArrow defines as "the
+         * producer does not have any information about the CRS".
+         */
+        private static Map<String, String> extensionMetadata(DataType esqlType) {
+            boolean geographic = switch (esqlType) {
+                case GEO_POINT, GEO_SHAPE -> true;
+                case CARTESIAN_POINT, CARTESIAN_SHAPE -> false;
+                default -> throw new IllegalArgumentException("Not a WKB geometry type: " + esqlType);
+            };
+            var metadata = new HashMap<String, String>();
+            metadata.put(ExtensionType.EXTENSION_METADATA_KEY_NAME, GEOARROW_WKB);
+            if (geographic) {
+                metadata.put(ExtensionType.EXTENSION_METADATA_KEY_METADATA, GEO_CRS_METADATA);
+            }
+            return metadata;
         }
     }
 

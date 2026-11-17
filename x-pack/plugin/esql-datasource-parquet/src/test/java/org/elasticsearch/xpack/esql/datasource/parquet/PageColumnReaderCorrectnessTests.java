@@ -393,11 +393,9 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
     }
 
     /**
-     * The sparse path takes a declared-type conversion once over the joined block rather than once per
-     * run of neighbouring positions. The values must not move, so the oracle is the same positions read
-     * as one whole batch and then picked out: an INT32 column declared {@code keyword} is a pair no
-     * decode arm produces directly, so it takes the conversion, and this survivor set straddles the
-     * fixture's null rows so a null-leading run is in play.
+     * The values must not move when the conversion is hoisted, so the oracle is the same positions read
+     * as one whole batch and picked out. The chosen rows straddle the fixture's null rows, so a run that
+     * starts with a null is in play.
      */
     public void testSparseReadOfADeclaredConvertingColumnMatchesTheWholeBatch() throws IOException {
         byte[] data = sparseFile();
@@ -424,10 +422,9 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
     }
 
     /**
-     * Opens a fresh reader over a column the file stores as {@code fileType} and the query declared as
-     * {@code declared}, retyped the way {@code ParquetColumnExtractor} retypes its own column view, so
-     * {@code readBatch}'s conversion branch is live. A null {@code survivors} reads the whole batch,
-     * which converts once by construction and is the oracle. The caller closes the returned block.
+     * Reads a column stored as {@code fileType} and declared as {@code declared}, retyped the way
+     * {@code ParquetColumnExtractor} retypes its own, so the conversion branch is live. A null
+     * {@code survivors} reads the whole batch, the oracle. The caller closes the block.
      */
     private Block declaredRead(byte[] data, String column, DataType fileType, DataType declared, int[] survivors) throws IOException {
         return declaredRead(data, column, fileType, declared, survivors, blockFactory);
@@ -459,13 +456,10 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
     }
 
     /**
-     * The declared-type conversion runs once for the batch rather than once per run of neighbouring
-     * positions. The observable is allocation: every run decodes into its own block either way, but
-     * converting inside each run allocates a converted block per run on top of that, where one
-     * conversion over the joined block allocates a single one. Eight isolated survivors reserve 11
-     * times with the conversion hoisted and 17 times with it back inside the loop -- both figures
-     * measured by running this test against each shape -- so the threshold sits between them with
-     * margin on either side. Forcing {@code coerceOnce} false in {@code readBatchSparse} reddens this.
+     * The conversion runs once for the batch, not once per run. Allocation is the observable: converting
+     * inside each run allocates a block per run, hoisted it allocates one. Eight scattered rows allocate
+     * 11 times hoisted and 17 per-run, so the threshold sits between. Forcing {@code coerceOnce} false
+     * in {@code readBatchSparse} reddens this.
      */
     public void testSparseReadConvertsOncePerBatchNotOncePerRun() throws IOException {
         byte[] data = sparseFile();
@@ -487,11 +481,9 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
     }
 
     /**
-     * A dictionary-encoded column whose FIRST read is a sparse one, which is the TopN shape this hoist
-     * targets. The loop decodes its runs through {@code decodeBatchAs} rather than {@code readBatch},
-     * so it still loads the dictionary; decoding through {@code readBatchAs} directly would leave the
-     * dictionary null and fail. Four distinct values keep the writer on its dictionary encoding, and a
-     * string column declared {@code long} is a pair that takes the conversion.
+     * A dictionary-encoded column whose FIRST read is a sparse one -- the sort-and-limit shape this
+     * change targets. Decoding a run without loading the dictionary fails, so this reddens if the
+     * per-run decode stops going through {@code decodeBatchAs}.
      */
     public void testSparseReadIsTheFirstReadOfADictionaryEncodedConvertingColumn() throws IOException {
         byte[] data = writeTestFile(

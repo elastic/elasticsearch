@@ -239,15 +239,10 @@ final class PageColumnReader implements Releasable {
     }
 
     /**
-     * Decodes a batch at {@code type}, after the two things every batch decode needs first: the
-     * dictionary has to be loaded, and no pre-jump may be banked. Every decode of a batch goes
-     * through here, including each run of a sparse read, because a dictionary-encoded column whose
-     * first read is a sparse one has no dictionary loaded otherwise and decodes against null.
-     *
-     * <p>A banked pre-jump means the physical cursor is ahead of the caller's logical position; only
-     * {@link #skipRows} may spend that credit. Decoding with one banked would read from the wrong
-     * source rows and silently undercount an aggregate. The check is per-batch, so failing loudly
-     * costs nothing.
+     * Decodes a batch at {@code type}. Every batch decode goes through here, each run of a sparse read
+     * included, because the dictionary has to be loaded first -- a dictionary-encoded column whose
+     * first read is a sparse one decodes against null otherwise -- and because the cursor must not be
+     * ahead of the caller's position, which would read the wrong rows and undercount silently.
      */
     private Block decodeBatchAs(DataType type, int maxRows, BlockFactory blockFactory) {
         if (pendingPrejumped != 0) {
@@ -404,19 +399,13 @@ final class PageColumnReader implements Releasable {
             return result;
         }
 
-        // General path: decompose survivorPositions into (skip, read) runs of contiguous
-        // positions. Each run produces a small Block; chunks are combined at the end.
+        // General path: decompose survivorPositions into (skip, read) runs of contiguous positions,
+        // one small Block per run, combined at the end.
         //
-        // A declared-type coercion is decided once here rather than inside each run. readBatch would
-        // take the same decision per run and convert each run's block separately, which costs one
-        // conversion set-up and one transient block per run -- on this path a run is often a single
-        // row, since the positions arrive from a TopN or a filter and need not be neighbours. So when
-        // the column needs one, every run decodes at the file's own type and the joined block is
-        // converted once. The values are identical either way: the runs are in ascending position
-        // order, so the joined block holds the same values in the same order as the per-run blocks
-        // concatenated. Under a strict policy the same value fails, one pass later, since the whole
-        // batch is decoded before the conversion walks it -- unless a later run fails to decode at
-        // all, in which case that failure is now raised first and the coercion error never surfaces.
+        // The coercion is decided here and applied to the joined block, not inside each run, because a
+        // run here is often one row. Runs are read in ascending position order, so joining then
+        // converting gives the same values in the same order as converting each run. Under a strict
+        // policy the same value fails, after the whole batch has decoded rather than at its own run.
         DataType declared = info.esqlType();
         DataType fileType = info.fileEsqlType();
         boolean coerceOnce = DeclaredTypeCoercions.needsBlockCast(fileType, declared, info.dateFormatter() != null);
@@ -465,11 +454,9 @@ final class PageColumnReader implements Releasable {
                 // success; on a throw the catch below releases them.
                 joined = BlockChunks.concat(chunks, blockFactory);
             }
-            // Ownership has moved to `joined` -- concat closed the chunks it consumed, and the
-            // single-chunk arm handed its one block over, so the list owns nothing from here. The
-            // conversion runs below rather than inside this try, which is what keeps a throw from it
-            // away from a catch that would close those blocks a second time; clearing the list is the
-            // belt to that braces, and says in code that the chunks are no longer ours.
+            // The list owns nothing from here: concat closed what it consumed, the single-chunk arm
+            // handed its block over. The coercion below is outside this try so its throw cannot reach
+            // a catch that would close those blocks again.
             chunks.clear();
         } catch (RuntimeException e) {
             for (Block chunk : chunks) {

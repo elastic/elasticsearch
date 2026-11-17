@@ -299,16 +299,10 @@ public final class DeclaredTypeCoercions {
 
     /**
      * Whether a column stored as {@code fileType} must be decoded at that type and then cast to reach
-     * {@code declared}: the two differ, no decode arm produces {@code declared} directly, and the pair is one
-     * {@link #castBlock} can carry.
+     * {@code declared}. Every columnar read path asks this here rather than restating the terms, so none of
+     * them can answer it differently.
      *
-     * <p>Every columnar read path in Parquet and ORC asks this, and asks it here rather than restating the terms,
-     * so the paths cannot answer it differently — a reader with its own copy can disagree about which pairs the
-     * decode arms produce, and a reader that never asks casts a pair the decode already handled. The question
-     * belongs on this class because {@link #fusedInDecode} and {@link #supports} do.
-     *
-     * @param fileType the type the file stores, or {@code null} from a caller that has no stored type to coerce
-     *                 from, which declines
+     * @param fileType the stored type, or {@code null} from a caller with no stored type, which declines
      */
     public static boolean needsBlockCast(@Nullable DataType fileType, DataType declared, boolean hasDeclaredFormat) {
         return fileType != null

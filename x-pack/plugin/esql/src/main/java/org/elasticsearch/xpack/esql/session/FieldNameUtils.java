@@ -116,6 +116,8 @@ public class FieldNameUtils {
         Set<String> collections = new HashSet<>();
         parsed.forEachDown(NestedExpand.class, expand -> {
             if (expand.bound() == false && expand.target() != null) {
+                // TODO: When collection aliases/references are supported, resolve their owning
+                // source and mapped path here; the target name may be an alias in the query.
                 collections.add(expand.target().name());
             }
         });

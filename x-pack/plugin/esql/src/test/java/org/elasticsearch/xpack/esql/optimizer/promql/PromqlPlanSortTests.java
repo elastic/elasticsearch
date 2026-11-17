@@ -63,6 +63,10 @@ public class PromqlPlanSortTests extends AbstractPromqlPlanOptimizerTests {
             "100 < sort_desc(network.bytes_in)",
             "sort(network.bytes_in) > network.cost"
         )) {
+            if (query.endsWith("network.cost") && containerFunctions() == false) {
+                // two vectors compare as a join, which takes the label container functions
+                continue;
+            }
             assertEquals(query, 1, planInstant(query).collect(OrderBy.class).size());
         }
     }

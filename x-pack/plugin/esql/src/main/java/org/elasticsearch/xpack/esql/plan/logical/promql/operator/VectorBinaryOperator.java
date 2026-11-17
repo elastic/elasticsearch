@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
@@ -313,6 +314,9 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
     @Override
     public IntermediateResult translate(TranslationContext context) {
         boolean containerFunctions = context.containerFunctions();
+        if (this instanceof VectorBinarySet set && set.op() == VectorBinarySet.SetOp.UNION && containerFunctions) {
+            return translateUnion(context);
+        }
         if (this instanceof VectorBinarySet) {
             return translateMatched(context);
         }
@@ -336,6 +340,9 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
      * operator, which matches series many-to-many.
      */
     public IntermediateResult translateMatched(TranslationContext context) {
+        if (context.containerFunctions() && this instanceof VectorBinarySet set && set.op() == VectorBinarySet.SetOp.UNION) {
+            return translateUnion(context);
+        }
         if (context.containerFunctions()
             && (this instanceof VectorBinarySet || hasPackedLabels(left().output()) || hasPackedLabels(right().output()))) {
             return translateContainerJoin(context);
@@ -413,6 +420,41 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
      * translation requires read out of them. A scalar operand joins on the step alone.
      */
     private IntermediateResult translateContainerJoin(TranslationContext context) {
+        return finish(context, joinOnLabels(context));
+    }
+
+    /** A finished table of the operator's result, its labels {@code null} for a scalar. */
+    private record LabeledTable(LogicalPlan plan, Attribute value, Attribute step, Attribute labels) {}
+
+    /**
+     * The result table, exposing the labels the operator declares, and whatever the enclosing translation requires, read out
+     * of the result labels.
+     */
+    private IntermediateResult finish(TranslationContext context, LabeledTable table) {
+        if (table.labels() == null) {
+            return new IntermediateResult(
+                table.plan(),
+                TranslationSchema.EMPTY,
+                table.value(),
+                table.step(),
+                null,
+                Kind.AFTER_INITIAL_AGGREGATE
+            );
+        }
+        var declared = new TreeSet<String>();
+        for (Attribute attribute : output()) {
+            if (MetadataAttribute.isTimeSeriesAttributeName(attribute.name()) == false) {
+                declared.add(TranslationContext.mapFinite(attribute));
+            }
+        }
+        var columns = new LinkedHashSet<String>(context.required().labels());
+        columns.addAll(declared);
+        TranslationSchema wanted = new TranslationSchema(columns, context.required().skips());
+        return context.fromLabels(table.plan(), table.labels(), wanted, declared, table.value(), table.step());
+    }
+
+    /** The join of the operands on their label containers, projected to the result value, step and labels. */
+    private LabeledTable joinOnLabels(TranslationContext context) {
         PromqlCommand cmd = context.cmd();
         TranslationContext operands = context.withRequired(open());
         IntermediateResult left = operands.translateIntermediate(left(), new NameId(), new NameId());
@@ -532,27 +574,61 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
             projected.add(labelsAlias.toAttribute());
         }
         plan = new Project(cmd.source(), plan, projected);
-        if (labelsAlias == null) {
-            return new IntermediateResult(
+        return new LabeledTable(
+            plan,
+            valueAlias.toAttribute(),
+            stepAlias.toAttribute(),
+            labelsAlias == null ? null : labelsAlias.toAttribute()
+        );
+    }
+
+    /**
+     * {@code a or b}: every series of {@code a}, and each series of {@code b} no series of {@code a} matches - with the
+     * matching modifiers, or on every label but the metric name - so {@code a or<M> b} is {@code a} beside
+     * {@code b unless<M> a}.
+     */
+    private IntermediateResult translateUnion(TranslationContext context) {
+        PromqlCommand cmd = context.cmd();
+        Source source = cmd.source();
+        IntermediateResult left = context.withRequired(open()).translateIntermediate(left(), new NameId(), new NameId());
+        Attribute leftLabels = null;
+        LogicalPlan leftPlan = left.plan();
+        Alias labels = new Alias(source, RESULT_LABELS, context.labels(left));
+        leftPlan = new Eval(source, leftPlan, List.of(labels));
+        leftLabels = labels.toAttribute();
+        VectorBinaryOperator unmatched = new VectorBinarySet(source(), right(), left(), match(), VectorBinarySet.SetOp.SUBTRACT);
+        LabeledTable right = unmatched.joinOnLabels(context);
+        var branches = new ArrayList<LogicalPlan>();
+        for (var branch : List.of(new LabeledTable(leftPlan, left.valueColumn(), left.step(), leftLabels), right)) {
+            // Each branch as the same columns: value, step and labels, without the rows that have no sample.
+            LogicalPlan plan = new Filter(source, branch.plan(), new IsNotNull(source, branch.value()));
+            plan = new Eval(
+                source,
                 plan,
-                TranslationSchema.EMPTY,
-                valueAlias.toAttribute(),
-                stepAlias.toAttribute(),
-                null,
-                Kind.AFTER_INITIAL_AGGREGATE
+                List.of(
+                    new Alias(source, cmd.valueColumnName(), branch.value()),
+                    new Alias(source, cmd.stepColumnName(), branch.step()),
+                    new Alias(source, RESULT_LABELS, branch.labels())
+                )
+            );
+            branches.add(
+                new Project(source, plan, plan.output().stream().filter(a -> isUnionColumn(cmd, a)).map(a -> (NamedExpression) a).toList())
             );
         }
-        // The labels the operator declares, and whatever the enclosing translation requires, read out of the result labels.
-        var declared = new TreeSet<String>();
-        for (Attribute attribute : output()) {
-            if (MetadataAttribute.isTimeSeriesAttributeName(attribute.name()) == false) {
-                declared.add(TranslationContext.mapFinite(attribute));
-            }
-        }
-        var columns = new LinkedHashSet<String>(context.required().labels());
-        columns.addAll(declared);
-        TranslationSchema wanted = new TranslationSchema(columns, context.required().skips());
-        return context.fromLabels(plan, labelsAlias.toAttribute(), wanted, declared, valueAlias.toAttribute(), stepAlias.toAttribute());
+        List<Attribute> output = VectorBinarySet.unionOutputByName(branches);
+        LogicalPlan union = new UnionAll(source, branches, output);
+        Attribute value = TranslationContext.find(output, cmd.valueColumnName());
+        Attribute step = TranslationContext.find(output, cmd.stepColumnName());
+        Attribute unionLabels = TranslationContext.find(output, RESULT_LABELS);
+        // The step under the enclosing frame's step identity, so enclosing translations resolve it by id.
+        Alias stepAlias = new Alias(source, step.name(), step, context.stepAttr().id());
+        LogicalPlan plan = new Eval(source, union, List.of(stepAlias));
+        return finish(context, new LabeledTable(plan, value, stepAlias.toAttribute(), unionLabels));
+    }
+
+    private static boolean isUnionColumn(PromqlCommand cmd, Attribute attribute) {
+        String name = attribute.name();
+        return name.equals(cmd.valueColumnName()) || name.equals(cmd.stepColumnName()) || name.equals(RESULT_LABELS);
     }
 
     /** The labels two series match on: Prometheus' signature. */

@@ -590,9 +590,9 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                                 fail(lp, "comparison operators are only supported at the top-level at this time [{}]", lp.sourceText())
                             );
                         }
-                        if (comp.match() == VectorMatch.NONE
-                            && comp.right() instanceof LiteralSelector == false
-                            && containerFunctions == false) {
+                        // A scalar reading no source compares in place on either side; anything else pairs like a match.
+                        boolean againstScalar = isPureScalar(comp.left()) || isPureScalar(comp.right());
+                        if (comp.match() == VectorMatch.NONE && againstScalar == false && containerFunctions == false) {
                             failures.add(
                                 fail(
                                     lp,
@@ -856,6 +856,10 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
             }
             return;
         }
+        if (containerFunctions) {
+            // or keeps the right series no left one matches: a union of the left operand and the right unless the left.
+            return;
+        }
         if (setOp.match() != VectorMatch.NONE) {
             // TODO: Support or with on/ignoring modifiers.
             // https://github.com/elastic/elasticsearch/issues/158181
@@ -880,11 +884,16 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
     }
 
     private static void collectTopLevelUnionChain(LogicalPlan p, Set<VectorBinarySet> chain) {
-        if (p instanceof VectorBinarySet setOp && setOp.op() == VectorBinarySet.SetOp.UNION) {
+        if (p instanceof VectorBinarySet setOp && setOp.op() == VectorBinarySet.SetOp.UNION && setOp.match() == VectorMatch.NONE) {
             chain.add(setOp);
             collectTopLevelUnionChain(setOp.left(), chain);
             collectTopLevelUnionChain(setOp.right(), chain);
         }
+    }
+
+    /** A scalar reading no source: a literal, {@code time()}, {@code pi()}, or arithmetic over those. */
+    private static boolean isPureScalar(LogicalPlan plan) {
+        return PromqlPlan.returnsScalar(plan) && hasSourceBackedExpression(plan) == false;
     }
 
     private static boolean hasSourceBackedExpression(LogicalPlan plan) {

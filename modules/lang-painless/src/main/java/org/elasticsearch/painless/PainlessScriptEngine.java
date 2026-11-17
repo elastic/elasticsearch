@@ -158,6 +158,8 @@ public final class PainlessScriptEngine implements ScriptEngine {
         String[] classInterfaces = new String[] { interfaceBase };
 
         ClassWriter writer = new ClassWriter(classFrames);
+        // Painless makes its own bytecode, so turn off the ASM work limits.
+        writer.setComputeLimits(Integer.MAX_VALUE, Long.MAX_VALUE);
         writer.visit(WriterConstants.CLASS_VERSION, classAccess, className, null, OBJECT_TYPE.getInternalName(), classInterfaces);
 
         Method newFactory = null;
@@ -278,6 +280,8 @@ public final class PainlessScriptEngine implements ScriptEngine {
         String[] classInterfaces = new String[] { interfaceBase };
 
         ClassWriter writer = new ClassWriter(classFrames);
+        // Painless makes its own bytecode, so turn off the ASM work limits.
+        writer.setComputeLimits(Integer.MAX_VALUE, Long.MAX_VALUE);
         writer.visit(WriterConstants.CLASS_VERSION, classAccess, className, null, OBJECT_TYPE.getInternalName(), classInterfaces);
 
         org.objectweb.asm.commons.Method init = new org.objectweb.asm.commons.Method(

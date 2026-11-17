@@ -1267,7 +1267,7 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
         return blobContainer.listBlobs(operationPurpose)
             .keySet()
             .stream()
-            .filter(blob -> MergeBlob.startsWithPrefix(blob) == false)
+            .filter(BatchedCompoundCommit::startsWithBlobPrefix)
             .collect(Collectors.toSet());
     }
 

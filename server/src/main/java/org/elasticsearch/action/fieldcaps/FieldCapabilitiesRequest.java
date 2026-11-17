@@ -147,7 +147,7 @@ public final class FieldCapabilitiesRequest extends UntypedActionRequest impleme
         out.writeOptionalNamedWriteable(indexFilter);
         out.writeOptionalLong(nowInMillis);
         out.writeGenericMap(runtimeFields);
-        out.writeStringArray(FieldCapabilitiesFetcher.filtersFor(filters, out.getTransportVersion()));
+        out.writeStringArray(filters);
         out.writeStringArray(types);
         out.writeBoolean(includeEmptyFields);
         if (out.getTransportVersion().supports(FIELD_CAPS_ADD_CLUSTER_ALIAS)) {

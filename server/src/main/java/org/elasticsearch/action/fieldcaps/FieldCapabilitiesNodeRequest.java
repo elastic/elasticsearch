@@ -127,7 +127,7 @@ class FieldCapabilitiesNodeRequest extends UntypedActionRequest implements Indic
         super.writeTo(out);
         out.writeCollection(shardIds);
         out.writeStringArray(fields);
-        out.writeStringArray(FieldCapabilitiesFetcher.filtersFor(filters, out.getTransportVersion()));
+        out.writeStringArray(filters);
         out.writeStringArray(allowedTypes);
         OriginalIndices.writeOriginalIndices(originalIndices, out);
         out.writeOptionalNamedWriteable(indexFilter);

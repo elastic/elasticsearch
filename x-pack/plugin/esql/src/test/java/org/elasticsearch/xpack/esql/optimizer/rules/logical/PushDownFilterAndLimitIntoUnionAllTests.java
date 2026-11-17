@@ -2089,9 +2089,12 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
             referenceAttribute("first_name", DataType.KEYWORD),
             referenceAttribute("salary", DataType.INTEGER)
         );
-        LogicalPlan analyzed = subqueryAnalyzer().externalSourceResolution(EXTERNAL_DATASET_RESOURCE, externalSchema, FileList.UNRESOLVED)
-            .buildAnalyzer()
-            .analyze(rewritten);
+        LogicalPlan analyzed = subqueryAnalyzer().externalSourceResolution(
+            projectMetadata,
+            EXTERNAL_DATASET_RESOURCE,
+            externalSchema,
+            FileList.UNRESOLVED
+        ).buildAnalyzer().analyze(rewritten);
         return optimize(analyzed);
     }
 }

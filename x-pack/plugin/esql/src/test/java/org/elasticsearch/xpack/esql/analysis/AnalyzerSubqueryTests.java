@@ -73,6 +73,7 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.externalResolutionFor;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.rewriteDatasetsUnsecured;
@@ -1914,7 +1915,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         }
     }
 
-    // consecutive forks are not supported yet
+    // two FORKs written on one pipeline are rejected by the parser
     public void testConsecutiveForksInMainQuery() {
         analyzer().addEmployees("test").error("""
             FROM test
@@ -1973,29 +1974,6 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
                         (WHERE emp_no > 50))
                   (WHERE emp_no > 100)
                 | KEEP emp_no
-            """, containsString("Only a single FORK command is supported, but found multiple"));
-    }
-
-    // TODO a single subquery is promoted as the main query, so this query behaves similarly as consecutive FORKs in the main query.
-    // once consecutive FORKs are supported, this query will be supported as well, but for now it is rejected. Alternatively find a way to
-    // differentiate this case from the consecutive FORKs.
-    public void testConsecutiveForksWithFromSubquery() {
-        analyzer().addEmployees("test").error("""
-            FROM (
-                FROM test
-                | FORK (WHERE emp_no > 10) (WHERE emp_no <= 10)
-            )
-            | FORK (WHERE emp_no > 5) (WHERE emp_no <= 5)
-            """, containsString("Only a single FORK command is supported, but found multiple"));
-    }
-
-    // TODO a single subquery is promoted as the main query, so this query behaves similarly as consecutive FORKs in the main query.
-    // once consecutive FORKs are supported, this query will be supported as well, but for now it is rejected. Alternatively find a way to
-    // differentiate this case from the consecutive FORKs.
-    public void testConsecutiveForksWithNestedView() {
-        analyzer().addEmployees("test").addView("fork_view", "FROM test | FORK (WHERE emp_no > 10) (WHERE emp_no <= 10)").error("""
-            FROM fork_view
-            | FORK (WHERE emp_no > 5) (WHERE emp_no <= 5)
             """, containsString("Only a single FORK command is supported, but found multiple"));
     }
 
@@ -2088,7 +2066,8 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
             // These cases name their datasets exactly, which reaches them at the wildcards_match_datasets default.
             false
         );
-        ExternalSourceResolution resolution = new ExternalSourceResolution(
+        ExternalSourceResolution resolution = externalResolutionFor(
+            projectMetadata,
             Map.of(
                 SALARIES_INT_RESOURCE,
                 externalSource(SALARIES_INT_RESOURCE, INTEGER),
@@ -2179,6 +2158,19 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
                 assertEquals(indices[i], relation.indexPattern());
             }
         }
+    }
+
+    /**
+     * A bare time-series aggregation only gets its implicit {@code _timeseries} column after the union's columns are determined.
+     * The union must still return it, right after the column that precedes it in the subquery, as the subquery does on its own.
+     */
+    public void testUnionAllKeepsImplicitTimeSeriesColumnOfBareTimeSeriesAggregate() {
+        assumeTrue("Requires TS in subqueries", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+        LogicalPlan plan = analyzer().addEmployees("test").addK8s().query("""
+            FROM test, (TS k8s | STATS rate = rate(network.total_bytes_in) BY tbucket = TBUCKET(1 hour))
+            """);
+        List<String> names = plan.output().stream().map(Attribute::name).toList();
+        assertThat(names.subList(names.size() - 3, names.size()), equalTo(List.of("rate", "_timeseries", "tbucket")));
     }
 
     private static void assertProjectionHasLong(Project project, String name, Class<? extends NamedExpression> kind) {

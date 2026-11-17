@@ -248,9 +248,9 @@ public interface GroupingAggregatorFunction extends Releasable {
     }
 
     /**
-     * Whether this grouping aggregation function supports partitioning
+     * Whether this grouping aggregation function supports partitioning when running in the given mode
      */
-    default boolean supportPartitioning() {
+    default boolean supportPartitioning(AggregatorMode mode) {
         return false;
     }
 
@@ -282,7 +282,7 @@ public interface GroupingAggregatorFunction extends Releasable {
 
     /**
      * Creates a splitter for this grouping aggregation state.
-     * Callers must check {@link #supportPartitioning()} first; otherwise this method throws {@link UnsupportedOperationException}.
+     * Callers must check {@link #supportPartitioning} first; otherwise this method throws {@link UnsupportedOperationException}.
      */
     default PartitionSplitter createPartitioningSplitter(CircuitBreaker breaker) {
         throw new UnsupportedOperationException(getClass().getSimpleName() + " doesn't support partitioning");
@@ -290,7 +290,7 @@ public interface GroupingAggregatorFunction extends Releasable {
 
     /**
      * Combines one partition into this grouping aggregation state.
-     * Callers must check {@link #supportPartitioning()} first; otherwise this method throws {@link UnsupportedOperationException}.
+     * Callers must check {@link #supportPartitioning} first; otherwise this method throws {@link UnsupportedOperationException}.
      *
      * @param source     the partitioned state
      * @param partition  the partition to combine

@@ -35,6 +35,7 @@ import org.elasticsearch.index.mapper.ShardBatchMapper.BatchMapperResolution;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.sourcebatch.MappedColumns;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.test.MockLog;
@@ -109,7 +110,17 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
             return null;
         }
         return releaseAfterTest(
-            ShardBatchMapper.mapColumnBatch(items, batch, shard, 0, items.length, resolution, Engine.Operation.Origin.PRIMARY, recycler)
+            ShardBatchMapper.mapColumnBatch(
+                items,
+                batch,
+                shard,
+                0,
+                items.length,
+                resolution,
+                Engine.Operation.Origin.PRIMARY,
+                recycler,
+                DocumentParsingProvider.EMPTY_INSTANCE
+            )
         );
     }
 
@@ -485,7 +496,17 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
 
                 // First chunk [0, 2).
                 EngineBatch chunk1 = releaseAfterTest(
-                    ShardBatchMapper.mapColumnBatch(items, fullBatch, shard, 0, 2, resolution, Engine.Operation.Origin.PRIMARY, recycler)
+                    ShardBatchMapper.mapColumnBatch(
+                        items,
+                        fullBatch,
+                        shard,
+                        0,
+                        2,
+                        resolution,
+                        Engine.Operation.Origin.PRIMARY,
+                        recycler,
+                        DocumentParsingProvider.EMPTY_INSTANCE
+                    )
                 );
                 assertNotNull("chunk1 mapping should succeed", chunk1);
                 chunk1.columns().fillPrimaryTerm(1L);
@@ -501,7 +522,17 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
 
                 // Second chunk [2, 4).
                 EngineBatch chunk2 = releaseAfterTest(
-                    ShardBatchMapper.mapColumnBatch(items, fullBatch, shard, 2, 4, resolution, Engine.Operation.Origin.PRIMARY, recycler)
+                    ShardBatchMapper.mapColumnBatch(
+                        items,
+                        fullBatch,
+                        shard,
+                        2,
+                        4,
+                        resolution,
+                        Engine.Operation.Origin.PRIMARY,
+                        recycler,
+                        DocumentParsingProvider.EMPTY_INSTANCE
+                    )
                 );
                 assertNotNull("chunk2 mapping should succeed", chunk2);
                 chunk2.columns().fillPrimaryTerm(1L);
@@ -834,13 +865,13 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
             try (SourceBatch batch = EscfEncoder.encode(List.of(doc("f", randomAlphanumericOfLength(5))), XContentType.JSON)) {
                 EngineBatch result = mapBatch(shard, items, batch);
                 assertNotNull("a required multi-field must count as present when its parent is", result);
-                assertEquals(Set.of(), ignoredFieldsOfFirstDoc(result));
+                assertEquals(List.of(Set.of()), ignoredFieldsPerDoc(result));
             }
             try (SourceBatch batch = EscfEncoder.encode(List.of(doc("other", randomAlphanumericOfLength(5))), XContentType.JSON)) {
                 EngineBatch result = mapBatch(shard, items, batch);
                 if (onFailure == FieldMapper.DocValuesParameter.Values.OnFailure.IGNORE) {
                     assertNotNull("on_failure=IGNORE must not cause columnar fallback", result);
-                    assertEquals(parentNullable ? Set.of("f.raw") : Set.of("f", "f.raw"), ignoredFieldsOfFirstDoc(result));
+                    assertEquals(List.of(parentNullable ? Set.of("f.raw") : Set.of("f", "f.raw")), ignoredFieldsPerDoc(result));
                 } else {
                     assertNull("a required field absent from the ESCF schema must cause columnar fallback", result);
                 }
@@ -856,10 +887,13 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
                     doc("other", randomAlphanumericOfLength(5))
                 );
                 try (SourceBatch batch = EscfEncoder.encode(docs, XContentType.JSON)) {
-                    assertNull(
-                        "a document without a required multi-field's parent must cause columnar fallback",
-                        mapBatch(shard, twoItems, batch)
-                    );
+                    EngineBatch result = mapBatch(shard, twoItems, batch);
+                    if (onFailure == FieldMapper.DocValuesParameter.Values.OnFailure.IGNORE) {
+                        assertNotNull("on_failure=IGNORE must not cause columnar fallback", result);
+                        assertEquals(List.of(Set.of(), Set.of("f.raw")), ignoredFieldsPerDoc(result));
+                    } else {
+                        assertNull("a document without a required multi-field's parent must cause columnar fallback", result);
+                    }
                 }
             }
         } finally {
@@ -867,18 +901,27 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
         }
     }
 
-    private static Set<String> ignoredFieldsOfFirstDoc(EngineBatch result) {
+    /** The field names each document of {@code result} lists in {@code _ignored}, in document order. */
+    private static List<Set<String>> ignoredFieldsPerDoc(EngineBatch result) {
         final MappedColumns mc = result.columns();
         mc.fillPrimaryTerm(1L);
-        mc.setSeqNo(0, 1L);
-        mc.setVersion(0, 1L);
+        for (int doc = 0; doc < mc.docCount(); doc++) {
+            mc.setSeqNo(doc, doc);
+            mc.setVersion(doc, 1L);
+        }
         final MappedColumns.RowCursor cursor = mc.rowCursor();
-        cursor.advance();
-        return cursor.fields()
-            .stream()
-            .filter(fld -> "_ignored".equals(fld.name()))
-            .map(fld -> fld.binaryValue().utf8ToString())
-            .collect(Collectors.toSet());
+        final List<Set<String>> ignored = new ArrayList<>();
+        for (int doc = 0; doc < mc.docCount(); doc++) {
+            cursor.advance();
+            ignored.add(
+                cursor.fields()
+                    .stream()
+                    .filter(fld -> "_ignored".equals(fld.name()))
+                    .map(fld -> fld.binaryValue().utf8ToString())
+                    .collect(Collectors.toSet())
+            );
+        }
+        return ignored;
     }
 
     public void testSingleValuedColumnarKeywordBatchWritesTheBareValue() throws IOException {

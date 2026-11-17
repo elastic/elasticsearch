@@ -416,17 +416,19 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         EsqlExecutionInfo executionInfo = getOrCreateExecutionInfo(task, request);
         // The metrics of the query are reported once, with the first outcome that is decided for it.
         AtomicBoolean metricsCollected = new AtomicBoolean();
-        PlanRunner planRunner = (role, plan, configuration, foldCtx, planTimeProfile, resultListener) -> computeService.execute(
-            sessionId,
-            (CancellableTask) task,
-            flags,
-            plan,
-            configuration,
-            foldCtx,
-            executionInfo,
-            planTimeProfile,
-            resultListener
-        );
+        PlanRunner planRunner = (role, plan, configuration, foldCtx, planTimeProfile, maxResultSize, resultListener) -> computeService
+            .execute(
+                sessionId,
+                (CancellableTask) task,
+                flags,
+                plan,
+                configuration,
+                foldCtx,
+                executionInfo,
+                planTimeProfile,
+                maxResultSize,
+                resultListener
+            );
         planExecutor.esql(
             request,
             sessionId,

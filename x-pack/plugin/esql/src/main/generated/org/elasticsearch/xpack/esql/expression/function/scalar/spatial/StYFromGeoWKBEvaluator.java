@@ -53,7 +53,7 @@ public final class StYFromGeoWKBEvaluator extends AbstractConvertFunction.Abstra
         return driverContext.blockFactory().newConstantNullBlock(positionCount);
       }
     }
-    try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+    try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount, true)) {
       for (int p = 0; p < positionCount; p++) {
         try {
           builder.appendDouble(evalValue(vector, p, scratchPad));
@@ -75,7 +75,7 @@ public final class StYFromGeoWKBEvaluator extends AbstractConvertFunction.Abstra
   public Block evalBlock(Block b) {
     BytesRefBlock block = (BytesRefBlock) b;
     int positionCount = block.getPositionCount();
-    try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+    try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount, true)) {
       BytesRef scratchPad = new BytesRef();
       for (int p = 0; p < positionCount; p++) {
         int valueCount = block.getValueCount(p);

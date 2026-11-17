@@ -148,7 +148,7 @@ public class DriverTests extends ESTestCase {
             TimeValue.timeValueNanos(randomLongBetween(1, tickTime * 10))
         );
         AtomicLong charged = new AtomicLong();
-        driver.loadTarget((nanos, finishNanos) -> charged.addAndGet(nanos));
+        driver.loadTarget((nanos, cpuNanos, finishNanos) -> charged.addAndGet(nanos));
 
         driver.run(TimeValue.timeValueSeconds(Long.MAX_VALUE), Integer.MAX_VALUE, new NowSupplier(startNanos, 0, tickTime));
 
@@ -208,7 +208,7 @@ public class DriverTests extends ESTestCase {
             () -> {}
         );
         AtomicLong charged = new AtomicLong();
-        driver.loadTarget((nanos, finishNanos) -> charged.addAndGet(nanos));
+        driver.loadTarget((nanos, cpuNanos, finishNanos) -> charged.addAndGet(nanos));
 
         driver.run(TimeValue.timeValueSeconds(Long.MAX_VALUE), Integer.MAX_VALUE, new NowSupplier(startNanos, 0, tickTime));
 

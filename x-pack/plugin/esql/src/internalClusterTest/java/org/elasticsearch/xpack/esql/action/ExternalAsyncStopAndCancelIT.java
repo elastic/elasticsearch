@@ -17,9 +17,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.AsyncStopRequest;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
@@ -105,6 +107,11 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
     /** Diagnostic counter — number of {@link SlowFileStorageProvider} reads that were forced into the trickle path.
      *  Non-zero means the source was actually slow at STOP / cancel time, not just slow on paper. */
     static final AtomicInteger trickleBytesServed = new AtomicInteger();
+    /** When non-null, {@link SlowFileObject#exists()} / {@link SlowFileStorageProvider#exists} wait here so a test can
+     *  issue STOP during planning, before any compute or exchange exists. */
+    static volatile CountDownLatch planningHold;
+    /** Counted down when a planning-time exists() call first parks on {@link #planningHold}. */
+    static volatile CountDownLatch planningArrived;
 
     /**
      * Reopens {@code loadExtensions} so the SPI-registered {@link SlowFileDataSourcePlugin} reaches the format
@@ -200,6 +207,7 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
 
         @Override
         public boolean exists(StoragePath path) {
+            awaitPlanningHold();
             return Files.exists(asLocal(path));
         }
 
@@ -215,6 +223,25 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
     @SuppressForbidden(reason = "converts a slowfile:// StoragePath to a real local Path for the file-backed fixture")
     private static Path asLocal(StoragePath path) {
         return org.elasticsearch.core.PathUtils.get(path.localPath());
+    }
+
+    private static void awaitPlanningHold() {
+        CountDownLatch hold = planningHold;
+        CountDownLatch arrived = planningArrived;
+        if (hold == null) {
+            return;
+        }
+        if (arrived != null) {
+            arrived.countDown();
+        }
+        try {
+            if (hold.await(60, TimeUnit.SECONDS) == false) {
+                throw new IllegalStateException("planning hold was not released");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("interrupted waiting for planning hold", e);
+        }
     }
 
     private static final class SlowFileObject extends AbstractTestStorageObject {
@@ -257,6 +284,7 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
 
         @Override
         public boolean exists() {
+            awaitPlanningHold();
             return Files.exists(file);
         }
 
@@ -431,6 +459,8 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
     public void setUpSlowFile() throws Exception {
         requestArrived = new CountDownLatch(1);
         releaseHandler = new CountDownLatch(1);
+        planningHold = null;
+        planningArrived = null;
         trickleBytesServed.set(0);
         meteredOutcomes.clear();
         lastMeteredMetrics = null;
@@ -470,6 +500,9 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
     public void releaseSlowFile() {
         if (releaseHandler != null) {
             releaseHandler.countDown();
+        }
+        if (planningHold != null) {
+            planningHold.countDown();
         }
     }
 
@@ -554,6 +587,65 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
                 );
             }
         } finally {
+            releaseHandler.countDown();
+            deleteAsyncId(client(), asyncId);
+        }
+    }
+
+    /**
+     * STOP issued while planning is still opening the external file (before any exchange or driver exists)
+     * must not wait for the query to run to completion. On {@code main} before this fix, {@code finishSessionEarly}
+     * found nothing, compute started unaware, and STOP returned the full result with {@code is_partial:false}.
+     */
+    public void testAsyncStopDuringPlanningBeforeCompute() throws Exception {
+        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
+        assumeTrue("external_parsing_parallelism pragma is snapshot-only", Build.current().isSnapshot());
+
+        planningArrived = new CountDownLatch(1);
+        planningHold = new CountDownLatch(1);
+
+        String uri = SCHEME + "://" + StoragePath.fileUri(slowFile).substring("file://".length());
+        String query = "EXTERNAL \"" + uri + "\" | LIMIT 1000000";
+
+        final String asyncId = startAsyncQueryWithPragmas(
+            client(),
+            query,
+            null,
+            Map.of(QueryPragmas.PARSING_PARALLELISM.getKey(), 1, QueryPragmas.PAGE_SIZE.getKey(), 5)
+        );
+        try {
+            assertTrue("planning must reach the storage exists() probe before STOP", planningArrived.await(30, TimeUnit.SECONDS));
+
+            AsyncStopRequest stopRequest = new AsyncStopRequest(asyncId);
+            var stopFuture = client().execute(EsqlAsyncStopAction.INSTANCE, stopRequest);
+            assertBusy(() -> assertTrue("STOP must set isStopped before planning is released", queryMarkedStopped()));
+            planningHold.countDown();
+            try (EsqlQueryResponse response = stopFuture.actionGet(30, TimeUnit.SECONDS)) {
+                assertThat(response.isRunning(), is(false));
+                assertThat(
+                    "STOP before compute must mark the response partial — the task was still running and "
+                        + "compute must not have been allowed to finish the fixture",
+                    response.isPartial(),
+                    is(true)
+                );
+                int rows = 0;
+                Iterator<Iterator<Object>> values = response.values();
+                while (values.hasNext()) {
+                    Iterator<Object> row = values.next();
+                    while (row.hasNext()) {
+                        row.next();
+                    }
+                    rows++;
+                }
+                assertThat("compute must not have produced the fixture after a pre-compute STOP", rows, equalTo(0));
+                assertThat(
+                    "the trickle path must never have run — that would mean compute started after STOP",
+                    trickleBytesServed.get(),
+                    equalTo(0)
+                );
+            }
+        } finally {
+            planningHold.countDown();
             releaseHandler.countDown();
             deleteAsyncId(client(), asyncId);
         }
@@ -766,6 +858,17 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
                 deleteAsyncId(client(), asyncId);
             } catch (Exception ignored) {}
         }
+    }
+
+    private boolean queryMarkedStopped() {
+        for (String node : internalCluster().getNodeNames()) {
+            for (Task task : internalCluster().getInstance(TransportService.class, node).getTaskManager().getCancellableTasks().values()) {
+                if (task instanceof EsqlQueryTask esql && esql.executionInfo() != null && esql.executionInfo().isStopped()) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**

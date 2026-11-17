@@ -979,7 +979,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             }
             ChannelActionListener<BytesTransportResponse> channelListener = new ChannelActionListener<>(channel);
             final BytesTransportResponse response;
-            long startNanos = System.nanoTime();
+            long startNanos = TaskLoadAttribution.startPart();
             try {
                 response = buildResponse();
             } catch (Exception e) {

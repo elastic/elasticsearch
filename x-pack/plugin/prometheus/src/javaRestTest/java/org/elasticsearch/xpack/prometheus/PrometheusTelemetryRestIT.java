@@ -30,7 +30,8 @@ public class PrometheusTelemetryRestIT extends AbstractPrometheusRestIT {
         "prometheus_labels",
         "prometheus_label_values",
         "prometheus_series",
-        "prometheus_metadata"
+        "prometheus_metadata",
+        "prometheus_query_exemplars"
     );
 
     public void testInstantQueryIsCounted() throws IOException {
@@ -77,6 +78,19 @@ public class PrometheusTelemetryRestIT extends AbstractPrometheusRestIT {
     public void testMetadataIsCounted() throws IOException {
         ingestTestData(METRIC);
         assertCounted(prometheusGetRequest("/_prometheus/api/v1/metadata", readApiKey), "prometheus_metadata");
+    }
+
+    public void testQueryExemplarsAreCounted() throws IOException {
+        ingestTestData(METRIC);
+        assertCounted(
+            prometheusReadRequest(
+                "/_prometheus/api/v1/query_exemplars",
+                new BasicNameValuePair("query", METRIC),
+                new BasicNameValuePair("start", "2026-01-01T00:00:00Z"),
+                new BasicNameValuePair("end", "2026-01-01T00:05:00Z")
+            ),
+            "prometheus_query_exemplars"
+        );
     }
 
     private void assertCounted(Request request, String expectedEntryPoint) throws IOException {

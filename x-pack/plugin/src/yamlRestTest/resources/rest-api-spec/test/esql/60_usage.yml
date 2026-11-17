@@ -920,7 +920,7 @@ took:
       reason: "Queries are counted by the API they came in on"
 
   - do: { xpack.usage: { } }
-  - length: { esql.entry_points: 10 }
+  - length: { esql.entry_points: 11 }
   - set: { esql.entry_points.internal.total: internal_total }
   - set: { esql.entry_points.query_stream.total: query_stream_total }
   - set: { esql.entry_points.prometheus_query.total: prometheus_query_total }

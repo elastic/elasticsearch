@@ -55,7 +55,10 @@ Every column in scope is part of the comparison, so `DEDUP` reads every column o
 
 `DEDUP` cannot be used when any column in scope has one of the following types: `aggregate_metric_double`, counter fields (`counter_long`, `counter_integer`, `counter_double`), `date_range`, `exponential_histogram`, `tdigest`, `date_period`, or `time_duration`. Attempting to do so results in a validation error. Use `KEEP` or `DROP` before `DEDUP` to remove such columns.
 
-`DEDUP` also fails when a column in scope has different types in the indices, views or subqueries it reads (a union type), because such a column cannot be compared until it is converted. For example, if `emp_no` is `integer` in one index and `long` in another, `FROM employees, employees_incompatible | KEEP emp_no | DEDUP` fails. Convert the column to a single type before `DEDUP`, for example `EVAL emp_no = emp_no::long | DEDUP`, or drop it with `DROP emp_no`.
+`DEDUP` also fails when a column in scope has different types in the indices, views or subqueries it reads (a union type), because such a column cannot be compared until it is converted. For example, if `emp_no` is `integer` in one index and `long` in another, `FROM employees, employees_incompatible | KEEP emp_no | DEDUP` fails. Before `DEDUP`, either:
+
+- Convert the column to a single type, for example `EVAL emp_no = emp_no::long | DEDUP`, when rows that differ in it should stay apart. The converted column is compared and returned.
+- Drop the column, for example `DROP emp_no | DEDUP`, when it shouldn't count. Rows that differ only in that column become duplicates, and the column is not returned.
 
 Columns of an `unsupported` type are always `null`, so they are ignored when comparing rows, and `DEDUP` does not fail because of them.
 

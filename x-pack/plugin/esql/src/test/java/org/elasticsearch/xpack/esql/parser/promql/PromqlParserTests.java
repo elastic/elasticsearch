@@ -1002,7 +1002,7 @@ public class PromqlParserTests extends ESTestCase {
     public void testInvalidGroupLabelsReportModifier() {
         PromqlParser parser = new PromqlParser();
         for (String grouping : List.of("group_left", "group_right")) {
-            for (String labels : List.of("(", "(bar", "(job=\"api\") bar")) {
+            for (String labels : List.of("(", "(bar", "(job=\"api\") bar", "(job env) bar")) {
                 String query = "foo * on(instance) " + grouping + " " + labels;
                 ParsingException e = expectThrows(ParsingException.class, () -> parser.createStatement(query));
                 assertThat(query, e.getErrorMessage(), equalTo("Invalid label list after [" + grouping + "]"));

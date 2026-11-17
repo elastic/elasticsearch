@@ -107,8 +107,11 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
 
     @Override
     public String visitLabelListItem(LabelListItemContext ctx) {
-        if (ctx.labelName() != null) {
-            return visitLabelName(ctx.labelName());
+        if (ctx.identifier() != null) {
+            return visitIdentifier(ctx.identifier());
+        }
+        if (ctx.STRING() != null) {
+            return string(ctx.STRING());
         }
 
         TerminalNode paramNode = ctx.NAMED_OR_POSITIONAL_DOUBLE_PARAMS();

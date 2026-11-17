@@ -99,8 +99,8 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
     /** Substitution key for the stack version in each Context Engine data stream template. */
     public static final String CONTEXT_ENGINE_VERSION_VARIABLE = "kibana.context.engine.version";
 
-    /** Context Engine system indices, minus the session data streams, which a system index pattern must not overlap. */
-    public static final String CONTEXT_ENGINE_SYSTEM_INDEX_PATTERN = ".context-engine-~(session-memory*|session-events*)";
+    /** Context Engine system indices, minus the session memory data stream, which a system index pattern must not overlap. */
+    public static final String CONTEXT_ENGINE_SYSTEM_INDEX_PATTERN = ".context-engine-~(session-memory*)";
 
     private static final int CONTEXT_ENGINE_SESSION_MEMORY_MAPPINGS_VERSION = 1;
 

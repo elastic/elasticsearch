@@ -29,6 +29,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
+import org.elasticsearch.xpack.core.analytics.mapper.HistogramEscfSchema;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
@@ -90,6 +91,20 @@ public class HistogramFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapper.parse(
             source(b -> b.startObject("field").field("values", new double[] { 2, 3 }).field("counts", new int[] { 0, 4 }).endObject())
+        );
+        assertThat(doc.rootDoc().getField("field"), notNullValue());
+    }
+
+    /** {@link HistogramEscfSchema} writes histograms without this mapper, so its field names must be the ones this mapper parses. */
+    public void testParseEscfSchemaFieldNames() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        ParsedDocument doc = mapper.parse(
+            source(
+                b -> b.startObject("field")
+                    .field(HistogramEscfSchema.VALUES_FIELD, new double[] { 2, 3 })
+                    .field(HistogramEscfSchema.COUNTS_FIELD, new int[] { 0, 4 })
+                    .endObject()
+            )
         );
         assertThat(doc.rootDoc().getField("field"), notNullValue());
     }

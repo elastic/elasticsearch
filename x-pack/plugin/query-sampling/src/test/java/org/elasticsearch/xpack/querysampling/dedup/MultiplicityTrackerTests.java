@@ -61,4 +61,21 @@ public class MultiplicityTrackerTests extends ESTestCase {
         assertThat("after a long quiet spell nothing else is known", tracker.distinct(), equalTo(1));
         assertFalse(tracker.isTracking(b, firstB));
     }
+
+    public void testTheWindowsKeepTheirPlacesWhenTheArrivalThatNoticesAWindowIsLate() {
+        AtomicLong nanos = new AtomicLong();
+        TimeValue window = TimeValue.timeValueSeconds(60);
+        MultiplicityTracker tracker = new MultiplicityTracker(10, window, nanos::get);
+        QueryFingerprint a = new QueryFingerprint(1, 1);
+        QueryFingerprint b = new QueryFingerprint(2, 2);
+
+        TrackedQuery firstA = tracker.record(a);
+        nanos.set(TimeValue.timeValueSeconds(119).nanos());
+        tracker.record(b);
+        nanos.set(TimeValue.timeValueSeconds(121).nanos());
+
+        TrackedQuery secondA = tracker.record(a);
+        assertThat("a was last seen two windows ago, even though b came late", secondA, not(sameInstance(firstA)));
+        assertThat(secondA.weights().multiplicity(), equalTo(1L));
+    }
 }

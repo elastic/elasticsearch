@@ -83,10 +83,12 @@ public final class MultiplicityTracker {
         long elapsed = now - windowStart;
         long windowLength = windowNanos;
         if (elapsed >= windowLength) {
+            long ended = elapsed / windowLength;
             // after a quiet spell of two windows or more every query is out of date
-            window += Math.min(2, elapsed / windowLength);
+            window += Math.min(2, ended);
             tracked.values().removeIf(query -> query.lastWindow < window - 1);
-            windowStart = now;
+            // not set to now: the windows keep their places, whenever the arrival that notices that one has ended comes
+            windowStart += ended * windowLength;
         }
     }
 

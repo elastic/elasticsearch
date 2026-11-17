@@ -91,6 +91,26 @@ public class CsvDirectRowExcerptCostTests extends ESTestCase {
     }
 
     /**
+     * The width rejection is the other error exit of {@code finishDirectRow}, and it is reached by a different
+     * fault: the row's shape rather than a cell's content. Reverting that exit alone would be invisible to the
+     * two cases above, which error on a cell.
+     */
+    public void testTooWideRowDoesNotMaterializeTheRecord() throws IOException {
+        assumeAllocationCounterAvailable();
+        warmUp();
+
+        long clean = allocatedDuringRead(utf8(buildCsv("1")), ErrorPolicy.Mode.SKIP_ROW, ROWS);
+        long tooWide = allocatedDuringRead(utf8(tooWideRows()), ErrorPolicy.Mode.SKIP_ROW, 0);
+
+        logger.info("width rejection allocated: clean={} bytes, wide={} bytes, delta={} bytes", clean, tooWide, tooWide - clean);
+        assertThat(
+            "a row rejected for its width must not pay for a record excerpt nobody reads",
+            tooWide - clean,
+            lessThan(RECORD_TEXT_BYTES / 4)
+        );
+    }
+
+    /**
      * The control for the two cases above, and the reason their comparisons mean anything: under
      * {@code fail_fast} an excerpt IS read, so one is built, and the counter must see it.
      *
@@ -121,7 +141,6 @@ public class CsvDirectRowExcerptCostTests extends ESTestCase {
 
         long clean = allocatedDuringRead(utf8(buildCsv("1")), mode, ROWS);
         long erroring = allocatedDuringRead(utf8(buildCsv("notanumber")), mode, expectedRowsFromBadFile);
-
 
         logger.info(
             "{} read allocated: clean={} bytes, erroring={} bytes, delta={} bytes, record text={} bytes",
@@ -192,6 +211,17 @@ public class CsvDirectRowExcerptCostTests extends ESTestCase {
 
     private static byte[] utf8(String s) {
         return s.getBytes(StandardCharsets.UTF_8);
+    }
+
+    /** Every row one field wider than the header, so each is rejected for its shape rather than a cell. */
+    private static String tooWideRows() {
+        String pad = "x".repeat(PAD_CHARS - 2);
+        StringBuilder sb = new StringBuilder(ROWS * (PAD_CHARS + 32));
+        sb.append("a:long,b:keyword\n");
+        for (int i = 0; i < ROWS; i++) {
+            sb.append("1,").append(pad).append(",surplus\n");
+        }
+        return sb.toString();
     }
 
     /** The same file as {@code buildCsv("1")} but for its final row's first cell, so the walk is the same length. */

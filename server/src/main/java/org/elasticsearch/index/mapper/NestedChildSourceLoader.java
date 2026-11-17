@@ -80,6 +80,8 @@ final class NestedChildSourceLoader implements SourceLoader {
 
         private int lastRootDoc = -1;
         private Source lastRootSource = null;
+        /** The bytes held for {@link #lastRootSource}, or -1 until asked, since measuring a map-backed source serializes it. */
+        private long lastRootBytesHeld = -1;
         private int lastChildDoc = -1;
         private SearchHit.NestedIdentity lastChildIdentity = null;
         /** The objects of one top-level nested field in the last root's source, which every child of that field slices. */
@@ -111,7 +113,7 @@ final class NestedChildSourceLoader implements SourceLoader {
                     if (docId != lastRootDoc) {
                         lastRootSource = rootLeaf.source(storedFields, docId);
                         lastRootDoc = docId;
-                        clearCollection();
+                        onRootChanged();
                     }
                     lastChildIdentity = null;
                     return lastRootSource;
@@ -124,12 +126,13 @@ final class NestedChildSourceLoader implements SourceLoader {
                 leafRootLoader.advanceTo(rootDoc);
                 lastRootSource = rootLeaf.source(leafRootLoader, rootDoc);
                 lastRootDoc = rootDoc;
-                clearCollection();
+                onRootChanged();
             }
             return extractSource(nestedIdentity);
         }
 
-        private void clearCollection() {
+        private void onRootChanged() {
+            lastRootBytesHeld = -1;
             collectionRootDoc = -1;
             collectionPath = null;
             collectionObjects = null;
@@ -202,7 +205,10 @@ final class NestedChildSourceLoader implements SourceLoader {
         /** The root's source, which is kept for its other children however small the slice of this one. */
         @Override
         public long sourceBytesHeld(Source source) {
-            return rootLeaf.sourceBytesHeld(lastRootSource);
+            if (lastRootBytesHeld < 0) {
+                lastRootBytesHeld = rootLeaf.sourceBytesHeld(lastRootSource);
+            }
+            return lastRootBytesHeld;
         }
 
         @Override

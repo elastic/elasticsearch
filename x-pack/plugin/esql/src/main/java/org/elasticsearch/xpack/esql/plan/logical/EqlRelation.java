@@ -47,7 +47,7 @@ import java.util.Objects;
  * values would stay correct (the converter dispatches by attribute class), the output schema would carry two
  * columns of the same name and a downstream {@code KEEP}/{@code SORT} could not disambiguate them.
  */
-public class EqlRelation extends LeafPlan {
+public class EqlRelation extends LeafPlan implements ExecutesOn.Coordinator {
 
     /**
      * EQL result mode, determined by a shallow parse of the query string in the ES|QL parser. This is the plan-node-owned

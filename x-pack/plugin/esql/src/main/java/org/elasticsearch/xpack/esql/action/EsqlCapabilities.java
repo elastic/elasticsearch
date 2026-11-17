@@ -3158,6 +3158,11 @@ public class EsqlCapabilities {
         EQL_IN_SUBQUERY(Build.current().isSnapshot()),
 
         /**
+         * LOOKUP JOIN after the EQL source command resolves its lookup index on the local cluster. Fixes #166162.
+         */
+        EQL_COMMAND_LOOKUP_JOIN(Build.current().isSnapshot()),
+
+        /**
          * Support for the EXTERNAL command (datasource access).
          */
         EXTERNAL_CSV_IP_SUPPORT,

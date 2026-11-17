@@ -47,6 +47,7 @@ public final class SourceShardWarmingInfo {
 
     public void complete(WarmingInfo warmingInfo) {
         assert requested;
+        assert this.warmingInfo == null;
         this.warmingInfo = warmingInfo;
     }
 

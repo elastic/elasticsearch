@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -52,7 +53,8 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.OptionalLong;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 import java.util.function.ToLongFunction;
 
@@ -80,11 +82,10 @@ public final class TransportGetShardWarmingInfoAction extends TransportAction<
     private final WarmingRatioProviderFactory warmingRatioProviderFactory;
     private final LongSupplier nowSupplier;
 
-    private final Object memoLock = new Object();
-    // Shutdown signal timestamp the memoized estimates were computed under, and the estimates. Guarded by memoLock.
-    // These are never cleared, because the source node is shutting down.
-    private long memoShutdownSignalTimestamp = -1L;
-    private Map<ShardId, Long> memo = new HashMap<>();
+    private record Memo(long shutdownSignalTimestamp, ConcurrentMap<ShardId, Long> estimates) {}
+
+    // Per-shard estimates memoized for the source's current shutdown signal. Never cleared because the source node is shutting down.
+    private final AtomicReference<Memo> memo = new AtomicReference<>();
 
     @Inject
     public TransportGetShardWarmingInfoAction(
@@ -132,90 +133,85 @@ public final class TransportGetShardWarmingInfoAction extends TransportAction<
             return Response.NONE;
         }
         final long nowMillis = nowSupplier.getAsLong();
-        synchronized (memoLock) {
-            final Map<ShardId, Long> estimates = estimatesForSignal(state, localNodeId, request.shutdownSignalTimestamp());
-            long sourceBytesToWarm = 0L;
-            long shardBytesToWarm = -1L;
-            for (ShardRouting routing : localRoutingNode) {
-                if (routing.relocating() && request.targetNodeId().equals(routing.relocatingNodeId()) == false) {
-                    // already relocating to another target
-                    continue;
-                }
-                final IndexShard shard = indicesService.getShardOrNull(routing.shardId());
-                if (shard == null) {
-                    // An initializing copy is not created yet, so it has no commit and may still relocate to the target. Any other missing
-                    // copy is gone.
-                    if (routing.initializing()) {
-                        return Response.NONE;
-                    }
-                    continue;
-                }
-                if (shard.store().isClosing()) {
-                    continue;
-                }
-                final Long memoized = estimates.get(routing.shardId());
-                final long bytesToWarm;
-                if (memoized != null) {
-                    bytesToWarm = memoized;
-                } else {
-                    final OptionalLong estimate;
-                    try {
-                        estimate = estimateShardBytesToWarm(shard, nowMillis);
-                    } catch (AlreadyClosedException e) {
-                        // Store closed concurrently between isClosing() and directory(); it will not relocate to the target.
-                        continue;
-                    } catch (Exception e) {
-                        logger.warn(() -> "failed to estimate bytes to warm for " + routing.shardId(), e);
-                        return Response.NONE;
-                    }
-                    if (estimate.isEmpty()) {
-                        // No commit yet. Counting this as 0 would understate the sum: a ratio of 0 is a present commit instead.
-                        return Response.NONE;
-                    }
-                    bytesToWarm = estimate.getAsLong();
-                    estimates.put(routing.shardId(), bytesToWarm);
-                }
-                sourceBytesToWarm += bytesToWarm;
-                if (routing.shardId().equals(request.shardId())) {
-                    shardBytesToWarm = bytesToWarm;
-                }
+        final ConcurrentMap<ShardId, Long> estimates = estimatesForSignal(state, localNodeId, request.shutdownSignalTimestamp());
+        long sourceBytesToWarm = 0L;
+        long shardBytesToWarm = -1L;
+        for (ShardRouting routing : localRoutingNode) {
+            if (routing.relocating() && request.targetNodeId().equals(routing.relocatingNodeId()) == false) {
+                // already relocating to another target
+                continue;
             }
-            if (shardBytesToWarm < 0L) {
-                logger.debug("[{}] is not on local node [{}], no warming info", request.shardId(), localNodeId);
+            final IndexShard shard = indicesService.getShardOrNull(routing.shardId());
+            if (shard == null) {
+                // An initializing copy is not created yet, so it has no commit and may still relocate to the target. Any other missing
+                // copy is gone.
+                if (routing.initializing()) {
+                    return Response.NONE;
+                }
+                continue;
+            }
+            if (shard.store().isClosing()) {
+                continue;
+            }
+            final Long bytesToWarm;
+            try {
+                bytesToWarm = estimates != null
+                    ? estimates.computeIfAbsent(routing.shardId(), ignored -> estimateShardBytesToWarm(shard, nowMillis))
+                    : estimateShardBytesToWarm(shard, nowMillis);
+            } catch (AlreadyClosedException e) {
+                // Store closed concurrently between isClosing() and directory(); it will not relocate to the target.
+                continue;
+            } catch (Exception e) {
+                logger.warn(() -> "failed to estimate bytes to warm for " + routing.shardId(), e);
                 return Response.NONE;
             }
-            return new Response(shardBytesToWarm, sourceBytesToWarm);
+            if (bytesToWarm == null) {
+                // No commit yet. Counting this as 0 would understate the sum: a ratio of 0 is a present commit instead.
+                return Response.NONE;
+            }
+            sourceBytesToWarm += bytesToWarm;
+            if (routing.shardId().equals(request.shardId())) {
+                shardBytesToWarm = bytesToWarm;
+            }
         }
+        if (shardBytesToWarm < 0L) {
+            logger.debug("[{}] is not on local node [{}], no warming info", request.shardId(), localNodeId);
+            return Response.NONE;
+        }
+        return new Response(shardBytesToWarm, sourceBytesToWarm);
     }
 
-    /// Returns the memoized map when the request matches this node's active shutdown signal, or a throwaway map otherwise.
-    private Map<ShardId, Long> estimatesForSignal(ClusterState state, String localNodeId, long requestSignalTimestamp) {
-        assert Thread.holdsLock(memoLock);
+    /// Returns the memoized map when the request matches this node's active shutdown signal, or `null` otherwise.
+    @Nullable
+    private ConcurrentMap<ShardId, Long> estimatesForSignal(ClusterState state, String localNodeId, long requestSignalTimestamp) {
         final var localShutdown = state.metadata().nodeShutdowns().get(localNodeId);
         if (localShutdown == null || localShutdown.getStartedAtMillis() != requestSignalTimestamp) {
-            return new HashMap<>();
+            return null;
         }
-        if (memoShutdownSignalTimestamp != requestSignalTimestamp) {
-            memo = new HashMap<>();
-            memoShutdownSignalTimestamp = requestSignalTimestamp;
+        Memo current = memo.get();
+        if (current == null || current.shutdownSignalTimestamp() != requestSignalTimestamp) {
+            current = memo.updateAndGet(
+                existing -> existing != null && existing.shutdownSignalTimestamp() == requestSignalTimestamp
+                    ? existing
+                    : new Memo(requestSignalTimestamp, ConcurrentCollections.newConcurrentMap())
+            );
         }
-        return memo;
+        return current.estimates();
     }
 
-    /// Empty when the shard has no commit yet. A present 0 is a commit whose warming ratio is 0.
+    /// `null` when the shard has no commit yet. A non-null `0` is a commit whose warming ratio is 0.
     // visible for testing
-    OptionalLong estimateShardBytesToWarm(IndexShard shard, long nowMillis) {
+    @Nullable
+    Long estimateShardBytesToWarm(IndexShard shard, long nowMillis) {
         final SearchDirectory directory = SearchDirectory.unwrapDirectory(shard.store().directory());
         if (directory.getCurrentCommit() == null) {
-            return OptionalLong.empty();
+            return null;
         }
-        return OptionalLong.of(
-            estimateBytesToWarm(
-                directory.getCurrentCommitBlobFileRanges(),
-                warmingRatioProviderFactory.create(shard.shardId()),
-                directory::resolveRegionTimestampMillis,
-                nowMillis
-            )
+        return estimateBytesToWarm(
+            directory.getCurrentCommitBlobFileRanges(),
+            warmingRatioProviderFactory.create(shard.shardId()),
+            directory::resolveRegionTimestampMillis,
+            nowMillis
         );
     }
 

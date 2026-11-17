@@ -7,34 +7,32 @@
 
 package org.elasticsearch.xpack.inference.external.http;
 
-import org.apache.http.Header;
-import org.apache.http.HttpEntityEnclosingRequest;
-import org.apache.http.HttpException;
-import org.apache.http.HttpRequest;
-import org.apache.http.HttpResponse;
-import org.apache.http.HttpStatus;
-import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
-import org.apache.http.entity.ByteArrayEntity;
-import org.apache.http.entity.ContentType;
-import org.apache.http.impl.bootstrap.HttpServer;
-import org.apache.http.impl.bootstrap.ServerBootstrap;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
-import org.apache.http.protocol.HttpContext;
-import org.apache.http.util.EntityUtils;
+import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
+import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.core5.http.ClassicHttpRequest;
+import org.apache.hc.core5.http.ClassicHttpResponse;
+import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.Header;
+import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.HttpStatus;
+import org.apache.hc.core5.http.impl.bootstrap.HttpServer;
+import org.apache.hc.core5.http.impl.bootstrap.ServerBootstrap;
+import org.apache.hc.core5.http.io.entity.ByteArrayEntity;
+import org.apache.hc.core5.http.io.entity.EntityUtils;
+import org.apache.hc.core5.http.protocol.HttpContext;
+import org.apache.hc.core5.io.CloseMode;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.Nullable;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetAddress;
-import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -87,7 +85,9 @@ public class MockHttpProxyServer implements Closeable {
             .setLocalAddress(InetAddress.getLoopbackAddress())
             .setListenerPort(0)
             .setSslContext(sslContext)
-            .registerHandler("*", this::handle)
+            // route every request to the handler: a forward-proxied request carries the target's authority, which would otherwise
+            // be rejected as a misdirected request (421) because no handler is registered for that virtual host
+            .setRequestRouter((request, context) -> this::handle)
             .create();
         try {
             httpServer.start();
@@ -105,51 +105,57 @@ public class MockHttpProxyServer implements Closeable {
         return this;
     }
 
-    private void handle(HttpRequest request, HttpResponse response, HttpContext context) throws HttpException, IOException {
-        proxiedRequestLines.add(request.getRequestLine().toString());
+    private void handle(ClassicHttpRequest request, ClassicHttpResponse response, HttpContext context) throws IOException {
+        try {
+            proxiedRequestLines.add(requestLine(request));
 
-        if ("CONNECT".equalsIgnoreCase(request.getRequestLine().getMethod())) {
-            // Tunneling is never performed; the handshake is recorded and then rejected (or granted without a tunnel) so the client
-            // fails instead of talking to the target
-            response.setStatusCode(connectResponseStatus);
-            return;
-        }
+            if ("CONNECT".equalsIgnoreCase(request.getMethod())) {
+                // Tunneling is never performed; the handshake is recorded and then rejected (or granted without a tunnel) so the client
+                // fails instead of talking to the target
+                response.setCode(connectResponseStatus);
+                return;
+            }
 
-        var upstreamRequest = new HttpEntityEnclosingRequestBase() {
-            @Override
-            public String getMethod() {
-                return request.getRequestLine().getMethod();
-            }
-        };
-        // A forward proxy receives the full target URI in the request line, which is where we forward the request to
-        upstreamRequest.setURI(URI.create(request.getRequestLine().getUri()));
-        upstreamRequest.setHeader(VIA_HEADER, VIA_HEADER_VALUE);
-        for (Header requestHeader : request.getAllHeaders()) {
-            if (BLOCKED_HEADERS.contains(requestHeader.getName()) == false) {
-                upstreamRequest.setHeader(requestHeader.getName(), requestHeader.getValue());
-            }
-        }
-        if (request instanceof HttpEntityEnclosingRequest entityRequest && entityRequest.getEntity() != null) {
-            upstreamRequest.setEntity(
-                new ByteArrayEntity(EntityUtils.toByteArray(entityRequest.getEntity()), ContentType.get(entityRequest.getEntity()))
-            );
-        }
-        try (CloseableHttpResponse upstreamResponse = forwardingClient.execute(upstreamRequest)) {
-            response.setStatusLine(upstreamResponse.getStatusLine());
-            for (Header upstreamHeader : upstreamResponse.getAllHeaders()) {
-                if (BLOCKED_HEADERS.contains(upstreamHeader.getName()) == false) {
-                    response.addHeader(upstreamHeader.getName(), upstreamHeader.getValue());
+            // A forward proxy receives the full target URI in the request line, which is where we forward the request to
+            var upstreamRequest = new HttpUriRequestBase(request.getMethod(), request.getUri());
+            upstreamRequest.setHeader(VIA_HEADER, VIA_HEADER_VALUE);
+            for (Header requestHeader : request.getHeaders()) {
+                if (BLOCKED_HEADERS.contains(requestHeader.getName()) == false) {
+                    upstreamRequest.setHeader(requestHeader.getName(), requestHeader.getValue());
                 }
             }
-            if (upstreamResponse.getEntity() != null) {
-                response.setEntity(
-                    new ByteArrayEntity(
-                        EntityUtils.toByteArray(upstreamResponse.getEntity()),
-                        ContentType.get(upstreamResponse.getEntity())
-                    )
-                );
+            if (request.getEntity() != null) {
+                upstreamRequest.setEntity(copyOf(request.getEntity()));
             }
+            forwardingClient.execute(upstreamRequest, upstreamResponse -> {
+                response.setCode(upstreamResponse.getCode());
+                for (Header upstreamHeader : upstreamResponse.getHeaders()) {
+                    if (BLOCKED_HEADERS.contains(upstreamHeader.getName()) == false) {
+                        response.addHeader(upstreamHeader.getName(), upstreamHeader.getValue());
+                    }
+                }
+                if (upstreamResponse.getEntity() != null) {
+                    response.setEntity(copyOf(upstreamResponse.getEntity()));
+                }
+                return null;
+            });
+        } catch (URISyntaxException e) {
+            throw new IOException(e);
         }
+    }
+
+    /**
+     * Reconstructs the request line as the client sent it: the authority for {@code CONNECT} and the absolute target URI otherwise.
+     */
+    private static String requestLine(ClassicHttpRequest request) throws URISyntaxException {
+        var target = "CONNECT".equalsIgnoreCase(request.getMethod()) ? request.getAuthority().toString() : request.getUri().toString();
+        return request.getMethod() + " " + target + " HTTP/1.1";
+    }
+
+    /** Fully buffers the entity so the originating connection can be released before the entity is replayed on the other leg. */
+    private static HttpEntity copyOf(HttpEntity entity) throws IOException {
+        var contentType = entity.getContentType() == null ? null : ContentType.parse(entity.getContentType());
+        return new ByteArrayEntity(EntityUtils.toByteArray(entity), contentType);
     }
 
     public int getPort() {
@@ -170,6 +176,6 @@ public class MockHttpProxyServer implements Closeable {
     @Override
     public void close() throws IOException {
         forwardingClient.close();
-        httpServer.shutdown(10, TimeUnit.SECONDS);
+        httpServer.close(CloseMode.GRACEFUL);
     }
 }

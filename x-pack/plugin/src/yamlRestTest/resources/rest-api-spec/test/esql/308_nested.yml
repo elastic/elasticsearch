@@ -1,0 +1,77 @@
+setup:
+  - requires:
+      test_runner_features: [capabilities, allowed_warnings_regex]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [fn_nested]
+      reason: "NESTED is snapshot-only"
+  - do:
+      indices.create:
+        index: nested_stats
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              id:
+                type: keyword
+              items:
+                type: nested
+                properties:
+                  qty:
+                    type: long
+                  other:
+                    type: nested
+                    properties:
+                      v:
+                        type: long
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "nested_stats", "_id": "1" } }
+          - { "id": "1", "items": [ { "qty": 1 }, { "qty": 2 } ] }
+          - { "index": { "_index": "nested_stats", "_id": "2" } }
+          - { "id": "2", "items": [] }
+          - { "index": { "_index": "nested_stats", "_id": "3" } }
+          - { "id": "3", "items": [ { "qty": 4 } ] }
+
+---
+"NESTED reduces each parent's nested objects":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_stats | EVAL s = NESTED(SUM(items.qty)), c = NESTED(COUNT(items.qty)), n = NESTED(items, COUNT(*)), mn = NESTED(MIN(items.qty)), mx = NESTED(MAX(items.qty)), a = NESTED(AVG(items.qty)) | KEEP id, s, c, n, mn, mx, a | SORT id'
+  - length: { values: 3 }
+  - match: { values.0: ["1", 3, 2, 2, 1, 2, 1.5] }
+  - match: { values.1: ["2", null, 0, 0, null, null, null] }
+  - match: { values.2: ["3", 4, 1, 1, 4, 4, 4.0] }
+
+---
+"NESTED rejects a value that is not a reduction":
+  - do:
+      catch: /NESTED requires a reduction/
+      esql.query:
+        body:
+          query: 'FROM nested_stats | EVAL x = NESTED(items.qty) | KEEP id, x'
+
+---
+"NESTED(COUNT(*)) needs the collection":
+  - do:
+      catch: /needs the collection/
+      esql.query:
+        body:
+          query: 'FROM nested_stats | EVAL x = NESTED(COUNT(*)) | KEEP id, x'
+
+---
+"NESTED cannot follow STATS":
+  - do:
+      catch: /cannot follow/
+      esql.query:
+        body:
+          query: 'FROM nested_stats | STATS c = COUNT(*) | EVAL x = NESTED(SUM(items.qty)) | KEEP c, x'

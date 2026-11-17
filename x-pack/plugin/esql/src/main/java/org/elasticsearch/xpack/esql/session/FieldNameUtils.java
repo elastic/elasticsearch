@@ -121,7 +121,8 @@ public class FieldNameUtils {
         });
         // NESTED_ANY names child fields the same way. The marker keeps them in the private schema instead of dropping them.
         parsed.forEachExpressionDown(UnresolvedFunction.class, function -> {
-            if (function.name().equalsIgnoreCase("nested_any") == false) {
+            String functionName = function.name();
+            if (functionName.equalsIgnoreCase("nested_any") == false && functionName.equalsIgnoreCase("nested") == false) {
                 return;
             }
             function.forEachDown(UnresolvedAttribute.class, attribute -> {

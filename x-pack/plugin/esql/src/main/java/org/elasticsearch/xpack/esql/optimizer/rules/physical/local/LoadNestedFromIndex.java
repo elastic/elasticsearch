@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedPredicate;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedReduce;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
@@ -26,7 +27,8 @@ import java.util.Set;
 
 /**
  * Nested reads use each parent's child documents through the parent's {@code _doc}. This keeps {@code _doc} through the
- * projections below a {@code NESTED_EXPAND} or a {@code NESTED_ANY} predicate, which would otherwise drop it as unused,
+ * projections below a {@code NESTED_EXPAND}, a {@code NESTED_ANY} predicate, or a {@code NESTED} reduction, which would
+ * otherwise drop it as unused,
  * and through the commands that would replace it with a column of the query also named {@code _doc}.
  */
 public final class LoadNestedFromIndex extends PhysicalOptimizerRules.OptimizerRule<PhysicalPlan> {
@@ -40,7 +42,7 @@ public final class LoadNestedFromIndex extends PhysicalOptimizerRules.OptimizerR
             PhysicalPlan child = keepDoc(unary.child(), carriedDocName(plan));
             return child == unary.child() ? plan : unary.replaceChild(child);
         }
-        if (plan instanceof UnaryExec unary && usesNestedPredicate(unary)) {
+        if (plan instanceof UnaryExec unary && usesNestedRead(unary)) {
             PhysicalPlan child = keepDoc(unary.child(), carriedDocName(plan));
             if (child == unary.child()) {
                 return plan;
@@ -61,9 +63,10 @@ public final class LoadNestedFromIndex extends PhysicalOptimizerRules.OptimizerR
         return plan;
     }
 
-    private static boolean usesNestedPredicate(PhysicalPlan plan) {
+    private static boolean usesNestedRead(PhysicalPlan plan) {
         boolean[] found = { false };
         plan.forEachExpression(NestedPredicate.class, predicate -> found[0] = true);
+        plan.forEachExpression(NestedReduce.class, reduction -> found[0] = true);
         return found[0];
     }
 

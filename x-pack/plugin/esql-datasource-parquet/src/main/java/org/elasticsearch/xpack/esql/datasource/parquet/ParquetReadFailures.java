@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import org.apache.parquet.io.ParquetDecodingException;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
@@ -28,10 +29,10 @@ import java.util.concurrent.ExecutionException;
  * {@link java.util.concurrent.ExecutionException}; those are peeled here because
  * {@code ExceptionsHelper.unwrapCause} does not.
  * <p>
- * {@code context} is applied to I/O and to {@link IllegalArgumentException} (malformed pages)
- * so call-site column/file strings show up in the 400 message. Other {@link RuntimeException}s
- * (typed ES failures, {@code ParquetDecodingException}, bug-class ISE) pass through so
- * {@link ExternalFailures#classify} still sees the original type.
+ * {@code context} is applied to I/O, to {@link IllegalArgumentException} (malformed pages), and
+ * to {@link ParquetDecodingException} (decompress / decode faults) so call-site column/file
+ * strings show up in the 400 message. Other {@link RuntimeException}s (typed ES failures,
+ * bug-class ISE) pass through so {@link ExternalFailures#classify} still sees the original type.
  */
 final class ParquetReadFailures {
 
@@ -64,16 +65,23 @@ final class ParquetReadFailures {
             return ExternalFailures.surface(cause, context);
         }
         if (cause instanceof IllegalArgumentException iae) {
-            String detail = iae.getMessage();
-            if (detail == null || detail.isEmpty()) {
-                detail = iae.getClass().getSimpleName();
-            }
-            return new IllegalArgumentException(context + ": " + detail, iae);
+            return new IllegalArgumentException(context + ": " + detailOf(iae), iae);
+        }
+        if (cause instanceof ParquetDecodingException decoding) {
+            return new ParquetDecodingException(context + ": " + detailOf(decoding), decoding);
         }
         if (cause instanceof RuntimeException re) {
             return re;
         }
         return ExternalFailures.surface(cause, context);
+    }
+
+    private static String detailOf(Throwable t) {
+        String detail = t.getMessage();
+        if (detail == null || detail.isEmpty()) {
+            return t.getClass().getSimpleName();
+        }
+        return detail;
     }
 
     private static Throwable unwrapJoin(Throwable t) {

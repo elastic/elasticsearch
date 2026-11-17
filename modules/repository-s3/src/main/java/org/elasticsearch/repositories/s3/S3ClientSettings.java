@@ -185,6 +185,21 @@ final class S3ClientSettings {
         key -> Setting.boolSetting(key, false, Property.NodeScope, Property.Deprecated)
     );
 
+    /**
+     * Whether the AWS SDK should skip the request body checksums it sends by default, calculating a checksum only when the S3 API requires
+     * one, as if {@code AWS_REQUEST_CHECKSUM_CALCULATION=when_required} was set, but for this client alone. Those checksums help to catch
+     * corrupted uploads, so skipping them is unsafe and not something we recommend. Some third-party stores that claim to be S3-compatible
+     * reject the checksum headers on uploads though, so this is a temporary workaround for them. It doesn't change the checksum on
+     * {@code DeleteObjects}, which the API requires. {@code S3Service} always sets the value on the client, so the environment variable,
+     * the system property and the profile file have no effect on S3 repositories.
+     */
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // temporary workaround for non-compliant stores, must be removed in v10
+    static final Setting.AffixSetting<Boolean> UNSAFELY_OMIT_REQUEST_BODY_CHECKSUMS = Setting.affixKeySetting(
+        PREFIX,
+        "unsafely_omit_request_body_checksums",
+        key -> Setting.boolSetting(key, false, Property.NodeScope, Property.Deprecated)
+    );
+
     /** An override for the s3 region to use for signing requests. */
     static final Setting.AffixSetting<String> REGION = Setting.affixKeySetting(
         PREFIX,
@@ -307,6 +322,9 @@ final class S3ClientSettings {
     /** Whether to send a legacy {@code Content-MD5} header on requests that need a checksum. */
     final boolean legacyContentMd5;
 
+    /** Whether to make the SDK calculate request checksums only when the S3 API requires them. */
+    final boolean unsafelyOmitRequestBodyChecksums;
+
     private S3ClientSettings(
         AwsCredentials credentials,
         HttpScheme protocol,
@@ -328,7 +346,8 @@ final class S3ClientSettings {
         ByteSizeValue maxCopySizeBeforeMultipart,
         boolean tenaciousRetriesEnabled,
         boolean alwaysSignRequests,
-        boolean legacyContentMd5
+        boolean legacyContentMd5,
+        boolean unsafelyOmitRequestBodyChecksums
     ) {
         this.credentials = credentials;
         this.protocol = protocol;
@@ -351,6 +370,7 @@ final class S3ClientSettings {
         this.tenaciousRetriesEnabled = tenaciousRetriesEnabled;
         this.alwaysSignRequests = alwaysSignRequests;
         this.legacyContentMd5 = legacyContentMd5;
+        this.unsafelyOmitRequestBodyChecksums = unsafelyOmitRequestBodyChecksums;
     }
 
     /**
@@ -409,6 +429,11 @@ final class S3ClientSettings {
         );
         final boolean newAlwaysSignRequests = getRepoSettingOrDefault(ALWAYS_SIGN_REQUESTS, normalizedSettings, alwaysSignRequests);
         final boolean newLegacyContentMd5 = getRepoSettingOrDefault(LEGACY_CONTENT_MD5, normalizedSettings, legacyContentMd5);
+        final boolean newUnsafelyOmitRequestBodyChecksums = getRepoSettingOrDefault(
+            UNSAFELY_OMIT_REQUEST_BODY_CHECKSUMS,
+            normalizedSettings,
+            unsafelyOmitRequestBodyChecksums
+        );
 
         // Read unused settings too so repository registration emits deprecation warnings for explicit values.
         getRepoSettingOrDefault(UNUSED_USE_THROTTLE_RETRIES_SETTING, normalizedSettings, true);
@@ -432,7 +457,8 @@ final class S3ClientSettings {
             && Objects.equals(maxCopySizeBeforeMultipart, newMaxCopySizeBeforeMultipart)
             && tenaciousRetriesEnabled == newTenaciousRetriesEnabled
             && newAlwaysSignRequests == alwaysSignRequests
-            && newLegacyContentMd5 == legacyContentMd5) {
+            && newLegacyContentMd5 == legacyContentMd5
+            && newUnsafelyOmitRequestBodyChecksums == unsafelyOmitRequestBodyChecksums) {
             return this;
         }
         return new S3ClientSettings(
@@ -456,7 +482,8 @@ final class S3ClientSettings {
             newMaxCopySizeBeforeMultipart,
             newTenaciousRetriesEnabled,
             newAlwaysSignRequests,
-            newLegacyContentMd5
+            newLegacyContentMd5,
+            newUnsafelyOmitRequestBodyChecksums
         );
     }
 
@@ -570,7 +597,8 @@ final class S3ClientSettings {
                 getConfigValue(settings, clientName, MAX_COPY_SIZE_BEFORE_MULTIPART),
                 getConfigValue(settings, clientName, S3_TENACIOUS_RETRIES_ENABLED_SETTING),
                 getConfigValue(settings, clientName, ALWAYS_SIGN_REQUESTS),
-                getConfigValue(settings, clientName, LEGACY_CONTENT_MD5)
+                getConfigValue(settings, clientName, LEGACY_CONTENT_MD5),
+                getConfigValue(settings, clientName, UNSAFELY_OMIT_REQUEST_BODY_CHECKSUMS)
             );
         }
     }
@@ -603,7 +631,8 @@ final class S3ClientSettings {
             && Objects.equals(maxCopySizeBeforeMultipart, that.maxCopySizeBeforeMultipart)
             && tenaciousRetriesEnabled == that.tenaciousRetriesEnabled
             && alwaysSignRequests == that.alwaysSignRequests
-            && legacyContentMd5 == that.legacyContentMd5;
+            && legacyContentMd5 == that.legacyContentMd5
+            && unsafelyOmitRequestBodyChecksums == that.unsafelyOmitRequestBodyChecksums;
     }
 
     @Override
@@ -628,7 +657,8 @@ final class S3ClientSettings {
             maxCopySizeBeforeMultipart,
             tenaciousRetriesEnabled,
             alwaysSignRequests,
-            legacyContentMd5
+            legacyContentMd5,
+            unsafelyOmitRequestBodyChecksums
         );
     }
 

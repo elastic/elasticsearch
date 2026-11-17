@@ -287,8 +287,15 @@ public class BlockFactory {
         return v;
     }
 
-    public IntBlock.Builder newIntBlockBuilder(int estimatedSize) {
-        return new IntBlockBuilder(estimatedSize, this);
+    public final IntBlock.Builder newIntBlockBuilder(int estimatedSize) {
+        return newIntBlockBuilder(estimatedSize, false);
+    }
+
+    /**
+     * @param enablePooling Use this for short-lived blocks to let the driver reuse the backing arrays
+     */
+    public IntBlock.Builder newIntBlockBuilder(int estimatedSize, boolean enablePooling) {
+        return new IntBlockBuilder(estimatedSize, this, enablePooling && localPool != null);
     }
 
     public final IntBlock newIntArrayBlock(int[] values, int positionCount, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
@@ -308,8 +315,15 @@ public class BlockFactory {
     /**
      * Build a {@link IntVector.FixedBuilder} that never grows.
      */
-    public IntVector.FixedBuilder newIntVectorFixedBuilder(int size) {
-        return new IntVectorFixedBuilder(size, this);
+    public final IntVector.FixedBuilder newIntVectorFixedBuilder(int size) {
+        return newIntVectorFixedBuilder(size, false);
+    }
+
+    /**
+     * @param enablePooling Use this for short-lived vectors to let the driver reuse the backing array
+     */
+    public IntVector.FixedBuilder newIntVectorFixedBuilder(int size, boolean enablePooling) {
+        return new IntVectorFixedBuilder(size, this, enablePooling && localPool != null);
     }
 
     /**
@@ -410,8 +424,15 @@ public class BlockFactory {
         return v;
     }
 
-    public LongBlock.Builder newLongBlockBuilder(int estimatedSize) {
-        return new LongBlockBuilder(estimatedSize, this);
+    public final LongBlock.Builder newLongBlockBuilder(int estimatedSize) {
+        return newLongBlockBuilder(estimatedSize, false);
+    }
+
+    /**
+     * @param enablePooling Use this for short-lived blocks to let the driver reuse the backing arrays
+     */
+    public LongBlock.Builder newLongBlockBuilder(int estimatedSize, boolean enablePooling) {
+        return new LongBlockBuilder(estimatedSize, this, enablePooling && localPool != null);
     }
 
     public final LongBlock newLongArrayBlock(long[] values, int pc, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
@@ -431,8 +452,15 @@ public class BlockFactory {
     /**
      * Build a {@link LongVector.FixedBuilder} that never grows.
      */
-    public LongVector.FixedBuilder newLongVectorFixedBuilder(int size) {
-        return new LongVectorFixedBuilder(size, this);
+    public final LongVector.FixedBuilder newLongVectorFixedBuilder(int size) {
+        return newLongVectorFixedBuilder(size, false);
+    }
+
+    /**
+     * @param enablePooling Use this for short-lived vectors to let the driver reuse the backing array
+     */
+    public LongVector.FixedBuilder newLongVectorFixedBuilder(int size, boolean enablePooling) {
+        return new LongVectorFixedBuilder(size, this, enablePooling && localPool != null);
     }
 
     public final LongVector newLongArrayVector(long[] values, int positionCount) {
@@ -464,8 +492,15 @@ public class BlockFactory {
         return v;
     }
 
-    public DoubleBlock.Builder newDoubleBlockBuilder(int estimatedSize) {
-        return new DoubleBlockBuilder(estimatedSize, this);
+    public final DoubleBlock.Builder newDoubleBlockBuilder(int estimatedSize) {
+        return newDoubleBlockBuilder(estimatedSize, false);
+    }
+
+    /**
+     * @param enablePooling Use this for short-lived blocks to let the driver reuse the backing arrays
+     */
+    public DoubleBlock.Builder newDoubleBlockBuilder(int estimatedSize, boolean enablePooling) {
+        return new DoubleBlockBuilder(estimatedSize, this, enablePooling && localPool != null);
     }
 
     public final DoubleBlock newDoubleArrayBlock(double[] values, int pc, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
@@ -486,8 +521,15 @@ public class BlockFactory {
     /**
      * Build a {@link DoubleVector.FixedBuilder} that never grows.
      */
-    public DoubleVector.FixedBuilder newDoubleVectorFixedBuilder(int size) {
-        return new DoubleVectorFixedBuilder(size, this);
+    public final DoubleVector.FixedBuilder newDoubleVectorFixedBuilder(int size) {
+        return newDoubleVectorFixedBuilder(size, false);
+    }
+
+    /**
+     * @param enablePooling Use this for short-lived vectors to let the driver reuse the backing array
+     */
+    public DoubleVector.FixedBuilder newDoubleVectorFixedBuilder(int size, boolean enablePooling) {
+        return new DoubleVectorFixedBuilder(size, this, enablePooling && localPool != null);
     }
 
     public final DoubleVector newDoubleArrayVector(double[] values, int positionCount) {

@@ -78,6 +78,11 @@ public class EsqlDatafeedQueryParser implements EsqlQueryParser {
         static final PreAnalyzer PRE_ANALYZER = new PreAnalyzer();
     }
 
+    /**
+     * TODO(https://github.com/elastic/esql-planning/issues/2700): do not extend this method. Tech Preview only: it re-implements a
+     * subset of the analysis pipeline (cluster state, settings resolution, plan walk). It is to be replaced by the primitives behind
+     * {@code DESCRIBE}, or by a call to {@code DESCRIBE} and handling of its response.
+     */
     @Override
     public ParsedEsqlQuery parse(String query, ClusterService clusterService) {
         Settings nodeSettings = clusterService.getSettings();

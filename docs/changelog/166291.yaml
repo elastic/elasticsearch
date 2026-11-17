@@ -1,0 +1,5 @@
+area: Snapshot/Restore
+issues: []
+pr: 166291
+summary: '`S3BlobContainer#delete` need not delete container'
+type: bug

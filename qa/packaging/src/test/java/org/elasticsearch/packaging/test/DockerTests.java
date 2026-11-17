@@ -920,12 +920,15 @@ public class DockerTests extends PackagingTestCase {
 
     /**
      * Check that identical jars share an inode in the final image. The hard links are created in the builder stage, so this guards
-     * against them being lost by the {@code COPY --from=builder} that produces the final image.
+     * against them being lost by the {@code COPY --from=builder} that produces the final image. The Cloud ESS image is built on top of the
+     * Wolfi image without touching the distribution, so it is expected to inherit the links.
      */
     public void test102IdenticalJarsAreHardLinked() {
         assumeTrue(
-            "Only the default and Wolfi images hard link duplicate jars",
-            distribution.packaging == Packaging.DOCKER || distribution.packaging == Packaging.DOCKER_WOLFI
+            "Only the default, Wolfi and Cloud ESS images hard link duplicate jars",
+            distribution.packaging == Packaging.DOCKER
+                || distribution.packaging == Packaging.DOCKER_WOLFI
+                || distribution.packaging == Packaging.DOCKER_CLOUD_ESS
         );
 
         final String jars = "find lib modules plugins -type f -name '*.jar'";

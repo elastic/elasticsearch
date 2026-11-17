@@ -26,6 +26,8 @@ import org.elasticsearch.test.disruption.NetworkDisruption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.IntStream;
 
@@ -53,9 +55,17 @@ public class SearchWithRandomDisconnectsIT extends AbstractDisruptionTestCase {
             }
         }
         assertFalse(bulkRequestBuilder.get().hasFailures());
+        // Initialize the clients for each node to prevent deadlocks between InternalTestCluster.validateClusterFormed() (called as part of
+        // InternalTestCluster.clearDisruptionScheme()) and InternalTestCluster.NodeAndClient.getOrBuildNodeClient() (called as part of
+        // prepareSearch())
+        for (String node : internalCluster().getNodeNames()) {
+            client(node);
+        }
         final AtomicBoolean done = new AtomicBoolean();
         final int concurrentSearches = randomIntBetween(2, 5);
         final List<PlainActionFuture<Void>> futures = new ArrayList<>(concurrentSearches);
+        // Do not call runMoreSearches() inline on the transport thread as it may block Netty event loops
+        final ExecutorService searchExecutor = Executors.newFixedThreadPool(concurrentSearches);
         try {
             for (int i = 0; i < concurrentSearches; i++) {
                 final PlainActionFuture<Void> finishFuture = new PlainActionFuture<>();
@@ -63,12 +73,12 @@ public class SearchWithRandomDisconnectsIT extends AbstractDisruptionTestCase {
                 prepareRandomSearch().execute(new ActionListener<>() {
                     @Override
                     public void onResponse(SearchResponse searchResponse) {
-                        runMoreSearches();
+                        searchExecutor.submit(this::runMoreSearches);
                     }
 
                     @Override
                     public void onFailure(Exception e) {
-                        runMoreSearches();
+                        searchExecutor.submit(this::runMoreSearches);
                     }
 
                     private void runMoreSearches() {
@@ -106,6 +116,7 @@ public class SearchWithRandomDisconnectsIT extends AbstractDisruptionTestCase {
                     // best-effort drain
                 }
             }
+            searchExecutor.shutdown();
         }
         ensureGreen(new TimeValue(DISRUPTION_HEALING_OVERHEAD.millis() + 2000L * indexNames.length), indexNames);
         assertAcked(indicesAdmin().prepareDelete(indexNames));

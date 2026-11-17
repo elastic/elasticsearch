@@ -63,7 +63,10 @@ docker buildx create --driver docker-container --use --bootstrap
 
 echo --- Building release artifacts
 
+# Push to the remote build cache so expensive cacheable outputs (notably the QEMU-emulated
+# :distribution:tools:server-launcher:nativeImageLinuxAarch64, ~28 min) are reused by later DRA builds.
 .ci/scripts/run-gradle.sh -Ddra.artifacts=true \
+  -Dorg.elasticsearch.build.cache.push=true \
   -Ddra.artifacts.dependency.beats="${BEATS_BUILD_ID}" \
   -Ddra.artifacts.dependency.ml-cpp="${ML_CPP_BUILD_ID}" \
   -Ddra.workflow="$WORKFLOW" \

@@ -998,14 +998,14 @@ public class PromqlParserTests extends ESTestCase {
         }
     }
 
-    /** An unclosed label list after a grouping modifier reports the modifier, not the grammar rule that rejected it. */
-    public void testUnclosedGroupLabelsReportModifier() {
+    /** An unclosed or malformed label list after a grouping modifier reports the modifier, not the grammar rule that rejected it. */
+    public void testInvalidGroupLabelsReportModifier() {
         PromqlParser parser = new PromqlParser();
         for (String grouping : List.of("group_left", "group_right")) {
-            for (String labels : List.of("(", "(bar")) {
+            for (String labels : List.of("(", "(bar", "(job=\"api\") bar")) {
                 String query = "foo * on(instance) " + grouping + " " + labels;
                 ParsingException e = expectThrows(ParsingException.class, () -> parser.createStatement(query));
-                assertThat(e.getErrorMessage(), equalTo("Unclosed left parenthesis in the labels of [" + grouping + "]"));
+                assertThat(query, e.getErrorMessage(), equalTo("Invalid label list after [" + grouping + "]"));
             }
         }
     }

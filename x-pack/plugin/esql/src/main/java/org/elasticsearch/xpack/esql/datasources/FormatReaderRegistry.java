@@ -11,6 +11,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
@@ -19,6 +20,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -33,7 +36,7 @@ import java.util.function.Supplier;
  * Readers are created lazily on first access to avoid pulling in heavy dependencies at startup.
  * Supports compound extensions (e.g. .csv.gz) via {@link DecompressionCodecRegistry}.
  */
-public class FormatReaderRegistry {
+public class FormatReaderRegistry implements Closeable {
 
     /**
      * Whole-file compression codecs supported for text formats on release builds, keyed by
@@ -46,6 +49,7 @@ public class FormatReaderRegistry {
 
     private final Map<String, Supplier<FormatReader>> byName = new ConcurrentHashMap<>();
     private final Map<String, Supplier<FormatReader>> byExtension = new ConcurrentHashMap<>();
+    private final List<FormatReader> materialized = new ArrayList<>();
     private final DecompressionCodecRegistry codecRegistry;
     private volatile AdmissionTracker admissionTracker = AdmissionTracker.NOOP;
     private final NodeByteBudget nodeByteBudget;
@@ -124,6 +128,9 @@ public class FormatReaderRegistry {
                                 throw e;
                             }
                             instance = created;
+                            synchronized (materialized) {
+                                materialized.add(created);
+                            }
                         }
                     }
                 }
@@ -514,5 +521,19 @@ public class FormatReaderRegistry {
             return false;
         }
         return byExtension.containsKey(normalizeExtension(extension));
+    }
+
+    /**
+     * Closes each prototype this registry has materialized. Unaccessed formats are left uncreated.
+     * Called from {@link DataSourceModule#close()} at node shutdown.
+     */
+    @Override
+    public void close() throws IOException {
+        List<FormatReader> toClose;
+        synchronized (materialized) {
+            toClose = List.copyOf(materialized);
+            materialized.clear();
+        }
+        IOUtils.close(toClose);
     }
 }

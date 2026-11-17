@@ -359,11 +359,6 @@ tests:
   - :modules:apm:test
   method: testUnreachableDestinationReportsFailedExportMetric
   issue: https://github.com/elastic/elasticsearch/issues/164184
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForkUnmappedTypeConflictsIT
-  tasks:
-  - :x-pack:plugin:esql:qa:server:single-node:csvSpecTests
-  method: test {csv-spec:unmapped-type-conflicts.typeConflictDateNanosDateUnmappedNonExistentCastToDateNanos}
-  issue: https://github.com/elastic/elasticsearch/issues/164188
 - class: org.elasticsearch.xpack.esql.optimizer.GoldenGcTests
   tasks:
   - :x-pack:plugin:esql:test
@@ -614,11 +609,6 @@ tests:
   - :server:internalClusterTest
   method: testSnapshotWithStuckNode
   issue: https://github.com/elastic/elasticsearch/issues/165929
-- class: org.elasticsearch.xpack.stateless.StatelessAbortRunningMergesOnRelocationIT
-  tasks:
-  - :x-pack:plugin:stateless:internalClusterTest
-  method: testOnlyForceMergesAreAllowedDuringRelocation
-  issue: https://github.com/elastic/elasticsearch/issues/165933
 - class: org.elasticsearch.xpack.esql.action.ExternalProvenanceParityIT
   tasks:
   - :x-pack:plugin:esql:internalClusterTest
@@ -638,12 +628,28 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testTranslogStressRecoveryTest
   issue: https://github.com/elastic/elasticsearch/issues/166061
-- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
+- class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
   tasks:
-  - :x-pack:plugin:inference:internalClusterTest
-  issue: https://github.com/elastic/elasticsearch/issues/166137
-- class: org.elasticsearch.xpack.esql.session.EsqlSessionQueryTimeFilterTests
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testBlobsNotDeletedDuringFailedRelocation
+  issue: https://github.com/elastic/elasticsearch/issues/166242
+- class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
   tasks:
-  - :x-pack:plugin:esql:test
-  method: testTimeSeriesSources
-  issue: https://github.com/elastic/elasticsearch/issues/166145
+  - :modules:data-streams:yamlRestCompatTest
+  method: test {yaml=data_stream/150_tsdb/dynamic templates with incremental indexing}
+  issue: https://github.com/elastic/elasticsearch/issues/166250
+- class: org.elasticsearch.search.ccs.CrossClusterSearchDirectoryMetricsIT
+  tasks:
+  - :server:internalClusterTest
+  method: testDirectoryMetricsRemoteOnlyMinimizeRoundtripsTrue
+  issue: https://github.com/elastic/elasticsearch/issues/166258
+- class: org.elasticsearch.search.ccs.CrossClusterSearchDirectoryMetricsIT
+  tasks:
+  - :server:internalClusterTest
+  method: testDirectoryMetricsLocalAndRemoteMinimizeRoundtripsTrue
+  issue: https://github.com/elastic/elasticsearch/issues/166260
+- class: org.elasticsearch.action.search.QueryPhaseTopHitsLeakIT
+  tasks:
+  - :server:internalClusterTest
+  method: testTopHitsReleasedAfterSuccessfulHighlight
+  issue: https://github.com/elastic/elasticsearch/issues/166292

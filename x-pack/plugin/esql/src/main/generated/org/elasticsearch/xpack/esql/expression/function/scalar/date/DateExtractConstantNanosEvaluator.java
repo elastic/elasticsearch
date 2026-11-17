@@ -67,7 +67,7 @@ public final class DateExtractConstantNanosEvaluator implements ExpressionEvalua
   }
 
   public LongBlock eval(int positionCount, LongBlock valueBlock) {
-    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (valueBlock.isNull(p)) {
           result.appendNull();
@@ -89,7 +89,7 @@ public final class DateExtractConstantNanosEvaluator implements ExpressionEvalua
   }
 
   public LongVector eval(int positionCount, LongVector valueVector) {
-    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
+    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         long value = valueVector.getLong(p);
         result.appendLong(p, DateExtract.processNanos(value, this.chronoField, this.zone));

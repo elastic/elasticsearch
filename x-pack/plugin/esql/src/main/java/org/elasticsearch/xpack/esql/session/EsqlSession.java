@@ -268,7 +268,7 @@ public class EsqlSession {
      */
     private final Map<NameId, FieldSemantics> columnSemantics = new HashMap<>();
     /** Unit of every analyzed column whose unit is known, reported as {@code _meta.unit}. */
-    private final Map<NameId, String> columnUnits = new HashMap<>();
+    private final Map<NameId, List<String>> columnUnits = new HashMap<>();
     /**
      * Output of the analyzed plan. Optimization keeps the output schema but may replace attributes, so result
      * columns are matched to their semantics by position rather than by id.
@@ -1038,9 +1038,9 @@ public class EsqlSession {
             if (semantics != null) {
                 columnMetadata.put("field", semantics.toColumnMetadata());
             }
-            String unit = columnUnits.get(analyzedId);
-            if (unit != null) {
-                columnMetadata.put("unit", unit);
+            List<String> units = columnUnits.get(analyzedId);
+            if (units != null) {
+                columnMetadata.put("unit", FieldSemantics.singleOrList(units));
             }
             if (columnMetadata.isEmpty() == false) {
                 metadata.put(attribute.id(), columnMetadata);

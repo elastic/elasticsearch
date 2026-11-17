@@ -4892,6 +4892,13 @@ public class EsqlCapabilities {
         COLUMN_METADATA_MERGED_BRANCHES(Build.current().isSnapshot()),
 
         /**
+         * {@code DESCRIBE} and {@code column_metadata} report every unit and description of a column whose indices or merged
+         * branches disagree on them as a multi-value, and merge the field semantics of branches that read the same field as
+         * they merge indices.
+         */
+        COLUMN_METADATA_LISTED_UNITS(Build.current().isSnapshot()),
+
+        /**
          * Fixes a bug in the planner where {@code TS} queries failed with an {@link IllegalStateException} when an aggregation
          * with a filter combined several aggregate functions, such as {@code max(...) - min(...) WHERE ...}.
          */

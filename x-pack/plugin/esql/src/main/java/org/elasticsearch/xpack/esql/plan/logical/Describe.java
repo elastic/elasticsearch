@@ -99,9 +99,14 @@ public class Describe extends UnaryPlan implements TelemetryAware {
      *
      * @param semantics      the semantics of the mapped fields the child's columns read, keyed by attribute id
      * @param datasetColumns the dataset columns the child's columns read, keyed by attribute id
-     * @param units          the unit of every column whose unit is known, keyed by attribute id
+     * @param units          the unit of every column whose unit is known, or every unit when its sources disagree,
+     *                       keyed by attribute id
      */
-    public LocalRelation describe(Map<NameId, FieldSemantics> semantics, Map<NameId, Attribute> datasetColumns, Map<NameId, String> units) {
+    public LocalRelation describe(
+        Map<NameId, FieldSemantics> semantics,
+        Map<NameId, Attribute> datasetColumns,
+        Map<NameId, List<String>> units
+    ) {
         List<Attribute> columns = child().output().stream().filter(a -> a.synthetic() == false).toList();
         ElementType[] elementTypes = new ElementType[COLUMNS.size()];
         Block.Builder[] builders = new Block.Builder[COLUMNS.size()];
@@ -123,10 +128,9 @@ public class Describe extends UnaryPlan implements TelemetryAware {
                     origin(column, field, datasetColumn),
                     metricType,
                     units.get(column.id()),
-                    field == null ? null : field.description() };
+                    field == null || field.descriptions().isEmpty() ? null : List.copyOf(field.descriptions()) };
                 for (int i = 0; i < row.length; i++) {
-                    Object value = row[i] instanceof String s ? new BytesRef(s) : row[i];
-                    BlockUtils.appendValue(builders[i], value, elementTypes[i]);
+                    append(builders[i], row[i], elementTypes[i]);
                 }
             }
             Block[] blocks = new Block[builders.length];
@@ -137,6 +141,27 @@ public class Describe extends UnaryPlan implements TelemetryAware {
         } finally {
             Releasables.closeExpectNoException(builders);
         }
+    }
+
+    /**
+     * Appends a value, or a list of values as one multi-valued position.
+     */
+    private static void append(Block.Builder builder, @Nullable Object value, ElementType type) {
+        if (value instanceof List<?> values && values.size() > 1) {
+            builder.beginPositionEntry();
+            for (Object v : values) {
+                BlockUtils.appendValue(builder, toBytesRef(v), type);
+            }
+            builder.endPositionEntry();
+        } else if (value instanceof List<?> values) {
+            BlockUtils.appendValue(builder, values.isEmpty() ? null : toBytesRef(values.get(0)), type);
+        } else {
+            BlockUtils.appendValue(builder, toBytesRef(value), type);
+        }
+    }
+
+    private static Object toBytesRef(@Nullable Object value) {
+        return value instanceof String s ? new BytesRef(s) : value;
     }
 
     private static String origin(Attribute column, @Nullable FieldSemantics field, @Nullable Attribute datasetColumn) {

@@ -37,12 +37,18 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * An authenticated query over a multi-file external Parquet dataset must return rows on a security-enabled cluster.
  *
- * <p>Two conditions make this a gate rather than a coincidence. The dataset declares its columns through {@code mappings}, which
- * resolves one anchor footer and leaves the others for split discovery, so discovery is the first read of every other file. And
- * {@code esql.external.max_concurrent_requests=1} (see {@link Clusters#securityEnabledTestCluster}) gives the external IO pool one
- * thread, so each later footer read is submitted by a thread released by the previous read's completion. A continuation that resumes
+ * <p>Three conditions make this able to fail. The dataset declares its columns through {@code mappings}, which resolves one anchor
+ * footer and leaves the others for split discovery, so discovery is the first read of every other file. {@code
+ * esql.external.max_concurrent_requests=1} (see {@link Clusters#securityEnabledTestCluster}) gives the external IO pool one thread,
+ * so each later footer read is submitted by a thread released by the previous read's completion. And the cluster has three nodes,
+ * because a single node runs the query locally and never sends the compute action over the transport. A continuation that resumes
  * with no security context then fails the internal compute action with
  * {@code there should always be a user when sending a message for action [indices:data/read/esql/compute]}.
+ *
+ * <p>This test is a gate for the read-completion hand-off only when the other layers that restore the security context
+ * ({@code ComputeService.restoreContextOnCompletion}, the {@code ExternalIoExecutors.restoring} contexts in {@code ComputeService}
+ * and {@code ExternalSourceResolver}) are absent. With them in place it may pass without the {@code RetryableStorageObject}
+ * wrapping, so {@code RetryableStorageObjectTests} is the guard for that wrapping.
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class ParquetDatasetSecurityIT extends AbstractFromDatasetSubqueryRestTestCase {

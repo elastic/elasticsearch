@@ -136,7 +136,7 @@ public final class EsqlStreamResultsIndex {
     public static SystemIndexDescriptor getSystemIndexDescriptor() {
         return SystemIndexDescriptor.builder()
             .setIndexPattern(INDEX + "*")
-            .setDescription("Pages of streamed ES|QL results")
+            .setDescription("Streamed ES|QL results")
             .setPrimaryIndex(INDEX)
             .setMappings(mappings())
             .setSettings(settings())

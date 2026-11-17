@@ -239,22 +239,23 @@ public class OptimizedReaderFileVariantTests extends ESTestCase {
         OutputFile outputFile = createOutputFile(outputStream);
         SimpleGroupFactory groupFactory = new SimpleGroupFactory(schema);
 
-        try (
-            ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
-                .withConf(new PlainParquetConfiguration())
-                .withDictionaryEncoding(true)
-                .withCodecFactory(
-                    unframedLz4
-                        ? LegacyLz4HadoopFramedCodecFactory.forCodecUnframedLz4(codec)
-                        : LegacyLz4HadoopFramedCodecFactory.forCodec(codec)
-                )
-                .withType(schema)
-                .withCompressionCodec(codec)
-                .withWriterVersion(writerVersion)
-                .withRowGroupSize(rowGroupSize)
-                .withPageSize(pageSize)
-                .build()
-        ) {
+        ExampleParquetWriter.Builder builder = ExampleParquetWriter.builder(outputFile)
+            .withConf(new PlainParquetConfiguration())
+            .withCodecFactory(
+                unframedLz4
+                    ? LegacyLz4HadoopFramedCodecFactory.forCodecUnframedLz4(codec)
+                    : LegacyLz4HadoopFramedCodecFactory.forCodec(codec)
+            )
+            .withType(schema)
+            .withCompressionCodec(codec)
+            .withWriterVersion(writerVersion)
+            .withRowGroupSize(rowGroupSize)
+            .withPageSize(pageSize);
+        if (unframedLz4) {
+            builder.withDictionaryEncoding(true);
+        }
+
+        try (ParquetWriter<Group> writer = builder.build()) {
             for (int i = 0; i < rowCount; i++) {
                 Group g = groupFactory.newGroup();
                 g.add("id", (long) i);
@@ -266,7 +267,7 @@ public class OptimizedReaderFileVariantTests extends ESTestCase {
                 if (nullable && i % 5 == 0) {
                     // leave value null
                 } else {
-                    g.add("value", (i % 8) * 10);
+                    g.add("value", unframedLz4 ? (i % 8) * 10 : i * 10);
                 }
                 if (nullable && i % 7 == 0) {
                     // leave score null

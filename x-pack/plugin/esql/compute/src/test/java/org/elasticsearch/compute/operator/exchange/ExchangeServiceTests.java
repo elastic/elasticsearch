@@ -739,7 +739,8 @@ public class ExchangeServiceTests extends ESTestCase {
         assertThat(coordinatorBreaker.peak(), greaterThanOrEqualTo(secondBlockBytes + secondSerializedBytes));
         // Charging every byte that arrives on top of the estimate would count the estimate twice.
         assertThat(coordinatorBreaker.peak(), lessThan(secondBlockBytes + secondSerializedBytes + estimate / 2));
-        assertThat(coordinatorBreaker.getUsed(), equalTo(0L));
+        // The estimate is refunded after the response listener returns, which can be after the future completes.
+        assertBusy(() -> assertThat(coordinatorBreaker.getUsed(), equalTo(0L)));
     }
 
     public void testCoordinatorRejectsFirstPageWhileItArrives() throws Exception {

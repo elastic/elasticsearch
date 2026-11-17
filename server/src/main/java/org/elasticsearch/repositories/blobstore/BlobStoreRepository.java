@@ -3797,9 +3797,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     throw new IndexShardSnapshotFailedException(shardId, "Failed to write commit point", e);
                 }
                 afterWriteSnapBlob.run();
-                if (writeShardGens) {
-                    notifyShardGenerationWritten(context.indexId(), shardId.id(), indexGeneration, updatedBlobStoreIndexShardSnapshots);
-                }
                 final ShardSnapshotResult shardSnapshotResult = new ShardSnapshotResult(
                     indexGeneration,
                     ByteSizeValue.ofBytes(blobStoreIndexShardSnapshot.totalSize()),

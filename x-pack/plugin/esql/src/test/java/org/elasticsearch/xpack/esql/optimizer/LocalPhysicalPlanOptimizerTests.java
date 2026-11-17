@@ -3432,7 +3432,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var readDims = plan.collect(ReadDimsExec.class);
         assertThat(readDims, hasSize(1));
         assertThat(readDims.getFirst().dims().getFirst(), instanceOf(TimeSeriesMetadataAttribute.class));
-        assertTrue(GoldenTestCase.readsTimeSeriesMetadataOncePerSeries(plan));
+        assertTrue(GoldenTestCase.checkTimeSeriesMetadataLoadOncePerTimeSeries(plan));
     }
 
     /**
@@ -3472,7 +3472,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         };
         var plan = PlannerUtils.localPlan(physicalPlan, logicalOptimizer, physicalOptimizer, null);
         assertThat(plan.collect(ReadDimsExec.class), hasSize(0));
-        assertFalse(GoldenTestCase.readsTimeSeriesMetadataOncePerSeries(plan));
+        assertFalse(GoldenTestCase.checkTimeSeriesMetadataLoadOncePerTimeSeries(plan));
     }
 
     /**

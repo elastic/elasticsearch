@@ -1064,7 +1064,7 @@ public abstract class GoldenTestCase extends ESTestCase {
             );
             assertTrue(
                 "[" + MetadataAttribute.TIMESERIES + "] is loaded per document below a time-series aggregation:\n" + localPlan,
-                readsTimeSeriesMetadataOncePerSeries(localPlan)
+                checkTimeSeriesMetadataLoadOncePerTimeSeries(localPlan)
             );
             return localPlan;
         }
@@ -1148,7 +1148,7 @@ public abstract class GoldenTestCase extends ESTestCase {
      * until every node supports {@code dimension_values} and an explicit {@code STATS VALUES(_timeseries)} load it per
      * document on purpose.
      */
-    static boolean readsTimeSeriesMetadataOncePerSeries(PhysicalPlan plan) {
+    static boolean checkTimeSeriesMetadataLoadOncePerTimeSeries(PhysicalPlan plan) {
         return plan.collect(TimeSeriesAggregateExec.class, agg -> agg.getMode().isInputPartial() == false).stream().allMatch(agg -> {
             AttributeSet.Builder valuesFields = AttributeSet.builder();
             for (NamedExpression aggregate : agg.aggregates()) {

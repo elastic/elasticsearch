@@ -445,7 +445,8 @@ public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpre
         if (EsqlCapabilities.Cap.FIELD_EXTRACT_FLATTENED_PUSHDOWN.isEnabled() == false) {
             return Optional.empty();
         }
-        return foldedKeyForFlattenedRoot().filter(k -> pushdownPredicates.isQueryable(k.root()))
+        return foldedKeyForFlattenedRoot().filter(k -> LucenePushdownPredicates.valuesAreInQueriedDocuments(k.root()))
+            .filter(k -> pushdownPredicates.isQueryable(k.root()))
             .filter(k -> pushdownPredicates.isIndexed(k.root()))
             .filter(
                 k -> pushdownPredicates.supportsLoaderConfig(

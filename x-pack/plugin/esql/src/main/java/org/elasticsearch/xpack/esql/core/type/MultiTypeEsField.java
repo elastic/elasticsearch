@@ -54,9 +54,10 @@ public final class MultiTypeEsField extends UnionTypeEsField {
         boolean aggregatable,
         Map<String, Expression> indexToConversionExpressions,
         TimeSeriesFieldType timeSeriesFieldType,
-        @Nullable Expression potentiallyUnmappedExpression
+        @Nullable Expression potentiallyUnmappedExpression,
+        boolean isUnderNested
     ) {
-        super(name, dataType, Map.of(), aggregatable, timeSeriesFieldType);
+        super(name, dataType, Map.of(), aggregatable, timeSeriesFieldType, isUnderNested);
         this.indexToConversionExpressions = indexToConversionExpressions;
         this.potentiallyUnmappedExpression = potentiallyUnmappedExpression;
     }
@@ -68,7 +69,8 @@ public final class MultiTypeEsField extends UnionTypeEsField {
             in.readBoolean(),
             in.readImmutableMap(i -> i.readNamedWriteable(Expression.class)),
             readTimeSeriesFieldType(in),
-            in.getTransportVersion().supports(POTENTIALLY_UNMAPPED_EXPRESSION) ? in.readOptionalNamedWriteable(Expression.class) : null
+            in.getTransportVersion().supports(POTENTIALLY_UNMAPPED_EXPRESSION) ? in.readOptionalNamedWriteable(Expression.class) : null,
+            readUnderNested(in)
         );
     }
 
@@ -82,6 +84,7 @@ public final class MultiTypeEsField extends UnionTypeEsField {
         if (out.getTransportVersion().supports(POTENTIALLY_UNMAPPED_EXPRESSION)) {
             out.writeOptionalNamedWriteable(potentiallyUnmappedExpression);
         }
+        writeUnderNested(out);
     }
 
     public String getWriteableName(TransportVersion transportVersion) {
@@ -119,7 +122,8 @@ public final class MultiTypeEsField extends UnionTypeEsField {
             isAggregatable(),
             UnionTypeEsField.replaceChildrenWithExpressionField(indexToConversionExpressions, convertExpression),
             getTimeSeriesFieldType(),
-            potentiallyUnmappedExpression
+            potentiallyUnmappedExpression,
+            isUnderNested()
         );
     }
 
@@ -135,7 +139,8 @@ public final class MultiTypeEsField extends UnionTypeEsField {
             isAggregatable(),
             indexToConversionExpressions,
             getTimeSeriesFieldType(),
-            potentiallyUnmappedExpression
+            potentiallyUnmappedExpression,
+            isUnderNested()
         );
     }
 
@@ -157,7 +162,8 @@ public final class MultiTypeEsField extends UnionTypeEsField {
             false,
             indexToConversionExpressions,
             typeConflictedField.getTimeSeriesFieldType(),
-            null
+            null,
+            typeConflictedField.isUnderNested()
         );
     }
 

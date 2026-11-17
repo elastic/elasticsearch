@@ -336,6 +336,7 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction
         return exp instanceof FieldAttribute fa
             && fa.field() instanceof FunctionEsField == false
             && DataType.isSpatial(fa.dataType())
+            && LucenePushdownPredicates.valuesAreInQueriedDocuments(fa)
             && fa.getExactInfo().hasExact()
             && p.isIndexed(fa);
     }

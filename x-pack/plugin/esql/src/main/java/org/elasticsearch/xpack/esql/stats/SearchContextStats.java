@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute.FieldName;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.index.NestedLeaves;
 import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 
@@ -118,7 +119,15 @@ public class SearchContextStats implements SearchStats {
         // even if there are deleted documents, check the existence of a field
         // since if it's missing, deleted documents won't change that
         for (SearchExecutionContext context : contexts) {
-            if (isExtractableMappedField(context, field)) {
+            if (isFlattenedNestedField(context, field)) {
+                // Read from the child documents: the parent's index and doc values hold none of its values, and there is no
+                // field type of the parent to take its min or max from
+                exists = true;
+                mixedFieldType = true;
+                indexed = false;
+                hasDocValues = false;
+                hasExactSubfield = false;
+            } else if (isExtractableMappedField(context, field)) {
                 MappedFieldType type = context.getFieldType(field);
                 if (fieldType == null) {
                     fieldType = type;
@@ -148,7 +157,7 @@ public class SearchContextStats implements SearchStats {
 
     private boolean fastNoCacheFieldExists(String field) {
         for (SearchExecutionContext context : contexts) {
-            if (isExtractableMappedField(context, field)) {
+            if (isExtractableMappedField(context, field) || isFlattenedNestedField(context, field)) {
                 return true;
             }
         }
@@ -166,7 +175,16 @@ public class SearchContextStats implements SearchStats {
     }
 
     private static boolean isNestedSubfield(SearchExecutionContext context, String field) {
-        return context.nestedLookup().hasNestedParent(field);
+        return NestedLeaves.childPath(context.getMappingLookup(), field) != null;
+    }
+
+    /**
+     * A field under a nested object, which ES|QL reads from the parent's child documents as one multivalued column (see
+     * {@link NestedLeaves#ENABLED}). It exists, but the parent's index and doc values hold none of its values.
+     */
+    public static boolean isFlattenedNestedField(SearchExecutionContext context, String field) {
+        // Not isMappedField, which is also true of a field ES|QL reads from _source
+        return NestedLeaves.ENABLED && context.getMappingLookup().getFieldType(field) != null && isNestedSubfield(context, field);
     }
 
     @Override
@@ -326,6 +344,10 @@ public class SearchContextStats implements SearchStats {
             // but field caps does not report it — see #154508) or a nested subfield (IndexResolver
             // applies -nested on the field-caps request; counting nested Lucene docs would disagree
             // with extraction — #154011).
+            if (isFlattenedNestedField(context, field.string())) {
+                // Can't use the count: the values are in the child documents
+                return stat.count = -1L;
+            }
             if (isExtractableMappedField(context, field.string()) == false) {
                 continue;
             }
@@ -644,6 +666,10 @@ public class SearchContextStats implements SearchStats {
     private boolean doWithFieldLeafReaders(String field, FieldLeafReaderTester tester) {
         try {
             for (SearchExecutionContext context : contexts) {
+                if (isFlattenedNestedField(context, field)) {
+                    // The leaves of the parent documents hold none of the values, so they prove nothing
+                    return false;
+                }
                 if (isExtractableMappedField(context, field) == false) {
                     continue;
                 }

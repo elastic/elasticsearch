@@ -17,6 +17,7 @@ import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
+import org.elasticsearch.xpack.esql.index.NestedLeaves;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredOrNullAggWithEval;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
@@ -4901,6 +4902,12 @@ public class EsqlCapabilities {
          * The {@code INTO} command, which writes a query's rows into an index and returns a summary row of total and created counts.
          */
         INTO_COMMAND(Build.current().isSnapshot()),
+
+        /**
+         * A field under a {@code nested} object is an ordinary multivalued column, read from the parent's child documents, rather
+         * than left out of the mapping. The nested object itself is not a column.
+         */
+        NESTED_FLATTENED_LEAVES(NestedLeaves.ENABLED),
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

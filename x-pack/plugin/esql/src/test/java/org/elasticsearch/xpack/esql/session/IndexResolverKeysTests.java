@@ -17,6 +17,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.index.NestedLeaves;
 
 import java.util.HashMap;
 import java.util.List;
@@ -24,6 +25,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * A name the query uses under a {@code flattened} field is the {@code keyword} key of that name, unless an index maps it as a leaf.
@@ -86,6 +88,40 @@ public class IndexResolverKeysTests extends ESTestCase {
         );
         assertThat(mapping.get("attrs").getDataType(), equalTo(DataType.FLATTENED));
         assertThat(mapping.get("attrs").getProperties().get("bar").getDataType(), equalTo(DataType.KEYWORD));
+    }
+
+    /** A key of a flattened field under a nested object is read from the child documents, like the fields mapped there. */
+    public void testAKeyUnderANestedObjectIsUnderNested() {
+        assumeTrue("snapshot builds read the fields under a nested object", NestedLeaves.ENABLED);
+        Map<String, EsField> mapping = resolve(
+            new IndexResolver.NamedFields(Set.of("items.attrs.env"), Set.of()),
+            index("orders", field("items", "nested"), field("items.attrs", "flattened"))
+        );
+        EsField env = mapping.get("items").getProperties().get("attrs").getProperties().get("env");
+        assertThat(env.getDataType(), equalTo(DataType.KEYWORD));
+        assertThat(env.isUnderNested(), equalTo(true));
+        assertThat(env.isAggregatable(), equalTo(true));
+    }
+
+    /** A nested object only shapes the fields under it, so where another index maps its name, a name under a flattened field is a key. */
+    public void testANestedObjectIsNotALeaf() {
+        assumeTrue("snapshot builds read the fields under a nested object", NestedLeaves.ENABLED);
+        Map<String, EsField> mapping = resolve(
+            TransportVersion.current(),
+            index("flat", field("attrs", "flattened")),
+            index("nest", field("attrs", "object"), field("attrs.bar", "nested"))
+        );
+        assertThat(mapping.get("attrs").getProperties().get("bar").getDataType(), equalTo(DataType.KEYWORD));
+    }
+
+    /** With a node that can't read the child documents, the flattened field under the nested object and its keys are left out. */
+    public void testWithAnOlderNodeAKeyUnderANestedObjectIsLeftOut() {
+        Map<String, EsField> mapping = resolve(
+            TransportVersionUtils.getPreviousVersion(NestedLeaves.VERSION),
+            new IndexResolver.NamedFields(Set.of("items.attrs.env"), Set.of()),
+            index("orders", field("items", "nested"), field("items.attrs", "flattened"))
+        );
+        assertThat(mapping.get("items"), nullValue());
     }
 
     private static Map<String, EsField> resolve(TransportVersion minimumVersion, FieldCapabilitiesIndexResponse... indices) {

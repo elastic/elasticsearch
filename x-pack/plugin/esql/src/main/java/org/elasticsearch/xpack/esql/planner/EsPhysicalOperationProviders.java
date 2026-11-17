@@ -55,6 +55,7 @@ import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.UnmappedFields;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
+import org.elasticsearch.index.mapper.blockloader.Warnings;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
@@ -83,6 +84,7 @@ import org.elasticsearch.xpack.esql.core.expression.TemporalityAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
@@ -90,6 +92,8 @@ import org.elasticsearch.xpack.esql.expression.function.BlockLoaderWarnings;
 import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedFlattenOperator;
+import org.elasticsearch.xpack.esql.index.NestedLeaves;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -102,6 +106,7 @@ import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.DriverParallelism;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
+import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -225,7 +230,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
 
         public boolean isExtractableMappedField(String name) {
-            return isMappedField(name) && mappingLookup().nestedLookup().hasNestedParent(name) == false;
+            return isMappedField(name) && NestedLeaves.childPath(mappingLookup(), name) == null;
         }
     }
 
@@ -279,7 +284,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         boolean reuseColumnLoaders = fieldExtractExec.attributesToExtract().size() <= plannerSettings.reuseColumnLoadersThreshold();
         int docSequenceThreshold = context.queryPragmas()
             .docSequenceBytesRefFieldThreshold(plannerSettings.docSequenceBytesRefFieldThreshold());
-        return source.with(
+        Layout extracted = layout.build();
+        PhysicalOperation operation = source.with(
             new ValuesSourceReaderOperator.Factory(
                 plannerSettings.valuesLoadingJumboSize(),
                 fields,
@@ -290,8 +296,63 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 docSequenceThreshold,
                 directoryBytesRead
             ),
-            layout.build()
+            extracted
         );
+        // The node-reduce driver is planned before every shard of the node is acquired, so only the pages can tell
+        boolean knowsEveryShard = ComputeService.REDUCE_DESCRIPTION.equals(context.description()) == false;
+        List<NestedFlattenOperator.Leaf> leaves = nestedLeaves(fieldExtractExec, extracted, knowsEveryShard);
+        if (leaves.isEmpty() == false) {
+            operation = operation.with(new NestedFlattenOperator.Factory(shardContexts, docChannel, leaves, plannerSettings), extracted);
+        }
+        return operation;
+    }
+
+    /**
+     * The fields to read from the child documents of the shards that map them under a nested object. Only those IndexResolver
+     * resolved as {@link EsField#isUnderNested}, which it does only where every node reads them: an older node loads null for
+     * the others, so a shard here must too.
+     */
+    // Visible for testing
+    List<NestedFlattenOperator.Leaf> nestedLeaves(FieldExtractExec fieldExtractExec, Layout extracted, boolean knowsEveryShard) {
+        if (NestedLeaves.ENABLED == false) {
+            return List.of();
+        }
+        List<NestedFlattenOperator.Leaf> leaves = new ArrayList<>();
+        for (Attribute attr : fieldExtractExec.attributesToExtract()) {
+            // An unsupported field, such as one whose indices disagree on its type, is null everywhere
+            if (attr instanceof FieldAttribute == false || attr.dataType() == DataType.UNSUPPORTED) {
+                continue;
+            }
+            EsField field = ((FieldAttribute) attr).field();
+            if (field.isUnderNested() == false) {
+                continue;
+            }
+            String name = getFieldName(attr);
+            // A union type or a fused function is converted as it is loaded, and a preference such as spatial doc values or
+            // bounds loads another representation; the child values are neither
+            boolean converted = field instanceof UnionTypeEsField
+                || field instanceof FunctionEsField
+                || PlannerUtils.toElementType(attr.dataType(), fieldExtractExec.fieldExtractPreference(attr)) != PlannerUtils.toElementType(
+                    attr.dataType()
+                );
+            if (knowsEveryShard) {
+                boolean nested = false;
+                for (ShardContext shard : shardContexts.iterable()) {
+                    nested |= NestedFlattenOperator.nestedPath(shard, name) != null;
+                }
+                if (nested == false) {
+                    continue;
+                }
+            }
+            ValuesSourceReaderOperator.ConverterFactory keyCast = null;
+            if (converted == false && DataType.isString(attr.dataType()) == false) {
+                ReferenceAttribute keyword = new ReferenceAttribute(attr.source(), name, DataType.KEYWORD);
+                AbstractConvertFunction cast = EsqlDataTypeConverter.castFromKeyword(attr.dataType(), keyword, configuration);
+                keyCast = cast == null ? null : new TypeConverter((EsqlScalarFunction) cast);
+            }
+            leaves.add(new NestedFlattenOperator.Leaf(name, extracted.get(attr.id()).channel(), attr.dataType(), converted, keyCast));
+        }
+        return leaves;
     }
 
     @Override
@@ -895,7 +956,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
 
         /** Whether this shard reads the field {@code name} as the key of a {@code flattened} field, a {@code keyword}. */
-        boolean readsKey(String name) {
+        public boolean readsKey(String name) {
             return ctx instanceof EsqlSearchExecutionContext esql && esql.readsKey(name);
         }
 
@@ -1010,7 +1071,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             }
             // Exclude fields that field caps hides from the coordinator so the shard does not load a differently-typed block:
             // - flattened sub-keys: fieldType() is non-null but the key is not in the mapping (#154508)
-            // - nested subfields: mapped, but IndexResolver applies -nested on the field-caps request (#154011)
+            // - nested subfields: mapped, but the parent document holds none of their values (#154011). Where ES|QL reads them,
+            // NestedFlattenOperator replaces these nulls with the values of the child documents.
             // Only dotted names can be either, so gating the extra probes on the dot keeps flat names (the common case)
             // at a single resolution.
             if (name.indexOf('.') > 0 && isExtractableMappedField(name) == false) {
@@ -1035,6 +1097,53 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             }
 
             return loader;
+        }
+
+        /**
+         * Loads the {@code _source} of a hidden child document of a nested field: the object it was indexed from, taken from the
+         * parent's {@code _source}. Child documents store no {@code _source}, so a child field without doc values reads it from
+         * here. Takes the whole parent source, as a filter could drop objects and shift the others.
+         */
+        public SourceLoader newNestedChildSourceLoader() {
+            return ctx.getMappingLookup().newNestedChildSourceLoader(ctx.getNestedDocuments());
+        }
+
+        /**
+         * Whether each document's {@code _source} was filtered by the mapping's {@code includes} or {@code excludes} as it was
+         * stored. Filtering drops the objects of a nested field that it empties, so the stored {@code _source} no longer tells
+         * which of a parent's objects each child document was indexed from.
+         */
+        public boolean storesFilteredSource() {
+            MappingLookup lookup = ctx.getMappingLookup();
+            SourceFieldMapper source = lookup.getMapping().getMetadataMapperByClass(SourceFieldMapper.class);
+            return lookup.isSourceEnabled() && lookup.isSourceSynthetic() == false && source != null && source.isComplete() == false;
+        }
+
+        /**
+         * Loads a field under a nested object from the hidden child documents. {@link #blockLoader} loads nulls for such a
+         * field, as the parent document holds none of its values.
+         */
+        public BlockLoader nestedChildBlockLoader(
+            String name,
+            Warnings warnings,
+            ByteSizeValue blockLoaderSizeOrdinals,
+            ByteSizeValue blockLoaderSizeScript
+        ) {
+            MappedFieldType fieldType = fieldType(name);
+            if (fieldType == null) {
+                return ConstantNull.INSTANCE;
+            }
+            BlockLoader loader = fieldType.blockLoader(
+                new EsqlBlockLoaderContext(
+                    ctx,
+                    MappedFieldType.FieldExtractPreference.NONE,
+                    null,
+                    warnings,
+                    blockLoaderSizeOrdinals,
+                    blockLoaderSizeScript
+                )
+            );
+            return loader == null ? ConstantNull.INSTANCE : loader;
         }
 
         @Override

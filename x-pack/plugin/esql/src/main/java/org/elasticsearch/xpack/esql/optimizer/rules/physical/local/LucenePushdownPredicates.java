@@ -163,7 +163,17 @@ public interface LucenePushdownPredicates {
         return exp instanceof FieldAttribute fa
             && fa.field() instanceof FunctionEsField == false
             && fa.field() instanceof UnionTypeEsField == false
+            && valuesAreInQueriedDocuments(fa)
             && hasValueQueries(fa);
+    }
+
+    /**
+     * Whether a Lucene query over this field runs on the documents that hold its values. A field under a nested object keeps
+     * them in its child documents, which a query on the parents doesn't see, so nothing over it is pushed, whatever the
+     * shards or field caps report about the field.
+     */
+    static boolean valuesAreInQueriedDocuments(FieldAttribute fa) {
+        return fa.field().isUnderNested() == false;
     }
 
     /**
@@ -179,6 +189,7 @@ public interface LucenePushdownPredicates {
         // field behind them, so predicates and TopN over them must stay in the compute engine even though they are exact values.
         if (exp instanceof FieldAttribute fa
             && fa.field() instanceof FunctionEsField == false
+            && valuesAreInQueriedDocuments(fa)
             && fa.getExactInfo().hasExact()
             && isQueryable(fa)) {
             return fa.dataType() != DataType.TEXT || hasExactSubfield(fa);
@@ -195,7 +206,7 @@ public interface LucenePushdownPredicates {
     }
 
     static boolean isPushableTextFieldAttribute(Expression exp) {
-        return exp instanceof FieldAttribute fa && fa.dataType() == DataType.TEXT;
+        return exp instanceof FieldAttribute fa && fa.dataType() == DataType.TEXT && valuesAreInQueriedDocuments(fa);
     }
 
     static boolean isPushableMetadataAttribute(Expression exp) {

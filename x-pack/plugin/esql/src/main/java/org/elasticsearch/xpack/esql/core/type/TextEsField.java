@@ -96,7 +96,33 @@ public class TextEsField extends EsField {
         UnknownAnalyzer unknownAnalyzer,
         @Nullable List<IndexAnalyzerGroup> analyzerGroups
     ) {
-        super(name, TEXT, properties, hasDocValues, isAlias, timeSeriesFieldType);
+        this(
+            name,
+            properties,
+            hasDocValues,
+            isAlias,
+            timeSeriesFieldType,
+            analyzerName,
+            positionIncrementGap,
+            unknownAnalyzer,
+            analyzerGroups,
+            false
+        );
+    }
+
+    public TextEsField(
+        String name,
+        Map<String, EsField> properties,
+        boolean hasDocValues,
+        boolean isAlias,
+        TimeSeriesFieldType timeSeriesFieldType,
+        @Nullable String analyzerName,
+        int positionIncrementGap,
+        UnknownAnalyzer unknownAnalyzer,
+        @Nullable List<IndexAnalyzerGroup> analyzerGroups,
+        boolean isUnderNested
+    ) {
+        super(name, TEXT, properties, hasDocValues, isAlias, timeSeriesFieldType, false, false, isUnderNested);
         assert (analyzerName != null) == (unknownAnalyzer == UnknownAnalyzer.NONE)
             : "analyzer [" + analyzerName + "] with unknown reason [" + unknownAnalyzer + "]";
         assert analyzerGroups == null || unknownAnalyzer == UnknownAnalyzer.CONFLICT;
@@ -120,7 +146,8 @@ public class TextEsField extends EsField {
             hasAnalyzer ? in.readOptionalString() : null,
             hasAnalyzer ? in.readVInt() : DEFAULT_POSITION_INCREMENT_GAP,
             hasAnalyzer ? in.readEnum(UnknownAnalyzer.class) : UnknownAnalyzer.NOT_REPORTED,
-            hasAnalyzer ? in.readOptionalCollectionAsList(IndexAnalyzerGroup::new) : null
+            hasAnalyzer ? in.readOptionalCollectionAsList(IndexAnalyzerGroup::new) : null,
+            readUnderNested(in)
         );
     }
 
@@ -135,7 +162,8 @@ public class TextEsField extends EsField {
             analyzerName,
             positionIncrementGap,
             unknownAnalyzer,
-            analyzerGroups
+            analyzerGroups,
+            isUnderNested()
         );
     }
 
@@ -153,6 +181,7 @@ public class TextEsField extends EsField {
             out.writeEnum(unknownAnalyzer);
             out.writeOptionalCollection(analyzerGroups);
         }
+        writeUnderNested(out);
     }
 
     public String analyzerName() {

@@ -5691,6 +5691,61 @@ public class VerifierTests extends AnalyzerTestCase {
         k8s().query("TS k8s | WHERE MATCH_PHRASE(event_log, \"quick fox\")");
     }
 
+    /**
+     * A field under a nested object has its values in the child documents, which a Lucene query on the parents misses, so
+     * searching it is rejected rather than silently dropping the parents that match.
+     */
+    public void testFullTextFunctionRejectedOnFieldUnderNested() {
+        var note = new TextEsField(
+            "note",
+            Map.of(),
+            false,
+            false,
+            EsField.TimeSeriesFieldType.NONE,
+            null,
+            TextEsField.DEFAULT_POSITION_INCREMENT_GAP,
+            TextEsField.UnknownAnalyzer.NOT_REPORTED,
+            null,
+            true
+        );
+        var tag = new KeywordEsField("tag", Map.of(), false, Short.MAX_VALUE, false, false, EsField.TimeSeriesFieldType.NONE, false, true);
+        var v = new EsField("v", DataType.DENSE_VECTOR, Map.of(), false, false, EsField.TimeSeriesFieldType.NONE, false, false, true);
+        var items = new EsField(
+            "items",
+            DataType.OBJECT,
+            Map.of("note", note, "tag", tag, "v", v),
+            false,
+            EsField.TimeSeriesFieldType.NONE
+        );
+        var title = new TextEsField("title", Map.of(), false, false, EsField.TimeSeriesFieldType.NONE);
+        Map<String, EsField> mapping = Map.of("items", items, "title", title);
+        TestAnalyzer analyzer = analyzer().addIndex("test", IndexResolution.valid(EsIndexGenerator.esIndex("test", mapping)))
+            .stripErrorPrefix(true);
+
+        String unsupported = "Searching nested child fields is not supported yet.";
+        analyzer.error(
+            "FROM test | WHERE MATCH(items.note, \"hello\")",
+            equalTo("1:25: [MATCH] function cannot search [items.note]: " + unsupported)
+        );
+        analyzer.error(
+            "FROM test | WHERE items.note : \"hello\"",
+            equalTo("1:19: [:] operator cannot search [items.note]: " + unsupported)
+        );
+        analyzer.error(
+            "FROM test | WHERE MATCH(items.tag, \"x\", {\"lenient\": true})",
+            equalTo("1:25: [MATCH] function cannot search [items.tag]: " + unsupported)
+        );
+        analyzer.error(
+            "FROM test | WHERE MATCH_PHRASE(items.note, \"hello world\")",
+            equalTo("1:32: [MATCH_PHRASE] function cannot search [items.note]: " + unsupported)
+        );
+        analyzer.error(
+            "FROM test | WHERE KNN(items.v, [1, 0, 0], {\"k\": 1})",
+            equalTo("1:23: [KNN] function cannot search [items.v]: " + unsupported)
+        );
+        analyzer.query("FROM test | WHERE MATCH(title, \"hello\")");
+    }
+
     public void testKnnAcceptedOnTimeSeriesField() {
         fullTextTimeSeries().query("TS test | WHERE KNN(vector, [0, 1, 2])");
     }

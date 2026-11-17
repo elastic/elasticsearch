@@ -20,8 +20,10 @@ import org.elasticsearch.xpack.esql.expression.function.vector.L1Norm;
 import org.elasticsearch.xpack.esql.expression.function.vector.L2Norm;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomSerializableEsField;
+import static org.hamcrest.Matchers.equalTo;
 
 public class FunctionEsFieldTests extends AbstractEsFieldTypeTests<FunctionEsField> {
     @Override
@@ -45,6 +47,22 @@ public class FunctionEsFieldTests extends AbstractEsFieldTypeTests<FunctionEsFie
         }
 
         return new FunctionEsField(esField, dataType, functionConfig);
+    }
+
+    /** A function fused into a field under a nested object is still read from the children of the shards that nest it. */
+    public void testKeepsUnderNested() {
+        EsField esField = new EsField(
+            "f",
+            DataType.DENSE_VECTOR,
+            Map.of(),
+            false,
+            false,
+            EsField.TimeSeriesFieldType.NONE,
+            false,
+            false,
+            true
+        );
+        assertThat(new FunctionEsField(esField, DataType.DOUBLE, randomFunctionConfig()).isUnderNested(), equalTo(true));
     }
 
     private DenseVectorFieldMapper.VectorSimilarityFunctionConfig randomFunctionConfig() {

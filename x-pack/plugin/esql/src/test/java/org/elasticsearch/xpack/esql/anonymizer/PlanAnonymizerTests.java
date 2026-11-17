@@ -323,7 +323,8 @@ public class PlanAnonymizerTests extends ESTestCase {
             true,
             conversions,
             EsField.TimeSeriesFieldType.NONE,
-            null
+            null,
+            false
         );
         FieldAttribute outer = new FieldAttribute(Source.EMPTY, null, null, "outer_conflict", mtf);
         EsRelation rel = new EsRelation(

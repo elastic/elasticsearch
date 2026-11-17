@@ -736,6 +736,16 @@ public final class MappingLookup {
         return filter == null ? SourceLoader.FROM_STORED_SOURCE : new SourceLoader.Stored(filter);
     }
 
+    /**
+     * Build something to load the {@code _source} of the hidden child documents of nested fields, for ES|QL to read child fields
+     * without doc values from. Child documents store no {@code _source}, so each gets the object it was indexed from, taken from
+     * its parent's {@code _source} whether that is stored or synthetic. A parent document gets its own {@code _source}.
+     */
+    public SourceLoader newNestedChildSourceLoader(NestedDocuments nestedDocuments) {
+        SourceLoader parentLoader = newSourceLoader(null, SourceFieldMetrics.NOOP, null);
+        return nestedLookup == NestedLookup.EMPTY ? parentLoader : new NestedChildSourceLoader(parentLoader, nestedDocuments);
+    }
+
     private SourceFilter removeExcludedSyntheticVectorFields(@Nullable SourceFilter filter) {
         if (filter == null || filter.getExcludes().length == 0) {
             return filter;

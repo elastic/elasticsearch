@@ -12,7 +12,9 @@ import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -107,8 +109,31 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, TelemetryA
     @Override
     public void postAnalysisVerification(Failures failures) {
         super.postAnalysisVerification(failures);
+        checkNotUnderNested(failures);
         if (executesOn() == ExecuteLocation.REMOTE) {
             checkRemoteJoin(failures);
+        }
+    }
+
+    /**
+     * The lookup index is searched for the join keys, but under a nested object the parent's index holds none of their values.
+     */
+    private void checkNotUnderNested(Failures failures) {
+        AttributeSet.Builder keys = AttributeSet.builder().addAll(config().rightFields());
+        if (config().joinOnConditions() != null) {
+            AttributeSet rightOutput = right().outputSet();
+            config().joinOnConditions().references().forEach(a -> {
+                if (rightOutput.contains(a)) {
+                    keys.add(a);
+                }
+            });
+        }
+        for (Attribute key : keys.build()) {
+            if (key instanceof FieldAttribute fa && fa.field().isUnderNested()) {
+                failures.add(
+                    fail(key, "LOOKUP JOIN cannot match on [{}]: matching on nested child fields is not supported yet", key.name())
+                );
+            }
         }
     }
 

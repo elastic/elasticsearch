@@ -11,6 +11,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
+import org.elasticsearch.xpack.esql.index.NestedLeaves;
 
 import java.util.Map;
 
@@ -34,6 +35,12 @@ public class KeywordEsFieldTests extends AbstractEsFieldTypeTests<KeywordEsField
         );
     }
 
+    public void testUnderNestedSerialization() throws Exception {
+        var field = new KeywordEsField("k", Map.of(), false, Short.MAX_VALUE, false, false, EsField.TimeSeriesFieldType.NONE, false, true);
+        assertThat(copyInstance(field, NestedLeaves.VERSION).isUnderNested(), is(true));
+        assertThat(copyInstance(field, TransportVersionUtils.getPreviousVersion(NestedLeaves.VERSION)).isUnderNested(), is(false));
+    }
+
     @Override
     protected KeywordEsField mutateInstance(KeywordEsField instance) {
         String name = instance.getName();
@@ -44,7 +51,8 @@ public class KeywordEsFieldTests extends AbstractEsFieldTypeTests<KeywordEsField
         boolean isAlias = instance.isAlias();
         EsField.TimeSeriesFieldType tsType = instance.getTimeSeriesFieldType();
         boolean isStaticallySingleValued = instance.isStaticallySingleValued();
-        switch (between(0, 7)) {
+        boolean isUnderNested = instance.isUnderNested();
+        switch (between(0, 8)) {
             case 0 -> name = randomAlphaOfLength(name.length() + 1);
             case 1 -> properties = randomValueOtherThan(properties, () -> randomProperties(4));
             case 2 -> hasDocValues = false == hasDocValues;
@@ -53,8 +61,19 @@ public class KeywordEsFieldTests extends AbstractEsFieldTypeTests<KeywordEsField
             case 5 -> isAlias = false == isAlias;
             case 6 -> tsType = randomValueOtherThan(tsType, () -> randomFrom(EsField.TimeSeriesFieldType.values()));
             case 7 -> isStaticallySingleValued = false == isStaticallySingleValued;
+            case 8 -> isUnderNested = false == isUnderNested;
             default -> throw new IllegalArgumentException();
         }
-        return new KeywordEsField(name, properties, hasDocValues, precision, normalized, isAlias, tsType, isStaticallySingleValued);
+        return new KeywordEsField(
+            name,
+            properties,
+            hasDocValues,
+            precision,
+            normalized,
+            isAlias,
+            tsType,
+            isStaticallySingleValued,
+            isUnderNested
+        );
     }
 }

@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.index.NestedLeaves;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
@@ -130,6 +131,7 @@ public class EsField implements Writeable {
     private final TimeSeriesFieldType timeSeriesFieldType;
     private final boolean isPassthrough;
     private final boolean isStaticallySingleValued;
+    private final boolean isUnderNested;
 
     public EsField(
         String name,
@@ -174,6 +176,20 @@ public class EsField implements Writeable {
         boolean isPassthrough,
         boolean isStaticallySingleValued
     ) {
+        this(name, esDataType, properties, aggregatable, isAlias, timeSeriesFieldType, isPassthrough, isStaticallySingleValued, false);
+    }
+
+    public EsField(
+        String name,
+        DataType esDataType,
+        Map<String, EsField> properties,
+        boolean aggregatable,
+        boolean isAlias,
+        TimeSeriesFieldType timeSeriesFieldType,
+        boolean isPassthrough,
+        boolean isStaticallySingleValued,
+        boolean isUnderNested
+    ) {
         this.name = name;
         this.esDataType = esDataType;
         this.aggregatable = aggregatable;
@@ -182,6 +198,7 @@ public class EsField implements Writeable {
         this.timeSeriesFieldType = timeSeriesFieldType;
         this.isPassthrough = isPassthrough;
         this.isStaticallySingleValued = isStaticallySingleValued;
+        this.isUnderNested = isUnderNested;
     }
 
     public EsField(StreamInput in) throws IOException {
@@ -193,6 +210,7 @@ public class EsField implements Writeable {
         this.timeSeriesFieldType = readTimeSeriesFieldType(in);
         this.isPassthrough = in.getTransportVersion().supports(ESQL_SERIALIZE_PASSTHROUGH_FIELD) && in.readBoolean();
         this.isStaticallySingleValued = readStaticallySingleValued(in);
+        this.isUnderNested = readUnderNested(in);
     }
 
     protected static boolean readStaticallySingleValued(StreamInput in) throws IOException {
@@ -202,6 +220,17 @@ public class EsField implements Writeable {
     protected void writeStaticallySingleValued(StreamOutput out) throws IOException {
         if (out.getTransportVersion().supports(ESQL_SERIALIZE_SINGLE_VALUED_FIELD)) {
             out.writeBoolean(isStaticallySingleValued);
+        }
+    }
+
+    protected static boolean readUnderNested(StreamInput in) throws IOException {
+        // Only a node on this version reads the fields under a nested object, so no older node is sent one
+        return in.getTransportVersion().supports(NestedLeaves.VERSION) && in.readBoolean();
+    }
+
+    protected void writeUnderNested(StreamOutput out) throws IOException {
+        if (out.getTransportVersion().supports(NestedLeaves.VERSION)) {
+            out.writeBoolean(isUnderNested);
         }
     }
 
@@ -230,6 +259,7 @@ public class EsField implements Writeable {
             out.writeBoolean(isPassthrough);
         }
         writeStaticallySingleValued(out);
+        writeUnderNested(out);
     }
 
     protected void writeTimeSeriesFieldType(StreamOutput out) throws IOException {
@@ -282,7 +312,8 @@ public class EsField implements Writeable {
                 isAlias,
                 timeSeriesFieldType,
                 isPassthrough,
-                isStaticallySingleValued
+                isStaticallySingleValued,
+                isUnderNested
             );
     }
 
@@ -319,7 +350,8 @@ public class EsField implements Writeable {
             isAlias,
             timeSeriesFieldType,
             isPassthrough,
-            isStaticallySingleValued
+            isStaticallySingleValued,
+            isUnderNested
         );
     }
 
@@ -346,6 +378,14 @@ public class EsField implements Writeable {
      */
     public boolean isStaticallySingleValued() {
         return isStaticallySingleValued;
+    }
+
+    /**
+     * Whether some index maps this field under a {@code nested} object. Its values are in the child documents there, which
+     * the parent's index does not hold, so a search on it can't run as a Lucene query on the parents.
+     */
+    public boolean isUnderNested() {
+        return isUnderNested;
     }
 
     /**
@@ -391,6 +431,7 @@ public class EsField implements Writeable {
             && isAlias == field.isAlias
             && isPassthrough == field.isPassthrough
             && isStaticallySingleValued == field.isStaticallySingleValued
+            && isUnderNested == field.isUnderNested
             && esDataType == field.esDataType
             && Objects.equals(name, field.name)
             && Objects.equals(properties, field.properties)
@@ -407,7 +448,8 @@ public class EsField implements Writeable {
             isAlias,
             timeSeriesFieldType,
             isPassthrough,
-            isStaticallySingleValued
+            isStaticallySingleValued,
+            isUnderNested
         );
     }
 

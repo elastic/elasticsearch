@@ -31,7 +31,18 @@ public class DateEsField extends EsField {
         TimeSeriesFieldType tsType,
         boolean isStaticallySingleValued
     ) {
-        return new DateEsField(name, DataType.DATETIME, properties, hasDocValues, tsType, isStaticallySingleValued);
+        return dateEsField(name, properties, hasDocValues, tsType, isStaticallySingleValued, false);
+    }
+
+    public static DateEsField dateEsField(
+        String name,
+        Map<String, EsField> properties,
+        boolean hasDocValues,
+        TimeSeriesFieldType tsType,
+        boolean isStaticallySingleValued,
+        boolean isUnderNested
+    ) {
+        return new DateEsField(name, DataType.DATETIME, properties, hasDocValues, tsType, isStaticallySingleValued, isUnderNested);
     }
 
     private DateEsField(
@@ -40,9 +51,10 @@ public class DateEsField extends EsField {
         Map<String, EsField> properties,
         boolean hasDocValues,
         TimeSeriesFieldType timeSeriesFieldType,
-        boolean isStaticallySingleValued
+        boolean isStaticallySingleValued,
+        boolean isUnderNested
     ) {
-        super(name, dataType, properties, hasDocValues, false, timeSeriesFieldType, false, isStaticallySingleValued);
+        super(name, dataType, properties, hasDocValues, false, timeSeriesFieldType, false, isStaticallySingleValued, isUnderNested);
     }
 
     protected DateEsField(StreamInput in) throws IOException {
@@ -52,13 +64,21 @@ public class DateEsField extends EsField {
             in.readImmutableMap(EsField::readFrom),
             in.readBoolean(),
             readTimeSeriesFieldType(in),
-            readStaticallySingleValued(in)
+            readStaticallySingleValued(in),
+            readUnderNested(in)
         );
     }
 
     @Override
     public EsField withProperties(Map<String, EsField> newProperties) {
-        return dateEsField(getName(), newProperties, isAggregatable(), getTimeSeriesFieldType(), isStaticallySingleValued());
+        return dateEsField(
+            getName(),
+            newProperties,
+            isAggregatable(),
+            getTimeSeriesFieldType(),
+            isStaticallySingleValued(),
+            isUnderNested()
+        );
     }
 
     @Override
@@ -68,6 +88,7 @@ public class DateEsField extends EsField {
         out.writeBoolean(isAggregatable());
         writeTimeSeriesFieldType(out);
         writeStaticallySingleValued(out);
+        writeUnderNested(out);
     }
 
     public String getWriteableName(TransportVersion transportVersion) {

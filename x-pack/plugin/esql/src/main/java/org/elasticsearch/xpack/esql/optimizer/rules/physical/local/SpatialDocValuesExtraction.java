@@ -314,7 +314,8 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
         UnaryExec exec,
         Set<FieldAttribute> foundAttributes
     ) {
-        if (stats.hasDocValues(fieldAttribute.fieldName()) == false) {
+        // The child documents of a nested object are read in the representation of their values
+        if (fieldAttribute.field().isUnderNested() || stats.hasDocValues(fieldAttribute.fieldName()) == false) {
             return false;
         }
         if (fieldAttribute.dataType() == DataType.GEO_SHAPE || fieldAttribute.dataType() == DataType.CARTESIAN_SHAPE) {

@@ -62,7 +62,15 @@ public class CompactMultiTypeEsFieldTests extends AbstractEsFieldTypeTests<Compa
 
         EsField.TimeSeriesFieldType tsType = randomFrom(EsField.TimeSeriesFieldType.values());
 
-        return new CompactMultiTypeEsField(name, toType, false, typeToConvertExpressions, tsType, unmappedConversionExpression);
+        return new CompactMultiTypeEsField(
+            name,
+            toType,
+            false,
+            typeToConvertExpressions,
+            tsType,
+            unmappedConversionExpression,
+            randomBoolean()
+        );
     }
 
     @Override
@@ -72,15 +80,25 @@ public class CompactMultiTypeEsFieldTests extends AbstractEsFieldTypeTests<Compa
         Map<DataType, Expression> typeToConvertExpressions = instance.getTypeToConversionExpressions();
         EsField.TimeSeriesFieldType tsType = instance.getTimeSeriesFieldType();
         Expression unmappedConversionExpression = instance.getUnmappedConversionExpression();
-        switch (between(0, 4)) {
+        boolean underNested = instance.isUnderNested();
+        switch (between(0, 5)) {
             case 0 -> name = randomAlphaOfLength(name.length() + 1);
             case 1 -> dataType = randomValueOtherThan(dataType, () -> randomFrom(DataType.types()));
             case 2 -> typeToConvertExpressions = mutateConvertExpressions(name, dataType, typeToConvertExpressions);
             case 3 -> tsType = randomValueOtherThan(tsType, () -> randomFrom(EsField.TimeSeriesFieldType.values()));
             case 4 -> unmappedConversionExpression = unmappedConversionExpression != null ? null : createToString(name, dataType);
+            case 5 -> underNested = underNested == false;
             default -> throw new IllegalArgumentException();
         }
-        return new CompactMultiTypeEsField(name, dataType, false, typeToConvertExpressions, tsType, unmappedConversionExpression);
+        return new CompactMultiTypeEsField(
+            name,
+            dataType,
+            false,
+            typeToConvertExpressions,
+            tsType,
+            unmappedConversionExpression,
+            underNested
+        );
     }
 
     @Override

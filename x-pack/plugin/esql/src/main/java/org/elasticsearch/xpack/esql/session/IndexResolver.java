@@ -23,6 +23,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
@@ -59,6 +60,7 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.FieldSemantics;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.index.NestedLeaves;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 import org.elasticsearch.xpack.esql.view.IndexViewOrigins;
 
@@ -535,6 +537,14 @@ public class IndexResolver {
             );
         }
 
+        /**
+         * Whether a field under a nested object is a column. An older data node would load null for it, so it needs every node
+         * to read the children.
+         */
+        boolean flattenedLeaves() {
+            return NestedLeaves.enabled(minTransportVersion);
+        }
+
         /** Whether an object is not a leaf, so it neither maps its name nor gives a column its type. */
         boolean objectsAreNotLeaves() {
             return minTransportVersion != null && minTransportVersion.supports(ESQL_OBJECTS_ARE_NOT_LEAVES);
@@ -545,19 +555,33 @@ public class IndexResolver {
          * it is the {@code keyword} key of that name. Empty unless every node reads keys.
          */
         Set<String> keyNames() {
+            Set<String> keys = new HashSet<>();
+            for (String name : keyCandidates()) {
+                if (isLeaf(name) == false) {
+                    keys.add(name);
+                }
+            }
+            return keys;
+        }
+
+        /**
+         * The names the query uses that an index may hold as a key of a {@code flattened} field, even where another index maps them
+         * as a leaf and gives the column its type. Empty unless every node reads keys.
+         */
+        Set<String> keyCandidates() {
             if (namedFields == null || flattenedDataTypeEnabled == false || minTransportVersion == null) {
                 return Set.of();
             }
             if (minTransportVersion.supports(Configuration.ESQL_FLATTENED_KEYS) == false) {
                 return Set.of();
             }
-            Set<String> keys = new HashSet<>();
+            Set<String> candidates = new HashSet<>();
             for (String name : namedFields.names()) {
-                if (name.indexOf('.') > 0 && isLeaf(name) == false) {
-                    keys.add(name);
+                if (name.indexOf('.') > 0) {
+                    candidates.add(name);
                 }
             }
-            return keys;
+            return candidates;
         }
 
         /**
@@ -573,7 +597,7 @@ public class IndexResolver {
         private boolean isLeaf(String name) {
             for (FieldCapabilitiesIndexResponse response : caps.getIndexResponses()) {
                 IndexFieldCapabilities fc = response.get().get(name);
-                if (fc != null && isObject(fc) == false) {
+                if (fc != null && isObject(fc) == false && isNested(fc) == false) {
                     return true;
                 }
             }
@@ -601,7 +625,9 @@ public class IndexResolver {
             fieldsInfo.caps,
             trackUnmappedFieldIndices,
             fieldsInfo.objectsAreNotLeaves(),
-            fieldsInfo.keyNames()
+            fieldsInfo.keyCandidates(),
+            fieldsInfo.keyNames(),
+            fieldsInfo.flattenedLeaves()
         );
         Map<String, IndexFieldCapabilitiesWithSourceHash> fieldsCaps = collectedFieldCaps.fieldsCaps;
 
@@ -649,8 +675,9 @@ public class IndexResolver {
             if (fieldsInfo.needsFieldSemantics()) {
                 fieldSemantics.put(fullName, FieldSemantics.from(fullName, fcs));
             }
+            boolean underNested = collectedFieldCaps.underNested.contains(fullName);
             EsField field = firstUnsupportedParent == null
-                ? createField(fieldsInfo, name, fullName, fcs, isAlias, indexDedupCache)
+                ? createField(fieldsInfo, name, fullName, fcs, isAlias, underNested, indexDedupCache)
                 : new UnsupportedEsField(
                     fullName,
                     firstUnsupportedParent.getOriginalTypes(),
@@ -702,27 +729,46 @@ public class IndexResolver {
         Map<String, IndexFieldCapabilitiesWithSourceHash> fieldsCaps,
         // The map won't contain entries without duplicates, i.e., it's number of occurrences - 1.
         Map<String, Integer> indexMappingHashDuplicates,
-        Map<String, Set<String>> fieldToMappedIndices
+        Map<String, Set<String>> fieldToMappedIndices,
+        // The names some index maps under a nested object
+        Set<String> underNested
     ) {}
 
     /**
      * @param objectsAreNotLeaves whether an object neither maps its name nor gives a column its type
-     * @param keyNames the names that an index maps as the keys of a {@code flattened} field they are under
+     * @param keyCandidates the names an index may hold as keys of a {@code flattened} field they are under
+     * @param keyNames the candidates no index maps as a leaf, which take the type of the keys
+     * @param flattenedLeaves whether a field under a nested object is a column; otherwise it is left out
      */
     private static CollectedFieldCaps collectFieldCaps(
         FieldCapabilitiesResponse fieldCapsResponse,
         boolean trackUnmappedFieldIndices,
         boolean objectsAreNotLeaves,
-        Set<String> keyNames
+        Set<String> keyCandidates,
+        Set<String> keyNames,
+        boolean flattenedLeaves
     ) {
         Map<String, Integer> indexMappingHashToDuplicateCount = new HashMap<>();
         Map<String, IndexFieldCapabilitiesWithSourceHash> fieldsCaps = new HashMap<>();
         Map<String, Set<String>> fieldToMappedIndices = trackUnmappedFieldIndices ? new HashMap<>() : null;
+        Set<String> underNestedNames = new HashSet<>();
 
         for (FieldCapabilitiesIndexResponse response : fieldCapsResponse.getIndexResponses()) {
             boolean isNew = indexMappingHashToDuplicateCount.compute(response.getIndexMappingHash(), (k, v) -> v == null ? 1 : v + 1) <= 1;
             String indexName = response.getIndexName();
-            for (IndexFieldCapabilities fc : response.get().values()) {
+            for (IndexFieldCapabilities mapped : response.get().values()) {
+                if (isNested(mapped)) {
+                    // Like an object, a nested object only shapes the fields under it
+                    continue;
+                }
+                boolean underNested = NestedLeaves.pathFor(mapped.name(), response.get()) != null;
+                if (underNested && flattenedLeaves == false) {
+                    continue;
+                }
+                if (underNested) {
+                    underNestedNames.add(mapped.name());
+                }
+                IndexFieldCapabilities fc = underNested ? flattened(mapped) : mapped;
                 if (fc.isMetadatafield()) {
                     // ESQL builds the metadata fields if they are asked for without using the resolution.
                     continue;
@@ -738,16 +784,28 @@ public class IndexResolver {
                     fieldToMappedIndices.computeIfAbsent(fc.name(), k -> new HashSet<>()).add(indexName);
                 }
             }
-            for (String name : keyNames) {
+            for (String name : keyCandidates) {
                 IndexFieldCapabilities root = flattenedRoot(response.get(), name);
                 if (root == null) {
                     continue;
                 }
+                boolean underNested = NestedLeaves.pathFor(root.name(), response.get()) != null;
+                if (underNested && flattenedLeaves == false) {
+                    continue;
+                }
+                if (underNested) {
+                    // Where another index maps the name and gives the column its type, this one still reads it from the children
+                    underNestedNames.add(name);
+                }
+                if (keyNames.contains(name) == false) {
+                    continue;
+                }
+                IndexFieldCapabilities fc = key(name, root);
                 if (isNew) {
                     fieldsCaps.computeIfAbsent(
                         name,
                         (_key) -> new IndexFieldCapabilitiesWithSourceHash(new ArrayList<>(), response.getIndexMappingHash())
-                    ).fieldCapabilities.add(key(name, root));
+                    ).fieldCapabilities.add(fc);
                 }
                 if (trackUnmappedFieldIndices) {
                     fieldToMappedIndices.computeIfAbsent(name, k -> new HashSet<>()).add(indexName);
@@ -775,7 +833,7 @@ public class IndexResolver {
             }
         }
 
-        return new CollectedFieldCaps(fieldsCaps, indexMappingHashToDuplicateCount, fieldToMappedIndices);
+        return new CollectedFieldCaps(fieldsCaps, indexMappingHashToDuplicateCount, fieldToMappedIndices, underNestedNames);
     }
 
     /**
@@ -805,6 +863,7 @@ public class IndexResolver {
         String fullName,
         List<IndexFieldCapabilities> fcs,
         boolean isAlias,
+        boolean underNested,
         // If this isn't null, it also means we need to create CompactInvalidMappedField instead of InvalidMappedField.
         @Nullable Map<Set<String>, Set<String>> indexDedupCache
     ) {
@@ -836,7 +895,7 @@ public class IndexResolver {
             }
             for (IndexFieldCapabilities fc : rest) {
                 if (type != EsqlDataTypeRegistry.INSTANCE.fromEs(fc.type(), fc.metricType())) {
-                    return conflictingTypes(name, fullName, fieldsInfo, indexDedupCache, timeSeriesFieldType);
+                    return conflictingTypes(name, fullName, fieldsInfo, indexDedupCache, timeSeriesFieldType, underNested);
                 }
             }
             for (IndexFieldCapabilities fc : rest) {
@@ -846,11 +905,13 @@ public class IndexResolver {
                 isStaticallySingleValued &= fc.isStaticallySingleValued();
             }
         }
+        // Where an index holds the name under a nested object, even as a key, a parent holds the values of all of its objects
+        isStaticallySingleValued &= underNested == false;
 
         // TODO I think we only care about unmapped fields if we're aggregating on them. do we even then?
 
         if (type == TEXT) {
-            return textField(name, fullName, isAlias, timeSeriesFieldType, fcs, fieldsInfo);
+            return textField(name, fullName, isAlias, underNested, timeSeriesFieldType, fcs, fieldsInfo);
         }
         if (type == KEYWORD) {
             int length = Short.MAX_VALUE;
@@ -864,11 +925,12 @@ public class IndexResolver {
                 normalized,
                 isAlias,
                 timeSeriesFieldType,
-                isStaticallySingleValued
+                isStaticallySingleValued,
+                underNested
             );
         }
         if (type == DATETIME) {
-            return DateEsField.dateEsField(name, new HashMap<>(), aggregatable, timeSeriesFieldType, isStaticallySingleValued);
+            return DateEsField.dateEsField(name, new HashMap<>(), aggregatable, timeSeriesFieldType, isStaticallySingleValued, underNested);
         }
         if (type == UNSUPPORTED) {
             return unsupported(name, first);
@@ -882,7 +944,8 @@ public class IndexResolver {
             isAlias,
             timeSeriesFieldType,
             isPassthrough,
-            isStaticallySingleValued
+            isStaticallySingleValued,
+            underNested
         );
     }
 
@@ -894,6 +957,7 @@ public class IndexResolver {
         String name,
         String fullName,
         boolean isAlias,
+        boolean underNested,
         EsField.TimeSeriesFieldType timeSeriesFieldType,
         List<IndexFieldCapabilities> fcs,
         FieldsInfo fieldsInfo
@@ -915,7 +979,18 @@ public class IndexResolver {
         } else {
             unknown = TextEsField.UnknownAnalyzer.NOT_REPORTED;
         }
-        return new TextEsField(name, new HashMap<>(), false, isAlias, timeSeriesFieldType, shared ? analyzer : null, gap, unknown, groups);
+        return new TextEsField(
+            name,
+            new HashMap<>(),
+            false,
+            isAlias,
+            timeSeriesFieldType,
+            shared ? analyzer : null,
+            gap,
+            unknown,
+            groups,
+            underNested
+        );
     }
 
     /** Like {@link #conflictingTypes}, walks every index response since {@code fcs} is deduplicated by mapping hash. */
@@ -977,15 +1052,21 @@ public class IndexResolver {
             // OBJECT fields are containers for subfields, not leaf fields that get queried directly.
             // Wrapping them would break downstream code that doesn't expect OBJECT as a data type in InvalidMappedField.
             case OBJECT -> field;
-            case KEYWORD -> new PotentiallyUnmappedKeywordEsField(name);
+            // Mutable properties: IndexResolver may add the field's multi-fields that are also partially unmapped
+            case KEYWORD -> new PotentiallyUnmappedKeywordEsField(name, new HashMap<>(), field.isUnderNested());
             default -> {
                 if (field instanceof TypeConflictedField) {
                     yield useLegacyField
-                        ? InvalidMappedField.potentiallyUnmapped(name, partiallyUnmappedTypesByName(field, mappedIndices))
+                        ? InvalidMappedField.potentiallyUnmapped(
+                            name,
+                            partiallyUnmappedTypesByName(field, mappedIndices),
+                            field.isUnderNested()
+                        )
                         : CompactInvalidMappedField.potentiallyUnmapped(
                             name,
                             partiallyUnmappedTypesByDataType(field, mappedIndices),
-                            indexDedupCache
+                            indexDedupCache,
+                            field.isUnderNested()
                         );
                 }
                 // We only need to maintain mappedIndices for the legacy InvalidMappedType.
@@ -1018,7 +1099,8 @@ public class IndexResolver {
         FieldsInfo fieldsInfo,
         // If this isn't null, it also means we need to create CompactInvalidMappedField instead of InvalidMappedField.
         @Nullable Map<Set<String>, Set<String>> indexDedupCache,
-        EsField.TimeSeriesFieldType timeSeriesFieldType
+        EsField.TimeSeriesFieldType timeSeriesFieldType,
+        boolean underNested
     ) {
         Map<DataType, Set<String>> typesToIndices = new TreeMap<>();
         for (FieldCapabilitiesIndexResponse ir : fieldsInfo.caps().getIndexResponses()) {
@@ -1032,11 +1114,11 @@ public class IndexResolver {
             }
         }
         if (indexDedupCache != null) {
-            return CompactInvalidMappedField.mappedEverywhere(name, typesToIndices, indexDedupCache, timeSeriesFieldType);
+            return CompactInvalidMappedField.mappedEverywhere(name, typesToIndices, indexDedupCache, timeSeriesFieldType, underNested);
         }
         Map<String, Set<String>> stringKeyed = new TreeMap<>();
         typesToIndices.forEach((type, indices) -> stringKeyed.put(type.typeName(), indices));
-        return new InvalidMappedField(name, stringKeyed, timeSeriesFieldType);
+        return new InvalidMappedField(name, stringKeyed, timeSeriesFieldType, underNested);
     }
 
     /** The field of {@code fields} that {@code name} is under and that holds it as a key, if any. */
@@ -1049,6 +1131,30 @@ public class IndexResolver {
             }
         }
         return null;
+    }
+
+    /**
+     * A field under a nested object holds the values of all of the parent's objects, which are separate documents, so a
+     * field each object holds once can hold many values in the parent's column. Its other capabilities are those of the
+     * child documents; {@link EsField#isUnderNested} keeps queries over it from being pushed to the parent's index.
+     */
+    private static IndexFieldCapabilities flattened(IndexFieldCapabilities fc) {
+        return new IndexFieldCapabilities(
+            fc.name(),
+            fc.type(),
+            fc.isMetadatafield(),
+            fc.isSearchable(),
+            fc.isAggregatable(),
+            fc.isInference(),
+            fc.isDimension(),
+            fc.metricType(),
+            fc.isPassthrough(),
+            fc.meta(),
+            fc.indexAnalyzer(),
+            fc.indexAnalyzerPositionIncrementGap(),
+            fc.indexLocalAnalyzer(),
+            false
+        );
     }
 
     /** Whether the field holds the names below it: an object, a passthrough object included, or a field that holds them as keys. */
@@ -1086,8 +1192,14 @@ public class IndexResolver {
         return ObjectMapper.CONTENT_TYPE.equals(fc.type());
     }
 
+    /** Whether the field is a nested object, which, unlike an object on an older node, is never a leaf. */
+    private static boolean isNested(IndexFieldCapabilities fc) {
+        return NestedObjectMapper.CONTENT_TYPE.equals(fc.type());
+    }
+
+    /** Whether the field is one {@link #collectFieldCaps} keeps, for the steps that read the caps of each index again. */
     private static boolean isLeaf(IndexFieldCapabilities fc, FieldsInfo fieldsInfo) {
-        return fieldsInfo.objectsAreNotLeaves() == false || isObject(fc) == false;
+        return isNested(fc) == false && (fieldsInfo.objectsAreNotLeaves() == false || isObject(fc) == false);
     }
 
     private static boolean useCompactInvalidMappedField(@Nullable TransportVersion minTransportVersion) {
@@ -1113,7 +1225,12 @@ public class IndexResolver {
         // also because this way security doesn't throw authorization exceptions but rather honors ignore_unavailable
         request.indicesOptions(options);
         // we ignore the nested data type fields starting with https://github.com/elastic/elasticsearch/pull/111495
-        if (includeAllDimensions) {
+        // Snapshot builds read the fields under a nested object as columns where every node can; see FieldsInfo#flattenedLeaves
+        if (NestedLeaves.ENABLED) {
+            if (includeAllDimensions) {
+                request.filters("+dimension");
+            }
+        } else if (includeAllDimensions) {
             request.filters("-nested", "+dimension");
         } else {
             request.filters("-nested");

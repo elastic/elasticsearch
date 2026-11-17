@@ -1,0 +1,1848 @@
+# A field under a nested object is an ordinary multivalued column holding the values of all of the parent's objects, like a
+# field under a plain object. It is read from the child documents as the field is mapped: from doc values, or from the child's
+# object in the parent's _source when it has none. The nested object itself is not a column.
+---
+setup:
+- requires:
+    test_runner_features:
+    - capabilities
+    - allowed_warnings_regex
+    - contains
+    - warnings
+    capabilities:
+    - method: POST
+      path: /_query
+      parameters: []
+      capabilities:
+      - nested_flattened_leaves
+    reason: "Fields under a nested object read as flattened multivalued columns"
+- do:
+    indices.create:
+      index: nf_nested
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              properties:
+                price:
+                  type: long
+                sku:
+                  type: keyword
+- do:
+    indices.create:
+      index: nf_object
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              properties:
+                price:
+                  type: long
+                sku:
+                  type: keyword
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: nf_nested
+          _id: a
+      - id: a
+        items:
+        - { price: 10, sku: x }
+        - { price: 20, sku: y }
+      - index:
+          _index: nf_nested
+          _id: b
+      - id: b
+        items:
+        - { price: 5, sku: z }
+      - index:
+          _index: nf_nested
+          _id: c
+      - id: c
+      - index:
+          _index: nf_object
+          _id: d
+      - id: d
+        items: { price: 7, sku: w }
+
+---
+teardown:
+- do:
+    cluster.put_settings:
+      body:
+        persistent:
+          esql.query.lookup_join_streaming: null
+
+---
+leaves are multivalued columns:
+- do:
+    esql.query:
+      body:
+        query: FROM nf_nested | KEEP id, items.price, items.sku | SORT id | LIMIT 10
+- match: { columns.1.name: items.price }
+- match: { columns.1.type: long }
+- match: { columns.2.name: items.sku }
+- match: { columns.2.type: keyword }
+- match:
+    values:
+    - [a, [10, 20], [x, y]]
+    - [b, 5, z]
+    - [c, null, null]
+
+---
+wildcard includes the leaves but not the nested object:
+- do:
+    esql.query:
+      body:
+        query: FROM nf_nested | SORT id | LIMIT 10
+- length: { columns: 3 }
+- match: { columns.0.name: id }
+- match: { columns.1.name: items.price }
+- match: { columns.2.name: items.sku }
+
+---
+the nested object is not a column:
+- do:
+    catch: /Unknown column \[items\]/
+    esql.query:
+      body:
+        query: FROM nf_nested | KEEP items
+
+---
+equality reads the children rather than the parent:
+- do:
+    allowed_warnings_regex:
+    - "Line 1:.*: evaluation of \\[.*\\] failed, treating result as null. Only first 20 failures recorded."
+    - "Line 1:.*: java.lang.IllegalArgumentException: single-value function encountered multi-value"
+    esql.query:
+      body:
+        query: FROM nf_nested | WHERE items.sku == "z" | KEEP id | LIMIT 10
+- match:
+    values:
+    - [b]
+
+---
+is not null reads the children:
+- do:
+    esql.query:
+      body:
+        query: FROM nf_nested | WHERE items.price IS NOT NULL | KEEP id | SORT id | LIMIT 10
+- match:
+    values:
+    - [a]
+    - [b]
+
+---
+sort reads the children:
+- do:
+    esql.query:
+      body:
+        query: FROM nf_nested | SORT items.price ASC NULLS LAST, id | KEEP id | LIMIT 10
+- match:
+    values:
+    - [b]
+    - [a]
+    - [c]
+
+---
+count alone counts every child value:
+- do:
+    allowed_warnings_regex:
+    - "No limit defined, adding default limit of \\[.*\\]"
+    esql.query:
+      body:
+        query: FROM nf_nested | STATS c = COUNT(items.price)
+- match:
+    values:
+    - [3]
+
+---
+aggregates read every child value:
+- do:
+    allowed_warnings_regex:
+    - "No limit defined, adding default limit of \\[.*\\]"
+    esql.query:
+      body:
+        query: FROM nf_nested | STATS c = COUNT(items.price), s = SUM(items.price), lo = MIN(items.price), hi = MAX(items.price)
+- match:
+    values:
+    - [3, 35, 5, 20]
+
+---
+grouping by a leaf groups by each child value:
+- do:
+    esql.query:
+      body:
+        query: FROM nf_nested | STATS n = COUNT(*) BY items.sku | SORT items.sku | LIMIT 10
+- match:
+    values:
+    - [1, x]
+    - [1, y]
+    - [1, z]
+    - [1, null]
+
+---
+a path nested in one index and an object in another:
+- do:
+    esql.query:
+      body:
+        query: FROM nf_nested, nf_object | KEEP id, items.price | SORT id | LIMIT 10
+- match: { columns.1.type: long }
+- match:
+    values:
+    - [a, [10, 20]]
+    - [b, 5]
+    - [c, null]
+    - [d, 7]
+- do:
+    allowed_warnings_regex:
+    - "Line 1:.*: evaluation of \\[.*\\] failed, treating result as null. Only first 20 failures recorded."
+    - "Line 1:.*: java.lang.IllegalArgumentException: single-value function encountered multi-value"
+    esql.query:
+      body:
+        query: FROM nf_nested, nf_object | WHERE items.price == 5 OR items.price == 7 | KEEP id | SORT id | LIMIT 10
+- match:
+    values:
+    - [b]
+    - [d]
+- do:
+    allowed_warnings_regex:
+    - "No limit defined, adding default limit of \\[.*\\]"
+    esql.query:
+      body:
+        query: FROM nf_nested, nf_object | STATS c = COUNT(items.price), s = SUM(items.price)
+- match:
+    values:
+    - [4, 42]
+
+---
+include_in_root reads each child value once:
+# include_in_root copies the child values onto the parent document. Reading both, or pushing a query or a count down
+# to the parent, would count them twice.
+- do:
+    indices.create:
+      index: nf_root
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              include_in_root: true
+              properties:
+                price:
+                  type: long
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: nf_root
+          _id: r
+      - id: r
+        items:
+        - { price: 100 }
+        - { price: 101 }
+- do:
+    esql.query:
+      body:
+        query: FROM nf_root, nf_object | KEEP id, items.price | SORT id | LIMIT 10
+- match:
+    values:
+    - [d, 7]
+    - [r, [100, 101]]
+- do:
+    allowed_warnings_regex:
+    - "No limit defined, adding default limit of \\[.*\\]"
+    esql.query:
+      body:
+        query: FROM nf_root, nf_object | STATS c = COUNT(items.price), s = SUM(items.price)
+- match: { values: [[3, 208]] }
+- do:
+    allowed_warnings_regex:
+    - "No limit defined, adding default limit of \\[.*\\]"
+    esql.query:
+      body:
+        query: FROM nf_root, nf_object | STATS c = COUNT(items.price)
+- match: { values: [[3]] }
+- do:
+    allowed_warnings_regex:
+    - "No limit defined, adding default limit of \\[.*\\]"
+    - "Line 1:.*: evaluation of \\[.*\\] failed, treating result as null. Only first 20 failures recorded."
+    - "Line 1:.*: java.lang.IllegalArgumentException: single-value function encountered multi-value"
+    esql.query:
+      body:
+        query: FROM nf_root, nf_object | WHERE items.price == 7 OR items.price IS NULL | KEEP id
+- match: { values: [[d]] }
+
+---
+a deep path under a nested object:
+- do:
+    indices.create:
+      index: nf_deep
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: strict
+          properties:
+            a:
+              type: nested
+              properties:
+                b:
+                  properties:
+                    c:
+                      type: long
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: nf_deep
+      - a:
+        - { b: { c: 1 } }
+        - { b: { c: 2 } }
+- do:
+    esql.query:
+      body:
+        query: FROM nf_deep | KEEP a.b.c | LIMIT 10
+- match: { values: [[[1, 2]]] }
+
+---
+a nested object inside a nested object:
+- do:
+    indices.create:
+      index: nf_double
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: strict
+          properties:
+            outer:
+              type: nested
+              properties:
+                tag:
+                  type: keyword
+                inner:
+                  type: nested
+                  properties:
+                    v:
+                      type: long
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: nf_double
+      - outer:
+        - { tag: p, inner: [ { v: 1 }, { v: 2 } ] }
+        - { tag: q, inner: [ { v: 3 } ] }
+- do:
+    esql.query:
+      body:
+        query: FROM nf_double | KEEP outer.tag, outer.inner.v | LIMIT 10
+- match: { values: [[[p, q], [1, 2, 3]]] }
+
+---
+a leaf without doc values reads the child's source, and a cast across a type conflict is null:
+# A text field has no doc values, so it reads the child's object in the parent's _source, as a top-level text field reads its
+# document's. A cast across a type conflict is converted as it is loaded, which the child values are not.
+- do:
+    indices.create:
+      index: nf_text
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: strict
+          properties:
+            items:
+              type: nested
+              properties:
+                note:
+                  type: text
+- do:
+    indices.create:
+      index: nf_int
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              properties:
+                price:
+                  type: integer
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: nf_text
+      - items:
+        - { note: hello }
+      - index:
+          _index: nf_int
+          _id: e
+      - id: e
+        items: { price: 3 }
+- do:
+    esql.query:
+      body:
+        query: FROM nf_text | KEEP items.note | LIMIT 10
+- match: { values: [[hello]] }
+- do:
+    warnings:
+    - "Field [items.price] cannot be retrieved, it is unsupported or not indexed; returning null"
+    esql.query:
+      body:
+        query: FROM nf_nested, nf_int | EVAL p = items.price::long | KEEP id, p | SORT id | LIMIT 10
+- match:
+    values:
+    - [a, null]
+    - [b, null]
+    - [c, null]
+    - [e, 3]
+# Without a cast the conflict is unsupported, which is null everywhere, the nested index included.
+- do:
+    esql.query:
+      body:
+        query: FROM nf_nested, nf_int | KEEP id, items.price | SORT id | LIMIT 10
+- match: { columns.1.type: unsupported }
+- match:
+    values:
+    - [a, null]
+    - [b, null]
+    - [c, null]
+    - [e, null]
+---
+full-text search on a field under a nested object is rejected:
+# The parent's index holds none of the values under a nested object, so a Lucene query on the parents would miss every parent
+# whose objects match, or, with include_in_root, match only there. Until searching the child documents is supported, these
+# searches fail instead of returning wrong results, whichever other indices map the field as.
+- do:
+    indices.create:
+      index: ft_nested
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: text
+            items:
+              type: nested
+              properties:
+                note:
+                  type: text
+                tag:
+                  type: keyword
+- do:
+    indices.create:
+      index: ft_object
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: text
+            items:
+              properties:
+                note:
+                  type: text
+                tag:
+                  type: keyword
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: ft_nested
+      - id: a
+        items:
+        - { note: hello world, tag: x }
+        - { note: bye, tag: y }
+      - index:
+          _index: ft_object
+      - id: c
+        items: { note: hello there, tag: x }
+- do:
+    catch: bad_request
+    esql.query:
+      body:
+        query: 'FROM ft_nested | WHERE MATCH(items.note, "hello") | KEEP id | LIMIT 10'
+- match: { status: 400 }
+- match: { error.type: verification_exception }
+- contains: { error.reason: "Searching nested child fields is not supported yet." }
+- do:
+    catch: bad_request
+    esql.query:
+      body:
+        query: 'FROM ft_nested | WHERE items.note:"hello" | KEEP id | LIMIT 10'
+- match: { status: 400 }
+- match: { error.type: verification_exception }
+- contains: { error.reason: "Searching nested child fields is not supported yet." }
+- do:
+    catch: bad_request
+    esql.query:
+      body:
+        query: 'FROM ft_nested | WHERE MATCH(items.note, "helo", {"fuzziness": 1}) | KEEP id | LIMIT 10'
+- match: { status: 400 }
+- match: { error.type: verification_exception }
+- contains: { error.reason: "Searching nested child fields is not supported yet." }
+- do:
+    catch: bad_request
+    esql.query:
+      body:
+        query: 'FROM ft_nested | WHERE MATCH(items.tag, "x") | KEEP id | LIMIT 10'
+- match: { status: 400 }
+- match: { error.type: verification_exception }
+- contains: { error.reason: "Searching nested child fields is not supported yet." }
+- do:
+    catch: bad_request
+    esql.query:
+      body:
+        query: 'FROM ft_nested | WHERE MATCH_PHRASE(items.note, "hello world") | KEEP id | LIMIT 10'
+- match: { status: 400 }
+- match: { error.type: verification_exception }
+- contains: { error.reason: "Searching nested child fields is not supported yet." }
+- do:
+    catch: bad_request
+    esql.query:
+      body:
+        query: 'FROM ft_nested, ft_object | WHERE MATCH(items.note, "hello") | KEEP id | LIMIT 10'
+- match: { status: 400 }
+- match: { error.type: verification_exception }
+- contains: { error.reason: "Searching nested child fields is not supported yet." }
+- do:
+    catch: bad_request
+    esql.query:
+      body:
+        query: 'FROM ft_nested, ft_object | WHERE MATCH_PHRASE(items.note, "hello") | KEEP id | LIMIT 10'
+- match: { status: 400 }
+- match: { error.type: verification_exception }
+- contains: { error.reason: "Searching nested child fields is not supported yet." }
+# A field outside the nested object is searched as before.
+- do:
+    esql.query:
+      body:
+        query: 'FROM ft_nested, ft_object | WHERE MATCH(id, "a") | KEEP items.tag | LIMIT 10'
+- match: { values: [[[x, y]]] }
+---
+knn on a vector under a nested object is rejected:
+# The vector query would return the child documents, which never come back as their parents, so even an exact match would
+# return nothing. Until searching the child documents is supported, this fails instead.
+- do:
+    indices.create:
+      index: knn_nested
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              properties:
+                v:
+                  type: dense_vector
+                  dims: 3
+                  index: true
+                  similarity: l2_norm
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: knn_nested
+      - id: p
+        items:
+        - { v: [1, 0, 0] }
+- do:
+    catch: bad_request
+    esql.query:
+      body:
+        query: 'FROM knn_nested | WHERE KNN(items.v, [1, 0, 0], {"k": 1}) | KEEP id | LIMIT 1'
+- match: { status: 400 }
+- match: { error.type: verification_exception }
+- contains: { error.reason: "[KNN] function cannot search [items.v]: Searching nested child fields is not supported yet." }
+---
+a key of a flattened field under a nested object reads the children:
+- requires:
+    test_runner_features: [capabilities]
+    capabilities:
+    - method: POST
+      path: /_query
+      parameters: []
+      capabilities: [flattened_keys]
+    reason: "A name under a flattened field is its keyword key"
+- do:
+    indices.create:
+      index: nf_flat
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              properties:
+                attrs:
+                  type: flattened
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: nf_flat
+      - id: a
+        items:
+        - { attrs: { env: dev } }
+        - { attrs: { env: prod } }
+      - index:
+          _index: nf_flat
+      - id: b
+        items:
+        - { attrs: { env: prod } }
+      - index:
+          _index: nf_flat
+      - id: c
+- do:
+    esql.query:
+      body:
+        query: FROM nf_flat | KEEP id, items.attrs.env | SORT id | LIMIT 10
+- match:
+    values:
+    - [a, [dev, prod]]
+    - [b, prod]
+    - [c, null]
+- do:
+    allowed_warnings_regex:
+    - "Line 1:.*: evaluation of \\[.*\\] failed, treating result as null. Only first 20 failures recorded."
+    - "Line 1:.*: java.lang.IllegalArgumentException: single-value function encountered multi-value"
+    esql.query:
+      body:
+        query: 'FROM nf_flat | WHERE items.attrs.env == "prod" | KEEP id | SORT id | LIMIT 10'
+- match:
+    values:
+    - [b]
+- do:
+    esql.query:
+      body:
+        query: FROM nf_flat | STATS n = COUNT(*) BY items.attrs.env | SORT items.attrs.env | LIMIT 10
+- match:
+    values:
+    - [1, dev]
+    - [2, prod]
+    - [1, null]
+---
+null checks read the values of every object:
+# A text field's index answers whether a document has a value, but under a nested object the parent's index holds none of them.
+- do:
+    indices.create:
+      index: nn_nested
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              properties:
+                note:
+                  type: text
+- do:
+    indices.create:
+      index: nn_root
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              include_in_root: true
+              properties:
+                note:
+                  type: text
+- do:
+    indices.create:
+      index: nn_object
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              properties:
+                note:
+                  type: text
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: nn_nested
+      - id: a
+        items:
+        - { note: hello }
+        - { note: bye }
+      - index:
+          _index: nn_nested
+      - id: e
+      - index:
+          _index: nn_root
+      - id: d
+        items:
+        - { note: hello }
+      - index:
+          _index: nn_object
+      - id: c
+        items: { note: hello }
+- do:
+    esql.query:
+      body:
+        query: FROM nn_nested, nn_root, nn_object | WHERE items.note IS NOT NULL | KEEP id | SORT id | LIMIT 10
+- match: { values: [[a], [c], [d]] }
+- do:
+    esql.query:
+      body:
+        query: FROM nn_nested, nn_root, nn_object | WHERE items.note IS NULL | KEEP id | LIMIT 10
+- match: { values: [[e]] }
+
+---
+lookup join reads fields under a nested object in the lookup index:
+- do:
+    indices.create:
+      index: lj_main
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              properties:
+                sku:
+                  type: keyword
+- do:
+    indices.create:
+      index: lj_lookup
+      body:
+        settings:
+          index.mode: lookup
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              properties:
+                price:
+                  type: long
+                note:
+                  type: text
+                sku:
+                  type: keyword
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: lj_main
+      - id: a
+        items: { sku: x }
+      - index:
+          _index: lj_main
+      - id: b
+      - index:
+          _index: lj_lookup
+      - id: a
+        items:
+        - { price: 10, note: hello, sku: x }
+        - { price: 25, note: bye, sku: y }
+- do:
+    esql.query:
+      body:
+        query: FROM lj_main | LOOKUP JOIN lj_lookup ON id | KEEP id, items.price, items.note | SORT id | LIMIT 10
+- match: { values: [[a, [10, 25], [hello, bye]], [b, null, null]] }
+- do:
+    esql.query:
+      body:
+        query: FROM lj_main | LOOKUP JOIN lj_lookup ON id | WHERE MV_MAX(items.price) > 20 | KEEP id, items.price | LIMIT 10
+- match: { values: [[a, [10, 25]]] }
+- do:
+    cluster.put_settings:
+      body:
+        persistent:
+          esql.query.lookup_join_streaming: false
+- do:
+    esql.query:
+      body:
+        query: FROM lj_main | LOOKUP JOIN lj_lookup ON id | KEEP id, items.price, items.note | SORT id | LIMIT 10
+- match: { values: [[a, [10, 25], [hello, bye]], [b, null, null]] }
+# The lookup index is searched for the join key, but under a nested object the parent's index holds none of its values.
+- do:
+    catch: bad_request
+    esql.query:
+      body:
+        query: FROM lj_main | LOOKUP JOIN lj_lookup ON items.sku | KEEP id | LIMIT 10
+- match: { error.type: verification_exception }
+- contains: { error.reason: "LOOKUP JOIN cannot match on [items.sku]: matching on nested child fields is not supported yet" }
+- do:
+    catch: bad_request
+    esql.query:
+      body:
+        query: FROM lj_main | RENAME items.sku AS s | LOOKUP JOIN lj_lookup ON s == items.sku | KEEP id | LIMIT 10
+- match: { error.type: verification_exception }
+- contains: { error.reason: "LOOKUP JOIN cannot match on [items.sku]: matching on nested child fields is not supported yet" }
+
+---
+a nested object that keeps all of its synthetic source reads each object's values:
+# With synthetic_source_keep: all the parent keeps the nested object's whole source, and its children keep none of their own.
+- do:
+    indices.create:
+      index: sb_nested_keep_all
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+          index.mapping.source.mode: synthetic
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              synthetic_source_keep: all
+              properties:
+                note:
+                  type: text
+                sku:
+                  type: keyword
+                kw:
+                  type: keyword
+                  doc_values: false
+                num:
+                  type: long
+                  doc_values: false
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: sb_nested_keep_all
+      - id: a
+        items:
+        - { note: hello, sku: x, kw: a, num: 1 }
+        - { note: bye, sku: y, kw: b, num: 2 }
+      - index:
+          _index: sb_nested_keep_all
+      - id: b
+        items:
+        - { note: ciao, sku: z, kw: c, num: 3 }
+- do:
+    esql.query:
+      body:
+        query: FROM sb_nested_keep_all | KEEP id, items.note, items.sku, items.kw, items.num | SORT id | LIMIT 10
+- match:
+    values:
+    - [a, [hello, bye], [x, y], [a, b], [1, 2]]
+    - [b, ciao, z, c, 3]
+# An object above the nested object that keeps its whole source keeps the nested object's too.
+- do:
+    indices.create:
+      index: sb_outer_keep_all
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+          index.mapping.source.mode: synthetic
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            outer:
+              synthetic_source_keep: all
+              properties:
+                items:
+                  type: nested
+                  properties:
+                    kw:
+                      type: keyword
+                      doc_values: false
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: sb_outer_keep_all
+      - id: a
+        outer:
+          items:
+          - { kw: a }
+          - { kw: b }
+      - index:
+          _index: sb_outer_keep_all
+      - id: b
+        outer:
+          items:
+          - { kw: c }
+- do:
+    esql.query:
+      body:
+        query: FROM sb_outer_keep_all | KEEP id, outer.items.kw | SORT id | LIMIT 10
+- match:
+    values:
+    - [a, [a, b]]
+    - [b, c]
+
+---
+source-backed fields read each object's values in every source mode:
+# A field without doc values reads the source. Under a nested object it reads its child's object, which gives what a plain
+# object gives, whether the parent's _source is stored or synthetic.
+- do:
+    indices.create:
+      index: sb_nested_stored
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+          index.mapping.source.mode: stored
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              properties:
+                note:
+                  type: text
+                note2:
+                  type: text
+                  fields:
+                    raw:
+                      type: keyword
+                sku:
+                  type: keyword
+                  fields:
+                    text:
+                      type: text
+                mot:
+                  type: match_only_text
+                kw:
+                  type: keyword
+                  doc_values: false
+                  fields:
+                    nodv:
+                      type: keyword
+                      doc_values: false
+                num:
+                  type: long
+                  doc_values: false
+- do:
+    indices.create:
+      index: sb_nested_synthetic
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+          index.mapping.source.mode: synthetic
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              properties:
+                note:
+                  type: text
+                note2:
+                  type: text
+                  fields:
+                    raw:
+                      type: keyword
+                sku:
+                  type: keyword
+                  fields:
+                    text:
+                      type: text
+                mot:
+                  type: match_only_text
+                kw:
+                  type: keyword
+                  doc_values: false
+                  fields:
+                    nodv:
+                      type: keyword
+                      doc_values: false
+                num:
+                  type: long
+                  doc_values: false
+- do:
+    indices.create:
+      index: sb_object_stored
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+          index.mapping.source.mode: stored
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              properties:
+                note:
+                  type: text
+                note2:
+                  type: text
+                  fields:
+                    raw:
+                      type: keyword
+                sku:
+                  type: keyword
+                  fields:
+                    text:
+                      type: text
+                mot:
+                  type: match_only_text
+                kw:
+                  type: keyword
+                  doc_values: false
+                  fields:
+                    nodv:
+                      type: keyword
+                      doc_values: false
+                num:
+                  type: long
+                  doc_values: false
+- do:
+    indices.create:
+      index: sb_object_synthetic
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+          index.mapping.source.mode: synthetic
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              properties:
+                note:
+                  type: text
+                note2:
+                  type: text
+                  fields:
+                    raw:
+                      type: keyword
+                sku:
+                  type: keyword
+                  fields:
+                    text:
+                      type: text
+                mot:
+                  type: match_only_text
+                kw:
+                  type: keyword
+                  doc_values: false
+                  fields:
+                    nodv:
+                      type: keyword
+                      doc_values: false
+                num:
+                  type: long
+                  doc_values: false
+# A columnar index keeps doc values for every field that can have them, but still reads its text fields from the source.
+- do:
+    allowed_warnings_regex:
+    - "The \\[doc_values\\] parameter of field \\[.+\\] is ignored in columnar index modes.*"
+    indices.create:
+      index: sb_nested_columnar
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+          index.mode: columnar
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              properties:
+                note:
+                  type: text
+                note2:
+                  type: text
+                  fields:
+                    raw:
+                      type: keyword
+                sku:
+                  type: keyword
+                  fields:
+                    text:
+                      type: text
+                mot:
+                  type: match_only_text
+                kw:
+                  type: keyword
+                  doc_values: false
+                  fields:
+                    nodv:
+                      type: keyword
+                      doc_values: false
+                num:
+                  type: long
+                  doc_values: false
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: sb_nested_stored
+      - id: a
+        items:
+        - { note: hello, note2: hi, sku: x, mot: m1, kw: k1, num: 1 }
+        - { note: bye, note2: yo, sku: y, mot: m2, kw: k2, num: 2 }
+      - index:
+          _index: sb_nested_stored
+      - id: b
+        items:
+        - { note: ciao, note2: hey, sku: z, mot: m3, kw: k3, num: 3 }
+      - index:
+          _index: sb_nested_synthetic
+      - id: a
+        items:
+        - { note: hello, note2: hi, sku: x, mot: m1, kw: k1, num: 1 }
+        - { note: bye, note2: yo, sku: y, mot: m2, kw: k2, num: 2 }
+      - index:
+          _index: sb_nested_synthetic
+      - id: b
+        items:
+        - { note: ciao, note2: hey, sku: z, mot: m3, kw: k3, num: 3 }
+      - index:
+          _index: sb_object_stored
+      - id: a
+        items:
+        - { note: hello, note2: hi, sku: x, mot: m1, kw: k1, num: 1 }
+        - { note: bye, note2: yo, sku: y, mot: m2, kw: k2, num: 2 }
+      - index:
+          _index: sb_object_stored
+      - id: b
+        items:
+        - { note: ciao, note2: hey, sku: z, mot: m3, kw: k3, num: 3 }
+      - index:
+          _index: sb_object_synthetic
+      - id: a
+        items:
+        - { note: hello, note2: hi, sku: x, mot: m1, kw: k1, num: 1 }
+        - { note: bye, note2: yo, sku: y, mot: m2, kw: k2, num: 2 }
+      - index:
+          _index: sb_object_synthetic
+      - id: b
+        items:
+        - { note: ciao, note2: hey, sku: z, mot: m3, kw: k3, num: 3 }
+      - index:
+          _index: sb_nested_columnar
+      - id: a
+        items:
+        - { note: hello, note2: hi, sku: x, mot: m1, kw: k1, num: 1 }
+        - { note: bye, note2: yo, sku: y, mot: m2, kw: k2, num: 2 }
+      - index:
+          _index: sb_nested_columnar
+      - id: b
+        items:
+        - { note: ciao, note2: hey, sku: z, mot: m3, kw: k3, num: 3 }
+- do:
+    esql.query:
+      body:
+        query: "FROM sb_* METADATA _index | EVAL note = MV_SORT(items.note), note2 = MV_SORT(items.note2), raw = MV_SORT(items.note2.raw), sku = MV_SORT(items.sku), skutext = MV_SORT(items.sku.text), mot = MV_SORT(items.mot), kw = MV_SORT(items.kw), nodv = MV_SORT(items.kw.nodv), num = MV_SORT(items.num) | KEEP _index, id, note, note2, raw, sku, skutext, mot, kw, nodv, num | SORT _index, id DESC | LIMIT 20"
+- match:
+    values:
+    - [sb_nested_columnar, b, ciao, hey, hey, z, z, m3, k3, k3, 3]
+    - [sb_nested_columnar, a, [bye, hello], [hi, yo], [hi, yo], [x, y], [x, y], [m1, m2], [k1, k2], [k1, k2], [1, 2]]
+    - [sb_nested_stored, b, ciao, hey, hey, z, z, m3, k3, k3, 3]
+    - [sb_nested_stored, a, [bye, hello], [hi, yo], [hi, yo], [x, y], [x, y], [m1, m2], [k1, k2], [k1, k2], [1, 2]]
+    - [sb_nested_synthetic, b, ciao, hey, hey, z, z, m3, k3, k3, 3]
+    - [sb_nested_synthetic, a, [bye, hello], [hi, yo], [hi, yo], [x, y], [x, y], [m1, m2], [k1, k2], [k1, k2], [1, 2]]
+    - [sb_object_stored, b, ciao, hey, hey, z, z, m3, k3, k3, 3]
+    - [sb_object_stored, a, [bye, hello], [hi, yo], [hi, yo], [x, y], [x, y], [m1, m2], [k1, k2], [k1, k2], [1, 2]]
+    - [sb_object_synthetic, b, ciao, hey, hey, z, z, m3, k3, k3, 3]
+    - [sb_object_synthetic, a, [bye, hello], [hi, yo], [hi, yo], [x, y], [x, y], [m1, m2], [k1, k2], [k1, k2], [1, 2]]
+
+---
+a field read from a filtered _source is null under a nested object:
+# Filtering _source as it is stored drops the objects it empties, so the stored _source no longer tells which object each child
+# document was indexed from. A field read from it is null with a warning, rather than another object's value or a failed shard.
+# Doc values are read from the child documents themselves, and a disabled _source has nothing to read.
+- do:
+    indices.create:
+      index: fs_excl_nested
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          _source:
+            excludes: [items.note]
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              properties:
+                note:
+                  type: text
+                kw:
+                  type: keyword
+                  doc_values: false
+                price:
+                  type: long
+- do:
+    indices.create:
+      index: fs_excl_object
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          _source:
+            excludes: [items.note]
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              properties:
+                note:
+                  type: text
+                kw:
+                  type: keyword
+                  doc_values: false
+                price:
+                  type: long
+- do:
+    indices.create:
+      index: fs_incl_nested
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          _source:
+            includes: [id, items.kw]
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              properties:
+                note:
+                  type: text
+                kw:
+                  type: keyword
+                  doc_values: false
+                price:
+                  type: long
+- do:
+    indices.create:
+      index: fs_incl_object
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          _source:
+            includes: [id, items.kw]
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              properties:
+                note:
+                  type: text
+                kw:
+                  type: keyword
+                  doc_values: false
+                price:
+                  type: long
+- do:
+    indices.create:
+      index: fs_off_nested
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          _source:
+            enabled: false
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              properties:
+                note:
+                  type: text
+                kw:
+                  type: keyword
+                  doc_values: false
+                price:
+                  type: long
+- do:
+    indices.create:
+      index: fs_off_object
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          _source:
+            enabled: false
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              properties:
+                note:
+                  type: text
+                kw:
+                  type: keyword
+                  doc_values: false
+                price:
+                  type: long
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: fs_excl_nested
+      - id: a
+        items:
+        - { note: only }
+        - { price: 5 }
+        - { note: n3, kw: k3, price: 3 }
+      - index:
+          _index: fs_excl_object
+      - id: a
+        items:
+        - { note: only }
+        - { price: 5 }
+        - { note: n3, kw: k3, price: 3 }
+      - index:
+          _index: fs_incl_nested
+      - id: a
+        items:
+        - { note: only }
+        - { price: 5 }
+        - { note: n3, kw: k3, price: 3 }
+      - index:
+          _index: fs_incl_object
+      - id: a
+        items:
+        - { note: only }
+        - { price: 5 }
+        - { note: n3, kw: k3, price: 3 }
+      - index:
+          _index: fs_off_nested
+      - id: a
+        items:
+        - { note: only }
+        - { price: 5 }
+        - { note: n3, kw: k3, price: 3 }
+      - index:
+          _index: fs_off_object
+      - id: a
+        items:
+        - { note: only }
+        - { price: 5 }
+        - { note: n3, kw: k3, price: 3 }
+- do:
+    warnings:
+    - "Field [items.note] cannot be retrieved from the filtered _source of index [fs_excl_nested]; returning null"
+    - "Field [items.kw] cannot be retrieved from the filtered _source of index [fs_excl_nested]; returning null"
+    - "Field [items.note] cannot be retrieved from the filtered _source of index [fs_incl_nested]; returning null"
+    - "Field [items.kw] cannot be retrieved from the filtered _source of index [fs_incl_nested]; returning null"
+    esql.query:
+      body:
+        query: "FROM fs_* METADATA _index | EVAL note = MV_SORT(items.note), kw = MV_SORT(items.kw), price = MV_SORT(items.price) | KEEP _index, note, kw, price | SORT _index | LIMIT 20"
+- match: { is_partial: false }
+- match:
+    values:
+    - [fs_excl_nested, null, null, [3, 5]]
+    - [fs_excl_object, null, k3, [3, 5]]
+    - [fs_incl_nested, null, null, [3, 5]]
+    - [fs_incl_object, null, k3, [3, 5]]
+    - [fs_off_nested, null, null, [3, 5]]
+    - [fs_off_object, null, null, [3, 5]]
+
+---
+a geo_point under a nested object agrees with the same field under a plain object:
+# Only a child's point is in the polygon, so a filter pushed to Lucene would miss its parent. The plain object's shard may load
+# its points from doc values, and both shards' points go into one centroid.
+- do:
+    indices.create:
+      index: geo_nested
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          properties:
+            items:
+              type: nested
+              properties:
+                location:
+                  type: geo_point
+- do:
+    indices.create:
+      index: geo_object
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          properties:
+            items:
+              properties:
+                location:
+                  type: geo_point
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: geo_nested
+      - items:
+        - { location: "POINT (0 0)" }
+        - { location: "POINT (2 4)" }
+      - index:
+          _index: geo_object
+      - items:
+          location: "POINT (4 2)"
+- do:
+    esql.query:
+      body:
+        query: 'FROM geo_* METADATA _index | WHERE ST_INTERSECTS(items.location, TO_GEOSHAPE("POLYGON ((-1 -1, 1 -1, 1 1, -1 1, -1 -1))")) | KEEP _index | LIMIT 10'
+- match: { values: [[geo_nested]] }
+- do:
+    esql.query:
+      body:
+        query: "FROM geo_* | STATS c = ST_CENTROID_AGG(items.location), n = COUNT(*) | EVAL x = ROUND(ST_X(c), 3), y = ROUND(ST_Y(c), 3) | KEEP x, y, n | LIMIT 10"
+- match: { values: [[2.0, 2.0, 2]] }
+
+---
+a key of a flattened field under a nested object is cast to the type another index maps:
+# Each index reads its own mapping: the flattened key of mk_nested is read from the children and cast to the long that mk_long
+# maps, as the key of mk_object under a plain object is.
+- requires:
+    test_runner_features: [capabilities]
+    capabilities:
+    - method: POST
+      path: /_query
+      parameters: []
+      capabilities: [flattened_keys]
+    reason: "A name under a flattened field is its keyword key"
+- do:
+    indices.create:
+      index: mk_nested
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          properties:
+            items:
+              type: nested
+              properties:
+                attrs:
+                  type: flattened
+- do:
+    indices.create:
+      index: mk_object
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          properties:
+            items:
+              properties:
+                attrs:
+                  type: flattened
+- do:
+    indices.create:
+      index: mk_long
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          properties:
+            items:
+              properties:
+                attrs:
+                  properties:
+                    env:
+                      type: long
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: mk_nested
+      - items:
+        - { attrs: { env: "5" } }
+        - { attrs: { env: "7" } }
+      - index:
+          _index: mk_object
+      - items: { attrs: { env: "6" } }
+      - index:
+          _index: mk_long
+      - items: { attrs: { env: 9 } }
+- do:
+    esql.query:
+      body:
+        query: FROM mk_* METADATA _index | EVAL env = MV_SORT(items.attrs.env) | KEEP _index, env | SORT _index | LIMIT 10
+- match:
+    values:
+    - [mk_long, 9]
+    - [mk_nested, [5, 7]]
+    - [mk_object, 6]
+
+---
+an alias under a nested object reads its target:
+- do:
+    indices.create:
+      index: al_nested
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+          index.mode: lookup
+        mappings:
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              properties:
+                note:
+                  type: text
+                sku:
+                  type: keyword
+                note_alias:
+                  type: alias
+                  path: items.note
+                sku_alias:
+                  type: alias
+                  path: items.sku
+- do:
+    indices.create:
+      index: al_synthetic
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+          index.mapping.source.mode: synthetic
+        mappings:
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              synthetic_source_keep: all
+              properties:
+                note:
+                  type: text
+                sku:
+                  type: keyword
+                  doc_values: false
+                note_alias:
+                  type: alias
+                  path: items.note
+                sku_alias:
+                  type: alias
+                  path: items.sku
+- do:
+    indices.create:
+      index: al_main
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          properties:
+            id:
+              type: keyword
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: al_nested
+      - id: a
+        items:
+        - { note: hello, sku: x }
+        - { note: bye, sku: y }
+      - index:
+          _index: al_synthetic
+      - id: a
+        items:
+        - { note: hello, sku: x }
+        - { note: bye, sku: y }
+      - index:
+          _index: al_main
+      - id: a
+- do:
+    esql.query:
+      body:
+        query: FROM al_nested, al_synthetic METADATA _index | KEEP _index, items.note_alias, items.sku_alias | SORT _index | LIMIT 10
+- match: { values: [[al_nested, [hello, bye], [x, y]], [al_synthetic, [hello, bye], [x, y]]] }
+- do:
+    esql.query:
+      body:
+        query: FROM al_main | LOOKUP JOIN al_nested ON id | KEEP items.note_alias, items.sku_alias | LIMIT 10
+- match: { values: [[[hello, bye], [x, y]]] }
+
+---
+a runtime field named under a nested object runs on the parent:
+# A runtime field's script runs on the document it is asked for, which is the parent, as under a plain object.
+- do:
+    indices.create:
+      index: rt_nested
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          runtime:
+            items.rt:
+              type: long
+              script:
+                source: "emit(doc['n'].value * 10)"
+          properties:
+            n:
+              type: long
+            items:
+              type: nested
+              properties:
+                price:
+                  type: long
+- do:
+    indices.create:
+      index: rt_object
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          runtime:
+            items.rt:
+              type: long
+              script:
+                source: "emit(doc['n'].value * 10)"
+          properties:
+            n:
+              type: long
+            items:
+              properties:
+                price:
+                  type: long
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: rt_nested
+      - n: 1
+        items:
+        - { price: 1 }
+        - { price: 2 }
+      - index:
+          _index: rt_object
+      - n: 2
+        items:
+        - { price: 3 }
+- do:
+    esql.query:
+      body:
+        query: FROM rt_* METADATA _index | KEEP _index, items.rt | SORT _index | LIMIT 10
+- match:
+    values:
+    - [rt_nested, 10]
+    - [rt_object, 20]
+
+---
+a nested object is not one of the types a cast resolves:
+# The nested object only shapes the fields under it, so the long and integer the other indices map a cast resolves.
+- do:
+    indices.create:
+      index: cn_nested
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          properties:
+            items:
+              type: nested
+              properties:
+                price:
+                  type: long
+- do:
+    indices.create:
+      index: cn_long
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          properties:
+            items:
+              type: long
+- do:
+    indices.create:
+      index: cn_integer
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          properties:
+            items:
+              type: integer
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: cn_nested
+      - items:
+        - { price: 3 }
+        - { price: 4 }
+      - index:
+          _index: cn_long
+      - items: 2
+      - index:
+          _index: cn_integer
+      - items: 1
+- do:
+    esql.query:
+      body:
+        query: FROM cn_* METADATA _index | EVAL i = items::long | KEEP _index, i, items.price | SORT _index | LIMIT 10
+- match:
+    values:
+    - [cn_integer, 1, null]
+    - [cn_long, 2, null]
+    - [cn_nested, null, [3, 4]]
+
+---
+a keyword that keeps numbers and booleans in synthetic source reads them as text:
+# The values a nested object keeps whole are converted as the field's own loader converts the values it keeps, nulls to its
+# null_value.
+- do:
+    indices.create:
+      index: sv_nested
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+          index.mapping.source.mode: synthetic
+        mappings:
+          properties:
+            items:
+              type: nested
+              synthetic_source_keep: all
+              properties:
+                kw:
+                  type: keyword
+                  doc_values: false
+                  null_value: none
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: sv_nested
+      - items:
+        - { kw: 5 }
+        - { kw: true }
+        - { kw: [1.5, x] }
+        - { kw: null }
+- do:
+    esql.query:
+      body:
+        query: FROM sv_nested | EVAL kw = MV_SORT(items.kw) | KEEP kw | LIMIT 10
+- match: { values: [[["1.5", "5", none, "true", x]]] }

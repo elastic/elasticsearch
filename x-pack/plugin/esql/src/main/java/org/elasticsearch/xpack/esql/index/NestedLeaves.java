@@ -1,0 +1,83 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.index;
+
+import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.AbstractScriptFieldType;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
+
+import java.util.Map;
+
+/**
+ * A field under a {@code nested} object holds the values of all of the parent's objects, which Lucene stores as separate child
+ * documents. ES|QL reads it as an ordinary multivalued column of the parent, like a field under a plain object.
+ * <p>
+ * The parent's index holds none of these values, so nothing about them is pushed to Lucene. Searches on such a field
+ * ({@code MATCH}, {@code MATCH_PHRASE}, the {@code :} operator and {@code KNN}) are rejected for now: they would run as a
+ * Lucene query on the parents and miss every parent whose objects match. {@code QSTR} and {@code KQL} name their fields inside
+ * the query string, so they can't be checked: a query string naming a field under a nested object matches no parent, as it
+ * does where these fields aren't read at all.
+ * <p>
+ * A field without doc values reads its object from the parent's {@code _source}. Where the mapping's {@code includes} or
+ * {@code excludes} filtered {@code _source} as it was stored, it is null with a warning: filtering drops the objects it empties,
+ * so the stored {@code _source} no longer tells which object each child document was indexed from.
+ */
+public final class NestedLeaves {
+    /** Only snapshot builds read the fields under a nested object; elsewhere they are left out of the mapping. */
+    public static final boolean ENABLED = Build.current().isSnapshot();
+
+    /** The first version whose data nodes read the fields under a nested object from the child documents. */
+    public static final TransportVersion VERSION = TransportVersion.fromName("esql_nested_flattened_leaves");
+
+    private NestedLeaves() {}
+
+    /**
+     * Whether the fields under a nested object are read where {@code minTransportVersion} is the oldest node's version. An older
+     * data node would load null for them. Only {@code IndexResolver} checks this: data nodes read the child documents only of
+     * the fields it resolved as {@link org.elasticsearch.xpack.esql.core.type.EsField#isUnderNested}.
+     */
+    public static boolean enabled(@Nullable TransportVersion minTransportVersion) {
+        return ENABLED && minTransportVersion != null && minTransportVersion.supports(VERSION);
+    }
+
+    /**
+     * The nested object whose child documents hold the values of {@code name} in this shard's mapping, or {@code null} where the
+     * parent does. An alias holds the values of its target, and a key of a {@code flattened} field those of the field. A runtime
+     * field runs its script on the document it is asked for, so even one named under a nested object is read from the parent.
+     */
+    @Nullable
+    public static String childPath(MappingLookup lookup, String name) {
+        MappedFieldType type = lookup.getFieldType(name);
+        if (type == null || type instanceof AbstractScriptFieldType<?>) {
+            return null;
+        }
+        return lookup.nestedLookup().getNestedParent(type.name());
+    }
+
+    /** The nested object {@code name} is under in this index, from its mapping rather than from the dots in the name. */
+    @Nullable
+    public static String pathFor(String name, Map<String, IndexFieldCapabilities> fields) {
+        String candidate = name;
+        while (true) {
+            IndexFieldCapabilities field = fields.get(candidate);
+            if (field != null && field.type().equals(NestedObjectMapper.CONTENT_TYPE)) {
+                return candidate;
+            }
+            int dot = candidate.lastIndexOf('.');
+            if (dot < 0) {
+                return null;
+            }
+            candidate = candidate.substring(0, dot);
+        }
+    }
+}

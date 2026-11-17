@@ -141,7 +141,9 @@ public class SpatialShapeDocValuesExtraction extends ParameterizedOptimizerRule<
         Set<EsField> fieldsInOtherAggregations,
         LocalPhysicalOptimizerContext ctx
     ) {
+        // The child documents of a nested object are read in the representation of their values
         return isShape(field.field().getDataType())
+            && field.field().isUnderNested() == false
             && fieldsInOtherAggregations.contains(field.field()) == false
             && ctx.searchStats().hasDocValues(field.fieldName());
     }

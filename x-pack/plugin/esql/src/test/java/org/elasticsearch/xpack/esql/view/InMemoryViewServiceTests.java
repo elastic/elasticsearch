@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.parser.AbstractStatementParserTests;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelationSerializationTests;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -1609,6 +1610,24 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         );
         // The setting stays implicit: only an explicit SET counts as supplied by the view author.
         assertThat(viewSettings("PROMQL index=emp step=5m sum(network.bytes_in)").supplied(), empty());
+    }
+
+    /**
+     * A cluster default for {@code unmapped_fields} is not the view's own {@code SET}, so a PROMQL body still nullifies under it,
+     * as the same PROMQL run directly does. Other bodies take the cluster default.
+     */
+    public void testPromqlViewBodyNullifiesWhateverTheClusterDefault() {
+        for (UnmappedResolution clusterDefault : List.of(UnmappedResolution.LOAD, UnmappedResolution.DEFAULT)) {
+            Settings cluster = Settings.builder()
+                .put(QuerySettings.UNMAPPED_FIELDS.clusterSetting().getKey(), clusterDefault.settingValue())
+                .build();
+            assertThat(
+                ViewQuerySettings.from(parse("PROMQL index=emp step=5m sum(network.bytes_in)", "v"), cluster, Settings.EMPTY)
+                    .unmappedFields(),
+                equalTo(UnmappedResolution.NULLIFY)
+            );
+            assertThat(ViewQuerySettings.from(parse("FROM emp", "v"), cluster, Settings.EMPTY).unmappedFields(), equalTo(clusterDefault));
+        }
     }
 
     private ViewQuerySettings viewSettings(String viewQuery) {

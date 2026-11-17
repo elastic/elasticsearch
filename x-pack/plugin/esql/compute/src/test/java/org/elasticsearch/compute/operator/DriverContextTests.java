@@ -222,7 +222,7 @@ public class DriverContextTests extends ESTestCase {
 
     /**
      * Work on a pool thread can let the driver report its load before the pool charges the task, so the task is charged when
-     * the work returns.
+     * it removes an async action and when the work returns.
      */
     public void testMeteredCpuChargesTheLoadOfItsTask() throws Exception {
         EsThreadPoolExecutor pool = EsExecutors.newFixed(
@@ -237,20 +237,32 @@ public class DriverContextTests extends ESTestCase {
             AtomicLong charged = new AtomicLong();
             TaskLoadAttribution.Target target = (nanos, cpuNanos, finishNanos) -> charged.addAndGet(nanos);
             DriverContext driverContext = new AssertingDriverContext();
+            driverContext.addAsyncAction();
+            PlainActionFuture<Long> chargedOnRemoval = new PlainActionFuture<>();
             PlainActionFuture<Long> chargedOnReturn = new PlainActionFuture<>();
             pool.execute(ActionRunnable.supply(chargedOnReturn, () -> {
                 TaskLoadAttribution.attribute(target);
                 driverContext.meteredCpu(() -> {
-                    long start = System.nanoTime();
-                    while (System.nanoTime() - start < 1_000) {
-                        Thread.onSpinWait();
-                    }
+                    spin();
+                    driverContext.removeAsyncAction();
+                    chargedOnRemoval.onResponse(charged.get());
+                    spin();
                 });
                 return charged.get();
             }));
-            assertThat(chargedOnReturn.get(10, TimeUnit.SECONDS), greaterThan(0L));
+            long onRemoval = chargedOnRemoval.get(10, TimeUnit.SECONDS);
+            assertThat(onRemoval, greaterThan(0L));
+            assertThat(chargedOnReturn.get(10, TimeUnit.SECONDS), greaterThan(onRemoval));
         } finally {
             ThreadPool.terminate(pool, 10, TimeUnit.SECONDS);
+        }
+    }
+
+    /** Spins for a microsecond, so the time charged for it is never zero. */
+    private static void spin() {
+        long start = System.nanoTime();
+        while (System.nanoTime() - start < 1_000) {
+            Thread.onSpinWait();
         }
     }
 

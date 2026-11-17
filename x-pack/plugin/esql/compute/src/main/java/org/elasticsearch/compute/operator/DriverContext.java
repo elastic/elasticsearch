@@ -289,10 +289,12 @@ public class DriverContext {
 
     /**
      * Removing the last async action can let the driver publish its final status, so this first adds what the calling
-     * thread's open {@link #meteredCpu(CheckedSupplier)} measurement has used so far.
+     * thread's open {@link #meteredCpu(CheckedSupplier)} measurement has used so far, and charges the load of the pool
+     * task running it so far.
      */
     public void removeAsyncAction() {
         cpuTracker.checkpoint();
+        chargeLoadSoFar();
         asyncActions.removeInstance();
     }
 
@@ -321,10 +323,14 @@ public class DriverContext {
         try {
             return cpuTracker.meteredCpu(work);
         } finally {
-            TaskLoadAttribution.Target target = TaskLoadAttribution.target();
-            if (target != null) {
-                TaskLoadAttribution.chargeSoFar(target, System.nanoTime());
-            }
+            chargeLoadSoFar();
+        }
+    }
+
+    private static void chargeLoadSoFar() {
+        TaskLoadAttribution.Target target = TaskLoadAttribution.target();
+        if (target != null) {
+            TaskLoadAttribution.chargeSoFar(target, System.nanoTime());
         }
     }
 

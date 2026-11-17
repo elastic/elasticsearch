@@ -3432,15 +3432,15 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var readDims = plan.collect(ReadDimsExec.class);
         assertThat(readDims, hasSize(1));
         assertThat(readDims.getFirst().dims().getFirst(), instanceOf(TimeSeriesMetadataAttribute.class));
-        assertTrue(PlannerUtils.readsTimeSeriesMetadataOncePerSeries(plan));
+        assertTrue(GoldenTestCase.readsTimeSeriesMetadataOncePerSeries(plan));
     }
 
     /**
      * Without {@link ExtractDimensionFieldsAfterAggregation} the {@code _timeseries} container is extracted below the
-     * time-series aggregation, once per sample, and {@link PlannerUtils#localPlan} trips its assertion.
+     * time-series aggregation, once per sample, and the check the golden tests run on every local plan fails.
      */
     @SuppressWarnings("unchecked")
-    public void testTimeSeriesMetadataReadPerSampleTripsAssertion() {
+    public void testTimeSeriesMetadataReadPerSampleFailsCheck() {
         assumeTrue("requires WITHOUT grouping", EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING.isEnabled());
         var physicalPlan = new TestPlannerOptimizer(config, metricsAnalyzerAt(TransportVersion.current()).buildAnalyzer()).distributedPlan(
             "TS k8s | STATS avg_cost = AVG(network.cost) BY WITHOUT(pod, region)"
@@ -3470,8 +3470,9 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
                 return newBatches;
             }
         };
-        var e = expectThrows(AssertionError.class, () -> PlannerUtils.localPlan(physicalPlan, logicalOptimizer, physicalOptimizer, null));
-        assertThat(e.getMessage(), containsString("[_timeseries] is loaded per document below a time-series aggregation"));
+        var plan = PlannerUtils.localPlan(physicalPlan, logicalOptimizer, physicalOptimizer, null);
+        assertThat(plan.collect(ReadDimsExec.class), hasSize(0));
+        assertFalse(GoldenTestCase.readsTimeSeriesMetadataOncePerSeries(plan));
     }
 
     /**

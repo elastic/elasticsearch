@@ -32,15 +32,12 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
-import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -52,7 +49,6 @@ import org.elasticsearch.xpack.esql.datasources.DatasetConfigResolver;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.dsltranslate.ViewRequestFilterRewriter;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
 import org.elasticsearch.xpack.esql.optimizer.ExternalOptimizerContext;
@@ -60,7 +56,6 @@ import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer;
-import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ExtractDimensionFieldsAfterAggregation;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -79,7 +74,6 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
-import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
@@ -677,36 +671,7 @@ public class PlannerUtils {
         });
 
         PhysicalPlan resultPlan = isCoordPlan.get() ? plan : localPhysicalPlan;
-        assert readsTimeSeriesMetadataOncePerSeries(resultPlan)
-            : "[" + MetadataAttribute.TIMESERIES + "] is loaded per document below a time-series aggregation:\n" + resultPlan;
         return resultPlan;
-    }
-
-    /**
-     * Checks that no {@link TimeSeriesAggregateExec} reading documents has a {@link FieldExtractExec} below it that loads
-     * the {@code _timeseries} label container. Its block loader parses {@code _source} for every document it is loaded
-     * for and has no per-series cache, so a load below the aggregation parses {@code _source} once per sample. The
-     * translation reads the container with {@code DIMENSION_VALUES} and {@link ExtractDimensionFieldsAfterAggregation}
-     * moves that read after the aggregation, once per {@code _tsid}. The only loads allowed below the aggregation are
-     * the ones it reads with {@link Values} itself: the translation used until every node supports
-     * {@code dimension_values} and an explicit {@code STATS VALUES(_timeseries)} load it per document on purpose.
-     */
-    public static boolean readsTimeSeriesMetadataOncePerSeries(PhysicalPlan plan) {
-        return plan.collect(TimeSeriesAggregateExec.class, agg -> agg.getMode().isInputPartial() == false).stream().allMatch(agg -> {
-            AttributeSet.Builder valuesFields = AttributeSet.builder();
-            for (NamedExpression aggregate : agg.aggregates()) {
-                if (Alias.unwrap(aggregate) instanceof Values values && values.field() instanceof Attribute field) {
-                    valuesFields.add(field);
-                }
-            }
-            return agg.child()
-                .anyMatch(
-                    p -> p instanceof FieldExtractExec extract
-                        && extract.attributesToExtract()
-                            .stream()
-                            .anyMatch(attr -> attr instanceof TimeSeriesMetadataAttribute && valuesFields.contains(attr) == false)
-                ) == false;
-        });
     }
 
     /**

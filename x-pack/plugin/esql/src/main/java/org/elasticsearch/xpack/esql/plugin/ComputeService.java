@@ -116,6 +116,7 @@ import org.elasticsearch.xpack.esql.into.IntoStats;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalVerifier;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ExternalSourceAggregatePushdown;
+import org.elasticsearch.xpack.esql.plan.PlanJsonLog;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
@@ -2116,8 +2117,12 @@ public class ComputeService {
             : context.load();
         assert context.description().equals(REDUCE_DESCRIPTION) == false || computeLoad != null : "node reduce without a load target";
         Executor parallelWorkers = searchService.queryScheduler().executor(context.queryId(), computeExecutor, List.of());
+        // the compute allocates through the query's breaker until it completes
+        QueryScheduler.QueryPart computePart = searchService.queryScheduler().part(context.queryId(), task.getId());
 
         try {
+            BigArrays queryBigArrays = computePart.bigArrays(bigArrays);
+            BlockFactory queryBlockFactory = blockFactory.newQueryFactory(computePart.breaker(), queryBigArrays);
             var workerThreadPool = transportService.getThreadPool();
             int esqlWorkerPoolSize = workerThreadPool.info(EsqlPlugin.computePool()).getMax();
 
@@ -2133,12 +2138,13 @@ public class ComputeService {
             // snapshots cannot disagree on anything that is read.
             ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(clusterService.state());
             DatasetConfigResolver datasetConfigResolver = DatasetConfigResolver.forProduction(projectMetadata);
+            var externalCompute = new LocalExecutionPlanner.ExternalComputeContext(context.queryId(), computeLoad, null);
             LocalExecutionPlanner planner = new LocalExecutionPlanner(
                 context.sessionId(),
                 context.clusterAlias(),
                 task,
-                bigArrays,
-                blockFactory,
+                queryBigArrays,
+                queryBlockFactory,
                 clusterService.getSettings(),
                 context.configuration(),
                 context.exchangeSourceSupplier(),
@@ -2158,7 +2164,8 @@ public class ComputeService {
                 esqlWorkerPoolSize,
                 grokMatcherWatchdog.get(),
                 clusterService.state().getMinTransportVersion(),
-                eqlDelegateClient
+                eqlDelegateClient,
+                externalCompute
             );
 
             LOGGER.debug("Received physical plan for {}:\n{}", context.description(), plan);
@@ -2168,6 +2175,7 @@ public class ComputeService {
             );
             PhysicalPlan localPlan;
             final String logicalPlanString;
+            final String logicalPlanJson;
             final boolean approximationApplied;
             if (localPhysicalOptimization == LocalPhysicalOptimization.ENABLED) {
                 // The contexts of the shards, so that planning sees the fields the plan reads as each shard resolves them
@@ -2188,6 +2196,7 @@ public class ComputeService {
                         datasetConfigResolver
                     );
                     logicalPlanString = null;
+                    logicalPlanJson = null;
                     approximationApplied = false;
                 } else {
                     var localPlanResult = PlannerUtils.localPlanWithLogical(
@@ -2201,6 +2210,7 @@ public class ComputeService {
                     );
                     localPlan = localPlanResult.physicalPlan();
                     logicalPlanString = localPlanResult.logicalPlanString();
+                    logicalPlanJson = localPlanResult.logicalPlanJson();
                     approximationApplied = localPlanResult.approximationApplied();
                 }
             } else {
@@ -2209,11 +2219,14 @@ public class ComputeService {
                 // idempotent and free on a plan without external sources, so apply it rather than rely on that.
                 localPlan = plan.transformUp(ExternalSourceExec.class, datasetConfigResolver::rebind);
                 logicalPlanString = null;
+                logicalPlanJson = null;
                 approximationApplied = false;
             }
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("Local plan for {}:\n{}", context.description(), localPlan);
             }
+            // The plan the drivers below are built from, so their plan_node_ids all resolve to nodes in it.
+            PlanJsonLog.debug(PlanJsonLog.Stage.COMPUTE_PLAN, context.description(), localPlan);
 
             // For EXPLAIN mode, replace data sources with empty sources to make execution cheap.
             // The original localPlan is immutable and preserved for profiling.
@@ -2240,6 +2253,7 @@ public class ComputeService {
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("Local execution plan for {}:\n{}", context.description(), localExecutionPlan.describe());
             }
+            PlanJsonLog.debug(PlanJsonLog.Stage.DRIVERS, context.description(), localExecutionPlan::toPrettyJsonString);
             String driverSessionId = new TaskId(clusterService.localNode().getId(), task.getId()).toString();
             var drivers = localExecutionPlan.createDrivers(driverSessionId);
             // Note that the drivers themselves do not hold a reference to the search contexts, but rather, these are held (and therefore
@@ -2296,6 +2310,7 @@ public class ComputeService {
                 context,
                 localPlan,
                 logicalPlanString,
+                logicalPlanJson,
                 planTimeProfile,
                 planningBytesRead,
                 approximationApplied
@@ -2311,9 +2326,12 @@ public class ComputeService {
                         hookExecInfo.removeStopHook(hook);
                     }
                 }
-                Releasables.close(drivers);
+                try (computePart) {
+                    Releasables.close(drivers);
+                }
             }));
         } catch (Exception e) {
+            computePart.close();
             if (context.description().equals(DATA_DESCRIPTION)) {
                 Releasables.close(context.searchContexts().iterable());
             }
@@ -2328,6 +2346,7 @@ public class ComputeService {
         ComputeContext context,
         PhysicalPlan localPlan,
         String logicalPlanString,
+        String logicalPlanJson,
         PlanTimeProfile planTimeProfile,
         long planningBytesRead,
         boolean approximated
@@ -2336,8 +2355,11 @@ public class ComputeService {
          * We *really* don't want to close over the localPlan because it can
          * be quite large, and it isn't tracked.
          */
-        boolean needPlanString = LOGGER.isDebugEnabled() || context.configuration().profile();
+        boolean profile = context.configuration().profile();
+        boolean needPlanString = LOGGER.isDebugEnabled() || profile;
         String planString = needPlanString ? localPlan.toString(Node.NodeStringFormat.LIMITED, NodeStringMapper.IDENTITY) : null;
+        // JSON only when a consumer will read it. EXPLAIN turns profile on, so it takes this path too.
+        String planJson = profile ? PlanJsonLog.toJsonOrNull(localPlan) : null;
         return listener.map(ignored -> {
             if (LOGGER.isDebugEnabled() || context.configuration().profile()) {
                 DriverCompletionInfo driverCompletionInfo = DriverCompletionInfo.includingProfiles(
@@ -2349,7 +2371,9 @@ public class ComputeService {
                     logicalPlanString,
                     planTimeProfile,
                     planningBytesRead,
-                    approximated
+                    approximated,
+                    planJson,
+                    logicalPlanJson
                 );
                 LOGGER.debug("finished {}", driverCompletionInfo);
                 if (context.configuration().profile()) {
@@ -2432,6 +2456,9 @@ public class ComputeService {
             case PlannerUtils.ReducedPlan rp when runNodeLevelReduction -> placePlanBetweenExchanges.apply(rp.plan());
             default -> passThroughReduction;
         };
+        if (reductionPlan.isPassThrough() == false) {
+            reductionPlan = reductionPlan.withLocalExchange();
+        }
         if (planTimeProfile != null) {
             planTimeProfile.addReductionPlanNanos(System.nanoTime() - startTime);
         }
@@ -2465,6 +2492,14 @@ public class ComputeService {
 
     String newChildSession(String session) {
         return session + "/" + childSessionIdGenerator.incrementAndGet();
+    }
+
+    /**
+     * Keeps the query that {@code coordinatorTask} coordinates tracked on this node until {@code listener} completes.
+     * The computes of the coordinator share its memory. The part closes at the latest when the task is removed.
+     */
+    <T> ActionListener<T> coordinate(Task coordinatorTask, ActionListener<T> listener) {
+        return ActionListener.releaseAfter(listener, searchService.coordinate(coordinatorTask));
     }
 
     /**

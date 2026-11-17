@@ -1163,6 +1163,12 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     }
 
     @Override
+    public Object jsonPropertyValue(Object property) {
+        // The same as nodeString shows: the plan JSON must not reveal the bucket and prefix either
+        return sourcePath.equals(property) ? StoragePath.objectName(sourcePath) : property;
+    }
+
+    @Override
     public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
         // sourcePath is an external storage location — only the object name (last path segment) is
         // included; bucket, prefix, and full URI are always omitted. pushedFilter is a predicate the

@@ -9,8 +9,10 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.join.QueryBitSetProducer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
@@ -24,6 +26,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public class NestedChildSourceLoaderTests extends MapperServiceTestCase {
 
@@ -112,6 +115,140 @@ public class NestedChildSourceLoaderTests extends MapperServiceTestCase {
                     assertThat("doc " + d, actual.source(actualFields, d).source(), equalTo(want));
                 }
             }
+        });
+    }
+
+    public void testChildOfNextParentIsNotReadFromPreviousParent() throws IOException {
+        MapperService mapperService = createMapperService(MAPPING);
+        assertChildSources(
+            mapperService,
+            List.of(
+                parent("a", List.of(Map.of("v", "a0"), Map.of("v", "a1"))),
+                parent("b", List.of(Map.of("v", "b0"), Map.of("v", "b1"), Map.of("v", "b2")))
+            ),
+            List.of(
+                Map.of("items", Map.of("v", "a0")),
+                Map.of("items", Map.of("v", "a1")),
+                Map.of("items", Map.of("v", "b0")),
+                Map.of("items", Map.of("v", "b1")),
+                Map.of("items", Map.of("v", "b2"))
+            )
+        );
+    }
+
+    public void testSyntheticSourceChildrenOfSeveralParents() throws IOException {
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("id").field("type", "keyword").endObject();
+            b.startObject("items").field("type", "nested").startObject("properties");
+            {
+                b.startObject("v").field("type", "keyword").endObject();
+                b.startObject("n").field("type", "long").endObject();
+                b.startObject("tags").field("type", "keyword").endObject();
+            }
+            b.endObject().endObject();
+        }));
+        assertChildSources(
+            mapperService,
+            List.of(
+                parent("a", List.of(Map.of("v", "a0", "n", 1, "tags", List.of("x", "y")), Map.of("v", "a1", "n", 2))),
+                parent("empty", List.of()),
+                parent("b", List.of(Map.of("v", "b0", "n", 10), Map.of("v", "b1", "n", 20, "tags", List.of("z")), Map.of("v", "b2")))
+            ),
+            List.of(
+                Map.of("items", Map.of("v", "a0", "n", 1, "tags", List.of("x", "y"))),
+                Map.of("items", Map.of("v", "a1", "n", 2)),
+                Map.of("items", Map.of("v", "b0", "n", 10)),
+                Map.of("items", Map.of("v", "b1", "n", 20, "tags", "z")),
+                Map.of("items", Map.of("v", "b2"))
+            )
+        );
+    }
+
+    public void testSyntheticSourceChildrenWithFallbackFields() throws IOException {
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("id").field("type", "keyword").endObject();
+            b.startObject("items").field("type", "nested").startObject("properties");
+            {
+                b.startObject("v").field("type", "keyword").endObject();
+                b.startObject("capped").field("type", "keyword").field("ignore_above", 3).endObject();
+                b.startObject("blob").field("type", "object").field("enabled", false).endObject();
+            }
+            b.endObject().endObject();
+        }));
+        assertChildSources(
+            mapperService,
+            List.of(
+                parent(
+                    "a",
+                    List.of(Map.of("v", "a0", "capped", "a-long-value", "blob", Map.of("k", "a0")), Map.of("v", "a1", "capped", "ok"))
+                ),
+                parent("b", List.of(Map.of("v", "b0", "blob", Map.of("k", "b0", "list", List.of(1, 2))), Map.of("capped", "b-long-value")))
+            ),
+            List.of(
+                Map.of("items", Map.of("v", "a0", "capped", "a-long-value", "blob", Map.of("k", "a0"))),
+                Map.of("items", Map.of("v", "a1", "capped", "ok")),
+                Map.of("items", Map.of("v", "b0", "blob", Map.of("k", "b0", "list", List.of(1, 2)))),
+                Map.of("items", Map.of("capped", "b-long-value"))
+            )
+        );
+    }
+
+    public void testSyntheticSourceKeepAllChildren() throws IOException {
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("id").field("type", "keyword").endObject();
+            b.startObject("items").field("type", "nested").field("synthetic_source_keep", "all").startObject("properties");
+            {
+                b.startObject("v").field("type", "keyword").endObject();
+                b.startObject("tags").field("type", "keyword").endObject();
+            }
+            b.endObject().endObject();
+        }));
+        assertChildSources(
+            mapperService,
+            List.of(
+                parent("a", List.of(Map.of("v", "a0", "tags", List.of("b", "a", "b")), Map.of("v", "a1", "extra", 7))),
+                parent("b", List.of(Map.of("v", "b0", "tags", List.of("z", "y")), Map.of("v", "b1")))
+            ),
+            List.of(
+                Map.of("items", Map.of("v", "a0", "tags", List.of("b", "a", "b"))),
+                Map.of("items", Map.of("v", "a1", "extra", 7)),
+                Map.of("items", Map.of("v", "b0", "tags", List.of("z", "y"))),
+                Map.of("items", Map.of("v", "b1"))
+            )
+        );
+    }
+
+    private static CheckedConsumer<XContentBuilder, IOException> parent(String id, List<Map<String, Object>> items) {
+        return b -> b.field("id", id).field("items", items);
+    }
+
+    private void assertChildSources(
+        MapperService mapperService,
+        List<CheckedConsumer<XContentBuilder, IOException>> parents,
+        List<Map<String, Object>> expectedChildSources
+    ) throws IOException {
+        List<LuceneDocument> docs = new ArrayList<>();
+        List<Integer> childDocIds = new ArrayList<>();
+        for (CheckedConsumer<XContentBuilder, IOException> parent : parents) {
+            List<LuceneDocument> parsed = mapperService.documentMapper().parse(source(parent)).docs();
+            for (int i = 0; i < parsed.size() - 1; i++) {
+                childDocIds.add(docs.size() + i);
+            }
+            docs.addAll(parsed);
+        }
+        withLuceneIndex(mapperService, iw -> iw.addDocuments(docs), reader -> {
+            DirectoryReader shardReader = wrapInMockESDirectoryReader(reader);
+            assertThat(shardReader.leaves(), hasSize(1));
+            LeafReaderContext ctx = shardReader.leaves().getFirst();
+            SourceLoader loader = childLoader(mapperService);
+            SourceLoader.Leaf leaf = loader.leaf(ctx, null);
+            LeafStoredFieldLoader storedFields = StoredFieldLoader.create(false, loader.requiredStoredFields()).getLoader(ctx, null);
+            List<Map<String, Object>> actual = new ArrayList<>();
+            for (int docId : childDocIds) {
+                storedFields.advanceTo(docId);
+                actual.add(leaf.source(storedFields, docId).source());
+            }
+            assertThat(actual, equalTo(expectedChildSources));
         });
     }
 

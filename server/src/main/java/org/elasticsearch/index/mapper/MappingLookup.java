@@ -740,6 +740,13 @@ public final class MappingLookup {
      * Loads a hidden child document of a nested field from the parent's {@code _source}. Search's
      * {@link #newSourceLoader} is unchanged: a child document stores no {@code _source} of its own, and a filter on the
      * parent source could drop objects and shift the others, so only nested-child readers use this.
+     *
+     * <p>A child's object is found by the child's offset among its parent's children, so the parent's stored {@code _source}
+     * must still hold every object of the nested field. A mapping-level {@code _source} {@code includes} or {@code excludes}
+     * filters the stored source when it is indexed, and for example an {@code excludes} that leaves an object empty removes
+     * that object. The later objects then shift: a child is given another object's slice, or the read throws
+     * {@link IllegalStateException}. Synthetic source cannot be filtered. Callers must not read source-backed fields of
+     * children of an index whose stored source is filtered.
      */
     public SourceLoader newNestedChildSourceLoader(NestedDocuments nestedDocuments) {
         SourceLoader parentLoader = newSourceLoader(null, SourceFieldMetrics.NOOP, null);

@@ -34,7 +34,8 @@ import java.util.Set;
  * The {@link SourceLoader} of {@link MappingLookup#newNestedChildSourceLoader}, for ES|QL. Like {@link NestedStoredSourceLoader},
  * which search uses, it gives a nested child document the slice of its root's {@code _source} it was indexed from, and caches
  * the root's source for the root's other children. Unlike it, it reads the root with whatever loader the index's {@code _source}
- * needs, stored or synthetic, rather than only the stored bytes.
+ * needs, stored or synthetic, rather than only the stored bytes. It requires the root's source to hold every object of the
+ * nested field, which a mapping-level {@code _source} filter can break; see {@link MappingLookup#newNestedChildSourceLoader}.
  *
  * <p>A synthetic root loader reads doc values, so its documents must be read in increasing doc ID order.
  */
@@ -110,6 +111,7 @@ final class NestedChildSourceLoader implements SourceLoader {
                     if (docId != lastRootDoc) {
                         lastRootSource = rootLeaf.source(storedFields, docId);
                         lastRootDoc = docId;
+                        clearCollection();
                     }
                     lastChildIdentity = null;
                     return lastRootSource;
@@ -122,8 +124,15 @@ final class NestedChildSourceLoader implements SourceLoader {
                 leafRootLoader.advanceTo(rootDoc);
                 lastRootSource = rootLeaf.source(leafRootLoader, rootDoc);
                 lastRootDoc = rootDoc;
+                clearCollection();
             }
             return extractSource(nestedIdentity);
+        }
+
+        private void clearCollection() {
+            collectionRootDoc = -1;
+            collectionPath = null;
+            collectionObjects = null;
         }
 
         /**

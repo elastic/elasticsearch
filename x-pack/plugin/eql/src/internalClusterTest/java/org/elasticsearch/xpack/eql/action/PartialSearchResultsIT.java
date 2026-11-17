@@ -27,6 +27,7 @@ import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -119,7 +120,7 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
                 for (int i = 0; i < 10; i++) {
                     assertThat(response.hits().events().get(i).toString(), containsString("\"value\" : " + i));
                 }
-                assertThat(response.shardFailures().length, is(0));
+                assertThat(response.shardFailures(), empty());
             } finally {
                 EqlSearchResponseIntegTestHelpers.decRef(response);
             }
@@ -137,7 +138,7 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
                 EqlSearchResponse.Sequence sequence = response.hits().sequences().get(0);
                 assertThat(sequence.events().get(0).toString(), containsString("\"value\" : 1"));
                 assertThat(sequence.events().get(1).toString(), containsString("\"value\" : 2"));
-                assertThat(response.shardFailures().length, is(0));
+                assertThat(response.shardFailures(), empty());
             } finally {
                 EqlSearchResponseIntegTestHelpers.decRef(response);
             }
@@ -155,7 +156,7 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
                 EqlSearchResponse.Sequence sequence = response.hits().sequences().get(0);
                 assertThat(sequence.events().get(0).toString(), containsString("\"value\" : 1"));
                 assertThat(sequence.events().get(1).toString(), containsString("\"value\" : 3"));
-                assertThat(response.shardFailures().length, is(0));
+                assertThat(response.shardFailures(), empty());
             } finally {
                 EqlSearchResponseIntegTestHelpers.decRef(response);
             }
@@ -173,7 +174,7 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
                 EqlSearchResponse.Sequence sequence = response.hits().sequences().get(0);
                 assertThat(sequence.events().get(0).toString(), containsString("\"value\" : 0"));
                 assertThat(sequence.events().get(1).toString(), containsString("\"value\" : 2"));
-                assertThat(response.shardFailures().length, is(0));
+                assertThat(response.shardFailures(), empty());
             } finally {
                 EqlSearchResponseIntegTestHelpers.decRef(response);
             }
@@ -188,7 +189,7 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
             EqlSearchResponse response = client().execute(EqlSearchAction.INSTANCE, request).get();
             try {
                 assertThat(response.hits().sequences().size(), equalTo(0));
-                assertThat(response.shardFailures().length, is(0));
+                assertThat(response.shardFailures(), empty());
             } finally {
                 EqlSearchResponseIntegTestHelpers.decRef(response);
             }
@@ -206,7 +207,7 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
                 EqlSearchResponse.Sequence sample = response.hits().sequences().get(0);
                 assertThat(sample.events().get(0).toString(), containsString("\"value\" : 2"));
                 assertThat(sample.events().get(1).toString(), containsString("\"value\" : 1"));
-                assertThat(response.shardFailures().length, is(0));
+                assertThat(response.shardFailures(), empty());
             } finally {
                 EqlSearchResponseIntegTestHelpers.decRef(response);
             }
@@ -224,7 +225,7 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
                 EqlSearchResponse.Sequence sample = response.hits().sequences().get(0);
                 assertThat(sample.events().get(0).toString(), containsString("\"value\" : 3"));
                 assertThat(sample.events().get(1).toString(), containsString("\"value\" : 1"));
-                assertThat(response.shardFailures().length, is(0));
+                assertThat(response.shardFailures(), empty());
             } finally {
                 EqlSearchResponseIntegTestHelpers.decRef(response);
             }
@@ -242,7 +243,7 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
                 EqlSearchResponse.Sequence sample = response.hits().sequences().get(0);
                 assertThat(sample.events().get(0).toString(), containsString("\"value\" : 2"));
                 assertThat(sample.events().get(1).toString(), containsString("\"value\" : 0"));
-                assertThat(response.shardFailures().length, is(0));
+                assertThat(response.shardFailures(), empty());
             } finally {
                 EqlSearchResponseIntegTestHelpers.decRef(response);
             }
@@ -333,7 +334,7 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
                 for (int i = 0; i < 5; i++) {
                     assertThat(response.hits().events().get(i).toString(), containsString("\"value\" : " + (i * 2 + 1)));
                 }
-                assertThat(response.shardFailures().length, is(1));
+                assertThat(response.shardFailures().size(), is(1));
             } finally {
                 EqlSearchResponseIntegTestHelpers.decRef(response);
             }
@@ -361,9 +362,9 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
             EqlSearchResponse response = client().execute(EqlSearchAction.INSTANCE, request).get();
             try {
                 assertThat(response.hits().sequences().size(), equalTo(0));
-                assertThat(response.shardFailures().length, is(1));
-                assertThat(response.shardFailures()[0].index(), is("test-1"));
-                assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+                assertThat(response.shardFailures().size(), is(1));
+                assertThat(response.shardFailures().getFirst().index(), is("test-1"));
+                assertThat(response.shardFailures().getFirst().reason(), containsString("NoShardAvailableActionException"));
             } finally {
                 EqlSearchResponseIntegTestHelpers.decRef(response);
             }
@@ -383,9 +384,9 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
                 var sequence = response.hits().sequences().get(0);
                 assertThat(sequence.events().get(0).toString(), containsString("\"value\" : 1"));
                 assertThat(sequence.events().get(1).toString(), containsString("\"value\" : 3"));
-                assertThat(response.shardFailures().length, is(1));
-                assertThat(response.shardFailures()[0].index(), is("test-1"));
-                assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+                assertThat(response.shardFailures().size(), is(1));
+                assertThat(response.shardFailures().getFirst().index(), is("test-1"));
+                assertThat(response.shardFailures().getFirst().reason(), containsString("NoShardAvailableActionException"));
             } finally {
                 EqlSearchResponseIntegTestHelpers.decRef(response);
             }
@@ -402,9 +403,9 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
             EqlSearchResponse response = client().execute(EqlSearchAction.INSTANCE, request).get();
             try {
                 assertThat(response.hits().sequences().size(), equalTo(0));
-                assertThat(response.shardFailures().length, is(1));
-                assertThat(response.shardFailures()[0].index(), is("test-1"));
-                assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+                assertThat(response.shardFailures().size(), is(1));
+                assertThat(response.shardFailures().getFirst().index(), is("test-1"));
+                assertThat(response.shardFailures().getFirst().reason(), containsString("NoShardAvailableActionException"));
             } finally {
                 EqlSearchResponseIntegTestHelpers.decRef(response);
             }
@@ -424,9 +425,9 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
                 var sequence = response.hits().sequences().get(0);
                 assertThat(sequence.events().get(0).toString(), containsString("\"value\" : 1"));
                 assertThat(sequence.events().get(2).toString(), containsString("\"value\" : 3"));
-                assertThat(response.shardFailures().length, is(1));
-                assertThat(response.shardFailures()[0].index(), is("test-1"));
-                assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+                assertThat(response.shardFailures().size(), is(1));
+                assertThat(response.shardFailures().getFirst().index(), is("test-1"));
+                assertThat(response.shardFailures().getFirst().reason(), containsString("NoShardAvailableActionException"));
             } finally {
                 EqlSearchResponseIntegTestHelpers.decRef(response);
             }
@@ -453,9 +454,9 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
             EqlSearchResponse response = client().execute(EqlSearchAction.INSTANCE, request).get();
             try {
                 assertThat(response.hits().sequences().size(), equalTo(0));
-                assertThat(response.shardFailures().length, is(1));
-                assertThat(response.shardFailures()[0].index(), is("test-1"));
-                assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+                assertThat(response.shardFailures().size(), is(1));
+                assertThat(response.shardFailures().getFirst().index(), is("test-1"));
+                assertThat(response.shardFailures().getFirst().reason(), containsString("NoShardAvailableActionException"));
             } finally {
                 EqlSearchResponseIntegTestHelpers.decRef(response);
             }
@@ -475,9 +476,9 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
                 var sample = response.hits().sequences().get(0);
                 assertThat(sample.events().get(0).toString(), containsString("\"value\" : 3"));
                 assertThat(sample.events().get(1).toString(), containsString("\"value\" : 1"));
-                assertThat(response.shardFailures().length, is(1));
-                assertThat(response.shardFailures()[0].index(), is("test-1"));
-                assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+                assertThat(response.shardFailures().size(), is(1));
+                assertThat(response.shardFailures().getFirst().index(), is("test-1"));
+                assertThat(response.shardFailures().getFirst().reason(), containsString("NoShardAvailableActionException"));
             } finally {
                 EqlSearchResponseIntegTestHelpers.decRef(response);
             }
@@ -494,9 +495,9 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
             EqlSearchResponse response = client().execute(EqlSearchAction.INSTANCE, request).get();
             try {
                 assertThat(response.hits().sequences().size(), equalTo(0));
-                assertThat(response.shardFailures().length, is(1));
-                assertThat(response.shardFailures()[0].index(), is("test-1"));
-                assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+                assertThat(response.shardFailures().size(), is(1));
+                assertThat(response.shardFailures().getFirst().index(), is("test-1"));
+                assertThat(response.shardFailures().getFirst().reason(), containsString("NoShardAvailableActionException"));
             } finally {
                 EqlSearchResponseIntegTestHelpers.decRef(response);
             }
@@ -529,7 +530,7 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
                 for (int i = 0; i < 5; i++) {
                     assertThat(response.hits().events().get(i).toString(), containsString("\"value\" : " + (i * 2 + 1)));
                 }
-                assertThat(response.shardFailures().length, is(1));
+                assertThat(response.shardFailures().size(), is(1));
             } finally {
                 EqlSearchResponseIntegTestHelpers.decRef(response);
             }
@@ -554,9 +555,9 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
             EqlSearchResponse response = client().execute(EqlSearchAction.INSTANCE, request).get();
             try {
                 assertThat(response.hits().sequences().size(), equalTo(0));
-                assertThat(response.shardFailures().length, is(1));
-                assertThat(response.shardFailures()[0].index(), is("test-1"));
-                assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+                assertThat(response.shardFailures().size(), is(1));
+                assertThat(response.shardFailures().getFirst().index(), is("test-1"));
+                assertThat(response.shardFailures().getFirst().reason(), containsString("NoShardAvailableActionException"));
             } finally {
                 EqlSearchResponseIntegTestHelpers.decRef(response);
             }
@@ -571,9 +572,9 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
             EqlSearchResponse response = client().execute(EqlSearchAction.INSTANCE, request).get();
             try {
                 assertThat(response.hits().sequences().size(), equalTo(0));
-                assertThat(response.shardFailures().length, is(1));
-                assertThat(response.shardFailures()[0].index(), is("test-1"));
-                assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+                assertThat(response.shardFailures().size(), is(1));
+                assertThat(response.shardFailures().getFirst().index(), is("test-1"));
+                assertThat(response.shardFailures().getFirst().reason(), containsString("NoShardAvailableActionException"));
             } finally {
                 EqlSearchResponseIntegTestHelpers.decRef(response);
             }
@@ -588,9 +589,9 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
             EqlSearchResponse response = client().execute(EqlSearchAction.INSTANCE, request).get();
             try {
                 assertThat(response.hits().sequences().size(), equalTo(0));
-                assertThat(response.shardFailures().length, is(1));
-                assertThat(response.shardFailures()[0].index(), is("test-1"));
-                assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+                assertThat(response.shardFailures().size(), is(1));
+                assertThat(response.shardFailures().getFirst().index(), is("test-1"));
+                assertThat(response.shardFailures().getFirst().reason(), containsString("NoShardAvailableActionException"));
             } finally {
                 EqlSearchResponseIntegTestHelpers.decRef(response);
             }
@@ -606,9 +607,9 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
             EqlSearchResponse response = client().execute(EqlSearchAction.INSTANCE, request).get();
             try {
                 assertThat(response.hits().sequences().size(), equalTo(0));
-                assertThat(response.shardFailures().length, is(1));
-                assertThat(response.shardFailures()[0].index(), is("test-1"));
-                assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+                assertThat(response.shardFailures().size(), is(1));
+                assertThat(response.shardFailures().getFirst().index(), is("test-1"));
+                assertThat(response.shardFailures().getFirst().reason(), containsString("NoShardAvailableActionException"));
             } finally {
                 EqlSearchResponseIntegTestHelpers.decRef(response);
             }
@@ -633,9 +634,9 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
             EqlSearchResponse response = client().execute(EqlSearchAction.INSTANCE, request).get();
             try {
                 assertThat(response.hits().sequences().size(), equalTo(0));
-                assertThat(response.shardFailures().length, is(1));
-                assertThat(response.shardFailures()[0].index(), is("test-1"));
-                assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+                assertThat(response.shardFailures().size(), is(1));
+                assertThat(response.shardFailures().getFirst().index(), is("test-1"));
+                assertThat(response.shardFailures().getFirst().reason(), containsString("NoShardAvailableActionException"));
             } finally {
                 EqlSearchResponseIntegTestHelpers.decRef(response);
             }
@@ -653,9 +654,9 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
                 var sample = response.hits().sequences().get(0);
                 assertThat(sample.events().get(0).toString(), containsString("\"value\" : 3"));
                 assertThat(sample.events().get(1).toString(), containsString("\"value\" : 1"));
-                assertThat(response.shardFailures().length, is(1));
-                assertThat(response.shardFailures()[0].index(), is("test-1"));
-                assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+                assertThat(response.shardFailures().size(), is(1));
+                assertThat(response.shardFailures().getFirst().index(), is("test-1"));
+                assertThat(response.shardFailures().getFirst().reason(), containsString("NoShardAvailableActionException"));
             } finally {
                 EqlSearchResponseIntegTestHelpers.decRef(response);
             }
@@ -670,9 +671,9 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
             EqlSearchResponse response = client().execute(EqlSearchAction.INSTANCE, request).get();
             try {
                 assertThat(response.hits().sequences().size(), equalTo(0));
-                assertThat(response.shardFailures().length, is(1));
-                assertThat(response.shardFailures()[0].index(), is("test-1"));
-                assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+                assertThat(response.shardFailures().size(), is(1));
+                assertThat(response.shardFailures().getFirst().index(), is("test-1"));
+                assertThat(response.shardFailures().getFirst().reason(), containsString("NoShardAvailableActionException"));
             } finally {
                 EqlSearchResponseIntegTestHelpers.decRef(response);
             }
@@ -700,7 +701,7 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
             for (int i = 0; i < 5; i++) {
                 assertThat(response.hits().events().get(i).toString(), containsString("\"value\" : " + (i * 2 + 1)));
             }
-            assertThat(response.shardFailures().length, is(1));
+            assertThat(response.shardFailures().size(), is(1));
         });
 
     }
@@ -717,27 +718,27 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
         EqlSearchRequest request = buildAsyncPartialSearchRequest("sequence [process where value == 1] [process where value == 2]", true);
         EqlSearchResponseIntegTestHelpers.pollAsyncEqlToCompletion(client(), request, response -> {
             assertThat(response.hits().sequences().size(), equalTo(0));
-            assertThat(response.shardFailures().length, is(1));
-            assertThat(response.shardFailures()[0].index(), is("test-1"));
-            assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+            assertThat(response.shardFailures().size(), is(1));
+            assertThat(response.shardFailures().getFirst().index(), is("test-1"));
+            assertThat(response.shardFailures().getFirst().reason(), containsString("NoShardAvailableActionException"));
         });
 
         // sequence query on the available shard only
         request = buildAsyncPartialSearchRequest("sequence [process where value == 1] [process where value == 3]", true);
         EqlSearchResponseIntegTestHelpers.pollAsyncEqlToCompletion(client(), request, response -> {
             assertThat(response.hits().sequences().size(), equalTo(0));
-            assertThat(response.shardFailures().length, is(1));
-            assertThat(response.shardFailures()[0].index(), is("test-1"));
-            assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+            assertThat(response.shardFailures().size(), is(1));
+            assertThat(response.shardFailures().getFirst().index(), is("test-1"));
+            assertThat(response.shardFailures().getFirst().reason(), containsString("NoShardAvailableActionException"));
         });
 
         // sequence query on the unavailable shard only
         request = buildAsyncPartialSearchRequest("sequence [process where value == 0] [process where value == 2]", true);
         EqlSearchResponseIntegTestHelpers.pollAsyncEqlToCompletion(client(), request, response -> {
             assertThat(response.hits().sequences().size(), equalTo(0));
-            assertThat(response.shardFailures().length, is(1));
-            assertThat(response.shardFailures()[0].index(), is("test-1"));
-            assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+            assertThat(response.shardFailures().size(), is(1));
+            assertThat(response.shardFailures().getFirst().index(), is("test-1"));
+            assertThat(response.shardFailures().getFirst().reason(), containsString("NoShardAvailableActionException"));
         });
 
         // sequence query with missing event on unavailable shard. THIS IS A FALSE POSITIVE
@@ -747,9 +748,9 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
         );
         EqlSearchResponseIntegTestHelpers.pollAsyncEqlToCompletion(client(), request, response -> {
             assertThat(response.hits().sequences().size(), equalTo(0));
-            assertThat(response.shardFailures().length, is(1));
-            assertThat(response.shardFailures()[0].index(), is("test-1"));
-            assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+            assertThat(response.shardFailures().size(), is(1));
+            assertThat(response.shardFailures().getFirst().index(), is("test-1"));
+            assertThat(response.shardFailures().getFirst().reason(), containsString("NoShardAvailableActionException"));
         });
 
     }
@@ -768,9 +769,9 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
         );
         EqlSearchResponseIntegTestHelpers.pollAsyncEqlToCompletion(client(), request, response -> {
             assertThat(response.hits().sequences().size(), equalTo(0));
-            assertThat(response.shardFailures().length, is(1));
-            assertThat(response.shardFailures()[0].index(), is("test-1"));
-            assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+            assertThat(response.shardFailures().size(), is(1));
+            assertThat(response.shardFailures().getFirst().index(), is("test-1"));
+            assertThat(response.shardFailures().getFirst().reason(), containsString("NoShardAvailableActionException"));
         });
 
         // sample query on the available shard only
@@ -780,18 +781,18 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
             var sample = response.hits().sequences().get(0);
             assertThat(sample.events().get(0).toString(), containsString("\"value\" : 3"));
             assertThat(sample.events().get(1).toString(), containsString("\"value\" : 1"));
-            assertThat(response.shardFailures().length, is(1));
-            assertThat(response.shardFailures()[0].index(), is("test-1"));
-            assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+            assertThat(response.shardFailures().size(), is(1));
+            assertThat(response.shardFailures().getFirst().index(), is("test-1"));
+            assertThat(response.shardFailures().getFirst().reason(), containsString("NoShardAvailableActionException"));
         });
 
         // sample query on the unavailable shard only
         request = buildAsyncPartialSearchRequest("sample by key [process where value == 2] [process where value == 0]", true);
         EqlSearchResponseIntegTestHelpers.pollAsyncEqlToCompletion(client(), request, response -> {
             assertThat(response.hits().sequences().size(), equalTo(0));
-            assertThat(response.shardFailures().length, is(1));
-            assertThat(response.shardFailures()[0].index(), is("test-1"));
-            assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+            assertThat(response.shardFailures().size(), is(1));
+            assertThat(response.shardFailures().getFirst().index(), is("test-1"));
+            assertThat(response.shardFailures().getFirst().reason(), containsString("NoShardAvailableActionException"));
         });
 
     }

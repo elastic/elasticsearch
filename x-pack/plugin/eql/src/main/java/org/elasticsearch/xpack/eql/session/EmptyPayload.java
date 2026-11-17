@@ -18,7 +18,7 @@ public class EmptyPayload implements Payload {
 
     private final Type type;
     private final TimeValue timeTook;
-    private final ShardSearchFailure[] shardFailures;
+    private final List<ShardSearchFailure> shardFailures;
 
     public EmptyPayload(Type type) {
         this(type, TimeValue.ZERO, List.of());
@@ -27,7 +27,7 @@ public class EmptyPayload implements Payload {
     public EmptyPayload(Type type, TimeValue timeTook, List<ShardSearchFailure> shardFailures) {
         this.type = type;
         this.timeTook = timeTook;
-        this.shardFailures = shardFailures.toArray(ShardSearchFailure.EMPTY_ARRAY);
+        this.shardFailures = shardFailures;
     }
 
     @Override
@@ -51,7 +51,7 @@ public class EmptyPayload implements Payload {
     }
 
     @Override
-    public ShardSearchFailure[] shardFailures() {
+    public List<ShardSearchFailure> shardFailures() {
         return shardFailures;
     }
 

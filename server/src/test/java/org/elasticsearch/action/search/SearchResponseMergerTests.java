@@ -411,7 +411,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             var mergedResponse = merger.getMergedResponse(SearchResponse.Clusters.EMPTY);
             try {
                 List<ShardSearchFailure> shardFailures = mergedResponse.getShardFailures();
-                assertThat(shardFailures, containsInAnyOrder(expectedFailures.toArray(ShardSearchFailure.EMPTY_ARRAY)));
+                assertThat(shardFailures, containsInAnyOrder(expectedFailures.toArray()));
             } finally {
                 mergedResponse.decRef();
             }

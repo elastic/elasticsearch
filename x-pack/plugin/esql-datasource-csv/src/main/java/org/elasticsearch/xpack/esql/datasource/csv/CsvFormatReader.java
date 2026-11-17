@@ -6444,8 +6444,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 onRowError(rowTooWideMessage(totalFields), null, rowExcerptIfRead(), true);
                 return false;
             }
-            // hasPendingErrors guards the call, not the result: directRawLine() materialises the row as a String, so
-            // a row that staged nothing never builds one. A row that did is reported here and may still be kept.
+            // hasPendingErrors keeps a clean row out of the call; rowExcerptIfRead() keeps every lenient mode from
+            // building a copy the flush will not read. Under null_field this row is reported and kept.
             if (hasPendingErrors && flushPendingErrors(rowExcerptIfRead()) == false) {
                 return false;
             }

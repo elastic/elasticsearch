@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.plugin.ComputeService;
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -99,14 +100,15 @@ public class CrossClusterSerializedPlanBreakerIT extends AbstractCrossClusterTes
             try (Releasable filled = fillCoordinatorBreaker(coordinator); EsqlQueryResponse resp = run(coordinator, false)) {
                 assertTrue(resp.isPartial());
                 List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
-                assertThat(((Number) rows.get(0).get(0)).longValue(), lessThan((long) NUM_DOCS));
-                List<EsqlExecutionInfo.Cluster> tripped = Stream.of(REMOTE_CLUSTER_1, REMOTE_CLUSTER_2)
+                assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo((long) NUM_DOCS / 2));
+                Map<Boolean, List<EsqlExecutionInfo.Cluster>> byTripped = Stream.of(REMOTE_CLUSTER_1, REMOTE_CLUSTER_2)
                     .map(alias -> resp.getExecutionInfo().getCluster(alias))
-                    .filter(cluster -> cluster.getFailures().isEmpty() == false)
-                    .toList();
+                    .collect(Collectors.partitioningBy(cluster -> cluster.getFailures().isEmpty() == false));
+                List<EsqlExecutionInfo.Cluster> tripped = byTripped.get(true);
                 assertThat(tripped, hasSize(1));
                 assertThat(tripped.get(0).getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
                 assertThat(tripped.get(0).getFailures().toString(), containsString("data for [" + SERIALIZED_REQUEST_LABEL + "]"));
+                assertThat(byTripped.get(false).get(0).getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
             }
         } finally {
             setSkipUnavailable(REMOTE_CLUSTER_1, false);

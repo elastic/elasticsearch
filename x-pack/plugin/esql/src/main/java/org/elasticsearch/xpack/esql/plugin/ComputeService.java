@@ -329,6 +329,10 @@ public class ComputeService {
      * request fails before it is sent, for example because serializing it trips the breaker, nothing runs on the target to finish
      * that exchange. So the exchange is finished through {@code remoteSink} before the failure propagates, rather than left on the
      * target until its inactive-sink reaper removes it.
+     * <p>
+     * Waiting for the close follows the order {@link ExchangeSourceHandler} uses when a fetch fails: the target has finished the
+     * exchange before the failure can cancel any task. It does not hold up the caller, which also adds {@code remoteSink} to an
+     * exchange source and waits for that source to stop reading it, and that too takes an answer from the same target.
      */
     static <T> ActionListener<T> finishRemoteSinkIfNotSent(RemoteSink remoteSink, ActionListener<T> listener) {
         return listener.delegateResponse((l, e) -> {

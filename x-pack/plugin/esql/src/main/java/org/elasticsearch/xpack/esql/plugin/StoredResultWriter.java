@@ -82,8 +82,8 @@ final class StoredResultWriter implements PageStreamPublisher.PageObserver {
     private final Client client;
     private final ClusterService clusterService;
     private final Recycler<BytesRef> recycler;
-    private final String docId;
-    private final byte[] docIdBytes;
+    private final String streamId;
+    private final byte[] streamIdBytes;
     private final StoredResultMetadata running;
     private final long expirationTime;
     private final Runnable onCapacity;
@@ -106,7 +106,7 @@ final class StoredResultWriter implements PageStreamPublisher.PageObserver {
         Client client,
         ClusterService clusterService,
         Recycler<BytesRef> recycler,
-        String docId,
+        String streamId,
         StoredResultMetadata running,
         long expirationTime,
         Runnable onCapacity
@@ -114,8 +114,8 @@ final class StoredResultWriter implements PageStreamPublisher.PageObserver {
         this.client = new OriginSettingClient(client, ESQL_ORIGIN);
         this.clusterService = clusterService;
         this.recycler = recycler;
-        this.docId = docId;
-        this.docIdBytes = docId.getBytes(StandardCharsets.UTF_8);
+        this.streamId = streamId;
+        this.streamIdBytes = streamId.getBytes(StandardCharsets.UTF_8);
         this.running = running;
         this.expirationTime = expirationTime;
         this.onCapacity = onCapacity;
@@ -136,7 +136,7 @@ final class StoredResultWriter implements PageStreamPublisher.PageObserver {
         synchronized (this) {
             // a page can still be delivered while the stream is cancelled
             if (finished == false) {
-                add(nextSeq, nextRow, page.getPositionCount(), page, DocWriteRequest.OpType.CREATE, false);
+                add(nextSeq, nextRow, page.getPositionCount(), page);
                 nextSeq++;
                 nextRow += page.getPositionCount();
             }
@@ -197,13 +197,14 @@ final class StoredResultWriter implements PageStreamPublisher.PageObserver {
      */
     private void addMetadata(StoredResultMetadata metadata) {
         assert Thread.holdsLock(this);
-        add(0, 0, 0, metadata, DocWriteRequest.OpType.INDEX, true);
+        add(0, 0, 0, metadata);
     }
 
-    private void add(int seq, long firstRow, int rowCount, Writeable content, DocWriteRequest.OpType opType, boolean newChunk) {
+    private void add(int seq, long offset, int size, Writeable content) {
         assert Thread.holdsLock(this);
+        boolean metadata = seq == 0;
         Chunk chunk = chunks.peekLast();
-        if (chunk == null || newChunk || chunk.requests.size() >= PAGES_PER_BULK) {
+        if (chunk == null || metadata || chunk.requests.size() >= PAGES_PER_BULK) {
             chunk = new Chunk();
             chunks.add(chunk);
         }
@@ -211,12 +212,12 @@ final class StoredResultWriter implements PageStreamPublisher.PageObserver {
         long[] written = new long[1];
         try {
             EscfRowBuffer row = chunk.builder.beginRow();
-            row.stringField(STREAM_ID_FIELD, docIdBytes, 0, docIdBytes.length);
+            row.stringField(STREAM_ID_FIELD, streamIdBytes, 0, streamIdBytes.length);
             row.longField(PAGE_SEQ_FIELD, seq);
-            row.longField(FIRST_ROW_FIELD, firstRow);
-            row.longField(ROW_COUNT_FIELD, rowCount);
+            row.longField(FIRST_ROW_FIELD, offset);
+            row.longField(ROW_COUNT_FIELD, size);
             row.longField(TRANSPORT_VERSION_FIELD, version.id());
-            if (seq == 0 && expirationTime >= 0) {
+            if (metadata && expirationTime >= 0) {
                 row.longField(EXPIRATION_TIME_FIELD, expirationTime);
             }
             row.binaryField(PAGE_FIELD, out -> {
@@ -235,8 +236,12 @@ final class StoredResultWriter implements PageStreamPublisher.PageObserver {
             fail(e);
             return;
         }
-        String id = seq == 0 ? docId : EsqlStreamResultsIndex.pageDocId(docId, seq);
-        chunk.requests.add(new IndexRequest(EsqlStreamResultsIndex.INDEX).id(id).routing(docId).opType(opType));
+        chunk.requests.add(
+            new IndexRequest(EsqlStreamResultsIndex.INDEX) //
+                .id(metadata ? streamId : EsqlStreamResultsIndex.pageDocId(streamId, seq))
+                .routing(streamId)
+                .opType(metadata ? DocWriteRequest.OpType.INDEX : DocWriteRequest.OpType.CREATE)
+        );
         chunk.bytes += written[0];
         unackedBytes += written[0];
     }
@@ -298,12 +303,12 @@ final class StoredResultWriter implements PageStreamPublisher.PageObserver {
     private void fail(Exception e) {
         assert Thread.holdsLock(this);
         if (failure != null) {
-            logger.debug(() -> "failed to store result [" + docId + "] after it failed", e);
+            logger.debug(() -> "failed to store result [" + streamId + "] after it failed", e);
             return;
         }
         failure = e;
         finished = true;
-        logger.warn(() -> "failed to store result [" + docId + "]", e);
+        logger.warn(() -> "failed to store result [" + streamId + "]", e);
         for (Chunk chunk : chunks) {
             unackedBytes -= chunk.bytes;
         }

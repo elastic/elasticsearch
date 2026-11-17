@@ -3,18 +3,18 @@ required_capability: named_subquery_let
 required_capability: dataset_in_from_command
 dataset: employees_no_mv: "{{employees_no_mv}}"
 
-LET top_emps = (FROM employees_no_mv | SORT emp_no | LIMIT 5)\;
+LET top_emps = (FROM employees_no_mv | SORT salary DESC | LIMIT 5)\;
 FROM top_emps
 | KEEP emp_no, first_name, last_name, salary
 | SORT emp_no
 ;
 
 emp_no:integer | first_name:keyword | last_name:keyword | salary:integer
-10001          | "Georgi"           | "Facello"         | 57305
-10002          | "Bezalel"          | "Simmel"          | 56371
-10003          | "Parto"            | "Bamford"         | 61805
-10004          | "Chirstian"        | "Koblick"         | 36174
-10005          | "Kyoichi"          | "Maliniak"        | 63528
+10007          | "Tzvetan"          | "Zielinski"       | 74572
+10019          | "Lillian"          | "Haddadi"         | 73717
+10027          | "Divier"           | "Reistad"         | 73851
+10029          | "Otmar"            | "Herbst"          | 74999
+10045          | "Moss"             | "Shanbhogue"      | 74970
 ;
 
 letDatasetWithStatsInBody

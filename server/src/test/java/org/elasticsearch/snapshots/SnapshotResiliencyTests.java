@@ -135,15 +135,11 @@ public class SnapshotResiliencyTests extends ESTestCase {
     @Before
     public void createServices() {
         tempDir = createTempDir();
-        deterministicTaskQueue = createDeterministicTaskQueue(DeterministicTaskQueue.TaskSelectionPolicy.UNIFORM);
+        deterministicTaskQueue = createDeterministicTaskQueue();
     }
 
-    protected DeterministicTaskQueue createDeterministicTaskQueue(DeterministicTaskQueue.TaskSelectionPolicy selectionPolicy) {
-        return new DeterministicTaskQueue(selectionPolicy);
-    }
-
-    protected void randomizeSelectionPolicy() {
-        deterministicTaskQueue = createDeterministicTaskQueue(randomFrom(DeterministicTaskQueue.TaskSelectionPolicy.values()));
+    protected DeterministicTaskQueue createDeterministicTaskQueue() {
+        return new DeterministicTaskQueue();
     }
 
     @After
@@ -285,7 +281,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
     }
 
     public void testSnapshotWithNodeDisconnects() {
-        randomizeSelectionPolicy();
         final int dataNodes = randomIntBetween(2, 10);
         final int masterNodes = randomFrom(1, 3, 5);
         setupTestCluster(masterNodes, dataNodes);
@@ -373,7 +368,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
     }
 
     public void testCloneAbortedByDifferentMaster() {
-        randomizeSelectionPolicy();
         setupTestCluster(randomFrom(3, 5), randomIntBetween(1, 3), ignored -> TransportService.NOOP_TRANSPORT_INTERCEPTOR, false);
 
         final var repoName = "repo";
@@ -475,7 +469,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
     }
 
     public void testSnapshotDeleteWithMasterFailover() {
-        randomizeSelectionPolicy();
         final int dataNodes = randomIntBetween(2, 10);
         final int masterNodes = randomFrom(3, 5);
         setupTestCluster(masterNodes, dataNodes);

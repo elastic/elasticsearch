@@ -55,3 +55,29 @@ two slots, one role with two values:
         body: { size: 0, aggs: { crew_members: { value_count: { field: crew } }, crew_names: { terms: { field: crew } } } }
   - match: { aggregations.crew_members.value: 2 }
   - match: { aggregations.crew_names.buckets: [ { key: luke skywalker, doc_count: 1 }, { key: princess leia, doc_count: 1 } ] }
+
+---
+sort and docvalue_fields on the root field:
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "index": { "_index": "logsdb_columnar_ship" } }'
+          - '{ "@timestamp": "2026-05-04T00:00:00.000Z", "crew": { "pilot": "han solo", "copilot": "chewbacca" } }'
+          - '{ "index": { "_index": "logsdb_columnar_ship" } }'
+          - '{ "@timestamp": "2026-05-04T00:00:00.000Z", "crew": { "pilot": "luke skywalker", "droid": [ "r2-d2", "r2-d2" ] } }'
+          - '{ "index": { "_index": "logsdb_columnar_ship" } }'
+          - '{ "@timestamp": "2026-05-04T00:00:00.000Z", "crew": { "passengers": [ "princess leia", "luke skywalker" ], "copilot": "chewbacca" } }'
+
+  - is_false: errors
+
+  - do:
+      search:
+        index: logsdb_columnar_ship
+        filter_path: hits.hits.sort,hits.hits.fields
+        body: { _source: false, docvalue_fields: [ crew ], sort: [ { crew: { order: asc, mode: max } } ] }
+  - match:
+      hits.hits:
+        - { sort: [ han solo ], fields: { crew: [ chewbacca, han solo ] } }
+        - { sort: [ princess leia ], fields: { crew: [ chewbacca, luke skywalker, princess leia ] } }
+        - { sort: [ r2-d2 ], fields: { crew: [ luke skywalker, r2-d2 ] } }

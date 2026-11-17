@@ -3465,6 +3465,32 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     }
 
     /**
+     * The exchange that {@code InsertPartialWindowAggregates} rebuilds around the widened aggregate is the same hop as the one it
+     * replaces, so it keeps the exchange id and plan id. Otherwise the plan logs of the stages before and after the rule would
+     * show two different hops.
+     */
+    public void testInsertPartialWindowAggregatesKeepsTheIdentityOfTheExchange() {
+        var analyzer = metricsAnalyzerAt(DimensionValues.DIMENSION_VALUES_VERSION).buildAnalyzer();
+        PhysicalPlan before = plannerOptimizerTimeSeries.physicalPlan(
+            "TS k8s | STATS sum(rate(network.total_bytes_in, 7 minute)) BY TBUCKET(5 minute)",
+            analyzer
+        );
+        PhysicalPlan after = new InsertPartialWindowAggregates().apply(before);
+
+        List<ExchangeExec> exchangesBefore = new ArrayList<>();
+        before.forEachDown(ExchangeExec.class, exchangesBefore::add);
+        List<ExchangeExec> exchangesAfter = new ArrayList<>();
+        after.forEachDown(ExchangeExec.class, exchangesAfter::add);
+        assertThat(exchangesBefore, hasSize(1));
+        assertThat(exchangesAfter, hasSize(1));
+        ExchangeExec exchangeBefore = exchangesBefore.get(0);
+        ExchangeExec exchangeAfter = exchangesAfter.get(0);
+        assertNotSame("the rule should have planted a partial sibling and rebuilt the exchange", exchangeBefore, exchangeAfter);
+        assertThat(exchangeAfter.exchange(), equalTo(exchangeBefore.exchange()));
+        assertThat(exchangeAfter.planId(), equalTo(exchangeBefore.planId()));
+    }
+
+    /**
      * Windows leaving the same remainder over the same input share one partial sibling: {@code 7m} and {@code 12m}
      * over 5-minute buckets both need the trailing {@code 2m}, so only one sibling is planted.
      */

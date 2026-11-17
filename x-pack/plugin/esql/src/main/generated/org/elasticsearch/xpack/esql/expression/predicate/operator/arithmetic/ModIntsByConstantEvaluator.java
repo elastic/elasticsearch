@@ -94,7 +94,7 @@ public abstract class ModIntsByConstantEvaluator implements ExpressionEvaluator 
   }
 
   public IntVector eval(int positionCount, IntVector lhsVector) {
-    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
+    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         int lhs = lhsVector.getInt(p);
         result.appendInt(p, Mod.processIntsByConstant(lhs, rhs()));

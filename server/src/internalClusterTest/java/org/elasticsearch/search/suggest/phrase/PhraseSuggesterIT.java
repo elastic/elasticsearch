@@ -26,8 +26,10 @@ import static org.elasticsearch.search.suggest.SuggestBuilders.phraseSuggestion;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.not;
 
 public class PhraseSuggesterIT extends ESIntegTestCase {
 
@@ -56,7 +58,7 @@ public class PhraseSuggesterIT extends ESIntegTestCase {
                 // We didn't fail all shards - we get a response with failed shards
                 assertThat(response.status(), equalTo(RestStatus.OK));
                 assertThat(response.getFailedShards(), greaterThan(0));
-                assertThat(response.getShardFailures().length, greaterThan(0));
+                assertThat(response.shardFailuresList(), not(empty()));
                 checkShardFailures(response.shardFailuresList());
             });
         } catch (SearchPhaseExecutionException e) {

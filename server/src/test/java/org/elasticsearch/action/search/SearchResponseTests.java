@@ -422,8 +422,8 @@ public class SearchResponseTests extends ESTestCase {
         try (XContentParser parser = createParser(xcontentType.xContent(), originalBytes)) {
             SearchResponse parsed = SearchResponseUtils.parseSearchResponse(parser);
             try {
-                for (int i = 0; i < parsed.getShardFailures().length; i++) {
-                    ShardSearchFailure parsedFailure = parsed.getShardFailures()[i];
+                for (int i = 0; i < parsed.shardFailuresList().size(); i++) {
+                    ShardSearchFailure parsedFailure = parsed.shardFailuresList().get(i);
                     ShardSearchFailure originalFailure = failures[i];
                     assertEquals(originalFailure.index(), parsedFailure.index());
                     assertEquals(originalFailure.shard(), parsedFailure.shard());

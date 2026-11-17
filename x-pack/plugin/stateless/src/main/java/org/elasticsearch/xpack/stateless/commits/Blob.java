@@ -67,26 +67,33 @@ public sealed interface Blob extends Writeable permits BlobFile, MergeBlob {
         return expectedType.cast(blob);
     }
 
+    /// Creates a [Blob] of the implementation type recognized by the prefix of the blob name.
+    ///
+    /// @param primaryTerm the primary term of the container the blob is stored in
+    /// @param blobName the name of the blob
+    /// @throws IllegalArgumentException if the blob name is not recognized or is not well-formed
+    static Blob of(long primaryTerm, String blobName) {
+        if (BatchedCompoundCommit.startsWithBlobPrefix(blobName)) {
+            return new BlobFile(blobName, primaryTerm);
+        } else if (MergeBlob.startsWithPrefix(blobName)) {
+            return new MergeBlob(blobName, primaryTerm);
+        }
+        throw new IllegalArgumentException("unrecognized blob name [" + blobName + ']');
+    }
+
     /// Creates a [Blob] of the implementation type recognized by the prefix of the blob name, and checks that the given term/generation is
     /// consistent with the name.
     ///
     /// @throws IOException if the blob name is not recognized or is not well-formed, or if the term/generation does not match the name
     private static Blob of(String blobName, PrimaryTermAndGeneration termAndGeneration) throws IOException {
         final Blob blob;
-        if (BatchedCompoundCommit.startsWithBlobPrefix(blobName)) {
-            try {
-                blob = new BlobFile(blobName, termAndGeneration.primaryTerm());
-            } catch (IllegalArgumentException e) {
+        try {
+            blob = of(termAndGeneration.primaryTerm(), blobName);
+        } catch (IllegalArgumentException e) {
+            if (BatchedCompoundCommit.startsWithBlobPrefix(blobName) || MergeBlob.startsWithPrefix(blobName)) {
                 throw new IOException("malformed blob name [" + blobName + ']', e);
             }
-        } else if (MergeBlob.startsWithPrefix(blobName)) {
-            try {
-                blob = new MergeBlob(blobName, termAndGeneration.primaryTerm());
-            } catch (IllegalArgumentException e) {
-                throw new IOException("malformed blob name [" + blobName + ']', e);
-            }
-        } else {
-            throw new IOException("unrecognized blob name [" + blobName + "] with " + termAndGeneration);
+            throw new IOException("unrecognized blob name [" + blobName + "] with " + termAndGeneration, e);
         }
         if (blob.termAndGeneration().equals(termAndGeneration) == false) {
             throw new IOException("term/generation mismatch: " + termAndGeneration + " vs " + blobName);

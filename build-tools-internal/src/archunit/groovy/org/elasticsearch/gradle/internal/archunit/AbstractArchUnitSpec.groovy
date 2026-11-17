@@ -42,6 +42,23 @@ abstract class AbstractArchUnitSpec extends Specification {
     }
 
     /**
+     * Imports the production classes of all three build logic builds: {@code build-tools-internal} (class directories),
+     * and {@code build-tools} and {@code build-conventions}, which are on the classpath as jars of the included builds.
+     */
+    protected static JavaClasses importAllBuildLogicProductionClasses() {
+        return new ClassFileImporter()
+            .withImportOption({ location ->
+                location.contains("/classes/java/main/") || location.contains("/classes/groovy/main/") ||
+                    BUILD_LOGIC_JAR.matcher(location.toString()).find()
+            } as ImportOption)
+            .importPackages("org.elasticsearch.gradle")
+    }
+
+    /** The jars of the included build-tools and build-conventions builds, e.g. {@code build-tools/build/distributions/build-tools-9.7.0.jar}. */
+    private static final java.util.regex.Pattern BUILD_LOGIC_JAR =
+        ~/\/(build-tools|build-conventions)\/build\/(libs|distributions)\/[^\/]+\.jar!/
+
+    /**
      * Returns the baseline entries that are no longer valid — either no class with that top-level
      * name exists any more, or none of them (top-level or nested) still violates the rule
      * ({@code stillViolates} returns false for all). Baselines key on the top-level class (see

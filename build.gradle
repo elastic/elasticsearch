@@ -540,7 +540,12 @@ tasks.named("checkPart1").configure {
 
 tasks.register("validateBuildGradleScripts", ValidateBuildGradleScriptsTask).configure {
   scriptFiles.from(fileTree(project.layout.settingsDirectory) {
-    include "**/build.gradle"
+    // all Gradle scripts (build, settings and precompiled script plugins); most rules only apply to build.gradle files
+    include "**/*.gradle"
+    // Groovy build logic, where dynamic Ant calls are invisible to the ArchUnit checks
+    include "build-conventions/src/main/**/*.groovy"
+    include "build-tools/src/main/**/*.groovy"
+    include "build-tools-internal/src/main/**/*.groovy"
     exclude "**/build/**"
     // Fixture build scripts under test resources model external repositories rather than this repository's build logic.
     exclude "**/src/**/resources/**"
@@ -568,6 +573,14 @@ tasks.register("validateBuildGradleScripts", ValidateBuildGradleScriptsTask).con
       'build.gradle::6',
       'modules/lang-painless/build.gradle::4',
       'qa/vector/build.gradle::1',
+    ],
+    // ANTLR regen tasks, removed by https://github.com/elastic/elasticsearch/pull/166296
+    'ant-usage': [
+      'modules/lang-painless/build.gradle::12',
+      'x-pack/plugin/eql/build.gradle::6',
+      'x-pack/plugin/esql/build.gradle::10',
+      'x-pack/plugin/kql/build.gradle::6',
+      'x-pack/plugin/sql/build.gradle::6',
     ],
   ])
 }

@@ -360,6 +360,90 @@ public class ValidateBuildGradleScriptsTaskTests {
         }
     }
 
+    @Test
+    public void testFailsForAntUsageInAnyGradleScript() throws Exception {
+        Project project = createProject();
+        File buildScript = writeFile(
+            project,
+            "subproject/build.gradle",
+            List.of(
+                "import org.apache.tools.ant.filters.ReplaceTokens",
+                "tasks.register('regen') {",
+                "  doLast {",
+                "    ant.move(file: 'a', toDir: 'b')",
+                "    project.ant { echo(message: 'x') }",
+                "  }",
+                "}"
+            )
+        );
+        File scriptPlugin = writeFile(
+            project,
+            "build-tools-internal/src/main/groovy/elasticsearch.example.gradle",
+            List.of("def builder = createAntBuilder()", "files('a').addToAntBuilder(builder, 'fileset')", "getAnt().echo('x')")
+        );
+        File settings = writeFile(project, "settings.gradle", List.of("ant.properties.foo = 'bar'"));
+        ValidateBuildGradleScriptsTask task = createTask(project, buildScript, scriptPlugin, settings);
+
+        try {
+            task.validateScripts();
+            fail("GradleException was expected");
+        } catch (GradleException e) {
+            String message = e.getMessage();
+            assertTrue(message.contains("[ant-usage] subproject/build.gradle:1"));
+            assertTrue(message.contains("[ant-usage] subproject/build.gradle:4"));
+            assertTrue(message.contains("[ant-usage] subproject/build.gradle:5"));
+            assertTrue(message.contains("[ant-usage] build-tools-internal/src/main/groovy/elasticsearch.example.gradle:1"));
+            assertTrue(message.contains("[ant-usage] build-tools-internal/src/main/groovy/elasticsearch.example.gradle:2"));
+            assertTrue(message.contains("[ant-usage] build-tools-internal/src/main/groovy/elasticsearch.example.gradle:3"));
+            assertTrue(message.contains("[ant-usage] settings.gradle:1"));
+            assertEquals(7, message.lines().filter(l -> l.startsWith("- [ant-usage]")).count());
+        }
+    }
+
+    @Test
+    public void testAntUsageRuleIgnoresCommentsAndLookalikes() throws Exception {
+        Project project = createProject();
+        File scriptFile = writeFile(
+            project,
+            "subproject/build.gradle",
+            List.of(
+                "// Use a plain file edit rather than ant.replace: Task.getAnt() is deprecated",
+                "/* ant.move(file: 'a') */",
+                "/**",
+                " * ant.fixcrlf in a javadoc-style comment",
+                " */",
+                "def variant = 'x'",
+                "variant.toString()",
+                "def constant = 1",
+                "dependencies { implementation buildLibs.ant }",
+                "import org.elasticsearch.gradle.internal.conventions.filters.ReplaceTokens",
+                "def description = 'an ant colony'"
+            )
+        );
+        ValidateBuildGradleScriptsTask task = createTask(project, scriptFile);
+
+        task.validateScripts();
+
+        assertOutputMarkerWritten(task);
+    }
+
+    @Test
+    public void testBuildScriptOnlyRulesSkipOtherGradleScripts() throws Exception {
+        Project project = createProject();
+        // cross-project access and execution-time project references are only validated in build.gradle files
+        File scriptPlugin = writeFile(
+            project,
+            "build-tools-internal/src/main/groovy/elasticsearch.example.gradle",
+            List.of("def v = project(':server').version", "tasks.register('x') { doLast { println project.version } }")
+        );
+        File distributionSettings = writeFile(project, "distribution/settings.gradle", List.of("ext.helper = { -> 1 }"));
+        ValidateBuildGradleScriptsTask task = createTask(project, scriptPlugin, distributionSettings);
+
+        task.validateScripts();
+
+        assertOutputMarkerWritten(task);
+    }
+
     private Project createProject() throws IOException {
         File projectDir = Files.createTempDirectory("validate-build-gradle-scripts-task").toFile();
         return ProjectBuilder.builder().withProjectDir(projectDir).build();

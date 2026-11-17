@@ -50,6 +50,10 @@ import javax.inject.Inject;
 /**
  * Validates repository {@code build.gradle} scripts against authoring guardrails.
  *
+ * <p>Most rules and the execution-closure scan only apply to {@code build.gradle} files. Rules that guard against APIs
+ * that must not be used anywhere in build logic (such as the Ant integration) also apply to the other script files
+ * passed in {@link #getScriptFiles()}, e.g. settings scripts, precompiled script plugins and Groovy build logic sources.
+ *
  * <p>The task is intentionally repository-wide and root-owned. Each rule produces structured
  * Gradle Problems so failures are visible in the problems report as well as the console output.
  */
@@ -129,6 +133,7 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
         addDistributionBundledJdkRules(rules);
         addDistributionClosureAssignmentRules(rules);
         addDistributionExtClosureRules(rules);
+        addAntUsageRules(rules);
         return rules;
     }
 
@@ -140,7 +145,7 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
             new ScriptRule(
                 "cross-project-dereference",
                 "Direct cross-project dereference in build.gradle",
-                path -> true,
+                ValidateBuildGradleScriptsTask::isBuildScript,
                 Pattern.compile("project\\s*\\(\\s*['\"]:[^'\"]+['\"]\\s*\\)\\s*\\."),
                 "Build scripts must not read another project's model directly via project(\":path\").* because that couples "
                     + "project configuration and breaks isolated-project-safe authoring.",
@@ -151,7 +156,7 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
             new ScriptRule(
                 "cross-project-configuration",
                 "Cross-project configuration closure in build.gradle",
-                path -> true,
+                ValidateBuildGradleScriptsTask::isBuildScript,
                 Pattern.compile("project\\s*\\(\\s*['\"]:[^'\"]+['\"]\\s*\\)\\s*\\{"),
                 "Build scripts must not configure another project via project(\":path\") { ... } because configuration should live "
                     + "in the target project or a plugin applied there.",
@@ -215,6 +220,40 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
         );
     }
 
+    /**
+     * Gradle 9.9 deprecated the Ant integration and Gradle 10 removes it, together with the Ant classes on the build
+     * script classpath. This rule applies to all scanned script files, not only {@code build.gradle}.
+     */
+    private void addAntUsageRules(List<ScriptRule> rules) {
+        rules.add(
+            new ScriptRule(
+                ANT_USAGE_RULE_ID,
+                "Ant usage in build logic",
+                path -> true,
+                ANT_USAGE_PATTERN,
+                "The Gradle Ant integration (ant.*, getAnt(), createAntBuilder(), AntBuilder, addToAntBuilder) is deprecated "
+                    + "since Gradle 9.9 and removed in Gradle 10, which also removes the org.apache.tools.ant classes from the "
+                    + "build script classpath.",
+                "Use Gradle APIs instead: Copy/Sync tasks or FileSystemOperations for file operations, "
+                    + "org.elasticsearch.gradle.internal.conventions.filters.ReplaceTokens / FixCrLfFilter for copy filters, "
+                    + "or a typed task in build-tools-internal."
+            )
+        );
+    }
+
+    static final String ANT_USAGE_RULE_ID = "ant-usage";
+
+    /**
+     * Matches Ant usages on lines that are not comments: {@code ant.xyz}, {@code ant { }}, {@code ant(...)},
+     * {@code getAnt()}, {@code createAntBuilder}, {@code AntBuilder}, {@code addToAntBuilder} and references to the
+     * {@code org.apache.tools.ant} or {@code groovy.ant} packages.
+     */
+    static final Pattern ANT_USAGE_PATTERN = Pattern.compile(
+        "(?m)^(?![ \t]*(?://|\\*|/\\*))[^\n]*?"
+            + "(?:(?<![\\w$])ant\\s*[.({]|\\bgetAnt\\s*\\(|\\bcreateAntBuilder\\b|\\bAntBuilder\\b|\\baddToAntBuilder\\b"
+            + "|\\borg\\.apache\\.tools\\.ant\\b|\\bgroovy\\.ant\\b)"
+    );
+
     private void validateFile(
         File scriptFile,
         String content,
@@ -252,7 +291,17 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
                 );
             }
         }
-        validateExecutionClosures(scriptFile, content, relativePath, ignoreEntriesByKey, matchedIgnoredViolations, problems, violations);
+        if (isBuildScript(relativePath)) {
+            validateExecutionClosures(
+                scriptFile,
+                content,
+                relativePath,
+                ignoreEntriesByKey,
+                matchedIgnoredViolations,
+                problems,
+                violations
+            );
+        }
     }
 
     private void validateExecutionClosures(
@@ -428,8 +477,12 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
         return lineNumber;
     }
 
+    private static boolean isBuildScript(String relativePath) {
+        return relativePath.equals("build.gradle") || relativePath.endsWith("/build.gradle");
+    }
+
     private boolean isDistributionBuildScript(String relativePath) {
-        return relativePath.startsWith("distribution/");
+        return relativePath.startsWith("distribution/") && isBuildScript(relativePath);
     }
 
     private static String lineText(String content, int offset) {

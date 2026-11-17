@@ -20,11 +20,14 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.VectorData;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.querysampling.QuerySamplingSettings;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
@@ -43,9 +46,9 @@ import java.util.function.Supplier;
  * Eligible: a single top-level {@code knn} with a literal float vector, and nothing that changes which documents are
  * searched (routing, any preference, PIT, scroll) or which hits come back or how they are ranked (an offset, no hits,
  * {@code search_after}, {@code terminate_after}, a minimum score, a post filter, collapsing, rescoring, boosts of indices,
- * a similarity threshold, a sort by a field, which leaves the hits without a score). Searches with a parent task
- * (cross-cluster or internal) are skipped, and so are answers that are partial: a timeout, a search that stopped early or
- * shards that failed would count as a low recall.
+ * a similarity threshold, a sort by a field, which leaves the hits without a score, or a sort by the lowest score first),
+ * and no remote indices, whose hits would not tell the clusters apart. Searches from another cluster are skipped, and so are
+ * answers that are partial: a timeout, a search that stopped early or shards that failed would count as a low recall.
  * <p>
  * The interceptor sees the request as it was received, before the search rewrites it, so a vector that is only known after the
  * rewrite (a query vector builder such as a {@code semantic_text} field, or a {@code knn} query inside {@code query}) is not
@@ -146,7 +149,8 @@ public final class QueryCaptureSink extends QuerySink<QueryCaptureContext> {
     }
 
     private void acceptSearch(SearchCaptureContext context) {
-        if (context.getParentTaskId().isPresent()) {
+        // a parent task does not make a search internal: _msearch gives all its searches one; those from another cluster are skipped
+        if (context.isFromRemote()) {
             return;
         }
         SearchRequest request = context.getRequest();
@@ -215,7 +219,7 @@ public final class QueryCaptureSink extends QuerySink<QueryCaptureContext> {
         }
         if (searchesOtherDocumentsThanTheIndicesHold(request)
             || returnsOtherHitsThanTheNearestK(source)
-            || returnsHitsWithoutScores(source)) {
+            || returnsOtherHitsThanTheBestScoredFirst(source)) {
             return null;
         }
         KnnSearchBuilder knn = source.knnSearch().get(0);
@@ -236,12 +240,20 @@ public final class QueryCaptureSink extends QuerySink<QueryCaptureContext> {
         return request.routing() != null
             || request.preference() != null
             || request.pointInTimeBuilder() != null
-            || request.scroll() != null;
+            || request.scroll() != null
+            || searchesRemoteIndices(request);
     }
 
-    // sorted by a field, the hits have no score, which the samples and the hardness of a query are made of
-    private static boolean returnsHitsWithoutScores(SearchSourceBuilder source) {
-        return source.sorts() != null && source.sorts().stream().anyMatch(sort -> sort instanceof ScoreSortBuilder == false);
+    // the hits of a cross-cluster search come from several clusters, and a hit says which index and document, not which cluster
+    private static boolean searchesRemoteIndices(SearchRequest request) {
+        return Arrays.stream(request.indices()).anyMatch(RemoteClusterAware::isRemoteIndexName);
+    }
+
+    // sorted by a field, the hits have no score, which the samples and the hardness of a query are made of; sorted by score
+    // in ascending order, they are the worst of the candidates, not the nearest ones
+    private static boolean returnsOtherHitsThanTheBestScoredFirst(SearchSourceBuilder source) {
+        return source.sorts() != null
+            && source.sorts().stream().anyMatch(sort -> (sort instanceof ScoreSortBuilder && sort.order() == SortOrder.DESC) == false);
     }
 
     // recall compares the returned hits with the exact nearest ones, so hits that are offset, cut, collapsed, rescored or

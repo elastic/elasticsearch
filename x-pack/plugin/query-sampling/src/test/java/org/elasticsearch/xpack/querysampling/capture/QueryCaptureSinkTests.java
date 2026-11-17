@@ -23,6 +23,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.RescoreVectorBuilder;
 import org.elasticsearch.tasks.Task;
@@ -79,6 +80,8 @@ public class QueryCaptureSinkTests extends ESTestCase {
         notComparable.add(knnSearch(randomVector(8)).source(knnSource().from(5)));
         notComparable.add(knnSearch(randomVector(8)).source(knnSource().minScore(0.5f)));
         notComparable.add(knnSearch(randomVector(8)).source(knnSource().sort("category"))); // its hits have no score
+        notComparable.add(knnSearch(randomVector(8)).source(knnSource().sort(SortBuilders.scoreSort().order(SortOrder.ASC)))); // the worst
+        notComparable.add(knnSearch(randomVector(8)).indices("remote:idx")); // its hits do not say which cluster they are from
         notComparable.add(knnSearch(randomVector(8)).source(knnSource().postFilter(QueryBuilders.termQuery("category", 1))));
         notComparable.add(knnSearch(randomVector(8)).source(knnSource().searchAfter(new Object[] { 1 })));
         notComparable.add(knnSearch(randomVector(8)).source(knnSource().terminateAfter(5)));
@@ -96,6 +99,14 @@ public class QueryCaptureSinkTests extends ESTestCase {
         QueryCaptureSink sink = sink(true, 1.0, captured::add);
 
         search(sink, knnSearch(randomVector(8)).source(knnSource().sort(SortBuilders.scoreSort())), TaskId.EMPTY_TASK_ID);
+
+        assertThat(captured.size(), equalTo(1));
+    }
+
+    public void testASearchOfAMultiSearchHasAParentTaskAndIsCaptured() {
+        QueryCaptureSink sink = sink(true, 1.0, captured::add);
+
+        search(sink, knnSearch(randomVector(8)), new TaskId("node", 5));
 
         assertThat(captured.size(), equalTo(1));
     }

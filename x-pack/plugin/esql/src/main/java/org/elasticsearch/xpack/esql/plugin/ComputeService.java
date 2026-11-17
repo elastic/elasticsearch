@@ -307,6 +307,8 @@ public class ComputeService {
         new FetchService(
             transportService,
             clusterService,
+            projectResolver,
+            transportActionServices.indexNameExpressionResolver(),
             searchService,
             this.bigArrays,
             blockFactory,

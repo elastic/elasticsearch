@@ -17,6 +17,8 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -183,6 +185,43 @@ public class FetchServiceTests extends FetchContextsTestCase {
                 assertThat("opened after the missing one " + contextId, isOpen(contextId), equalTo(position > missing));
             }
         }
+        freeAndAssertAllFreed(shards);
+    }
+
+    /**
+     * A request may name the aliases the query reached its shards through, like the shard requests of {@code _search}.
+     */
+    public void testFetchesThroughAnAlias() throws Exception {
+        assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias(FETCHED, "fetched-alias"));
+        List<OpenShard> shards = openEveryShard();
+        FetchRequest request = withIndices(request(shards, randomSubsetOf(between(1, DOCS), allNs())), "fetched-alias");
+
+        try (Fetched fetched = fetch(request)) {
+            assertThat(rows(fetched.pages()), equalTo(expectedRows(shards, request)));
+        }
+        freeAndAssertAllFreed(shards);
+    }
+
+    /**
+     * Security authorizes a request for the indices it names, as they resolve when it arrives. The searcher of a shard of
+     * another index would read it without the document and field level security of that index, for example once an alias
+     * the query read through moved to other indices. Such a shard fails the request as a whole, before it opens a shard.
+     */
+    public void testRefusesAShardOutsideTheIndicesItNames() throws Exception {
+        assertAcked(
+            indicesAdmin().prepareCreate("moved-to")
+                .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+        );
+        assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("moved-to", "moved"));
+        List<OpenShard> shards = openEveryShard();
+        FetchRequest request = withIndices(request(shards, allNs(), Set.copyOf(contextIds(shards))), "moved");
+
+        Exception e = expectThrows(Exception.class, () -> fetch(request));
+        assertThat(e, instanceOf(IllegalArgumentException.class));
+        assertThat(e.getMessage(), containsString("isn't in the indices [moved] of the fetch request"));
+
+        awaitTheRelease();
+        assertThat("the request opened no shard, so it freed none", searchService().getActiveContexts(), equalTo(SHARDS));
         freeAndAssertAllFreed(shards);
     }
 
@@ -378,18 +417,27 @@ public class FetchServiceTests extends FetchContextsTestCase {
     }
 
     private static FetchRequest withShards(FetchRequest request, List<FetchRequest.ShardDocs> shards) {
-        return copy(request, shards, request.configuration());
+        return copy(request, request.indices(), shards, request.configuration());
     }
 
     private static FetchRequest withConfiguration(FetchRequest request, Configuration configuration) {
-        return copy(request, request.shards(), configuration);
+        return copy(request, request.indices(), request.shards(), configuration);
     }
 
-    private static FetchRequest copy(FetchRequest request, List<FetchRequest.ShardDocs> shards, Configuration configuration) {
+    private static FetchRequest withIndices(FetchRequest request, String... indices) {
+        return copy(request, indices, request.shards(), request.configuration());
+    }
+
+    private static FetchRequest copy(
+        FetchRequest request,
+        String[] indices,
+        List<FetchRequest.ShardDocs> shards,
+        Configuration configuration
+    ) {
         return new FetchRequest(
             request.sessionId(),
             request.clusterAlias(),
-            new OriginalIndices(request.indices(), request.indicesOptions()),
+            new OriginalIndices(indices, request.indicesOptions()),
             shards,
             configuration,
             request.attributes()
@@ -447,6 +495,8 @@ public class FetchServiceTests extends FetchContextsTestCase {
         FetchService service = new FetchService(
             getInstanceFromNode(TransportService.class),
             getInstanceFromNode(ClusterService.class),
+            getInstanceFromNode(ProjectResolver.class),
+            getInstanceFromNode(IndexNameExpressionResolver.class),
             searchService(),
             getInstanceFromNode(BigArrays.class),
             blockFactory,

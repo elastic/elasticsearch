@@ -59,7 +59,7 @@ public class FetchResponseTests extends ComputeTestCase {
         );
 
         // the original keeps its pages until it is closed, so the copy compares against them
-        try (FetchResponse response = new FetchResponse(factory, pages, info, 23, 29); FetchResponse copy = copy(factory, response)) {
+        try (FetchResponse response = new FetchResponse(pages, info, 23, 29); FetchResponse copy = copy(factory, response)) {
             assertThat(copy.rows(), equalTo(rows));
             assertThat(copy.completionInfo(), equalTo(info));
             assertThat(copy.tookNanos(), equalTo(23L));
@@ -74,17 +74,17 @@ public class FetchResponseTests extends ComputeTestCase {
     }
 
     /**
-     * Serializing holds the pages twice, once as blocks and once as bytes, so the sender accounts them until the response
-     * is released.
+     * The channel that sends the response charges the bytes it writes until they are sent, so writing reserves nothing of
+     * its own.
      */
-    public void testAccountsThePagesWhileSerializing() throws IOException {
+    public void testSerializingReservesNothing() throws IOException {
         BlockFactory factory = blockFactory();
-        FetchResponse response = new FetchResponse(factory, randomPages(factory), DriverCompletionInfo.EMPTY, 0, 0);
+        FetchResponse response = new FetchResponse(randomPages(factory), DriverCompletionInfo.EMPTY, 0, 0);
         long blocks = factory.breaker().getUsed();
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             response.writeTo(out);
         }
-        assertThat(factory.breaker().getUsed(), equalTo(blocks * 2));
+        assertThat(factory.breaker().getUsed(), equalTo(blocks));
 
         response.close();
         assertThat(factory.breaker().getUsed(), equalTo(0L));
@@ -97,7 +97,7 @@ public class FetchResponseTests extends ComputeTestCase {
         BlockFactory sender = blockFactory();
         BlockFactory receiver = blockFactory();
         try (
-            FetchResponse response = new FetchResponse(sender, randomPages(sender), DriverCompletionInfo.EMPTY, 0, 0);
+            FetchResponse response = new FetchResponse(randomPages(sender), DriverCompletionInfo.EMPTY, 0, 0);
             FetchResponse copy = copy(receiver, response)
         ) {
             List<Page> taken = copy.takePages();
@@ -115,7 +115,7 @@ public class FetchResponseTests extends ComputeTestCase {
     public void testAResponseTooLargeForTheReceiverLeavesNothingOnItsBreaker() throws IOException {
         BlockFactory sender = blockFactory();
         BlockFactory receiver = blockFactory(ByteSizeValue.ofBytes(between(1, 100)));
-        try (FetchResponse response = new FetchResponse(sender, randomPages(sender), DriverCompletionInfo.EMPTY, 0, 0)) {
+        try (FetchResponse response = new FetchResponse(randomPages(sender), DriverCompletionInfo.EMPTY, 0, 0)) {
             expectThrows(CircuitBreakingException.class, () -> copy(receiver, response));
         }
         assertThat(receiver.breaker().getUsed(), equalTo(0L));
@@ -123,7 +123,7 @@ public class FetchResponseTests extends ComputeTestCase {
 
     public void testReleasesThePagesNobodyTook() {
         BlockFactory factory = blockFactory();
-        FetchResponse response = new FetchResponse(factory, randomPages(factory), DriverCompletionInfo.EMPTY, 0, 0);
+        FetchResponse response = new FetchResponse(randomPages(factory), DriverCompletionInfo.EMPTY, 0, 0);
 
         response.close();
 
@@ -132,7 +132,7 @@ public class FetchResponseTests extends ComputeTestCase {
 
     public void testHandsThePagesOverOnce() {
         BlockFactory factory = blockFactory();
-        try (FetchResponse response = new FetchResponse(factory, randomPages(factory), DriverCompletionInfo.EMPTY, 0, 0)) {
+        try (FetchResponse response = new FetchResponse(randomPages(factory), DriverCompletionInfo.EMPTY, 0, 0)) {
             Releasables.closeExpectNoException(response.takePages());
             expectThrows(AssertionError.class, response::takePages);
         }
@@ -145,7 +145,7 @@ public class FetchResponseTests extends ComputeTestCase {
         BlockFactory factory = blockFactory();
         BytesReference bytes;
         try (
-            FetchResponse response = new FetchResponse(factory, randomPages(factory), DriverCompletionInfo.EMPTY, 0, 0);
+            FetchResponse response = new FetchResponse(randomPages(factory), DriverCompletionInfo.EMPTY, 0, 0);
             BytesStreamOutput out = new BytesStreamOutput()
         ) {
             response.writeTo(out);
@@ -168,7 +168,7 @@ public class FetchResponseTests extends ComputeTestCase {
         List<Page> pages = randomPages(factory);
         TransportVersion version = TransportVersionUtils.randomVersionSupporting(FetchRequest.ESQL_FETCH);
         try (
-            FetchResponse response = new FetchResponse(factory, pages, DriverCompletionInfo.EMPTY, 23, 29);
+            FetchResponse response = new FetchResponse(pages, DriverCompletionInfo.EMPTY, 23, 29);
             FetchResponse copy = copy(factory, response, version)
         ) {
             assertThat(copy.tookNanos(), equalTo(23L));

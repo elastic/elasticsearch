@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.fetch;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
@@ -29,33 +28,23 @@ import java.util.List;
  * request order, and the documents of each shard in the order the request listed them. A request that fails for one of
  * its shards fails as a whole, like a fetch request of {@code _search}, so a response always has a row for every document.
  * <p>
- * The node that sends it accounts the pages on its breaker while it serializes them. The node that reads it gets the
- * pages through {@link #takePages()}, and the response releases the pages nobody took.
+ * The channel that sends it charges the serialized bytes to the breaker of the sending node until they are written. The
+ * node that reads it gets the pages through {@link #takePages()}, and the response releases the pages nobody took.
  */
 public final class FetchResponse extends TransportResponse implements Releasable {
     private final RefCounted refs = AbstractRefCounted.of(this::closeInternal);
-    private final BlockFactory blockFactory;
     private final List<Page> pages;
     private final DriverCompletionInfo completionInfo;
     private final long tookNanos;
     private final long setupNanos;
-    private long reservedBytes;
     private boolean pagesTaken;
 
     /**
-     * @param blockFactory   accounts the pages while the response is serialized
      * @param completionInfo the counters of the fetch driver, and its profile when the query is profiled
      * @param tookNanos      from receiving the request to building the response
      * @param setupNanos     the part of {@code tookNanos} spent before the driver started
      */
-    public FetchResponse(
-        BlockFactory blockFactory,
-        List<Page> pages,
-        DriverCompletionInfo completionInfo,
-        long tookNanos,
-        long setupNanos
-    ) {
-        this.blockFactory = blockFactory;
+    public FetchResponse(List<Page> pages, DriverCompletionInfo completionInfo, long tookNanos, long setupNanos) {
         this.pages = List.copyOf(pages);
         this.completionInfo = completionInfo;
         this.tookNanos = tookNanos;
@@ -66,7 +55,6 @@ public final class FetchResponse extends TransportResponse implements Releasable
      * @param in reads the pages with the block factory of the receiving node, which accounts them on its breaker
      */
     public FetchResponse(BlockStreamInput in, ThreadContext threadContext) throws IOException {
-        this.blockFactory = in.blockFactory();
         int pageCount = in.readVInt();
         List<Page> read = new ArrayList<>();
         boolean success = false;
@@ -87,14 +75,11 @@ public final class FetchResponse extends TransportResponse implements Releasable
         this.pages = Collections.unmodifiableList(read);
     }
 
+    /**
+     * Writes the pages. The channel that sends the response charges the bytes written, until they are sent.
+     */
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        long bytes = 0;
-        for (Page page : pages) {
-            bytes += page.ramBytesUsedByBlocks();
-        }
-        blockFactory.breaker().addEstimateBytesAndMaybeBreak(bytes, "serialize esql fetch response");
-        reservedBytes += bytes;
         out.writeCollection(pages);
         completionInfo.writeTo(out);
         out.writeVLong(tookNanos);
@@ -162,7 +147,6 @@ public final class FetchResponse extends TransportResponse implements Releasable
     }
 
     private void closeInternal() {
-        blockFactory.breaker().addWithoutBreaking(-reservedBytes);
         if (pagesTaken == false) {
             Releasables.closeExpectNoException(pages);
         }

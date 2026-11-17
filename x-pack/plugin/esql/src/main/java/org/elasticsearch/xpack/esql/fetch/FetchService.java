@@ -11,7 +11,9 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -61,6 +63,7 @@ import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -102,6 +105,8 @@ public final class FetchService {
 
     private final TransportService transportService;
     private final ClusterService clusterService;
+    private final ProjectResolver projectResolver;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final SearchService searchService;
     private final BigArrays bigArrays;
     private final BlockFactory blockFactory;
@@ -110,13 +115,17 @@ public final class FetchService {
     private final LocalCircuitBreaker.SizeSettings localBreakerSettings;
 
     /**
-     * @param blockFactory   the root block factory of the node, which accounts the responses while they are serialized
+     * @param indexNameExpressionResolver resolves the indices a request names, to check that they hold its shards
+     * @param blockFactory   the root block factory of the node. Its breaker charges a serialized response until it is
+     *                       written.
      * @param driverExecutor runs the driver that loads the documents, on the worker pool of ES|QL next to the drivers of the
      *                       query phase
      */
     public FetchService(
         TransportService transportService,
         ClusterService clusterService,
+        ProjectResolver projectResolver,
+        IndexNameExpressionResolver indexNameExpressionResolver,
         SearchService searchService,
         BigArrays bigArrays,
         BlockFactory blockFactory,
@@ -125,6 +134,8 @@ public final class FetchService {
     ) {
         this.transportService = transportService;
         this.clusterService = clusterService;
+        this.projectResolver = projectResolver;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.searchService = searchService;
         this.bigArrays = bigArrays;
         this.blockFactory = blockFactory;
@@ -169,7 +180,12 @@ public final class FetchService {
             FETCH_ACTION_NAME,
             transportService.getThreadPool().executor(ThreadPool.Names.SEARCH),
             FetchRequest::new,
-            (request, channel, task) -> execute(request, (CancellableTask) task, new ChannelActionListener<>(channel))
+            // the serialized response stays charged until it is written, like a page of the exchange
+            (request, channel, task) -> execute(
+                request,
+                (CancellableTask) task,
+                new ChannelActionListener<>(channel, blockFactory.breaker())
+            )
         );
     }
 
@@ -209,6 +225,7 @@ public final class FetchService {
             Driver driver;
             try {
                 task.ensureNotCancelled();
+                ensureTheIndicesHoldEveryShard();
                 Set<String> unmappedFieldNames = unmappedFieldNames(request.attributes());
                 for (int position = 0; position < request.shards().size(); position++) {
                     contexts.add(openShard(position, request.shards().get(position), unmappedFieldNames));
@@ -231,6 +248,30 @@ public final class FetchService {
                     fail(e);
                 })
             );
+        }
+
+        /**
+         * Security authorized the request for the indices it names, as they resolve now, and the searcher of a shard of
+         * another index would read it without the document and field level security of that index. That happens when an
+         * alias the query read through moved to other indices before the fetch. So such a shard fails the request.
+         */
+        private void ensureTheIndicesHoldEveryShard() {
+            String[] resolved = indexNameExpressionResolver.concreteIndexNames(
+                projectResolver.getProjectMetadata(clusterService.state()),
+                request
+            );
+            Set<String> indices = new HashSet<>(Arrays.asList(resolved));
+            for (FetchRequest.ShardDocs shard : request.shards()) {
+                if (indices.contains(shard.shardId().getIndexName()) == false) {
+                    throw new IllegalArgumentException(
+                        "shard "
+                            + shard.shardId()
+                            + " isn't in the indices "
+                            + Arrays.toString(request.indices())
+                            + " of the fetch request, an alias the query read through may have moved"
+                    );
+                }
+            }
         }
 
         private DefaultShardContext openShard(int position, FetchRequest.ShardDocs shard, Set<String> unmappedFieldNames)
@@ -360,7 +401,7 @@ public final class FetchService {
                 if (rows != request.totalDocs()) {
                     throw new IllegalStateException("fetched [" + rows + "] rows for [" + request.totalDocs() + "] documents");
                 }
-                response = new FetchResponse(blockFactory, pages, completionInfo(driver), System.nanoTime() - startNanos, setupNanos);
+                response = new FetchResponse(pages, completionInfo(driver), System.nanoTime() - startNanos, setupNanos);
             } catch (Exception e) {
                 Releasables.closeExpectNoException(pages);
                 fail(e);

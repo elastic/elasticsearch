@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.IOContext;
 import org.elasticsearch.blobcache.BlobCacheUtils;
+import org.elasticsearch.blobcache.common.BufferFillScope;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.index.StandardIOBehaviorHint;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
@@ -117,8 +118,14 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
         assert rangeToRead.isSubRangeOf(rangeToWrite) : rangeToRead + " vs " + rangeToWrite;
         assert rangeToRead.length() == b.remaining() : b.remaining() + " vs " + rangeToRead;
 
-        final int bytesRead = populateAndRead(b, position, cacheFile, rangeToWrite).get();
-        assert bytesRead == length : bytesRead + " vs " + length;
+        final BufferFillScope fillScope = BufferFillScope.of(b);
+        try {
+            final int bytesRead = populateAndRead(fillScope, length, position, cacheFile, rangeToWrite).get();
+            assert bytesRead == length : bytesRead + " vs " + length;
+            fillScope.complete(bytesRead);
+        } finally {
+            fillScope.complete(0);
+        }
     }
 
     /**
@@ -197,7 +204,11 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
                     // We do not actually read anything, but we want to wait for the write to complete before proceeding.
                     // noinspection UnnecessaryLocalVariable
                     final ByteRange rangeToRead = rangeToWrite;
-                    cacheFile.populateAndRead(rangeToWrite, rangeToRead, (channel) -> bytesRead, (channel, start, end, progressUpdater) -> {
+                    cacheFile.populateAndRead(rangeToWrite, rangeToRead, (channel, onReadComplete) -> {
+                        try (onReadComplete) {
+                            return bytesRead;
+                        }
+                    }, (channel, start, end, progressUpdater) -> {
                         final int writtenBytes = positionalWrite(
                             channel,
                             start,

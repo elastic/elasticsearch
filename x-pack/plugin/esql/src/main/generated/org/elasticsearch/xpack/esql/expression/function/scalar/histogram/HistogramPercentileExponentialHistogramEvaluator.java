@@ -65,7 +65,7 @@ public final class HistogramPercentileExponentialHistogramEvaluator implements E
 
   public DoubleBlock eval(int positionCount, ExponentialHistogramBlock valueBlock,
       DoubleBlock percentileBlock) {
-    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount, true)) {
       ExponentialHistogramScratch valueScratch = new ExponentialHistogramScratch();
       position: for (int p = 0; p < positionCount; p++) {
         if (valueBlock.isNull(p)) {

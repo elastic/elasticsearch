@@ -40,7 +40,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
-import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
@@ -102,23 +102,21 @@ public class Mapper {
     }
 
     private PhysicalPlan mapInner(LogicalPlan p) {
+        PhysicalPlan mapped;
         if (p instanceof LeafPlan leaf) {
-            return mapLeaf(leaf);
+            mapped = mapLeaf(leaf);
+        } else if (p instanceof UnaryPlan unary) {
+            mapped = mapUnary(unary);
+        } else if (p instanceof BinaryPlan binary) {
+            mapped = mapBinary(binary);
+        } else if (p instanceof MergePlan merge) {
+            mapped = mapMergePlan(merge);
+        } else {
+            mapped = MapperUtils.unsupported(p);
         }
-
-        if (p instanceof UnaryPlan unary) {
-            return mapUnary(unary);
-        }
-
-        if (p instanceof BinaryPlan binary) {
-            return mapBinary(binary);
-        }
-
-        if (p instanceof MergePlan merge) {
-            return mapMergePlan(merge);
-        }
-
-        return MapperUtils.unsupported(p);
+        // Nodes built in this class (FragmentExec, LimitExec, joins, MergeExec) have no origin yet.
+        // MapperUtils translations stamp themselves; stampOrigin leaves those alone.
+        return MapperUtils.stampOrigin(mapped, p);
     }
 
     private PhysicalPlan mapLeaf(LeafPlan leaf) {
@@ -240,30 +238,30 @@ public class Mapper {
     }
 
     private PhysicalPlan mapBinary(BinaryPlan bp) {
-        if (bp instanceof InnerJoin innerJoin) {
+        if (bp instanceof HashJoin hashJoin) {
             PhysicalPlan left = mapInner(bp.left());
             PhysicalPlan right = mapInner(bp.right());
             if (right instanceof LocalSourceExec localData) {
-                var marker = newJoinMarker(innerJoin.source());
-                List<Attribute> addedFields = new ArrayList<>(innerJoin.addedFields());
+                var marker = newJoinMarker(hashJoin.source());
+                List<Attribute> addedFields = new ArrayList<>(hashJoin.addedFields());
                 addedFields.add(marker);
                 PhysicalPlan join = new HashJoinExec(
-                    innerJoin.source(),
+                    hashJoin.source(),
                     left,
                     localData,
-                    innerJoin.leftFields(),
-                    innerJoin.rightFields(),
+                    hashJoin.leftFields(),
+                    hashJoin.rightFields(),
                     addedFields
                 );
-                // inner join := left join where marker != null
-                join = new FilterExec(innerJoin.source(), join, new IsNotNull(innerJoin.source(), marker));
-                if (innerJoin.unique()) {
-                    // Guard: unique=true requires every build row to be matched at most once. The marker
-                    // is unique per build row, so a distinct-by on it alone detects duplicates independent
-                    // of the join key types and count.
-                    join = new DistinctByExec(innerJoin.source(), join, marker, true);
+                // `INNER` tells operator to filter out non-matched outputs
+                if (hashJoin.config().type() == JoinTypes.INNER) {
+                    join = new FilterExec(hashJoin.source(), join, new IsNotNull(hashJoin.source(), marker));
                 }
-                return new ProjectExec(innerJoin.source(), join, innerJoin.output());
+                if (hashJoin.unique()) {
+                    // `UNIQUE` tells operator to throw on duplicate matches
+                    join = new DistinctByExec(hashJoin.source(), join, marker, true);
+                }
+                return new ProjectExec(hashJoin.source(), join, hashJoin.output());
             }
             return MapperUtils.unsupported(bp);
         }

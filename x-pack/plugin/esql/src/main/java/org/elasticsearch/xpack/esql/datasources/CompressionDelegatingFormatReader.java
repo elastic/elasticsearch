@@ -204,7 +204,8 @@ final class CompressionDelegatingFormatReader implements FormatReader {
     }
 
     @Override
-    public void close() throws IOException {
-        inner.close();
+    public void close() {
+        // Inner is owned by the registry prototype or the query-minted copy this wraps.
+        // Closing it here would double-close that shared instance on every per-file wrap.
     }
 }

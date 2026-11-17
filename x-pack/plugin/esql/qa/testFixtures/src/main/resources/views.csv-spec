@@ -1179,6 +1179,87 @@ max_rate:double
 13.173725
 ;
 
+tsViewBareRateOutputsDimensions
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+required_capability: metrics_group_by_all
+required_capability: metrics_group_by_all_with_ts_dimensions
+
+FROM view_k8s_bare_rate_by_tbucket
+| SORT rate DESC
+;
+ignoreOrder:true
+
+rate:double        | _timeseries:keyword                                   | tbucket:datetime
+1.6554700854700857 | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"       | 2024-05-10T00:00:00.000Z
+2.5258595644176904 | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"     | 2024-05-10T00:00:00.000Z
+2.621423611111111  | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"   | 2024-05-10T00:00:00.000Z
+2.830347222222222  | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}" | 2024-05-10T00:00:00.000Z
+2.874194651741293  | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"       | 2024-05-10T00:00:00.000Z
+3.1304347826086953 | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"   | 2024-05-10T00:00:00.000Z
+3.3457754629629632 | "{""cluster"":""qa"",""pod"":""three""}"                        | 2024-05-10T00:00:00.000Z
+3.959770114942529  | "{""cluster"":""qa"",""pod"":""one""}"                          | 2024-05-10T00:00:00.000Z
+4.379885057471264  | "{""cluster"":""qa"",""pod"":""two""}"                          | 2024-05-10T00:00:00.000Z
+;
+
+tsViewBareRateOutputsDimensionsSetUnmappedNullify
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+required_capability: metrics_group_by_all
+required_capability: metrics_group_by_all_with_ts_dimensions
+required_capability: optional_fields_nullify_tech_preview
+required_capability: views_implicit_timeseries_column_fix
+
+SET unmapped_fields="nullify"\;
+FROM view_k8s_bare_rate_by_tbucket
+| SORT rate DESC
+;
+ignoreOrder:true
+
+rate:double        | _timeseries:keyword                                   | tbucket:datetime
+1.6554700854700857 | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"       | 2024-05-10T00:00:00.000Z
+2.5258595644176904 | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"     | 2024-05-10T00:00:00.000Z
+2.621423611111111  | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"   | 2024-05-10T00:00:00.000Z
+2.830347222222222  | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}" | 2024-05-10T00:00:00.000Z
+2.874194651741293  | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"       | 2024-05-10T00:00:00.000Z
+3.1304347826086953 | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"   | 2024-05-10T00:00:00.000Z
+3.3457754629629632 | "{""cluster"":""qa"",""pod"":""three""}"                        | 2024-05-10T00:00:00.000Z
+3.959770114942529  | "{""cluster"":""qa"",""pod"":""one""}"                          | 2024-05-10T00:00:00.000Z
+4.379885057471264  | "{""cluster"":""qa"",""pod"":""two""}"                          | 2024-05-10T00:00:00.000Z
+;
+
+tsViewBareRateOutputsDimensionsSetUnmappedLoad
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+required_capability: metrics_group_by_all
+required_capability: metrics_group_by_all_with_ts_dimensions
+required_capability: optional_fields_v5
+required_capability: views_implicit_timeseries_column_fix
+
+SET unmapped_fields="load"\;
+FROM view_k8s_bare_rate_by_tbucket
+| SORT rate DESC
+;
+ignoreOrder:true
+
+rate:double        | _timeseries:keyword                                   | tbucket:datetime
+1.6554700854700857 | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"       | 2024-05-10T00:00:00.000Z
+2.5258595644176904 | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"     | 2024-05-10T00:00:00.000Z
+2.621423611111111  | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"   | 2024-05-10T00:00:00.000Z
+2.830347222222222  | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}" | 2024-05-10T00:00:00.000Z
+2.874194651741293  | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"       | 2024-05-10T00:00:00.000Z
+3.1304347826086953 | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"   | 2024-05-10T00:00:00.000Z
+3.3457754629629632 | "{""cluster"":""qa"",""pod"":""three""}"                        | 2024-05-10T00:00:00.000Z
+3.959770114942529  | "{""cluster"":""qa"",""pod"":""one""}"                          | 2024-05-10T00:00:00.000Z
+4.379885057471264  | "{""cluster"":""qa"",""pod"":""two""}"                          | 2024-05-10T00:00:00.000Z
+;
+
 tsViewDownsampled
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions

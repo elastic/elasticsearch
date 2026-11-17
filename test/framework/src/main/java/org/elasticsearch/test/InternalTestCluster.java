@@ -2212,6 +2212,23 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     /**
+     * Blocks until {@code vacatingNode} has applied a cluster state in which no shard of {@code index} is assigned to it, and additionally
+     * has finished closing the shards.
+     * Unlike {@link #awaitNodeVacated(String, String)}, this method observes the cluster state applied by the vacating node itself.
+     */
+    public void awaitNodeVacatedAndShardsClosed(String index, String vacatingNode) {
+        safeAwait(
+            ClusterServiceUtils.addTemporaryStateListener(
+                clusterService(vacatingNode),
+                clusterState -> nodesInclude(clusterState, index).contains(vacatingNode) == false
+            )
+        );
+        final var shardsClosed = new CountDownLatch(1);
+        getInstance(IndicesClusterStateService.class, vacatingNode).onClusterStateShardsClosed(shardsClosed::countDown);
+        safeAwait(shardsClosed);
+    }
+
+    /**
      * Performs cluster bootstrap when node with index {@link #bootstrapMasterNodeIndex} is started
      * with the names of all existing and new master-eligible nodes.
      * Indexing starts from 0.

@@ -814,6 +814,22 @@ class KibanaOwnedReservedRoleDescriptors {
                         "indices:admin/data_stream/lifecycle/put"
                     )
                     .build(),
+                // Nightshift detection engine. Kibana system user manages the engine's own state index and
+                // signals data stream, which hold no customer data.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".nightshift-detection_engine-*")
+                    .privileges(
+                        "auto_configure",
+                        "create_index",
+                        "read",
+                        "write",
+                        RolloverAction.NAME,
+                        TransportPutMappingAction.TYPE.name(),
+                        TransportAutoPutMappingAction.TYPE.name(),
+                        TransportUpdateSettingsAction.TYPE.name(),
+                        "indices:admin/data_stream/lifecycle/put"
+                    )
+                    .build(),
                 // For Agent Builder OTLP telemetry. Kibana ships OpenTelemetry spans
                 // via the /_otlp/v1/traces endpoint; span events are extracted by
                 // ES as log records into the logs data stream.

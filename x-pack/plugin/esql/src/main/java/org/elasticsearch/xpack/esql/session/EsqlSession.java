@@ -141,6 +141,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
@@ -808,6 +809,12 @@ public class EsqlSession {
                     // Capture the analyzed plan for failure-path logging: schema-resolved,
                     // PROMQL→TS conversion done, but surrogate rewrites haven't fired yet.
                     planSnapshot = planSnapshot.withAnalyzed(plan);
+                    try {
+                        NestedExpand.rejectUntilSupported(plan);
+                    } catch (Exception e) {
+                        listener.onFailure(e);
+                        return;
+                    }
                     // Flag external-source usage on the execution info so the coordinator emits external-source-scoped
                     // operational metrics and query metering for any query whose analyzed plan references one, even if
                     // nothing ends up being scanned.

@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
+import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
@@ -84,6 +86,17 @@ public final class NestedExpand extends UnaryPlan implements SortAgnostic, DocPr
     @Override
     public String getWriteableName() {
         return "NestedExpand";
+    }
+
+    /**
+     * Rejects a plan that holds a {@code NESTED_EXPAND}, which nothing can run yet. It checks the whole plan, subqueries and
+     * branches included, and runs right after analysis: later, optimization may have dropped the command and a subquery may have
+     * run already.
+     */
+    public static void rejectUntilSupported(LogicalPlan plan) {
+        plan.forEachDown(NestedExpand.class, expand -> {
+            throw new VerificationException(List.of(Failure.fail(expand, "NESTED_EXPAND is not supported yet")));
+        });
     }
 
     public boolean bound() {

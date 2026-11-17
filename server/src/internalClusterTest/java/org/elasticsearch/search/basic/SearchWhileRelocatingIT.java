@@ -85,7 +85,7 @@ public class SearchWhileRelocatingIT extends ESIntegTestCase {
                                             // if only the hit-count is wrong. this can happen if the cluster-state is behind when the
                                             // request comes in. It's a small window but a known limitation.
                                             if (response.getTotalShards() != response.getSuccessfulShards()
-                                                && response.shardFailuresList()
+                                                && response.getShardFailures()
                                                     .stream()
                                                     .allMatch(ssf -> ssf.getCause() instanceof NoShardAvailableActionException)) {
                                                 nonCriticalExceptions.add(

@@ -58,8 +58,8 @@ public class PhraseSuggesterIT extends ESIntegTestCase {
                 // We didn't fail all shards - we get a response with failed shards
                 assertThat(response.status(), equalTo(RestStatus.OK));
                 assertThat(response.getFailedShards(), greaterThan(0));
-                assertThat(response.shardFailuresList(), not(empty()));
-                checkShardFailures(response.shardFailuresList());
+                assertThat(response.getShardFailures(), not(empty()));
+                checkShardFailures(response.getShardFailures());
             });
         } catch (SearchPhaseExecutionException e) {
             // If all shards fail, we get a SearchPhaseExecutionException

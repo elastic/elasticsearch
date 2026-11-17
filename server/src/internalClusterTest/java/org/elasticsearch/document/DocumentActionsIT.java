@@ -160,7 +160,7 @@ public class DocumentActionsIT extends ESIntegTestCase {
 
             // count with no query is a match all one
             assertNoFailuresAndResponse(prepareSearch("test").setSize(0), countResponse -> {
-                assertThat("Failures " + countResponse.shardFailuresList(), countResponse.shardFailuresList(), empty());
+                assertThat("Failures " + countResponse.getShardFailures(), countResponse.getShardFailures(), empty());
                 assertThat(countResponse.getHits().getTotalHits().value(), equalTo(2L));
                 assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
                 assertThat(countResponse.getFailedShards(), equalTo(0));

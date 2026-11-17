@@ -43,7 +43,7 @@ public class TransportSearchScrollActionTests extends ESTestCase {
             assertThat(response.getSuccessfulShards(), equalTo(0));
             assertThat(response.getSkippedShards(), equalTo(0));
             assertThat(response.getFailedShards(), equalTo(0));
-            assertThat(response.shardFailuresList(), empty());
+            assertThat(response.getShardFailures(), empty());
             assertThat(response.getHits().getHits().length, equalTo(0));
             assertThat(response.getTookInMillis(), equalTo(0L));
             assertThat(response.getClusters(), equalTo(SearchResponse.Clusters.EMPTY));

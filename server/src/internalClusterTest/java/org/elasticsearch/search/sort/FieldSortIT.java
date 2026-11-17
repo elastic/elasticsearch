@@ -1011,7 +1011,7 @@ public class FieldSortIT extends ESIntegTestCase {
         }
 
         assertResponses(response -> {
-            assertThat(response.shardFailuresList().toString(), response.getFailedShards(), equalTo(0));
+            assertThat(response.getShardFailures().toString(), response.getFailedShards(), equalTo(0));
 
             assertThat(response.getHits().getTotalHits().value(), equalTo(3L));
             assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
@@ -1028,7 +1028,7 @@ public class FieldSortIT extends ESIntegTestCase {
         assertResponse(
             prepareSearch().setQuery(matchAllQuery()).addSort(SortBuilders.fieldSort("value").order(SortOrder.ASC).missing("_first")),
             response -> {
-                assertThat(response.shardFailuresList().toString(), response.getFailedShards(), equalTo(0));
+                assertThat(response.getShardFailures().toString(), response.getFailedShards(), equalTo(0));
 
                 assertThat(response.getHits().getTotalHits().value(), equalTo(3L));
                 assertThat(response.getHits().getAt(0).getId(), equalTo("2"));
@@ -1040,7 +1040,7 @@ public class FieldSortIT extends ESIntegTestCase {
         assertResponse(
             prepareSearch().setQuery(matchAllQuery()).addSort(SortBuilders.fieldSort("value").order(SortOrder.ASC).missing("b")),
             response -> {
-                assertThat(response.shardFailuresList().toString(), response.getFailedShards(), equalTo(0));
+                assertThat(response.getShardFailures().toString(), response.getFailedShards(), equalTo(0));
 
                 assertThat(response.getHits().getTotalHits().value(), equalTo(3L));
                 assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
@@ -2182,8 +2182,8 @@ public class FieldSortIT extends ESIntegTestCase {
             assertResponse(
                 prepareSearch().setQuery(matchAllQuery()).setSize(1).addSort(SortBuilders.fieldSort("field").setNumericType("date_nanos")),
                 response -> {
-                    assertThat(response.shardFailuresList(), hasSize(1));
-                    assertThat(response.shardFailuresList().getFirst().toString(), containsString("are before the epoch in 1970"));
+                    assertThat(response.getShardFailures(), hasSize(1));
+                    assertThat(response.getShardFailures().getFirst().toString(), containsString("are before the epoch in 1970"));
                 }
             );
         }
@@ -2197,8 +2197,8 @@ public class FieldSortIT extends ESIntegTestCase {
                     .setSize(10)
                     .addSort(SortBuilders.fieldSort("field").setNumericType("date_nanos")),
                 response -> {
-                    assertThat(response.shardFailuresList(), hasSize(1));
-                    assertThat(response.shardFailuresList().getFirst().toString(), containsString("are after 2262"));
+                    assertThat(response.getShardFailures(), hasSize(1));
+                    assertThat(response.getShardFailures().getFirst().toString(), containsString("are after 2262"));
                 }
             );
         }

@@ -394,7 +394,7 @@ public abstract class AbstractRerankerIT extends ESIntegTestCase {
             response -> {
                 assertThat(response.getFailedShards(), greaterThan(0));
                 assertTrue(
-                    response.shardFailuresList()
+                    response.getShardFailures()
                         .stream()
                         .allMatch(failure -> failure.getCause().getMessage().contains("rfs - simulated failure"))
                 );

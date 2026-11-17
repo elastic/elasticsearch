@@ -500,7 +500,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
         assertResponse(
             prepareSearch().setQuery(q).setIndices("test").setProfile(true).setSearchType(SearchType.QUERY_THEN_FETCH),
             response -> {
-                if (response.shardFailuresList().isEmpty() == false) {
+                if (response.getShardFailures().isEmpty() == false) {
                     for (ShardSearchFailure f : response.getShardFailures()) {
                         logger.error("Shard search failure: {}", f);
                     }

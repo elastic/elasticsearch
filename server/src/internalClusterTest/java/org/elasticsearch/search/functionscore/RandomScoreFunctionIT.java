@@ -107,7 +107,7 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
                         .setPreference(preference)
                         .setQuery(functionScoreQuery(matchAllQuery(), randomFunction().seed(seed).setField("foo"))),
                     response -> {
-                        assertThat("Failures " + response.shardFailuresList(), response.shardFailuresList(), empty());
+                        assertThat("Failures " + response.getShardFailures(), response.getShardFailures(), empty());
                         final int hitCount = response.getHits().getHits().length;
                         final SearchHit[] currentHits = Arrays.copyOf(response.getHits().getHits(), response.getHits().getHits().length);
                         ArrayUtil.timSort(currentHits, (o1, o2) -> {

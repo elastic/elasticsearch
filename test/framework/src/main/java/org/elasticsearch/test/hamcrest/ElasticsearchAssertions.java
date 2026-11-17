@@ -562,11 +562,11 @@ public class ElasticsearchAssertions {
     }
 
     public static void assertNoFailures(SearchResponse searchResponse) {
-        assertThat("Unexpected ShardFailures: " + searchResponse.shardFailuresList(), searchResponse.shardFailuresList(), empty());
+        assertThat("Unexpected ShardFailures: " + searchResponse.getShardFailures(), searchResponse.getShardFailures(), empty());
     }
 
     public static void assertFailures(SearchResponse searchResponse) {
-        assertThat("Expected at least one shard failure, got none", searchResponse.shardFailuresList(), not(empty()));
+        assertThat("Expected at least one shard failure, got none", searchResponse.getShardFailures(), not(empty()));
     }
 
     public static void assertNoFailures(BulkResponse response) {
@@ -586,7 +586,7 @@ public class ElasticsearchAssertions {
         // we can either run into partial or total failures depending on the current number of shards
         try {
             assertResponse(searchRequestBuilder, response -> {
-                assertThat("Expected shard failures, got none", response.shardFailuresList(), not(empty()));
+                assertThat("Expected shard failures, got none", response.getShardFailures(), not(empty()));
                 for (ShardSearchFailure shardSearchFailure : response.getShardFailures()) {
                     assertThat(restStatuses, hasItem(shardSearchFailure.status()));
                     assertThat(shardSearchFailure.reason(), reasonMatcher);

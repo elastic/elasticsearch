@@ -61,7 +61,7 @@ public final class SqrtUnsignedLongEvaluator implements ExpressionEvaluator {
   }
 
   public DoubleBlock eval(int positionCount, LongBlock valBlock) {
-    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (valBlock.isNull(p)) {
           result.appendNull();
@@ -83,7 +83,7 @@ public final class SqrtUnsignedLongEvaluator implements ExpressionEvaluator {
   }
 
   public DoubleVector eval(int positionCount, LongVector valVector) {
-    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
+    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         long val = valVector.getLong(p);
         result.appendDouble(p, Sqrt.processUnsignedLong(val));

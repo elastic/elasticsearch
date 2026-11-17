@@ -86,12 +86,12 @@ public class KibanaPluginTests extends ESTestCase {
                 "space",
                 "ai_index_id",
                 "session_id",
-                "round_id",
+                "turn_id",
                 "user_id",
                 "type",
                 "content",
                 "tool_name",
-                "ok",
+                "status",
                 "raw"
             )
         );

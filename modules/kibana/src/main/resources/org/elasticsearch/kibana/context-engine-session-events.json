@@ -11,9 +11,7 @@
     },
     "settings": {
       "index.auto_expand_replicas": "0-1",
-      "index.hidden": true,
-      "index.sort.field": "@timestamp",
-      "index.sort.order": "desc"
+      "index.hidden": true
     },
     "mappings": {
       "_meta": {
@@ -43,7 +41,7 @@
         "session_id": {
           "type": "keyword"
         },
-        "round_id": {
+        "turn_id": {
           "type": "keyword"
         },
         "user_id": {
@@ -63,8 +61,8 @@
         "tool_name": {
           "type": "keyword"
         },
-        "ok": {
-          "type": "boolean"
+        "status": {
+          "type": "keyword"
         },
         "raw": {
           "type": "object",

@@ -298,18 +298,17 @@ public final class DeclaredTypeCoercions {
     }
 
     /**
-     * Whether a column stored as {@code fileType} has to be decoded at that type and then cast to reach the
-     * declared {@code declared}: the two differ, no decode arm produces {@code declared} directly, and the pair
-     * is one {@link #castBlock} can carry. Equivalently, whether a read takes the defused route.
+     * Whether a column stored as {@code fileType} must be decoded at that type and then cast to reach
+     * {@code declared}: the two differ, no decode arm produces {@code declared} directly, and the pair is one
+     * {@link #castBlock} can carry.
      *
-     * <p>Every columnar read path asks this question, and before this method each of them spelled the same four
-     * terms out again. A reader that spells it out can get it wrong in two ways, and both have happened: it can
-     * disagree with the others about which pairs fuse, or it can skip the question and cast unconditionally, which
-     * is what left a declared {@code date} over a microsecond column reading null on one route and not the other.
-     * The question belongs here because {@link #fusedInDecode} and {@link #supports} both do.
+     * <p>Every columnar read path in Parquet and ORC asks this, and asks it here rather than restating the terms,
+     * so the paths cannot answer it differently — a reader with its own copy can disagree about which pairs the
+     * decode arms produce, and a reader that never asks casts a pair the decode already handled. The question
+     * belongs on this class because {@link #fusedInDecode} and {@link #supports} do.
      *
-     * @param fileType the type the file stores, or {@code null} when the column is read at the declared type
-     *                 with nothing to coerce from
+     * @param fileType the type the file stores, or {@code null} from a caller that has no stored type to coerce
+     *                 from, which declines
      */
     public static boolean needsBlockCast(@Nullable DataType fileType, DataType declared, boolean hasDeclaredFormat) {
         return fileType != null

@@ -1626,6 +1626,21 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
      * single scale, so both must decline — and the compound case must not be mistaken for the identity by a
      * substring test, which would push a bound scaled 1000x wrong.
      */
+    public void testNonEpochFormatsAdmitNoScale() {
+        assertNull(DeclaredTypeCoercions.declaredEpochFormatScale("yyyyMMdd", DataType.DATETIME));
+        assertNull(DeclaredTypeCoercions.declaredEpochFormatScale("strict_date_optional_time", DataType.DATETIME));
+        assertNull(
+            "a compound format containing epoch_millis is NOT the identity",
+            DeclaredTypeCoercions.declaredEpochFormatScale("epoch_second||epoch_millis", DataType.DATETIME)
+        );
+        assertNull(DeclaredTypeCoercions.declaredEpochFormatScale("epoch_second||epoch_millis", DataType.DATE_NANOS));
+        assertNull(DeclaredTypeCoercions.declaredEpochFormatScale(null, DataType.DATETIME));
+        assertNull(
+            "a non-temporal declared type never carries a format",
+            DeclaredTypeCoercions.declaredEpochFormatScale("epoch_second", DataType.LONG)
+        );
+    }
+
     /**
      * The refactor that gave the decode-vs-cast decision a name rests on this equivalence: every reader used to
      * spell the four terms out, and {@code needsBlockCast} has to answer identically for every pair, with and
@@ -1664,28 +1679,15 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
     }
 
     /**
-     * A column with no file type is read at the declared type, so there is nothing to coerce from. The readers
-     * relied on this arm: {@code ColumnInfo.fileEsqlType} is null for a column that was never retyped.
+     * A null file type means the caller has no stored type to coerce from, so there is nothing to do. ORC
+     * reaches this arm directly, passing {@code null} when it cannot resolve a leaf type; the Parquet readers
+     * never do, since an unretyped {@code ColumnInfo} carries its own type in both slots and is declined by
+     * the {@code declared != fileType} term instead.
      */
     public void testNeedsBlockCastDeclinesWhenTheFileTypeIsAbsent() {
         assertFalse(DeclaredTypeCoercions.needsBlockCast(null, DataType.DATETIME, false));
         assertFalse(DeclaredTypeCoercions.needsBlockCast(null, DataType.DATETIME, true));
         assertFalse(DeclaredTypeCoercions.needsBlockCast(null, DataType.KEYWORD, false));
-    }
-
-    public void testNonEpochFormatsAdmitNoScale() {
-        assertNull(DeclaredTypeCoercions.declaredEpochFormatScale("yyyyMMdd", DataType.DATETIME));
-        assertNull(DeclaredTypeCoercions.declaredEpochFormatScale("strict_date_optional_time", DataType.DATETIME));
-        assertNull(
-            "a compound format containing epoch_millis is NOT the identity",
-            DeclaredTypeCoercions.declaredEpochFormatScale("epoch_second||epoch_millis", DataType.DATETIME)
-        );
-        assertNull(DeclaredTypeCoercions.declaredEpochFormatScale("epoch_second||epoch_millis", DataType.DATE_NANOS));
-        assertNull(DeclaredTypeCoercions.declaredEpochFormatScale(null, DataType.DATETIME));
-        assertNull(
-            "a non-temporal declared type never carries a format",
-            DeclaredTypeCoercions.declaredEpochFormatScale("epoch_second", DataType.LONG)
-        );
     }
 
     /**

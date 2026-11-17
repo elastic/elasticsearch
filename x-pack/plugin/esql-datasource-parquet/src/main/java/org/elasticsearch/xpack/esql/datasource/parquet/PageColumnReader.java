@@ -160,8 +160,9 @@ final class PageColumnReader implements Releasable {
      * credited against subsequent skip requests rather than being discarded (which would leave the
      * reader silently ahead and misread later survivor rows).
      *
-     * <p>Only {@link #skipRows} spends this credit. The read entry point ({@link #readBatch}) requires
-     * it to be zero and throws {@link IllegalStateException} otherwise: a prejump only ever crosses
+     * <p>Only {@link #skipRows} spends this credit. Every batch decode goes through
+     * {@link #decodeBatchAs}, which requires it to be zero and throws {@link IllegalStateException}
+     * otherwise: a prejump only ever crosses
      * survivor-excluded pages, so the caller always reaches the next survivor through a {@code skipRows}
      * whose gap fully drains the surplus before any decode happens.
      */
@@ -238,11 +239,10 @@ final class PageColumnReader implements Releasable {
     }
 
     /**
-     * Decodes a batch at {@code type}, after the two things every decode of a batch needs first.
-     * {@link #readBatchSparse} decodes its runs through here rather than through {@link #readBatch},
-     * so that taking the coercion out of its loop does not also take the dictionary load and the
-     * pre-jump check out of it -- a dictionary-encoded column whose first read is a sparse one would
-     * otherwise decode against a null dictionary.
+     * Decodes a batch at {@code type}, after the two things every batch decode needs first: the
+     * dictionary has to be loaded, and no pre-jump may be banked. Every decode of a batch goes
+     * through here, including each run of a sparse read, because a dictionary-encoded column whose
+     * first read is a sparse one has no dictionary loaded otherwise and decodes against null.
      *
      * <p>A banked pre-jump means the physical cursor is ahead of the caller's logical position; only
      * {@link #skipRows} may spend that credit. Decoding with one banked would read from the wrong
@@ -353,7 +353,7 @@ final class PageColumnReader implements Releasable {
 
     /**
      * Reads only the rows at the given positions within a batch of {@code sourceRows} total
-     * rows, interleaving {@link #skipRows} and {@link #readBatch} calls. Produces exactly
+     * rows, interleaving {@link #skipRows} with per-run decodes. Produces exactly
      * {@code survivorCount} output rows. Unlike {@link #readBatchFiltered}, this method is
      * safe when the reader has {@link RowRanges} that cause page skipping in
      * {@link #loadNextPage()}, because every skip/read call advances the reader's cursor
@@ -414,8 +414,9 @@ final class PageColumnReader implements Releasable {
         // the column needs one, every run decodes at the file's own type and the joined block is
         // converted once. The values are identical either way: the runs are in ascending position
         // order, so the joined block holds the same values in the same order as the per-run blocks
-        // concatenated. Under a strict policy the same value still fails, one pass later -- the whole
-        // batch is decoded before the conversion walks it.
+        // concatenated. Under a strict policy the same value fails, one pass later, since the whole
+        // batch is decoded before the conversion walks it -- unless a later run fails to decode at
+        // all, in which case that failure is now raised first and the coercion error never surfaces.
         DataType declared = info.esqlType();
         DataType fileType = info.fileEsqlType();
         boolean coerceOnce = DeclaredTypeCoercions.needsBlockCast(fileType, declared, info.dateFormatter() != null);
@@ -465,8 +466,10 @@ final class PageColumnReader implements Releasable {
                 joined = BlockChunks.concat(chunks, blockFactory);
             }
             // Ownership has moved to `joined` -- concat closed the chunks it consumed, and the
-            // single-chunk arm handed its one block over. Clearing the list is what stops the catch
-            // below double-closing them if the conversion throws.
+            // single-chunk arm handed its one block over, so the list owns nothing from here. The
+            // conversion runs below rather than inside this try, which is what keeps a throw from it
+            // away from a catch that would close those blocks a second time; clearing the list is the
+            // belt to that braces, and says in code that the chunks are no longer ours.
             chunks.clear();
         } catch (RuntimeException e) {
             for (Block chunk : chunks) {

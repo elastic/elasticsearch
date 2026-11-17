@@ -45,8 +45,10 @@ import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.CountingBreaker;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
@@ -75,6 +77,7 @@ import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT32;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT64;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT96;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 
 /**
@@ -468,26 +471,19 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
         byte[] data = sparseFile();
         // Eight isolated non-null rows, so each is its own run and a per-run conversion pays eight times.
         int[] survivors = { 1, 3, 5, 7, 11, 13, 15, 17 };
+        assertTrue(
+            "the pair must still be one that takes the conversion, or this measures nothing",
+            DeclaredTypeCoercions.needsBlockCast(DataType.INTEGER, DataType.KEYWORD, false)
+        );
         CountingBreaker breaker = new CountingBreaker();
         BlockFactory counting = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
         try (Block b = declaredRead(data, "opt_int", DataType.INTEGER, DataType.KEYWORD, survivors, counting)) {
             assertEquals(survivors.length, b.getPositionCount());
+            // The conversion ran: an INT32 column read as keyword comes back as bytes, not ints.
+            assertThat(b, instanceOf(BytesRefBlock.class));
         }
-        assertThat("a per-run conversion reserves 17 times here; hoisted it reserves 11", breaker.reservations, lessThan(14));
-    }
-
-    /** Counts the block factory's byte reservations, so a per-call allocation becomes observable. */
-    private static final class CountingBreaker extends NoopCircuitBreaker {
-        private int reservations;
-
-        CountingBreaker() {
-            super("counting-test-breaker");
-        }
-
-        @Override
-        public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
-            reservations++;
-        }
+        assertThat("a per-run conversion reserves 17 times here; hoisted it reserves 11", breaker.positiveReservations(), lessThan(14));
+        assertEquals("every block the sparse read allocated must be released", 0L, breaker.used());
     }
 
     /**

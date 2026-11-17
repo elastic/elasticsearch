@@ -99,6 +99,7 @@ public class MapperFeatures implements FeatureSpecification {
         "mapper.doc_values.extended_form_only_in_columnar"
     );
     public static final NodeFeature DOC_VALUES_NULLABILITY = new NodeFeature("mapper.doc_values.nullability");
+    public static final NodeFeature FLATTENED_COLUMNAR_ROOT_VALUES = new NodeFeature("mapper.flattened.columnar_root_values");
     static final NodeFeature DENSE_VECTOR_DYNAMIC_TEMPLATE_NESTED_OBJECT_FIX = new NodeFeature(
         "mapper.dense_vector.dynamic_template_nested_object_fix"
     );
@@ -238,6 +239,7 @@ public class MapperFeatures implements FeatureSpecification {
             DOC_VALUES_MULTI_VALUE_FALSE_ALIAS,
             DOC_VALUES_EXTENDED_FORM_ONLY_IN_COLUMNAR,
             DOC_VALUES_NULLABILITY,
+            FLATTENED_COLUMNAR_ROOT_VALUES,
             PUT_MAPPING_NO_TYPES_CHECK,
             MULTI_VALUED_BINARY_INDEX_SORT_SPARSE_FIX
         );

@@ -53,7 +53,7 @@ public class KeyedFlattenedDocValuesBlockLoader extends BlockDocValuesReader.Doc
                 var binary = context.reader().getBinaryDocValues(keyedFieldName);
                 var counts = context.reader()
                     .getNumericDocValues(keyedFieldName + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX);
-                SortedBinaryDocValues filtered = new KeyFilteredSortingArrayOrderBinaryDocValues(binary, counts, new BytesRef(key));
+                SortedBinaryDocValues filtered = KeyFilteredSortingArrayOrderBinaryDocValues.forKey(binary, counts, new BytesRef(key));
                 return new BinaryKeyedBlockDocValuesReader(breaker, filtered);
             }
             MultiValuedSortedBinaryDocValues dv = MultiValuedSortedBinaryDocValues.fromMultiValued(context.reader(), keyedFieldName);

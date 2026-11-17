@@ -115,7 +115,12 @@ public class SearchLoadIT extends ESIntegTestCase {
      * With no hits, only the query phase runs.
      */
     private void assertSearchReportsTheLoadItsShardsWereCharged(Settings dataNodeSettings, boolean batched, int size) throws Exception {
-        String dataNode = internalCluster().startNode(dataNodeSettings);
+        String dataNode = internalCluster().startNode(
+            Settings.builder()
+                .put(dataNodeSettings)
+                // no reaper of search contexts on the search pool while the search runs
+                .put(SearchService.KEEPALIVE_INTERVAL_SETTING.getKey(), TimeValue.timeValueHours(1))
+        );
         String coordinator = internalCluster().startCoordinatingOnlyNode(
             Settings.builder().put(SearchService.BATCHED_QUERY_PHASE.getKey(), batched).build()
         );

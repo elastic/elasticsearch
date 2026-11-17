@@ -47,15 +47,6 @@ public class PlanFieldSafePublicationTests extends ESTestCase {
     private static final String ESQL_PACKAGE = "org.elasticsearch.xpack.esql.";
 
     /**
-     * Methods that {@link #testLazyFieldsArePublishedOnce} lets through for now, each with the PR that fixes it. The test fails
-     * once an entry no longer breaks the rules, so remove it when that PR is merged.
-     */
-    private static final Map<String, String> KNOWN_VIOLATIONS = Map.of(
-        "org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo#dataType",
-        "https://github.com/elastic/elasticsearch/pull/166331"
-    );
-
-    /**
      * Classes, other than enums, records and {@link Node}s, whose instances are safe to publish without {@code volatile}:
      * everything they hold is reachable through {@code final} fields, so a thread that sees a reference to one also sees
      * its contents. {@link #testSafeTypesOnlyHaveFinalFields} checks the ES|QL ones.
@@ -107,7 +98,6 @@ public class PlanFieldSafePublicationTests extends ESTestCase {
     public void testLazyFieldsArePublishedOnce() throws IOException {
         Map<String, ClassNode> planClasses = planClasses();
         Set<String> violations = new TreeSet<>();
-        Set<String> violatingMethods = new HashSet<>();
         for (ClassNode c : planClasses.values()) {
             for (MethodNode method : c.methods) {
                 if (method.name.equals("<init>") || method.name.equals("<clinit>")) {
@@ -126,11 +116,9 @@ public class PlanFieldSafePublicationTests extends ESTestCase {
                             assigned.add(field);
                         } else if (access.getOpcode() == Opcodes.GETFIELD) {
                             if (assigned.contains(field) && isReturned(access) == false) {
-                                violatingMethods.add(where);
                                 violations.add(where + " reads " + field.name + " after assigning it");
                             }
                             if (isVolatile(field) == false && reads.merge(field, 1, Integer::sum) > 1) {
-                                violatingMethods.add(where);
                                 violations.add(where + " reads " + field.name + " more than once");
                             }
                         }
@@ -138,16 +126,12 @@ public class PlanFieldSafePublicationTests extends ESTestCase {
                 }
             }
         }
-        violations.removeIf(v -> KNOWN_VIOLATIONS.containsKey(v.substring(0, v.indexOf(' '))));
         assertThat(
             "plan nodes are shared between threads: read lazy fields into a local once, compute the value in a local and "
                 + "assign the field once, when complete (see Node)",
             violations,
             empty()
         );
-        Set<String> fixed = new TreeSet<>(KNOWN_VIOLATIONS.keySet());
-        fixed.removeAll(violatingMethods);
-        assertThat("these methods follow the rules now: remove them from KNOWN_VIOLATIONS", fixed, empty());
     }
 
     /**

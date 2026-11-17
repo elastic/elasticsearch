@@ -80,6 +80,24 @@ result:double | step:datetime
 0.0           | 2024-05-10T00:30:00.000Z
 ;
 
+// Different offsets on the two sides join independent pipelines (one shared fold frame cannot carry two timestamps).
+// At 00:25: numerator is the no-offset window ending 00:25; denominator equals the no-offset window ending 00:20.
+binary_heterogeneous_offset
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_tstep_bucket_rounding
+required_capability: promql_offset_modifier
+required_capability: promql_binary_independent_join
+PROMQL index=k8s step=5m start="2024-05-10T00:25:00.000Z" end="2024-05-10T00:25:00.000Z" result=(
+  sum(avg_over_time(network.cost[5m])) / sum(avg_over_time(network.cost[5m] offset 5m))
+)
+| EVAL result = ROUND(result, 12)
+| KEEP result, step;
+
+result:double    | step:date
+0.992983159583   | 2024-05-10T00:25:00.000Z
+;
+
 auto_step_buckets
 required_capability: promql_command_v0
 required_capability: promql_buckets_parameter
@@ -2499,6 +2517,20 @@ result:double | step:datetime            | _timeseries:keyword
 947.0         | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
 ;
 
+// topk over a filter comparison ranks the series the filter keeps: `two` is filtered out, so `three` wins.
+topk_over_filter_comparison
+required_capability: promql_command_v0
+required_capability: promql_topk
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_binary_comparison_v0
+required_capability: promql_label_references
+PROMQL index=k8s step=1h result=(topk(1, network.total_bytes_in{cluster="prod"} < 10000))
+| SORT result DESC;
+
+result:double | step:datetime            | _timeseries:keyword
+9969.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+;
+
 // topk is evaluated independently at every step of a range query, so the winning series can change from
 // one step to the next as the underlying series values change - here `three` wins the first step and `two`
 // wins the second.
@@ -2658,4 +2690,80 @@ PROMQL index=k8s step=1h result=(bottomk(2, sum by (pod) (network.total_bytes_in
 result:double | step:datetime            | pod:keyword
 947.0         | 2024-05-10T01:00:00.000Z | one
 9969.0        | 2024-05-10T01:00:00.000Z | three
+;
+
+
+// topk, bottomk and limitk with without(...) partition by every label but the listed ones and the metric name.
+topk_without_partitions_by_the_rest
+required_capability: promql_command_v0
+required_capability: promql_topk
+required_capability: promql_reduction_without
+PROMQL index=k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(topk without (pod) (1, last_over_time(network.eth0.tx[5m])))
+| WHERE step == "2024-05-10T00:10:00.000Z"
+| KEEP result, _timeseries
+| SORT _timeseries;
+
+result:double | _timeseries:keyword
+409.0         | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+908.0         | "{""cluster"":""qa"",""pod"":""two""}"
+472.0         | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
+;
+
+bottomk_without_partitions_by_the_rest
+required_capability: promql_command_v0
+required_capability: promql_bottomk
+required_capability: promql_reduction_without
+PROMQL index=k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(bottomk without (pod) (1, last_over_time(network.eth0.tx[5m])))
+| WHERE step == "2024-05-10T00:10:00.000Z"
+| KEEP result, _timeseries
+| SORT _timeseries;
+
+result:double | _timeseries:keyword
+298.0         | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+500.0         | "{""cluster"":""qa"",""pod"":""three""}"
+346.0         | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
+;
+
+// Leaving out every label but the metric name leaves one partition.
+topk_without_every_label_is_one_partition
+required_capability: promql_command_v0
+required_capability: promql_topk
+required_capability: promql_reduction_without
+PROMQL index=k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(topk without (cluster, pod, region) (1, last_over_time(network.eth0.rx[5m])))
+| WHERE step == "2024-05-10T00:10:00.000Z"
+| KEEP result, _timeseries;
+
+result:double | _timeseries:keyword
+818.0         | "{""cluster"":""qa"",""pod"":""one""}"
+;
+
+limitk_without_keeps_k_per_partition
+required_capability: promql_command_v0
+required_capability: promql_limitk
+required_capability: promql_reduction_without
+PROMQL index=k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(count by (cluster) (limitk without (pod) (1, last_over_time(network.eth0.tx[5m]))))
+| WHERE step == "2024-05-10T00:10:00.000Z"
+| KEEP result, cluster
+| SORT cluster;
+
+result:double | cluster:keyword
+1.0           | prod
+1.0           | qa
+1.0           | staging
+;
+
+// limit_ratio samples series, not partitions: a ratio of 1 keeps every series whatever the partition.
+limit_ratio_without_keeps_every_series_at_one
+required_capability: promql_command_v0
+required_capability: promql_limit_ratio
+required_capability: promql_reduction_without
+PROMQL index=k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(count by (cluster) (limit_ratio without (pod) (1, last_over_time(network.eth0.tx[5m]))))
+| WHERE step == "2024-05-10T00:10:00.000Z"
+| KEEP result, cluster
+| SORT cluster;
+
+result:double | cluster:keyword
+3.0           | prod
+3.0           | qa
+3.0           | staging
 ;

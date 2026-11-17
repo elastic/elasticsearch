@@ -15,9 +15,9 @@ PROMQL index=prometheus-k8s step=1h result=(limitk(5, network.total_bytes_in{clu
 | SORT result;
 
 result:double | step:datetime            | _timeseries:keyword
-947.0         | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}}"
-9969.0        | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}}"
-10277.0       | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}}"
+947.0         | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+9969.0        | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+10277.0       | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
 ;
 
 // k exactly equal to the series count: every series is returned.
@@ -30,9 +30,9 @@ PROMQL index=prometheus-k8s step=1h result=(limitk(3, network.total_bytes_in{clu
 | SORT result;
 
 result:double | step:datetime            | _timeseries:keyword
-947.0         | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}}"
-9969.0        | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}}"
-10277.0       | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}}"
+947.0         | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+9969.0        | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+10277.0       | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
 ;
 
 // k=0: Prometheus returns an empty result.
@@ -57,9 +57,9 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=1h result=(limitk(2, network.total_bytes_in{cluster="prod"}))
 | EVAL labels_match = CASE(
-    result == 947.0, _timeseries == """{"labels":{"__name__":"network.total_bytes_in","cluster":"prod","pod":"one","region":["eu","us"]}}""",
-    result == 9969.0, _timeseries == """{"labels":{"__name__":"network.total_bytes_in","cluster":"prod","pod":"three","region":["eu","us"]}}""",
-    result == 10277.0, _timeseries == """{"labels":{"__name__":"network.total_bytes_in","cluster":"prod","pod":"two","region":["eu","us"]}}""",
+    result == 947.0, _timeseries == """{"__name__":"network.total_bytes_in","cluster":"prod","pod":"one","region":["eu","us"]}""",
+    result == 9969.0, _timeseries == """{"__name__":"network.total_bytes_in","cluster":"prod","pod":"three","region":["eu","us"]}""",
+    result == 10277.0, _timeseries == """{"__name__":"network.total_bytes_in","cluster":"prod","pod":"two","region":["eu","us"]}""",
     false)
 | STATS n = COUNT(*), matched = COUNT(*) WHERE labels_match, distinct = COUNT_DISTINCT(result);
 
@@ -80,9 +80,9 @@ PROMQL index=prometheus-k8s step=5m start="2024-05-10T00:20:00.000Z" end="2024-0
 | SORT step, result;
 
 result:double | step:datetime            | _timeseries:keyword
-9969.0        | 2024-05-10T00:20:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}}"
-947.0         | 2024-05-10T00:25:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}}"
-10277.0       | 2024-05-10T00:25:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}}"
+9969.0        | 2024-05-10T00:20:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+947.0         | 2024-05-10T00:25:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+10277.0       | 2024-05-10T00:25:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
 ;
 
 // `by (pod)` partitions the limit by pod across ALL clusters. With k=5 (> 3 series per pod),
@@ -97,15 +97,15 @@ PROMQL index=prometheus-k8s step=1h result=(limitk(5, network.total_bytes_in) by
 | SORT result;
 
 result:double | step:datetime            | _timeseries:keyword
-947.0         | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}}"
-5187.0        | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""staging"",""pod"":""two"",""region"":""us""}}"
-6637.0        | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""staging"",""pod"":""one"",""region"":""us""}}"
-7286.0        | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""qa"",""pod"":""one""}}"
-7403.0        | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""staging"",""pod"":""three"",""region"":""us""}}"
-8568.0        | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""qa"",""pod"":""two""}}"
-9969.0        | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}}"
-10277.0       | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}}"
-10797.0       | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.total_bytes_in"",""cluster"":""qa"",""pod"":""three""}}"
+947.0         | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+5187.0        | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
+6637.0        | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
+7286.0        | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""qa"",""pod"":""one""}"
+7403.0        | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""staging"",""pod"":""three"",""region"":""us""}"
+8568.0        | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""qa"",""pod"":""two""}"
+9969.0        | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+10277.0       | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+10797.0       | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""qa"",""pod"":""three""}"
 ;
 
 // limitk over an already-aggregated vector (sum by pod). The inner sum collapses the 3 prod pods to

@@ -20,8 +20,8 @@ PROMQL index=otel-metrics step=1h result=(sum without (cpu) (metrics.cpu_time))
 | SORT result;
 
 result:double | _timeseries:keyword                        | has_cpu:boolean
-3.0           | "{""attributes"":{""state"":""idle""}}"    | false
-15.0          | "{""attributes"":{""state"":""active""}}"  | false
+3.0           | "{""attributes.state"":""idle""}"    | false
+15.0          | "{""attributes.state"":""active""}"  | false
 ;
 
 
@@ -38,8 +38,8 @@ PROMQL index=otel-metrics step=1h result=(sum without (state) (metrics.cpu_time)
 | SORT result;
 
 result:double | _timeseries:keyword                        | has_state:boolean
-6.0           | "{""attributes"":{""cpu"":""system""}}"    | false
-12.0          | "{""attributes"":{""cpu"":""user""}}"      | false
+6.0           | "{""attributes.cpu"":""system""}"    | false
+12.0          | "{""attributes.cpu"":""user""}"      | false
 ;
 
 
@@ -53,8 +53,8 @@ PROMQL index=otel-metrics step=1h result=(sum without (cpu) (metrics.cpu_time))
 | SORT result;
 
 result:double | step:datetime            | _timeseries:keyword
-3.0           | 2024-05-10T01:00:00.000Z | "{""attributes"":{""state"":""idle""}}"
-15.0          | 2024-05-10T01:00:00.000Z | "{""attributes"":{""state"":""active""}}"
+3.0           | 2024-05-10T01:00:00.000Z | "{""attributes.state"":""idle""}"
+15.0          | 2024-05-10T01:00:00.000Z | "{""attributes.state"":""active""}"
 ;
 
 
@@ -68,8 +68,8 @@ PROMQL index=otel-metrics step=1h result=(sum without (state) (metrics.cpu_time)
 | SORT result;
 
 result:double | step:datetime            | _timeseries:keyword
-6.0           | 2024-05-10T01:00:00.000Z | "{""attributes"":{""cpu"":""system""}}"
-12.0          | 2024-05-10T01:00:00.000Z | "{""attributes"":{""cpu"":""user""}}"
+6.0           | 2024-05-10T01:00:00.000Z | "{""attributes.cpu"":""system""}"
+12.0          | 2024-05-10T01:00:00.000Z | "{""attributes.cpu"":""user""}"
 ;
 
 
@@ -102,8 +102,8 @@ PROMQL index=prom-metrics step=1h result=(sum without (cpu) (metrics.cpu_time))
 | SORT result;
 
 result:double | _timeseries:keyword                     | has_cpu:boolean
-3.0           | "{""labels"":{""state"":""idle""}}"     | false
-15.0          | "{""labels"":{""state"":""active""}}"   | false
+3.0           | "{""state"":""idle""}"     | false
+15.0          | "{""state"":""active""}"   | false
 ;
 
 
@@ -120,8 +120,8 @@ PROMQL index=prom-metrics step=1h result=(sum without (state) (metrics.cpu_time)
 | SORT result;
 
 result:double | _timeseries:keyword                     | has_state:boolean
-6.0           | "{""labels"":{""cpu"":""system""}}"     | false
-12.0          | "{""labels"":{""cpu"":""user""}}"       | false
+6.0           | "{""cpu"":""system""}"     | false
+12.0          | "{""cpu"":""user""}"       | false
 ;
 
 
@@ -135,8 +135,8 @@ PROMQL index=prom-metrics step=1h result=(sum without (cpu) (metrics.cpu_time))
 | SORT result;
 
 result:double | step:datetime            | _timeseries:keyword
-3.0           | 2024-05-10T01:00:00.000Z | "{""labels"":{""state"":""idle""}}"
-15.0          | 2024-05-10T01:00:00.000Z | "{""labels"":{""state"":""active""}}"
+3.0           | 2024-05-10T01:00:00.000Z | "{""state"":""idle""}"
+15.0          | 2024-05-10T01:00:00.000Z | "{""state"":""active""}"
 ;
 
 
@@ -150,8 +150,8 @@ PROMQL index=prom-metrics step=1h result=(sum without (state) (metrics.cpu_time)
 | SORT result;
 
 result:double | step:datetime            | _timeseries:keyword
-6.0           | 2024-05-10T01:00:00.000Z | "{""labels"":{""cpu"":""system""}}"
-12.0          | 2024-05-10T01:00:00.000Z | "{""labels"":{""cpu"":""user""}}"
+6.0           | 2024-05-10T01:00:00.000Z | "{""cpu"":""system""}"
+12.0          | 2024-05-10T01:00:00.000Z | "{""cpu"":""user""}"
 ;
 
 
@@ -223,4 +223,19 @@ TS prom-metrics
 result:double | _timeseries:keyword
 6.0           | "{""labels"":{""cpu"":""system""}}"
 12.0          | "{""labels"":{""cpu"":""user""}}"
+;
+
+// A without over a without on passthrough attributes leaves out each level's labels by either name.
+nested_without_over_passthrough_attributes
+required_capability: promql_command_v0
+required_capability: promql_without_grouping
+required_capability: promql_nested_aggregates
+required_capability: promql_nested_without
+required_capability: fix_ts_block_loader_passthrough_aliasing
+PROMQL index=otel-metrics step=1h result=(sum without (attributes.state) (max without (cpu) (metrics.cpu_time)))
+| KEEP result, step, _timeseries
+| SORT step, _timeseries;
+
+result:double | step:datetime            | _timeseries:keyword
+12.0          | 2024-05-10T01:00:00.000Z | {}
 ;

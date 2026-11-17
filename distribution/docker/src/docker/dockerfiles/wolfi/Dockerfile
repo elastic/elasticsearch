@@ -93,7 +93,7 @@ RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elas
     find . -type f ! -perm /111 -exec chmod 0444 {} + && \\
     chmod 0775 bin config config/jvm.options.d data logs plugins && \\
     find config -type f -exec chmod 0664 {} + && \\
-    /tmp/arrange-layers.sh <%= separateLayers.collect { '"' + it + '"' }.join(' \\\n        ') %>
+    /tmp/arrange-layers.sh <%= separateLayers.collect { '"' + it + '"' }.join(' ') %>
 
 ################################################################################
 # Build stage 2 (the actual Elasticsearch image):

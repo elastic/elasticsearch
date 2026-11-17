@@ -24,6 +24,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class NestedExpandOperatorTests extends NestedIndexOperatorTestCase {
     @Override
@@ -41,18 +42,59 @@ public class NestedExpandOperatorTests extends NestedIndexOperatorTestCase {
 
     @Override
     protected void assertSimpleOutput(List<Page> input, List<Page> results) {
-        List<List<Object>> expected = new ArrayList<>();
+        List<Integer> parents = new ArrayList<>();
         for (Page page : input) {
             for (int p = 0; p < page.getPositionCount(); p++) {
-                int parent = parent(page, p);
-                if (parent % 4 == 0) {
-                    expected.add(Arrays.asList(parent, null, null));
-                }
-                for (int j = 0; j < parent % 4; j++) {
-                    expected.add(List.of(parent, 10L * parent + j, "n" + j));
-                }
+                parents.add(parent(page, p));
             }
         }
+        assertThat(rows(results), equalTo(expectedRows(parents)));
+    }
+
+    /**
+     * One page of every parent has more children than {@link NestedChildren#PAGE_SIZE}, so the operator gets them in several
+     * pages, and the children of one parent start on one page and end on the next.
+     */
+    public void testChildrenSpanReadPages() {
+        int children = 0;
+        boolean straddles = false;
+        for (int i = 0; i < PARENTS; i++) {
+            straddles |= children < NestedChildren.PAGE_SIZE && NestedChildren.PAGE_SIZE < children + i % 4;
+            children += i % 4;
+        }
+        assertThat(children, greaterThan(NestedChildren.PAGE_SIZE));
+        assertThat("a parent's children span two pages", straddles, equalTo(true));
+
+        var context = driverContext();
+        List<Page> results = new TestDriverRunner().builder(context)
+            .input(List.of(parents(context.blockFactory(), 0, PARENTS)))
+            .run(simple().get(context));
+        List<Integer> parents = new ArrayList<>();
+        for (int i = 0; i < PARENTS; i++) {
+            parents.add(i);
+        }
+        assertThat(rows(results), equalTo(expectedRows(parents)));
+        for (Page page : results) {
+            page.releaseBlocks();
+        }
+        assertThat(context.breaker().getUsed(), equalTo(0L));
+    }
+
+    /** One row per child of each parent, in order, and one null row for a parent without children. */
+    private static List<List<Object>> expectedRows(List<Integer> parents) {
+        List<List<Object>> expected = new ArrayList<>();
+        for (int parent : parents) {
+            if (parent % 4 == 0) {
+                expected.add(Arrays.asList(parent, null, null));
+            }
+            for (int j = 0; j < parent % 4; j++) {
+                expected.add(List.of(parent, 10L * parent + j, "n" + j));
+            }
+        }
+        return expected;
+    }
+
+    private List<List<Object>> rows(List<Page> results) {
         List<List<Object>> actual = new ArrayList<>();
         for (Page page : results) {
             LongBlock prices = page.getBlock(1);
@@ -67,7 +109,7 @@ public class NestedExpandOperatorTests extends NestedIndexOperatorTestCase {
                 );
             }
         }
-        assertThat(actual, equalTo(expected));
+        return actual;
     }
 
     @Override

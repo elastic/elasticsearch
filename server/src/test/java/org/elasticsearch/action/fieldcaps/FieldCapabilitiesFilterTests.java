@@ -28,6 +28,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -90,8 +93,8 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
             getMockIndexShard(),
             true
         );
-        assertNotNull(plain.get("field1"));
-        assertNull(plain.get("items"));
+        assertThat(plain.get("field1"), notNullValue());
+        assertThat(plain.get("items"), nullValue());
 
         Map<String, IndexFieldCapabilities> collections = FieldCapabilitiesFetcher.retrieveFieldCaps(
             sec,
@@ -102,8 +105,8 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
             getMockIndexShard(),
             true
         );
-        assertNotNull(collections.get("field1"));
-        assertEquals("nested", collections.get("items").type());
+        assertThat(collections.get("field1"), notNullValue());
+        assertThat(collections.get("items").type(), equalTo("nested"));
     }
 
     public void testMetadataFilters() throws IOException {

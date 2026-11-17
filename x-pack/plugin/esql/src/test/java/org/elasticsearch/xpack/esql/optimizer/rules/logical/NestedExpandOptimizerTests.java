@@ -1,0 +1,206 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.optimizer.rules.logical;
+
+import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.junit.Before;
+
+import java.util.List;
+
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.asLimit;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerNestedExpandTests.nestedAnalyzer;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+
+/**
+ * The logical rules that move other commands past {@code NESTED_EXPAND} or narrow it. The index is the one
+ * {@link org.elasticsearch.xpack.esql.analysis.AnalyzerNestedExpandTests} describes: {@code ne} has {@code id} and a nested
+ * {@code items} with {@code sku}, {@code qty} and the {@code geo_point} {@code loc}.
+ */
+public class NestedExpandOptimizerTests extends AbstractLogicalPlanOptimizerTests {
+    /** Leaves out the {@code geo_point} child, which the expansion cannot read. */
+    private static final String KEEP = " | KEEP id, items.sku, items.qty";
+
+    public NestedExpandOptimizerTests(VersionMode versionMode) {
+        super(versionMode);
+    }
+
+    @Before
+    public void requireCapability() {
+        assumeTrue("NESTED_EXPAND is snapshot-only", EsqlCapabilities.Cap.NESTED_EXPAND.isEnabled());
+    }
+
+    /**
+     * A condition on parent columns holds for every row of a parent, so it filters the parents before they are expanded.
+     * {@snippet lang="text" :
+     * Project[[id, items.sku, items.qty]]
+     * \_Limit[1000[INTEGER],true,false]
+     *   \_NestedExpand[items]
+     *     \_Limit[1000[INTEGER],false,true]
+     *       \_Filter[id{f}#1 == "1"[KEYWORD]]
+     *         \_EsRelation[ne]
+     * }
+     */
+    public void testFilterOnParentColumnPushedBelow() {
+        LogicalPlan plan = nestedPlan("FROM ne | NESTED_EXPAND items | WHERE id == \"1\"" + KEEP);
+        var limit = asLimit(as(plan, Project.class).child(), 1000, true, false);
+        var expand = as(limit.child(), NestedExpand.class);
+        var local = asLimit(expand.child(), 1000, null, true);
+        var filter = as(local.child(), Filter.class);
+        assertThat(Expressions.name(as(filter.condition(), Equals.class).left()), equalTo("id"));
+        as(filter.child(), EsRelation.class);
+    }
+
+    /**
+     * A condition on a child column only exists after the expansion. The limit stays above the filter, so nothing copies
+     * it below the expansion.
+     * {@snippet lang="text" :
+     * Project[[id, items.sku, items.qty]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_Filter[items.qty{r}#1 > 1[INTEGER]]
+     *     \_NestedExpand[items]
+     *       \_EsRelation[ne]
+     * }
+     */
+    public void testFilterOnChildColumnStaysAbove() {
+        LogicalPlan plan = nestedPlan("FROM ne | NESTED_EXPAND items | WHERE items.qty > 1" + KEEP);
+        var limit = asLimit(as(plan, Project.class).child(), 1000, false);
+        var filter = as(limit.child(), Filter.class);
+        assertThat(Expressions.name(as(filter.condition(), GreaterThan.class).left()), equalTo("items.qty"));
+        var expand = as(filter.child(), NestedExpand.class);
+        as(expand.child(), EsRelation.class);
+    }
+
+    /**
+     * Each side of a conjunction goes where its columns are.
+     * {@snippet lang="text" :
+     * Project[[id, items.sku, items.qty]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_Filter[items.qty{r}#1 > 1[INTEGER]]
+     *     \_NestedExpand[items]
+     *       \_Filter[id{f}#2 == "1"[KEYWORD]]
+     *         \_EsRelation[ne]
+     * }
+     */
+    public void testConjunctionSplitsAtTheExpansion() {
+        LogicalPlan plan = nestedPlan("FROM ne | NESTED_EXPAND items | WHERE id == \"1\" AND items.qty > 1" + KEEP);
+        var limit = asLimit(as(plan, Project.class).child(), 1000, false);
+        var above = as(limit.child(), Filter.class);
+        assertThat(Expressions.name(as(above.condition(), GreaterThan.class).left()), equalTo("items.qty"));
+        var expand = as(above.child(), NestedExpand.class);
+        var below = as(expand.child(), Filter.class);
+        assertThat(Expressions.name(as(below.condition(), Equals.class).left()), equalTo("id"));
+        as(below.child(), EsRelation.class);
+    }
+
+    /**
+     * Each parent gives at least one row, so a limit on the expanded rows also bounds the parents. The copy is local: it stays
+     * on the data node with the expansion, which cannot run on the coordinator.
+     * {@snippet lang="text" :
+     * Project[[id, items.sku, items.qty]]
+     * \_Limit[5[INTEGER],true,false]
+     *   \_NestedExpand[items]
+     *     \_Limit[5[INTEGER],false,true]
+     *       \_EsRelation[ne]
+     * }
+     */
+    public void testLimitCopiedBelowAsLocal() {
+        LogicalPlan plan = nestedPlan("FROM ne | NESTED_EXPAND items | LIMIT 5" + KEEP);
+        var limit = asLimit(as(plan, Project.class).child(), 5, true, false);
+        var expand = as(limit.child(), NestedExpand.class);
+        var local = asLimit(expand.child(), 5, false, true);
+        as(local.child(), EsRelation.class);
+    }
+
+    /**
+     * A limit after the expansion counts expanded rows, so it does not merge into a smaller limit on the parents before it.
+     * {@snippet lang="text" :
+     * Project[[id, items.sku, items.qty]]
+     * \_Limit[20[INTEGER],true,false]
+     *   \_NestedExpand[items]
+     *     \_Limit[1[INTEGER],false,false]
+     *       \_EsRelation[ne]
+     * }
+     */
+    public void testLimitAfterDoesNotMergeWithLimitBefore() {
+        LogicalPlan plan = nestedPlan("FROM ne | LIMIT 1 | NESTED_EXPAND items | LIMIT 20" + KEEP);
+        var limit = asLimit(as(plan, Project.class).child(), 20, true);
+        var expand = as(limit.child(), NestedExpand.class);
+        var before = asLimit(expand.child(), 1);
+        as(before.child(), EsRelation.class);
+    }
+
+    public void testPrunesUnreadChildColumns() {
+        LogicalPlan plan = nestedPlan("FROM ne | NESTED_EXPAND items | KEEP items.qty");
+        var project = as(plan, Project.class);
+        var expand = as(asLimit(project.child(), 1000).child(), NestedExpand.class);
+        assertThat(names(expand.expanded()), contains("items.qty"));
+        assertThat(expand.paths(), contains("qty"));
+    }
+
+    /** Without any child column the expansion still repeats each parent once per object, so it stays. */
+    public void testPrunesAllChildColumns() {
+        LogicalPlan plan = nestedPlan("FROM ne | NESTED_EXPAND items | KEEP id");
+        var project = as(plan, Project.class);
+        var expand = as(asLimit(project.child(), 1000).child(), NestedExpand.class);
+        assertThat(expand.expanded(), empty());
+        assertThat(expand.paths(), empty());
+    }
+
+    /** The {@code geo_point} child only fails when the query reads it, which pruning decides. */
+    public void testUnsupportedChildTypeOnlyWhenRead() {
+        nestedPlan("FROM ne | NESTED_EXPAND items | KEEP items.qty");
+        assertThat(
+            error("FROM ne | NESTED_EXPAND items | KEEP items.qty, items.loc"),
+            containsString("NESTED_EXPAND does not support child type [GEO_POINT] for [items.loc]")
+        );
+    }
+
+    /** The filter on a child column keeps the limit from reaching the SORT, so nothing bounds it. */
+    public void testUnboundedSortBefore() {
+        assertThat(
+            error("FROM ne | SORT id | NESTED_EXPAND items | WHERE items.qty > 1" + KEEP),
+            containsString(
+                "NESTED_EXPAND [NESTED_EXPAND items] cannot yet have an unbounded SORT [SORT id] before it: "
+                    + "either move the SORT after it, or add a LIMIT after the SORT"
+            )
+        );
+    }
+
+    private LogicalPlan nestedPlan(String query) {
+        return optimize(analyze(query));
+    }
+
+    private String error(String query) {
+        LogicalPlan analyzed = analyze(query);
+        return expectThrows(VerificationException.class, () -> optimize(analyzed)).getMessage();
+    }
+
+    /** Analysis needs every node to support the command, which is newer than this mode's historical version. */
+    private LogicalPlan analyze(String query) {
+        return nestedAnalyzer(minimumVersion.supports(NestedExpand.VERSION) ? minimumVersion : NestedExpand.VERSION).query(query);
+    }
+
+    private static List<String> names(List<Attribute> attributes) {
+        return attributes.stream().map(Attribute::name).toList();
+    }
+}

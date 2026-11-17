@@ -23,6 +23,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class NestedChildSourceLoaderTests extends MapperServiceTestCase {
 
     private static final String MAPPING = """
@@ -73,7 +75,7 @@ public class NestedChildSourceLoaderTests extends MapperServiceTestCase {
             LeafStoredFieldLoader storedFields = StoredFieldLoader.create(true, Set.of()).getLoader(ctx, null);
             for (int i = 0; i < count; i++) {
                 storedFields.advanceTo(i);
-                assertEquals(Map.of("items", Map.of("v", "v" + i)), leaf.source(storedFields, i).source());
+                assertThat(leaf.source(storedFields, i).source(), equalTo(Map.of("items", Map.of("v", "v" + i))));
             }
         });
     }
@@ -106,7 +108,8 @@ public class NestedChildSourceLoaderTests extends MapperServiceTestCase {
                 for (int d : docs) {
                     expectedFields.advanceTo(d);
                     actualFields.advanceTo(d);
-                    assertEquals("doc " + d, expected.source(expectedFields, d).source(), actual.source(actualFields, d).source());
+                    Map<String, Object> want = expected.source(expectedFields, d).source();
+                    assertThat("doc " + d, actual.source(actualFields, d).source(), equalTo(want));
                 }
             }
         });

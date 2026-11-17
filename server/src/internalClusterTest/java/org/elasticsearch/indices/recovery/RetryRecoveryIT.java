@@ -14,11 +14,13 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.indices.ResizeIndexTestUtils;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
 import org.elasticsearch.common.settings.Settings;
@@ -546,11 +548,12 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
             prepareCreate(indexName, indexSettings(1, 0)).execute();
             safeAwait(recoveryBarrier);
-            indicesAdmin().prepareDelete(indexName).execute();
+            final var deleted = indicesAdmin().prepareDelete(indexName).execute();
 
             // Release will make recovery/retry race with index deletion
             safeAwait(recoveryBarrier);
 
+            assertAcked(deleted);
             waitNoPendingTasksOnAll();
             assertThat(indexExists(indexName), equalTo(false));
         } finally {
@@ -578,11 +581,12 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             // Recover from existing store
             indicesAdmin().prepareOpen(indexName).execute();
             safeAwait(recoveryBarrier);
-            indicesAdmin().prepareDelete(indexName).execute();
+            final var deleted = indicesAdmin().prepareDelete(indexName).execute();
 
             // Release recovery will make recovery/retry race with index deletion
             safeAwait(recoveryBarrier);
 
+            assertAcked(deleted);
             waitNoPendingTasksOnAll();
             assertThat(indexExists(indexName), equalTo(false));
         } finally {
@@ -613,11 +617,12 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             // Recover from local shard async
             ResizeIndexTestUtils.executeResize(ResizeType.CLONE, sourceIndexName, targetIndexName, indexSettings(1, 0));
             safeAwait(recoveryBarrier);
-            indicesAdmin().prepareDelete(targetIndexName).execute();
+            final var deleted = indicesAdmin().prepareDelete(targetIndexName).execute();
 
             // Release recovery will make recovery/retry race with index deletion
             safeAwait(recoveryBarrier);
 
+            assertAcked(deleted);
             waitNoPendingTasksOnAll();
             assertThat(indexExists(targetIndexName), equalTo(false));
         } finally {
@@ -653,11 +658,12 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             // Recover from snapshot async
             clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap").setWaitForCompletion(false).execute();
             safeAwait(recoveryBarrier);
-            indicesAdmin().prepareDelete(indexName).execute();
+            final var deleted = indicesAdmin().prepareDelete(indexName).execute();
 
             // Release recovery will make recovery/retry race with index deletion
             safeAwait(recoveryBarrier);
 
+            assertAcked(deleted);
             waitNoPendingTasksOnAll();
             assertThat(indexExists(indexName), equalTo(false));
         } finally {

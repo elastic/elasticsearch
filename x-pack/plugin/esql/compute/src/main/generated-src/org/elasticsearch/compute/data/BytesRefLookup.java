@@ -51,7 +51,7 @@ public final class BytesRefLookup implements ReleasableIterator<BytesRefBlock> {
         int remaining = positions.getPositionCount() - position;
         int estimatedSize = (int) Math.min(remaining, Math.max(Operator.MIN_TARGET_PAGE_SIZE + 1, maxValues));
         try (BytesRefBlock.Builder builder = positions.blockFactory().newBytesRefBlockBuilder(estimatedSize)) {
-            int count = 0;
+            int positionsInBlock = 0;
             boolean multivalued = false;
             usedBytes = 0;
             while (position < positions.getPositionCount()) {
@@ -74,12 +74,12 @@ public final class BytesRefLookup implements ReleasableIterator<BytesRefBlock> {
                     }
                 }
                 position++;
-                count++;
+                positionsInBlock++;
                 // TOOD what if the estimate is super huge? should we break even with less than MIN_TARGET?
                 // builder.estimatedBytes() includes the pre-sized capacity, so track the bytes actually used.
                 // Once a block has a multivalued position, every position has a first value index.
-                long indexBytes = multivalued ? (long) Integer.BYTES * (count + 1) : 0;
-                if (count > Operator.MIN_TARGET_PAGE_SIZE && usedBytes + indexBytes >= targetByteSize) {
+                long indexBytes = multivalued ? (long) Integer.BYTES * (positionsInBlock + 1) : 0;
+                if (positionsInBlock > Operator.MIN_TARGET_PAGE_SIZE && usedBytes + indexBytes >= targetByteSize) {
                     break;
                 }
             }

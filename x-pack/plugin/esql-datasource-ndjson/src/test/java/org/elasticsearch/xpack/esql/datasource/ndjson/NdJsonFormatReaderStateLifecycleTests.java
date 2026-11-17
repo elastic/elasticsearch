@@ -53,6 +53,7 @@ public class NdJsonFormatReaderStateLifecycleTests extends ESTestCase {
         "settings",
         "resolvedSchema",
         "schemaSampleSize",
+        "schemaSampleBytes",
         "schemaMaxFields",
         "segmentSizeBytes",
         "datetimeFormatter",
@@ -78,27 +79,18 @@ public class NdJsonFormatReaderStateLifecycleTests extends ESTestCase {
         IDENTITY_NO_COPY
     }
 
-    private static final Map<String, WitherLifecycle> WITHER_LIFECYCLE = Map.of(
-        "withConfig",
-        WitherLifecycle.SHARES_COUNTERS,
-        "withConfigTrackingConsumedKeys",
-        WitherLifecycle.SHARES_COUNTERS,
-        "withSchema",
-        WitherLifecycle.SHARES_COUNTERS,
-        "withDeclaredDateFormats",
-        WitherLifecycle.SHARES_COUNTERS,
-        "withReadConfig",
-        WitherLifecycle.SHARES_COUNTERS,
-        "withSchemaSampleShare",
-        WitherLifecycle.SHARES_COUNTERS,
-        "withPushedFilter",
-        WitherLifecycle.IDENTITY_NO_COPY,
-        "withDeclaredTypeColumns",
-        WitherLifecycle.IDENTITY_NO_COPY,
-        "withDeclaredProvenanceBinding",
-        WitherLifecycle.SHARES_COUNTERS,
-        "withHeaderBindingByProvenance",
-        WitherLifecycle.IDENTITY_NO_COPY
+    private static final Map<String, WitherLifecycle> WITHER_LIFECYCLE = Map.ofEntries(
+        Map.entry("withConfig", WitherLifecycle.SHARES_COUNTERS),
+        Map.entry("withConfigTrackingConsumedKeys", WitherLifecycle.SHARES_COUNTERS),
+        Map.entry("withSchema", WitherLifecycle.SHARES_COUNTERS),
+        Map.entry("withDeclaredDateFormats", WitherLifecycle.SHARES_COUNTERS),
+        Map.entry("withReadConfig", WitherLifecycle.SHARES_COUNTERS),
+        Map.entry("withSchemaSampleShare", WitherLifecycle.SHARES_COUNTERS),
+        Map.entry("withSchemaSampleBytes", WitherLifecycle.SHARES_COUNTERS),
+        Map.entry("withPushedFilter", WitherLifecycle.IDENTITY_NO_COPY),
+        Map.entry("withDeclaredTypeColumns", WitherLifecycle.IDENTITY_NO_COPY),
+        Map.entry("withDeclaredProvenanceBinding", WitherLifecycle.SHARES_COUNTERS),
+        Map.entry("withHeaderBindingByProvenance", WitherLifecycle.IDENTITY_NO_COPY)
     );
 
     /** Every declared instance field must be classified: immutable/config, or shared-mutable. */
@@ -250,6 +242,7 @@ public class NdJsonFormatReaderStateLifecycleTests extends ESTestCase {
             case "withDeclaredDateFormats" -> new Object[] { Map.of("b", "yyyy-MM-dd") };
             case "withReadConfig" -> new Object[] { "0123456789abcdef0123456789abcdef" };
             case "withSchemaSampleShare" -> new Object[] { 8 };
+            case "withSchemaSampleBytes" -> new Object[] { 4096L };
             case "withPushedFilter" -> new Object[] { new Object() };
             case "withDeclaredTypeColumns" -> new Object[] { Set.of("a") };
             case "withDeclaredProvenanceBinding" -> new Object[] { true };

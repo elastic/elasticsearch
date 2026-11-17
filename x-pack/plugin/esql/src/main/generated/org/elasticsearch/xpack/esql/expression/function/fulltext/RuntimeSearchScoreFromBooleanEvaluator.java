@@ -54,7 +54,7 @@ public final class RuntimeSearchScoreFromBooleanEvaluator implements ExpressionE
   }
 
   public DoubleBlock eval(int positionCount, BooleanBlock matchesBlock) {
-    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         result.appendDouble(RuntimeSearch.scoreFromBoolean(p, matchesBlock));
       }

@@ -1445,7 +1445,7 @@ public class EsqlCapabilities {
         /**
          * Support for the {@code exemplars} query setting.
          */
-        EXEMPLARS_SETTING_DEVELOPMENT_V8(Build.current().isSnapshot()),
+        EXEMPLARS_SETTING_RELEASE,
 
         /**
          * Are the {@code documents_found} and {@code values_loaded} fields available
@@ -1594,9 +1594,10 @@ public class EsqlCapabilities {
         SUBQUERY_IN_FROM_COMMAND_FORK_NULL_FILL_DATE_NANOS,
 
         /**
-         * EVAL fields overwritten by an IN subquery are appended at the end of the output, matching ordinary EVAL shadowing.
+         * A FORK may follow a subquery, a view or a LET binding that itself contains a FORK. Each of them is its own FORK scope, so the
+         * two FORKs are not consecutive on one pipeline. Two FORKs the user wrote on the same pipeline are still rejected while parsing.
          */
-        EVAL_IN_SUBQUERY_OVERWRITE_APPENDED,
+        ALLOW_FORK_ACROSS_SUBQUERY_VIEW_LET_BOUNDARY,
 
         /**
          * Support IN non-correlated subqueries in WHERE command.
@@ -1692,6 +1693,11 @@ public class EsqlCapabilities {
         EVAL_IN_SUBQUERY,
 
         /**
+         * EVAL fields overwritten by an IN subquery are appended at the end of the output, matching ordinary EVAL shadowing.
+         */
+        EVAL_IN_SUBQUERY_OVERWRITE_APPENDED,
+
+        /**
          * Support IN non-correlated subqueries inside the STATS command's per-aggregate WHERE filter, e.g.
          * {@code STATS c = COUNT(*) WHERE id IN (FROM other | KEEP id) BY dept}, including filters that wrap the IN subquery in
          * {@code CASE}, {@code COALESCE}, and {@code IS [NOT] NULL}. INLINE STATS remains unsupported.
@@ -1784,6 +1790,12 @@ public class EsqlCapabilities {
          * See https://github.com/elastic/elasticsearch/issues/147863
          */
         VIEWS_EXPLICIT_INCLUDE_EXCLUDE_FIX,
+        /**
+         * Fixed a bug where a view or subquery over a bare time-series aggregation, such as
+         * {@code TS k8s | STATS rate(x) BY tbucket}, dropped the implicit {@code _timeseries} column when it was kept
+         * as its own branch, e.g. when the caller sets {@code unmapped_fields}.
+         */
+        VIEWS_IMPLICIT_TIMESERIES_COLUMN_FIX,
         /**
          * Makes views not visible on remote clusters / linked projects
          */
@@ -2115,6 +2127,11 @@ public class EsqlCapabilities {
          * EXPLAIN command with remote plans (5 columns: cluster, node, role, type, plan)
          */
         EXPLAIN_WITH_REMOTE_PLANS(Build.current().isSnapshot()),
+        /**
+         * EXPLAIN command with the JSON form of each plan (6 columns: cluster, node, role, type, plan, plan_json).
+         * Older nodes return the five columns of {@link #EXPLAIN_WITH_REMOTE_PLANS}.
+         */
+        EXPLAIN_WITH_JSON_PLANS(Build.current().isSnapshot()),
         /**
          * Support for the RLIKE operator with a list of regexes.
          */
@@ -2449,6 +2466,8 @@ public class EsqlCapabilities {
          * Pack dimension values in TS command
          */
         PACK_DIMENSIONS_IN_TS,
+
+        PACK_DOUBLE_FLOAT_DIMENSIONS,
 
         /**
          * Support for exponential_histogram fields in the state of when it first was released into tech preview.
@@ -3802,6 +3821,14 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_ALL_FORK,
 
         /**
+        /**
+         * Under {@code unmapped_fields="LOAD_ALL"}, the {@code _unmapped_fields} column is the last one of the output, wherever the
+         * commands of the query add their own: it used to sit right after the columns of the relation. Only meaningful when
+         * {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available. See https://github.com/elastic/elasticsearch/issues/162506.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_UNMAPPED_FIELDS_LAST(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
          * Support for {@code GROK}, {@code DISSECT}, {@code MV_EXPAND} and {@code SAMPLE} under {@code unmapped_fields="LOAD_ALL"}.
          * {@code GROK} and {@code DISSECT} read an input field (mapped or unmapped) and add named columns, which shadow an unmapped
          * field of the same name. Expanding a mapped multivalued field with {@code MV_EXPAND} repeats the {@code _unmapped_fields}
@@ -4276,6 +4303,12 @@ public class EsqlCapabilities {
         PROMQL_SORT_BY_LABEL(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
+         * Support for the PromQL {@code count_values} aggregation, which counts the elements sharing each sample value and
+         * exposes the value as a label.
+         */
+        PROMQL_COUNT_VALUES(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * Fix PromQL {@code count_over_time} and {@code present_over_time} over a series without a sample in the window,
          * and {@code count} over a group without a valued series: like Prometheus, they emit no element rather than
          * {@code 0}. {@code absent_over_time} likewise emits no element for a series with a sample, nor for a series its
@@ -4540,8 +4573,9 @@ public class EsqlCapabilities {
 
         /**
          * Streaming execution on {@code POST /_query}: the {@code streaming} URL parameter is
-         * accepted, and with {@code format=ndjson} the response streams header / pages / footer
-         * as NDJSON as rows are produced.
+         * accepted, and with {@code format=ndjson} the response streams a columns line, one line
+         * per row and a last line (with {@code complete} and {@code next_offset}) as NDJSON as rows
+         * are produced.
          * Snapshot-only while the streaming protocol is still changing.
          */
         STREAMING(Build.current().isSnapshot()),
@@ -4726,6 +4760,12 @@ public class EsqlCapabilities {
         FIX_TS_NULL_FILTER_ON_COMPUTED_INPUTS,
 
         /**
+         * TS null filtering follows aliases through null-propagating expressions, such as casts and arithmetic, to the metric
+         * fields they read. Converted or computed metrics receive the same null filtering as mapped metric fields.
+         */
+        TS_NULL_FILTER_THROUGH_EXPRESSIONS,
+
+        /**
          * {@code DEDUP} ignores the synthetic {@code $$<field>$converted_to$<type>} attributes that a conversion pushed into
          * {@code UnionAll} branches leaves in its input. Older nodes rejected such queries when the converted type, e.g.
          * {@code date_range}, cannot be grouped on, even though the column is never part of the output.
@@ -4744,6 +4784,14 @@ public class EsqlCapabilities {
          * does for a search on an indexed field, rather than the score from before it.
          */
         RUNTIME_SCORE_FIX,
+
+        /**
+         * A column declared {@code date} over a Parquet column the file renders {@code date_nanos} decodes straight
+         * to milliseconds. The read this widens is {@code TIMESTAMP(MICROS)}: older nodes scaled to nanoseconds
+         * first, so a value outside 1677-09-21 .. 2262-04-11 answered {@code null} although {@code date} covers it.
+         * Gates the csv-spec cases asserting the wider domain, which such nodes still fail.
+         */
+        PARQUET_DECLARED_DATE_READS_MICROS_IN_ONE_STEP,
 
         /**
          * The query-and-tags pushdown of {@code ROUND_TO} (and the {@code DATE_TRUNC} / {@code BUCKET} date histograms
@@ -4854,6 +4902,18 @@ public class EsqlCapabilities {
          * {@code TS k8s METADATA _tsid | STATS BY _tsid}, failed with an {@link IllegalStateException}.
          */
         FIX_TS_STATS_BY_TSID,
+
+        /**
+         * A {@code FORK} between the {@code TS} source and the first aggregation is rejected with a clear error. Before, the
+         * {@code STATS} failed in the planner with "optimized incorrectly due to missing references [_tsid]".
+         * See <a href="https://github.com/elastic/elasticsearch/issues/160269">#160269</a>.
+         */
+        TS_FORK_BEFORE_STATS_NOT_SUPPORTED,
+
+        /**
+         * The {@code INTO} command, which writes a query's rows into an index and returns a summary row of total and created counts.
+         */
+        INTO_COMMAND(Build.current().isSnapshot()),
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

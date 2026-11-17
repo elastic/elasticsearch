@@ -90,7 +90,7 @@ public final class DateDiffMillisEvaluator implements ExpressionEvaluator {
 
   public IntBlock eval(int positionCount, BytesRefBlock unitBlock, LongBlock startTimestampBlock,
       LongBlock endTimestampBlock) {
-    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount, true)) {
       BytesRef unitScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         if (unitBlock.isNull(p)) {
@@ -145,7 +145,7 @@ public final class DateDiffMillisEvaluator implements ExpressionEvaluator {
 
   public IntBlock eval(int positionCount, BytesRefVector unitVector,
       LongVector startTimestampVector, LongVector endTimestampVector) {
-    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount, true)) {
       BytesRef unitScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         BytesRef unit = unitVector.getBytesRef(p, unitScratch);

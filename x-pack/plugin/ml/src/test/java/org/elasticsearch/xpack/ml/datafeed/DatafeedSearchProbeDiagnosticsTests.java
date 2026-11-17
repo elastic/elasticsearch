@@ -28,7 +28,6 @@ public class DatafeedSearchProbeDiagnosticsTests extends ESTestCase {
     public void testNoFailuresShouldReturnNull() {
         SearchResponse response = mock(SearchResponse.class);
         when(response.getClusters()).thenReturn(SearchResponse.Clusters.EMPTY);
-        when(response.getShardFailures()).thenReturn(ShardSearchFailure.EMPTY_ARRAY);
 
         assertThat(DatafeedSearchProbeDiagnostics.diagnoseSearchProbeFailure(response), nullValue());
     }
@@ -52,7 +51,6 @@ public class DatafeedSearchProbeDiagnosticsTests extends ESTestCase {
         SearchResponse.Clusters clusters = new SearchResponse.Clusters(Map.of("linked_project", cluster));
         SearchResponse response = mock(SearchResponse.class);
         when(response.getClusters()).thenReturn(clusters);
-        when(response.getShardFailures()).thenReturn(ShardSearchFailure.EMPTY_ARRAY);
 
         String diagnosis = DatafeedSearchProbeDiagnostics.diagnoseSearchProbeFailure(response);
         assertThat(diagnosis, containsString("linked_project"));
@@ -78,7 +76,6 @@ public class DatafeedSearchProbeDiagnosticsTests extends ESTestCase {
         SearchResponse.Clusters clusters = new SearchResponse.Clusters(Map.of("linked_project", cluster));
         SearchResponse response = mock(SearchResponse.class);
         when(response.getClusters()).thenReturn(clusters);
-        when(response.getShardFailures()).thenReturn(ShardSearchFailure.EMPTY_ARRAY);
 
         assertThat(DatafeedSearchProbeDiagnostics.diagnoseSearchProbeFailure(response), containsString("linked_project"));
     }
@@ -102,7 +99,6 @@ public class DatafeedSearchProbeDiagnosticsTests extends ESTestCase {
         SearchResponse.Clusters clusters = new SearchResponse.Clusters(Map.of("linked_project", cluster));
         SearchResponse response = mock(SearchResponse.class);
         when(response.getClusters()).thenReturn(clusters);
-        when(response.getShardFailures()).thenReturn(ShardSearchFailure.EMPTY_ARRAY);
 
         assertThat(DatafeedSearchProbeDiagnostics.diagnoseSearchProbeFailure(response), nullValue());
     }
@@ -115,7 +111,7 @@ public class DatafeedSearchProbeDiagnosticsTests extends ESTestCase {
         );
         SearchResponse response = mock(SearchResponse.class);
         when(response.getClusters()).thenReturn(SearchResponse.Clusters.EMPTY);
-        when(response.getShardFailures()).thenReturn(new ShardSearchFailure[] { failure });
+        when(response.shardFailuresList()).thenReturn(List.of(failure));
 
         String diagnosis = DatafeedSearchProbeDiagnostics.diagnoseSearchProbeFailure(response);
         assertThat(diagnosis, containsString("linked_project:priv-linked-logs"));
@@ -125,7 +121,7 @@ public class DatafeedSearchProbeDiagnosticsTests extends ESTestCase {
         ShardSearchFailure failure = new ShardSearchFailure(new ElasticsearchSecurityException("action denied", RestStatus.FORBIDDEN));
         SearchResponse response = mock(SearchResponse.class);
         when(response.getClusters()).thenReturn(SearchResponse.Clusters.EMPTY);
-        when(response.getShardFailures()).thenReturn(new ShardSearchFailure[] { failure });
+        when(response.shardFailuresList()).thenReturn(List.of(failure));
 
         assertThat(
             DatafeedSearchProbeDiagnostics.diagnoseSearchProbeFailure(response),
@@ -152,7 +148,6 @@ public class DatafeedSearchProbeDiagnosticsTests extends ESTestCase {
         SearchResponse.Clusters clusters = new SearchResponse.Clusters(Map.of("linked_project", cluster));
         SearchResponse response = mock(SearchResponse.class);
         when(response.getClusters()).thenReturn(clusters);
-        when(response.getShardFailures()).thenReturn(ShardSearchFailure.EMPTY_ARRAY);
 
         assertThat(DatafeedSearchProbeDiagnostics.diagnoseSearchProbeFailure(response), nullValue());
     }

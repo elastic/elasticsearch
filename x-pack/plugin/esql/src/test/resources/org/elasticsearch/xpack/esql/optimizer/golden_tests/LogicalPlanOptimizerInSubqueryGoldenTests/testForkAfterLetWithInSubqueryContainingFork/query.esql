@@ -1,0 +1,6 @@
+LET q = (
+    FROM employees
+    | WHERE emp_no IN (FROM employees | FORK (WHERE salary > 70000) (WHERE salary <= 70000) | KEEP emp_no)
+);
+FROM q
+| FORK (WHERE emp_no > 10000) (WHERE emp_no <= 10000)

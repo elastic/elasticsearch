@@ -116,7 +116,7 @@ public class RestCountAction extends BaseRestHandler {
                     response.getSuccessfulShards(),
                     0,
                     response.getFailedShards(),
-                    response.getShardFailures()
+                    response.shardFailuresList()
                 );
 
                 builder.endObject();
@@ -130,7 +130,7 @@ public class RestCountAction extends BaseRestHandler {
      * package private for testing
      */
     static void applyRoutingOrSliceForCountRequest(RestRequest request, SearchRequest searchRequest) {
-        final SliceIndexing.ParsedRouting parsedRouting = SliceIndexing.parseSearchRoutingOrSliceWithProvenance(request);
+        final SliceIndexing.ParsedRouting parsedRouting = SliceIndexing.parseSearchRoutingOrSliceWithProvenance(request, true);
         searchRequest.routing(parsedRouting.routing()).setRoutingFromSlice(parsedRouting.fromSlice());
     }
 

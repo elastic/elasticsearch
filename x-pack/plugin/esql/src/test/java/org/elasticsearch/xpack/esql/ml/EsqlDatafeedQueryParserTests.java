@@ -375,6 +375,14 @@ public class EsqlDatafeedQueryParserTests extends ESTestCase {
         );
     }
 
+    public void testTimeSeriesSourceWithMetadataWordInPatternShouldGetMetadataClause() {
+        ParsedEsqlQuery query = parse("TS metrics-metadata* | STATS max(cpu) BY TBUCKET(1 hour)");
+        assertThat(
+            query.sourceTimeFieldProbeQuery("@timestamp").query(),
+            containsString("FROM metrics-metadata* METADATA _index_mode | WHERE _index_mode == \"time_series\" | KEEP")
+        );
+    }
+
     public void testPromqlShouldBeRejected() {
         ParsingException e = expectThrows(ParsingException.class, () -> parse("PROMQL index=metrics step=5m avg(foo)"));
         assertThat(e.getMessage(), containsString("[PROMQL] is not supported in ES|QL datafeeds"));

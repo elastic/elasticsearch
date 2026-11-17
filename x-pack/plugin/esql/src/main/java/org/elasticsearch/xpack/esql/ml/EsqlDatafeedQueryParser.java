@@ -62,7 +62,6 @@ import java.util.OptionalInt;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.EsqlQueryParam.ParamClassification.IDENTIFIER;
@@ -72,9 +71,6 @@ import static org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.E
  * Settings and limits are resolved against the cluster the way {@code EsqlSession} does for a query it runs.
  */
 public class EsqlDatafeedQueryParser implements EsqlQueryParser {
-
-    private static final Pattern METADATA = Pattern.compile("\\bMETADATA\\b", Pattern.CASE_INSENSITIVE);
-    private static final Pattern INDEX_MODE_METADATA = Pattern.compile("\\b_index_mode\\b");
 
     /** Built on first use, so loading this provider at node startup does not build a function registry. */
     private static final class Holder {
@@ -177,8 +173,10 @@ public class EsqlDatafeedQueryParser implements EsqlQueryParser {
             return text;
         }
         String from = "FROM" + text.substring(2);
-        if (INDEX_MODE_METADATA.matcher(from).find() == false) {
-            from += METADATA.matcher(from).find() ? ", _index_mode" : " METADATA _index_mode";
+        if (relation.metadataFields().isEmpty()) {
+            from += " METADATA _index_mode";
+        } else if (relation.metadataFields().stream().noneMatch(field -> field.name().equals("_index_mode"))) {
+            from += ", _index_mode";
         }
         return from + " | WHERE _index_mode == \"time_series\"";
     }

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.ParquetProperties.WriterVersion;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.conf.PlainParquetConfiguration;
@@ -19,15 +20,19 @@ import org.apache.parquet.example.data.simple.convert.GroupRecordConverter;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.example.ExampleParquetWriter;
+import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
+import org.apache.parquet.internal.column.columnindex.OffsetIndex;
 import org.apache.parquet.io.ColumnIOFactory;
 import org.apache.parquet.io.OutputFile;
 import org.apache.parquet.io.PositionOutputStream;
 import org.apache.parquet.io.RecordReader;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.MessageTypeParser;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
@@ -43,8 +48,14 @@ import java.io.InputStream;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.PrimitiveIterator;
+import java.util.Set;
+
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 
 /**
  * Step 1 of the composite-assembly prototype: establishes a Parquet file whose contents the test knows
@@ -266,8 +277,14 @@ public class CompositeAssemblyTests extends ESTestCase {
                 .withType(SCHEMA)
                 .withCompressionCodec(codec)
                 .withWriterVersion(writerVersion)
-                .withRowGroupSize(8 * 1024L)
+                .withRowGroupSize(64 * 1024L)
                 .withPageSize(512)
+                // Without these, parquet-mr checks page size every 100 records and, at a 512-byte
+                // threshold, every column overflows at every checkpoint -- so all leaves break pages on
+                // exactly the same rows and nothing has to be synchronized. Checking after each record
+                // lets each leaf break where its own bytes run out, which is the case under test.
+                .withMinRowCountForPageSizeCheck(1)
+                .withMaxRowCountForPageSizeCheck(1)
                 .build()
         ) {
             for (int i = 0; i < ROWS; i++) {
@@ -475,6 +492,192 @@ public class CompositeAssemblyTests extends ESTestCase {
             assertEquals("tags vs expectation at row " + i, expectedTagsJson(i), converted.get("tags").get(i));
             assertEquals("items vs oracle at row " + i, groupToJson(oracle.get(i), "items"), converted.get("items").get(i));
             assertEquals("attrs vs oracle at row " + i, groupToJson(oracle.get(i), "attrs"), converted.get("attrs").get(i));
+        }
+    }
+
+    // --- step 3: the same converter over this reader's own page store ---------------------------
+
+    /** One assembled row: its index in the file, and the rendered value of each requested column. */
+    private record AssembledRow(long row, Map<String, String> values) {}
+
+    /** Chooses which rows of a row group of the given size are selected. */
+    private interface RowGroupRanges {
+        RowRanges apply(long rowCount);
+    }
+
+    /**
+     * Assembles the named composite columns over {@link PrefetchedRowGroupBuilder}'s store rather than
+     * parquet-mr's, which is the store the production iterator reads from. Built the way
+     * {@code PrefetchedRowGroupBuilderParityTests} builds a row group: preload the metadata, prefetch the
+     * selected pages of the projected chunks, then build a store for the row ranges.
+     * <p>
+     * The row ranges are the point. When a subset is selected, the store exposes the selected row indexes
+     * and parquet-mr pairs the leaves through a synchronizing column reader; if a composite's leaves were
+     * to lose that, the values would pair up wrongly rather than fail.
+     */
+    private List<AssembledRow> assembleOverPrefetchedStore(byte[] file, List<String> fields, RowGroupRanges rangesFor) throws IOException {
+        List<AssembledRow> out = new ArrayList<>();
+        StorageObject storageObject = createStorageObject(file);
+        CircuitBreaker breaker = new NoopCircuitBreaker("composite-assembly-test");
+        PlainCompressionCodecFactory codecs = new PlainCompressionCodecFactory();
+        try (
+            ParquetFileReader reader = ParquetFileReader.open(
+                new ParquetStorageObjectAdapter(storageObject, FooterByteCache.fromSettings(Settings.EMPTY), breaker),
+                PlainParquetReadOptions.builder(codecs).build()
+            )
+        ) {
+            MessageType schema = reader.getFileMetaData().getSchema();
+            Set<String> projected = leafPaths(schema, fields);
+            List<BlockMetaData> blocks = reader.getRowGroups();
+            try (PreloadedRowGroupMetadata metadata = PreloadedRowGroupMetadata.preload(reader, storageObject, breaker)) {
+                assertLeavesBreakPagesDifferently(metadata, blocks.size());
+                long groupFirstRow = 0;
+                for (int ordinal = 0; ordinal < blocks.size(); ordinal++) {
+                    BlockMetaData block = blocks.get(ordinal);
+                    long rowCount = block.getRowCount();
+                    RowRanges ranges = rangesFor.apply(rowCount);
+                    ColumnChunkPrefetcher.PrefetchedChunks prefetched = ColumnChunkPrefetcher.fetchSync(
+                        storageObject,
+                        block,
+                        projected,
+                        ranges,
+                        metadata,
+                        ordinal,
+                        rowCount,
+                        breaker
+                    );
+                    try (
+                        Releasable released = prefetched.release();
+                        PageReadStore store = PrefetchedRowGroupBuilder.build(
+                            block,
+                            ordinal,
+                            schema,
+                            projected,
+                            ranges,
+                            metadata,
+                            prefetched.chunks(),
+                            codecs,
+                            breaker
+                        )
+                    ) {
+                        // A selection that is not the whole row group has to reach parquet-mr as selected
+                        // row indexes, because that is what makes it build a synchronizing column reader
+                        // instead of a plain one. Without this the range cases could pass by reading every
+                        // page and never exercising synchronization at all.
+                        if (ranges.isAll() == false) {
+                            assertTrue("a filtered store must expose its selected row indexes", store.getRowIndexes().isPresent());
+                        }
+                        Map<String, RecordReader<BytesRef>> readers = new LinkedHashMap<>();
+                        for (String field : fields) {
+                            MessageType sub = new MessageType(schema.getName(), schema.getType(field));
+                            readers.put(
+                                field,
+                                new ColumnIOFactory().getColumnIO(sub).getRecordReader(store, new JsonRecordMaterializer(sub))
+                            );
+                        }
+                        PrimitiveIterator.OfLong selected = ranges.rowIndexes();
+                        while (selected.hasNext()) {
+                            long local = selected.nextLong();
+                            Map<String, String> values = new LinkedHashMap<>();
+                            for (String field : fields) {
+                                BytesRef value = readers.get(field).read();
+                                values.put(field, value == null ? null : value.utf8ToString());
+                            }
+                            out.add(new AssembledRow(groupFirstRow + local, values));
+                        }
+                    }
+                    groupFirstRow += rowCount;
+                }
+            }
+        } finally {
+            codecs.release();
+        }
+        return out;
+    }
+
+    /** The dotted paths of every leaf under the named top-level fields, which is what the builder projects. */
+    private static Set<String> leafPaths(MessageType schema, List<String> fields) {
+        Set<String> paths = new LinkedHashSet<>();
+        for (ColumnDescriptor descriptor : schema.getColumns()) {
+            String dotted = String.join(".", descriptor.getPath());
+            for (String field : fields) {
+                if (dotted.equals(field) || dotted.startsWith(field + ".")) {
+                    paths.add(dotted);
+                }
+            }
+        }
+        return paths;
+    }
+
+    /**
+     * Pins the premise the whole file is built around: {@code sku} and {@code price} really do break pages
+     * on different rows in at least one row group. Without that, the range cases below would start and end
+     * on a page boundary for both leaves at once and would not exercise synchronization at all.
+     */
+    private static void assertLeavesBreakPagesDifferently(PreloadedRowGroupMetadata metadata, int rowGroups) {
+        for (int ordinal = 0; ordinal < rowGroups; ordinal++) {
+            OffsetIndex sku = metadata.getOffsetIndex(ordinal, "items.list.element.sku");
+            OffsetIndex price = metadata.getOffsetIndex(ordinal, "items.list.element.price");
+            if (sku == null || price == null) {
+                continue;
+            }
+            if (firstRowIndexes(sku).equals(firstRowIndexes(price)) == false) {
+                return;
+            }
+        }
+        fail("no row group has sku and price breaking pages on different rows, so synchronization is untested");
+    }
+
+    private static List<Long> firstRowIndexes(OffsetIndex index) {
+        List<Long> rows = new ArrayList<>(index.getPageCount());
+        for (int page = 0; page < index.getPageCount(); page++) {
+            rows.add(index.getFirstRowIndex(page));
+        }
+        return rows;
+    }
+
+    /**
+     * Three selections over this reader's own store: every row, a window inside each row group, and two
+     * windows with a hole between them. All three must assemble exactly what the oracle holds for the rows
+     * they select.
+     */
+    public void testAssemblyOverPrefetchedStore() throws IOException {
+        byte[] file = writeFile();
+        List<Group> oracle = oracleRows(file);
+        List<String> fields = List.of("items", "attrs", "tags");
+
+        List<AssembledRow> everything = assembleOverPrefetchedStore(file, fields, RowRanges::all);
+        assertEquals("every row selected", ROWS, everything.size());
+        assertAgainstOracle("all rows", everything, oracle);
+
+        List<AssembledRow> window = assembleOverPrefetchedStore(
+            file,
+            fields,
+            rowCount -> RowRanges.of(rowCount / 4, (rowCount * 3) / 4, rowCount)
+        );
+        assertThat("the window must select something", window.size(), greaterThan(0));
+        assertThat("the window must not select everything", window.size(), lessThan(ROWS));
+        assertAgainstOracle("mid-page window", window, oracle);
+
+        List<AssembledRow> holed = assembleOverPrefetchedStore(file, fields, rowCount -> {
+            List<long[]> ranges = new ArrayList<>();
+            ranges.add(new long[] { 0, Math.max(1, rowCount / 4) });
+            ranges.add(new long[] { (rowCount * 3) / 4, rowCount });
+            return RowRanges.fromUnsorted(ranges, rowCount);
+        });
+        assertThat("the two intervals must select something", holed.size(), greaterThan(0));
+        assertThat("the two intervals must leave a hole", holed.size(), lessThan(ROWS));
+        assertAgainstOracle("two intervals", holed, oracle);
+    }
+
+    private static void assertAgainstOracle(String what, List<AssembledRow> rows, List<Group> oracle) {
+        for (AssembledRow row : rows) {
+            int i = (int) row.row();
+            assertEquals(what + ": items vs oracle at row " + i, groupToJson(oracle.get(i), "items"), row.values().get("items"));
+            assertEquals(what + ": attrs vs oracle at row " + i, groupToJson(oracle.get(i), "attrs"), row.values().get("attrs"));
+            assertEquals(what + ": items vs expectation at row " + i, expectedItemsJson(i), row.values().get("items"));
+            assertEquals(what + ": attrs vs expectation at row " + i, expectedAttrsJson(i), row.values().get("attrs"));
+            assertEquals(what + ": tags vs expectation at row " + i, expectedTagsJson(i), row.values().get("tags"));
         }
     }
 

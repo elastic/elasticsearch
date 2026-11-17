@@ -26,7 +26,7 @@ class SequencePayload extends AbstractPayload {
         List<List<SearchHit>> docs,
         boolean timedOut,
         TimeValue timeTook,
-        ShardSearchFailure[] shardFailures
+        List<ShardSearchFailure> shardFailures
     ) {
         super(timedOut, timeTook, shardFailures);
         values = new ArrayList<>(sequences.size());

@@ -19,7 +19,9 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.xcontent.ParsedContentReservation;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -256,6 +258,9 @@ public class AsyncTaskManagementService<
                 action + ASYNC_ACTION_SUFFIX,
                 new AsyncRequestWrapper(request, nodeId, resolvedKeepAlive)
             );
+            // If the query runs past wait_for_completion_timeout, the submit responds first, so the query holds the parsed request's
+            // charge until it ends. Taken before the timeout is scheduled, since the response it sends releases the charge.
+            final Releasable hold = ParsedContentReservation.hold(threadPool.getThreadContext());
             boolean operationStarted = false;
             try {
                 AtomicBoolean skipExecute = new AtomicBoolean();
@@ -270,11 +275,12 @@ public class AsyncTaskManagementService<
                 if (skipExecute.get()) {
                     return;
                 }
-                operation.execute(request, searchTask, storingListener);
+                operation.execute(request, searchTask, ActionListener.releaseAfter(storingListener, hold));
                 operationStarted = true;
             } finally {
                 // If we didn't start operation for any reason, we need to clean up the task that we have created
                 if (operationStarted == false) {
+                    hold.close();
                     taskManager.unregister(searchTask);
                 }
             }

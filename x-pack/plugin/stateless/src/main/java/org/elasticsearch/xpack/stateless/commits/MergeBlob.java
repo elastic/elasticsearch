@@ -19,8 +19,6 @@ import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 /// - `segment` is the name of the merged segment without its leading `_`.
 /// - `discriminator` is a fixed width string of 16 lowercase hexadecimal characters, unique per engine instance.
 ///
-/// Nothing writes merge blobs yet: nodes must be able to read and ignore them.
-///
 /// @param blobName    the name of the blob, from which the merge start generation, the segment and the discriminator are deduced
 /// @param primaryTerm the primary term of the container the blob is stored in
 public record MergeBlob(String blobName, long primaryTerm) implements Blob {

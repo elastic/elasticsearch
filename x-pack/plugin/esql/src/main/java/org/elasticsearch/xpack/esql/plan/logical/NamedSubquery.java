@@ -14,14 +14,10 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import java.util.Objects;
 
 /**
- * A {@link Subquery} that carries a name, which {@code METADATA _name} answers for the rows it produces.
- * <p>
- * Used directly for every {@code LET} binding that {@code LetResolver} substitutes: the binding is a subquery the user named, so
- * {@code METADATA _class} answers {@link RelationClass#SUBQUERY} for it, as for a literal {@code (FROM ...)}, while
- * {@code _name} answers the binding name. The name is only known where {@code LetResolver} substitutes the binding, so
- * this wrapper carries it to the analyzer's metadata freeze, which consumes it. Everywhere else a plain
- * {@code NamedSubquery} is an ordinary literal subquery; in particular it is <em>not</em> a view.
- * {@link ViewSubquery} is the view-specific subclass, and code that means "a view" must test for that.
+ * A {@link Subquery} that wraps a {@code LET} binding substituted by {@code LetResolver}, carrying the binding name so that
+ * {@code METADATA _name} can answer it ({@code _class} answers {@link RelationClass#SUBQUERY}). The analyzer's metadata
+ * freeze consumes the name. A plain {@code NamedSubquery} is not a view: {@link ViewSubquery} is the view subclass, and code
+ * that means "a view" must test for that.
  * <p>
  * Unlike plain {@link Subquery}, the name participates in {@link #equals} and {@link #hashCode}, which allows
  * {@code Node.transformDown} to distinguish a newly-tagged subquery from its untagged predecessor.

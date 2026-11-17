@@ -69,7 +69,7 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
 
     /**
      * Backward-compatible helper: runs {@link #preIndexResolution(LogicalPlan)} followed by
-     * {@link #postIndexResolution(LogicalPlan, boolean)} and the {@link ViewSubquery} unwrap the analyzer
+     * {@link #postIndexResolution(LogicalPlan, boolean)} and the {@link NamedSubquery} unwrap the analyzer
      * performs right after ({@code Analyzer.UnwrapNamedSubqueries}). Production code calls the phases separately;
      * tests that exercise the compaction logic without going through the full analyzer call
      * this to get the same end state as the live pipeline produces.
@@ -91,7 +91,7 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
     /**
      * Phase 1, runs before {@code PreAnalyzer}. Converts user-written {@link UnionAll}s — view-related or not —
      * into {@link BranchPlan}, recording a {@link BranchIdentity} per branch, and nothing else.
-     * Every branch value is kept <em>verbatim</em>: no {@link Subquery}/{@link ViewSubquery} wrapper is
+     * Every branch value is kept <em>verbatim</em>: no {@link Subquery} wrapper is
      * unwrapped or rewrapped here, because the analyzer's {@code ResolveSubqueryRelationColumns} rule reads
      * those wrappers to freeze {@code _class}/{@code _name}, and it must see them exactly as the parser and
      * {@link ViewResolver} left them. All unwrapping happens post-freeze, in {@link #postIndexResolution}.
@@ -190,9 +190,8 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
      *   <li>Unwraps {@code Subquery[ViewSubquery[X]]} → {@code ViewSubquery[X]}</li>
      *   <li>Unwraps {@code Subquery[BranchPlan[...]]} → {@code BranchPlan[...]} so that the
      *       parent {@link UnionAll} can inline the view-branch entries in step 3.</li>
-     *   <li>Converts plain {@link UnionAll} nodes containing at least one {@link ViewSubquery}
-     *       or {@link BranchPlan} child into a single {@link BranchPlan} node, inlining all
-     *       view branches from nested {@code BranchPlan} children</li>
+     *   <li>Converts every plain {@link UnionAll} node, whether or not views are involved, into a single
+     *       {@link BranchPlan} node, inlining all view branches from nested {@code BranchPlan} children</li>
      *   <li>Drops the branch wrappers {@link #preIndexResolution} preserved ({@link #unwrapBranchWrappers}).</li>
      * </ol>
      * This handles user-written {@code UNION ALL (FROM my_view)} where the parser creates a
@@ -216,7 +215,7 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
     }
 
     /**
-     * Drops the {@link Subquery}/{@link ViewSubquery} wrappers of every branch. Post-freeze they are dead weight:
+     * Drops the {@link Subquery} wrappers of every branch. Post-freeze they are dead weight:
      * what they said about each branch is already frozen in {@code _class}/{@code _name} Evals (which sit <em>above</em>
      * any wrapper, so a frozen branch — {@code Eval[Subquery[...]]} — is left alone here and loses its wrapper to
      * {@code Analyzer.UnwrapNamedSubqueries} or the physical planner instead), and the branch's remaining meaning lives
@@ -236,7 +235,7 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
     }
 
     /**
-     * Strips a branch value's {@link Subquery}/{@link ViewSubquery} wrappers, except a {@link ViewSubquery} directly
+     * Strips a branch value's {@link Subquery} wrappers, except a {@link ViewSubquery} directly
      * around an exclusion-bearing {@link UnresolvedRelation} (see {@link #unwrapBranchWrappers} for why).
      */
     private static LogicalPlan unwrapBranchValue(LogicalPlan value) {

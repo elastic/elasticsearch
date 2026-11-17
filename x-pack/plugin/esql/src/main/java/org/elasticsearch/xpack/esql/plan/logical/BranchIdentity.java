@@ -15,13 +15,13 @@ import java.util.List;
 /**
  * What a {@link BranchPlan} branch <em>is</em>: a resolved view (with its name), a user-written subquery, a resolved
  * dataset (with its name), or a bare index pattern. Carried as first-class state on the union node — not inferred from
- * transient {@link Subquery}/{@link ViewSubquery} wrappers, whose survival depends on compaction decisions, and not
+ * transient {@link Subquery} wrappers, whose survival depends on compaction decisions, and not
  * from the branch map's keys, which are uniquified ({@code "meow~2"}) and so are labels rather than names.
  *
  * <p>An identity describes only its own nesting level, and it is the <em>durable</em> truth about that level: the kind
  * the boundary features consult (the request-filter rewriter targets {@code kind == VIEW} branches, {@code Mapper}
  * marks the fragments beneath them). The <em>request-point</em> truth — what {@code METADATA _class}/{@code _name}
- * report — is transient by design: it lives in the parser/resolver {@link Subquery}/{@link ViewSubquery} wrappers
+ * report — is transient by design: it lives in the parser/resolver {@link Subquery} wrappers
  * and is consumed exactly once, by the analyzer's metadata freeze, before any compaction can disturb it. A branch
  * like {@code (FROM my_view)} therefore needs no second identity: its wrapper answers {@code subquery} at the freeze,
  * and the view's own identity lives a level deeper until post-freeze compaction lifts it.

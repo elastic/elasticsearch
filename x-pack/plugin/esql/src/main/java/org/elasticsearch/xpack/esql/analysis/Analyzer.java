@@ -686,7 +686,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * must be resolved ({@link ResolveDatasetShadow}) or stripped ({@link StripDatasetShadowRelations}) before this rule runs, so the
      * nested-union flattening below never lifts an unresolved shadow into an outer level. Strips remaining unresolved view shadows,
      * flattens nested {@code BranchPlan} structures when the flat width is within {@link AnalyzerContext#maxBranchCount()}, and
-     * unwraps remaining {@code ViewSubquery} wrappers. See {@link ViewCompaction} for the rationale behind splitting compaction
+     * unwraps remaining {@code NamedSubquery} wrappers. See {@link ViewCompaction} for the rationale behind splitting compaction
      * across the analyzer boundary.
      */
     private static class ViewCompactionPostIndexResolution extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {

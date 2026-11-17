@@ -17,8 +17,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * {@link NamedSubquery} (a named {@code LET} binding) is never mistaken for one. After view resolution, a
  * post-processing pass converts {@link UnionAll} nodes containing {@code ViewSubquery} children into {@link BranchPlan}.
  * <p>
- * This class should only be used during query re-writing and not survive in the final query plan.
- * If we decide to keep named subqueries as a feature later, we should add serialization support.
+ * This class should only be used during query re-writing and not survive analysis, so it needs no serialization of its
+ * own.
  */
 public class ViewSubquery extends NamedSubquery {
 

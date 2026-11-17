@@ -19,7 +19,7 @@ package org.elasticsearch.xpack.esql.datasources.spi;
  * the window's start.
  * <p>
  * Naming the object also separates the detail lines of a glob read, which arrive interleaved in one response
- * under a single summary warning. It does not fully disambiguate them: {@link StoragePath#objectName} is the
+ * under a single summary warning. It does not fully disambiguate them: {@link StoragePath#objectName(String)} is the
  * last path segment by design (it "never returns the full URI — fails closed rather than leaking a bucket or
  * prefix"), so a glob over objects that share a basename — {@code dt=…/part-00000.csv} under many prefixes,
  * the hive-partitioned norm — still names every one of them the same. The byte clause does not rescue that
@@ -52,6 +52,15 @@ public final class RowLocation {
      */
     private static final String CUT_MARKER = "...";
 
+    /**
+     * Passed as {@code readStartByte} by a reader that cannot vouch for a file-global byte for its own input —
+     * a block-aligned split of a splittable compressed object, where the split offset is a boundary in the
+     * compressed file while the ordinal counts decompressed records, and where the reader has also discarded a
+     * leading partial record the previous split reported. The clause is then omitted entirely: a wrong byte is
+     * a worse instruction than none, since the reader of the message cannot tell it is wrong.
+     */
+    public static final long BYTE_UNKNOWN = -1L;
+
     private RowLocation() {}
 
     /**
@@ -60,18 +69,25 @@ public final class RowLocation {
      * file's. An empty {@code objectName} (see {@link StoragePath#objectName()}, which returns one when the
      * name cannot be extracted safely) leaves the object clause out rather than printing {@code of []}.
      *
-     * @param row            the reader's own count of records accepted from its input, 1-based
+     * @param row            how many records this reader has begun to read from its own input, 1-based. Not a
+     *                       count of ACCEPTED records: CSV counts a record it then rejects, so two failures in a
+     *                       row render as 2 and 3; and NDJSON un-counts a record dropped for exceeding
+     *                       {@code external_max_record_size}, so a later record re-uses the ordinal.
      * @param objectName     the object as messages name it, already reduced to its displayable part
      * @param readStartByte  file-global byte offset of the first byte this reader was given; for compressed
      *                       input it is an offset into the decompressed stream, which is the axis the
-     *                       reader's own records sit on
+     *                       reader's own records sit on. Every current dispatch path passes a decompressed
+     *                       offset; a splittable compressed macro-split (bzip2, indexed zstd) would pass a
+     *                       COMPRESSED one and has to translate it before it reaches here, or this clause
+     *                       names a position on neither axis. {@code CsvFormatReader} carries the same
+     *                       invariant for {@code _rowPosition}, at the dispatch it would have to change.
      */
     public static String of(long row, String objectName, long readStartByte) {
         StringBuilder where = new StringBuilder("row [").append(row).append(']');
         if (objectName != null && objectName.isEmpty() == false) {
             where.append(" of [").append(shorten(objectName)).append(']');
         }
-        if (readStartByte != 0L) {
+        if (readStartByte > 0L) {
             where.append(" counted from byte [").append(readStartByte).append(']');
         }
         return where.toString();
@@ -82,7 +98,13 @@ public final class RowLocation {
      * its message-location field, so the summary warning and the per-row details sitting under it carry the SAME
      * token: capping only inside {@link #of} would make a long name render two ways in one response, which reads
      * as two different objects. {@link #of} applies it again, idempotently, so a caller that has not cannot emit
-     * an uncut name.
+     * an uncut name. This is the one statement of that rationale; call sites point here rather than repeat it.
+     * <p>
+     * Two names agreeing on the kept head and tail but differing in the cut middle reduce to one token, so
+     * objects that would otherwise have been told apart can produce identical text and the exact-string
+     * deduplication then keeps only the first. That is the same limitation as the shared-basename case this
+     * class documents above, reached through the cap rather than through the path, and it is accepted for the
+     * same reason: the alternative is an unbounded name in a response header.
      * <p>
      * Cuts to {@link #MAX_OBJECT_NAME_CHARS}, keeping both ends. Same head/tail shape as
      * {@link ErrorExcerpts#summarize}, without its character count: the count tells a user how much of a VALUE

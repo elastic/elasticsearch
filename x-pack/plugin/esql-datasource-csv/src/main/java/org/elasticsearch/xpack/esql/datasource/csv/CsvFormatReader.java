@@ -1556,7 +1556,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         List<WidenedColumn> widenedColumns = new ArrayList<>();
         InferredSchema inferred = readSchema(object, warnings::add, widenedColumns::add);
         List<Attribute> schema = inferred.schema();
-        String location = RowLocation.displayObjectName(object.path().objectName());
+        String location = object.path().objectName();
         // mtime required for cache participation; sizeInBytes best-effort (stream-only sources throw from length()).
         long mtimeMillis;
         try {
@@ -1646,7 +1646,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
             String headerLine = consumeHeaderLine(recordReader);
             if (headerLine == null) {
-                // Names the format the user asked for, not the reader's class — see {@link #displayName}.
+                // Names the format the user asked for, not the reader's class — see displayName.
                 // Includes the object name when known so the user can identify which file in a glob caused the error.
                 String objectPart = sourceLocation.isEmpty() ? "" : " [" + sourceLocation + "]";
                 throw new IOException(
@@ -1858,7 +1858,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * Build a schema for a headerless CSV: count the widest sample row, synthesize names from
      * {@code prefix}, and run type inference. Pure on its inputs — does not touch the circuit
      * breaker. Both call sites must guarantee {@code sampleRows} is non-empty (and surface the
-     * user-facing "<format> file has no data rows" {@link IOException} themselves); the assertion is
+     * user-facing "&lt;format&gt; file has no data rows" {@link IOException} themselves); the assertion is
      * just a programmer-error guard.
      */
     /**
@@ -4378,6 +4378,18 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * emitted record. Same role as NDJSON's {@code recordOffsetBase}.
          */
         private final long splitStartByte;
+        /**
+         * The byte a message may tell the user the ordinal was counted from, or {@link RowLocation#BYTE_UNKNOWN}
+         * when this reader cannot vouch for one. It is NOT {@link #splitStartByte}: on a block-aligned split of a
+         * splittable compressed object ({@code recordAligned == false}, which {@code Bzip2DecompressionCodec} and
+         * {@code FileSplitProvider.tryBlockAlignedSplits} reach in production) that value is a boundary in the
+         * COMPRESSED file, while the ordinal counts decompressed records — the axis invariant stated above the
+         * read dispatch. This reader also discards a leading partial record on that arm, so the split start sits
+         * inside a record the previous split already reported. Either alone makes the byte a wrong instruction,
+         * so the clause is withheld rather than guessed; {@code _rowPosition} keeps using {@link #splitStartByte}
+         * unchanged, because it composes per-record offsets rather than publishing the split's own.
+         */
+        private final long messageStartByte;
 
         /** Canonical-stripe grid in bytes for per-stripe stats capture; {@code <= 0} disables it. */
         private final long statsStripeSize;
@@ -4485,8 +4497,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             this.datetimeFormatter = options.datetimeFormatter();
             this.bracketMultiValues = options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.BRACKETS;
             this.sourceLocation = sourceLocation;
-            // Cut here, not at each message: the summary warning below and the per-row details that sit under it
-            // must carry the same token, or one long name renders two ways in a single response.
+            // Cut here rather than at each message; RowLocation.displayObjectName says why.
             this.messageLocation = RowLocation.displayObjectName(objectPath.objectName());
             this.cacheableObject = cacheableObject;
             this.byteCounter = byteCounter;
@@ -4497,6 +4508,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             this.directBlockQuoted = directBlockQuoted;
             this.maxFieldChars = options.maxFieldSize() > 0 ? options.maxFieldSize() : Integer.MAX_VALUE;
             this.splitStartByte = splitStartByte;
+            this.messageStartByte = (chunkMode || splitStartByte == 0L) ? splitStartByte : RowLocation.BYTE_UNKNOWN;
             this.statsStripeSize = statsStripeSize;
             this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
             this.statsFileFinal = statsFileFinal;
@@ -7623,7 +7635,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // NdJsonPageDecoder.onNdjsonLineParseError. Built separately per channel, the three drifted: the
             // response named the row and the object while the log line kept a bare ordinal, so an operator
             // reading the log could not tell which object of a glob, or which split of one, a failure came from.
-            String description = RowLocation.of(totalRowCount, messageLocation, splitStartByte) + ": " + message;
+            String description = RowLocation.of(totalRowCount, messageLocation, messageStartByte) + ": " + message;
             if (modeOrdinal == ErrorPolicy.Mode.FAIL_FAST.ordinal()) {
                 String hint = structural
                     ? "; set [error_mode] to [skip_row] to skip the row instead"
@@ -7653,7 +7665,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private void onFieldError(String message, String value, Attribute attr) {
             errorCount++;
             // One description for the client warning and the node log, as onRowErrorImpl does.
-            String description = RowLocation.of(totalRowCount, messageLocation, splitStartByte, attr.name()) + ": " + message;
+            String description = RowLocation.of(totalRowCount, messageLocation, messageStartByte, attr.name()) + ": " + message;
             skipWarnings.add(description);
             if (logErrors) {
                 logger.warn(
@@ -7676,18 +7688,18 @@ public class CsvFormatReader implements SegmentableFormatReader {
             errorCount++;
             // The cell's location is described once and shared by every element's detail and by the log line,
             // as onRowErrorImpl does; only the per-element reason differs between them.
-            String where = RowLocation.of(totalRowCount, messageLocation, splitStartByte, attr.name());
+            String where = RowLocation.of(totalRowCount, messageLocation, messageStartByte, attr.name());
             for (String message : messages) {
                 skipWarnings.addRemovedFromMultiValue(where + ": " + message);
             }
             if (logErrors) {
                 logger.warn(
-                    "Removing unparseable values from multi-valued value [{}]: {}: {} (error {}/{})",
-                    ErrorExcerpts.summarize(value),
+                    "Removing unparseable values from multi-valued field at {}; value [{}] (error {}/{}): {}",
                     where,
-                    messages,
+                    ErrorExcerpts.summarize(value),
                     errorCount,
-                    errorPolicy.maxErrors()
+                    errorPolicy.maxErrors(),
+                    messages
                 );
             }
             checkBudget(null);

@@ -12121,6 +12121,35 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertThat(ExceptionsHelper.stackTrace(e), containsString("Row [1] of [test.csv] counted from byte [" + cut + "]:"));
     }
 
+    /**
+     * On a block-aligned split of a splittable compressed object the reader is handed {@code recordAligned=false}:
+     * the split offset is a boundary in the COMPRESSED file while the ordinal counts decompressed records, and this
+     * reader additionally discards a leading partial record the previous split already reported. A byte printed
+     * there would send the reader of the message to the wrong place without their being able to tell, so the clause
+     * is withheld. The object and the ordinal still appear.
+     */
+    public void testABlockAlignedSplitNamesNoByte() throws IOException {
+        List<Attribute> schema = splitSchema();
+        FormatReadContext ctx = FormatReadContext.builder()
+            .batchSize(10)
+            .errorPolicy(new ErrorPolicy(100, true))
+            .firstSplit(false)
+            .lastSplit(true)
+            .recordAligned(false)
+            .splitStartByte(9999L)
+            .readSchema(schema)
+            .fileHeaderColumns(List.of("id", "name"))
+            .build();
+        // recordAligned=false discards the leading partial record, so the first row read is the bad one.
+        String detail = soleDetailWarning(
+            new CsvFormatReader(blockFactory).withSchema(schema),
+            createStorageObject("partial,fragment\nbad_id,Carol\n4,Dan\n"),
+            ctx
+        );
+        assertThat(detail, equalTo("row [1] of [test.csv]: cannot read [bad_id] as [long]"));
+        assertThat("a byte on the wrong axis must not be printed", detail, not(containsString("counted from byte")));
+    }
+
     private static List<Attribute> splitSchema() {
         return List.of(
             new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG),

@@ -46,6 +46,16 @@ public class RowLocationTests extends ESTestCase {
     }
 
     /**
+     * A reader that cannot vouch for a file-global byte passes {@link RowLocation#BYTE_UNKNOWN} and the clause is
+     * dropped rather than guessed, because the reader of a wrong byte has no way to tell it is wrong.
+     */
+    public void testAnUnknownByteIsWithheldRatherThanPrinted() {
+        assertThat(RowLocation.of(5, "v.csv", RowLocation.BYTE_UNKNOWN), equalTo("row [5] of [v.csv]"));
+        assertThat(RowLocation.of(5, "v.csv", RowLocation.BYTE_UNKNOWN, "id"), equalTo("row [5] of [v.csv], column [id]"));
+        assertThat(RowLocation.of(5, "v.csv", -42L), equalTo("row [5] of [v.csv]"));
+    }
+
+    /**
      * {@link StoragePath#objectName()} returns an empty string when it cannot extract a name safely. The clause then
      * leaves the object out rather than printing an empty bracket pair, which says nothing and reads like a bug.
      */

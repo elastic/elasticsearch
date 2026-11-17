@@ -177,6 +177,14 @@ public class NdJsonPageDecoder implements Closeable {
      * caller via {@link #setRecordOffsetBase(long)} before the first {@link #decodePage()}.
      */
     private long recordOffsetBase = 0L;
+    /**
+     * The byte a message may tell the user the ordinal was counted from, or {@link RowLocation#BYTE_UNKNOWN} once
+     * {@link #withholdMessageStartByte()} is called. Tracks {@link #recordOffsetBase} by default and diverges only
+     * on a block-aligned split of a splittable compressed object, where the split offset is a boundary in the
+     * compressed file while this decoder counts decompressed records. {@code _rowPosition} keeps using
+     * {@link #recordOffsetBase} either way.
+     */
+    private long messageOffsetBase = 0L;
 
     /**
      * Per-record {@code external_max_record_size} byte cap. Enforced inside the decode loop on the same pass
@@ -690,10 +698,9 @@ public class NdJsonPageDecoder implements Closeable {
         }
         Check.isTrue(errorPolicy != null, "errorPolicy must not be null");
         this.errorPolicy = errorPolicy;
-        // Cut here, not at each message: the summaries built just below and the per-row details that sit under
-        // them must carry the same token, or one long name renders two ways in a single response. Shadowing the
-        // parameter is deliberate — the summaries below read the cut value, and a later edit that reaches for the
-        // uncut one would have to reintroduce the name to do it.
+        // Cut here rather than at each message; RowLocation.displayObjectName says why. The parameter is
+        // reassigned, not merely copied into the field, because the summaries a few lines below read the local:
+        // cutting only on the way to the field would leave them naming the object the uncut way.
         sourceLocation = RowLocation.displayObjectName(sourceLocation);
         this.sourceLocation = sourceLocation;
         this.counters = counters;
@@ -869,7 +876,7 @@ public class NdJsonPageDecoder implements Closeable {
         // Described once, for the strict message and the client warning alike: the row and the kind of failure.
         // Jackson's own message is never rendered to the client, since it names Jackson's classes and features;
         // the node log below keeps it, with the phase, for the operator.
-        String description = RowLocation.of(logicalRowIndex, sourceLocation, recordOffsetBase) + ": " + lineFailureKind(e);
+        String description = RowLocation.of(logicalRowIndex, sourceLocation, messageOffsetBase) + ": " + lineFailureKind(e);
         if (errorPolicy.isStrict()) {
             // The remedy hint mirrors coercionFailure and CsvFormatReader.onRowErrorImpl, phrased for a
             // whole-line failure: both non-strict modes drop the line here, so neither is "null-fill" the way
@@ -993,6 +1000,16 @@ public class NdJsonPageDecoder implements Closeable {
      */
     void setRecordOffsetBase(long recordOffsetBase) {
         this.recordOffsetBase = recordOffsetBase;
+        this.messageOffsetBase = recordOffsetBase;
+    }
+
+    /**
+     * Stops messages naming a byte the ordinal was counted from. Called for a split whose start offset is on the
+     * compressed axis while the records are counted on the decompressed one, where any byte printed would be a
+     * wrong instruction the reader of the message could not detect.
+     */
+    void withholdMessageStartByte() {
+        this.messageOffsetBase = RowLocation.BYTE_UNKNOWN;
     }
 
     /**
@@ -2539,7 +2556,7 @@ public class NdJsonPageDecoder implements Closeable {
             // Not "the declared type": this path also fires for a supported-pair failure on an INFERRED column
             // (e.g. a bad string in an inferred long), where the target type was not declared.
             // The outcome (row skipped or value nulled) is stated once, in the summary, not per detail.
-            String message = RowLocation.of(totalRowCount, sourceLocation, recordOffsetBase, name)
+            String message = RowLocation.of(totalRowCount, sourceLocation, messageOffsetBase, name)
                 + ": cannot read ["
                 + value
                 + "] as ["

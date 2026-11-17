@@ -346,6 +346,12 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         }
         // _rowPosition / _file.record_ref substrate: file-global per-record start offset.
         this.pageDecoder.setRecordOffsetBase(recordOffsetBase);
+        if (chunkMode == false && splitStartByte != 0L) {
+            // A block-aligned split of a splittable compressed object: splitStartByte is a boundary in the
+            // compressed file, while the ordinal counts decompressed records. _rowPosition composes per-record
+            // offsets and is unaffected; a message naming this byte would send the reader to the wrong axis.
+            this.pageDecoder.withholdMessageStartByte();
+        }
         this.pageDecoder.setMaxRecordBytes(maxRecordBytes);
         this.pageDecoder.setReportAbsentDeclaredColumns(statsFileFinal);
         if (this.statsStripeSize > 0) {

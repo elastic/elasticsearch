@@ -30,8 +30,6 @@ import java.util.TreeSet;
 public final class NestedScopeField extends EsField {
     public static final String NAMESPACE = "$$nested_reductions";
     public static final String PREFIX = NAMESPACE + ".";
-    /** Field-caps name that asks the resolver to return nested fields into this namespace instead of dropping them. */
-    public static final String REQUEST_MARKER = "\u0000esql_nested_reductions";
 
     /**
      * How a field in this namespace relates to the nested collection that owns its documents. Ordinary resolution, scope

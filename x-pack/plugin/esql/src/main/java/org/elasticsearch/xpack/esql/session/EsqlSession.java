@@ -2155,14 +2155,18 @@ public class EsqlSession {
         if (filterAppliesToViewOutput == false || IndexResolver.ALL_FIELDS.equals(result.fieldNames())) {
             return result;
         }
+        return addFilterFieldNames(result, requestFilter, configuration);
+    }
+
+    static PreAnalysisResult addFilterFieldNames(PreAnalysisResult result, QueryBuilder requestFilter, Configuration configuration) {
         var referenced = QueryDslFieldNameExtractor.extract(requestFilter, configuration);
         if (referenced.requiresAllFields()) {
-            return new PreAnalysisResult(IndexResolver.ALL_FIELDS, result.wildcardJoinIndices());
+            return new PreAnalysisResult(IndexResolver.ALL_FIELDS, Set.of(), result.nestedScope(), result.wildcardJoinIndices());
         }
         Set<String> fieldNames = new HashSet<>(result.fieldNames());
         fieldNames.addAll(referenced.fieldNames());
         Set<String> parentPaths = FieldNameUtils.onlyParentPaths(result.parentPaths(), new HashSet<>(referenced.fieldNames()));
-        return new PreAnalysisResult(fieldNames, parentPaths, result.wildcardJoinIndices());
+        return new PreAnalysisResult(fieldNames, parentPaths, result.nestedScope(), result.wildcardJoinIndices());
     }
 
     private void resolveIndicesAndAnalyze(
@@ -3063,6 +3067,7 @@ public class EsqlSession {
                 result.fieldNames,
                 createQueryFilter(indexMode, requestFilter),
                 includeAllDimensions(indexMode, preAnalysis),
+                result.nestedScope(),
                 // TODO: In case of subqueries, the different main index resolutions don't know about each other's minimum version.
                 // This is bad because `FROM (FROM remote1:*) (FROM remote2:*)` can have different minimum versions
                 // while resolving each subquery's main index pattern. We'll determine the correct overall minimum transport version
@@ -3091,6 +3096,7 @@ public class EsqlSession {
                             result.fieldNames,
                             requestFilter,
                             false,
+                            result.nestedScope(),
                             indexResolution.minimumVersion(),
                             preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
                             preAnalysis.useDenseVectorWhenNotSupported(),
@@ -3196,6 +3202,7 @@ public class EsqlSession {
             result.fieldNames,
             createQueryFilter(IndexMode.STANDARD, requestFilter),
             false /* not time-series — shadows are always STANDARD */,
+            result.nestedScope(),
             result.minimumTransportVersion(),
             preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
             preAnalysis.useDenseVectorWhenNotSupported(),
@@ -3237,6 +3244,7 @@ public class EsqlSession {
             result.fieldNames,
             createQueryFilter(indexMode, requestFilter),
             includeAllDimensions(indexMode, preAnalysis),
+            result.nestedScope(),
             // TODO: Same problem with subqueries as preAnalyzeMainIndices, see above.
             result.minimumTransportVersion(),
             preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
@@ -3262,6 +3270,7 @@ public class EsqlSession {
                         result.fieldNames,
                         requestFilter,
                         false,
+                        result.nestedScope(),
                         indexResolution.minimumVersion(),
                         preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
                         preAnalysis.useDenseVectorWhenNotSupported(),
@@ -3672,6 +3681,8 @@ public class EsqlSession {
         Set<String> fieldNames,
         // the names in fieldNames that field caps is asked for only to find the flattened fields above the names the query uses
         Set<String> parentPaths,
+        // whether the query reads nested fields (NESTED_EXPAND), so the resolution of its main source asks field caps for them
+        boolean nestedScope,
         Set<String> wildcardJoinIndices,
         Map<IndexPattern, IndexResolution> indexResolution,
         // the exemplar data streams of the time series relations, resolved for SET exemplars=true; null when there are none
@@ -3691,13 +3702,14 @@ public class EsqlSession {
     ) {
 
         public PreAnalysisResult(Set<String> fieldNames, Set<String> wildcardJoinIndices) {
-            this(fieldNames, Set.of(), wildcardJoinIndices);
+            this(fieldNames, Set.of(), false, wildcardJoinIndices);
         }
 
-        public PreAnalysisResult(Set<String> fieldNames, Set<String> parentPaths, Set<String> wildcardJoinIndices) {
+        public PreAnalysisResult(Set<String> fieldNames, Set<String> parentPaths, boolean nestedScope, Set<String> wildcardJoinIndices) {
             this(
                 fieldNames,
                 parentPaths,
+                nestedScope,
                 wildcardJoinIndices,
                 new HashMap<>(),
                 null,
@@ -3731,6 +3743,7 @@ public class EsqlSession {
             return new PreAnalysisResult(
                 fieldNames,
                 parentPaths,
+                nestedScope,
                 wildcardJoinIndices,
                 indexResolution,
                 exemplarsResolution,
@@ -3749,6 +3762,7 @@ public class EsqlSession {
             return new PreAnalysisResult(
                 fieldNames,
                 parentPaths,
+                nestedScope,
                 wildcardJoinIndices,
                 indexResolution,
                 exemplarsResolution,
@@ -3767,6 +3781,7 @@ public class EsqlSession {
             return new PreAnalysisResult(
                 fieldNames,
                 parentPaths,
+                nestedScope,
                 wildcardJoinIndices,
                 indexResolution,
                 exemplarsResolution,
@@ -3785,6 +3800,7 @@ public class EsqlSession {
             return new PreAnalysisResult(
                 fieldNames,
                 parentPaths,
+                nestedScope,
                 wildcardJoinIndices,
                 indexResolution,
                 exemplarsResolution,
@@ -3809,6 +3825,7 @@ public class EsqlSession {
             return new PreAnalysisResult(
                 fieldNames,
                 parentPaths,
+                nestedScope,
                 wildcardJoinIndices,
                 indexResolution,
                 exemplarsResolution,
@@ -3827,6 +3844,7 @@ public class EsqlSession {
             return new PreAnalysisResult(
                 fieldNames,
                 parentPaths,
+                nestedScope,
                 wildcardJoinIndices,
                 indexResolution,
                 exemplarsResolution,

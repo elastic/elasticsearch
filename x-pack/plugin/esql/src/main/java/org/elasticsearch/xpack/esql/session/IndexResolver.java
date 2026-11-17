@@ -169,7 +169,7 @@ public class IndexResolver {
         ActionListener<IndexResolution> listener
     ) {
         doResolveIndices(
-            createResolveFieldRequest(DEFAULT_OPTIONS, indexPattern, null, fieldNames, null, false, false),
+            createResolveFieldRequest(DEFAULT_OPTIONS, indexPattern, null, fieldNames, null, false, false, false),
             indexPattern,
             false, /* lookup indices should do not be empty */
             minimumVersion,
@@ -213,6 +213,7 @@ public class IndexResolver {
         Set<String> fieldNames,
         QueryBuilder requestFilter,
         boolean includeAllDimensions,
+        boolean nestedScope,
         TransportVersion minimumVersion,
         boolean useAggregateMetricDoubleWhenNotSupported,
         boolean useDenseVectorWhenNotSupported,
@@ -226,7 +227,16 @@ public class IndexResolver {
         ActionListener<Versioned<IndexResolution>> listener
     ) {
         doResolveIndices(
-            createResolveFieldRequest(DEFAULT_OPTIONS, indexPattern, null, fieldNames, requestFilter, includeAllDimensions, false),
+            createResolveFieldRequest(
+                DEFAULT_OPTIONS,
+                indexPattern,
+                null,
+                fieldNames,
+                requestFilter,
+                includeAllDimensions,
+                nestedScope,
+                false
+            ),
             indexPattern,
             true, /* allow empty index resolution when resolving main pattern */
             minimumVersion,
@@ -265,7 +275,7 @@ public class IndexResolver {
         ActionListener<Versioned<IndexResolution>> listener
     ) {
         doResolveIndices(
-            createResolveFieldRequest(DEFAULT_OPTIONS, indexPattern, null, ALL_FIELDS, requestFilter, false, true),
+            createResolveFieldRequest(DEFAULT_OPTIONS, indexPattern, null, ALL_FIELDS, requestFilter, false, false, true),
             indexPattern,
             true, /* the derived data streams may not exist */
             minimumVersion,
@@ -315,6 +325,7 @@ public class IndexResolver {
         Set<String> fieldNames,
         QueryBuilder requestFilter,
         boolean includeAllDimensions,
+        boolean nestedScope,
         TransportVersion minimumVersion,
         // Used for bwc with 9.2.0, which supports aggregate_metric_double but doesn't provide its version in the field
         // caps response. We'll just assume the type is supported based on usage in the query to not break compatibility
@@ -333,7 +344,16 @@ public class IndexResolver {
     ) {
         IndicesOptions options = lenient ? FLAT_LENIENT_OPTIONS : FLAT_STRICT_OPTIONS;
         doResolveIndices(
-            createResolveFieldRequest(options, indexPattern, projectRouting, fieldNames, requestFilter, includeAllDimensions, true),
+            createResolveFieldRequest(
+                options,
+                indexPattern,
+                projectRouting,
+                fieldNames,
+                requestFilter,
+                includeAllDimensions,
+                nestedScope,
+                true
+            ),
             indexPattern,
             true, /* flat index expression could resolve to empty */
             minimumVersion,
@@ -1125,13 +1145,12 @@ public class IndexResolver {
         Set<String> fieldNames,
         QueryBuilder requestFilter,
         boolean includeAllDimensions,
+        boolean nestedScope,
         boolean includeResolvedTo
     ) {
         FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
         request.indices(Strings.commaDelimitedListToStringArray(index));
-        // The marker is not a field. It asks for nested fields so NESTED_EXPAND can read them from a private schema.
-        boolean nestedScope = fieldNames.contains(NestedScopeField.REQUEST_MARKER);
-        request.fields(fieldNames.stream().filter(name -> name.equals(NestedScopeField.REQUEST_MARKER) == false).toArray(String[]::new));
+        request.fields(fieldNames.toArray(String[]::new));
         request.includeUnmapped(true);
         request.indexFilter(requestFilter);
         request.returnLocalAll(false);

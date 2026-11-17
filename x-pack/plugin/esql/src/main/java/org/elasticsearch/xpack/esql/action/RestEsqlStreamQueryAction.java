@@ -114,7 +114,8 @@ public class RestEsqlStreamQueryAction extends BaseRestHandler {
      * NDJSON is the only format for now. It is the default, so a request may leave out both the {@code format} parameter
      * and the {@code Accept} header, but it may not ask for anything else. The REST API compatibility form of NDJSON
      * ({@code application/vnd.elasticsearch+x-ndjson;compatible-with=N}) is accepted too; the framework has already
-     * validated the version by the time this runs.
+     * validated the version by the time this runs. Quality values are honored: the most specific media range that covers
+     * NDJSON decides, and {@code q=0} on it means NDJSON is not acceptable.
      */
     static void validateFormat(String format, String accept) {
         if (format != null && NDJSON_FORMAT_VALUE.equalsIgnoreCase(format) == false) {
@@ -125,18 +126,64 @@ public class RestEsqlStreamQueryAction extends BaseRestHandler {
         if (accept == null || accept.isBlank()) {
             return;
         }
+        int bestSpecificity = -1;
+        double bestQuality = 0;
         for (String mediaRange : accept.split(",")) {
-            String mediaType = mediaRange.split(";", 2)[0].trim().toLowerCase(Locale.ROOT);
-            if (mediaType.equals("*/*")
-                || mediaType.equals("application/*")
-                || mediaType.equals(NDJSON_MEDIA_TYPE)
-                || mediaType.equals(VND_NDJSON_MEDIA_TYPE)) {
-                return;
+            String[] parts = mediaRange.split(";");
+            int specificity = ndjsonSpecificity(parts[0].trim().toLowerCase(Locale.ROOT));
+            if (specificity < 0) {
+                continue;
+            }
+            double quality = parseQuality(parts, mediaRange);
+            if (specificity > bestSpecificity) {
+                bestSpecificity = specificity;
+                bestQuality = quality;
+            } else if (specificity == bestSpecificity) {
+                bestQuality = Math.max(bestQuality, quality);
             }
         }
-        throw new IllegalArgumentException(
-            "[Accept] must allow [" + NDJSON_MEDIA_TYPE + "] for [POST /_query/stream], got [" + accept + "]"
-        );
+        if (bestSpecificity < 0 || bestQuality <= 0) {
+            throw new IllegalArgumentException(
+                "[Accept] must allow [" + NDJSON_MEDIA_TYPE + "] for [POST /_query/stream], got [" + accept + "]"
+            );
+        }
+    }
+
+    /**
+     * How specifically a media range names NDJSON: 2 for an exact NDJSON type, 1 for {@code application/*},
+     * 0 for {@code *}{@code /*}, and -1 if the range does not cover NDJSON.
+     */
+    private static int ndjsonSpecificity(String mediaType) {
+        if (mediaType.equals(NDJSON_MEDIA_TYPE) || mediaType.equals(VND_NDJSON_MEDIA_TYPE)) {
+            return 2;
+        }
+        if (mediaType.equals("application/*")) {
+            return 1;
+        }
+        if (mediaType.equals("*/*")) {
+            return 0;
+        }
+        return -1;
+    }
+
+    /** Reads the {@code q} parameter of a media range (parts[0] is the media type); defaults to 1. */
+    private static double parseQuality(String[] parts, String mediaRange) {
+        for (int i = 1; i < parts.length; i++) {
+            String[] keyValue = parts[i].split("=", 2);
+            if (keyValue.length == 2 && keyValue[0].trim().equalsIgnoreCase("q")) {
+                double quality;
+                try {
+                    quality = Double.parseDouble(keyValue[1].trim());
+                } catch (NumberFormatException e) {
+                    throw new IllegalArgumentException("[Accept] has an invalid quality value in [" + mediaRange.trim() + "]");
+                }
+                if (Double.isNaN(quality) || quality < 0 || quality > 1) {
+                    throw new IllegalArgumentException("[Accept] has an invalid quality value in [" + mediaRange.trim() + "]");
+                }
+                return quality;
+            }
+        }
+        return 1.0;
     }
 
     @Override

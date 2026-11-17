@@ -106,6 +106,14 @@ public class RestEsqlStreamQueryActionTests extends ESTestCase {
         RestEsqlStreamQueryAction.validateFormat(null, "APPLICATION/*");
         RestEsqlStreamQueryAction.validateFormat(null, "text/csv, Application/X-Ndjson;q=0.9");
         RestEsqlStreamQueryAction.validateFormat(null, "Application/Vnd.Elasticsearch+X-NDJSON;compatible-with=9");
+        RestEsqlStreamQueryAction.validateFormat(null, "*/*;q=0, application/x-ndjson");
+        RestEsqlStreamQueryAction.validateFormat(null, "application/*;q=0, application/x-ndjson;q=0.5");
+        RestEsqlStreamQueryAction.validateFormat(null, "application/x-ndjson;q=0.001");
+        RestEsqlStreamQueryAction.validateFormat(null, "application/x-ndjson; Q=1");
+        RestEsqlStreamQueryAction.validateFormat(
+            null,
+            "application/x-ndjson;q=0, application/vnd.elasticsearch+x-ndjson;compatible-with=9"
+        );
     }
 
     public void testAcceptHeaderThatDoesNotAllowNdjson() {
@@ -115,12 +123,24 @@ public class RestEsqlStreamQueryActionTests extends ESTestCase {
             "application/json",
             "application/vnd.apache.arrow.stream",
             "text/*",
-            "application/vnd.elasticsearch+json;compatible-with=9" }) {
+            "application/vnd.elasticsearch+json;compatible-with=9",
+            "application/x-ndjson;q=0",
+            "application/x-ndjson; q=0.0",
+            "application/json, */*;q=0",
+            "application/x-ndjson;q=0, */*",
+            "application/*;q=0",
+            "application/vnd.elasticsearch+x-ndjson;compatible-with=9;q=0" }) {
             expectThrows(
                 IllegalArgumentException.class,
                 allOf(containsString("application/x-ndjson"), containsString(accept)),
                 () -> RestEsqlStreamQueryAction.validateFormat(null, accept)
             );
+        }
+    }
+
+    public void testAcceptHeaderWithMalformedQuality() {
+        for (String accept : new String[] { "application/x-ndjson;q=abc", "application/x-ndjson;q=2" }) {
+            expectThrows(IllegalArgumentException.class, () -> RestEsqlStreamQueryAction.validateFormat(null, accept));
         }
     }
 

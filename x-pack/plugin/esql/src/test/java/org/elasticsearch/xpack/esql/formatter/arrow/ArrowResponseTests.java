@@ -373,7 +373,7 @@ public class ArrowResponseTests extends ESTestCase {
     };
 
     /**
-     * TDIGEST: struct with min/max/sum float64 children ({@code NaN} when absent), and centroids/counts list children.
+     * TDIGEST: struct with nullable min/max/sum float64 children, and centroids/counts list children.
      * Values are compared as {@link TDigestHolder}s. A fifth of the digests are empty ones, which must be valid structs.
      */
     static final ValueType TDIGEST_VALUES = new ValueType() {
@@ -410,10 +410,6 @@ public class ArrowResponseTests extends ESTestCase {
             Float8Vector min = (Float8Vector) vector.getChild("min");
             Float8Vector max = (Float8Vector) vector.getChild("max");
             Float8Vector sum = (Float8Vector) vector.getChild("sum");
-            // Only the struct is nullable
-            assertEquals(0, min.getNullCount());
-            assertEquals(0, max.getNullCount());
-            assertEquals(0, sum.getNullCount());
             ListVector centroidsVector = (ListVector) vector.getChild("centroids");
             ListVector countsVector = (ListVector) vector.getChild("counts");
             assertFalse(centroidsVector.isNull(position));
@@ -426,9 +422,9 @@ public class ArrowResponseTests extends ESTestCase {
             TDigestHolder holder = new TDigestHolder();
             holder.reset(
                 EncodedTDigest.encodeCentroids(centroids, counts),
-                min.get(position),
-                max.get(position),
-                sum.get(position),
+                min.isNull(position) ? Double.NaN : min.get(position),
+                max.isNull(position) ? Double.NaN : max.get(position),
+                sum.isNull(position) ? Double.NaN : sum.get(position),
                 counts.stream().mapToLong(Long::longValue).sum()
             );
             return holder;

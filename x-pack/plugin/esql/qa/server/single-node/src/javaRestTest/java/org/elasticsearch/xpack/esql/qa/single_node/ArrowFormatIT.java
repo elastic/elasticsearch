@@ -293,9 +293,9 @@ public class ArrowFormatIT extends ESRestTestCase {
             assertTrue(field.isNullable());
             assertEquals("tdigest", field.getMetadata().get("elastic:type"));
             assertEquals(List.of("min", "max", "sum", "centroids", "counts"), field.getChildren().stream().map(Field::getName).toList());
-            // Only the struct is nullable
+            // The struct and its scalars are nullable, the lists are not
             for (Field child : field.getChildren()) {
-                assertFalse(child.getName(), child.isNullable());
+                assertEquals(child.getName(), List.of("min", "max", "sum").contains(child.getName()), child.isNullable());
             }
 
             Float8Vector min = (Float8Vector) digest.getChild("min");
@@ -312,16 +312,19 @@ public class ArrowFormatIT extends ESRestTestCase {
             assertEquals(List.of(1.0, 2.5, 9.0), centroids.getObject(0));
             assertEquals(List.of(2L, 4L, 1L), counts.getObject(0));
 
-            // A missing digest is a null struct, with empty lists and NaN scalars
+            // A missing digest is a null struct, with empty lists and null scalars
             assertTrue(digest.isNull(1));
+            assertTrue(min.isNull(1));
+            assertTrue(max.isNull(1));
+            assertTrue(sum.isNull(1));
             assertEquals(List.of(), centroids.getObject(1));
             assertEquals(List.of(), counts.getObject(1));
 
-            // An empty digest is a valid struct with empty lists and NaN scalars
+            // An empty digest is a valid struct with empty lists and null scalars
             assertFalse(digest.isNull(2));
-            assertTrue(Double.isNaN(min.get(2)));
-            assertTrue(Double.isNaN(max.get(2)));
-            assertTrue(Double.isNaN(sum.get(2)));
+            assertTrue(min.isNull(2));
+            assertTrue(max.isNull(2));
+            assertTrue(sum.isNull(2));
             assertEquals(List.of(), centroids.getObject(2));
             assertEquals(List.of(), counts.getObject(2));
         }

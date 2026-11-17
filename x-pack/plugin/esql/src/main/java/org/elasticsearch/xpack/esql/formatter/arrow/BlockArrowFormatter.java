@@ -899,9 +899,9 @@ public abstract class BlockArrowFormatter {
      * Conversion of TDigestBlocks to an Arrow struct
      * {@code Struct(min: float64, max: float64, sum: float64, centroids: List<float64>, counts: List<int64>)}.
      * <p>
-     * Only the struct itself is nullable, and it is null for a missing digest. An empty digest is a valid struct with
-     * empty lists. {@code min}, {@code max} and {@code sum} are {@code NaN} when absent (which is the case for empty
-     * digests), so that these children don't need validity buffers. The number of samples in the digest is not a field,
+     * The struct is null for a missing digest. An empty digest is a valid struct with empty lists. {@code min}, {@code max}
+     * and {@code sum} are null when absent (which is the case for empty digests), following the Arrow convention that NaN
+     * is a value and missing data is null. The lists are never null. The number of samples in the digest is not a field,
      * as it is the sum of {@code counts}.
      * <p>
      * T-Digests are always single-valued, so columns of this type are never encoded as Arrow lists.
@@ -916,7 +916,7 @@ public abstract class BlockArrowFormatter {
 
         @Override
         public Field arrowField(String name) {
-            var doubleType = new FieldType(false, Types.MinorType.FLOAT8.getType(), null);
+            var doubleType = FieldType.nullable(Types.MinorType.FLOAT8.getType());
             return new Field(
                 name,
                 super.arrowField(name).getFieldType(),
@@ -945,12 +945,13 @@ public abstract class BlockArrowFormatter {
 
         @Override
         public void addFieldNodes(Block block, boolean multivalued, List<ArrowFieldNode> nodes) {
+            TDigestBlock digests = (TDigestBlock) block;
             int positions = block.getPositionCount();
-            int centroids = Math.toIntExact(centroidOffsets((TDigestBlock) block)[positions]);
+            int centroids = centroidOffsets(digests)[positions];
             nodes.add(new ArrowFieldNode(positions, nullValuesCount(block))); // struct
-            nodes.add(new ArrowFieldNode(positions, 0)); // min
-            nodes.add(new ArrowFieldNode(positions, 0)); // max
-            nodes.add(new ArrowFieldNode(positions, 0)); // sum
+            nodes.add(new ArrowFieldNode(positions, absentCount(digests, TDigestHolder::getMin))); // min
+            nodes.add(new ArrowFieldNode(positions, absentCount(digests, TDigestHolder::getMax))); // max
+            nodes.add(new ArrowFieldNode(positions, absentCount(digests, TDigestHolder::getSum))); // sum
             nodes.add(new ArrowFieldNode(positions, 0)); // centroids list
             nodes.add(new ArrowFieldNode(centroids, 0)); // centroids values
             nodes.add(new ArrowFieldNode(positions, 0)); // counts list
@@ -990,7 +991,26 @@ public abstract class BlockArrowFormatter {
             return offsets;
         }
 
-        /** A float64 child without validity buffer: absent values are {@code NaN}. */
+        /** The value of a float64 child at a position, {@code NaN} if the digest is null or doesn't have that value. */
+        private static double childValue(TDigestBlock block, int position, ToDoubleFunction<TDigestHolder> getter, TDigestHolder scratch) {
+            if (block.isNull(position)) {
+                return Double.NaN;
+            }
+            return getter.applyAsDouble(block.getTDigestHolder(block.getFirstValueIndex(position), scratch));
+        }
+
+        private static int absentCount(TDigestBlock block, ToDoubleFunction<TDigestHolder> getter) {
+            TDigestHolder scratch = new TDigestHolder();
+            int count = 0;
+            for (int position = 0; position < block.getPositionCount(); position++) {
+                if (Double.isNaN(childValue(block, position, getter, scratch))) {
+                    count++;
+                }
+            }
+            return count;
+        }
+
+        /** A nullable float64 child: absent values are null, with a zero placeholder in the values buffer. */
         private static void addDoubleChild(
             List<ArrowBuf> bufs,
             List<BufWriter> bufWriters,
@@ -998,17 +1018,28 @@ public abstract class BlockArrowFormatter {
             ToDoubleFunction<TDigestHolder> getter
         ) {
             int positions = block.getPositionCount();
-            bufs.add(dummyArrowBuf(0));
-            bufWriters.add(out -> 0);
+            if (absentCount(block, getter) == 0) {
+                bufs.add(dummyArrowBuf(0));
+                bufWriters.add(out -> 0);
+            } else {
+                bufs.add(dummyArrowBuf(bitSetLength(positions)));
+                bufWriters.add(out -> {
+                    TDigestHolder scratch = new TDigestHolder();
+                    BitSet bits = new BitSet(positions);
+                    for (int position = 0; position < positions; position++) {
+                        if (Double.isNaN(childValue(block, position, getter, scratch)) == false) {
+                            bits.set(position);
+                        }
+                    }
+                    return writeBitSet(out, bits, positions);
+                });
+            }
             bufs.add(dummyArrowBuf((long) positions * Double.BYTES));
             bufWriters.add(out -> {
                 TDigestHolder scratch = new TDigestHolder();
                 for (int position = 0; position < positions; position++) {
-                    if (block.isNull(position)) {
-                        out.writeDoubleLE(Double.NaN);
-                    } else {
-                        out.writeDoubleLE(getter.applyAsDouble(block.getTDigestHolder(block.getFirstValueIndex(position), scratch)));
-                    }
+                    double value = childValue(block, position, getter, scratch);
+                    out.writeDoubleLE(Double.isNaN(value) ? 0 : value);
                 }
                 return (long) positions * Double.BYTES;
             });

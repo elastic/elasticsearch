@@ -370,6 +370,12 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         if (this instanceof VectorBinaryComparison comparison && comparison.filterMode()) {
             return true;
         }
+        // Different metrics stored as separate series never share a series, so no shared per-series aggregate pairs them.
+        if (context.cmd().storesMetricName()
+            && readsDifferentMetrics()
+            && (hasPackedLabels(left().output()) || hasPackedLabels(right().output()))) {
+            return true;
+        }
         // A relabel changes the series' labels, which one shared aggregate does not carry for both operands.
         if (left().anyMatch(MetadataManipulationFunction.class::isInstance)
             || right().anyMatch(MetadataManipulationFunction.class::isInstance)) {
@@ -388,6 +394,23 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
 
     private static boolean hasSourceBackedExpression(LogicalPlan plan) {
         return plan.anyMatch(p -> p instanceof Selector && (p instanceof LiteralSelector) == false);
+    }
+
+    /** Whether the operands select different metrics, each its own set. */
+    private boolean readsDifferentMetrics() {
+        Set<String> leftNames = metricNames(left());
+        Set<String> rightNames = metricNames(right());
+        return leftNames.isEmpty() == false && rightNames.isEmpty() == false && leftNames.equals(rightNames) == false;
+    }
+
+    private static Set<String> metricNames(LogicalPlan plan) {
+        Set<String> names = new HashSet<>();
+        for (Selector selector : plan.collect(Selector.class)) {
+            if (selector instanceof LiteralSelector == false && selector.series() instanceof Attribute series) {
+                names.add(series.name());
+            }
+        }
+        return names;
     }
 
     private static boolean isAcrossSeries(LogicalPlan plan) {
@@ -620,8 +643,9 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         Attribute value = TranslationContext.find(output, cmd.valueColumnName());
         Attribute step = TranslationContext.find(output, cmd.stepColumnName());
         Attribute unionLabels = TranslationContext.find(output, RESULT_LABELS);
-        // The step under the enclosing frame's step identity, so enclosing translations resolve it by id.
-        Alias stepAlias = new Alias(source, step.name(), step, context.stepAttr().id());
+        // The step under an identity of its own: an enclosing join keeps a union's identities as they are (see reidentify), so
+        // it must not share the enclosing frame's.
+        Alias stepAlias = new Alias(source, step.name(), step, new NameId());
         LogicalPlan plan = new Eval(source, union, List.of(stepAlias));
         return finish(context, new LabeledTable(plan, value, stepAlias.toAttribute(), unionLabels));
     }
@@ -718,8 +742,9 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         LogicalPlan plan;
         Expression filter;
         if (left.kind().afterInitialAggregation && right.kind().afterInitialAggregation) {
-            if (outer.containerFunctions() && sharesGrouping(left, right) == false) {
-                // Aggregates over different groupings, such as two different without, pair like any match.
+            if (outer.containerFunctions() && (sharesGrouping(left, right) == false || combines(left) || combines(right))) {
+                // Aggregates over different groupings, such as two different without, or a union or join of operands of its
+                // own, pair like any match.
                 return translateContainerJoin(outer);
             }
             plan = emitBinaryOperatorAggregateExpression(left, right);
@@ -857,6 +882,13 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
     private static IntermediateResult reidentify(PromqlCommand cmd, IntermediateResult input) {
         Map<NameId, NameId> ids = new HashMap<>();
         String valueName = TemporaryNameGenerator.locallyUniqueTemporaryName(cmd.valueColumnName());
+        if (input.plan().anyMatch(UnionAll.class::isInstance)) {
+            // A union keeps its output aligned with its branches by attribute ids, which re-identifying its subtree would
+            // desync; only its value moves under a name of its own.
+            Alias renamed = new Alias(input.valueColumn().source(), valueName, input.valueColumn(), new NameId());
+            LogicalPlan plan = new Eval(cmd.source(), input.plan(), List.of(renamed));
+            return new IntermediateResult(plan, input.schema(), renamed.toAttribute(), input.step(), input.pendingFilter(), input.kind());
+        }
         LogicalPlan plan = input.plan()
             .transformExpressionsDown(Expression.class, e -> reidExpr(renamed(e, cmd.valueColumnName(), valueName), ids));
         Expression value = reidExpr(renamed(input.valueColumn(), cmd.valueColumnName(), valueName), ids);
@@ -983,6 +1015,11 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
             return a.withId(ids.computeIfAbsent(a.id(), k -> new NameId()));
         }
         return e;
+    }
+
+    /** Whether an operand combines pipelines of its own, a union or a join, rather than computing one aggregate. */
+    private static boolean combines(IntermediateResult operand) {
+        return operand.plan().anyMatch(p -> p instanceof UnionAll || p instanceof HashJoin);
     }
 
     /** Whether both operands' aggregates group by the same columns, so they fold into one. */

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -158,9 +159,9 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
     }
 
     /**
-     * @param threadContext when non-null, an async read runs the caller's listener under the security headers of the thread that
-     *                      issued it, and under nothing else, so a completion arriving on a storage-SDK thread does not carry
-     *                      that thread's (empty or stale) identity into whatever the listener runs next
+     * @param threadContext when non-null, an async read runs the caller's listener under the context of the thread that issued it,
+     *                      so a completion arriving on a storage-SDK thread does not carry that thread's (empty or stale) identity
+     *                      into whatever the listener runs next
      */
     RetryableStorageObject(
         StorageObject delegate,
@@ -367,7 +368,7 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
         AtomicReference<InflightSlot> inflight = new AtomicReference<>(InflightSlot.NONE);
         ActionListener<DirectReadBuffer> callerListener = listener;
         if (threadContext != null) {
-            callerListener = SecurityHeadersListener.wrap(threadContext, listener);
+            callerListener = ContextPreservingActionListener.wrapPreservingContext(listener, threadContext);
         }
         readBytesAsyncWithRetry(position, length, factory, executor, callerListener, 0, System.nanoTime(), 0L, 0L, inflight, cancelled);
         return () -> {

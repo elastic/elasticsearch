@@ -71,4 +71,36 @@ record ComputeContext(
             new QueryLoad()
         );
     }
+
+    ComputeContext(
+        String sessionId,
+        TaskId queryId,
+        String description,
+        String clusterAlias,
+        EsqlFlags flags,
+        IndexedByShardId<ComputeSearchContext> searchContexts,
+        Configuration configuration,
+        FoldContext foldCtx,
+        Supplier<ExchangeSource> exchangeSourceSupplier,
+        Supplier<ExchangeSink> exchangeSinkSupplier,
+        boolean singleNodeOptimizations,
+        @Nullable TaskLoadAttribution.Target load
+    ) {
+        this(
+            sessionId,
+            queryId,
+            description,
+            clusterAlias,
+            flags,
+            searchContexts,
+            configuration,
+            foldCtx,
+            exchangeSourceSupplier,
+            exchangeSinkSupplier,
+            singleNodeOptimizations,
+            null,
+            load,
+            new QueryLoad()
+        );
+    }
 }

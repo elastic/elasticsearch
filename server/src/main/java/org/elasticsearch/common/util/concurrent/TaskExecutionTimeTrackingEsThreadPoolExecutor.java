@@ -278,6 +278,11 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
 
     @Override
     protected void beforeExecute(Thread t, Runnable r) {
+        // Scaling pools with core=0 submit this unwrapped noop to wake a worker after ForceQueuePolicy
+        // appends to an empty queue. It is not a timed task.
+        if (r == WORKER_PROBE) {
+            return;
+        }
         if (trackOngoingTasks) {
             ongoingTasks.put(r, System.nanoTime());
         }
@@ -301,6 +306,10 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
 
     @Override
     protected void afterExecute(Runnable r, Throwable t) {
+        if (r == WORKER_PROBE) {
+            super.afterExecute(r, t);
+            return;
+        }
         try {
             super.afterExecute(r, t);
             // A task has been completed, it has left the building. We should now be able to get the

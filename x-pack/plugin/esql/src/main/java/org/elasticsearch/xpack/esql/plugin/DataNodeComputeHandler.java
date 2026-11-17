@@ -2145,7 +2145,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     configuration.newFoldContext(),
                     null,
                     () -> externalSink.createExchangeSink(() -> {}),
-                    false
+                    false,
+                    ComputeService.NO_SHARD_LOAD
                 );
                 computeService.runCompute(
                     task,

@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class VectorFixedBuilderTests extends ESTestCase {
     @ParametersFactory
@@ -54,7 +55,7 @@ public class VectorFixedBuilderTests extends ESTestCase {
 
     public void testCloseWithoutBuilding() {
         BlockFactory blockFactory = BlockFactoryTests.blockFactory(ByteSizeValue.ofGb(1));
-        vectorBuilder(10, blockFactory, false).close();
+        vectorBuilder(elementType, 10, blockFactory, false).close();
         assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
     }
 
@@ -72,9 +73,9 @@ public class VectorFixedBuilderTests extends ESTestCase {
 
     private void testBuild(int size) {
         BlockFactory blockFactory = BlockFactoryTests.blockFactory(ByteSizeValue.ofGb(1));
-        try (Vector.Builder builder = vectorBuilder(size, blockFactory, false)) {
+        try (Vector.Builder builder = vectorBuilder(elementType, size, blockFactory, false)) {
             RandomBlock random = RandomBlock.randomBlock(elementType, size, false, 1, 1, 0, 0);
-            fill(builder, random.block().asVector());
+            fill(elementType, builder, random.block().asVector());
             try (Vector built = builder.build()) {
                 assertThat(built, equalTo(random.block().asVector()));
                 assertThat(blockFactory.breaker().getUsed(), equalTo(built.ramBytesUsed()));
@@ -86,9 +87,9 @@ public class VectorFixedBuilderTests extends ESTestCase {
 
     public void testDoubleBuild() {
         BlockFactory blockFactory = BlockFactoryTests.blockFactory(ByteSizeValue.ofGb(1));
-        try (Vector.Builder builder = vectorBuilder(10, blockFactory, false)) {
+        try (Vector.Builder builder = vectorBuilder(elementType, 10, blockFactory, false)) {
             RandomBlock random = RandomBlock.randomBlock(elementType, 10, false, 1, 1, 0, 0);
-            fill(builder, random.block().asVector());
+            fill(elementType, builder, random.block().asVector());
             try (Vector built = builder.build()) {
                 assertThat(built, equalTo(random.block().asVector()));
             }
@@ -105,9 +106,9 @@ public class VectorFixedBuilderTests extends ESTestCase {
         BlockFactory blockFactory = BlockFactory.builder(bigArrays).build();
         for (int i = 0; i < 100; i++) {
             try {
-                Vector.Builder builder = vectorBuilder(10, blockFactory, randomBoolean());
+                Vector.Builder builder = vectorBuilder(elementType, 10, blockFactory, randomBoolean());
                 RandomBlock random = RandomBlock.randomBlock(elementType, 10, false, 1, 1, 0, 0);
-                fill(builder, random.block().asVector());
+                fill(elementType, builder, random.block().asVector());
                 try (Vector built = builder.build()) {
                     assertThat(built, equalTo(random.block().asVector()));
                 }
@@ -127,9 +128,9 @@ public class VectorFixedBuilderTests extends ESTestCase {
         blockFactory = blockFactory.newChildFactory(localCircuitBreaker);
         for (int i = 0; i < 100; i++) {
             try {
-                Vector.Builder builder = vectorBuilder(10, blockFactory, randomBoolean());
+                Vector.Builder builder = vectorBuilder(elementType, 10, blockFactory, randomBoolean());
                 RandomBlock random = RandomBlock.randomBlock(elementType, 10, false, 1, 1, 0, 0);
-                fill(builder, random.block().asVector());
+                fill(elementType, builder, random.block().asVector());
                 try (Vector built = builder.build()) {
                     assertThat(built, equalTo(random.block().asVector()));
                 }
@@ -149,21 +150,25 @@ public class VectorFixedBuilderTests extends ESTestCase {
         BlockFactory parent = BlockFactoryTests.blockFactory(ByteSizeValue.ofGb(1));
         LocalCircuitBreaker local = new LocalCircuitBreaker(parent.breaker(), 0, 0);
         BlockFactory blockFactory = parent.newChildFactory(local);
-        for (int size : new int[] { 8000, 3000, 5000, 1 }) {
-            try (Vector.Builder builder = vectorBuilder(size, blockFactory, true)) {
-                RandomBlock random = RandomBlock.randomBlock(elementType, size, false, 1, 1, 0, 0);
-                fill(builder, random.block().asVector());
-                try (Vector built = builder.build()) {
-                    assertThat(built, equalTo(random.block().asVector()));
+        long idleBytes = 0;
+        for (ElementType elementType : List.of(ElementType.INT, ElementType.LONG, ElementType.DOUBLE)) {
+            for (int size : new int[] { 3000, 8000, 3000, 5000, 1 }) {
+                try (Vector.Builder builder = vectorBuilder(elementType, size, blockFactory, true)) {
+                    RandomBlock random = RandomBlock.randomBlock(elementType, size, false, 1, 1, 0, 0);
+                    fill(elementType, builder, random.block().asVector());
+                    try (Vector built = builder.build()) {
+                        assertThat(built, equalTo(random.block().asVector()));
+                    }
                 }
+                assertThat(local.pool().idleBytes(), greaterThan(idleBytes));
             }
-            vectorBuilder(size, blockFactory, true).close();
+            idleBytes = local.pool().idleBytes();
         }
         local.close();
         assertThat(parent.breaker().getUsed(), equalTo(0L));
     }
 
-    private Vector.Builder vectorBuilder(int size, BlockFactory blockFactory, boolean enablePooling) {
+    private Vector.Builder vectorBuilder(ElementType elementType, int size, BlockFactory blockFactory, boolean enablePooling) {
         return switch (elementType) {
             case NULL, BYTES_REF, DOC, COMPOSITE, AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, LONG_RANGE, DOUBLE_RANGE,
                 UNKNOWN -> throw new UnsupportedOperationException();
@@ -175,7 +180,7 @@ public class VectorFixedBuilderTests extends ESTestCase {
         };
     }
 
-    private void fill(Vector.Builder builder, Vector from) {
+    private void fill(ElementType elementType, Vector.Builder builder, Vector from) {
         switch (elementType) {
             case NULL, DOC, COMPOSITE, AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, LONG_RANGE, DOUBLE_RANGE, UNKNOWN ->
                 throw new UnsupportedOperationException();

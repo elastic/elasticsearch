@@ -13,6 +13,7 @@ import org.apache.arrow.memory.rounding.RoundingPolicy;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
@@ -604,6 +605,32 @@ public class BlockFactory {
         long preadjusted = ConstantBytesRefVector.ramBytesEstimated(value, bytesRefRamOverestimateThreshold, bytesRefRamOverestimateFactor);
         adjustBreaker(preadjusted);
         var v = new ConstantBytesRefVector(BytesRef.deepCopyOf(value), positions, this);
+        assert v.ramBytesUsed() == preadjusted;
+        return v;
+    }
+
+    /**
+     * Builds a constant vector from a value read through a cursor. The copy is reserved with the breaker before it
+     * is allocated and is filled straight from the cursor's pages, so nothing the size of the value is allocated
+     * without the breaker knowing. Consumes the cursor.
+     */
+    public BytesRefVector newConstantBytesRefVector(PagedBytesCursor value, int positions) {
+        int length = value.remaining();
+        long preadjusted = ConstantBytesRefVector.ramBytesEstimated(
+            length,
+            bytesRefRamOverestimateThreshold,
+            bytesRefRamOverestimateFactor
+        );
+        adjustBreaker(preadjusted);
+        byte[] bytes = new byte[length];
+        BytesRef chunk = new BytesRef();
+        int copied = 0;
+        while (value.remaining() > 0) {
+            value.readPageChunk(chunk);
+            System.arraycopy(chunk.bytes, chunk.offset, bytes, copied, chunk.length);
+            copied += chunk.length;
+        }
+        var v = new ConstantBytesRefVector(new BytesRef(bytes), positions, this);
         assert v.ramBytesUsed() == preadjusted;
         return v;
     }

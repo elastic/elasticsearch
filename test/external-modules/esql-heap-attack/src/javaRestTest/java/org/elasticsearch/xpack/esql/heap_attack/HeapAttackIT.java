@@ -299,7 +299,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
         assertMap(
             map,
             mapMatcher.entry("status", 400)
-                .entry("error", matchesMap().extraOk().entry("reason", "concatenating more than [1048576] bytes is not supported"))
+                .entry("error", matchesMap().extraOk().entry("reason", "concatenating more than [10485760] bytes is not supported"))
         );
     }
 

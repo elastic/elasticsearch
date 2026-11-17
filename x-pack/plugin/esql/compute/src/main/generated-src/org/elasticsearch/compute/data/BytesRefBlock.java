@@ -323,6 +323,12 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
         Builder append(PagedBytesCursor value);
 
         /**
+         * Appends the concatenation of {@code parts} as a single BytesRef, copying each part straight into
+         * this builder so the caller does not have to build the concatenated value first.
+         */
+        Builder appendConcatenated(BytesRef[] parts);
+
+        /**
          * Copy the values in {@code block} from {@code beginInclusive} to
          * {@code endExclusive} into this builder.
          */

@@ -13,7 +13,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings;
+import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingLimits;
 import org.elasticsearch.indices.recovery.RecoveryGateMonitor;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.test.ESTestCase;
@@ -44,31 +44,31 @@ public class DNRTRolloutTests extends ESTestCase {
         assertThat(effectiveValue(clusterSettings, RecoveryGateMonitor.ENABLE_RECOVERY_GATES_SETTING), is(false));
         assertThat(effectiveValue(clusterSettings, RecoveryGateMonitor.RECHECK_INTERVAL_SETTING), equalTo(TimeValue.timeValueSeconds(1)));
         assertThat(
-            effectiveValue(clusterSettings, DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING),
+            effectiveValue(clusterSettings, DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING),
             equalTo(Integer.MAX_VALUE)
         );
         assertThat(
             effectiveValue(
                 clusterSettings,
-                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING
+                DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING
             ),
             equalTo(Double.MAX_VALUE)
         );
         assertThat(
             effectiveValue(
                 clusterSettings,
-                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING
+                DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING
             ).getAsPercent(),
             equalTo(100.0)
         );
         assertThat(
-            effectiveValue(clusterSettings, DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING),
+            effectiveValue(clusterSettings, DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING),
             equalTo(Integer.MAX_VALUE)
         );
         assertThat(
             effectiveValue(
                 clusterSettings,
-                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING
+                DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING
             ),
             equalTo(Double.MAX_VALUE)
         );

@@ -10,11 +10,9 @@ package org.elasticsearch.xpack.stateless.cache;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings;
+import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingLimits;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeout.TimeoutContext;
 
@@ -27,7 +25,7 @@ class RelocationSourceShutdownTimeouts {
 
     private final StatelessSharedBlobCacheService cacheService;
     private final ThreadPool threadPool;
-    private volatile int maxConcurrentRelocationRecoveries;
+    private final DataNodeRecoveryThrottlingLimits dataNodeRecoveryThrottlingLimits;
     private volatile TimeValue searchRecoveryWarmingGracePeriodCap;
     private volatile double searchRecoveryWarmingSourceShutdownShareFactor;
     private volatile double searchRecoveryWarmingCacheRatio;
@@ -37,17 +35,11 @@ class RelocationSourceShutdownTimeouts {
         StatelessSharedBlobCacheService cacheService,
         ThreadPool threadPool,
         ClusterSettings clusterSettings,
-        Settings nodeSettings,
-        ByteSizeValue maxHeap
+        DataNodeRecoveryThrottlingLimits dataNodeRecoveryThrottlingLimits
     ) {
         this.cacheService = cacheService;
         this.threadPool = threadPool;
-        DataNodeRecoveryThrottlingSettings.watchIncomingRecoveryLimits(
-            clusterSettings,
-            nodeSettings,
-            maxHeap,
-            limits -> this.maxConcurrentRelocationRecoveries = limits.maxConcurrentNonCriticalRecoveries()
-        );
+        this.dataNodeRecoveryThrottlingLimits = dataNodeRecoveryThrottlingLimits;
         clusterSettings.initializeAndWatch(
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING,
             value -> this.searchRecoveryWarmingGracePeriodCap = value
@@ -126,6 +118,8 @@ class RelocationSourceShutdownTimeouts {
         final int allRelocationsToTarget = Math.max(1, countRelocationsFromShuttingDownNodesTo(state, targetNodeId));
 
         // Share the target's cap between shutting-down sources, preserving fractional shares below one slot.
+        final int maxConcurrentRelocationRecoveries = dataNodeRecoveryThrottlingLimits.incomingRecoveryLimits()
+            .maxConcurrentNonCriticalRecoveries();
         final double concurrentRelocations = Math.min(
             relocationsFromSourceToTarget,
             (double) maxConcurrentRelocationRecoveries * relocationsFromSourceToTarget / allRelocationsToTarget

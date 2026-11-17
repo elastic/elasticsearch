@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
@@ -33,7 +32,7 @@ import org.elasticsearch.gateway.PriorityComparator;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings.IncomingRecoveryLimits;
+import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingLimits.IncomingRecoveryLimits;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -59,8 +58,8 @@ import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SILENT;
 
 /// Limit the number of concurrent recoveries. Slots are filled when dispatching a recovery task to the executor and
 /// released when the recovery's [RecoveryListener] completes. The max number of concurrent recovery slots is controlled
-/// by the [DataNodeRecoveryThrottlingSettings#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING] dynamic setting.
-/// [DataNodeRecoveryThrottlingSettings#INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING] then
+/// by the [DataNodeRecoveryThrottlingLimits#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING] dynamic setting.
+/// [DataNodeRecoveryThrottlingLimits#INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING] then
 /// controls the max proportion of those concurrent recovery slots that may be used for non-critical recoveries (see
 /// [RecoveryPriority#isCritical()]). Slots above this limit are kept free for critical recoveries.
 ///
@@ -82,7 +81,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     private final ClusterService clusterService;
     private final RecoverySchedulingListener schedulingListener;
     private final RecoveryGateMonitor recoveryGateMonitor;
-    private final ByteSizeValue maxHeap;
+    private final DataNodeRecoveryThrottlingLimits dataNodeRecoveryThrottlingLimits;
     private final AtomicReference<BlockedState> blockedState = new AtomicReference<>();
 
     private final RecoveriesThrottle recoveriesThrottle;
@@ -115,7 +114,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         ClusterService clusterService,
         RecoverySchedulingListener schedulingListener,
         RecoveryGateMonitor recoveryGateMonitor,
-        ByteSizeValue maxHeap
+        DataNodeRecoveryThrottlingLimits dataNodeRecoveryThrottlingLimits
     ) {
         this.executor = threadPool.generic();
         this.threadContext = threadPool.getThreadContext();
@@ -124,19 +123,14 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         this.schedulingListener = schedulingListener;
         this.clusterService = clusterService;
         this.recoveryGateMonitor = recoveryGateMonitor;
-        this.maxHeap = maxHeap;
+        this.dataNodeRecoveryThrottlingLimits = dataNodeRecoveryThrottlingLimits;
         this.recoveriesThrottle = new RecoveriesThrottle();
     }
 
     @Override
     protected void doStart() {
         clusterService.addListener(this);
-        DataNodeRecoveryThrottlingSettings.watchIncomingRecoveryLimits(
-            clusterService.getClusterSettings(),
-            clusterService.getSettings(),
-            maxHeap,
-            this::applyIncomingRecoveryLimits
-        );
+        dataNodeRecoveryThrottlingLimits.addIncomingRecoveryLimitsConsumer(this::applyIncomingRecoveryLimits);
     }
 
     /// Enqueues a recovery task and/or dispatches it to the executor if there are any available slots.

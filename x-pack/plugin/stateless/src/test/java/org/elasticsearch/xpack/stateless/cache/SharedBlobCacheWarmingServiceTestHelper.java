@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingLimits;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.WarmTarget;
@@ -53,8 +54,7 @@ public final class SharedBlobCacheWarmingServiceTestHelper {
                 cacheService,
                 threadPool,
                 clusterSettings,
-                onlyRole(DiscoveryNodeRole.SEARCH_ROLE),
-                ByteSizeValue.ZERO
+                new DataNodeRecoveryThrottlingLimits(clusterSettings, onlyRole(DiscoveryNodeRole.SEARCH_ROLE), ByteSizeValue.ZERO)
             )
         ) {
             @Override

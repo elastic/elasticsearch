@@ -49,9 +49,7 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
             () -> 0L,
             () -> false,
             () -> 0L,
-            ClusterSettings.createBuiltInClusterSettings(),
-            Settings.EMPTY,
-            ByteSizeValue.ZERO
+            new DataNodeRecoveryThrottlingLimits(ClusterSettings.createBuiltInClusterSettings(), Settings.EMPTY, ByteSizeValue.ZERO)
         );
         collector.doStart();
         final String gateName = randomIdentifier();
@@ -96,9 +94,7 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
                 () -> 0L,
                 hasPendingRecoveries::get,
                 relativeTimeMillis::get,
-                ClusterSettings.createBuiltInClusterSettings(),
-                Settings.EMPTY,
-                ByteSizeValue.ZERO
+                new DataNodeRecoveryThrottlingLimits(ClusterSettings.createBuiltInClusterSettings(), Settings.EMPTY, ByteSizeValue.ZERO)
             )
         ) {
             collector.doStart();
@@ -137,7 +133,7 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
 
     private void doTestIncomingRecoveryLimitsMetrics(Settings nodeSettings, boolean expectHeapBasedLimit) {
         final var telemetryPlugin = new TestTelemetryPlugin();
-        final var clusterSettings = new ClusterSettings(Settings.EMPTY, Set.copyOf(DataNodeRecoveryThrottlingSettings.settings()));
+        final var clusterSettings = new ClusterSettings(Settings.EMPTY, Set.copyOf(DataNodeRecoveryThrottlingLimits.settings()));
         final int heapGb = between(1, 64);
         try (
             var collector = new RecoveryMetricsCollector(
@@ -146,9 +142,7 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
                 () -> 0L,
                 () -> false,
                 () -> 0L,
-                clusterSettings,
-                nodeSettings,
-                ByteSizeValue.ofGb(heapGb)
+                new DataNodeRecoveryThrottlingLimits(clusterSettings, nodeSettings, ByteSizeValue.ofGb(heapGb))
             )
         ) {
             collector.doStart();
@@ -162,16 +156,16 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
                 clusterSettings.applySettings(
                     Settings.builder()
                         .put(
-                            DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
+                            DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
                             maxConcurrent
                         )
                         .put(
-                            DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING
+                            DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING
                                 .getKey(),
                             perHeapGb
                         )
                         .put(
-                            DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING
+                            DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING
                                 .getKey(),
                             nonCriticalPercent + "%"
                         )
@@ -191,7 +185,7 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
 
     public void testOutgoingRecoveryLimitMetric() {
         final var telemetryPlugin = new TestTelemetryPlugin();
-        final var clusterSettings = new ClusterSettings(Settings.EMPTY, Set.copyOf(DataNodeRecoveryThrottlingSettings.settings()));
+        final var clusterSettings = new ClusterSettings(Settings.EMPTY, Set.copyOf(DataNodeRecoveryThrottlingLimits.settings()));
         final int heapGb = between(1, 64);
         try (
             var collector = new RecoveryMetricsCollector(
@@ -200,9 +194,7 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
                 () -> 0L,
                 () -> false,
                 () -> 0L,
-                clusterSettings,
-                Settings.EMPTY,
-                ByteSizeValue.ofGb(heapGb)
+                new DataNodeRecoveryThrottlingLimits(clusterSettings, Settings.EMPTY, ByteSizeValue.ofGb(heapGb))
             )
         ) {
             collector.doStart();
@@ -215,11 +207,11 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
                 clusterSettings.applySettings(
                     Settings.builder()
                         .put(
-                            DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(),
+                            DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(),
                             maxConcurrent
                         )
                         .put(
-                            DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING
+                            DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING
                                 .getKey(),
                             perHeapGb
                         )
@@ -239,9 +231,11 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
                 () -> 0L,
                 () -> false,
                 () -> 0L,
-                ClusterSettings.createBuiltInClusterSettings(),
-                Settings.EMPTY,
-                ByteSizeValue.ofGb(between(1, 64))
+                new DataNodeRecoveryThrottlingLimits(
+                    ClusterSettings.createBuiltInClusterSettings(),
+                    Settings.EMPTY,
+                    ByteSizeValue.ofGb(between(1, 64))
+                )
             )
         ) {
             collector.doStart();

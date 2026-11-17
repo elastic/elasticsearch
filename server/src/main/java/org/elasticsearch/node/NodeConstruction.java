@@ -160,6 +160,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
+import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingLimits;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryGateMonitor;
@@ -971,13 +972,18 @@ class NodeConstruction {
             threadPool,
             clusterService.getClusterSettings()
         );
+        final DataNodeRecoveryThrottlingLimits dataNodeRecoveryThrottlingLimits = new DataNodeRecoveryThrottlingLimits(
+            clusterService.getClusterSettings(),
+            clusterService.getSettings(),
+            JvmInfo.jvmInfo().getMem().getHeapMax()
+        );
         final ThrottlingRecoveryService throttlingRecoveryService = new ThrottlingRecoveryService(
             threadPool,
             projectResolver,
             clusterService,
             recoverySchedulingListeners,
             recoveryGateMonitor,
-            JvmInfo.jvmInfo().getMem().getHeapMax()
+            dataNodeRecoveryThrottlingLimits
         );
 
         IndicesService indicesService = new IndicesServiceBuilder().settings(settings)
@@ -1136,7 +1142,8 @@ class NodeConstruction {
             taskLifecycleManager,
             dlmErrorStore,
             ipLocationService,
-            usageService
+            usageService,
+            dataNodeRecoveryThrottlingLimits
         );
 
         Collection<?> pluginComponents = pluginsService.flatMap(plugin -> {
@@ -1447,9 +1454,7 @@ class NodeConstruction {
                 telemetryProvider,
                 throttlingRecoveryService,
                 threadPool.relativeTimeInMillisSupplier(),
-                clusterService.getClusterSettings(),
-                clusterService.getSettings(),
-                JvmInfo.jvmInfo().getMem().getHeapMax()
+                dataNodeRecoveryThrottlingLimits
             );
             recoverySchedulingListeners.addListener(recoveryMetricsCollector);
             final PeerRecoverySourceService peerRecovery = new PeerRecoverySourceService(

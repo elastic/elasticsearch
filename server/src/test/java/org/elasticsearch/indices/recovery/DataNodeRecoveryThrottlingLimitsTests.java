@@ -14,29 +14,30 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
-import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings.IncomingRecoveryLimits;
+import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingLimits.IncomingRecoveryLimits;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING;
-import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING;
-import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING;
-import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING;
-import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING;
-import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings.appliesIncomingHeapBasedLimit;
-import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings.effectiveMaxConcurrentRecoveries;
-import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings.incomingRecoveryLimits;
+import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING;
+import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING;
+import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING;
+import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING;
+import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING;
+import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingLimits.appliesIncomingHeapBasedLimit;
+import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingLimits.computeEffectiveMaxConcurrentRecoveries;
+import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingLimits.computeIncomingRecoveryLimits;
 import static org.elasticsearch.test.NodeRoles.addRoles;
 import static org.elasticsearch.test.NodeRoles.indexOnlyNode;
 import static org.elasticsearch.test.NodeRoles.onlyRole;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 
-public class DataNodeRecoveryThrottlingSettingsTests extends ESTestCase {
+public class DataNodeRecoveryThrottlingLimitsTests extends ESTestCase {
 
     public void testHeapBasedLimitRejectsZero() {
         expectThrows(
@@ -64,17 +65,17 @@ public class DataNodeRecoveryThrottlingSettingsTests extends ESTestCase {
         final int maxConcurrent = randomIntBetween(1, 100);
         // Unknown heap size, only the static limit applies.
         assertThat(
-            effectiveMaxConcurrentRecoveries(maxConcurrent, randomDoubleBetween(0.1, 10, true), ByteSizeValue.ZERO, true),
+            computeEffectiveMaxConcurrentRecoveries(maxConcurrent, randomDoubleBetween(0.1, 10, true), ByteSizeValue.ZERO, true),
             equalTo(maxConcurrent)
         );
 
-        assertThat(effectiveMaxConcurrentRecoveries(100, 1.25, ByteSizeValue.ofGb(4), true), equalTo(5));
-        assertThat(effectiveMaxConcurrentRecoveries(3, 1.25, ByteSizeValue.ofGb(4), true), equalTo(3));
+        assertThat(computeEffectiveMaxConcurrentRecoveries(100, 1.25, ByteSizeValue.ofGb(4), true), equalTo(5));
+        assertThat(computeEffectiveMaxConcurrentRecoveries(3, 1.25, ByteSizeValue.ofGb(4), true), equalTo(3));
 
         // The heap-based limit rounds up, so the smallest allowed ratio still allows one recovery.
-        assertThat(effectiveMaxConcurrentRecoveries(100, Double.MIN_NORMAL, ByteSizeValue.ofGb(4), true), equalTo(1));
+        assertThat(computeEffectiveMaxConcurrentRecoveries(100, Double.MIN_NORMAL, ByteSizeValue.ofGb(4), true), equalTo(1));
         assertThat(
-            effectiveMaxConcurrentRecoveries(maxConcurrent, Double.MAX_VALUE, ByteSizeValue.ofGb(randomIntBetween(1, 64)), true),
+            computeEffectiveMaxConcurrentRecoveries(maxConcurrent, Double.MAX_VALUE, ByteSizeValue.ofGb(randomIntBetween(1, 64)), true),
             equalTo(maxConcurrent)
         );
     }
@@ -83,7 +84,7 @@ public class DataNodeRecoveryThrottlingSettingsTests extends ESTestCase {
         final int maxConcurrent = randomIntBetween(1, 100);
         // Only the static limit applies, whatever the heap and ratio.
         assertThat(
-            effectiveMaxConcurrentRecoveries(
+            computeEffectiveMaxConcurrentRecoveries(
                 maxConcurrent,
                 randomFrom(Double.MIN_NORMAL, randomDoubleBetween(0.1, 10, true)),
                 randomFrom(ByteSizeValue.ZERO, ByteSizeValue.ofGb(randomIntBetween(1, 64))),
@@ -95,12 +96,12 @@ public class DataNodeRecoveryThrottlingSettingsTests extends ESTestCase {
 
     public void testIncomingRecoveryLimits() {
         assertThat(
-            incomingRecoveryLimits(100, 1.25, RatioValue.ofPercent(50), ByteSizeValue.ofGb(4), true),
+            computeIncomingRecoveryLimits(100, 1.25, RatioValue.ofPercent(50), ByteSizeValue.ofGb(4), true),
             equalTo(new IncomingRecoveryLimits(5, 3))
         );
         // Without the heap-based limit, only the static limit applies, whatever the heap and ratio.
         assertThat(
-            incomingRecoveryLimits(
+            computeIncomingRecoveryLimits(
                 32,
                 randomFrom(Double.MIN_NORMAL, randomDoubleBetween(0.1, 10, true)),
                 RatioValue.ofPercent(50),
@@ -110,14 +111,14 @@ public class DataNodeRecoveryThrottlingSettingsTests extends ESTestCase {
             equalTo(new IncomingRecoveryLimits(32, 16))
         );
         assertThat(
-            incomingRecoveryLimits(10, Double.MAX_VALUE, RatioValue.ofPercent(Double.MIN_NORMAL), ByteSizeValue.ZERO, true),
+            computeIncomingRecoveryLimits(10, Double.MAX_VALUE, RatioValue.ofPercent(Double.MIN_NORMAL), ByteSizeValue.ZERO, true),
             equalTo(new IncomingRecoveryLimits(10, 1))
         );
         // Default settings are unbounded, whether the heap-based limit applies or not, and whether the heap size is known or not.
         for (final var maxHeap : List.of(ByteSizeValue.ZERO, ByteSizeValue.ofGb(randomIntBetween(1, 64)))) {
             for (final boolean applyHeapBasedLimit : new boolean[] { true, false }) {
                 assertThat(
-                    incomingRecoveryLimits(
+                    computeIncomingRecoveryLimits(
                         INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getDefault(Settings.EMPTY),
                         INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getDefault(Settings.EMPTY),
                         INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING.getDefault(Settings.EMPTY),
@@ -137,15 +138,17 @@ public class DataNodeRecoveryThrottlingSettingsTests extends ESTestCase {
         assertFalse(appliesIncomingHeapBasedLimit(addRoles(Set.of(DiscoveryNodeRole.SEARCH_ROLE))));
     }
 
-    public void testWatchIncomingRecoveryLimits() {
+    public void testAddIncomingRecoveryLimitsConsumer() {
         final var registeredSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        registeredSettings.addAll(DataNodeRecoveryThrottlingSettings.settings());
+        registeredSettings.addAll(DataNodeRecoveryThrottlingLimits.settings());
         final var clusterSettings = new ClusterSettings(
             Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 4).build(),
             registeredSettings
         );
         final List<IncomingRecoveryLimits> observed = new ArrayList<>();
-        DataNodeRecoveryThrottlingSettings.watchIncomingRecoveryLimits(clusterSettings, Settings.EMPTY, ByteSizeValue.ZERO, observed::add);
+        new DataNodeRecoveryThrottlingLimits(clusterSettings, Settings.EMPTY, ByteSizeValue.ZERO).addIncomingRecoveryLimitsConsumer(
+            observed::add
+        );
         assertThat(observed, contains(new IncomingRecoveryLimits(4, 4)));
 
         // Both settings change in a single update, which is applied atomically.
@@ -158,21 +161,20 @@ public class DataNodeRecoveryThrottlingSettingsTests extends ESTestCase {
         assertThat(observed, contains(new IncomingRecoveryLimits(4, 4), new IncomingRecoveryLimits(6, 3)));
     }
 
-    public void testWatchIncomingRecoveryLimitsWhenSettingsAreNotRegistered() {
+    public void testAddIncomingRecoveryLimitsConsumerWhenSettingsAreNotRegistered() {
         final var clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final List<IncomingRecoveryLimits> observed = new ArrayList<>();
-        DataNodeRecoveryThrottlingSettings.watchIncomingRecoveryLimits(
+        new DataNodeRecoveryThrottlingLimits(
             clusterSettings,
             randomFrom(Settings.EMPTY, indexOnlyNode(Settings.EMPTY), onlyRole(DiscoveryNodeRole.SEARCH_ROLE)),
-            randomFrom(ByteSizeValue.ZERO, ByteSizeValue.ofGb(randomIntBetween(1, 64))),
-            observed::add
-        );
+            randomFrom(ByteSizeValue.ZERO, ByteSizeValue.ofGb(randomIntBetween(1, 64)))
+        ).addIncomingRecoveryLimitsConsumer(observed::add);
         assertThat(observed, contains(IncomingRecoveryLimits.UNBOUNDED));
     }
 
-    public void testWatchIncomingRecoveryAppliesHeapBasedLimitBasedOnNodeRole() {
+    public void testIncomingRecoveryLimitsApplyHeapBasedLimitBasedOnNodeRole() {
         final var registeredSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        registeredSettings.addAll(DataNodeRecoveryThrottlingSettings.settings());
+        registeredSettings.addAll(DataNodeRecoveryThrottlingLimits.settings());
         final var throttleSettings = Settings.builder()
             .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 32)
             .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(), 1.5)
@@ -180,12 +182,11 @@ public class DataNodeRecoveryThrottlingSettingsTests extends ESTestCase {
             .build();
 
         final List<IncomingRecoveryLimits> indexNodeObserved = new ArrayList<>();
-        DataNodeRecoveryThrottlingSettings.watchIncomingRecoveryLimits(
+        new DataNodeRecoveryThrottlingLimits(
             new ClusterSettings(throttleSettings, registeredSettings),
             indexOnlyNode(Settings.EMPTY),
-            ByteSizeValue.ofGb(4),
-            indexNodeObserved::add
-        );
+            ByteSizeValue.ofGb(4)
+        ).addIncomingRecoveryLimitsConsumer(indexNodeObserved::add);
         assertThat(indexNodeObserved, contains(new IncomingRecoveryLimits(6, 3)));
 
         // The heap-based limit does not apply to search nodes, whatever the heap and ratio.
@@ -200,12 +201,11 @@ public class DataNodeRecoveryThrottlingSettingsTests extends ESTestCase {
             registeredSettings
         );
         final List<IncomingRecoveryLimits> searchNodeObserved = new ArrayList<>();
-        DataNodeRecoveryThrottlingSettings.watchIncomingRecoveryLimits(
+        new DataNodeRecoveryThrottlingLimits(
             clusterSettings,
             onlyRole(DiscoveryNodeRole.SEARCH_ROLE),
-            randomFrom(ByteSizeValue.ZERO, ByteSizeValue.ofGb(randomIntBetween(1, 64))),
-            searchNodeObserved::add
-        );
+            randomFrom(ByteSizeValue.ZERO, ByteSizeValue.ofGb(randomIntBetween(1, 64)))
+        ).addIncomingRecoveryLimitsConsumer(searchNodeObserved::add);
         assertThat(searchNodeObserved, contains(new IncomingRecoveryLimits(32, 16)));
         clusterSettings.applySettings(
             Settings.builder()
@@ -220,15 +220,17 @@ public class DataNodeRecoveryThrottlingSettingsTests extends ESTestCase {
         assertThat(searchNodeObserved, contains(new IncomingRecoveryLimits(32, 16), new IncomingRecoveryLimits(20, 10)));
     }
 
-    public void testWatchOutgoingRecoveryLimit() {
+    public void testAddOutgoingRecoveryLimitConsumer() {
         final var registeredSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        registeredSettings.addAll(DataNodeRecoveryThrottlingSettings.settings());
+        registeredSettings.addAll(DataNodeRecoveryThrottlingLimits.settings());
         final var clusterSettings = new ClusterSettings(
             Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 4).build(),
             registeredSettings
         );
         final List<Integer> observed = new ArrayList<>();
-        DataNodeRecoveryThrottlingSettings.watchOutgoingRecoveryLimit(clusterSettings, ByteSizeValue.ofGb(2), observed::add);
+        new DataNodeRecoveryThrottlingLimits(clusterSettings, Settings.EMPTY, ByteSizeValue.ofGb(2)).addOutgoingRecoveryLimitConsumer(
+            observed::add
+        );
         assertThat(observed, contains(4));
         clusterSettings.applySettings(
             Settings.builder()
@@ -249,10 +251,79 @@ public class DataNodeRecoveryThrottlingSettingsTests extends ESTestCase {
         assertThat(observed, contains(4, 3));
     }
 
-    public void testWatchOutgoingRecoveryLimitWhenSettingsAreNotRegistered() {
+    public void testAddOutgoingRecoveryLimitConsumerWhenSettingsAreNotRegistered() {
         final var clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final List<Integer> observed = new ArrayList<>();
-        DataNodeRecoveryThrottlingSettings.watchOutgoingRecoveryLimit(clusterSettings, ByteSizeValue.ofGb(4), observed::add);
+        new DataNodeRecoveryThrottlingLimits(clusterSettings, Settings.EMPTY, ByteSizeValue.ofGb(4)).addOutgoingRecoveryLimitConsumer(
+            observed::add
+        );
         assertThat(observed, contains(Integer.MAX_VALUE));
+    }
+
+    public void testGettersReflectSettingsUpdates() {
+        final var clusterSettings = clusterSettingsWithDataNodeSettingsRegistered(
+            Settings.builder()
+                .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 4)
+                .put(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 3)
+                .build()
+        );
+        final var limits = new DataNodeRecoveryThrottlingLimits(clusterSettings, Settings.EMPTY, ByteSizeValue.ofGb(2));
+        assertThat(limits.incomingRecoveryLimits(), equalTo(new IncomingRecoveryLimits(4, 4)));
+        assertThat(limits.outgoingRecoveryLimit(), equalTo(3));
+
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 6)
+                .put(INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING.getKey(), "50%")
+                .put(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 5)
+                .build()
+        );
+        assertThat(limits.incomingRecoveryLimits(), equalTo(new IncomingRecoveryLimits(6, 3)));
+        assertThat(limits.outgoingRecoveryLimit(), equalTo(5));
+    }
+
+    /// Every consumer registered with the add methods is notified, and sees the getters already updated.
+    public void testConsumersAreNotifiedAfterGettersAreUpdated() {
+        final var clusterSettings = clusterSettingsWithDataNodeSettingsRegistered(Settings.EMPTY);
+        final var limits = new DataNodeRecoveryThrottlingLimits(clusterSettings, Settings.EMPTY, ByteSizeValue.ZERO);
+        final List<IncomingRecoveryLimits> incomingObserved = new ArrayList<>();
+        final List<Integer> outgoingObserved = new ArrayList<>();
+        final int watcherCount = between(1, 3);
+        for (int i = 0; i < watcherCount; i++) {
+            limits.addIncomingRecoveryLimitsConsumer(newLimits -> {
+                assertThat(limits.incomingRecoveryLimits(), equalTo(newLimits));
+                incomingObserved.add(newLimits);
+            });
+            limits.addOutgoingRecoveryLimitConsumer(newLimit -> {
+                assertThat(limits.outgoingRecoveryLimit(), equalTo(newLimit));
+                outgoingObserved.add(newLimit);
+            });
+        }
+        assertThat(incomingObserved, equalTo(Collections.nCopies(watcherCount, IncomingRecoveryLimits.UNBOUNDED)));
+        assertThat(outgoingObserved, equalTo(Collections.nCopies(watcherCount, Integer.MAX_VALUE)));
+
+        incomingObserved.clear();
+        outgoingObserved.clear();
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 2)
+                .put(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 7)
+                .build()
+        );
+        assertThat(incomingObserved, equalTo(Collections.nCopies(watcherCount, new IncomingRecoveryLimits(2, 2))));
+        assertThat(outgoingObserved, equalTo(Collections.nCopies(watcherCount, 7)));
+    }
+
+    public void testGettersWhenSettingsAreNotRegistered() {
+        final var clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        final var limits = new DataNodeRecoveryThrottlingLimits(clusterSettings, Settings.EMPTY, ByteSizeValue.ofGb(4));
+        assertThat(limits.incomingRecoveryLimits(), equalTo(IncomingRecoveryLimits.UNBOUNDED));
+        assertThat(limits.outgoingRecoveryLimit(), equalTo(Integer.MAX_VALUE));
+    }
+
+    private static ClusterSettings clusterSettingsWithDataNodeSettingsRegistered(Settings settings) {
+        final var registeredSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        registeredSettings.addAll(DataNodeRecoveryThrottlingLimits.settings());
+        return new ClusterSettings(settings, registeredSettings);
     }
 }

@@ -78,9 +78,9 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toSet;
-import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING;
-import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING;
-import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING;
+import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING;
+import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING;
+import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING;
 import static org.elasticsearch.indices.recovery.FailureStrategy.ABORT;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SEND;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SILENT;
@@ -639,7 +639,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             clusterService,
             RecoverySchedulingListener.NOOP,
             monitorWithNoGates(taskQueue.getThreadPool()),
-            ByteSizeValue.ZERO
+            new DataNodeRecoveryThrottlingLimits(clusterService.getClusterSettings(), clusterService.getSettings(), ByteSizeValue.ZERO)
         );
         service.start();
         final var started = new AtomicInteger();
@@ -683,7 +683,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             clusterService,
             RecoverySchedulingListener.NOOP,
             monitorWithNoGates(taskQueue.getThreadPool()),
-            heapBytes
+            new DataNodeRecoveryThrottlingLimits(clusterService.getClusterSettings(), clusterService.getSettings(), heapBytes)
         );
         service.start();
         final var started = new AtomicInteger();
@@ -728,7 +728,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             clusterService,
             RecoverySchedulingListener.NOOP,
             monitorWithNoGates(taskQueue.getThreadPool()),
-            heapBytes
+            new DataNodeRecoveryThrottlingLimits(clusterService.getClusterSettings(), clusterService.getSettings(), heapBytes)
         );
         service.start();
         final var started = new AtomicInteger();
@@ -775,7 +775,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             clusterService,
             RecoverySchedulingListener.NOOP,
             monitorWithNoGates(taskQueue.getThreadPool()),
-            heapBytes
+            new DataNodeRecoveryThrottlingLimits(clusterService.getClusterSettings(), clusterService.getSettings(), heapBytes)
         );
         service.start();
         final var started = new AtomicInteger();
@@ -819,7 +819,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             clusterService,
             RecoverySchedulingListener.NOOP,
             monitorWithNoGates(taskQueue.getThreadPool()),
-            heapBytes
+            new DataNodeRecoveryThrottlingLimits(clusterService.getClusterSettings(), clusterService.getSettings(), heapBytes)
         );
         service.start();
         final var started = new AtomicInteger();
@@ -879,7 +879,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             clusterService,
             RecoverySchedulingListener.NOOP,
             monitorWithNoGates(threadPool),
-            heapBytes
+            new DataNodeRecoveryThrottlingLimits(clusterService.getClusterSettings(), clusterService.getSettings(), heapBytes)
         );
         service.start();
         final var started = new AtomicInteger();
@@ -940,7 +940,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             clusterService,
             RecoverySchedulingListener.NOOP,
             monitorWithNoGates(taskQueue.getThreadPool()),
-            heapBytes
+            new DataNodeRecoveryThrottlingLimits(clusterService.getClusterSettings(), clusterService.getSettings(), heapBytes)
         );
         service.start();
         final var started = new AtomicInteger();
@@ -1001,7 +1001,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             clusterService,
             RecoverySchedulingListener.NOOP,
             monitorWithNoGates(taskQueue.getThreadPool()),
-            heapBytes
+            new DataNodeRecoveryThrottlingLimits(clusterService.getClusterSettings(), clusterService.getSettings(), heapBytes)
         );
         service.start();
         final var started = new AtomicInteger();
@@ -1053,7 +1053,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             clusterService,
             RecoverySchedulingListener.NOOP,
             monitorWithNoGates(taskQueue.getThreadPool()),
-            ByteSizeValue.ofGb(1)
+            new DataNodeRecoveryThrottlingLimits(clusterService.getClusterSettings(), clusterService.getSettings(), ByteSizeValue.ofGb(1))
         );
         service.start();
         final Set<RecoveryListener> runningRecoveries = new HashSet<>();
@@ -1970,13 +1970,18 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             gateEvaluations.incrementAndGet();
             return gateDecision.get();
         };
+        final var clusterService = newClusterService(Integer.MAX_VALUE); // plenty of slots, so only the gate can hold recoveries back
         final var service = new ThrottlingRecoveryService(
             taskQueue.getThreadPool(),
             DefaultProjectResolver.INSTANCE,
-            newClusterService(Integer.MAX_VALUE), // plenty of slots, so only the gate can hold recoveries back
+            clusterService,
             RecoverySchedulingListener.NOOP,
             new RecoveryGateMonitor(() -> List.of(gate), taskQueue.getThreadPool(), clusterSettingsWithGatesEnabled()),
-            ByteSizeValue.ofBytes(Long.MAX_VALUE)
+            new DataNodeRecoveryThrottlingLimits(
+                clusterService.getClusterSettings(),
+                clusterService.getSettings(),
+                ByteSizeValue.ofBytes(Long.MAX_VALUE)
+            )
         );
         service.start();
 
@@ -2037,13 +2042,18 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
     public void testEmptyGateDispatchesImmediately() {
         final var taskQueue = new DeterministicTaskQueue();
+        final var clusterService = newClusterService(Integer.MAX_VALUE);
         final var service = new ThrottlingRecoveryService(
             taskQueue.getThreadPool(),
             DefaultProjectResolver.INSTANCE,
-            newClusterService(Integer.MAX_VALUE),
+            clusterService,
             RecoverySchedulingListener.NOOP,
             monitorWithNoGates(taskQueue.getThreadPool()),
-            ByteSizeValue.ofBytes(Long.MAX_VALUE)
+            new DataNodeRecoveryThrottlingLimits(
+                clusterService.getClusterSettings(),
+                clusterService.getSettings(),
+                ByteSizeValue.ofBytes(Long.MAX_VALUE)
+            )
         );
         service.start();
         final var started = new AtomicInteger();
@@ -2093,13 +2103,18 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             taskQueue.getThreadPool(),
             clusterSettingsWithGatesEnabled()
         );
+        final var clusterService = newClusterService(Integer.MAX_VALUE); // plenty of slots, so only the gate can hold recoveries back
         final var service = new ThrottlingRecoveryService(
             taskQueue.getThreadPool(),
             DefaultProjectResolver.INSTANCE,
-            newClusterService(Integer.MAX_VALUE), // plenty of slots, so only the gate can hold recoveries back
+            clusterService,
             listener,
             recoveryGateMonitor,
-            ByteSizeValue.ofBytes(Long.MAX_VALUE)
+            new DataNodeRecoveryThrottlingLimits(
+                clusterService.getClusterSettings(),
+                clusterService.getSettings(),
+                ByteSizeValue.ofBytes(Long.MAX_VALUE)
+            )
         );
         service.start();
 
@@ -2162,13 +2177,18 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var clusterSettings = clusterSettingsWithGatesEnabled();
         // This gate never unblocks by itself: only disabling the gates can release the held recoveries.
         final RecoveryGate gate = () -> RecoveryGate.Decision.block("stuck", "never unblocks");
+        final var clusterService = newClusterService(Integer.MAX_VALUE); // plenty of slots, so only the gate can hold recoveries back
         final var service = new ThrottlingRecoveryService(
             taskQueue.getThreadPool(),
             DefaultProjectResolver.INSTANCE,
-            newClusterService(Integer.MAX_VALUE), // plenty of slots, so only the gate can hold recoveries back
+            clusterService,
             listener,
             new RecoveryGateMonitor(() -> List.of(gate), taskQueue.getThreadPool(), clusterSettings),
-            ByteSizeValue.ofBytes(Long.MAX_VALUE)
+            new DataNodeRecoveryThrottlingLimits(
+                clusterService.getClusterSettings(),
+                clusterService.getSettings(),
+                ByteSizeValue.ofBytes(Long.MAX_VALUE)
+            )
         );
         service.start();
 
@@ -2213,13 +2233,18 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
     public void testConcurrentEnqueuesWithFlappingGateEventuallyDispatchEverything() throws Exception {
         final var gateDecision = new AtomicReference<>(RecoveryGate.Decision.RUN);
         final RecoveryGate gate = gateDecision::get;
+        final var clusterService = newClusterService(randomBoolean() ? Integer.MAX_VALUE : between(1, 5));
         final var service = new ThrottlingRecoveryService(
             threadPool,
             DefaultProjectResolver.INSTANCE,
-            newClusterService(randomBoolean() ? Integer.MAX_VALUE : between(1, 5)),
+            clusterService,
             RecoverySchedulingListener.NOOP,
             new RecoveryGateMonitor(() -> List.of(gate), threadPool, clusterSettingsWithGatesEnabled()),
-            ByteSizeValue.ofBytes(Long.MAX_VALUE)
+            new DataNodeRecoveryThrottlingLimits(
+                clusterService.getClusterSettings(),
+                clusterService.getSettings(),
+                ByteSizeValue.ofBytes(Long.MAX_VALUE)
+            )
         );
         service.start();
 
@@ -2801,14 +2826,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
     private static ClusterService newClusterService(Settings settings) {
         ClusterService clusterService = mock(ClusterService.class);
-        ClusterSettings clusterSettings = new ClusterSettings(
-            settings,
-            Set.of(
-                INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING,
-                INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING,
-                INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING
-            )
-        );
+        ClusterSettings clusterSettings = new ClusterSettings(settings, Set.copyOf(DataNodeRecoveryThrottlingLimits.settings()));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         when(clusterService.getSettings()).thenReturn(settings);
         when(clusterService.localNode()).thenReturn(localNode);
@@ -2826,7 +2844,11 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             clusterService,
             RecoverySchedulingListener.NOOP,
             monitorWithNoGates(threadPool),
-            ByteSizeValue.ofBytes(Long.MAX_VALUE)
+            new DataNodeRecoveryThrottlingLimits(
+                clusterService.getClusterSettings(),
+                clusterService.getSettings(),
+                ByteSizeValue.ofBytes(Long.MAX_VALUE)
+            )
         );
         service.start();
         return service;

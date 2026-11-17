@@ -48,6 +48,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingLimits;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -1850,8 +1851,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                     cacheService,
                     threadPool,
                     clusterSettings,
-                    nodeSettings,
-                    JvmInfo.jvmInfo().getMem().getHeapMax()
+                    // Separate instance, since this override cannot reach the node's DataNodeRecoveryThrottlingLimits.
+                    new DataNodeRecoveryThrottlingLimits(clusterSettings, nodeSettings, JvmInfo.jvmInfo().getMem().getHeapMax())
                 )
             );
         }
@@ -1924,10 +1925,9 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             StatelessSharedBlobCacheService cacheService,
             ThreadPool threadPool,
             ClusterSettings clusterSettings,
-            Settings nodeSettings,
-            ByteSizeValue maxHeap
+            DataNodeRecoveryThrottlingLimits dataNodeRecoveryThrottlingLimits
         ) {
-            super(cacheService, threadPool, clusterSettings, nodeSettings, maxHeap);
+            super(cacheService, threadPool, clusterSettings, dataNodeRecoveryThrottlingLimits);
         }
 
         @Override

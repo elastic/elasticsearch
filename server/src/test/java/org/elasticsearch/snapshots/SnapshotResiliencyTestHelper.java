@@ -134,6 +134,7 @@ import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
+import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingLimits;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryFeatures;
@@ -756,7 +757,11 @@ public class SnapshotResiliencyTestHelper {
                     clusterService,
                     RecoverySchedulingListener.NOOP,
                     new RecoveryGateMonitor(List::of, threadPool, clusterService.getClusterSettings()),
-                    ByteSizeValue.ofBytes(Long.MAX_VALUE)
+                    new DataNodeRecoveryThrottlingLimits(
+                        clusterService.getClusterSettings(),
+                        clusterService.getSettings(),
+                        ByteSizeValue.ofBytes(Long.MAX_VALUE)
+                    )
                 );
 
                 indicesService = new IndicesServiceBuilder().settings(settings)

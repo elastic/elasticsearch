@@ -38,7 +38,7 @@ import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings;
+import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingLimits;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -79,7 +79,7 @@ import static org.hamcrest.Matchers.hasKey;
 ///
 /// The heap of the test nodes depends on the test JVM, so the tests enabling a heap-based limit set their per-heap-GB
 /// ratio to [#MIN_PER_HEAP_GB]. The heap-based limit `ceil(heapGb * perHeapGb)` is then 1 whatever the heap. Unit tests
-/// in `ThrottlingRecoveryServiceTests` and `DataNodeRecoveryThrottlingSettingsTests` cover the limit computation correctness
+/// in `ThrottlingRecoveryServiceTests` and `DataNodeRecoveryThrottlingLimitsTests` cover the limit computation correctness
 /// for other values.
 public class StatelessDataNodeRecoveryThrottlingIT extends AbstractStatelessPluginIntegTestCase {
 
@@ -232,12 +232,12 @@ public class StatelessDataNodeRecoveryThrottlingIT extends AbstractStatelessPlug
 
         final var sourceSettings = Settings.builder()
             .put(
-                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(),
+                DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(),
                 maxConcurrentRecoveries
             );
         if (heapBasedLimit) {
             sourceSettings.put(
-                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
+                DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
                 MIN_PER_HEAP_GB
             );
         }
@@ -933,16 +933,16 @@ public class StatelessDataNodeRecoveryThrottlingIT extends AbstractStatelessPlug
     ) {
         final var settings = Settings.builder()
             .put(
-                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
+                DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
                 maxConcurrentRecoveries
             )
             .put(
-                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING.getKey(),
+                DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING.getKey(),
                 nonCriticalPercent + "%"
             );
         if (heapBasedLimit) {
             settings.put(
-                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
+                DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
                 MIN_PER_HEAP_GB
             );
         }

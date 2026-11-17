@@ -20,7 +20,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
-import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings.IncomingRecoveryLimits;
 import org.elasticsearch.indices.recovery.RecoveryState.Stage;
 import org.elasticsearch.indices.recovery.ThrottlingRecoveryService.BlockedState;
 import org.elasticsearch.logging.LogManager;
@@ -78,9 +77,7 @@ public class RecoveryMetricsCollector extends AbstractLifecycleComponent impleme
         () -> 0L,
         () -> false,
         () -> 0L,
-        new ClusterSettings(Settings.EMPTY, Set.of()),
-        Settings.EMPTY,
-        ByteSizeValue.ZERO
+        new DataNodeRecoveryThrottlingLimits(new ClusterSettings(Settings.EMPTY, Set.of()), Settings.EMPTY, ByteSizeValue.ZERO)
     );
 
     private final LongCounter shardRecoveryTotalMetric;
@@ -105,28 +102,19 @@ public class RecoveryMetricsCollector extends AbstractLifecycleComponent impleme
     private final LongSupplier queueLatencyMillis;
     private final BooleanSupplier hasPendingRecoveries;
     private final LongSupplier relativeTimeInMillis;
-    private final ClusterSettings clusterSettings;
-    private final Settings nodeSettings;
-    private final ByteSizeValue maxHeap;
+    private final DataNodeRecoveryThrottlingLimits dataNodeRecoveryThrottlingLimits;
     private final MeterRegistry meterRegistry;
-
-    private volatile IncomingRecoveryLimits incomingRecoveryLimits;
-    private volatile int outgoingRecoveryLimit;
 
     /// @param telemetryProvider telemetry provider
     /// @param throttlingRecoveryService the [ThrottlingRecoveryService]
     /// @param relativeTimeInMillisSupplier supplies relative time in milliseconds, must use the same clock as
     /// [BlockedState#sinceRelativeMillis()] for the [BlockedState] returned by [ThrottlingRecoveryService#blockedState()]
-    /// @param clusterSettings the cluster settings to watch for the incoming and outgoing recovery throttle settings
-    /// @param nodeSettings the node settings, from which the node roles are derived
-    /// @param maxHeap the node's max heap, from which the heap-based incoming and outgoing recovery limits are derived
+    /// @param dataNodeRecoveryThrottlingLimits the node's current incoming and outgoing recovery limits
     public RecoveryMetricsCollector(
         TelemetryProvider telemetryProvider,
         ThrottlingRecoveryService throttlingRecoveryService,
         LongSupplier relativeTimeInMillisSupplier,
-        ClusterSettings clusterSettings,
-        Settings nodeSettings,
-        ByteSizeValue maxHeap
+        DataNodeRecoveryThrottlingLimits dataNodeRecoveryThrottlingLimits
     ) {
         this(
             telemetryProvider,
@@ -134,9 +122,7 @@ public class RecoveryMetricsCollector extends AbstractLifecycleComponent impleme
             throttlingRecoveryService::queueLatencyMillis,
             () -> throttlingRecoveryService.currentQueueSize() > 0,
             relativeTimeInMillisSupplier,
-            clusterSettings,
-            nodeSettings,
-            maxHeap
+            dataNodeRecoveryThrottlingLimits
         );
     }
 
@@ -146,18 +132,14 @@ public class RecoveryMetricsCollector extends AbstractLifecycleComponent impleme
     /// @param hasPendingRecoveriesSupplier supplies whether any recovery is currently waiting in the queue
     /// @param relativeTimeInMillisSupplier supplies relative time in milliseconds; must use the same clock as
     /// [BlockedState#sinceRelativeMillis()]
-    /// @param clusterSettings the cluster settings to watch for the incoming and outgoing recovery throttle settings
-    /// @param nodeSettings the node settings, from which the node roles are derived
-    /// @param maxHeap the node's max heap, from which the heap-based incoming and outgoing recovery limits are derived
+    /// @param dataNodeRecoveryThrottlingLimits the node's current incoming and outgoing recovery limits
     public RecoveryMetricsCollector(
         TelemetryProvider telemetryProvider,
         Supplier<BlockedState> blockedStateSupplier,
         LongSupplier queueLatencyMillisSupplier,
         BooleanSupplier hasPendingRecoveriesSupplier,
         LongSupplier relativeTimeInMillisSupplier,
-        ClusterSettings clusterSettings,
-        Settings nodeSettings,
-        ByteSizeValue maxHeap
+        DataNodeRecoveryThrottlingLimits dataNodeRecoveryThrottlingLimits
     ) {
         this.meterRegistry = telemetryProvider.getMeterRegistry();
         shardRecoveryTotalMetric = meterRegistry.registerLongCounter(
@@ -236,9 +218,7 @@ public class RecoveryMetricsCollector extends AbstractLifecycleComponent impleme
         this.queueLatencyMillis = queueLatencyMillisSupplier;
         this.hasPendingRecoveries = hasPendingRecoveriesSupplier;
         this.relativeTimeInMillis = relativeTimeInMillisSupplier;
-        this.clusterSettings = clusterSettings;
-        this.nodeSettings = nodeSettings;
-        this.maxHeap = maxHeap;
+        this.dataNodeRecoveryThrottlingLimits = dataNodeRecoveryThrottlingLimits;
     }
 
     @Override
@@ -412,19 +392,12 @@ public class RecoveryMetricsCollector extends AbstractLifecycleComponent impleme
             )
         );
 
-        DataNodeRecoveryThrottlingSettings.watchIncomingRecoveryLimits(
-            clusterSettings,
-            nodeSettings,
-            maxHeap,
-            limits -> incomingRecoveryLimits = limits
-        );
-        DataNodeRecoveryThrottlingSettings.watchOutgoingRecoveryLimit(clusterSettings, maxHeap, limit -> outgoingRecoveryLimit = limit);
         asyncGauges.add(
             meterRegistry.registerLongAsyncGauge(
                 INCOMING_RECOVERIES_LIMIT_METRIC,
                 "The current effective concurrent incoming recoveries limit on this node (Integer.MAX_VALUE when unbounded)",
                 "unit",
-                () -> incomingRecoveryLimits.maxConcurrentRecoveries()
+                () -> dataNodeRecoveryThrottlingLimits.incomingRecoveryLimits().maxConcurrentRecoveries()
             )
         );
         asyncGauges.add(
@@ -432,7 +405,7 @@ public class RecoveryMetricsCollector extends AbstractLifecycleComponent impleme
                 INCOMING_NON_CRITICAL_RECOVERIES_LIMIT_METRIC,
                 "The current effective concurrent incoming non-critical recoveries limit on this node (Integer.MAX_VALUE when unbounded)",
                 "unit",
-                () -> incomingRecoveryLimits.maxConcurrentNonCriticalRecoveries()
+                () -> dataNodeRecoveryThrottlingLimits.incomingRecoveryLimits().maxConcurrentNonCriticalRecoveries()
             )
         );
         asyncGauges.add(
@@ -440,7 +413,7 @@ public class RecoveryMetricsCollector extends AbstractLifecycleComponent impleme
                 OUTGOING_RECOVERIES_LIMIT_METRIC,
                 "The current effective concurrent outgoing recoveries limit on this node (Integer.MAX_VALUE when unbounded)",
                 "unit",
-                () -> outgoingRecoveryLimit
+                () -> dataNodeRecoveryThrottlingLimits.outgoingRecoveryLimit()
             )
         );
     }

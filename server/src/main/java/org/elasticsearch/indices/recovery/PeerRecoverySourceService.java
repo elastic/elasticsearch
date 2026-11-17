@@ -88,7 +88,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         this.ongoingRecoveries = new OngoingRecoveries(schedulingListeners);
         clusterService.getClusterSettings()
             .initializeAndWatchIfRegistered(
-                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
+                DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
                 ongoingRecoveries::updateMaxConcurrentOutgoingRecoveries
             );
         // When the target node wants to start a peer recovery it sends a START_RECOVERY request to the source

@@ -29,7 +29,7 @@ import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
-import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings;
+import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingLimits;
 import org.elasticsearch.indices.recovery.RecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction;
 import org.elasticsearch.node.NodeClosedException;
@@ -66,7 +66,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
             clusterService,
             taskQueue::scheduleNow,
             (parentClient, request, shard, listener) -> listener.onResponse(EMPTY_START_RELOCATION_RESPONSE),
-            ByteSizeValue.ofBytes(Long.MAX_VALUE)
+            new DataNodeRecoveryThrottlingLimits(clusterService.getClusterSettings(), Settings.EMPTY, ByteSizeValue.ofBytes(Long.MAX_VALUE))
         );
         throttle.registerRecoverySchedulingListeners(new CompositeRecoverySchedulingListener());
         throttle.start();
@@ -100,11 +100,12 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
     public void testQueuesUntilStarted() {
         final var taskQueue = new DeterministicTaskQueue();
         final var started = new AtomicInteger();
+        final var clusterService = mockClusterService();
         final var throttle = new ThrottledPrimaryRelocations(
-            mockClusterService(),
+            clusterService,
             taskQueue::scheduleNow,
             (parentClient, request, shard, listener) -> started.incrementAndGet(),
-            ByteSizeValue.ofBytes(Long.MAX_VALUE)
+            new DataNodeRecoveryThrottlingLimits(clusterService.getClusterSettings(), Settings.EMPTY, ByteSizeValue.ofBytes(Long.MAX_VALUE))
         );
         throttle.registerRecoverySchedulingListeners(new CompositeRecoverySchedulingListener());
         assertFalse(taskQueue.hasAnyTasks());
@@ -139,7 +140,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
             clusterService,
             taskQueue::scheduleNow,
             (parentClient, request, shard, listener) -> completed.incrementAndGet(),
-            ByteSizeValue.ofBytes(Long.MAX_VALUE)
+            new DataNodeRecoveryThrottlingLimits(clusterService.getClusterSettings(), Settings.EMPTY, ByteSizeValue.ofBytes(Long.MAX_VALUE))
         );
         throttle.registerRecoverySchedulingListeners(new CompositeRecoverySchedulingListener());
         throttle.start();
@@ -189,7 +190,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
             clusterService,
             taskQueue::scheduleNow,
             (parentClient, request, shard, listener) -> capturedListener.set(listener),
-            ByteSizeValue.ofBytes(Long.MAX_VALUE)
+            new DataNodeRecoveryThrottlingLimits(clusterService.getClusterSettings(), Settings.EMPTY, ByteSizeValue.ofBytes(Long.MAX_VALUE))
         );
         throttle.registerRecoverySchedulingListeners(new CompositeRecoverySchedulingListener());
         throttle.start();
@@ -252,7 +253,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
             clusterService,
             taskQueue::scheduleNow,
             (parentClient, request, shard, listener) -> capturedListener.set(listener),
-            ByteSizeValue.ofBytes(Long.MAX_VALUE)
+            new DataNodeRecoveryThrottlingLimits(clusterService.getClusterSettings(), Settings.EMPTY, ByteSizeValue.ofBytes(Long.MAX_VALUE))
         );
         throttle.registerRecoverySchedulingListeners(new CompositeRecoverySchedulingListener());
         throttle.start();
@@ -308,7 +309,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
             clusterService,
             taskQueue::scheduleNow,
             (parentClient, request, shard, listener) -> {},
-            ByteSizeValue.ofBytes(Long.MAX_VALUE)
+            new DataNodeRecoveryThrottlingLimits(clusterService.getClusterSettings(), Settings.EMPTY, ByteSizeValue.ofBytes(Long.MAX_VALUE))
         );
         throttle.registerRecoverySchedulingListeners(new CompositeRecoverySchedulingListener());
         throttle.start();
@@ -349,7 +350,9 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
         final var throttle = new ThrottledPrimaryRelocations(clusterService, taskQueue::scheduleNow, (parentClient, request, shard, l) -> {
             startedShards.add(shard);
             startedListeners.add(l);
-        }, ByteSizeValue.ofBytes(Long.MAX_VALUE));
+        },
+            new DataNodeRecoveryThrottlingLimits(clusterService.getClusterSettings(), Settings.EMPTY, ByteSizeValue.ofBytes(Long.MAX_VALUE))
+        );
         throttle.registerRecoverySchedulingListeners(new CompositeRecoverySchedulingListener());
         throttle.start();
         applyOutgoingThrottleSettings(clusterService, 1, Double.MAX_VALUE);
@@ -413,7 +416,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
             clusterService,
             taskQueue::scheduleNow,
             (parentClient, request, shard, listener) -> capturedListener.set(listener),
-            ByteSizeValue.ofBytes(Long.MAX_VALUE)
+            new DataNodeRecoveryThrottlingLimits(clusterService.getClusterSettings(), Settings.EMPTY, ByteSizeValue.ofBytes(Long.MAX_VALUE))
         );
         throttle.registerRecoverySchedulingListeners(new CompositeRecoverySchedulingListener());
         throttle.start();
@@ -471,7 +474,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
                 }
                 listener.onResponse(EMPTY_START_RELOCATION_RESPONSE);
             },
-            ByteSizeValue.ofBytes(Long.MAX_VALUE)
+            new DataNodeRecoveryThrottlingLimits(clusterService.getClusterSettings(), Settings.EMPTY, ByteSizeValue.ofBytes(Long.MAX_VALUE))
         );
         throttle.registerRecoverySchedulingListeners(new CompositeRecoverySchedulingListener());
         throttle.start();
@@ -522,7 +525,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
             clusterService,
             taskQueue::scheduleNow,
             (parentClient, request, shard, listener) -> completed.incrementAndGet(),
-            ByteSizeValue.ofBytes(Long.MAX_VALUE)
+            new DataNodeRecoveryThrottlingLimits(clusterService.getClusterSettings(), Settings.EMPTY, ByteSizeValue.ofBytes(Long.MAX_VALUE))
         );
         throttle.registerRecoverySchedulingListeners(listeners);
         throttle.start();
@@ -554,7 +557,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
             clusterService,
             taskQueue::scheduleNow,
             (parentClient, request, shard, listener) -> completed.incrementAndGet(),
-            ByteSizeValue.ofBytes(Long.MAX_VALUE)
+            new DataNodeRecoveryThrottlingLimits(clusterService.getClusterSettings(), Settings.EMPTY, ByteSizeValue.ofBytes(Long.MAX_VALUE))
         );
         throttle.registerRecoverySchedulingListeners(new CompositeRecoverySchedulingListener());
         throttle.start();
@@ -603,7 +606,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
             clusterService,
             taskQueue::scheduleNow,
             (parentClient, request, shard, listener) -> {},
-            ByteSizeValue.ofBytes(Long.MAX_VALUE)
+            new DataNodeRecoveryThrottlingLimits(clusterService.getClusterSettings(), Settings.EMPTY, ByteSizeValue.ofBytes(Long.MAX_VALUE))
         );
         throttle.registerRecoverySchedulingListeners(listeners);
         throttle.start();
@@ -674,7 +677,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
             clusterService,
             taskQueue::scheduleNow,
             (parentClient, request, shard, listener) -> {},
-            ByteSizeValue.ofBytes(Long.MAX_VALUE)
+            new DataNodeRecoveryThrottlingLimits(clusterService.getClusterSettings(), Settings.EMPTY, ByteSizeValue.ofBytes(Long.MAX_VALUE))
         );
         throttle.registerRecoverySchedulingListeners(listeners);
         throttle.start();
@@ -719,7 +722,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
             clusterService,
             taskQueue::scheduleNow,
             (parentClient, request, shard, listener) -> {},
-            ByteSizeValue.ofBytes(Long.MAX_VALUE)
+            new DataNodeRecoveryThrottlingLimits(clusterService.getClusterSettings(), Settings.EMPTY, ByteSizeValue.ofBytes(Long.MAX_VALUE))
         );
         throttle.registerRecoverySchedulingListeners(new CompositeRecoverySchedulingListener());
         throttle.start();
@@ -765,7 +768,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
             clusterService,
             taskQueue::scheduleNow,
             (parentClient, request, shard, listener) -> fail("runner should not be invoked after close"),
-            ByteSizeValue.ofBytes(Long.MAX_VALUE)
+            new DataNodeRecoveryThrottlingLimits(clusterService.getClusterSettings(), Settings.EMPTY, ByteSizeValue.ofBytes(Long.MAX_VALUE))
         );
         throttle.registerRecoverySchedulingListeners(new CompositeRecoverySchedulingListener());
         throttle.start();
@@ -796,10 +799,10 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
     public void testPerHeapGbSettingRejectsZero() {
         expectThrows(
             IllegalArgumentException.class,
-            () -> DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING.get(
+            () -> DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING.get(
                 Settings.builder()
                     .put(
-                        DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
+                        DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
                         0.0
                     )
                     .build()
@@ -821,7 +824,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
                 started.incrementAndGet();
                 taskQueue.scheduleAt(taskQueue.getCurrentTimeMillis() + 100, () -> listener.onResponse(EMPTY_START_RELOCATION_RESPONSE));
             },
-            heapBytes
+            new DataNodeRecoveryThrottlingLimits(clusterService.getClusterSettings(), Settings.EMPTY, heapBytes)
         );
         throttle.registerRecoverySchedulingListeners(new CompositeRecoverySchedulingListener());
         throttle.start();
@@ -859,7 +862,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
                 started.incrementAndGet();
                 taskQueue.scheduleAt(taskQueue.getCurrentTimeMillis() + 100, () -> listener.onResponse(EMPTY_START_RELOCATION_RESPONSE));
             },
-            ByteSizeValue.ZERO
+            new DataNodeRecoveryThrottlingLimits(clusterService.getClusterSettings(), Settings.EMPTY, ByteSizeValue.ZERO)
         );
         throttle.registerRecoverySchedulingListeners(new CompositeRecoverySchedulingListener());
         throttle.start();
@@ -897,7 +900,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
                 started.incrementAndGet();
                 taskQueue.scheduleAt(taskQueue.getCurrentTimeMillis() + 100, () -> listener.onResponse(EMPTY_START_RELOCATION_RESPONSE));
             },
-            ByteSizeValue.ofGb(2)
+            new DataNodeRecoveryThrottlingLimits(clusterService.getClusterSettings(), Settings.EMPTY, ByteSizeValue.ofGb(2))
         );
         throttle.registerRecoverySchedulingListeners(new CompositeRecoverySchedulingListener());
         throttle.start();
@@ -934,7 +937,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
                 started.incrementAndGet();
                 taskQueue.scheduleAt(taskQueue.getCurrentTimeMillis() + 100, () -> listener.onResponse(EMPTY_START_RELOCATION_RESPONSE));
             },
-            ByteSizeValue.ofGb(2)
+            new DataNodeRecoveryThrottlingLimits(clusterService.getClusterSettings(), Settings.EMPTY, ByteSizeValue.ofGb(2))
         );
         throttle.registerRecoverySchedulingListeners(new CompositeRecoverySchedulingListener());
         throttle.start();
@@ -975,9 +978,9 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
         clusterService.getClusterSettings()
             .applySettings(
                 Settings.builder()
-                    .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 2)
+                    .put(DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 2)
                     .put(
-                        DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
+                        DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
                         100.0
                     )
                     .build()
@@ -993,7 +996,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
                 started.incrementAndGet();
                 taskQueue.scheduleAt(taskQueue.getCurrentTimeMillis() + 100, () -> listener.onResponse(EMPTY_START_RELOCATION_RESPONSE));
             },
-            ByteSizeValue.ofGb(2)
+            new DataNodeRecoveryThrottlingLimits(clusterService.getClusterSettings(), Settings.EMPTY, ByteSizeValue.ofGb(2))
         );
         throttle.registerRecoverySchedulingListeners(new CompositeRecoverySchedulingListener());
         throttle.start();
@@ -1016,9 +1019,9 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
         clusterService.getClusterSettings()
             .applySettings(
                 Settings.builder()
-                    .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 100)
+                    .put(DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 100)
                     .put(
-                        DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
+                        DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
                         0.5
                     )
                     .build()
@@ -1043,7 +1046,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
                 started.incrementAndGet();
                 taskQueue.scheduleAt(taskQueue.getCurrentTimeMillis() + 100, () -> listener.onResponse(EMPTY_START_RELOCATION_RESPONSE));
             },
-            ByteSizeValue.ofGb(2)
+            new DataNodeRecoveryThrottlingLimits(clusterService.getClusterSettings(), Settings.EMPTY, ByteSizeValue.ofGb(2))
         );
         throttle.registerRecoverySchedulingListeners(listeners);
         throttle.start();
@@ -1087,7 +1090,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
                 started.incrementAndGet();
                 captured.add(listener);
             },
-            ByteSizeValue.ofGb(1)
+            new DataNodeRecoveryThrottlingLimits(clusterService.getClusterSettings(), Settings.EMPTY, ByteSizeValue.ofGb(1))
         );
         throttle.registerRecoverySchedulingListeners(new CompositeRecoverySchedulingListener());
         throttle.start();
@@ -1149,11 +1152,11 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
             .applySettings(
                 Settings.builder()
                     .put(
-                        DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(),
+                        DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(),
                         maxConcurrent
                     )
                     .put(
-                        DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
+                        DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
                         perHeapGb
                     )
                     .build()
@@ -1165,13 +1168,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
         when(clusterService.localNode()).thenReturn(DiscoveryNodeUtils.create(randomIdentifier()));
         when(clusterService.state()).thenReturn(ClusterState.builder(new ClusterName("test")).build());
         when(clusterService.getClusterSettings()).thenReturn(
-            new ClusterSettings(
-                Settings.EMPTY,
-                Set.of(
-                    DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
-                    DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING
-                )
-            )
+            new ClusterSettings(Settings.EMPTY, Set.copyOf(DataNodeRecoveryThrottlingLimits.settings()))
         );
         return clusterService;
     }

@@ -21,7 +21,7 @@ import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
-import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings;
+import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingLimits;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
@@ -209,7 +209,7 @@ public class StatelessPluginTests extends ESTestCase {
 
     public void testAllDataNodeRecoveryThrottlingSettingsAreRegistered() {
         final var plugin = createStatelessPlugin(Settings.builder().put(STATELESS_ENABLED.getKey(), true).build());
-        assertThat(plugin.getSettings(), hasItems(DataNodeRecoveryThrottlingSettings.settings().toArray(new Setting<?>[0])));
+        assertThat(plugin.getSettings(), hasItems(DataNodeRecoveryThrottlingLimits.settings().toArray(new Setting<?>[0])));
     }
 
     public void testEvictionPolicyFactoryIsInstalledOnTheCache() throws IOException {

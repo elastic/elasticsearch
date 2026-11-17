@@ -75,13 +75,9 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         when(clusterService.localNode()).thenReturn(DiscoveryNodeUtils.create("test-node"));
         final var clusterSettings = new ClusterSettings(
             Settings.builder()
-                .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1)
+                .put(DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1)
                 .build(),
-            Set.of(
-                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING,
-                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING,
-                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING
-            )
+            Set.copyOf(DataNodeRecoveryThrottlingLimits.settings())
         );
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
@@ -91,7 +87,11 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
             clusterService,
             RecoverySchedulingListener.NOOP,
             new RecoveryGateMonitor(() -> List.of(), taskQueue.getThreadPool(), clusterSettings),
-            ByteSizeValue.ofBytes(Long.MAX_VALUE)
+            new DataNodeRecoveryThrottlingLimits(
+                clusterService.getClusterSettings(),
+                clusterService.getSettings(),
+                ByteSizeValue.ofBytes(Long.MAX_VALUE)
+            )
         );
         throttlingRecoveryService.start();
         action = new TransportCancelRecoveriesAction(

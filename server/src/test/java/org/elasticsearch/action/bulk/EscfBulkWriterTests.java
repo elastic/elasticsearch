@@ -35,6 +35,8 @@ import org.elasticsearch.escf.EscfRowBuffer;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.sourcebatch.SourceBatch;
+import org.elasticsearch.sourcebatch.SourceBatchEncodeHelper;
+import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -61,6 +63,7 @@ import static org.elasticsearch.action.bulk.EscfBulkWriter.ResponseHandler.FAIL_
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
@@ -233,6 +236,31 @@ public class EscfBulkWriterTests extends ESTestCase {
         };
     }
 
+    /** One row holding an array of two values, under the same field as {@link #page}. */
+    static EscfBulkWriter.Rows arrayRow(int id) {
+        return new EscfBulkWriter.Rows() {
+            @Override
+            public int count() {
+                return 1;
+            }
+
+            @Override
+            public void append(EscfBatchBuilder batch) {
+                long[] values = new long[] { id, id + 1 };
+                byte[] packed = SourceBatchEncodeHelper.packFixedArray(SourceValueType.LONG, values, new Object[2], 2);
+                EscfRowBuffer row = batch.beginRow();
+                row.arrayField("value", SourceValueType.FIXED_ARRAY, packed);
+                row.finishRow();
+                batch.commit(0);
+            }
+
+            @Override
+            public IndexRequest request(int row) {
+                return new IndexRequest(INDEX).id("id-" + id).opType(DocWriteRequest.OpType.CREATE);
+            }
+        };
+    }
+
     private static List<String> ids(BulkRequest bulk) {
         return bulk.requests().stream().map(DocWriteRequest::id).toList();
     }
@@ -256,6 +284,30 @@ public class EscfBulkWriterTests extends ESTestCase {
         assertThat(batch, instanceOf(EscfBatch.class));
         assertThat(batch.docCount(), equalTo(3));
         batch.close();
+    }
+
+    /**
+     * A field can hold an array in one row and a scalar in the next. The rows go out in one bulk, and what the writer charges
+     * covers the batch that bulk holds until it is acknowledged.
+     */
+    public void testFieldChangingKindAcrossRows() {
+        try (EscfBulkWriter.Producer producer = writer(new EscfBulkWriter.Policy(1, MAX_TARGET)).newProducer()) {
+            producer.add(page(0, 1), false);
+            // while that bulk is in flight, the next rows share a batch
+            producer.add(arrayRow(1), false);
+            producer.add(page(2, 1), false);
+        }
+        answer();
+        BulkRequest bulk = client.bulks.getFirst();
+        assertThat(ids(bulk), equalTo(List.of("id-1", "id-2")));
+        SourceBatch batch = bulk.takePreBuiltBatches().get(INDEX);
+        try {
+            assertThat(batch.docCount(), equalTo(2));
+            assertThat(breaker.getUsed(), greaterThanOrEqualTo(((EscfBatch) batch).ramBytesUsed()));
+        } finally {
+            batch.close();
+        }
+        answer();
     }
 
     public void testChargesTheBuilderAndTheRequests() throws IOException {
@@ -447,17 +499,22 @@ public class EscfBulkWriterTests extends ESTestCase {
         EscfBulkService service = service(UNBOUNDED);
         List<String> callbackUsers = Collections.synchronizedList(new ArrayList<>());
         Runnable recordUser = () -> callbackUsers.add(threadContext.getHeader(USER));
+        List<String> handlerUsers = Collections.synchronizedList(new ArrayList<>());
+        EscfBulkWriter.ResponseHandler handler = response -> {
+            handlerUsers.add(threadContext.getHeader(USER));
+            return FAIL_ON_FAILED_ITEM.onResponse(response);
+        };
         // every page fills a batch
         EscfBulkWriter.Policy policy = new EscfBulkWriter.Policy(1, 1);
         EscfBulkWriter first;
         EscfBulkWriter second;
         try (var ignored = threadContext.stashContext()) {
             threadContext.putHeader(USER, "first");
-            first = service.newWriter(client, breaker, INDEX, policy, FAIL_ON_FAILED_ITEM, recordUser);
+            first = service.newWriter(client, breaker, INDEX, policy, handler, recordUser);
         }
         try (var ignored = threadContext.stashContext()) {
             threadContext.putHeader(USER, "second");
-            second = service.newWriter(client, breaker, INDEX, policy, FAIL_ON_FAILED_ITEM, recordUser);
+            second = service.newWriter(client, breaker, INDEX, policy, handler, recordUser);
         }
         EscfBulkWriter.Producer firstProducer = first.newProducer();
         EscfBulkWriter.Producer secondProducer = second.newProducer();
@@ -477,6 +534,7 @@ public class EscfBulkWriterTests extends ESTestCase {
             taskQueue.runAllRunnableTasks();
         }
         assertThat(callbackUsers, equalTo(List.of("first", "second")));
+        assertThat(handlerUsers, equalTo(List.of("first", "second")));
         assertThat(client.users, equalTo(List.of("first", "second")));
         assertThat(ids(client.bulks.get(0)), equalTo(List.of("id-2")));
         assertThat(ids(client.bulks.get(1)), equalTo(List.of("id-3")));

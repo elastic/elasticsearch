@@ -438,7 +438,8 @@ public class EscfBatchBuilderTests extends ESTestCase {
         try (EscfBatchBuilder builder = newBuilder()) {
             for (int i = 0; i < rows; i++) {
                 EscfRowBuffer row = builder.beginRow();
-                row.booleanField("b", randomBoolean());
+                // the bitset is allocated on the first true value, so the last row holds one
+                row.booleanField("b", i == rows - 1 || randomBoolean());
                 row.finishRow();
                 builder.commit(0);
             }

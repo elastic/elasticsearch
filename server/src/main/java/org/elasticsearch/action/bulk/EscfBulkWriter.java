@@ -212,8 +212,8 @@ public final class EscfBulkWriter implements Releasable {
                     requests.add(request);
                     requestBytes += request.ramBytesUsed();
                 }
-                long builderBytes = chunk.builder.ramBytesUsed();
-                assert builderBytes >= chunk.builderBytes : "builder shrank from [" + chunk.builderBytes + "] to [" + builderBytes + "]";
+                // promoting a column can shrink the builder: the chunk keeps what it charged until its bulk is acknowledged
+                long builderBytes = Math.max(chunk.builderBytes, chunk.builder.ramBytesUsed());
                 tripped = charge(chunk, requests.size(), builderBytes - chunk.builderBytes + requestBytes);
                 chunk.builderBytes = builderBytes;
             } catch (Exception e) {
@@ -538,7 +538,7 @@ public final class EscfBulkWriter implements Releasable {
      */
     private void onBulkDone(long bytes, Releasable pressure, boolean wasTripped, @Nullable BulkResponse response, @Nullable Exception e) {
         service.executeOrRun(() -> {
-            try {
+            try (var ignored = context.get()) {
                 Exception failure = e != null ? e : readResponse(response);
                 if (failure != null) {
                     fail(failure);

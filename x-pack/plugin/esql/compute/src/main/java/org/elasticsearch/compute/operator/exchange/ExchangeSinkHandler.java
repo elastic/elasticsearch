@@ -9,7 +9,6 @@ package org.elasticsearch.compute.operator.exchange;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 
@@ -40,10 +39,8 @@ public final class ExchangeSinkHandler {
     private final SubscribableListener<Void> completionFuture;
     private final LongSupplier nowInMillis;
     private final AtomicLong lastUpdatedInMillis;
-    private final BlockFactory blockFactory;
 
-    public ExchangeSinkHandler(BlockFactory blockFactory, int maxBufferSize, LongSupplier nowInMillis) {
-        this.blockFactory = blockFactory;
+    public ExchangeSinkHandler(int maxBufferSize, LongSupplier nowInMillis) {
         this.buffer = new ExchangeBuffer(maxBufferSize);
         this.completionFuture = SubscribableListener.newForked(buffer::addCompletionListener);
         this.nowInMillis = nowInMillis;
@@ -152,7 +149,7 @@ public final class ExchangeSinkHandler {
                 if (listener == null) {
                     continue;
                 }
-                response = new ExchangeResponse(blockFactory, buffer.pollPage(), buffer.isFinished());
+                response = new ExchangeResponse(buffer.pollPage(), buffer.isFinished());
             } finally {
                 promised.release();
             }

@@ -170,6 +170,7 @@ public class TriggeredWatchStore {
                 SearchScrollRequest request = new SearchScrollRequest(response.getScrollId());
                 request.scroll(scrollTimeout);
                 response.decRef();
+                response = null;
                 response = client.searchScroll(request).actionGet(defaultSearchTimeout);
             }
         } finally {

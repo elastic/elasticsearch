@@ -518,7 +518,13 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         if (probeLabels != null) {
             pinnedColumns.add(probeLabels);
         }
-        LogicalPlan probePinned = new Project(cmd.source(), new Eval(cmd.source(), probe.plan(), pinned), pinnedColumns);
+        // A series without a sample at a step is no element of the vector there, so it neither matches nor repeats a signature.
+        LogicalPlan probeSampled = new Filter(
+            cmd.source(),
+            new Eval(cmd.source(), probe.plan(), pinned),
+            new IsNotNull(cmd.source(), probeValueColumn)
+        );
+        LogicalPlan probePinned = new Project(cmd.source(), probeSampled, pinnedColumns);
         probe = new IntermediateResult(probePinned, probe.schema(), probeValueColumn, probe.step(), null, probe.kind());
         // The build side's value is a double column under a name of its own too, which the join adds to the probe's rows.
         Alias buildValue = new Alias(
@@ -528,7 +534,11 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         );
         Attribute buildValueColumn = TranslationContext.pinned(buildValue);
         build = new IntermediateResult(
-            new Eval(cmd.source(), build.plan(), List.of(buildValue)),
+            new Filter(
+                cmd.source(),
+                new Eval(cmd.source(), build.plan(), List.of(buildValue)),
+                new IsNotNull(cmd.source(), buildValueColumn)
+            ),
             build.schema(),
             buildValueColumn,
             build.step(),

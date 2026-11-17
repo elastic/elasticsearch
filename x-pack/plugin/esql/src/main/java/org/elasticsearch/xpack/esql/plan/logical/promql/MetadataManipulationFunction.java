@@ -112,6 +112,8 @@ public final class MetadataManipulationFunction extends PromqlFunctionCall {
             }
         }
         labels.add(PromqlLabels.labelName(destination));
+        // An empty label name names no label: its value reads as the empty string.
+        labels.removeIf(String::isEmpty);
         return labels;
     }
 

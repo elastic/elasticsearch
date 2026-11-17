@@ -6354,33 +6354,36 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
 
         /**
-         * Whether a row of {@code actualFields} fields falls outside the width its binding allows. Every path asks
-         * here -- the direct walkers with the count they tallied, the materialized path with the array's length -- so
-         * that the width rule has one home rather than one copy per walker. Only the comparison lives here: what a
-         * rejection costs differs per path, since the materialized path has nothing staged to discard and moves to the
-         * next row, while a walker abandons the row it was converting.
+         * Whether a row of {@code actualFields} fields falls outside the width its binding allows: the file's header
+         * width under by-name binding, the schema's under positional binding.
+         *
+         * <p>It decides only that. A caller that gets {@code true} still raises the error itself, because what a
+         * rejection costs differs: the materialized path has nothing staged to discard and moves to the next row,
+         * while a walker has to abandon the row it was midway through converting.
          */
         private boolean rowWidthRejected(int actualFields) {
             return actualFields > rowWidthLimit;
         }
 
         /**
-         * The field a raw index addresses in a materialized row, or {@code null} where the index is
-         * {@link #ABSENT_FIELD} -- a schema column the file does not carry -- or falls past the row's trailing
-         * edge. Both readers of a {@code String[]} row spell this out, so it lives here for the same reason the
-         * width comparison does: one place decides what "past the edge" means. The negative arm is load-bearing
-         * and not an idiom, since {@code ABSENT_FIELD} is {@code -1} and reaches this from a by-name binding.
+         * The field a raw index addresses in a materialized row, or {@code null} where there is none.
+         *
+         * <p>Two distinct absences return the same {@code null}: a negative index, which is {@link #ABSENT_FIELD}
+         * for a schema column this file does not carry, and an index past the row's trailing edge, which is a row
+         * shorter than the binding allows. The negative arm is reachable -- a by-name binding produces it -- so it
+         * is a guard rather than defensive habit.
          */
         private static String fieldOrNull(String[] row, int idx) {
             return idx >= 0 && idx < row.length ? row[idx] : null;
         }
 
         /**
-         * The tail each direct-path grammar walker runs once its final field is consumed and the row is whole for the
-         * first time: enforce the width rule, surface any field errors the walk staged, then fill the projected columns
-         * whose source index falls past the row's trailing edge. It was identical in all three walkers, which is why it
-         * lives here instead; the fused projected walker interleaves trailing-field handling with its own fill and so
-         * keeps its tail.
+         * Closes out a direct-path row once its last field is consumed, which is the first moment the row is whole:
+         * enforce the width rule, surface any field errors the walk staged, then null-fill the projected columns whose
+         * source index falls past the row's trailing edge.
+         *
+         * <p>The three grammar walkers share this; the fused projected walker does not, because it interleaves
+         * trailing-field handling with its own fill.
          *
          * <p>Allocation-sensitive: {@link #directRawLine()} materializes the record as a {@link String}, so it is
          * reached on the error paths only and never on an accepted row.

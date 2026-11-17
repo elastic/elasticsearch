@@ -32,17 +32,17 @@ import static org.elasticsearch.xpack.core.ClientHelper.ESQL_ORIGIN;
  * one shard, in order. Fields are single-valued doc values only, so that a bulk of pages is indexed as one columnar batch. The
  * index is never refreshed on a schedule.
  */
-public final class EsqlStreamResultsIndex {
+public final class EsqlStreamResultsIndexDescriptor {
 
     /**
      * The index is only registered, and results only stored, when this is enabled.
      */
-    public static final FeatureFlag FEATURE_FLAG = new FeatureFlag("esql_stored_results");
+    public static final FeatureFlag FEATURE_FLAG = new FeatureFlag("esql_stream_stored_results");
 
     public static final String INDEX = ".esql-stream-results";
 
     public static final String STREAM_ID_FIELD = "stream_id";
-    public static final String PAGE_SEQ_FIELD = "page_seq";
+    public static final String SEQ_FIELD = "seq";
     public static final String OFFSET_FIELD = "offset";
     public static final String SIZE_FIELD = "size";
     public static final String TRANSPORT_VERSION_FIELD = "transport_version";
@@ -56,7 +56,7 @@ public final class EsqlStreamResultsIndex {
      */
     static final int NUMBER_OF_SHARDS = 6;
 
-    private EsqlStreamResultsIndex() {}
+    private EsqlStreamResultsIndexDescriptor() {}
 
     /**
      * The id of the document holding page {@code pageSeq} of the result stored under {@code streamId}.
@@ -77,7 +77,7 @@ public final class EsqlStreamResultsIndex {
                 MergePolicyConfig.INDEX_MERGE_POLICY_TYPE_SETTING.getKey(),
                 MergePolicyConfig.Type.TIME_BASED.name().toLowerCase(Locale.ROOT)
             )
-            .putList(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), STREAM_ID_FIELD, PAGE_SEQ_FIELD)
+            .putList(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), STREAM_ID_FIELD, SEQ_FIELD)
             .build();
     }
 
@@ -96,7 +96,7 @@ public final class EsqlStreamResultsIndex {
                 .field("index", false)
                 .field("multi_value", false)
                 .endObject()
-                .startObject(PAGE_SEQ_FIELD)
+                .startObject(SEQ_FIELD)
                 .field("type", "integer")
                 .field("index", false)
                 .field("multi_value", false)

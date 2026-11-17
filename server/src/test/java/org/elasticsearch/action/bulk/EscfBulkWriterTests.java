@@ -467,6 +467,18 @@ public class EscfBulkWriterTests extends ESTestCase {
         assertNull(safeGet(done));
     }
 
+    public void testFinishOnlyOnce() {
+        EscfBulkWriter writer = writer(new EscfBulkWriter.Policy(1, MAX_TARGET));
+        EscfBulkWriter.Producer producer = writer.newProducer();
+        PlainActionFuture<Void> done = new PlainActionFuture<>();
+        writer.finish(done);
+        expectThrows(IllegalStateException.class, () -> writer.finish(new PlainActionFuture<>()));
+        // the first listener still completes
+        producer.close();
+        assertNull(safeGet(done));
+        expectThrows(IllegalStateException.class, () -> writer.finish(new PlainActionFuture<>()));
+    }
+
     public void testFinishWaitsForTheProducersAndTheBulks() {
         EscfBulkWriter writer = writer(new EscfBulkWriter.Policy(1, MAX_TARGET));
         EscfBulkWriter.Producer producer = writer.newProducer();
@@ -1167,7 +1179,14 @@ public class EscfBulkWriterTests extends ESTestCase {
         int closeAfterPage = randomBoolean() ? -1 : between(0, pages - 1);
         CountDownLatch finished = new CountDownLatch(1);
         AtomicReference<Exception> failure = new AtomicReference<>();
-        ActionListener<Void> done = ActionListener.runAfter(ActionListener.wrap(r -> {}, failure::set), finished::countDown);
+        // what is still charged when the writer says it is done, which must be nothing
+        AtomicLong chargedWhenDone = new AtomicLong(-1);
+        AtomicLong pressureWhenDone = new AtomicLong(-1);
+        ActionListener<Void> done = ActionListener.runAfter(ActionListener.wrap(r -> {}, failure::set), () -> {
+            chargedWhenDone.set(breaker.getUsed());
+            pressureWhenDone.set(coordinatingBytes(service));
+            finished.countDown();
+        });
         boolean finishFirst = randomBoolean();
         if (finishFirst) {
             writer.finish(done);
@@ -1207,8 +1226,8 @@ public class EscfBulkWriterTests extends ESTestCase {
                 last[p] = id;
             }
         }
-        assertThat(coordinatingBytes(service), equalTo(0L));
-        assertThat(breaker.getUsed(), equalTo(0L));
+        assertThat(pressureWhenDone.get(), equalTo(0L));
+        assertThat(chargedWhenDone.get(), equalTo(0L));
     }
 
     /**

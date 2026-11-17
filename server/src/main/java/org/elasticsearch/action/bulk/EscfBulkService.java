@@ -44,7 +44,7 @@ public final class EscfBulkService {
      * @param client     sends the bulks; one that sets the task as their parent cancels them with the task
      * @param onResponse reads the response of each bulk, such as {@link EscfBulkWriter.ResponseHandler#FAIL_ON_FAILED_ITEM}
      * @param onCapacity called from the executor when {@link EscfBulkWriter.Producer#hasCapacity()} may have turned true; it may
-     *                   not be called once the executor is shut down
+     *                   not be called once the executor is shut down, and may still be called after the writer finished
      */
     public EscfBulkWriter newWriter(
         Client client,

@@ -343,7 +343,9 @@ public final class EscfBulkWriter implements Releasable {
      */
     public void finish(ActionListener<Void> listener) {
         synchronized (this) {
-            assert onDone == null && done == false : "finished twice";
+            if (onDone != null || done) {
+                throw new IllegalStateException("writer for [" + index + "] already finished");
+            }
             onDone = listener;
         }
         maybeDone();
@@ -651,9 +653,10 @@ public final class EscfBulkWriter implements Releasable {
                 chunk.close();
             }
             chunks.clear();
+            // under the lock that maybeDone checks, so that finish never completes while these rows are still charged
+            release(dropped, () -> Releasables.close(pressure));
             holding = new ArrayList<>(producers);
         }
-        release(dropped, () -> Releasables.close(pressure));
         for (Producer producer : holding) {
             producer.drop();
         }

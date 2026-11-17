@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.datasources.DeclaredSchemaValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorExcerpts;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.RowLocation;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
@@ -1176,7 +1177,9 @@ public class NdJsonPageDecoderTests extends ESTestCase {
         });
         assertThat(
             e.getMessage(),
-            Matchers.containsString("row [1]: duplicate field name; set [error_mode] to [skip_row] to skip the row instead")
+            Matchers.containsString(
+                "row [1] of [test://decode]: duplicate field name; set [error_mode] to [skip_row] to skip the row instead"
+            )
         );
         assertThat(e.getMessage(), Matchers.not(Matchers.containsString("Duplicate field")));
         assertThat(e.getCause().getMessage(), Matchers.containsString("Duplicate field '" + repeatedName + "'"));
@@ -1219,7 +1222,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
             }
             // SkipWarnings.add() emits a one-time summary header on the first call, then the detail.
             assertEquals(policy + ": one summary + one detail warning", 2, warnings.size());
-            assertEquals("row [2]: duplicate field name", warnings.get(1));
+            assertEquals("row [2] of [test://duplicate]: duplicate field name", warnings.get(1));
             assertEquals(policy + ": the dropped line is charged exactly once", 1L, counters.snapshot().parseErrors());
         }
     }
@@ -1843,9 +1846,9 @@ public class NdJsonPageDecoderTests extends ESTestCase {
         assertEquals(
             List.of(
                 "Some values in [test://array-poison] cannot be read; " + SkipWarnings.REMOVED_FROM_MULTI_VALUE_OUTCOME,
-                "row [2], column [v]: cannot read [notanumber] as [long]",
-                "row [4], column [v]: cannot read [x] as [long]",
-                "row [4], column [v]: cannot read [y] as [long]"
+                "row [2] of [test://array-poison], column [v]: cannot read [notanumber] as [long]",
+                "row [4] of [test://array-poison], column [v]: cannot read [x] as [long]",
+                "row [4] of [test://array-poison], column [v]: cannot read [y] as [long]"
             ),
             warnings
         );
@@ -2034,9 +2037,11 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     public void testLongUnparseableValueIsTruncatedInWarningAndException() throws IOException {
         int length = 2_000_000;
         String big = "Z".repeat(length);
-        // The frame around the value is well under 64 chars; the fail-fast hint and ParsingException's
-        // position prefix add under 96 more. A value embedded twice, or whole, overshoots either bound.
-        int warningBound = ErrorExcerpts.MAX_EXCERPT_CHARS + 64;
+        // The frame around the value is well under 64 chars, plus the object name the location clause carries,
+        // which RowLocation cuts at its own cap; the fail-fast hint and ParsingException's position prefix add
+        // under 96 more. A value embedded twice, or whole, overshoots either bound. The object-name term is
+        // expressed through the constant so that raising the cap cannot quietly widen this guard.
+        int warningBound = ErrorExcerpts.MAX_EXCERPT_CHARS + 64 + RowLocation.MAX_OBJECT_NAME_CHARS;
         int exceptionBound = warningBound + 96;
         for (String bad : List.of("\"" + big + "\"", "[1,\"" + big + "\"]")) {
             String ndjson = "{\"id\":1,\"v\":\"a\"}\n{\"id\":" + bad + ",\"v\":\"b\"}\n";
@@ -2115,7 +2120,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     public void testOversizedNumberTokenFailsFastUnderStrict() {
         String ndjson = "{\"v\":1}\n" + oversizedNumberRecord() + "\n{\"v\":3}\n";
         ParsingException e = expectThrows(ParsingException.class, () -> decodeOneColumn(ndjson, DataType.LONG, ErrorPolicy.STRICT));
-        assertThat(e.getMessage(), Matchers.containsString("row [2]: JSON over a parser limit"));
+        assertThat(e.getMessage(), Matchers.containsString("row [2] of [test://ul]: JSON over a parser limit"));
         assertThat(e.getMessage(), Matchers.not(Matchers.containsString("Number value length")));
         assertThat(e.getCause().getMessage(), Matchers.containsString("Number value length"));
     }
@@ -2147,7 +2152,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     public void testExcessiveNestingFailsFastUnderStrict() {
         String ndjson = "{\"v\":1}\n" + excessiveNestingRecord() + "\n";
         ParsingException e = expectThrows(ParsingException.class, () -> decodeOneColumn(ndjson, DataType.LONG, ErrorPolicy.STRICT));
-        assertThat(e.getMessage(), Matchers.containsString("row [2]: JSON over a parser limit"));
+        assertThat(e.getMessage(), Matchers.containsString("row [2] of [test://ul]: JSON over a parser limit"));
         assertThat(e.getMessage(), Matchers.not(Matchers.containsString("Document nesting depth")));
         assertThat(e.getCause().getMessage(), Matchers.containsString("Document nesting depth"));
     }
@@ -2287,7 +2292,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
             assertEquals(1L, block.getLong(0));
             assertEquals(3L, block.getLong(1));
         }
-        assertEquals("row [2]: JSON over a parser limit", warnings.get(1));
+        assertEquals("row [2] of [test://constraint-bytes]: JSON over a parser limit", warnings.get(1));
     }
 
     /**
@@ -2360,7 +2365,10 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     public void testConstraintViolationOnRecordOpeningTokenFailsFastUnderStrict() {
         String ndjson = "{\"v\":1}\n" + "1".repeat(1200) + "\n";
         ParsingException e = expectThrows(ParsingException.class, () -> decodeOneColumn(ndjson, DataType.LONG, ErrorPolicy.STRICT));
-        assertThat(e.getMessage(), Matchers.containsString("row [2]: JSON over a parser limit; set [error_mode] to [skip_row]"));
+        assertThat(
+            e.getMessage(),
+            Matchers.containsString("row [2] of [test://ul]: JSON over a parser limit; set [error_mode] to [skip_row]")
+        );
         assertThat(e.getCause().getMessage(), Matchers.containsString("Number value length"));
         assertEquals(RestStatus.BAD_REQUEST, e.status());
     }
@@ -2953,7 +2961,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
         }
         // SkipWarnings.add() emits a one-time summary header on the first call, then the detail.
         assertEquals("one summary + one detail warning for the dropped line", 2, warnings.size());
-        assertEquals("row [2]: JSON over a parser limit", warnings.get(1));
+        assertEquals("row [2] of [test://constraint]: JSON over a parser limit", warnings.get(1));
         assertThat(warnings.get(1), Matchers.not(Matchers.containsString(jacksonLimitText)));
         assertEquals("the dropped line is charged exactly once", 1L, counters.snapshot().parseErrors());
     }
@@ -3313,6 +3321,80 @@ public class NdJsonPageDecoderTests extends ESTestCase {
         }
         assertFalse("expected skip_row warnings for the poisoned record", warnings.isEmpty());
         assertScratchIsRecordSized(breaker, 2);
+    }
+
+    /**
+     * The whole-line failure named the row and nothing else, so the operator of a glob read was told an ordinal
+     * with no object to apply it to. The strict throw and the skip-mode detail share one description, so naming
+     * the object fixes both at once.
+     */
+    public void testStrictLineParseErrorNamesTheObject() {
+        ParsingException e = expectThrows(ParsingException.class, () -> {
+            try (Page page = decodePage("{\"v\":1}\n{not json}\n", List.of(attribute("v", DataType.LONG)))) {
+                assertNull("unreachable: the malformed record must fail the query", page);
+            }
+        });
+        assertThat(e.getMessage(), Matchers.containsString("row [2] of [test://decode]: malformed JSON"));
+    }
+
+    /** The per-cell failure has the same gap as the whole-line one, through a separate message. */
+    public void testCoercionFailureDetailNamesTheObject() throws IOException {
+        List<String> warnings = new ArrayList<>();
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream("{\"v\":1}\n{\"v\":\"nope\"}\n".getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of(attribute("v", DataType.LONG)),
+                null,
+                10,
+                blockFactory,
+                ErrorPolicy.LENIENT,
+                "test://coercion",
+                new NdJsonReaderCounters(),
+                warnings::add
+            );
+            Page page = decoder.decodePage()
+        ) {
+            assertNotNull(page);
+        }
+        assertEquals("one summary + one detail, got: " + warnings, 2, warnings.size());
+        assertEquals("row [2] of [test://coercion], column [v]: cannot read [nope] as [long]", warnings.get(1));
+    }
+
+    /**
+     * One decoder is constructed per chunk and counts from zero, so on a file read in chunks — every gzip object,
+     * whatever its size, since {@code StreamingParallelParsingCoordinator} segments the decompressed stream — the
+     * same ordinal answers for one record per chunk and the response carries nothing to choose between them.
+     * The chunk's own file-global offset is handed to the decoder; printing it both locates the record and makes
+     * two chunks' messages differ, which matters because {@code InformationalWarningBudget} deduplicates by exact
+     * string and so dropped the second silently.
+     */
+    public void testAChunkSaysWhichByteItCountedFrom() throws IOException {
+        List<String> warnings = new ArrayList<>();
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream("{\"v\":1}\n{\"v\":\"nope\"}\n".getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of(attribute("v", DataType.LONG)),
+                null,
+                10,
+                blockFactory,
+                ErrorPolicy.LENIENT,
+                "test://chunked",
+                new NdJsonReaderCounters(),
+                warnings::add
+            )
+        ) {
+            decoder.setRecordOffsetBase(640491456L);
+            try (Page page = decoder.decodePage()) {
+                assertNotNull(page);
+            }
+        }
+        assertEquals("one summary + one detail, got: " + warnings, 2, warnings.size());
+        assertEquals(
+            "row [2] of [test://chunked] counted from byte [640491456], column [v]: cannot read [nope] as [long]",
+            warnings.get(1)
+        );
     }
 
 }

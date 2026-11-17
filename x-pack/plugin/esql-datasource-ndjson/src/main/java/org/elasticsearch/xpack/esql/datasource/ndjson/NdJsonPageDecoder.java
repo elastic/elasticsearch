@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorExcerpts;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.RowLocation;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
@@ -689,7 +690,9 @@ public class NdJsonPageDecoder implements Closeable {
         }
         Check.isTrue(errorPolicy != null, "errorPolicy must not be null");
         this.errorPolicy = errorPolicy;
-        this.sourceLocation = sourceLocation;
+        // Cut here, not at each message: the summaries built just below and the per-row details that sit under
+        // them must carry the same token, or one long name renders two ways in a single response.
+        this.sourceLocation = RowLocation.displayObjectName(sourceLocation);
         this.counters = counters;
         this.datetimeFormatter = datetimeFormatter != null ? datetimeFormatter : NdJsonSchemaInferrer.STRICT_DATE_OPTIONAL_TIME;
         this.declaredDateFormats = declaredDateFormats != null ? Map.copyOf(declaredDateFormats) : Map.of();
@@ -863,7 +866,7 @@ public class NdJsonPageDecoder implements Closeable {
         // Described once, for the strict message and the client warning alike: the row and the kind of failure.
         // Jackson's own message is never rendered to the client, since it names Jackson's classes and features;
         // the node log below keeps it, with the phase, for the operator.
-        String description = "row [" + logicalRowIndex + "]: " + lineFailureKind(e);
+        String description = RowLocation.of(logicalRowIndex, sourceLocation, recordOffsetBase) + ": " + lineFailureKind(e);
         if (errorPolicy.isStrict()) {
             // The remedy hint mirrors coercionFailure and CsvFormatReader.onRowErrorImpl, phrased for a
             // whole-line failure: both non-strict modes drop the line here, so neither is "null-fill" the way
@@ -2533,11 +2536,8 @@ public class NdJsonPageDecoder implements Closeable {
             // Not "the declared type": this path also fires for a supported-pair failure on an INFERRED column
             // (e.g. a bad string in an inferred long), where the target type was not declared.
             // The outcome (row skipped or value nulled) is stated once, in the summary, not per detail.
-            String message = "row ["
-                + totalRowCount
-                + "], column ["
-                + name
-                + "]: cannot read ["
+            String message = RowLocation.of(totalRowCount, sourceLocation, recordOffsetBase, name)
+                + ": cannot read ["
                 + value
                 + "] as ["
                 + target.typeName()

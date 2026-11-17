@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
+import org.elasticsearch.xpack.esql.datasources.spi.RowLocation;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
@@ -88,6 +89,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 
@@ -492,7 +494,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         CircuitBreaker tightBreaker = tinyBreaker();
         CircuitBreakingException e = expectThrows(
             CircuitBreakingException.class,
-            () -> CsvFormatReader.collectSampleRows(wideRows(10), null, 10, tightBreaker, ErrorPolicy.STRICT)
+            () -> CsvFormatReader.collectSampleRows(wideRows(10), null, 10, tightBreaker, ErrorPolicy.STRICT, "csv")
         );
         assertEquals(RestStatus.TOO_MANY_REQUESTS, e.status());
         assertEquals(0, tightBreaker.getUsed());
@@ -507,7 +509,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             CircuitBreaker tightBreaker = tinyBreaker();
             CircuitBreakingException e = expectThrows(
                 CircuitBreakingException.class,
-                () -> CsvFormatReader.collectSampleRows(wideRows(100), null, 100, tightBreaker, policy)
+                () -> CsvFormatReader.collectSampleRows(wideRows(100), null, 100, tightBreaker, policy, "csv")
             );
             assertEquals(RestStatus.TOO_MANY_REQUESTS, e.status());
             assertEquals(0, tightBreaker.getUsed());
@@ -518,7 +520,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testWideRowsWithRoomyBreakerSampleInFull() {
         BigArrays roomy = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(16)).withCircuitBreaking();
         CircuitBreaker breaker = roomy.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        CsvFormatReader.SchemaSample sample = CsvFormatReader.collectSampleRows(wideRows(10), null, 10, breaker, ErrorPolicy.STRICT);
+        CsvFormatReader.SchemaSample sample = CsvFormatReader.collectSampleRows(wideRows(10), null, 10, breaker, ErrorPolicy.STRICT, "csv");
         assertEquals(10, sample.rows().size());
         breaker.addWithoutBreaking(-sample.reservedBytes());
         assertEquals(0, breaker.getUsed());
@@ -6940,7 +6942,15 @@ public class CsvFormatReaderTests extends ESTestCase {
         return createStorageObject(csvContent.getBytes(StandardCharsets.UTF_8));
     }
 
+    private StorageObject createStorageObject(String csvContent, String objectName) {
+        return createStorageObject(csvContent.getBytes(StandardCharsets.UTF_8), objectName);
+    }
+
     private StorageObject createStorageObject(byte[] bytes) {
+        return createStorageObject(bytes, "test.csv");
+    }
+
+    private StorageObject createStorageObject(byte[] bytes, String objectName) {
         return new StorageObject() {
             @Override
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
@@ -6977,7 +6987,7 @@ public class CsvFormatReaderTests extends ESTestCase {
 
             @Override
             public StoragePath path() {
-                return StoragePath.of("memory://host/test.csv");
+                return StoragePath.of("memory://host/" + objectName);
             }
         };
     }
@@ -7658,14 +7668,14 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testRowErrorReasonRendersJacksonFieldTooLong() {
         String jackson = "String value length (12) exceeds the maximum allowed (10, "
             + "from `StreamReadConstraints.getMaxStringLength()`)";
-        assertEquals("field of [12] characters exceeds [10]", CsvFormatReader.rowErrorReason(jackson));
+        assertEquals("field of [12] characters exceeds [10]", CsvFormatReader.rowErrorReason(jackson, "csv"));
     }
 
     public void testRowErrorReasonFallbackDropsJacksonConstraintReference() {
         // A reworded Jackson message misses JACKSON_FIELD_TOO_LONG; the fallback must still not name the Jackson class.
-        String reworded = CsvFormatReader.READ_RECORD_FAILURE
+        String reworded = CsvFormatReader.readRecordFailure("csv")
             + ": String length (12) is over the limit (10, from `StreamReadConstraints.getMaxStringLength()`)";
-        assertEquals("String length (12) is over the limit (10)", CsvFormatReader.rowErrorReason(reworded));
+        assertEquals("String length (12) is over the limit (10)", CsvFormatReader.rowErrorReason(reworded, "csv"));
     }
 
     public void testCsvErrorMessagesSummarizeRowEmptyIsSentinel() {
@@ -7901,10 +7911,12 @@ public class CsvFormatReaderTests extends ESTestCase {
             new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG),
             new ReferenceAttribute(Source.EMPTY, null, "tag", DataType.KEYWORD)
         );
-        // The frame around the value is well under 64 chars. Under fail_fast the row excerpt (itself capped) and
-        // the hint come on top. A value embedded whole overshoots either bound.
-        int warningBound = ErrorExcerpts.MAX_EXCERPT_CHARS + 64;
-        int exceptionBound = 2 * ErrorExcerpts.MAX_EXCERPT_CHARS + 160;
+        // The frame around the value is well under 64 chars, plus the object name the location clause carries,
+        // which RowLocation cuts at its own cap. Under fail_fast the row excerpt (itself capped) and the hint come
+        // on top. A value embedded whole overshoots either bound. The object-name term goes through the constant
+        // so that raising the cap cannot quietly widen this guard.
+        int warningBound = ErrorExcerpts.MAX_EXCERPT_CHARS + 64 + RowLocation.MAX_OBJECT_NAME_CHARS;
+        int exceptionBound = 2 * ErrorExcerpts.MAX_EXCERPT_CHARS + 160 + RowLocation.MAX_OBJECT_NAME_CHARS;
         for (String mvSyntax : List.of("NONE", "brackets")) {
             for (boolean directBlock : List.of(false, true)) {
                 for (String lenient : List.of("null_field", "skip_row")) {
@@ -9321,7 +9333,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             int rows = readRowCount(reader, createStorageObject(csv), schema, List.of("id", "score"));
             List<String> warnings = drainWarnings();
             assertEquals(desc + " only the clean row survives", 1, rows);
-            long rowErrors = warnings.stream().filter(w -> w.startsWith("row [1]: ")).count();
+            long rowErrors = warnings.stream().filter(w -> w.startsWith("row [1] of [test.csv]: ")).count();
             assertEquals(desc + " one row, one charged error, got: " + warnings, 1L, rowErrors);
         }
     }
@@ -11893,4 +11905,152 @@ public class CsvFormatReaderTests extends ESTestCase {
             }
         }
     }
+
+    /**
+     * A {@code .tsv} read must not be told about CSV. This reader serves both formats off one class, and every
+     * message that named the format used the literal, so the operator of a TSV dataset was sent looking for a
+     * reader they are not using. The format comes from the reader's own {@code format} field now.
+     *
+     * <p>The duplicate-header message is the trigger because it is one that genuinely carried the literal. Most of
+     * this reader's messages never named a format at all, so asserting the absence of {@code "CSV"} on one of those
+     * passes whether or not the defect is fixed. The assertion here is positive — the message must say {@code TSV} —
+     * and the same file through the csv-constructed reader is the control, so the test discriminates in both
+     * directions rather than merely passing.
+     */
+    public void testTsvErrorsNameTsvNotCsv() {
+        CsvFormatReader tsv = new CsvFormatReader(blockFactory, CsvFormatOptions.TSV, "tsv", List.of(".tsv"));
+        ExternalClientException onTsv = expectThrows(
+            ExternalClientException.class,
+            () -> tsv.schema(createStorageObject("id:long\tid:long\n1\t2\n"))
+        );
+        assertThat(onTsv.getMessage(), containsString("TSV header has duplicate column names"));
+        assertThat("a tsv read must not name CSV, got: " + onTsv.getMessage(), onTsv.getMessage(), not(containsString("CSV")));
+
+        // Control: the same fault through the csv-constructed reader still says CSV, so the assertion above is
+        // about the format the reader was built for and not about the message having lost its format entirely.
+        ExternalClientException onCsv = expectThrows(
+            ExternalClientException.class,
+            () -> new CsvFormatReader(blockFactory).schema(createStorageObject("id:long,id:long\n1,2\n"))
+        );
+        assertThat(onCsv.getMessage(), containsString("CSV header has duplicate column names"));
+    }
+
+    /**
+     * The summary and the details under it must name the object with the SAME token. The cut that bounds an
+     * over-long name is applied where the reader assigns its message-location field rather than inside
+     * {@link RowLocation}, because capping only there left the summary printing the name whole and the detail
+     * printing it cut — one object rendered two ways in a single response, which reads as two.
+     */
+    public void testSummaryAndDetailNameTheObjectIdentically() throws IOException {
+        String longName = "p".repeat(RowLocation.MAX_OBJECT_NAME_CHARS * 3) + ".csv";
+        StorageObject object = createStorageObject("id:long,name:keyword\n1,Alice\nbad_id,Bob\n", longName);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        try (
+            CloseableIterator<Page> iterator = reader.read(
+                object,
+                FormatReadContext.builder().batchSize(10).errorPolicy(new ErrorPolicy(100, true)).build()
+            )
+        ) {
+            while (iterator.hasNext()) {
+                iterator.next().releaseBlocks();
+            }
+        }
+        List<String> warnings = drainWarnings();
+        assertEquals("expected one summary and one detail, got: " + warnings, 2, warnings.size());
+        String token = RowLocation.displayObjectName(longName);
+        assertThat("the name is cut, or this test is not exercising the cap", token, not(equalTo(longName)));
+        assertThat("the summary carries the cut token", warnings.get(0), containsString("[" + token + "]"));
+        assertThat("and the detail carries the same one", warnings.get(1), containsString("[" + token + "]"));
+        assertThat("neither may carry the uncut name", String.join(" ", warnings), not(containsString(longName)));
+    }
+
+    /**
+     * The summary warning names the object; every detail line after it used to carry a row number and nothing
+     * else. On a glob the details from every object arrive in one response under one summary, so a detail that
+     * does not name its object cannot be matched back to the file it came from.
+     */
+    public void testSkipRowDetailWarningsNameTheObject() throws IOException {
+        StorageObject object = createStorageObject("id:long,name:keyword\n1,Alice\nbad_id,Bob\n3,Charlie\n");
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        try (
+            CloseableIterator<Page> iterator = reader.read(
+                object,
+                FormatReadContext.builder().batchSize(10).errorPolicy(new ErrorPolicy(100, true)).build()
+            )
+        ) {
+            while (iterator.hasNext()) {
+                iterator.next().releaseBlocks();
+            }
+        }
+        List<String> warnings = drainWarnings();
+        assertEquals(2, warnings.size());
+        assertThat("the summary names the object", warnings.get(0), containsString("[test.csv]"));
+        assertThat("so must the detail", warnings.get(1), equalTo("row [2] of [test.csv]: cannot read [bad_id] as [long]"));
+    }
+
+    /**
+     * The row ordinal counts records this reader accepted, so it is the file's row only for the split that
+     * starts at byte zero. It cannot be made file-global without counting records from byte zero, which is the
+     * work splitting exists to avoid — so a later split's message names the byte it started counting from, and
+     * the ordinal can no longer be read as a row of the file.
+     *
+     * <p>The same physical row is read twice: once as the whole file, once as the second of two splits cut on a
+     * record boundary. Before this the two said {@code row [3]} and {@code row [1]} with nothing to tell them
+     * apart.
+     */
+    public void testALaterSplitSaysWhichByteItCountedFrom() throws IOException {
+        String header = "id:long,name:keyword\n";
+        String head = "1,Alice\n2,Bob\n";
+        String tail = "bad_id,Carol\n4,Dan\n";
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, null, "name", DataType.KEYWORD)
+        );
+        long cut = (header + head).getBytes(StandardCharsets.UTF_8).length;
+
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        String whole = soleDetailWarning(
+            reader,
+            createStorageObject(header + head + tail),
+            FormatReadContext.builder().batchSize(10).errorPolicy(new ErrorPolicy(100, true)).build()
+        );
+        String split = soleDetailWarning(
+            reader.withSchema(schema),
+            createStorageObject(tail),
+            FormatReadContext.builder()
+                .batchSize(10)
+                .errorPolicy(new ErrorPolicy(100, true))
+                .firstSplit(false)
+                .lastSplit(true)
+                .recordAligned(true)
+                .splitStartByte(cut)
+                .readSchema(schema)
+                .fileHeaderColumns(List.of("id", "name"))
+                .build()
+        );
+
+        assertThat(
+            "read whole, the ordinal IS the file's row, so there is nothing to qualify",
+            whole,
+            equalTo("row [3] of [test.csv]: cannot read [bad_id] as [long]")
+        );
+        assertThat(
+            "read as a later split, the ordinal restarts and the message must say where from",
+            split,
+            equalTo("row [1] of [test.csv] counted from byte [" + cut + "]: cannot read [bad_id] as [long]")
+        );
+    }
+
+    /** Drains the reader and returns its single detail warning (the one after the summary). */
+    private String soleDetailWarning(CsvFormatReader reader, StorageObject object, FormatReadContext context) throws IOException {
+        try (CloseableIterator<Page> iterator = reader.read(object, context)) {
+            while (iterator.hasNext()) {
+                iterator.next().releaseBlocks();
+            }
+        }
+        List<String> warnings = drainWarnings();
+        assertEquals("expected one summary and one detail, got: " + warnings, 2, warnings.size());
+        return warnings.get(1);
+    }
+
 }

@@ -328,6 +328,36 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
         }
     }
 
+    /**
+     * A manager keeps every collector it creates, so collectors of a field sort don't share one: nothing keeps a collector once
+     * its operator is done with it.
+     */
+    public void testFieldSortCollectorsDoNotShareAManager() throws IOException {
+        var factory = createFactory(false, List.of(new FieldSortBuilder("s")), DataPartitioning.SHARD);
+        var provider = factory.perShardCollectorProvider;
+        Sort fieldSort = new Sort(new SortedNumericSortField("s", SortField.Type.LONG, false, SortedNumericSelector.Type.MIN));
+        int collectors = between(1, 10);
+        for (int i = 0; i < collectors; i++) {
+            provider.newTopDocsCollector(fieldSort);
+        }
+        assertThat(provider.topFieldCollectorManagers.isEmpty(), equalTo(true));
+    }
+
+    /**
+     * Collectors that sort by score first share their manager, through which they share the minimum competitive score.
+     */
+    public void testScoreSortCollectorsShareAManager() throws IOException {
+        var factory = createFactory(false, List.of(), DataPartitioning.SHARD);
+        var provider = factory.perShardCollectorProvider;
+        Sort scoreSort = new Sort(SortField.FIELD_SCORE, SortField.FIELD_DOC);
+        int collectors = between(1, 10);
+        for (int i = 0; i < collectors; i++) {
+            provider.newTopDocsCollector(scoreSort);
+        }
+        assertThat(provider.topFieldCollectorManagers.size(), equalTo(1));
+        assertThat(provider.getTopFieldCollectorManager(scoreSort).getCollectors().size(), equalTo(collectors));
+    }
+
     private void setupIndex(int numDocs) throws IOException {
         try (RandomIndexWriter writer = new RandomIndexWriter(random(), directory)) {
             for (int d = 0; d < numDocs; d++) {

@@ -675,7 +675,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         // Lazy, thread-safe holder for TopScoreDocCollectorManager
         volatile TopScoreDocCollectorManager topScoreDocCollectorManager;
 
-        // Cache of TopFieldCollectorManager instances per Sort configuration
+        // Cache of TopFieldCollectorManager instances per Sort configuration, for the sorts that start with the score
         final Map<Sort, TopFieldCollectorManager> topFieldCollectorManagers;
         private final List<SortBuilder<?>> sorts;
 
@@ -724,6 +724,11 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                 }
             }
 
+            if (sort.getSort()[0].getType() != SortField.Type.SCORE) {
+                // A manager keeps every collector it creates, so a shared one would keep them all until the query ends.
+                // Only collectors that sort by score first share anything through it: the minimum competitive score.
+                return new TopFieldCollectorManager(sort, limit, null, 0).newCollector();
+            }
             TopFieldCollectorManager topFieldCollectorManager = getTopFieldCollectorManager(sort);
             synchronized (topFieldCollectorManager) {
                 // Need to synchronize on the manager to ensure that only one collector is created at a time for a given Sort,

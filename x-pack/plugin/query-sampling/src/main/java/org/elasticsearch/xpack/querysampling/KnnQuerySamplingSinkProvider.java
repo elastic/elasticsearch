@@ -19,11 +19,11 @@ import java.util.List;
  * class through SPI, and hands it the plugin, which is how it reaches the sink; it does so after the plugin's components
  * have been created. Without the feature flag the plugin builds nothing, so there is no sink and the settings have no effect.
  */
-public class QuerySamplingSinkProvider implements QuerySinkProvider {
+public class KnnQuerySamplingSinkProvider implements QuerySinkProvider {
 
-    private final QuerySamplingPlugin plugin;
+    private final KnnQuerySamplingPlugin plugin;
 
-    public QuerySamplingSinkProvider(QuerySamplingPlugin plugin) {
+    public KnnQuerySamplingSinkProvider(KnnQuerySamplingPlugin plugin) {
         this.plugin = plugin;
     }
 

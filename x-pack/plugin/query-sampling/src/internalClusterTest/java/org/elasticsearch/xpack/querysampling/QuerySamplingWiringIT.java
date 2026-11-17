@@ -35,7 +35,7 @@ public class QuerySamplingWiringIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(QuerySamplingPlugin.class);
+        return List.of(KnnQuerySamplingPlugin.class);
     }
 
     @Override
@@ -48,7 +48,7 @@ public class QuerySamplingWiringIT extends ESIntegTestCase {
     }
 
     public void testAKnnSearchReachesTheSamplingPipelineAndTheSwitchTurnsItOff() throws Exception {
-        assumeTrue("the plugin does nothing without its feature flag", QuerySamplingPlugin.QUERY_SAMPLING_FEATURE_FLAG.isEnabled());
+        assumeTrue("the plugin does nothing without its feature flag", KnnQuerySamplingPlugin.QUERY_SAMPLING_FEATURE_FLAG.isEnabled());
         createIndexWithVectors();
         QueryCaptureSink sink = plugin().captureSink();
         assertThat("the plugin builds its sink, and the server found it through SPI to give it searches", sink, notNullValue());
@@ -86,16 +86,16 @@ public class QuerySamplingWiringIT extends ESIntegTestCase {
         );
     }
 
-    private QuerySamplingPlugin plugin() {
-        return internalCluster().getInstance(PluginsService.class).filterPlugins(QuerySamplingPlugin.class).findFirst().orElseThrow();
+    private KnnQuerySamplingPlugin plugin() {
+        return internalCluster().getInstance(PluginsService.class).filterPlugins(KnnQuerySamplingPlugin.class).findFirst().orElseThrow();
     }
 
     private long pipelineTasksCompleted() {
         for (ThreadPoolStats.Stats stats : internalCluster().getInstance(ThreadPool.class).stats()) {
-            if (stats.name().equals(QuerySamplingPlugin.THREAD_POOL_NAME)) {
+            if (stats.name().equals(KnnQuerySamplingPlugin.THREAD_POOL_NAME)) {
                 return stats.completed();
             }
         }
-        throw new AssertionError("no thread pool [" + QuerySamplingPlugin.THREAD_POOL_NAME + "]");
+        throw new AssertionError("no thread pool [" + KnnQuerySamplingPlugin.THREAD_POOL_NAME + "]");
     }
 }

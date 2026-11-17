@@ -1,1 +1,1 @@
-org.elasticsearch.xpack.querysampling.QuerySamplingSinkProvider
+org.elasticsearch.xpack.querysampling.KnnQuerySamplingSinkProvider

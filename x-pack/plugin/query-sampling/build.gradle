@@ -4,7 +4,7 @@ apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
   name = 'x-pack-query-sampling'
   description = 'Elasticsearch Expanded Pack Plugin - Query sampling for kNN search'
-  classname = 'org.elasticsearch.xpack.querysampling.QuerySamplingPlugin'
+  classname = 'org.elasticsearch.xpack.querysampling.KnnQuerySamplingPlugin'
 }
 
 base {

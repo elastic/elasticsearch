@@ -37,11 +37,11 @@ import java.util.List;
  * picks distinct queries from them off the search path. Disabled by default: it needs the feature flag, and then the
  * {@code xpack.query_sampling.enabled} setting. For now it runs on clusters with a single project only.
  */
-public class QuerySamplingPlugin extends Plugin {
+public class KnnQuerySamplingPlugin extends Plugin {
 
     public static final FeatureFlag QUERY_SAMPLING_FEATURE_FLAG = new FeatureFlag("query_sampling");
 
-    private static final Logger logger = LogManager.getLogger(QuerySamplingPlugin.class);
+    private static final Logger logger = LogManager.getLogger(KnnQuerySamplingPlugin.class);
 
     static final String THREAD_POOL_NAME = "query_sampling";
     private static final int QUEUE_SIZE = 1000;
@@ -101,7 +101,7 @@ public class QuerySamplingPlugin extends Plugin {
     }
 
     /**
-     * The sink that the query interceptor hands completed queries to, see {@link QuerySamplingSinkProvider}. Without the
+     * The sink that the query interceptor hands completed queries to, see {@link KnnQuerySamplingSinkProvider}. Without the
      * feature flag there is none: the settings stay registered, but nothing may act on them.
      */
     @Nullable

@@ -117,7 +117,11 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
+import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -872,10 +876,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         // Only the first STATS command in a TS query is treated as the time-series aggregation.
         // After METRICS_INFO, TS_INFO or DESCRIBE, the output is metadata, not time series data, so use regular Aggregate.
         return input -> {
-            boolean hasAggregate = input.anyMatch(p -> p instanceof Aggregate);
-            boolean hasPromqlCommand = input.anyMatch(p -> p instanceof PromqlCommand);
+            boolean hasAggregate = IndependentSubqueryJoin.anyMatchInMainScope(input, p -> p instanceof Aggregate);
+            boolean hasPromqlCommand = IndependentSubqueryJoin.anyMatchInMainScope(input, p -> p instanceof PromqlCommand);
             boolean hasTimeSeries = hasOuterTimeSeries(input);
-            boolean hasInfoCommand = input.anyMatch(p -> p instanceof MetricsInfo || p instanceof TsInfo || p instanceof Describe);
+            boolean hasInfoCommand = IndependentSubqueryJoin.anyMatchInMainScope(
+                input,
+                p -> p instanceof MetricsInfo || p instanceof TsInfo || p instanceof Describe
+            );
             if (hasAggregate == false && hasPromqlCommand == false && hasTimeSeries && hasInfoCommand == false) {
                 return new TimeSeriesAggregate(
                     source(ctx),
@@ -895,7 +902,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     /**
      * Returns {@code true} if {@code plan} (or any of its non-{@link Subquery}/{@link UnionAll} descendants) holds an
-     * {@link UnresolvedRelation} with a time-series {@link IndexMode}.
+     * {@link UnresolvedRelation} with a time-series {@link IndexMode}. The right side of an {@link IndependentSubqueryJoin}
+     * is not searched either.
      * <p>
      * Traversal stops at {@link Subquery} and {@link UnionAll} boundaries so that a {@code TS} command nested inside a
      * {@code FROM} subquery (e.g. {@code FROM (TS k8s), (FROM employees)}) does not cause the outer
@@ -910,7 +918,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         if (plan instanceof UnresolvedRelation ur && ur.indexMode().isTsdb()) {
             return true;
         }
-        for (LogicalPlan child : plan.children()) {
+        for (LogicalPlan child : IndependentSubqueryJoin.mainScopeChildren(plan)) {
             if (hasOuterTimeSeries(child)) {
                 return true;
             }
@@ -1065,16 +1073,19 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             List<NamedExpression> keepClauses = visitList(this, ctx.enrichWithClause(), NamedExpression.class);
 
             // If this is a remote-only ENRICH, any upstream LOOKUP JOINs need to be treated as remote-only, too.
+            // A JOIN subquery runs on its own, so its LOOKUP JOINs are left alone.
             if (mode == Mode.REMOTE) {
-                child = child.transformDown(
-                    LookupJoin.class,
-                    lj -> new LookupJoin(
-                        lj.source(),
-                        lj.left(),
-                        lj.right(),
-                        lj.config(),
-                        lj.executesOn() == ExecuteLocation.COORDINATOR ? ExecuteLocation.COORDINATOR : ExecuteLocation.REMOTE
-                    )
+                child = child.transformUpSkipBranch(
+                    IndependentSubqueryJoin::isSubqueryBranch,
+                    p -> p instanceof LookupJoin lj
+                        ? new LookupJoin(
+                            lj.source(),
+                            lj.left(),
+                            lj.right(),
+                            lj.config(),
+                            lj.executesOn() == ExecuteLocation.COORDINATOR ? ExecuteLocation.COORDINATOR : ExecuteLocation.REMOTE
+                        )
+                        : p
                 );
             }
 
@@ -1352,6 +1363,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw new ParsingException(source, "JOIN is in preview and only available in SNAPSHOT build");
         }
 
+        if (ctx.type.getType() == EsqlBaseParser.DEV_JOIN_LEFT && ctx.subqueryJoinTarget() != null) {
+            return leftOuterSubqueryJoin(source, ctx.subqueryJoinTarget(), ctx.joinCondition());
+        }
+
         if (ctx.type != null && ctx.type.getType() != EsqlBaseParser.JOIN_LOOKUP) {
             String joinType = ctx.type == null ? "(INNER)" : ctx.type.getText();
             throw new ParsingException(source, "only LOOKUP JOIN available, {} JOIN unsupported at the moment", joinType);
@@ -1399,6 +1414,37 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             Predicates.combineAndWithSource(joinInfo.joinExpressions(), source(condition)),
             mode
         );
+    }
+
+    /**
+     * Builds {@code LEFT OUTER JOIN (subquery) ON field1, field2}. Each field names a column on both sides.
+     */
+    private PlanFactory leftOuterSubqueryJoin(
+        Source source,
+        EsqlBaseParser.SubqueryJoinTargetContext target,
+        EsqlBaseParser.JoinConditionContext condition
+    ) {
+        if (target.subquery() == null) {
+            throw new ParsingException(
+                source(target),
+                "LEFT OUTER JOIN requires a subquery, found [{}]; use [(FROM {})] instead",
+                target.getText(),
+                target.getText()
+            );
+        }
+        var expressions = visitList(this, condition.booleanExpression(), Expression.class);
+        for (Expression expression : expressions) {
+            if (expression instanceof UnresolvedAttribute == false) {
+                throw new ParsingException(
+                    expression.source(),
+                    "JOIN on a subquery only supports a comma separated list of fields in ON, found [{}]",
+                    expression.sourceText()
+                );
+            }
+        }
+        List<Attribute> joinFields = processFieldBasedJoin(expressions).joinFields();
+        LogicalPlan subquery = visitSubquery(target.subquery());
+        return p -> new SubqueryJoin(source, p, subquery, new JoinConfig(JoinTypes.LEFT, joinFields, joinFields, null));
     }
 
     private record JoinInfo(List<Attribute> joinFields, List<Expression> joinExpressions) {}

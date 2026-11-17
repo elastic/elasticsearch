@@ -219,6 +219,8 @@ Unexpected nulls in query results
 Slow queries
 :   Add [`KEEP`](/reference/query-languages/esql/commands/keep.md) to select only the columns you need, add a [`WHERE`](/reference/query-languages/esql/commands/where.md) filter, and add a [`LIMIT`](/reference/query-languages/esql/commands/limit.md). For Parquet datasets, these push down to the reader and can significantly reduce the amount of data read from storage. Check the number of files your dataset's resource path resolves to. Large file counts increase query planning time.
 
+    {applies_to}`elasticsearch: preview` If queries remain slow after you reduce the data they read, your project might need more search resources. To pre-scale the Search tier ahead of demanding federated queries, increase [Minimum Search VCUs](docs-content://deploy-manage/deploy/elastic-cloud/project-settings.md#minimum-search-vcus) in your project settings.
+
     {applies_to}`stack: preview 9.6+, experimental =9.5` {applies_to}`serverless: preview` To end a long query against a dataset and get the rows produced so far, run it as an [async query](/reference/query-languages/esql/esql-rest.md#esql-rest-async-query) and stop it with the async stop API. The response returns those rows with `is_partial: true`. If the query already finished, the response has `is_partial: false`.
 
 503 error when creating a data source with credentials

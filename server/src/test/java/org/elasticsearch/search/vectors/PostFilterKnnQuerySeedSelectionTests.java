@@ -50,6 +50,19 @@ public class PostFilterKnnQuerySeedSelectionTests extends ESTestCase {
         assertArrayEquals(new int[][] { { 1, 4 }, null, { 100, 101 } }, PostFilterKnnQuery.nearestSeedsPerLeaf(perLeaf, 2));
     }
 
+    /** Equal scores at the cap go to the lower doc id, so the seeds do not depend on the order of the candidates. */
+    public void testTiesGoToLowerDocId() {
+        for (int run = 0; run < 50; run++) {
+            java.util.List<ScoreDoc> docs = new java.util.ArrayList<>();
+            for (int doc = 10; doc < 20; doc++) {
+                docs.add(new ScoreDoc(doc, 0.5f));
+            }
+            java.util.Collections.shuffle(docs, random());
+            ScoreDoc[][] perLeaf = new ScoreDoc[][] { docs.toArray(ScoreDoc[]::new) };
+            assertArrayEquals(new int[][] { { 10, 11, 12 } }, PostFilterKnnQuery.nearestSeedsPerLeaf(perLeaf, 3));
+        }
+    }
+
     /** Empty input yields an all-null per-leaf array of the same length. */
     public void testEmpty() {
         assertArrayEquals(new int[3][], PostFilterKnnQuery.nearestSeedsPerLeaf(new ScoreDoc[3][], 4));

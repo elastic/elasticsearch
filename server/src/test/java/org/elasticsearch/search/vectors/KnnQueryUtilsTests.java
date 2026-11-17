@@ -121,6 +121,22 @@ public class KnnQueryUtilsTests extends ESTestCase {
         assertEquals(0.8f, result[2].score, 0.001f);
     }
 
+    /** Equal scores at the cutoff go to the lower doc id, whatever order the input arrives in. */
+    public void testDedupAndSelectTopKTiesGoToLowerDocId() {
+        // two clear winners, then 20 docs tied on one score of which only 3 fit in k = 5
+        List<ScoreDoc> docs = new java.util.ArrayList<>();
+        docs.add(new ScoreDoc(500, 2f));
+        docs.add(new ScoreDoc(501, 3f));
+        for (int doc = 10; doc < 30; doc++) {
+            docs.add(new ScoreDoc(doc, 1f));
+        }
+        for (int run = 0; run < 50; run++) {
+            java.util.Collections.shuffle(docs, random());
+            ScoreDoc[] result = KnnQueryUtils.dedupAndSelectTopK(docs.toArray(ScoreDoc[]::new), 5);
+            assertArrayEquals(new int[] { 501, 500, 10, 11, 12 }, java.util.Arrays.stream(result).mapToInt(sd -> sd.doc).toArray());
+        }
+    }
+
     public void testDedupAndSelectTopKEmptyInputOrZeroK() {
         assertEquals(0, KnnQueryUtils.dedupAndSelectTopK(new ScoreDoc[0], 5).length);
         assertEquals(0, KnnQueryUtils.dedupAndSelectTopK(new ScoreDoc[] { new ScoreDoc(0, 1f) }, 0).length);

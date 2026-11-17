@@ -175,16 +175,21 @@ public final class KnnQueryUtils {
         return out;
     }
 
+    /** Highest score first, ties to the lower doc id (as in Lucene), so a selection never depends on input order. */
+    static final Comparator<ScoreDoc> BY_SCORE_DESC_THEN_DOC = (a, b) -> {
+        int byScore = Float.compare(b.score, a.score);
+        return byScore != 0 ? byScore : Integer.compare(a.doc, b.doc);
+    };
+
     private static ScoreDoc[] selectTopK(ScoreDoc[] docs, int k) {
-        Comparator<ScoreDoc> byScoreDesc = (a, b) -> Float.compare(b.score, a.score);
         if (docs.length <= k) {
-            ArrayUtil.introSort(docs, byScoreDesc);
+            ArrayUtil.introSort(docs, BY_SCORE_DESC_THEN_DOC);
             return docs;
         }
         // Partition around the kth-best so docs[0..k) holds the k highest-scoring entries
         // (in unspecified order), then sort just those k in place.
-        ArrayUtil.select(docs, 0, docs.length, k - 1, byScoreDesc);
-        ArrayUtil.introSort(docs, 0, k, byScoreDesc);
+        ArrayUtil.select(docs, 0, docs.length, k - 1, BY_SCORE_DESC_THEN_DOC);
+        ArrayUtil.introSort(docs, 0, k, BY_SCORE_DESC_THEN_DOC);
         return Arrays.copyOf(docs, k);
     }
 

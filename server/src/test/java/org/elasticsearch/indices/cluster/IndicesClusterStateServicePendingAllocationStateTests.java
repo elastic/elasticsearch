@@ -228,7 +228,7 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         verify(shardStateAction, never()).localShardFailed(any(), anyString(), any(), any(), any());
     }
 
-    public void testGiveUpResetsLocalRetriesToZero() {
+    public void testNewAllocationAfterRetryResetsLocalRetriesToZero() {
         ShardRouting shardRouting = applyInitializingPrimary();
         indicesService.failRecoveryViaListener(RETRY);
         deterministicTaskQueue.runAllRunnableTasks();

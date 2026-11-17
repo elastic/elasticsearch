@@ -11,8 +11,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator.CommandDescription;
+import org.elasticsearch.xpack.esql.generator.command.source.FromGenerator;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.generator.command.CommandGenerator.EMPTY_DESCRIPTION;
 import static org.hamcrest.Matchers.is;
@@ -38,7 +40,30 @@ public class DedupGeneratorTests extends ESTestCase {
         assertThat(description.commandString(), is(" | DEDUP "));
     }
 
+    public void testSkipsUnsupportedColumnAfterUnionAll() {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        CommandDescription description = generate(
+            List.of(fromWithUnionAll()),
+            List.of(new Column("env", "keyword", List.of()), new Column("client_cidr", "unsupported", List.of("ip_range")))
+        );
+        assertThat(description, is(sameInstance(EMPTY_DESCRIPTION)));
+    }
+
+    public void testGeneratesAfterUnionAllWithoutUnsupportedColumn() {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        CommandDescription description = generate(List.of(fromWithUnionAll()), List.of(new Column("env", "keyword", List.of())));
+        assertThat(description.commandString(), is(" | DEDUP "));
+    }
+
+    private static CommandDescription fromWithUnionAll() {
+        return new CommandDescription("from", null, "FROM (FROM a), (FROM b)", Map.of(FromGenerator.HAS_UNION_ALL, true));
+    }
+
     private static CommandDescription generate(List<Column> previousOutput) {
-        return DedupGenerator.INSTANCE.generate(List.of(), previousOutput, null, null, null);
+        return generate(List.of(), previousOutput);
+    }
+
+    private static CommandDescription generate(List<CommandDescription> previousCommands, List<Column> previousOutput) {
+        return DedupGenerator.INSTANCE.generate(previousCommands, previousOutput, null, null, null);
     }
 }

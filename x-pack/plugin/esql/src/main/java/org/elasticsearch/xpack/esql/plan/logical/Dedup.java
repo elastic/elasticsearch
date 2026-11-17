@@ -21,7 +21,10 @@ import org.elasticsearch.xpack.esql.parser.ParserUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
@@ -83,41 +86,85 @@ public class Dedup extends UnaryPlan implements SurrogateLogicalPlan, TelemetryA
 
     @Override
     public void postAnalysisVerification(Failures failures) {
-        List<UnsupportedAttribute> unionTyped = new ArrayList<>();
+        Map<String, Set<String>> unionTyped = new LinkedHashMap<>();
         for (Attribute attr : child().output()) {
             // Synthetic attributes (e.g. union-type conversions pushed into UnionAll branches) are dropped before the final output,
             // so the user never groups by them.
             if (attr.synthetic()) {
                 continue;
             }
-            if (attr instanceof UnsupportedAttribute ua && isUnionType(ua.originalTypes())) {
-                unionTyped.add(ua);
-            } else {
-                Aggregate.checkUnsupportedGroupingType(attr, failures);
+            if (attr.dataType() == DataType.UNSUPPORTED) {
+                Set<String> types = new TreeSet<>();
+                collectConflictTypes(child(), attr, types);
+                if (types.size() > 1) {
+                    unionTyped.put(attr.name(), types);
+                    continue;
+                }
             }
+            Aggregate.checkUnsupportedGroupingType(attr, failures);
         }
         if (unionTyped.isEmpty() == false) {
-            String columns = unionTyped.stream()
-                .map(ua -> "[" + ua.name() + "] with types " + new TreeSet<>(ua.originalTypes()))
+            String columns = unionTyped.entrySet()
+                .stream()
+                .map(e -> "[" + e.getKey() + "] with types " + e.getValue())
                 .collect(Collectors.joining(", "));
             List<String> advice = new ArrayList<>();
-            // name() is unquoted. A field such as emp-no has to be quoted or the suggested command does not parse.
-            unionTyped.stream()
-                .filter(ua -> hasUnsupportedType(ua) == false)
+            // The name is unquoted. A field such as emp-no has to be quoted or the suggested command does not parse.
+            unionTyped.entrySet()
+                .stream()
+                .filter(e -> hasUnsupportedType(e.getValue()) == false)
                 .findFirst()
-                .map(ua -> ParserUtils.quoteIdString(ua.name()))
+                .map(e -> ParserUtils.quoteIdString(e.getKey()))
                 .ifPresent(
                     name -> advice.add(
                         "convert each to a single type first, for example EVAL " + name + " = " + name + "::keyword, or DROP it"
                     )
                 );
             // A column whose type is unsupported in some of the data cannot be converted there, so it can only be dropped.
-            unionTyped.stream()
-                .filter(Dedup::hasUnsupportedType)
+            unionTyped.entrySet()
+                .stream()
+                .filter(e -> hasUnsupportedType(e.getValue()))
                 .findFirst()
-                .map(ua -> ParserUtils.quoteIdString(ua.name()))
+                .map(e -> ParserUtils.quoteIdString(e.getKey()))
                 .ifPresent(name -> advice.add("drop columns with an unsupported type, for example DROP " + name));
             failures.add(fail(this, "DEDUP cannot compare columns with conflicting types: {}; {}", columns, String.join("; ", advice)));
+        }
+    }
+
+    /**
+     * Collects the types an {@code UNSUPPORTED} column has in the data it comes from, including in every branch of a merge. When
+     * every branch has the column as {@code UNSUPPORTED}, the merge keeps the first branch's column, so the merged column's own
+     * {@link UnsupportedAttribute#originalTypes()} can miss a union type in a later branch. A column produced from another expression,
+     * such as a conversion, is not {@code UNSUPPORTED}, so the walk stops there.
+     */
+    private static void collectConflictTypes(LogicalPlan plan, Attribute attr, Set<String> types) {
+        if (attr.dataType() != DataType.UNSUPPORTED) {
+            return;
+        }
+        if (attr instanceof UnsupportedAttribute ua && isUnionType(ua.originalTypes())) {
+            types.addAll(ua.originalTypes());
+        } else {
+            types.add(DataType.UNSUPPORTED.typeName());
+        }
+        // Merges match branch columns by name, see MergePlan#outputUnion.
+        if (plan instanceof MergePlan merge && merge.outputSet().contains(attr)) {
+            for (LogicalPlan branch : merge.children()) {
+                for (Attribute branchAttr : branch.output()) {
+                    if (branchAttr.name().equals(attr.name())) {
+                        collectConflictTypes(branch, branchAttr, types);
+                        break;
+                    }
+                }
+            }
+            return;
+        }
+        for (LogicalPlan child : plan.children()) {
+            for (Attribute childAttr : child.output()) {
+                if (childAttr.id().equals(attr.id())) {
+                    collectConflictTypes(child, childAttr, types);
+                    return;
+                }
+            }
         }
     }
 
@@ -132,8 +179,8 @@ public class Dedup extends UnaryPlan implements SurrogateLogicalPlan, TelemetryA
         return originalTypes.size() > 1;
     }
 
-    private static boolean hasUnsupportedType(UnsupportedAttribute attr) {
-        return attr.originalTypes().contains(DataType.UNSUPPORTED.typeName());
+    private static boolean hasUnsupportedType(Set<String> types) {
+        return types.contains(DataType.UNSUPPORTED.typeName());
     }
 
     @Override

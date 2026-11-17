@@ -5458,6 +5458,75 @@ public class VerifierTests extends AnalyzerTestCase {
             );
     }
 
+    public void testDedupRejectsUnionTypeColumnBehindUnsupportedFirstBranch() {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        dedupHiddenConflictAnalyzer().error(
+            "FROM (FROM ranges | KEEP x), (FROM ints_longs | KEEP x) | DEDUP",
+            equalTo(
+                "1:59: DEDUP cannot compare columns with conflicting types: [x] with types [integer, long, unsupported];"
+                    + " drop columns with an unsupported type, for example DROP `x`"
+            )
+        );
+    }
+
+    public void testDedupRejectsUnionTypeColumnBeforeUnsupportedSecondBranch() {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        dedupHiddenConflictAnalyzer().error(
+            "FROM (FROM ints_longs | KEEP x), (FROM ranges | KEEP x) | DEDUP",
+            equalTo(
+                "1:59: DEDUP cannot compare columns with conflicting types: [x] with types [integer, long, unsupported];"
+                    + " drop columns with an unsupported type, for example DROP `x`"
+            )
+        );
+    }
+
+    public void testRenamingUnionTypeColumnBehindUnsupportedBranchBeforeDedupFailsAtRename() {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        dedupHiddenConflictAnalyzer().error(
+            "FROM (FROM ranges | KEEP x), (FROM ints_longs | KEEP x) | RENAME x AS y | DEDUP",
+            equalTo("1:66: Cannot use field [x] with unsupported type [ip_range]")
+        );
+    }
+
+    public void testDedupRejectsUnionTypeColumnBehindUnsupportedBranchInNestedSubquery() {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        dedupHiddenConflictAnalyzer().error(
+            "FROM (FROM (FROM ranges | KEEP x), (FROM other_ranges | KEEP x)), (FROM ints_longs | KEEP x) | DEDUP",
+            containsString("DEDUP cannot compare columns with conflicting types: [x] with types [integer, long, unsupported];")
+        );
+    }
+
+    public void testDedupRejectsUnionTypeColumnBehindUnsupportedBranchInsideNestedSubquery() {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        dedupHiddenConflictAnalyzer().error(
+            "FROM (FROM (FROM ranges | KEEP x), (FROM ints_longs | KEEP x)), (FROM other_ranges | KEEP x) | DEDUP",
+            containsString("DEDUP cannot compare columns with conflicting types: [x] with types [integer, long, unsupported];")
+        );
+    }
+
+    public void testDedupRejectsUnionTypeColumnBehindUnsupportedBranchKeptAfterFork() {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        dedupHiddenConflictAnalyzer().error(
+            "FROM (FROM ranges | KEEP x, name), (FROM ints_longs | KEEP x, name) | FORK (WHERE true) (WHERE true) | KEEP x | DEDUP",
+            containsString("DEDUP cannot compare columns with conflicting types: [x] with types [integer, long, unsupported];")
+        );
+    }
+
+    public void testDedupIgnoresSubqueryColumnUnsupportedInEveryBranch() {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        dedupHiddenConflictAnalyzer().query("FROM (FROM ranges | KEEP x, name), (FROM other_ranges | KEEP x, name) | DEDUP");
+    }
+
+    public void testDedupAcceptsUnionTypeColumnBehindUnsupportedBranchDropped() {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        dedupHiddenConflictAnalyzer().query("FROM (FROM ranges | KEEP x, name), (FROM ints_longs | KEEP x, name) | DROP x | DEDUP");
+    }
+
+    public void testDedupAcceptsUnionTypeColumnConvertedInBranchWithoutUnsupportedBranch() {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        dedupHiddenConflictAnalyzer().query("FROM (FROM ranges | KEEP name), (FROM ints_longs | EVAL x = x::long | KEEP x, name) | DEDUP");
+    }
+
     public void testDedupRejectsUnionTypeColumnKeptBeforeFork() {
         assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
         dedupUnionTypesAnalyzer().error(
@@ -5556,6 +5625,27 @@ public class VerifierTests extends AnalyzerTestCase {
         Map<String, EsField> keywordMapping = Map.of("x", keywordX, "y", longY);
         return analyzer().addIndex("unsupported_x", IndexResolution.valid(EsIndexGenerator.esIndex("unsupported_x", unsupportedMapping)))
             .addIndex("keyword_x", IndexResolution.valid(EsIndexGenerator.esIndex("keyword_x", keywordMapping)))
+            .stripErrorPrefix(true);
+    }
+
+    /**
+     * Three indices for {@code FROM} subqueries where {@code x} is {@code UNSUPPORTED} in every one: a plain unsupported type in
+     * {@code ranges} and {@code other_ranges}, and a union of {@code integer} and {@code long} in {@code ints_longs}. Merging such
+     * branches keeps the first branch's column, so the merged column alone does not show the conflict.
+     */
+    private TestAnalyzer dedupHiddenConflictAnalyzer() {
+        EsField name = new EsField("name", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
+        Map<String, EsField> ranges = Map.of("x", new UnsupportedEsField("x", List.of("ip_range")), "name", name);
+        Map<String, EsField> otherRanges = Map.of("x", new UnsupportedEsField("x", List.of("integer_range")), "name", name);
+        Map<String, EsField> intsLongs = Map.of(
+            "x",
+            new InvalidMappedField("x", new TreeMap<>(Map.of("integer", Set.of("ints"), "long", Set.of("longs")))),
+            "name",
+            name
+        );
+        return analyzer().addIndex("ranges", IndexResolution.valid(EsIndexGenerator.esIndex("ranges", ranges)))
+            .addIndex("other_ranges", IndexResolution.valid(EsIndexGenerator.esIndex("other_ranges", otherRanges)))
+            .addIndex("ints_longs", IndexResolution.valid(EsIndexGenerator.esIndex("ints_longs", intsLongs)))
             .stripErrorPrefix(true);
     }
 

@@ -10,7 +10,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.DirectoryReader;
-import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
@@ -2654,9 +2653,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             .build();
 
         // with TSDB doc values format enabled and matching index version, the doc values ignored source format should be used
-        IndexVersion switchToDocValuesFormatVersion = Build.current().isSnapshot()
-            ? IndexVersions.IGNORED_SOURCE_AS_DOC_VALUES
-            : IndexVersions.IGNORED_SOURCE_AS_DOC_VALUES_NO_FF;
+        IndexVersion switchToDocValuesFormatVersion = IndexVersions.IGNORED_SOURCE_AS_DOC_VALUES_NO_FF;
         assertEquals(
             IgnoredSourceFieldMapper.IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE,
             IgnoredSourceFieldMapper.ignoredSourceFormat(createIndexSettings(switchToDocValuesFormatVersion, tsdbDocValuesFormatEnabled))

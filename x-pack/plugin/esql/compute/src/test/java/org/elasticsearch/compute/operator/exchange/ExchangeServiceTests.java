@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.breaker.TrackingCircuitBreaker;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -776,6 +777,21 @@ public class ExchangeServiceTests extends ESTestCase {
         assertThat(trip.getMessage(), containsString("RecyclerBytesStreamOutput"));
         assertThat(trip.getByteLimit(), equalTo(queryLimit));
         assertBusy(() -> assertThat(queryBreaker.getUsed(), equalTo(0L)));
+        assertBusy(() -> assertThat(dataNodeBreaker.getUsed(), equalTo(0L)));
+    }
+
+    /**
+     * A page whose blocks are not charged, such as a local source built while planning, is charged to the data node while it is sent.
+     */
+    public void testDataNodeChargesUnchargedPageToTheNode() throws Exception {
+        Page page = intPage(trackingBlockFactory(new NoopCircuitBreaker("none")), 10_000);
+        long dataNodeLimit = serializedSize(page) / 2;
+        TrackingCircuitBreaker dataNodeBreaker = new TrackingCircuitBreaker(dataNodeLimit);
+        PlainActionFuture<Page> fetched = fetchFirstPage(blockFactory(), trackingBlockFactory(dataNodeBreaker), page);
+        Exception e = expectThrows(Exception.class, fetched::actionGet);
+        CircuitBreakingException trip = (CircuitBreakingException) ExceptionsHelper.unwrap(e, CircuitBreakingException.class);
+        assertNotNull(e.toString(), trip);
+        assertThat(trip.getByteLimit(), equalTo(dataNodeLimit));
         assertBusy(() -> assertThat(dataNodeBreaker.getUsed(), equalTo(0L)));
     }
 

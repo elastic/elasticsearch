@@ -1,0 +1,6 @@
+area: TSDB
+issues:
+ - 162848
+pr: 164902
+summary: Reject past TSDB timestamps newer than the head
+type: bug

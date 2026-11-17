@@ -461,8 +461,10 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
     }
 
     /**
-     * An uncovered timestamp is not eligible for index creation if it is in newer than the request start time or older than the
-     * start of the eligible write window.
+     * An uncovered timestamp is not eligible for index creation if it is newer than the request start time, not older than the
+     * start of the write index's time series range, or older than the start of the eligible write window. Past backing indices
+     * only cover time ranges older than the write index, so an uncovered timestamp at or after the write index's start, which
+     * happens when the write index's end time lags behind the wall-clock time, is left for {@link BulkOperation} to reject.
      */
     private boolean isEligibleForPastIndexCreation(
         DataStream dataStream,
@@ -474,6 +476,17 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         long documentTimestampMillis = documentTimestamp.toEpochMilli();
         if (documentTimestampMillis > absoluteStartTimeMillis) {
             logger.trace("Timestamp [{}] is in the future, skipping backing index creation", documentTimestamp);
+            return false;
+        }
+
+        IndexMetadata writeIndex = projectMetadata.index(dataStream.getWriteIndex());
+        Instant writeIndexStart = writeIndex == null ? null : writeIndex.getTimeSeriesStart();
+        if (writeIndexStart != null && documentTimestamp.isBefore(writeIndexStart) == false) {
+            logger.trace(
+                "Timestamp [{}] is not older than the write index start [{}], skipping backing index creation",
+                documentTimestamp,
+                writeIndexStart
+            );
             return false;
         }
 

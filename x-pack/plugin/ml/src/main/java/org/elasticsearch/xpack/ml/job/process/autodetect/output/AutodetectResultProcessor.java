@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.TimingStatsReporter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
+import org.elasticsearch.xpack.ml.job.process.autodetect.ForecastTelemetry;
 import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
@@ -52,6 +53,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
@@ -97,6 +99,8 @@ public class AutodetectResultProcessor {
     private volatile boolean vacating;
     private volatile boolean failed;
     private final Map<String, ForecastRequestStats> runningForecasts;
+    private final Set<String> countedForecastIds = ConcurrentHashMap.newKeySet();
+    private final ForecastTelemetry forecastTelemetry;
     private final long priorRunsBucketCount;
     private long currentRunBucketCount; // only used from the process() thread, so doesn't need to be volatile
     private final JobResultsPersister.Builder bulkResultsPersister;
@@ -117,7 +121,8 @@ public class AutodetectResultProcessor {
         AnnotationPersister annotationPersister,
         AutodetectProcess process,
         ModelSizeStats latestModelSizeStats,
-        TimingStats timingStats
+        TimingStats timingStats,
+        ForecastTelemetry forecastTelemetry
     ) {
         this(
             client,
@@ -130,7 +135,8 @@ public class AutodetectResultProcessor {
             latestModelSizeStats,
             timingStats,
             Clock.systemUTC(),
-            new FlushListener()
+            new FlushListener(),
+            forecastTelemetry
         );
     }
 
@@ -146,7 +152,8 @@ public class AutodetectResultProcessor {
         ModelSizeStats latestModelSizeStats,
         TimingStats timingStats,
         Clock clock,
-        FlushListener flushListener
+        FlushListener flushListener,
+        ForecastTelemetry forecastTelemetry
     ) {
         this.client = Objects.requireNonNull(client);
         this.auditor = Objects.requireNonNull(auditor);
@@ -163,6 +170,7 @@ public class AutodetectResultProcessor {
         this.deleteInterimRequired = true;
         this.priorRunsBucketCount = timingStats.getBucketCount();
         this.runningForecasts = new ConcurrentHashMap<>();
+        this.forecastTelemetry = Objects.requireNonNull(forecastTelemetry);
     }
 
     public void process() {
@@ -253,6 +261,7 @@ public class AutodetectResultProcessor {
                 // There may be many docs in the results persistence queue. But we only want to bother updating the running forecasts
                 bulkResultsPersister.clear();
                 for (ForecastRequestStats forecastRequestStats : runningForecasts.values()) {
+                    countForecastOutcome(forecastRequestStats.getForecastId(), ForecastRequestStats.ForecastRequestStatus.FAILED);
                     ForecastRequestStats failedStats = new ForecastRequestStats(forecastRequestStats);
                     failedStats.setStatus(ForecastRequestStats.ForecastRequestStatus.FAILED);
                     failedStats.setMessages(List.of(JOB_FORECAST_NATIVE_PROCESS_KILLED));
@@ -262,6 +271,17 @@ public class AutodetectResultProcessor {
             }
         } catch (Exception ex) {
             logger.warn(() -> "[" + jobId + "] failure setting running forecasts to failed.", ex);
+        }
+    }
+
+    // The native process can repeat a terminal stats doc; each forecast must be counted once. Runs on the results thread.
+    private void countForecastOutcome(String forecastId, ForecastRequestStats.ForecastRequestStatus status) {
+        if (countedForecastIds.add(forecastId)) {
+            if (status == ForecastRequestStats.ForecastRequestStatus.FINISHED) {
+                forecastTelemetry.recordFinished();
+            } else {
+                forecastTelemetry.recordFailed();
+            }
         }
     }
 
@@ -330,6 +350,7 @@ public class AutodetectResultProcessor {
             if (forecastRequestStats.getStatus()
                 .isAnyOf(ForecastRequestStats.ForecastRequestStatus.FAILED, ForecastRequestStats.ForecastRequestStatus.FINISHED)) {
                 runningForecasts.remove(forecastRequestStats.getForecastId());
+                countForecastOutcome(forecastRequestStats.getForecastId(), forecastRequestStats.getStatus());
             } else {
                 runningForecasts.put(forecastRequestStats.getForecastId(), forecastRequestStats);
             }

@@ -367,6 +367,7 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectBuilder;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessFactory;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.job.process.autodetect.BlackHoleAutodetectProcess;
+import org.elasticsearch.xpack.ml.job.process.autodetect.ForecastTelemetry;
 import org.elasticsearch.xpack.ml.job.process.autodetect.NativeAutodetectProcessFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.MultiplyingNormalizerProcess;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NativeNormalizerProcessFactory;
@@ -1293,6 +1294,7 @@ public class MachineLearning extends Plugin
             normalizerProcessFactory,
             threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
         );
+        ForecastTelemetry forecastTelemetry = new ForecastTelemetry(telemetryProvider.getMeterRegistry());
         AutodetectProcessManager autodetectProcessManager = new AutodetectProcessManager(
             settings,
             client,
@@ -1308,7 +1310,8 @@ public class MachineLearning extends Plugin
             autodetectProcessFactory,
             normalizerFactory,
             nativeStorageProvider,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            forecastTelemetry
         );
         this.autodetectProcessManager.set(autodetectProcessManager);
         DatafeedSearchTelemetry datafeedSearchTelemetry = new DatafeedSearchTelemetry(telemetryProvider.getMeterRegistry());
@@ -1607,7 +1610,8 @@ public class MachineLearning extends Plugin
             new MachineLearningExtensionHolder(machineLearningExtension.get()),
             mlMetrics,
             mlConfigMetrics,
-            deploymentPathUnsafeIdTelemetry
+            deploymentPathUnsafeIdTelemetry,
+            forecastTelemetry
         );
     }
 

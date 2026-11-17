@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
+import org.elasticsearch.xpack.ml.job.process.autodetect.ForecastTelemetry;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.ForecastParams;
 import org.elasticsearch.xpack.ml.job.task.JobTask;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
@@ -38,6 +39,7 @@ import org.elasticsearch.xpack.ml.process.NativeStorageProvider;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.core.ml.action.ForecastJobAction.Request.DURATION;
@@ -52,6 +54,7 @@ public class TransportForecastJobAction extends TransportJobTaskAction<ForecastJ
     private final NativeStorageProvider nativeStorageProvider;
     private final AnomalyDetectionAuditor auditor;
     private final long cppMinAvailableDiskSpaceBytes;
+    private final ForecastTelemetry forecastTelemetry;
 
     @Inject
     public TransportForecastJobAction(
@@ -63,7 +66,8 @@ public class TransportForecastJobAction extends TransportJobTaskAction<ForecastJ
         AutodetectProcessManager processManager,
         JobManager jobManager,
         NativeStorageProvider nativeStorageProvider,
-        AnomalyDetectionAuditor auditor
+        AnomalyDetectionAuditor auditor,
+        ForecastTelemetry forecastTelemetry
     ) {
         super(
             ForecastJobAction.NAME,
@@ -80,6 +84,7 @@ public class TransportForecastJobAction extends TransportJobTaskAction<ForecastJ
         this.jobManager = jobManager;
         this.nativeStorageProvider = nativeStorageProvider;
         this.auditor = auditor;
+        this.forecastTelemetry = Objects.requireNonNull(forecastTelemetry);
         // The C++ enforces 80% of the free disk space that the Java enforces
         this.cppMinAvailableDiskSpaceBytes = MachineLearning.MIN_DISK_SPACE_OFF_HEAP.get(settings).getBytes() / 5 * 4;
     }
@@ -121,10 +126,12 @@ public class TransportForecastJobAction extends TransportJobTaskAction<ForecastJ
             }
 
             ForecastParams params = paramsBuilder.build();
+            forecastTelemetry.recordRequested();
             processManager.forecastJob(task, params, e -> {
                 if (e == null) {
                     getForecastRequestStats(request.getJobId(), params.getForecastId(), listener);
                 } else {
+                    // Once the command may have been written, the results processor owns the outcome; counting here could double count.
                     listener.onFailure(e);
                 }
             });

@@ -691,7 +691,20 @@ public class SnapshotsWithReshardingIT extends AbstractStatelessPluginIntegTestC
         // The master must be a different node from the one holding the shards. A state change request sent to the local master is
         // executed directly instead of being sent over the transport, which would bypass the send behavior used below to hold it.
         startMasterOnlyNode();
-        var indexNode = startIndexNode();
+        // Split targets recover as non-critical shards, and this test holds the state update request of every target at once,
+        // releasing them only once all of them are held. They must therefore all be able to recover at the same time.
+        final var unboundedIncomingRecoveries = Settings.builder()
+            .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE)
+            .put(
+                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
+                Double.MAX_VALUE
+            )
+            .put(
+                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING.getKey(),
+                "100%"
+            )
+            .build();
+        var indexNode = startIndexNode(unboundedIncomingRecoveries);
         // The node the target shard is on, which is where its state change requests are sent from and so where they are held
         var targetNode = indexNode;
         final int shards;
@@ -713,7 +726,7 @@ public class SnapshotsWithReshardingIT extends AbstractStatelessPluginIntegTestC
                 Settings.builder()
                     .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
             );
-            targetNode = startIndexNode();
+            targetNode = startIndexNode(unboundedIncomingRecoveries);
             ensureStableCluster(5);
         } else {
             startSearchNode();
@@ -1477,19 +1490,7 @@ public class SnapshotsWithReshardingIT extends AbstractStatelessPluginIntegTestC
     @Override
     protected Settings.Builder nodeSettings() {
         // These tests are carefully set up and do not hit the situations that the delete unowned grace period prevents.
-        return super.nodeSettings().put(RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.getKey(), TimeValue.ZERO)
-            // Split targets recover as non-critical shards, and restoreOverOpenIndexWhileResharding holds the state update
-            // request of every target at once, releasing them only once all of them are held. They must therefore all be
-            // able to recover at the same time.
-            .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE)
-            .put(
-                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
-                Double.MAX_VALUE
-            )
-            .put(
-                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING.getKey(),
-                "100%"
-            );
+        return super.nodeSettings().put(RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.getKey(), TimeValue.ZERO);
     }
 
     private void waitForReshardCompletion(Index index) {

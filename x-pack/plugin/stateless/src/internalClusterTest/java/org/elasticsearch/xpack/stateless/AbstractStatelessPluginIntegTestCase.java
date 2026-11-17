@@ -71,7 +71,6 @@ import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.TestRecoverySchedulingListener;
-import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -190,6 +189,8 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
     private boolean hollowIndexShardsZeroTtl;
     // TODO(szybia): remove once merge blobs are uploaded for real
     private MockLog mergeBlobLogCapture;
+    // Drawn once per test so that all nodes share the same recovery throttling configuration
+    private Settings dnrtSettings = Settings.EMPTY;
 
     @Before
     public void setup() {
@@ -203,6 +204,9 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
         } else if (randomBoolean()) {
             // Randomly make TTL zero for hollowing shards
             hollowIndexShardsZeroTtl = true;
+        }
+        if (randomBoolean()) {
+            dnrtSettings = randomDataNodeRecoveryThrottlingSettings();
         }
         if (MERGE_BLOBS_ENABLED) {
             final boolean injectMergeBlobs = randomBoolean();
@@ -521,9 +525,7 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
             var cacheBoostPreference = StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING;
             builder.put(cacheBoostPreference.getKey(), cacheBoostPreference.getDefault(Settings.EMPTY));
         }
-        if (randomBoolean()) {
-            builder.put(randomDataNodeRecoveryThrottlingSettings());
-        }
+        builder.put(dnrtSettings);
         return builder;
     }
 
@@ -532,9 +534,6 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
     /// DNRT replaces the master-side recovery throttling, so this hands the throttling over to the data nodes and
     /// unthrottles the master-side deciders. See [DataNodeRecoveryThrottlingSettings] for effective limits.
     private static Settings randomDataNodeRecoveryThrottlingSettings() {
-        // Bounds of the effective concurrent recovery limits drawn below.
-        final int minConcurrentRecoveries = 1;
-        final int maxConcurrentRecoveries = 10;
         return Settings.builder()
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE)
             .put(
@@ -559,36 +558,23 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
                 Integer.MAX_VALUE
             )
             .put(ConcurrentRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING.getKey(), -1)
-            .put(
-                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
-                between(minConcurrentRecoveries, maxConcurrentRecoveries)
-            )
+            .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), between(1, 10))
+            // Tests run with a 512MB heap (`tests.heap.size`), so this yields a heap-based limit between 1 and 10
             .put(
                 DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
-                perHeapGbFor(between(minConcurrentRecoveries, maxConcurrentRecoveries))
+                randomDoubleBetween(1, 20, true)
             )
             .put(
                 DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING.getKey(),
                 between(50, 100) + "%"
             )
-            .put(
-                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(),
-                between(minConcurrentRecoveries, maxConcurrentRecoveries)
-            )
+            .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), between(1, 10))
+            // Heap-based limit between 1 and 10, as for the incoming side above
             .put(
                 DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
-                perHeapGbFor(between(minConcurrentRecoveries, maxConcurrentRecoveries))
+                randomDoubleBetween(1, 20, true)
             )
             .build();
-    }
-
-    /// Returns the `*_per_heap_gb` ratio that yields `effectiveLimit` on this JVM
-    private static double perHeapGbFor(int effectiveLimit) {
-        final var heapGb = JvmInfo.jvmInfo().getMem().getHeapMax().getGbFrac();
-        if (heapGb == 0) { // heap size is unknown
-            return 1000;
-        }
-        return effectiveLimit / heapGb;
     }
 
     protected String startSearchNode() {

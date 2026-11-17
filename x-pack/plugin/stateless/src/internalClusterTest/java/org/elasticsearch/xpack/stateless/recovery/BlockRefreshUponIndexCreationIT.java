@@ -91,6 +91,8 @@ public class BlockRefreshUponIndexCreationIT extends AbstractStatelessPluginInte
             .put("cluster.routing.allocation.node_concurrent_recoveries", 3)
             .put("cluster.routing.allocation.node_concurrent_incoming_recoveries", 3)
             .put("cluster.routing.allocation.node_concurrent_outgoing_recoveries", 3)
+            // This test holds the commit registration of every search shard recovering on the single search node and only
+            // releases them once all of them are held, so all of those recoveries must be able to run at the same time.
             .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE)
             .put(
                 DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),

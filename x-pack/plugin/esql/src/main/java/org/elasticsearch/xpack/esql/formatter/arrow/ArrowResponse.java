@@ -478,7 +478,7 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
             case AGGREGATE_METRIC_DOUBLE -> new BlockArrowFormatter.AsAggregateMetricDouble(type);
             case EXPONENTIAL_HISTOGRAM -> TO_BE_IMPLEMENTED_MARKER;
             case FLATTENED -> new BlockArrowFormatter.TransformedBytesRef(type, MinorType.VARCHAR, ValueConversions::sourceToJson);
-            // Geo grid cell ids are output as their long block value. They don't fit in GeoArrow.
+            // Geo grid cells don't fit in GeoArrow. Geohash and geohex are output as their long block value.
             // Geohash uses all 64 bits (60 bits of hash + 4 bits of level), so it's output as unsigned.
             // Geohex never sets bit 63, so signed int64 is fine.
             // Geotile is output as a struct with zoom, x and y fields.

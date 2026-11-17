@@ -5429,7 +5429,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 for (int rowIdx = 0; rowIdx < rows.size(); rowIdx++) {
                     String[] row = rows.get(rowIdx);
                     totalRowCount++;
-                    if (row.length > rowWidthLimit) {
+                    if (rowWidthRejected(row.length)) {
                         onRowError(rowTooWideMessage(row.length), null, row, true);
                         continue;
                     }
@@ -5475,7 +5475,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 for (int rowIdx = 0; rowIdx < rows.size(); rowIdx++) {
                     String[] row = rows.get(rowIdx);
                     totalRowCount++;
-                    if (row.length > rowWidthLimit) {
+                    if (rowWidthRejected(row.length)) {
                         onRowError(rowTooWideMessage(row.length), null, row, true);
                         continue;
                     }
@@ -5515,7 +5515,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     continue;
                 }
                 int si = projectedIdx[i];
-                String value = si >= 0 && si < row.length ? row[si] : null;
+                String value = fieldOrNull(row, si);
                 Object result = tryConvertValue(value, projectedTypes[i], i);
                 if (lastFieldError != null) {
                     if (mode == ErrorPolicy.Mode.NULL_FIELD.ordinal()) {
@@ -5579,7 +5579,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 // Read the raw field this schema position BINDS (a declared path makes the two differ), so the value
                 // is attributed to the column it belongs to rather than the column sitting at its position.
                 int fi = rawFieldIndex(si);
-                String value = fi >= 0 && fi < row.length ? row[fi] : null;
+                String value = fieldOrNull(row, fi);
                 // Stats-harvest accumulator over the full schema (S4 seam): declaredFormatters is projected-aligned, so
                 // the schema index si would misindex it. Pass -1 so this path uses the default datetime parse (no declared
                 // formatter). Full S4 fix (decline harvesting declared-format/retyped columns outright) lands separately.
@@ -6345,7 +6345,51 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 fieldStart = i + 1;
             }
             int totalFields = fieldIndex;
-            if (totalFields > rowWidthLimit) {
+            return finishDirectRow(totalFields);
+        }
+
+        /** Lazily materializes the current direct-path record as a String, for cold error/warning paths only. */
+        private String directRawLine() {
+            return new String(directRecBuf, directRecFrom, directRecTo - directRecFrom);
+        }
+
+        /**
+         * Whether a row of {@code actualFields} fields falls outside the width its binding allows. Every path asks
+         * here -- the direct walkers with the count they tallied, the materialized path with the array's length -- so
+         * that the width rule has one home rather than one copy per walker. Only the comparison lives here: what a
+         * rejection costs differs per path, since the materialized path has nothing staged to discard and moves to the
+         * next row, while a walker abandons the row it was converting.
+         */
+        private boolean rowWidthRejected(int actualFields) {
+            return actualFields > rowWidthLimit;
+        }
+
+        /**
+         * The field a raw index addresses in a materialized row, or {@code null} where the index is
+         * {@link #ABSENT_FIELD} -- a schema column the file does not carry -- or falls past the row's trailing
+         * edge. Both readers of a {@code String[]} row spell this out, so it lives here for the same reason the
+         * width comparison does: one place decides what "past the edge" means. The negative arm is load-bearing
+         * and not an idiom, since {@code ABSENT_FIELD} is {@code -1} and reaches this from a by-name binding.
+         */
+        private static String fieldOrNull(String[] row, int idx) {
+            return idx >= 0 && idx < row.length ? row[idx] : null;
+        }
+
+        /**
+         * The tail each direct-path grammar walker runs once its final field is consumed and the row is whole for the
+         * first time: enforce the width rule, surface any field errors the walk staged, then fill the projected columns
+         * whose source index falls past the row's trailing edge. It was identical in all three walkers, which is why it
+         * lives here instead; the fused projected walker interleaves trailing-field handling with its own fill and so
+         * keeps its tail.
+         *
+         * <p>Allocation-sensitive: {@link #directRawLine()} materializes the record as a {@link String}, so it is
+         * reached on the error paths only and never on an accepted row.
+         *
+         * @param totalFields the number of fields the walker counted in this record
+         * @return {@code true} if the row was accepted, {@code false} if the error policy rejected it
+         */
+        private boolean finishDirectRow(int totalFields) {
+            if (rowWidthRejected(totalFields)) {
                 // The structural error wins: a row this wide has no meaningful columns to report field errors about.
                 clearPendingErrors();
                 onRowError(rowTooWideMessage(totalFields), null, directRawLine(), true);
@@ -6356,17 +6400,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
             if (hasPendingErrors && flushPendingErrors(directRawLine()) == false) {
                 return false;
             }
+            // Null-fill projected columns whose source index falls past the row's trailing edge.
             for (int c = 0; c < columnCount; c++) {
                 if (projectedIdx[c] < 0 || projectedIdx[c] >= totalFields) {
                     stageNullValue(c);
                 }
             }
             return true;
-        }
-
-        /** Lazily materializes the current direct-path record as a String, for cold error/warning paths only. */
-        private String directRawLine() {
-            return new String(directRecBuf, directRecFrom, directRecTo - directRecFrom);
         }
 
         /**
@@ -6399,24 +6439,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 }
             }
             int totalFields = fieldIndex;
-            if (totalFields > rowWidthLimit) {
-                // The structural error wins: a row this wide has no meaningful columns to report field errors about.
-                clearPendingErrors();
-                onRowError(rowTooWideMessage(totalFields), null, directRawLine(), true);
-                return false;
-            }
-            // hasPendingErrors first: directRawLine() materialises the row as a String, and this path is meant to
-            // stay String-free on an accepted row.
-            if (hasPendingErrors && flushPendingErrors(directRawLine()) == false) {
-                return false;
-            }
-            // Null-fill projected columns whose source index falls past the row's trailing edge.
-            for (int c = 0; c < columnCount; c++) {
-                if (projectedIdx[c] < 0 || projectedIdx[c] >= totalFields) {
-                    stageNullValue(c);
-                }
-            }
-            return true;
+            return finishDirectRow(totalFields);
         }
 
         /**
@@ -6774,23 +6797,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
 
             int totalFields = fieldIndex;
-            if (totalFields > rowWidthLimit) {
-                // The structural error wins: a row this wide has no meaningful columns to report field errors about.
-                clearPendingErrors();
-                onRowError(rowTooWideMessage(totalFields), null, directRawLine(), true);
-                return false;
-            }
-            // hasPendingErrors first: directRawLine() materialises the row as a String, and this path is meant to
-            // stay String-free on an accepted row.
-            if (hasPendingErrors && flushPendingErrors(directRawLine()) == false) {
-                return false;
-            }
-            for (int c = 0; c < columnCount; c++) {
-                if (projectedIdx[c] < 0 || projectedIdx[c] >= totalFields) {
-                    stageNullValue(c);
-                }
-            }
-            return true;
+            return finishDirectRow(totalFields);
         }
 
         /**
@@ -7064,7 +7071,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // excludes a tokenization that produced no fields at all; blank lines are skipped before tokenization.
             boolean presentTrailingEmpty = fieldIndex > 0;
             int totalFields = (trailingFieldHasContent || presentTrailingEmpty) ? fieldIndex + 1 : fieldIndex;
-            if (totalFields > rowWidthLimit) {
+            if (rowWidthRejected(totalFields)) {
                 // The structural error wins (see the direct walkers).
                 clearPendingErrors();
                 onRowError(rowTooWideMessage(totalFields), null, line, true);

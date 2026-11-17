@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.tree;
 
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -43,6 +44,7 @@ public class PlanFieldSafePublicationTests extends ESTestCase {
      * Every instance field of a plan class, or of a class nested in one, is {@code final} or {@code volatile}. A plain field that
      * is assigned lazily can be seen by another thread before the object it refers to is complete.
      */
+    @SuppressForbidden(reason = "only reads the modifiers of declared fields; it never makes them accessible")
     public void testFieldsAreFinalOrVolatile() throws IOException {
         Set<String> violations = new TreeSet<>();
         for (Class<?> c : planClasses()) {
@@ -130,6 +132,7 @@ public class PlanFieldSafePublicationTests extends ESTestCase {
     /**
      * Is {@code access} reading or writing a field of a plan class that can be assigned after construction?
      */
+    @SuppressForbidden(reason = "only reads the modifiers of declared fields; it never makes them accessible")
     private static boolean isLazyField(FieldInsnNode access, Set<Class<?>> planClasses) {
         String owner = access.owner.replace('/', '.');
         if (owner.startsWith(ESQL_PACKAGE) == false) {

@@ -41,6 +41,7 @@ import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansNeighbors;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansResult;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansWithOverspill;
+import org.elasticsearch.index.codec.vectors.diskbbq.AshConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidAssignments;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIndex;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIndexFormat;
@@ -81,7 +82,7 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
     private final String sliceField;
     private final IvfFlushConfigSource flushConfigSource;
     private final IvfMergeConfigResolver mergeConfigResolver;
-    private final IvfSegmentConfig.AshConfig ashConfig;
+    private final AshConfigResolver ashConfigResolver;
 
     // Temporary storage for ASH projection matrix between buildAndWritePostingsLists and writePreconditioner
     private AshProjectionMatrix pendingAshMatrix;
@@ -101,7 +102,7 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         String sliceField,
         IvfFlushConfigSource flushConfigSource,
         IvfMergeConfigResolver mergeConfigResolver,
-        IvfSegmentConfig.AshConfig ashConfig
+        AshConfigResolver ashConfigResolver
     ) throws IOException {
         super(
             state,
@@ -126,17 +127,21 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         this.sliceField = sliceField;
         this.flushConfigSource = flushConfigSource != null ? flushConfigSource : IvfFlushConfigSource.empty();
         this.mergeConfigResolver = mergeConfigResolver != null ? mergeConfigResolver : IvfMergeConfigResolver.useCodecDefault();
-        this.ashConfig = ashConfig;
+        this.ashConfigResolver = ashConfigResolver;
+    }
+
+    private IvfSegmentConfig.AshConfig ashConfig(FieldInfo fieldInfo) {
+        return ashConfigResolver.resolve(fieldInfo.getVectorDimension());
     }
 
     @Override
     protected IvfSegmentConfig beginIvfFieldFlush(FieldInfo fieldInfo) throws IOException {
-        return IvfSegmentConfig.fromCodecDefaults(CentroidIndexFormat.FLAT, ashConfig, false);
+        return IvfSegmentConfig.fromCodecDefaults(CentroidIndexFormat.FLAT, ashConfig(fieldInfo), false);
     }
 
     @Override
     protected IvfSegmentConfig resolveMergeConfig(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
-        return IvfSegmentConfig.fromCodecDefaults(CentroidIndexFormat.FLAT, ashConfig, false);
+        return IvfSegmentConfig.fromCodecDefaults(CentroidIndexFormat.FLAT, ashConfig(fieldInfo), false);
     }
 
     @Override
@@ -225,6 +230,11 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
      * field) is skipped, and a {@code null} result causes the caller to fall back to training W.
      */
     private float[] inheritProjectionMatrix(FieldInfo fieldInfo, MergeState mergeState) {
+        int originalDim = fieldInfo.getVectorDimension();
+        IvfSegmentConfig.AshConfig config = ashConfig(fieldInfo);
+        if (inheritsProjection(config, originalDim) == false) {
+            return null;
+        }
         List<SizedProjectionMatrix> candidates = new ArrayList<>();
         for (int i = 0; i < mergeState.knnVectorsReaders.length; i++) {
             KnnVectorsReader reader = mergeState.knnVectorsReaders[i];
@@ -252,7 +262,16 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
                 candidates.add(new SizedProjectionMatrix(matrix, size));
             }
         }
-        return selectInheritedProjectionMatrix(fieldInfo.getVectorDimension(), candidates);
+        return selectInheritedProjectionMatrix(originalDim, config.projectedDims(originalDim), candidates);
+    }
+
+    /**
+     * Returns whether merging a field under {@code config} should seed its projection from an input segment. Without
+     * dimensionality reduction and without Procrustes iterations the projection is a seeded random rotation, the same
+     * in every segment, so there is nothing to inherit and the input segments' matrices are not loaded at all.
+     */
+    static boolean inheritsProjection(IvfSegmentConfig.AshConfig config, int originalDim) {
+        return config.projectedDims(originalDim) != originalDim || config.trainingIterations() > 0;
     }
 
     /**
@@ -266,14 +285,22 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
      * if none is suitable. Prefers the candidate from the segment with the most vectors so W is seeded
      * from the best-trained source. Skips random (non-learned) projections from transient flush segments
      * — inheriting a random rotation would carry it into the merged segment — and skips matrices whose
-     * dimensionality does not match {@code expectedDim}.
+     * shape does not match {@code expectedDim} and {@code expectedProjectedDims}.
+     * <p>
+     * A shape mismatch is a valid situation rather than an error: the projected dimensions follow from the vector
+     * dimension and the configuration, and segments written with another configuration can meet in a merge, such
+     * as segments from snapshot builds before projected dimensions were derived from the vector dimension, or from a
+     * fixed {@link IvfSegmentConfig.AshConfig}. Such a merge trains a new projection instead.
      */
-    static float[] selectInheritedProjectionMatrix(int expectedDim, List<SizedProjectionMatrix> candidates) {
+    static float[] selectInheritedProjectionMatrix(int expectedDim, int expectedProjectedDims, List<SizedProjectionMatrix> candidates) {
         float[] best = null;
         int bestSize = -1;
         for (SizedProjectionMatrix candidate : candidates) {
             AshProjectionMatrix matrix = candidate.matrix();
-            if (matrix == null || matrix.isLearned() == false || matrix.originalDim() != expectedDim) {
+            if (matrix == null
+                || matrix.isLearned() == false
+                || matrix.originalDim() != expectedDim
+                || matrix.nDims() != expectedProjectedDims) {
                 continue;
             }
             if (candidate.size() > bestSize) {
@@ -352,7 +379,7 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         }
         // ASH-specific: bits per dimension — use the writer's own config rather than the segment
         // config, because the segment config may be IvfSegmentConfig.NONE for unsupported byte fields.
-        metaOutput.writeVInt(ashConfig.bitsPerDim());
+        metaOutput.writeVInt(ashConfig(field).bitsPerDim());
     }
 
     @Override

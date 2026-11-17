@@ -130,10 +130,7 @@ public class TransformFailureHandlerTests extends ESTestCase {
 
     public void testHandleIndexerFailure_SearchPhaseExecutionExceptionWithNoShardSearchFailures() {
         List.of(true, false).forEach((unattended) -> {
-            assertRetry(
-                new SearchPhaseExecutionException(randomAlphaOfLength(10), randomAlphaOfLength(10), ShardSearchFailure.EMPTY_ARRAY),
-                unattended
-            );
+            assertRetry(new SearchPhaseExecutionException(randomAlphaOfLength(10), randomAlphaOfLength(10), List.of()), unattended);
         });
     }
 
@@ -143,7 +140,7 @@ public class TransformFailureHandlerTests extends ESTestCase {
                 new SearchPhaseExecutionException(
                     randomAlphaOfLength(10),
                     randomAlphaOfLength(10),
-                    new ShardSearchFailure[] { new ShardSearchFailure(new Exception()) }
+                    List.of(new ShardSearchFailure(new Exception()))
                 ),
                 unattended
             );
@@ -216,7 +213,7 @@ public class TransformFailureHandlerTests extends ESTestCase {
                 new SearchPhaseExecutionException(
                     randomAlphaOfLength(10),
                     randomAlphaOfLength(10),
-                    new ShardSearchFailure[] { new ShardSearchFailure(new ShardRestoringException(randomAlphaOfLength(10), randomUUID())) }
+                    List.of(new ShardSearchFailure(new ShardRestoringException(randomAlphaOfLength(10), randomUUID())))
                 ),
                 unattended
             );

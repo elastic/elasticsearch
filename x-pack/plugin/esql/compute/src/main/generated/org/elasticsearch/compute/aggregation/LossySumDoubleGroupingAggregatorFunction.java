@@ -444,7 +444,7 @@ public final class LossySumDoubleGroupingAggregatorFunction implements GroupingA
   }
 
   @Override
-  public boolean supportPartitioning() {
+  public boolean supportPartitioning(AggregatorMode mode) {
     return true;
   }
 

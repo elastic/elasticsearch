@@ -8,9 +8,11 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 import org.elasticsearch.xpack.esql.datasources.spi.QueryAdmission;
 import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
@@ -56,12 +58,17 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
      */
     static final long NULL_LEASE_MAX_WAIT_MS = 5_000L;
 
+    /** Cap on the query-id prefix of stall-watchdog waiter labels. */
+    static final int QUERY_ID_LABEL_MAX = 48;
+
     private final ReentrantLock lock = new ReentrantLock(true);
     private int inFlight;
     private volatile int maxPermits;
     private final long acquireTimeoutMs;
     private final ConcurrencyBudgetAllocator allocator;
     private final AdmissionTracker tracker;
+    @Nullable
+    private final TaskId queryId;
     private volatile boolean closed;
 
     private final AtomicLong lastWarnLogTime = new AtomicLong(0);
@@ -91,10 +98,26 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
     }
 
     QueryConcurrencyBudget(int maxPermits, long acquireTimeoutMs, ConcurrencyBudgetAllocator allocator, AdmissionTracker tracker) {
+        this(maxPermits, acquireTimeoutMs, allocator, tracker, null);
+    }
+
+    QueryConcurrencyBudget(
+        int maxPermits,
+        long acquireTimeoutMs,
+        ConcurrencyBudgetAllocator allocator,
+        AdmissionTracker tracker,
+        @Nullable TaskId queryId
+    ) {
         this.maxPermits = maxPermits;
         this.acquireTimeoutMs = acquireTimeoutMs;
         this.allocator = allocator;
         this.tracker = tracker == null ? AdmissionTracker.NOOP : tracker;
+        this.queryId = queryId;
+    }
+
+    @Nullable
+    TaskId queryId() {
+        return queryId;
     }
 
     long acquireTimeoutMs() {
@@ -119,6 +142,9 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
                 return;
             }
             io.attachScheduler(this);
+            if (queryId != null && queryId.isSet()) {
+                io.setQueryId(queryId);
+            }
             if (registry.contains(io) == false) {
                 io.setStartSeq(nextStartSeq++);
                 registry.add(io);
@@ -525,11 +551,25 @@ class QueryConcurrencyBudget implements Closeable, RowGroupScheduler {
         runCompletions(completions);
     }
 
-    private static String budgetWaiterLabel(RowGroupIo lease) {
-        if (lease == null) {
-            return Thread.currentThread().getName();
+    private String budgetWaiterLabel(RowGroupIo lease) {
+        String rest = lease == null ? Thread.currentThread().getName() : "lease#" + lease.startSeq();
+        return waiterLabel(queryId, rest);
+    }
+
+    /**
+     * Prefixes {@code suffix} with the query id when one is set. Caps the id so stall WARN
+     * graphs stay readable when many waiters dump together. Truncates the node-id prefix so
+     * the unique {@code :taskId} suffix survives.
+     */
+    static String waiterLabel(@Nullable TaskId queryId, String suffix) {
+        if (queryId == null || queryId.isSet() == false) {
+            return suffix;
         }
-        return "lease#" + lease.startSeq();
+        String id = queryId.toString();
+        if (id.length() > QUERY_ID_LABEL_MAX) {
+            id = id.substring(id.length() - QUERY_ID_LABEL_MAX);
+        }
+        return id + '/' + suffix;
     }
 
     // ── grant policy ───────────────────────────────────────────────────────────

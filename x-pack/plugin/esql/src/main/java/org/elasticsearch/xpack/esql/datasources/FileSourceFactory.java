@@ -662,7 +662,10 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 // when both are present.
                 ConcurrencyBudgetAllocator allocator = storageRegistry.allocatorForScheme(path.scheme().toLowerCase(Locale.ROOT));
                 if (allocator != null) {
-                    QueryBudgetedStorageProvider budgeted = new QueryBudgetedStorageProvider(storage, allocator.register());
+                    QueryBudgetedStorageProvider budgeted = new QueryBudgetedStorageProvider(
+                        storage,
+                        allocator.register(context.queryId())
+                    );
                     storage = budgeted;
                     Closeable lease = onClose;
                     onClose = lease == null ? budgeted : () -> IOUtils.close(budgeted, lease);

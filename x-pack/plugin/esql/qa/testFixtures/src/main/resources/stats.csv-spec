@@ -4935,3 +4935,29 @@ VALUES(x):integer | gender:keyword
 5                 | M
 5                 | null
 ;
+
+chainedStatsSameAggOverIdenticallyDefinedColumns
+required_capability: fix_deduplicate_aggs_over_aggregate_outputs
+
+FROM employees
+| STATS c = COUNT(*) BY languages
+| STATS d = COUNT(*) BY c
+| STATS mc = MIN(c), md = MIN(d)
+;
+
+mc:long | md:long
+10      | 1
+;
+
+multiValuedGroupingKeysSameAggAfterFilter
+required_capability: fix_deduplicate_aggs_over_aggregate_outputs
+
+ROW x = [1, 2], y = [1, 2]
+| STATS BY x, y
+| WHERE x < y
+| STATS mx = MAX(x), my = MAX(y)
+;
+
+mx:integer | my:integer
+1          | 2
+;

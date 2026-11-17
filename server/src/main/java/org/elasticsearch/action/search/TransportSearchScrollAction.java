@@ -65,8 +65,8 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
                     searchResponseMetrics.recordTookTimeForSearchScroll(searchResponse.getTookInMillis());
                     SearchResponseMetrics.ResponseCountTotalStatus responseCountTotalStatus =
                         SearchResponseMetrics.ResponseCountTotalStatus.SUCCESS;
-                    if (searchResponse.shardFailuresList().isEmpty() == false) {
-                        List<ShardOperationFailedException> groupedFailures = ExceptionsHelper.groupBy(searchResponse.shardFailuresList());
+                    if (searchResponse.getShardFailures().isEmpty() == false) {
+                        List<ShardOperationFailedException> groupedFailures = ExceptionsHelper.groupBy(searchResponse.getShardFailures());
                         for (ShardOperationFailedException f : groupedFailures) {
                             Throwable cause = f.getCause() == null ? f : f.getCause();
                             if (ExceptionsHelper.status(cause).getStatus() >= 500

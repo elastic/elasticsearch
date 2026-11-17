@@ -206,7 +206,7 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         // Reuse an already-trained projection matrix from one of the segments being merged instead of
         // re-learning W from scratch. W is a global orthonormal projection of centered/normalized
         // vectors and is effectively centroid-independent, so it can be carried across a merge.
-        final float[] inheritedWT = inheritProjectionMatrix(fieldInfo, mergeState);
+        final AshProjectionMatrix inherited = inheritProjectionMatrix(fieldInfo, mergeState);
         return buildAndWriteAshPostingsLists(
             fieldInfo,
             centroidSupplier,
@@ -217,19 +217,18 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
             overspillAssignments,
             ivfSegmentConfig,
             quantizerExec,
-            inheritedWT,
+            inherited,
             true // merge: the merge training factor; the vectors are streamed off-heap by ordinal
         );
     }
 
     /**
-     * Finds a trained ASH projection matrix W among the segments being merged, returning its
-     * transposed form W^T (row-major, shape {@code (nDims, originalDim)}) or {@code null} if none is
+     * Finds a trained ASH projection matrix W among the segments being merged, returning it or {@code null} if none is
      * available. Prefers the input segment with the most vectors so W is seeded from the best-trained
      * source. Any reader that is not an {@link ESNextDiskASHVectorsReader} (or has no matrix for the
      * field) is skipped, and a {@code null} result causes the caller to fall back to training W.
      */
-    private float[] inheritProjectionMatrix(FieldInfo fieldInfo, MergeState mergeState) {
+    private AshProjectionMatrix inheritProjectionMatrix(FieldInfo fieldInfo, MergeState mergeState) {
         int originalDim = fieldInfo.getVectorDimension();
         IvfSegmentConfig.AshConfig config = ashConfig(fieldInfo);
         if (inheritsProjection(config, originalDim) == false) {
@@ -281,7 +280,7 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
     record SizedProjectionMatrix(AshProjectionMatrix matrix, int size) {}
 
     /**
-     * Selects the projection matrix W^T to inherit at merge from the given candidates, or {@code null}
+     * Selects the projection matrix to inherit at merge from the given candidates, or {@code null}
      * if none is suitable. Prefers the candidate from the segment with the most vectors so W is seeded
      * from the best-trained source. Skips random (non-learned) projections from transient flush segments
      * — inheriting a random rotation would carry it into the merged segment — and skips matrices whose
@@ -292,8 +291,12 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
      * as segments from snapshot builds before projected dimensions were derived from the vector dimension, or from a
      * fixed {@link IvfSegmentConfig.AshConfig}. Such a merge trains a new projection instead.
      */
-    static float[] selectInheritedProjectionMatrix(int expectedDim, int expectedProjectedDims, List<SizedProjectionMatrix> candidates) {
-        float[] best = null;
+    static AshProjectionMatrix selectInheritedProjectionMatrix(
+        int expectedDim,
+        int expectedProjectedDims,
+        List<SizedProjectionMatrix> candidates
+    ) {
+        AshProjectionMatrix best = null;
         int bestSize = -1;
         for (SizedProjectionMatrix candidate : candidates) {
             AshProjectionMatrix matrix = candidate.matrix();
@@ -305,7 +308,7 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
             }
             if (candidate.size() > bestSize) {
                 bestSize = candidate.size();
-                best = matrix.wT();
+                best = matrix;
             }
         }
         return best;
@@ -321,7 +324,7 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         OverspillAssignments overspillAssignments,
         IvfSegmentConfig segmentConfig,
         TaskExecutor quantizerExec,
-        float[] pretrainedWT,
+        AshProjectionMatrix inherited,
         boolean useMergeTrainingFactor
     ) throws IOException {
         if (vectorValues instanceof FloatVectorValues == false) {
@@ -343,7 +346,7 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
             quantizerExec,
             fieldInfo.getVectorSimilarityFunction(),
             skipDocIds,
-            pretrainedWT,
+            inherited,
             useMergeTrainingFactor
         );
         pendingAshMatrix = ashWriter.getAshProjectionMatrix();

@@ -16,7 +16,7 @@ Known issues are significant defects or limitations that may impact your impleme
   * A node joins the cluster without the password.
   * A node's keystore is rewritten without the password and secure settings are then reloaded.
 
-  A master-eligible node without the password rejects cluster state updates but doesn't log an error itself. Instead, the elected master or another master-eligible node logs an error that names the affected node and contains `cannot wrap PEK for disk`. A data-only node logs the error itself. Cluster state updates that change cluster-wide metadata, such as cluster settings, snapshots, and SLM and ILM steps, can fail. If most master-eligible nodes are affected, the cluster has no elected master. No encryption keys are lost.
+  Errors containing `cannot wrap PEK for disk` name the affected node. Cluster state updates that change cluster-wide metadata, such as cluster settings, snapshots, and SLM and ILM steps, can fail. If most master-eligible nodes are affected, the cluster has no elected master. No encryption keys are lost.
 
   To avoid this, follow [Configure the password on every node](/reference/elasticsearch/cluster-state-encryption-key.md#cluster-state-encryption-configure-password). To recover, follow [Recover a node that's missing the password](/reference/elasticsearch/cluster-state-encryption-key.md#cluster-state-encryption-recover-missing-password). A fix is in progress.
 
@@ -42,7 +42,7 @@ Known issues are significant defects or limitations that may impact your impleme
   * A node joins the cluster without the password.
   * A node's keystore is rewritten without the password and secure settings are then reloaded.
 
-  A master-eligible node without the password rejects cluster state updates but doesn't log an error itself. Instead, the elected master or another master-eligible node logs an error that names the affected node and contains `cannot wrap PEK for disk`. A data-only node logs the error itself. Cluster state updates that change cluster-wide metadata, such as cluster settings, snapshots, and SLM and ILM steps, can fail. If most master-eligible nodes are affected, the cluster has no elected master. No encryption keys are lost.
+  Errors containing `cannot wrap PEK for disk` name the affected node. Cluster state updates that change cluster-wide metadata, such as cluster settings, snapshots, and SLM and ILM steps, can fail. If most master-eligible nodes are affected, the cluster has no elected master. No encryption keys are lost.
 
   To avoid this, follow [Configure the password on every node](/reference/elasticsearch/cluster-state-encryption-key.md#cluster-state-encryption-configure-password). To recover, follow [Recover a node that's missing the password](/reference/elasticsearch/cluster-state-encryption-key.md#cluster-state-encryption-recover-missing-password). A fix is in progress.
 
@@ -66,7 +66,7 @@ Known issues are significant defects or limitations that may impact your impleme
   * A node joins the cluster without the password.
   * A node's keystore is rewritten without the password and secure settings are then reloaded.
 
-  A master-eligible node without the password rejects cluster state updates but doesn't log an error itself. Instead, the elected master or another master-eligible node logs an error that names the affected node and contains `cannot wrap PEK for disk`. A data-only node logs the error itself. Cluster state updates that change cluster-wide metadata, such as cluster settings, snapshots, and SLM and ILM steps, can fail. If most master-eligible nodes are affected, the cluster has no elected master. No encryption keys are lost.
+  Errors containing `cannot wrap PEK for disk` name the affected node. Cluster state updates that change cluster-wide metadata, such as cluster settings, snapshots, and SLM and ILM steps, can fail. If most master-eligible nodes are affected, the cluster has no elected master. No encryption keys are lost.
 
   To avoid this, follow [Configure the password on every node](/reference/elasticsearch/cluster-state-encryption-key.md#cluster-state-encryption-configure-password). To recover, follow [Recover a node that's missing the password](/reference/elasticsearch/cluster-state-encryption-key.md#cluster-state-encryption-recover-missing-password). A fix is in progress.
 
@@ -101,7 +101,7 @@ Known issues are significant defects or limitations that may impact your impleme
   * A node joins the cluster without the password.
   * A node's keystore is rewritten without the password and secure settings are then reloaded.
 
-  A master-eligible node without the password rejects cluster state updates but doesn't log an error itself. Instead, the elected master or another master-eligible node logs an error that names the affected node and contains `cannot wrap PEK for disk`. A data-only node logs the error itself. Cluster state updates that change cluster-wide metadata, such as cluster settings, snapshots, and SLM and ILM steps, can fail. If most master-eligible nodes are affected, the cluster has no elected master. No encryption keys are lost.
+  Errors containing `cannot wrap PEK for disk` name the affected node. Cluster state updates that change cluster-wide metadata, such as cluster settings, snapshots, and SLM and ILM steps, can fail. If most master-eligible nodes are affected, the cluster has no elected master. No encryption keys are lost.
 
   To avoid this, follow [Configure the password on every node](/reference/elasticsearch/cluster-state-encryption-key.md#cluster-state-encryption-configure-password). To recover, follow [Recover a node that's missing the password](/reference/elasticsearch/cluster-state-encryption-key.md#cluster-state-encryption-recover-missing-password). A fix is in progress.
 

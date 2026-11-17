@@ -8,17 +8,25 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.junit.Before;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -26,6 +34,11 @@ import static org.hamcrest.Matchers.hasItem;
 public class IntoIT extends AbstractEsqlIntegTestCase {
 
     private static final String DESTINATION = "dest-into";
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return CollectionUtils.appendToCopy(super.nodePlugins(), MockTransportService.TestPlugin.class);
+    }
 
     @Before
     public void createDestination() {
@@ -80,6 +93,7 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
 
     public void testZeroRows() {
         assertInto("ROW k = \"x\" | WHERE k == \"y\"", 0);
+        assertInto("ROW k = \"x\" | WHERE false", 0);
     }
 
     public void testEvalColumnsAreWritten() {
@@ -102,6 +116,42 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
         );
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(e.getMessage(), containsString("unmapped_col"));
+    }
+
+    public void testAllowPartialResultsDoesNotBypassRejectionOrRowFailure() {
+        VerificationException rejected = expectThrows(
+            VerificationException.class,
+            () -> run(syncEsqlQueryRequest("FROM " + DESTINATION + " | INTO " + DESTINATION).allowPartialResults(true)).close()
+        );
+        assertThat(rejected.getMessage(), containsString("INTO currently only supports ROW as a source, without FORK"));
+
+        ElasticsearchStatusException failed = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> run(syncEsqlQueryRequest("ROW k = \"ok\", unmapped_col = \"nope\" | INTO " + DESTINATION).allowPartialResults(true))
+                .close()
+        );
+        assertThat(failed.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(failed.getMessage(), containsString("unmapped_col"));
+    }
+
+    public void testIntoRunsOnCoordinatorWithoutDataNodeRequests() {
+        AtomicInteger dataNodeRequests = new AtomicInteger();
+        for (String node : internalCluster().getNodeNames()) {
+            MockTransportService.getInstance(node)
+                .addRequestHandlingBehavior(ComputeService.DATA_ACTION_NAME, (handler, request, channel, task) -> {
+                    dataNodeRequests.incrementAndGet();
+                    handler.messageReceived(request, channel, task);
+                });
+        }
+        try {
+            assertInto("ROW k = [\"r1\", \"r2\"] | MV_EXPAND k", 2);
+            assertThat(dataNodeRequests.get(), equalTo(0));
+        } finally {
+            for (String node : internalCluster().getNodeNames()) {
+                MockTransportService.getInstance(node).clearAllRules();
+            }
+        }
+        assertReadBack("KEEP k | SORT k", List.of(List.of("r1"), List.of("r2")));
     }
 
     private void assertInto(String producer, long rows) {

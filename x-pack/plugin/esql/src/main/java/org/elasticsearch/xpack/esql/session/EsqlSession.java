@@ -655,6 +655,7 @@ public class EsqlSession {
             request.profile(),
             request.tables(),
             System.nanoTime(),
+            // TODO: force allowPartialResults=false for INTO once FROM is supported so shard failures do not write partial data
             request.allowPartialResults(),
             analyzerSettings.timeseriesResultTruncationMaxSize(),
             analyzerSettings.timeseriesResultTruncationDefaultSize(),

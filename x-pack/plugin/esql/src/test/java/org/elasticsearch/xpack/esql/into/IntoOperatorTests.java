@@ -98,6 +98,18 @@ public class IntoOperatorTests extends ComputeTestCase {
         assertThat(client.bulks, empty());
     }
 
+    public void testSiblingDriverFailsFastWhenSharedSinkFails() {
+        IntoOperator.Factory factory = new IntoOperator.Factory(sink, Function.identity());
+        Operator first = factory.get(driverContext);
+        Operator sibling = factory.get(driverContext);
+        first.addInput(page("bad"));
+        client.answer(REFUSED);
+
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> sibling.addInput(page("sibling")));
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(client.bulks, empty());
+    }
+
     public void testCheckedExceptionSurfacesAsElasticsearchException() {
         Operator op = new IntoOperator.Factory(sink, Function.identity()).get(driverContext);
         op.addInput(page("h1"));

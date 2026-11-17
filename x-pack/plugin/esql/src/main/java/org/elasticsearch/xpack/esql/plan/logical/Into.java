@@ -114,6 +114,7 @@ public class Into extends UnaryPlan
 
     @Override
     public void postAnalysisVerification(Failures failures) {
+        // TODO: once FROM is supported, gate Into on a minimum TransportVersion in Verifier for mixed-version clusters
         if (child().anyMatch(p -> p instanceof MergePlan || (p instanceof LeafPlan && p instanceof Row == false))) {
             failures.add(fail(this, "INTO currently only supports ROW as a source, without FORK"));
         }

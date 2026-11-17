@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -157,6 +158,32 @@ public class IntoPageWriterTests extends ComputeTestCase {
         expectThrows(CircuitBreakingException.class, () -> limitedWriter.consume(page("h1", "h2")));
         assertThat(client.bulks, empty());
         assertThat(limited.breaker().getUsed(), equalTo(0L));
+    }
+
+    public void testLocalCircuitBreakersShareParentRequestBreakerLimit() {
+        writer.consume(page("h1"));
+        long oneRow = driverContext.breaker().getUsed();
+        client.answer(CREATED);
+        assertThat(oneRow, greaterThan(0L));
+
+        BlockFactory shared = blockFactory(ByteSizeValue.ofBytes(oneRow * 2));
+        LocalCircuitBreaker local1 = new LocalCircuitBreaker(shared.breaker(), 1, 2);
+        LocalCircuitBreaker local2 = new LocalCircuitBreaker(shared.breaker(), 1, 2);
+        try {
+            IntoPageWriter first = sink.create(new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, shared.newChildFactory(local1), null));
+            IntoPageWriter second = sink.create(new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, shared.newChildFactory(local2), null));
+            first.consume(page("h1"));
+            local2.addEstimateBytesAndMaybeBreak(1, "driver");
+
+            expectThrows(CircuitBreakingException.class, () -> second.consume(page("h2")));
+            assertThat(client.bulks, hasSize(1));
+        } finally {
+            client.answer(CREATED);
+            local2.addWithoutBreaking(-1);
+            local1.close();
+            local2.close();
+        }
+        assertThat(shared.breaker().getUsed(), equalTo(0L));
     }
 
     public void testCrankyBreakerReleasesAndStatsMatchWrittenRows() {

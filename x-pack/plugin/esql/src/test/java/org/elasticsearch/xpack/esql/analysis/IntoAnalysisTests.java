@@ -63,6 +63,7 @@ public class IntoAnalysisTests extends AnalyzerTestCase {
     public void testOnlyRowSource() {
         String error = "INTO currently only supports ROW as a source, without FORK";
         analyzer().addEmployees().error("FROM employees | INTO dst", containsString(error));
+        analyzer().addK8s().error("TS k8s | INTO dst", containsString(error));
         analyzer().error("ROW a = 1 | FORK (WHERE true) (WHERE false) | INTO dst", containsString(error));
     }
 }

@@ -3824,6 +3824,14 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_ALL_UNMAPPED_FIELDS_LAST(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
         /**
+         * {@code unmapped_fields="LOAD_ALL"} works with the {@code TS} source command, and with {@code METRICS_INFO} and {@code TS_INFO}.
+         * A time-series aggregation drops the {@code _unmapped_fields} column like any {@code STATS}, and a {@code TS} query without
+         * one returns it like a {@code FROM} does. Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available. See
+         * <a href="https://github.com/elastic/elasticsearch/issues/157190">#157190</a>.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_TS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
          * Support for {@code GROK}, {@code DISSECT}, {@code MV_EXPAND} and {@code SAMPLE} under {@code unmapped_fields="LOAD_ALL"}.
          * {@code GROK} and {@code DISSECT} read an input field (mapped or unmapped) and add named columns, which shadow an unmapped
          * field of the same name. Expanding a mapped multivalued field with {@code MV_EXPAND} repeats the {@code _unmapped_fields}

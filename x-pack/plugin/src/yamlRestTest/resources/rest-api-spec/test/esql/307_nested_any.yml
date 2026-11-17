@@ -1,0 +1,149 @@
+setup:
+  - requires:
+      test_runner_features: [capabilities, allowed_warnings_regex]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [fn_nested_any]
+      reason: "NESTED_ANY is snapshot-only"
+  - do:
+      indices.create:
+        index: nested_any
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              id:
+                type: keyword
+              items:
+                type: nested
+                properties:
+                  sku:
+                    type: keyword
+                  qty:
+                    type: long
+              events:
+                type: nested
+                properties:
+                  kind:
+                    type: keyword
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "nested_any", "_id": "1" } }
+          - { "id": "1", "items": [ { "sku": "a", "qty": 1 }, { "sku": "b", "qty": 2 } ], "events": [ { "kind": "ship" } ] }
+          - { "index": { "_index": "nested_any", "_id": "2" } }
+          - { "id": "2", "items": [], "events": [] }
+          - { "index": { "_index": "nested_any", "_id": "3" } }
+          - { "id": "3", "items": [ { "sku": "c", "qty": 1 } ], "events": [ { "kind": "cancel" } ] }
+
+---
+"NESTED_ANY keeps a parent when any child matches":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any | WHERE NESTED_ANY(items.sku == "a") | KEEP id | SORT id'
+  - match: { columns.0.name: "id" }
+  - length: { values: 1 }
+  - match: { values.0: ["1"] }
+
+---
+"NESTED_ANY is false when the parent has no nested objects":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any | EVAL hit = NESTED_ANY(items.qty > 1) | KEEP id, hit | SORT id'
+  - match: { columns.0.name: "id" }
+  - match: { columns.1.name: "hit" }
+  - length: { values: 3 }
+  - match: { values.0: ["1", true] }
+  - match: { values.1: ["2", false] }
+  - match: { values.2: ["3", false] }
+
+---
+"AND inside NESTED_ANY matches one child":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any | WHERE NESTED_ANY(items.sku == "a" AND items.qty > 1) | KEEP id | SORT id'
+  - length: { values: 0 }
+
+---
+"AND inside NESTED_ANY matches when one child satisfies both":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any | WHERE NESTED_ANY(items.sku == "b" AND items.qty > 1) | KEEP id | SORT id'
+  - length: { values: 1 }
+  - match: { values.0: ["1"] }
+
+---
+"Two NESTED_ANY calls match different children of one parent":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any | WHERE NESTED_ANY(items.sku == "a") AND NESTED_ANY(items.qty > 1) | KEEP id | SORT id'
+  - length: { values: 1 }
+  - match: { values.0: ["1"] }
+
+---
+"NOT NESTED_ANY keeps parents with no match":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any | WHERE NOT NESTED_ANY(items.sku == "a") | KEEP id | SORT id'
+  - length: { values: 2 }
+  - match: { values.0: ["2"] }
+  - match: { values.1: ["3"] }
+
+---
+"NESTED_ANY of a collection is true when the parent has any object":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any | EVAL hit = NESTED_ANY(items, true) | KEEP id, hit | SORT id'
+  - length: { values: 3 }
+  - match: { values.0: ["1", true] }
+  - match: { values.1: ["2", false] }
+  - match: { values.2: ["3", true] }
+
+---
+"NESTED_ANY rejects a non-boolean":
+  - do:
+      catch: /NESTED_ANY requires a predicate/
+      esql.query:
+        body:
+          query: 'FROM nested_any | EVAL x = NESTED_ANY(items.qty) | KEEP id, x'
+
+---
+"NESTED_ANY rejects fields from two nested paths":
+  - do:
+      catch: /NESTED_ANY requires one nested path/
+      esql.query:
+        body:
+          query: 'FROM nested_any | WHERE NESTED_ANY(items.sku == "a" AND events.kind == "ship") | KEEP id'
+
+---
+"NESTED_ANY cannot follow STATS":
+  - do:
+      catch: /cannot follow/
+      esql.query:
+        body:
+          query: 'FROM nested_any | STATS c = COUNT(*) | WHERE NESTED_ANY(items.sku == "a") | KEEP c'

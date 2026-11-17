@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
-import org.junit.After;
 import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
@@ -44,27 +43,29 @@ import static org.hamcrest.Matchers.lessThan;
  * the failure is reported per column and the row is kept, so neither has a reader for a record excerpt. A file
  * whose every row errors must therefore allocate no more than one whose rows are all clean.
  *
- * <p>Each case reads two files of identical size and shape that differ in one column's content, so the
+ * <p>Each case reads two files of the same shape and length that differ in one cell's content, so the
  * difference between the two reads is what the error path itself costs. Records are deliberately large —
- * {@link #PAD_CHARS} of payload in an unprojected column — because the per-row costs the fix does not remove
- * (the failing cell's own value, the held error message, the warning) are independent of record size, and only
- * a record far bigger than those makes the excerpt the dominant term. The control case asserts the measurement
- * can see an excerpt at all, so a JVM reporting nothing cannot pass the others vacuously.
+ * {@link #PAD_CHARS} of payload in an unprojected column — because the per-row costs that remain (the failing
+ * cell's own value, the held message, the warning) are independent of record size, and only a record far bigger
+ * than those makes an excerpt the dominant term. {@link #testFailFastDoesMaterializeTheRecord} is the control: it
+ * reads a file of the same length whose last row errors, so a counter that saw nothing could not pass it.
  *
  * <p>Allocation is read from {@link SunThreadInfo}, the JDK counter {@code HotThreads} reports with; a JVM that
  * does not offer it skips every case here.
+ *
+ * <p>What this cannot pin: {@code withDirectBlockEnabled(true)} is a request, and no reader status reports which
+ * walk served a read. If the reader ever declined the direct path for this schema, projection or mode, these
+ * cases would measure the batch path and still pass. Reverting {@code rowExcerptIfRead} and watching them fail
+ * is what establishes they cover the guarded code.
  */
 public class CsvDirectRowExcerptCostTests extends ESTestCase {
 
-    /** Rows per file. Deliberately small: the signal comes from record SIZE, so the walk stays below C2. */
+    /** Rows per file. Kept small because the signal comes from record SIZE rather than from row count. */
     private static final int ROWS = 200;
     /** Characters of clean, unprojected payload per record — what an excerpt would copy. */
     private static final int PAD_CHARS = 64 * 1024;
     /** Bytes of record text across the whole file, which is what an excerpt per row would cost. */
     private static final long RECORD_TEXT_BYTES = (long) ROWS * PAD_CHARS;
-
-    private static final byte[] CLEAN = utf8(buildCsv("1"));
-    private static final byte[] ONE_BAD_COLUMN = utf8(buildCsv("notanumber"));
 
     private BlockFactory blockFactory;
 
@@ -73,12 +74,10 @@ public class CsvDirectRowExcerptCostTests extends ESTestCase {
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
     }
 
-    /** Lenient reads emit response-header warnings; drop them so the parent {@code ensureNoWarnings} passes. */
-    @After
-    public void clearWarningHeaders() {
-        if (threadContext != null) {
-            threadContext.stashContext();
-        }
+    @Override
+    protected boolean enableWarningsCheck() {
+        // Every lenient read here emits response-header warnings by design; they are not what this measures.
+        return false;
     }
 
     /** Under {@code null_field} the row is kept and the failure reported per column, so nothing quotes the record. */
@@ -91,16 +90,38 @@ public class CsvDirectRowExcerptCostTests extends ESTestCase {
         assertExcerptNotBuilt(ErrorPolicy.Mode.SKIP_ROW, 0);
     }
 
+    /**
+     * The control for the two cases above, and the reason their comparisons mean anything: under
+     * {@code fail_fast} an excerpt IS read, so one is built, and the counter must see it.
+     *
+     * <p>Both reads walk every record of an identically sized file — the bad cell is in the LAST row — so the
+     * only difference between them is that one throws and quotes its record. Earlier versions compared a
+     * one-row read against a full one and were defeated three times by differences in work rather than in the
+     * excerpt: the row count itself, then UTF-8 encoding inside the measured window, then
+     * {@code CsvLogicalRecordReader} growing its 256-character buffer to the record.
+     */
+    public void testFailFastDoesMaterializeTheRecord() throws IOException {
+        assumeAllocationCounterAvailable();
+        warmUp();
+
+        long clean = allocatedDuringRead(utf8(buildCsv("1")), ErrorPolicy.Mode.FAIL_FAST, ROWS);
+        long failing = allocatedDuringFailingRead(utf8(badLastRow()));
+
+        logger.info("fail_fast allocated {} bytes against a clean read's {}", failing, clean);
+        assertThat(
+            "fail_fast quotes the record it rejects, so one record-sized copy must be visible",
+            failing - clean,
+            greaterThan((long) PAD_CHARS / 2)
+        );
+    }
+
     private void assertExcerptNotBuilt(ErrorPolicy.Mode mode, int expectedRowsFromBadFile) throws IOException {
         assumeAllocationCounterAvailable();
         warmUp();
 
-        long clean = allocatedDuringRead(CLEAN, mode, ROWS);
-        long erroring = allocatedDuringRead(ONE_BAD_COLUMN, mode, expectedRowsFromBadFile);
+        long clean = allocatedDuringRead(utf8(buildCsv("1")), mode, ROWS);
+        long erroring = allocatedDuringRead(utf8(buildCsv("notanumber")), mode, expectedRowsFromBadFile);
 
-        // Without this the comparison below is vacuous on a counter reading zero. It needs no second
-        // input, so no difference in input size can confound it.
-        assertThat("the allocation counter must move on a read this size", clean, greaterThan(RECORD_TEXT_BYTES / 4));
 
         logger.info(
             "{} read allocated: clean={} bytes, erroring={} bytes, delta={} bytes, record text={} bytes",
@@ -171,6 +192,17 @@ public class CsvDirectRowExcerptCostTests extends ESTestCase {
 
     private static byte[] utf8(String s) {
         return s.getBytes(StandardCharsets.UTF_8);
+    }
+
+    /** The same file as {@code buildCsv("1")} but for its final row's first cell, so the walk is the same length. */
+    private static String badLastRow() {
+        String pad = "x".repeat(PAD_CHARS);
+        StringBuilder sb = new StringBuilder(ROWS * (PAD_CHARS + 32));
+        sb.append("a:long,b:keyword\n");
+        for (int i = 0; i < ROWS; i++) {
+            sb.append(i == ROWS - 1 ? "notanumber" : "1").append(',').append(pad).append('\n');
+        }
+        return sb.toString();
     }
 
     private static String buildCsv(String firstColumn) {

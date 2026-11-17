@@ -6384,16 +6384,28 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
 
         /**
-         * The record text a row-level error will quote, or {@code null} where nothing goes on to read one.
+         * Whether anything goes on to read a row error's excerpt.
          *
-         * <p>{@link #onRowErrorImpl} reads its excerpt in one place, the {@code FAIL_FAST} throw. Below that throw
-         * {@code SKIP_ROW} adds a warning and logs, both carrying {@code message} alone, and under
-         * {@code NULL_FIELD} a failed conversion is reported against its own column and never becomes a row error.
-         * So outside {@code FAIL_FAST} an excerpt is a {@link #directRawLine()} copy of the whole record that
-         * nothing reads, and the direct walkers are the paths that would pay for it per row.
+         * <p>{@link #onRowErrorImpl} reads it in one place, the {@code FAIL_FAST} throw. Every other mode falls
+         * through to a warning and a log line carrying {@code message} alone -- {@code null_field} included, which
+         * reaches that branch for a width rejection even though a failed conversion never becomes a row error.
+         * Both {@code onRowError} overloads consult this before summarizing, so no caller can make a message out of
+         * an excerpt nobody reads.
+         */
+        private boolean excerptIsRead() {
+            return modeOrdinal == ErrorPolicy.Mode.FAIL_FAST.ordinal();
+        }
+
+        /**
+         * The record text for a row error on the direct path, or {@code null} where nothing reads one.
+         *
+         * <p>The consumers above already decline to summarize an unread excerpt; this declines to BUILD one. The
+         * direct walkers hold their record as a range of a reused buffer, so {@link #directRawLine()} is a copy of
+         * the whole record, and under {@code null_field} every row with a failed conversion would pay for it. The
+         * fused bracket walker needs none of this: it already holds its line, so passing it costs nothing.
          */
         private String rowExcerptIfRead() {
-            return modeOrdinal == ErrorPolicy.Mode.FAIL_FAST.ordinal() ? directRawLine() : null;
+            return excerptIsRead() ? directRawLine() : null;
         }
 
         /**
@@ -6430,9 +6442,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * <p>The three direct walkers share this -- plain, and the quoted dialect's optimistic and full walkers. The
          * fused projected walker does not, because it interleaves trailing-field handling with its own fill.
          *
-         * <p>Allocation-sensitive: {@link #directRawLine()} materializes the record as a {@link String}, and the
-         * {@code hasPendingErrors} short-circuit is what keeps a clean row from paying for it. A row that staged a
-         * field error does pay, accepted or not -- under {@code null_field} such a row is reported and kept.
+         * <p>Allocation-sensitive: {@link #directRawLine()} materializes the record as a {@link String}, which only
+         * {@code fail_fast} goes on to read. {@link #rowExcerptIfRead()} is what keeps the other modes from building
+         * one, and the {@code hasPendingErrors} short-circuit keeps a clean row out of the call entirely.
          *
          * @param totalFields the number of fields the walker counted in this record
          * @return {@code true} if the row was accepted, {@code false} if the error policy rejected it
@@ -7639,7 +7651,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
          *                   projection, so the publish is suppressed (see {@code projectionDependentDrop}).
          */
         private void onRowError(String message, Exception cause, String[] row, boolean structural) {
-            onRowErrorImpl(message, cause, CsvErrorMessages.summarizeRow(row), structural);
+            onRowErrorImpl(message, cause, excerptIsRead() ? CsvErrorMessages.summarizeRow(row) : null, structural);
         }
 
         /**
@@ -7647,7 +7659,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * {@code String[]}. Uses the raw CSV line for the error excerpt instead.
          */
         private void onRowError(String message, Exception cause, String rawLine, boolean structural) {
-            onRowErrorImpl(message, cause, ErrorExcerpts.summarize(rawLine), structural);
+            onRowErrorImpl(message, cause, excerptIsRead() ? ErrorExcerpts.summarize(rawLine) : null, structural);
         }
 
         private void onRowErrorImpl(String message, Exception cause, String rowExcerpt, boolean structural) {

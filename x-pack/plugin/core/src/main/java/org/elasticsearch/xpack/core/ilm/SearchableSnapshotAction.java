@@ -64,6 +64,14 @@ public class SearchableSnapshotAction implements LifecycleAction {
         "ilm_searchable_snapshot_opt_out_clone"
     );
 
+    /**
+     * Nodes before this version reject a {@link #TOTAL_SHARDS_PER_NODE} of {@code -1} when they build the policy steps. An elected
+     * master that cannot build the steps fails to apply the cluster state, so {@code -1} must not be stored until all nodes support it.
+     */
+    public static final TransportVersion UNBOUNDED_TOTAL_SHARDS_PER_NODE_TRANSPORT_VERSION = TransportVersion.fromName(
+        "ilm_searchable_snapshot_unbounded_total_shards_per_node"
+    );
+
     public static final String CONDITIONAL_SKIP_ACTION_STEP = BranchingStep.NAME + "-check-prerequisites";
     public static final String CONDITIONAL_SKIP_GENERATE_AND_CLEAN = BranchingStep.NAME + "-check-existing-snapshot";
     public static final String CONDITIONAL_SKIP_CLONE_STEP = BranchingStep.NAME + "-skip-clone-check";
@@ -136,8 +144,8 @@ public class SearchableSnapshotAction implements LifecycleAction {
         this.snapshotRepository = snapshotRepository;
         this.forceMergeIndex = forceMergeIndex;
 
-        if (totalShardsPerNode != null && totalShardsPerNode < 1) {
-            throw new IllegalArgumentException("[" + TOTAL_SHARDS_PER_NODE.getPreferredName() + "] must be >= 1");
+        if (totalShardsPerNode != null && totalShardsPerNode < -1) {
+            throw new IllegalArgumentException("[" + TOTAL_SHARDS_PER_NODE.getPreferredName() + "] must be >= -1");
         }
         this.totalShardsPerNode = totalShardsPerNode;
 

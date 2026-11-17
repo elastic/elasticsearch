@@ -115,13 +115,13 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
     }
 
     public void testCreateWithInvalidTotalShardsPerNode() {
-        int invalidTotalShardsPerNode = randomIntBetween(-100, -2);
+        int invalidTotalShardsPerNode = randomBoolean() ? 0 : randomIntBetween(-100, -2);
 
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
             () -> new SearchableSnapshotAction("test", true, invalidTotalShardsPerNode, null, null)
         );
-        assertEquals("[" + TOTAL_SHARDS_PER_NODE.getPreferredName() + "] must be >= -1", exception.getMessage());
+        assertEquals("[" + TOTAL_SHARDS_PER_NODE.getPreferredName() + "] must be >= 1 or -1", exception.getMessage());
     }
 
     public void testCreateWithUnboundedTotalShardsPerNode() {

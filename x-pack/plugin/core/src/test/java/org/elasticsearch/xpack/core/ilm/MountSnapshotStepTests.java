@@ -116,7 +116,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
     }
 
     public void testCreateWithInvalidTotalShardsPerNode() throws Exception {
-        int invalidTotalShardsPerNode = randomIntBetween(-100, -2);
+        int invalidTotalShardsPerNode = randomBoolean() ? 0 : randomIntBetween(-100, -2);
 
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
@@ -130,7 +130,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 0
             )
         );
-        assertEquals("[total_shards_per_node] must be >= -1", exception.getMessage());
+        assertEquals("[total_shards_per_node] must be >= 1 or -1", exception.getMessage());
     }
 
     public void testUnboundedTotalShardsPerNodeOverridesInheritedLimitInColdPhase() throws Exception {

@@ -29,8 +29,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit.MERGE_BLOB_PREFIX;
-
 /// Writes fake `stateless_merge_*` blobs into the shard containers of indexing shards in integration tests, before anything writes such
 /// blobs for real. Nodes must ignore them and must never delete them; [#injected()] exposes what was written so tests can check both.
 /// Blobs are written when a shard is created (before its recovery lists blobs, usually), when it starts, right after a BCC upload, and a
@@ -195,8 +193,11 @@ public class MergeBlobInjector implements IndexEventListener {
         }
         final Random random = random(shardId, primaryTerm, moment, startGeneration);
         // stateless_merge_<gen>_<segment>_<discriminator>: the segment is the moment letter plus the generation in base 36, never a '_'
-        final String blobName = MERGE_BLOB_PREFIX + startGeneration + '_' + moment.letter + Long.toString(startGeneration, 36) + '_'
-            + HexFormat.of().toHexDigits(random.nextLong());
+        final String blobName = MergeBlob.blobName(
+            startGeneration,
+            moment.letter + Long.toString(startGeneration, 36),
+            HexFormat.of().toHexDigits(random.nextLong())
+        );
         final var injectedBlob = new InjectedBlob(shardId, primaryTerm, blobName, random.nextLong());
         final byte[] bytes = injectedBlob.bytes();
         INJECTED.add(injectedBlob);

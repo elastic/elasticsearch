@@ -51,7 +51,7 @@ public class BlobFileTests extends AbstractWireSerializingTestCase<BlobFile> {
     }
 
     public void testRejectsMergeBlobName() {
-        var blobName = "stateless_merge_" + randomNonNegativeInt() + "_1b_9f3a1c7e5b2d4068";
+        var blobName = MergeBlob.blobName(randomNonZeroPositiveLong(), "1b", "9f3a1c7e5b2d4068");
         var exception = expectThrows(IllegalArgumentException.class, () -> new BlobFile(blobName, randomTermAndGeneration()));
         assertThat(exception.getMessage(), containsString("unrecognized blob name"));
     }
@@ -111,16 +111,12 @@ public class BlobFileTests extends AbstractWireSerializingTestCase<BlobFile> {
         assertThat(exception.getMessage(), containsString("unrecognized blob name"));
     }
 
-    /// Merge blobs are not supported yet: until a dedicated blob type is introduced, reading one as a [BlobFile] must fail cleanly rather
-    /// than be mistaken for a batched compound commit. This test is to be replaced by a successful read once merge blobs are supported.
+    /// Reading a merge blob where a [BlobFile] is expected must fail cleanly rather than be mistaken for a batched compound commit.
     public void testReadRejectsMergeBlobName() {
-        var blobName = "stateless_merge_"
-            + randomNonNegativeInt()
-            + '_'
-            + randomAlphaOfLength(2).toLowerCase(Locale.ROOT)
-            + "_9f3a1c7e5b2d4068";
-        var exception = expectThrows(IOException.class, () -> readInvalidBlob(blobName, randomTermAndGeneration()));
-        assertThat(exception.getMessage(), containsString("unrecognized blob name"));
+        var termAndGen = randomTermAndGeneration();
+        var blobName = MergeBlob.blobName(termAndGen.generation(), randomAlphaOfLength(2).toLowerCase(Locale.ROOT), "9f3a1c7e5b2d4068");
+        var exception = expectThrows(IOException.class, () -> readInvalidBlob(blobName, termAndGen));
+        assertThat(exception.getMessage(), containsString("expected a [BlobFile] but blob [" + blobName + "] is a [MergeBlob]"));
     }
 
     public void testReadRejectsMalformedGeneration() {

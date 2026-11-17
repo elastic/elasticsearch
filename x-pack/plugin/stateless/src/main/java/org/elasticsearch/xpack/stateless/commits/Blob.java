@@ -14,8 +14,8 @@ import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
 import java.io.IOException;
 
-/// A blob stored in the object store: always a [batched compound commit][BlobFile].
-public sealed interface Blob extends Writeable permits BlobFile {
+/// A blob stored in the object store: either a [batched compound commit][BlobFile] or a [merge blob][MergeBlob].
+public sealed interface Blob extends Writeable permits BlobFile, MergeBlob {
 
     /// @return the name of the blob
     String blobName();
@@ -76,6 +76,12 @@ public sealed interface Blob extends Writeable permits BlobFile {
         if (BatchedCompoundCommit.startsWithBlobPrefix(blobName)) {
             try {
                 blob = new BlobFile(blobName, termAndGeneration.primaryTerm());
+            } catch (IllegalArgumentException e) {
+                throw new IOException("malformed blob name [" + blobName + ']', e);
+            }
+        } else if (MergeBlob.startsWithPrefix(blobName)) {
+            try {
+                blob = new MergeBlob(blobName, termAndGeneration.primaryTerm());
             } catch (IllegalArgumentException e) {
                 throw new IOException("malformed blob name [" + blobName + ']', e);
             }

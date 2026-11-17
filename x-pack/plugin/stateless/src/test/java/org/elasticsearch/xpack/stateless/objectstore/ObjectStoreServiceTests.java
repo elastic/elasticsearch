@@ -92,6 +92,7 @@ import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BccUploadMetrics;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
+import org.elasticsearch.xpack.stateless.commits.MergeBlob;
 import org.elasticsearch.xpack.stateless.commits.StaleCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
@@ -1802,10 +1803,12 @@ public class ObjectStoreServiceTests extends ESTestCase {
         blobContainer.writeBlob(OperationPurpose.INDICES, blobName, new BytesArray(randomByteArrayOfLength(between(1, 64))), true);
     }
 
-    // TODO(szybia): use MergeBlobFile.blobName (#162535)
     private static String randomMergeBlobName(long mergeStartGeneration) {
-        return BatchedCompoundCommit.MERGE_BLOB_PREFIX + mergeStartGeneration + '_' + randomAlphanumericOfLength(between(1, 5)) + '_'
-            + HexFormat.of().toHexDigits(randomLong());
+        return MergeBlob.blobName(
+            mergeStartGeneration,
+            randomAlphanumericOfLength(between(1, 5)),
+            HexFormat.of().toHexDigits(randomLong())
+        );
     }
 
     private void assertProjectObjectStoreNotFound(ObjectStoreService objectStoreService, ProjectId projectId) {

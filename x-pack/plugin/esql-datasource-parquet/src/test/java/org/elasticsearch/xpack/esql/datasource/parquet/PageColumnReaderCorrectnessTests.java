@@ -80,6 +80,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Compares the optimized {@link PageColumnReader} path against the baseline row-at-a-time
@@ -525,11 +526,17 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
         CountingBreaker breaker = new CountingBreaker();
         BlockFactory counting = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
         // opt_str holds "s_<row>", which no row parses as a long, and a null warnings sink is strict.
+        // Row 2 leads, and "s_2" is not a prefix of any other chosen row's value, so naming it in the
+        // message is unambiguous -- "s_1" would also match s_11 and s_15 and prove nothing about which
+        // value failed.
         Exception e = expectThrows(
             Exception.class,
-            () -> declaredRead(data, "opt_str", DataType.KEYWORD, DataType.LONG, new int[] { 1, 5, 11, 15 }, counting)
+            () -> declaredRead(data, "opt_str", DataType.KEYWORD, DataType.LONG, new int[] { 2, 5, 11, 15 }, counting)
         );
-        assertThat(e.getMessage(), containsString("s_1"));
+        assertThat("the first row read must be the one that fails", e.getMessage(), containsString("s_2"));
+        for (String later : new String[] { "s_5", "s_11", "s_15" }) {
+            assertThat("a later row must not be the one reported", e.getMessage(), not(containsString(later)));
+        }
         assertEquals("the joined block and every chunk must be released on the failure path", 0L, breaker.used());
     }
 

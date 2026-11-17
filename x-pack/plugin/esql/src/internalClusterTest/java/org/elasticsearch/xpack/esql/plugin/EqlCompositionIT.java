@@ -16,11 +16,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.eql.plugin.EqlPlugin;
-import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
@@ -36,7 +37,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -197,8 +197,50 @@ public class EqlCompositionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testRequestFilterReachesEqlSubquerySource() {
+        assertProcessNames(
+            "FROM (EQL " + INDEX + " \"process where true\" | KEEP process.name) | SORT process.name",
+            AFTER_FIRST_EVENT,
+            List.of("powershell.exe")
+        );
+    }
+
+    public void testRequestFilterReachesEqlInSubquerySource() {
+        String query = "FROM "
+            + INDEX
+            + " | WHERE process.pid IN (EQL "
+            + INDEX
+            + " \"process where true\" | KEEP process.pid) | KEEP process.pid | SORT process.pid";
+        try (EsqlQueryResponse resp = run(syncEsqlQueryRequest(query).filter(AFTER_FIRST_EVENT))) {
+            assertThat(getValuesList(resp), equalTo(List.of(List.of(200L))));
+        }
+    }
+
+    public void testRequestFilterReachesEqlAndFromSiblings() {
+        String query = "FROM (EQL "
+            + INDEX
+            + " \"process where true\" | KEEP process.name), (FROM "
+            + INDEX
+            + " | WHERE event.category == \"process\" | KEEP process.name) | STATS count = COUNT(*) BY process.name";
+        try (EsqlQueryResponse resp = run(syncEsqlQueryRequest(query).filter(AFTER_FIRST_EVENT))) {
+            assertThat(getValuesList(resp), equalTo(List.of(List.of(2L, "powershell.exe"))));
+        }
+    }
+
+    public void testRequestFilterReachesEqlUpstreamOfFork() {
+        String query = "EQL "
+            + INDEX
+            + " \"process where true\" | FORK ( WHERE process.pid == 100 ) ( WHERE process.pid == 200 ) | KEEP process.name, _fork";
+        try (EsqlQueryResponse resp = run(syncEsqlQueryRequest(query).filter(AFTER_FIRST_EVENT))) {
+            assertThat(getValuesList(resp), equalTo(List.of(List.of("powershell.exe", "fork2"))));
+        }
+    }
+
     private static final TimeValue TIMEOUT = TimeValue.timeValueSeconds(30);
     private static final String EQL_VIEW = "eql_process_view";
+    private static final String EQL_SEQUENCE_VIEW = "eql_sequence_view";
+    private static final String EQL_IN_VIEW = "eql_in_view";
+    private static final QueryBuilder AFTER_FIRST_EVENT = new RangeQueryBuilder("@timestamp").gte("2026-07-22T10:00:01Z");
 
     @After
     public void cleanupView() {
@@ -208,11 +250,13 @@ public class EqlCompositionIT extends AbstractEsqlIntegTestCase {
         if (Build.current().isSnapshot() == false) {
             return;
         }
-        try {
-            client().execute(DeleteViewAction.INSTANCE, new DeleteViewAction.Request(TIMEOUT, TIMEOUT, new String[] { EQL_VIEW }))
-                .actionGet(TIMEOUT);
-        } catch (ResourceNotFoundException ignored) {
-            // no view created by this test
+        for (String view : List.of(EQL_VIEW, EQL_SEQUENCE_VIEW, EQL_IN_VIEW)) {
+            try {
+                client().execute(DeleteViewAction.INSTANCE, new DeleteViewAction.Request(TIMEOUT, TIMEOUT, new String[] { view }))
+                    .actionGet(TIMEOUT);
+            } catch (ResourceNotFoundException ignored) {
+                // no view created by this test
+            }
         }
     }
 
@@ -242,31 +286,104 @@ public class EqlCompositionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testRequestFilterOnEqlViewRejected() {
+    public void testRequestFilterNarrowsEqlViewRows() {
         createEqlView();
         List<QueryBuilder> filters = List.of(
             new TermQueryBuilder("process.name", "cmd.exe"),
-            new BoolQueryBuilder().should(new TermQueryBuilder("process.name", "cmd.exe"))
-                .should(new TermQueryBuilder("process.pid", 100))
-                .minimumShouldMatch(2)
+            new BoolQueryBuilder().filter(new TermQueryBuilder("process.name", "cmd.exe")).filter(new TermQueryBuilder("process.pid", 100))
         );
         for (QueryBuilder filter : filters) {
-            for (String query : List.of("FROM " + EQL_VIEW, "FROM (FROM " + EQL_VIEW + " | KEEP process.name)")) {
-                VerificationException e = expectThrows(
-                    VerificationException.class,
-                    () -> run(syncEsqlQueryRequest(query).filter(filter)).close()
-                );
-                assertThat(query + " " + filter, e.getMessage(), containsString("cannot yet be combined with a request filter"));
-            }
+            assertProcessNames("FROM " + EQL_VIEW + " | KEEP process.name", filter, List.of("cmd.exe"));
+            assertProcessNames("FROM (FROM " + EQL_VIEW + " | KEEP process.name)", filter, List.of("cmd.exe"));
+        }
+    }
+
+    public void testRequestFilterOnIndexAndEqlViewInOneFrom() {
+        createEqlView();
+        assertProcessNames(
+            "FROM " + INDEX + ", " + EQL_VIEW + " | KEEP process.name",
+            new TermQueryBuilder("process.name", "cmd.exe"),
+            List.of("cmd.exe", "cmd.exe")
+        );
+    }
+
+    public void testUntranslatableRequestFilterIsDroppedOnEqlViewButAppliedByEql() {
+        createEqlView();
+        QueryBuilder untranslatable = new BoolQueryBuilder().should(new TermQueryBuilder("process.name", "cmd.exe"))
+            .should(new TermQueryBuilder("process.pid", 100))
+            .minimumShouldMatch(2);
+        assertProcessNames(
+            "FROM " + EQL_VIEW + " | KEEP process.name | SORT process.name",
+            untranslatable,
+            List.of("cmd.exe", "powershell.exe")
+        );
+        assertProcessNames("EQL " + INDEX + " \"process where true\" | KEEP process.name", untranslatable, List.of("cmd.exe"));
+    }
+
+    public void testMatchAllRequestFilterOnEqlViewKeepsEveryRow() {
+        createEqlView();
+        assertProcessNames(
+            "FROM " + EQL_VIEW + " | KEEP process.name | SORT process.name",
+            new MatchAllQueryBuilder(),
+            List.of("cmd.exe", "powershell.exe")
+        );
+    }
+
+    public void testRequestFilterOnEqlViewAppliesAfterTheTruncationCap() {
+        createEqlView();
+        QueryBuilder beforeLastEvent = new RangeQueryBuilder("@timestamp").lte("2026-07-22T10:00:01Z");
+        updateClusterSettings(Settings.builder().put("esql.query.result_truncation_max_size", 1));
+        try {
+            assertProcessNames(
+                "EQL " + INDEX + " \"process where true\" | WHERE process.pid > 0 | KEEP process.name",
+                beforeLastEvent,
+                List.of("cmd.exe")
+            );
+            assertProcessNames("FROM " + EQL_VIEW + " | KEEP process.name", beforeLastEvent, List.of());
+        } finally {
+            updateClusterSettings(Settings.builder().putNull("esql.query.result_truncation_max_size"));
+        }
+    }
+
+    public void testRequestFilterOnEqlSequenceViewKeepsPartialMatch() {
+        createView(EQL_SEQUENCE_VIEW, "EQL " + INDEX + " \"sequence by process.pid [process where true] [network where true]\"");
+        QueryBuilder withoutNetworkEvent = new RangeQueryBuilder("@timestamp").lte("2026-07-22T10:00:00Z");
+        String query = "FROM " + EQL_SEQUENCE_VIEW + " | KEEP _sequence_stage, process.name";
+        try (EsqlQueryResponse resp = run(syncEsqlQueryRequest(query).filter(withoutNetworkEvent))) {
+            assertThat(getValuesList(resp), equalTo(List.of(List.of(0, "cmd.exe"))));
+        }
+    }
+
+    public void testRequestFilterDoesNotReachEqlInsideViewBody() {
+        createView(
+            EQL_IN_VIEW,
+            "FROM "
+                + INDEX
+                + " | WHERE process.pid IN (EQL "
+                + INDEX
+                + " \"process where true\" | KEEP process.pid) | KEEP @timestamp, process.pid"
+        );
+        String query = "FROM " + EQL_IN_VIEW + " | KEEP process.pid | SORT process.pid";
+        try (EsqlQueryResponse resp = run(syncEsqlQueryRequest(query).filter(AFTER_FIRST_EVENT))) {
+            assertThat(getValuesList(resp), equalTo(List.of(List.of(100L), List.of(200L))));
+        }
+    }
+
+    private void assertProcessNames(String query, QueryBuilder filter, List<String> expected) {
+        try (EsqlQueryResponse resp = run(syncEsqlQueryRequest(query).filter(filter))) {
+            int nameColumn = resp.columns().stream().map(c -> c.name()).toList().indexOf("process.name");
+            List<String> names = getValuesList(resp).stream().map(row -> Objects.toString(row.get(nameColumn))).toList();
+            assertThat(query + " " + filter, names, equalTo(expected));
         }
     }
 
     private void createEqlView() {
+        createView(EQL_VIEW, "EQL " + INDEX + " \"process where true\"");
+    }
+
+    private void createView(String name, String body) {
         assertAcked(
-            client().execute(
-                PutViewAction.INSTANCE,
-                new PutViewAction.Request(TIMEOUT, TIMEOUT, new View(EQL_VIEW, "EQL " + INDEX + " \"process where true\""))
-            ).actionGet(TIMEOUT)
+            client().execute(PutViewAction.INSTANCE, new PutViewAction.Request(TIMEOUT, TIMEOUT, new View(name, body))).actionGet(TIMEOUT)
         );
     }
 }

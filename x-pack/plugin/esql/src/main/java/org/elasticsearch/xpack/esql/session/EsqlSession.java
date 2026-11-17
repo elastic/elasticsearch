@@ -72,6 +72,7 @@ import org.elasticsearch.xpack.esql.analysis.LetResolver;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
+import org.elasticsearch.xpack.esql.analysis.rules.ViewUtils;
 import org.elasticsearch.xpack.esql.anonymizer.PlanAnonymizer;
 import org.elasticsearch.xpack.esql.approximation.ApproximationDriver;
 import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
@@ -137,6 +138,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedEqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
@@ -709,21 +711,6 @@ public class EsqlSession {
                         return;
                     }
 
-                    // The EQL delegate does not yet honor the out-of-band request filter, and applying it post-hoc would
-                    // strip events out of sequence matches (a wrong answer). Reject rather than silently ignore the
-                    // filter and return rows it should have excluded as complete. Lifts once the filter is bridged to
-                    // the delegate through a coordinator-local execution context. Checked before the dataset and view
-                    // rewriters so a rejected query does not also carry their partially-applied-filter warnings.
-                    if (request.filter() != null && analyzedPlan.inner().anyMatch(EqlRelation.class::isInstance)) {
-                        listener.onFailure(
-                            new VerificationException(
-                                "[EQL] source command cannot yet be combined with a request filter; "
-                                    + "remove the filter or express it inside the EQL query"
-                            )
-                        );
-                        return;
-                    }
-
                     // Apply the out-of-band request filter to external-source (dataset) leaves, translated
                     // against each source's schema. Index leaves keep their existing filter path.
                     // Applies the translatable subset and drops the rest with a warning naming each clause.
@@ -738,12 +725,13 @@ public class EsqlSession {
                             minimumVersion,
                             true
                         );
+                        LogicalPlan afterEqlFilter = applyRequestFilterToEqlSources(afterDatasetFilter, request.filter(), minimumVersion);
                         // Apply the request filter to view subplan outputs: the filter is translated against each
                         // view's output schema and inserted as an ordinary Filter above the view's subplan, so it
                         // applies after the view's own processing (STATS, EVAL, RENAME, …) rather than being
                         // pushed into the view's source indices as a Lucene query.
                         LogicalPlan afterViewFilter = ViewRequestFilterRewriter.rewrite(
-                            afterDatasetFilter,
+                            afterEqlFilter,
                             request.filter(),
                             finalConfiguration,
                             minimumVersion
@@ -1887,7 +1875,7 @@ public class EsqlSession {
             planningCpu.meteredCpu(logicalPlanListener.delegateFailureAndWrap((delegate, rewritten) -> {
                 datasetResolutionProfile.stop();
                 analyzedPlanAfterDatasetResolution(
-                    scopeIndexPatternsInViews(rewritten, unmappedResolution, viewSettings),
+                    scopeEqlIndexPatterns(scopeIndexPatternsInViews(rewritten, unmappedResolution, viewSettings), requestFilter),
                     unmappedResolution,
                     viewSettings,
                     configuration,
@@ -2751,6 +2739,40 @@ public class EsqlSession {
         return patterns;
     }
 
+    static LogicalPlan scopeEqlIndexPatterns(LogicalPlan plan, @Nullable QueryBuilder requestFilter) {
+        if (requestFilter == null) {
+            return plan;
+        }
+        return plan.transformUp(UnresolvedEqlRelation.class, r -> r.withIndexPattern(r.indexPattern().forEqlSource()));
+    }
+
+    @Nullable
+    static QueryBuilder fieldCapsFilter(
+        IndexPattern pattern,
+        Set<IndexPattern> viewInternalPatterns,
+        @Nullable QueryBuilder requestFilter
+    ) {
+        // A view applies the request filter at its output and an EQL source inside its own searches, so neither has its sources pruned.
+        return pattern.isEqlSource() || viewInternalPatterns.contains(pattern) ? null : requestFilter;
+    }
+
+    static LogicalPlan applyRequestFilterToEqlSources(
+        LogicalPlan analyzed,
+        @Nullable QueryBuilder requestFilter,
+        TransportVersion minimumVersion
+    ) {
+        if (requestFilter == null) {
+            return analyzed;
+        }
+        // An EQL source inside a view is left to the view-output filter, under the same gate as view fragments in
+        // integrateEsFilterIntoFragment.
+        LogicalPlan stamped = ViewRequestFilterRewriter.supportsRewrite(minimumVersion)
+            ? ViewUtils.transformUpOutsideViews(analyzed, EqlRelation.class, r -> r.withRequestFilter(requestFilter))
+            : analyzed.transformUp(EqlRelation.class, r -> r.withRequestFilter(requestFilter));
+        stamped.forEachDown(LogicalPlan.class, LogicalPlan::setAnalyzed);
+        return stamped;
+    }
+
     /**
      * Scopes the index pattern of every relation inside a view body to that view (see {@link IndexPattern#insideView}), when
      * unmapped fields are loaded anywhere in the query — by the caller's setting or by a view definition's own {@code SET}. A view
@@ -2851,8 +2873,7 @@ public class EsqlSession {
                     e.getKey().isInsideView() ? e.getKey().viewLoadsUnmappedFields() : trackUnmappedFieldIndices,
                     namedFields,
                     r,
-                    // A pattern reachable only inside a view branch must not be pruned by the request filter.
-                    viewInternalPatterns.contains(e.getKey()) ? null : requestFilter,
+                    fieldCapsFilter(e.getKey(), viewInternalPatterns, requestFilter),
                     l
                 ),
                 listener
@@ -2877,8 +2898,7 @@ public class EsqlSession {
                     e.getKey().isInsideView() ? e.getKey().viewLoadsUnmappedFields() : trackUnmappedFieldIndices,
                     namedFields,
                     r,
-                    // A pattern reachable only inside a view branch must not be pruned by the request filter.
-                    viewInternalPatterns.contains(e.getKey()) ? null : requestFilter,
+                    fieldCapsFilter(e.getKey(), viewInternalPatterns, requestFilter),
                     routingInfoCapture,
                     l
                 ),

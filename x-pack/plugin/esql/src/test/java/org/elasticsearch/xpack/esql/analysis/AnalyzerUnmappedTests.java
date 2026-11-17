@@ -2277,6 +2277,16 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             """), containsString("Unknown column [unmapped.nested]"));
     }
 
+    public void testLoadAllModeAllowsPromQlInsideAViewThatDoesNotLoad() {
+        assumeTrue("Requires views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        String promql = "PROMQL index=test step=5m rate(network.bytes_in[5m])";
+        TestAnalyzer analyzer = test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES).addView("promql_view", promql);
+
+        analyzer.statement(setUnmappedLoadAll("FROM promql_view"));
+        analyzer.statement(setUnmappedLoadAll("FROM promql_view | LIMIT 10"));
+        analyzer.statementError(setUnmappedLoadAll(promql), containsString("PROMQL is not supported with unmapped_fields=\"load_all\""));
+    }
+
     public void testLoadAllSubqueryDropInEveryBranchOuterEvalIsUnknownColumn() {
         partialMappingTest().statementError(setUnmappedLoadAll("""
             FROM (FROM partial_mapping_sample_data | WHERE message == "42" | DROP unmapped_message),

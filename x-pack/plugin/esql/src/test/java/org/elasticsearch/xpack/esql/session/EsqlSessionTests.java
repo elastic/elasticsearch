@@ -8,12 +8,15 @@
 package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -47,6 +50,7 @@ import org.elasticsearch.xpack.esql.datasources.glob.FolderRangePredicate;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.dsltranslate.ViewRequestFilterRewriter;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -59,18 +63,24 @@ import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
+import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedEqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -1139,6 +1149,118 @@ public class EsqlSessionTests extends ESTestCase {
         QuerySetting projectRouting = new QuerySetting(EMPTY, new Alias(EMPTY, "project_routing", Literal.keyword(EMPTY, "p")));
         EsqlStatement statement = new EsqlStatement(null, List.of(projectRouting));
         assertThat(EsqlSession.suppliedSettingNames(request, statement), equalTo(Set.of("time_zone", "project_routing")));
+    }
+
+    public void testNullRequestFilterLeavesEqlSourcesUntouched() {
+        LogicalPlan plan = new Limit(EMPTY, Literal.integer(EMPTY, 10), eqlRelation());
+        assertThat(EsqlSession.applyRequestFilterToEqlSources(plan, null, TransportVersion.current()), sameInstance(plan));
+    }
+
+    public void testRequestFilterReachesEqlSourceBelowAParent() {
+        QueryBuilder filter = QueryBuilders.rangeQuery("@timestamp").gte("now-15m");
+        LogicalPlan plan = analyzed(new Limit(EMPTY, Literal.integer(EMPTY, 10), eqlRelation()));
+        LogicalPlan stamped = EsqlSession.applyRequestFilterToEqlSources(plan, filter, TransportVersion.current());
+        EqlRelation eql = (EqlRelation) ((Limit) stamped).child();
+        assertThat(eql.requestFilter(), sameInstance(filter));
+        assertTrue(stamped.analyzed());
+    }
+
+    public void testEqlSourceInsideViewIsLeftToTheViewOutputFilter() {
+        QueryBuilder filter = QueryBuilders.termQuery("host", "a");
+        EqlRelation outsideView = eqlRelation();
+        EqlRelation insideView = eqlRelation();
+        LogicalPlan stamped = EsqlSession.applyRequestFilterToEqlSources(
+            analyzed(viewNextToBareBranch(outsideView, insideView)),
+            filter,
+            TransportVersion.current()
+        );
+        BranchPlan branches = (BranchPlan) stamped;
+        assertThat(((EqlRelation) branches.namedSubqueries().get(null)).requestFilter(), sameInstance(filter));
+        assertThat(branches.namedSubqueries().get("eql_view"), sameInstance(insideView));
+        assertTrue(stamped.analyzed());
+    }
+
+    public void testEqlSourceInsideViewIsFilteredWhenTheViewOutputRewriteCannotRun() {
+        assertFalse(ViewRequestFilterRewriter.supportsRewrite(TransportVersion.minimumCompatible()));
+        QueryBuilder filter = QueryBuilders.termQuery("host", "a");
+        LogicalPlan stamped = EsqlSession.applyRequestFilterToEqlSources(
+            analyzed(viewNextToBareBranch(eqlRelation(), eqlRelation())),
+            filter,
+            TransportVersion.minimumCompatible()
+        );
+        stamped.forEachDown(LogicalPlan.class, p -> assertTrue(p.analyzed()));
+        List<LogicalPlan> eqlSources = stamped.collect(EqlRelation.class::isInstance);
+        assertThat(eqlSources, hasSize(2));
+        for (LogicalPlan eql : eqlSources) {
+            assertThat(((EqlRelation) eql).requestFilter(), sameInstance(filter));
+        }
+    }
+
+    public void testScopeEqlIndexPatternsOnlyUnderARequestFilter() {
+        UnresolvedRelation from = new UnresolvedRelation(
+            EMPTY,
+            new IndexPattern(EMPTY, "logs-*"),
+            false,
+            List.of(),
+            IndexMode.STANDARD,
+            null
+        );
+        UnresolvedEqlRelation eql = new UnresolvedEqlRelation(
+            EMPTY,
+            new IndexPattern(EMPTY, "logs-*"),
+            "process where true",
+            Map.of(),
+            EqlRelation.Mode.EVENT,
+            false,
+            List.of()
+        );
+        LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
+        children.put("from", from);
+        children.put("eql", eql);
+        LogicalPlan plan = new BranchPlan(EMPTY, children, Map.of(), List.of());
+
+        assertThat(EsqlSession.scopeEqlIndexPatterns(plan, null), sameInstance(plan));
+
+        BranchPlan scoped = (BranchPlan) EsqlSession.scopeEqlIndexPatterns(plan, QueryBuilders.termQuery("host", "a"));
+        IndexPattern eqlPattern = ((UnresolvedEqlRelation) scoped.namedSubqueries().get("eql")).indexPattern();
+        assertTrue(eqlPattern.isEqlSource());
+        assertThat(eqlPattern.indexPattern(), equalTo("logs-*"));
+        assertThat(eqlPattern, not(equalTo(from.indexPattern())));
+        assertThat(scoped.namedSubqueries().get("from"), sameInstance(from));
+    }
+
+    public void testFieldCapsFilterSkipsEqlAndViewInternalPatterns() {
+        QueryBuilder filter = QueryBuilders.termQuery("host", "a");
+        IndexPattern from = new IndexPattern(EMPTY, "logs-*");
+        IndexPattern viewInternal = new IndexPattern(EMPTY, "views-*");
+        assertThat(EsqlSession.fieldCapsFilter(from, Set.of(viewInternal), filter), sameInstance(filter));
+        assertNull(EsqlSession.fieldCapsFilter(from.forEqlSource(), Set.of(viewInternal), filter));
+        assertNull(EsqlSession.fieldCapsFilter(viewInternal, Set.of(viewInternal), filter));
+        assertNull(EsqlSession.fieldCapsFilter(from, Set.of(), null));
+    }
+
+    private static EqlRelation eqlRelation() {
+        return new EqlRelation(
+            EMPTY,
+            new IndexPattern(EMPTY, "logs-*"),
+            "process where true",
+            Map.of(),
+            EqlRelation.Mode.EVENT,
+            false,
+            List.of(new ReferenceAttribute(EMPTY, "host", DataType.KEYWORD))
+        );
+    }
+
+    private static LogicalPlan analyzed(LogicalPlan plan) {
+        plan.forEachDown(LogicalPlan.class, LogicalPlan::setAnalyzed);
+        return plan;
+    }
+
+    private static BranchPlan viewNextToBareBranch(EqlRelation bare, EqlRelation insideView) {
+        LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
+        children.put(null, bare);
+        children.put("eql_view", insideView);
+        return new BranchPlan(EMPTY, children, Map.of("eql_view", BranchIdentity.view("eql_view")), bare.output());
     }
 
     /**

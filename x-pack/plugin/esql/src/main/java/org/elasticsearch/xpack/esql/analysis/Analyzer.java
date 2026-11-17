@@ -1104,7 +1104,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 plan.hasExplicitLimit(),
                 finalOutput,
                 null,
-                context.eqlFieldCaps().get(plan.indexPattern())
+                context.eqlFieldCaps().get(plan.indexPattern()),
+                null
             );
         }
 

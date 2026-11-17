@@ -11,6 +11,8 @@
 # Each command prints, one per line, the paths that make up a layer, starting with the one that is copied first.
 
 set -eu
+# So that a failing find or sha256sum in the pipelines below fails the script, rather than only the last command of each
+set -o pipefail
 
 # Many modules and plugins bundle identical copies of the same jar. Replace them with hard links, i.e. several
 # paths to a single file, so that the file is stored only once in the image.

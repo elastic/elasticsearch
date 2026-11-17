@@ -22,7 +22,7 @@ Before using {{esql}} Data Federation, review the following requirements and lim
 - Ensure the [feature is turned on](#enable-the-feature).
 - For {{ech}}, {{ece}}, and {{eck}} deployments or self-managed clusters, ES|QL Data Federation requires an [Enterprise subscription](https://www.elastic.co/subscriptions).
 - To use the {{esql}} Data Federation UI in {{kib}}, you need the cluster `manage` privilege.
-- Currently, this feature is not supported on Windows.
+- {applies_to}`self:` This feature is not available on Windows.
 
 ## Turn the feature on or off [enable-the-feature]
 
@@ -173,7 +173,7 @@ Relevance scoring works differently for datasets:
 - {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview` `KNN` contributes to `_score` using the same vector similarity scoring as for an indexed `dense_vector` field, but computed by an exact search over every row rather than an approximate one.
 - {applies_to}`stack: experimental =9.5` Dataset rows do not contribute to `_score`.
 
-{{esql}} Data Federation is not currently supported on Windows.
+{applies_to}`self:` {{esql}} Data Federation is not available on Windows.
 
 ## Get started
 

@@ -29,12 +29,18 @@ public class DeleteDataStreamRequestTests extends AbstractWireSerializingTestCas
 
     @Override
     protected Request createTestInstance() {
-        return new Request(TEST_REQUEST_TIMEOUT, randomArray(1, 3, String[]::new, () -> randomAlphaOfLength(6)));
+        String[] names = randomArray(1, 3, String[]::new, () -> randomAlphaOfLength(6));
+        Request request = new Request(TEST_REQUEST_TIMEOUT, names);
+        if (randomBoolean()) {
+            // Also cover a non-default wildcard flag and indices options, so serialization round-trips them
+            request = request(names, randomBoolean(), randomIndicesOptions());
+        }
+        return request;
     }
 
     @Override
     protected Request mutateInstance(Request instance) {
-        // getNames() returns the live array, so copy it to leave the input untouched
+        // getNames() returns the request's own array, so copy it to keep the mutation from sharing it with the input
         String[] names = instance.getNames().clone();
         boolean wildcardExpressionsOriginallySpecified = instance.isWildcardExpressionsOriginallySpecified();
         IndicesOptions indicesOptions = instance.indicesOptions();
@@ -44,10 +50,7 @@ public class DeleteDataStreamRequestTests extends AbstractWireSerializingTestCas
                 () -> randomArray(1, 3, String[]::new, () -> randomAlphaOfLength(6))
             );
             case 1 -> wildcardExpressionsOriginallySpecified = wildcardExpressionsOriginallySpecified == false;
-            case 2 -> indicesOptions = randomValueOtherThan(
-                indicesOptions,
-                () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean())
-            );
+            case 2 -> indicesOptions = randomValueOtherThan(indicesOptions, DeleteDataStreamRequestTests::randomIndicesOptions);
             default -> throw new AssertionError("Illegal randomisation branch");
         }
         return request(names, wildcardExpressionsOriginallySpecified, indicesOptions);
@@ -61,9 +64,15 @@ public class DeleteDataStreamRequestTests extends AbstractWireSerializingTestCas
      */
     private static Request request(String[] names, boolean wildcardExpressionsOriginallySpecified, IndicesOptions indicesOptions) {
         Request request = new Request(TEST_REQUEST_TIMEOUT, wildcardExpressionsOriginallySpecified ? "*" : "concrete-name");
+        // Fail fast if the constructor ever stops deriving the flag from wildcard names
+        assertThat(request.isWildcardExpressionsOriginallySpecified(), equalTo(wildcardExpressionsOriginallySpecified));
         request.indices(names);
         request.indicesOptions(indicesOptions);
         return request;
+    }
+
+    private static IndicesOptions randomIndicesOptions() {
+        return IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
     }
 
     public void testValidateRequest() {

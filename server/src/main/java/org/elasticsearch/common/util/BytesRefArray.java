@@ -254,6 +254,30 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
     }
 
     /**
+     * Appends the concatenation of several values as one entry, allowing callers to avoid building the
+     * concatenated value in an intermediate buffer.
+     */
+    public void appendConcatenated(BytesRef[] parts) {
+        long totalLength = 0;
+        for (BytesRef part : parts) {
+            totalLength += part.length;
+        }
+        final int length = Math.toIntExact(totalLength);
+        final long newOffset = lastOffset + length;
+        try {
+            for (BytesRef part : parts) {
+                bytes.append(part.bytes, part.offset, part.length);
+            }
+            appendOffset(newOffset, length);
+        } catch (CircuitBreakingException e) {
+            bytes.truncateTo(lastOffset);
+            throw e;
+        }
+        lastOffset = newOffset;
+        ++size;
+    }
+
+    /**
      * Deep copy this array and return a new independent instance
      */
     public BytesRefArray deepCopy() {

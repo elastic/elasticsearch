@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166309
+summary: Let `CONCAT` build values up to 10MB
+type: enhancement

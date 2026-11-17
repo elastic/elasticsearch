@@ -11,8 +11,19 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.test.TestBlockFactory;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.EsqlClientException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -22,6 +33,7 @@ import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTe
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -156,15 +168,82 @@ public class ConcatTests extends AbstractScalarFunctionTestCase {
     }
 
     private void testOversized(int totalLen, List<Expression> mix, List<Object> fieldValues) {
-        for (int len; totalLen < Concat.MAX_CONCAT_LENGTH; totalLen += len) {
+        for (int len; totalLen <= Concat.MAX_CONCAT_LENGTH; totalLen += len) {
             len = randomIntBetween(1, (int) Concat.MAX_CONCAT_LENGTH);
-            mix.add(new Literal(Source.EMPTY, new BytesRef(randomAlphaOfLength(len)), DataType.KEYWORD));
+            // The filler's content does not matter, only its length, and a random string this long is slow to build.
+            mix.add(new Literal(Source.EMPTY, new BytesRef("a".repeat(len)), DataType.KEYWORD));
         }
         Expression expression = build(testCase.getSource(), mix);
         Exception e = expectThrows(EsqlClientException.class, () -> {
             try (ExpressionEvaluator eval = evaluator(expression).get(driverContext()); Block block = eval.eval(row(fieldValues))) {}
         });
-        assertThat(e.getMessage(), is("concatenating more than [1048576] bytes is not supported"));
+        assertThat(e.getMessage(), is("concatenating more than [" + Concat.MAX_CONCAT_LENGTH + "] bytes is not supported"));
+    }
+
+    /**
+     * Values long enough to span several pages of their block, in a page of several rows so the blocks are backed
+     * by arrays rather than constants. Each argument has to be copied whole, page by page, into the result.
+     */
+    public void testValuesSpanningPages() {
+        int positions = between(2, 5);
+        int arguments = between(2, 4);
+        BlockFactory blockFactory = driverContext().blockFactory();
+        List<Expression> fields = new ArrayList<>();
+        Block[] blocks = new Block[arguments];
+        String[] expected = new String[positions];
+        Arrays.fill(expected, "");
+        try {
+            for (int a = 0; a < arguments; a++) {
+                fields.add(field("f" + a, randomFrom(DataType.KEYWORD, DataType.TEXT)));
+                try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(positions)) {
+                    for (int p = 0; p < positions; p++) {
+                        String value = randomBoolean() ? randomAlphaOfLengthBetween(0, 10) : randomAlphaOfLengthBetween(20_000, 60_000);
+                        builder.appendBytesRef(new BytesRef(value));
+                        expected[p] += value;
+                    }
+                    blocks[a] = builder.build();
+                }
+            }
+            Expression expression = build(Source.EMPTY, fields);
+            try (
+                ExpressionEvaluator eval = evaluator(expression).get(driverContext());
+                Block result = eval.eval(new Page(positions, blocks))
+            ) {
+                for (int p = 0; p < positions; p++) {
+                    assertThat(toJavaObject(result, p), equalTo(new BytesRef(expected[p])));
+                }
+            }
+        } finally {
+            Releasables.closeExpectNoException(blocks);
+        }
+    }
+
+    /**
+     * A value over the limit is refused from the lengths of the arguments alone, before any of it is copied.
+     * The breaker here has far less room than the value needs, and it is never asked for any.
+     */
+    public void testOversizedValueIsRefusedWithoutCopying() {
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(1)).withCircuitBreaking();
+        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        DriverContext context = new DriverContext(bigArrays, BlockFactory.builder(bigArrays).build(), null);
+        int arguments = between(2, 20);
+        byte[] part = new byte[Math.toIntExact(Concat.MAX_CONCAT_LENGTH / arguments) + 1];
+        List<Expression> fields = new ArrayList<>();
+        Block[] blocks = new Block[arguments];
+        try {
+            for (int a = 0; a < arguments; a++) {
+                fields.add(field("f" + a, DataType.KEYWORD));
+                blocks[a] = TestBlockFactory.getNonBreakingInstance().newConstantBytesRefBlockWith(new BytesRef(part), 1);
+            }
+            Expression expression = build(Source.EMPTY, fields);
+            try (ExpressionEvaluator eval = evaluator(expression).get(context)) {
+                Exception e = expectThrows(EsqlClientException.class, () -> eval.eval(new Page(1, blocks)).close());
+                assertThat(e.getMessage(), is("concatenating more than [" + Concat.MAX_CONCAT_LENGTH + "] bytes is not supported"));
+            }
+        } finally {
+            Releasables.closeExpectNoException(blocks);
+        }
+        assertThat(breaker.getUsed(), equalTo(0L));
     }
 
     private int testDataLength() {

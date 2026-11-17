@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 164341
+summary: Count queries by entry point
+type: enhancement

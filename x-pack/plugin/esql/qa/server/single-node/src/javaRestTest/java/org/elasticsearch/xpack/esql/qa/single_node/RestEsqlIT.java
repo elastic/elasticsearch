@@ -107,6 +107,34 @@ public class RestEsqlIT extends RestEsqlTestCase {
         super(mode);
     }
 
+    public void testQueryIsCountedUnderItsEntryPoint() throws IOException {
+        String entryPoint = mode == Mode.SYNC ? "query" : "query_async";
+        String otherEntryPoint = mode == Mode.SYNC ? "query_async" : "query";
+        Map<String, Object> before = esqlEntryPoints();
+        runEsql(requestObjectBuilder().query("ROW a = 1 | LIMIT 1"));
+        Map<String, Object> afterSuccess = esqlEntryPoints();
+        expectThrows(ResponseException.class, () -> runEsql(requestObjectBuilder().query("ROW a = 1 | EVAL b = missing_field")));
+        Map<String, Object> afterFailure = esqlEntryPoints();
+
+        assertThat(entryPointCounter(afterSuccess, entryPoint, "total") - entryPointCounter(before, entryPoint, "total"), equalTo(1));
+        assertThat(entryPointCounter(afterSuccess, entryPoint, "failed") - entryPointCounter(before, entryPoint, "failed"), equalTo(0));
+        assertThat(entryPointCounter(afterFailure, entryPoint, "total") - entryPointCounter(before, entryPoint, "total"), equalTo(2));
+        assertThat(entryPointCounter(afterFailure, entryPoint, "failed") - entryPointCounter(before, entryPoint, "failed"), equalTo(1));
+        assertThat(entryPointCounter(afterFailure, otherEntryPoint, "total"), equalTo(entryPointCounter(before, otherEntryPoint, "total")));
+        assertThat(entryPointCounter(afterFailure, "internal", "total"), equalTo(entryPointCounter(before, "internal", "total")));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> esqlEntryPoints() throws IOException {
+        Map<String, Object> usage = entityAsMap(client().performRequest(new Request("GET", "/_xpack/usage")));
+        return (Map<String, Object>) ((Map<String, Object>) usage.get("esql")).get("entry_points");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static int entryPointCounter(Map<String, Object> entryPoints, String entryPoint, String counter) {
+        return ((Number) ((Map<String, Object>) entryPoints.get(entryPoint)).get(counter)).intValue();
+    }
+
     public void testBasicEsql() throws IOException {
         indexTimestampData(1);
 

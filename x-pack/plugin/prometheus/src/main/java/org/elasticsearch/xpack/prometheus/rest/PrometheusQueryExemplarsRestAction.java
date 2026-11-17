@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
+import org.elasticsearch.xpack.esql.telemetry.QueryEntryPoint;
 import org.elasticsearch.xpack.prometheus.rest.PrometheusQueryResponseListener.QueryMode;
 import org.elasticsearch.xpack.prometheus.rest.PromqlQueryPlanBuilder.PromqlStatementResult;
 
@@ -174,7 +175,16 @@ public class PrometheusQueryExemplarsRestAction extends BaseRestHandler {
             );
         }
         EsqlStatement statement = new EsqlStatement(result.esqlStatement().plan(), QUERY_SETTINGS);
-        var esqlRequest = new PromqlQueryRequest(index, statement, query, START_PARAM, startParam, END_PARAM, endParam);
+        var esqlRequest = new PromqlQueryRequest(
+            QueryEntryPoint.PROMETHEUS_QUERY_EXEMPLARS,
+            index,
+            statement,
+            query,
+            START_PARAM,
+            startParam,
+            END_PARAM,
+            endParam
+        );
         return channel -> PromqlQueryExecutor.execute(
             client,
             request.getHttpChannel(),

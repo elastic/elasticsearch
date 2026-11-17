@@ -15,6 +15,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.esql.telemetry.QueryEntryPoint;
 
 import java.io.IOException;
 import java.util.List;
@@ -52,7 +53,8 @@ public class RestEsqlAsyncQueryAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         try (XContentParser parser = request.contentOrSourceParamParser()) {
-            return RestEsqlQueryAction.restChannelConsumer(RequestXContent.parseAsync(parser), request, client);
+            EsqlQueryRequest esqlRequest = RequestXContent.parseAsync(parser).entryPoint(QueryEntryPoint.QUERY_ASYNC);
+            return RestEsqlQueryAction.restChannelConsumer(esqlRequest, request, client);
         }
     }
 

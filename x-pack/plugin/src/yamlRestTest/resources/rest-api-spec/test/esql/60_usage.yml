@@ -906,3 +906,33 @@ took:
   - gt: { esql.queries.kibana.failed: $kibana_failed }
   - match: { esql.queries.rest.failed: $rest_failed }
   - match: { esql.queries.other.failed: $other_failed }
+---
+"Queries by entry point":
+  # The ES|QL yaml suites also run every esql.query as _query/async, so this test only asserts what holds for both;
+  # RestEsqlIT checks that _query and _query/async are counted apart.
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ usage_entry_points ]
+      reason: "Queries are counted by the API they came in on"
+
+  - do: { xpack.usage: { } }
+  - length: { esql.entry_points: 11 }
+  - set: { esql.entry_points.internal.total: internal_total }
+  - set: { esql.entry_points.query_stream.total: query_stream_total }
+  - set: { esql.entry_points.prometheus_query.total: prometheus_query_total }
+  - set: { esql.entry_points.prometheus_labels.total: prometheus_labels_total }
+
+  - do:
+      esql.query:
+        body:
+          query: 'ROW a = 1 | LIMIT 1'
+
+  - do: { xpack.usage: { } }
+  - match: { esql.entry_points.internal.total: $internal_total }
+  - match: { esql.entry_points.query_stream.total: $query_stream_total }
+  - match: { esql.entry_points.prometheus_query.total: $prometheus_query_total }
+  - match: { esql.entry_points.prometheus_labels.total: $prometheus_labels_total }

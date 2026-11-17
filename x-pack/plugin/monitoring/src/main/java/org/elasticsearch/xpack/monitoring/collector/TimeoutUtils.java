@@ -70,7 +70,7 @@ public final class TimeoutUtils {
      */
     public static void ensureNoTimeouts(TimeValue collectionTimeout, BaseBroadcastResponse response) {
         HashSet<String> timedOutNodeIds = null;
-        for (DefaultShardOperationFailedException shardFailure : response.getShardFailures()) {
+        for (DefaultShardOperationFailedException shardFailure : response.shardFailuresList()) {
             final Throwable shardFailureCause = shardFailure.getCause();
             if (shardFailureCause instanceof FailedNodeException failedNodeException) {
                 if (isTimeoutFailure(failedNodeException)) {

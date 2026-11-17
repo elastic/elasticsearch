@@ -71,6 +71,8 @@ public class ClassWriter implements Closeable {
         this.statements = statements;
 
         classWriter = new org.objectweb.asm.ClassWriter(classFrames);
+        // Painless makes its own bytecode, so turn off the ASM work limits.
+        classWriter.setComputeLimits(Integer.MAX_VALUE, Long.MAX_VALUE);
         ClassVisitor visitor = classWriter;
 
         if (compilerSettings.isPicky()) {

@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAggregateAggE
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAggregateNestedExpressionWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAliasingEvalWithProject;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceChangePointByExpressionWithEval;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceCountFieldWithCountStar;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceDeferredRegex;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceLimitAndSortAsTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceLimitByExpressionWithEval;
@@ -280,6 +281,8 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new ReplaceStringCasingWithInsensitiveEquals(),
             new ReplaceStatsFilteredOrNullAggWithEval(),
             new ExtractAggregateCommonFilter(),
+            // after the filters of the aggregates are extracted into a filter below the aggregation
+            new ReplaceCountFieldWithCountStar(),
             // prune/elimination
             new PruneFilters(),
             new PruneColumns(),

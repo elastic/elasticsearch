@@ -20,7 +20,6 @@ import io.opentelemetry.instrumentation.api.semconv.http.HttpSpanNameExtractor;
 import io.opentelemetry.instrumentation.api.semconv.http.HttpSpanStatusExtractor;
 
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.rest.RestRequest;
@@ -55,9 +54,9 @@ public class HttpServerTracing implements HttpServerInstrumentation {
     }
 
     @Override
-    public void start(ThreadContext threadContext, RestRequest request, @Nullable String matchedRoute) {
+    public void start(RestRequest request, @Nullable String matchedRoute) {
         var req = new RequestAndRoute(request, matchedRoute);
-        tracer.startTrace(threadContext, request, spanNameExtractor.extract(req), legacyRequestAttributes(req));
+        tracer.startTrace(request, spanNameExtractor.extract(req), legacyRequestAttributes(req));
 
         var attributes = Attributes.builder();
         httpServerAttributesExtractor.onStart(attributes, /* we don't care about the context in this case */ Context.root(), req);
@@ -82,7 +81,7 @@ public class HttpServerTracing implements HttpServerInstrumentation {
     }
 
     @Override
-    public Releasable prepareEnd(ThreadContext threadContext, RestRequest request, RestResponse response) {
+    public Releasable prepareEnd(RestRequest request, RestResponse response) {
         return () -> {
             setLegacyResponseAttributes(request, response);
 

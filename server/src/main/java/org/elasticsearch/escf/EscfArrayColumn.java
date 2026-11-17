@@ -15,6 +15,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IntsRef;
+import org.elasticsearch.plugins.internal.MeteringModel;
 import org.elasticsearch.sourcebatch.ArrayReader;
 import org.elasticsearch.sourcebatch.SourceValueType;
 
@@ -101,6 +102,45 @@ final class EscfArrayColumn extends EscfColumn {
         for (int d = present.nextDoc(); d != DocIdSetIterator.NO_MORE_DOCS; d = present.nextDoc()) {
             sizes[d] += elementsSizeInBytes(childKind, offs[base + d], offs[base + d + 1]);
         }
+    }
+
+    @Override
+    public void addMeteredSizes(long[] sizes, MeteringModel model) {
+        final byte childKind = child.kind();
+        final int[] offs = rowOffsets.ints;
+        final int base = rowOffsets.offset;
+        if (validity == null) {
+            for (int d = 0; d < docCount; d++) {
+                sizes[d] += meteredElements(childKind, offs[base + d], offs[base + d + 1], model);
+            }
+            return;
+        }
+        PresentDocIterator present = presentDocs();
+        for (int d = present.nextDoc(); d != DocIdSetIterator.NO_MORE_DOCS; d = present.nextDoc()) {
+            sizes[d] += meteredElements(childKind, offs[base + d], offs[base + d + 1], model);
+        }
+    }
+
+    /**
+     * The size {@code model} meters the child elements in {@code [elemFrom, elemTo)}: a string or binary child per element
+     * from its offsets, as a model need not be additive over elements, a fixed-64 child from the element count.
+     * Any other kind is promoted to {@link EscfColumnKind#UNION} in {@link EscfColumnBuilder#addArray}.
+     */
+    private long meteredElements(byte childKind, int elemFrom, int elemTo, MeteringModel model) {
+        return switch (childKind) {
+            case EscfColumnKind.STRING, EscfColumnKind.BINARY -> {
+                final AbstractVarColumn values = (AbstractVarColumn) child;
+                final boolean binary = childKind == EscfColumnKind.BINARY;
+                long size = 0;
+                for (int e = elemFrom; e < elemTo; e++) {
+                    size += binary ? model.binaryBytes(values.valueLength(e)) : model.stringBytes(values.valueLength(e));
+                }
+                yield size;
+            }
+            case EscfColumnKind.LONG, EscfColumnKind.DOUBLE -> (elemTo - elemFrom) * model.numberBytes();
+            // Any other kind is promoted to a union
+            default -> throw new IllegalStateException("unexpected array child kind [" + EscfColumnKind.name(childKind) + "]");
+        };
     }
 
     /**

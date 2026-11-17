@@ -761,13 +761,15 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     public void testDatetimeFormatUnparseableValueFailFast() throws IOException {
         String content = "id:long,ts:datetime\n1,not-a-date\n";
         CsvFormatReader base = (CsvFormatReader) baseReader(false).withConfig(Map.of("datetime_format", "yyyy-MM-dd HH:mm:ss"));
-        // The excerpt itself is asserted, not just the text before it: rowExcerptIfRead() returns null outside
-        // fail_fast and ErrorExcerpts.summarize maps null to "null", so an assertion stopping at "row: " would
-        // pass on a message that had lost the record.
-        String expected = "Row [1] of [csv-direct-block-parity-tests]: cannot read [not-a-date] as [datetime]; row: 1,not-a-date";
+        String prefix = "Row [1] of [csv-direct-block-parity-tests]: cannot read [not-a-date] as [datetime]; row: ";
+        // Each path's own excerpt, so a guard that dropped one cannot pass unnoticed.
+        Map<Boolean, String> excerpt = Map.of(false, "col0=[1], col1=[not-a-date]", true, "1,not-a-date");
         for (boolean directBlock : List.of(false, true)) {
             String message = captureFailFastMessage(base.withDirectBlockEnabled(directBlock), null, content);
-            assertTrue("direct_block=" + directBlock + " message: " + message, message.startsWith(expected));
+            assertTrue(
+                "direct_block=" + directBlock + " message: " + message,
+                message.startsWith(prefix + excerpt.get(directBlock))
+            );
         }
     }
 

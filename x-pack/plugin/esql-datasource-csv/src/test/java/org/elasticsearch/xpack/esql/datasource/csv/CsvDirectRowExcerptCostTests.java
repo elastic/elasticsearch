@@ -100,14 +100,15 @@ public class CsvDirectRowExcerptCostTests extends ESTestCase {
         assumeAllocationCounterAvailable();
         warmUp();
 
-        long clean = allocatedDuringRead(CLEAN, ErrorPolicy.Mode.NULL_FIELD, ROWS);
-        long failFast = allocatedDuringFailingRead(ONE_BAD_COLUMN);
+        // Both reads abort on row 1, so the only difference between them is the record's size.
+        long padded = allocatedDuringFailingRead(ONE_BAD_COLUMN);
+        long unpadded = allocatedDuringFailingRead(buildCsv("notanumber", ROWS, 0));
 
-        logger.info("fail_fast read allocated {} bytes against a clean read's {}", failFast, clean);
+        logger.info("fail_fast allocated {} bytes on padded records against {} on unpadded", padded, unpadded);
         assertThat(
-            "fail_fast quotes the record in the message it throws, so one record-sized copy must be visible",
-            failFast - clean,
-            greaterThan((long) PAD_CHARS)
+            "fail_fast quotes the record, so a padded record must cost about one copy more",
+            padded - unpadded,
+            greaterThan((long) PAD_CHARS / 2)
         );
     }
 

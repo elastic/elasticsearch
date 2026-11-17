@@ -12,11 +12,11 @@ package org.elasticsearch.search.heappressure;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.rest.SearchHeapPressureTestCase;
 import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.function.IntFunction;
 
 /**
@@ -98,16 +98,7 @@ public class AggregationBitsetHeapPressureIT extends SearchHeapPressureTestCase 
     }
 
     private void assertOnlyTripsOrSucceeds(IntFunction<Request> request) throws IOException {
-        assertSucceeds(request.apply(FEW_AGGS));
-        logger.info("Using {} aggregations", AGGS);
-        Map<String, Object> body = errorBodyOrNull(request.apply(AGGS));
-        if (body != null) {
-            assertTrue("expected only a circuit_breaking_exception, but got: " + body, containsCircuitBreakingException(body));
-            logger.info("rejected by a circuit breaker: {}", body);
-        } else {
-            logger.info("succeeded");
-        }
-        assertNodeAlive();
+        assertSucceedsOrTripsWhenLarge(request, FEW_AGGS, AGGS);
     }
 
     private static String searchBody(String aggs) {

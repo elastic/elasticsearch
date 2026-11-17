@@ -12,11 +12,11 @@ package org.elasticsearch.search.heappressure;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.rest.SearchHeapPressureTestCase;
 import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.function.IntFunction;
 
 /**
@@ -118,16 +118,7 @@ public class ManyBitsetClausesHeapPressureIT extends SearchHeapPressureTestCase 
     }
 
     private void assertOnlyTripsOrSucceeds(IntFunction<Request> request) throws IOException {
-        assertSucceeds(request.apply(FEW_CLAUSES));
-        logger.info("Searching for {} clauses", MANY_CLAUSES);
-        Map<String, Object> body = errorBodyOrNull(request.apply(MANY_CLAUSES));
-        if (body != null) {
-            assertTrue("expected only a circuit_breaking_exception, but got: " + body, containsCircuitBreakingException(body));
-            logger.info("rejected by a circuit breaker: {}", body);
-        } else {
-            logger.info("succeeded");
-        }
-        assertNodeAlive();
+        assertSucceedsOrTripsWhenLarge(request, FEW_CLAUSES, MANY_CLAUSES);
     }
 
     /** A coordinate in [-10, 10) spread over the documents by {@code seed}. */

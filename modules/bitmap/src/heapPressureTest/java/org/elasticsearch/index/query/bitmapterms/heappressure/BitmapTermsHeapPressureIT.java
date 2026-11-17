@@ -12,7 +12,7 @@ package org.elasticsearch.index.query.bitmapterms.heappressure;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.rest.HeapPressureTestCase;
+import org.elasticsearch.test.rest.SearchHeapPressureTestCase;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.roaringbitmap.RoaringBitmap;
@@ -22,7 +22,6 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Base64;
-import java.util.Map;
 
 /**
  * A {@code bool} of many {@code bitmap_terms} clauses must not be able to take a node down.
@@ -33,27 +32,18 @@ import java.util.Map;
  * for {@link #DOCS} documents and more than the heap for {@link #MANY_CLAUSES} clauses, and the request circuit breaker sees none of it.
  * The case passes if the request either succeeds or is rejected by a circuit breaker and the node survives.
  */
-public class BitmapTermsHeapPressureIT extends HeapPressureTestCase {
+public class BitmapTermsHeapPressureIT extends SearchHeapPressureTestCase {
 
     private static final String INDEX = "bitmap-terms-heap-pressure";
     private static final int DOCS = 500_000;
-    private static final int DOCS_PER_BULK = 10_000;
     // Under the clause limit of 4096 that a 256mb node with 4 search threads has.
     private static final int MANY_CLAUSES = 4000;
+    private static final int FEW_CLAUSES = 50;
 
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .nodes(1)
-        .module("bitmap")
-        .setting("xpack.security.enabled", "false")
+    public static ElasticsearchCluster cluster = heapConstrainedNode("256m").module("bitmap")
         .setting("thread_pool.search.size", "4")
         .setting("indices.queries.cache.size", "0%")
-        // Only charged bytes count towards the parent breaker, so that the test sees the accounting gap.
-        .setting("indices.breaker.total.use_real_memory", "false")
-        .jvmArg("-XX:+ExitOnOutOfMemoryError")
-        .jvmArg("-XX:-HeapDumpOnOutOfMemoryError")
-        .jvmArg("-Xms256m")
-        .jvmArg("-Xmx256m")
         .build();
 
     @Override
@@ -64,45 +54,14 @@ public class BitmapTermsHeapPressureIT extends HeapPressureTestCase {
     /** {@link #DOCS} documents in one segment, half with {@code v} 0 and half with 1. */
     @Before
     public void indexDocuments() throws IOException {
-        Request create = new Request("PUT", "/" + INDEX);
-        create.setJsonEntity("""
-            {
-              "settings": {"number_of_shards": 1, "number_of_replicas": 0, "refresh_interval": -1},
-              "mappings": {"properties": {"v": {"type": "integer"}}}
-            }""");
-        client().performRequest(create);
-        StringBuilder bulk = new StringBuilder();
-        for (int i = 0; i < DOCS; i++) {
-            bulk.append("{\"index\":{}}\n").append(Strings.format("{\"v\":%d}\n", i % 2));
-            if ((i + 1) % DOCS_PER_BULK == 0 || i == DOCS - 1) {
-                Request request = new Request("POST", "/" + INDEX + "/_bulk");
-                request.setJsonEntity(bulk.toString());
-                assertFalse((Boolean) entityAsMap(client().performRequest(request)).get("errors"));
-                bulk.setLength(0);
-                // Test clusters run with assertions, and the translog then keeps every operation until it is rolled.
-                client().performRequest(new Request("POST", "/" + INDEX + "/_flush"));
-            }
-        }
-        Request forceMerge = new Request("POST", "/" + INDEX + "/_forcemerge");
-        forceMerge.addParameter("max_num_segments", "1");
-        client().performRequest(forceMerge);
-        client().performRequest(new Request("POST", "/" + INDEX + "/_refresh"));
-        logger.info("Indexed {} documents", DOCS);
+        indexDocuments(INDEX, 1, """
+            {"v": {"type": "integer"}}""", DOCS, i -> Strings.format("""
+            {"v":%d}""", i % 2));
     }
 
     /** Each clause matches half the documents. */
     public void testBitmapTermsClauses() throws IOException {
-        assertNull("expected the request to succeed", errorBodyOrNull(bitmapTermsSearch(50)));
-        assertNodeAlive();
-        logger.info("Searching for {} clauses", MANY_CLAUSES);
-        Map<String, Object> body = errorBodyOrNull(bitmapTermsSearch(MANY_CLAUSES));
-        if (body != null) {
-            assertTrue("expected only a circuit_breaking_exception, but got: " + body, containsCircuitBreakingException(body));
-            logger.info("rejected by a circuit breaker: {}", body);
-        } else {
-            logger.info("succeeded");
-        }
-        assertNodeAlive();
+        assertSucceedsOrTripsWhenLarge(BitmapTermsHeapPressureIT::bitmapTermsSearch, FEW_CLAUSES, MANY_CLAUSES);
     }
 
     /** A {@code bool} of {@code count} clauses, each with a different bitmap so that they are not merged. */
@@ -115,12 +74,9 @@ public class BitmapTermsHeapPressureIT extends HeapPressureTestCase {
             clauses.append(Strings.format("""
                 {"bitmap_terms": {"field": "v", "value": "%s"}}""", bitmap(0, 1000 + i)));
         }
-        Request search = new Request("POST", "/" + INDEX + "/_search");
-        search.addParameter("request_cache", "false");
-        search.setJsonEntity(Strings.format("""
+        return search(INDEX, Strings.format("""
             {"size": 0, "track_total_hits": true, "query": {"bool": {"should": [%s]}}}
             """, clauses));
-        return search;
     }
 
     private static String bitmap(int... values) {

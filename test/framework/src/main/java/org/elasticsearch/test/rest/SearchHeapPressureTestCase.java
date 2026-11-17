@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.search.heappressure;
+package org.elasticsearch.test.rest;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
@@ -15,7 +15,6 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
-import org.elasticsearch.test.rest.HeapPressureTestCase;
 import org.junit.After;
 import org.junit.Before;
 
@@ -159,6 +158,31 @@ public abstract class SearchHeapPressureTestCase extends HeapPressureTestCase {
         int docs,
         IntFunction<String> doc
     ) throws IOException {
+        indexBulkEntries(restClient, index, shards, extraSettings, properties, docs, i -> "{\"index\":{}}\n" + doc.apply(i));
+    }
+
+    /**
+     * Like {@link #indexDocuments(String, int, String, int, IntFunction)}, but {@code bulkEntry} returns the whole bulk entry of each
+     * document, its action line and its source line, so that a document can have its own {@code _id} or {@code routing}.
+     */
+    protected void indexBulkEntries(String index, int shards, String properties, int docs, IntFunction<String> bulkEntry)
+        throws IOException {
+        indexBulkEntries(client(), index, shards, "", properties, docs, bulkEntry);
+    }
+
+    /**
+     * Like {@link #indexBulkEntries(String, int, String, int, IntFunction)}, with {@code extraSettings}, on the cluster of
+     * {@code restClient}.
+     */
+    protected void indexBulkEntries(
+        RestClient restClient,
+        String index,
+        int shards,
+        String extraSettings,
+        String properties,
+        int docs,
+        IntFunction<String> bulkEntry
+    ) throws IOException {
         if (indexExists(restClient, index)) {
             return;
         }
@@ -173,7 +197,7 @@ public abstract class SearchHeapPressureTestCase extends HeapPressureTestCase {
 
         StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < docs; i++) {
-            bulk.append("{\"index\":{}}\n").append(doc.apply(i)).append('\n');
+            bulk.append(bulkEntry.apply(i)).append('\n');
             // A few MB per bulk request, which a 256 MB node handles, and at most MAX_DOCS_PER_BULK documents, which is what limits a bulk
             // of very small ones.
             if (bulk.length() >= 4 * 1024 * 1024 || (i + 1) % MAX_DOCS_PER_BULK == 0 || i == docs - 1) {
@@ -254,6 +278,24 @@ public abstract class SearchHeapPressureTestCase extends HeapPressureTestCase {
     protected void assertTripsOnlyWhenLarge(IntFunction<Request> request, int small, int large, String label) throws IOException {
         assertSucceeds(request.apply(small));
         assertCircuitBreaks(request.apply(large), label);
+    }
+
+    /**
+     * Asserts that {@code request} succeeds at size {@code small}, and at size {@code large} either succeeds or is rejected by a circuit
+     * breaker, and that every node survives. For memory that may well fit, where only running out of it is a failure. The start of the
+     * large request is logged, so that a node that dies is seen to die on it.
+     */
+    protected void assertSucceedsOrTripsWhenLarge(IntFunction<Request> request, int small, int large) throws IOException {
+        assertSucceeds(request.apply(small));
+        logger.info("Searching with {} items", large);
+        Map<String, Object> body = errorBodyOrNull(request.apply(large));
+        if (body != null) {
+            assertTrue("expected only a circuit_breaking_exception, but got: " + body, containsCircuitBreakingException(body));
+            logger.info("rejected by a circuit breaker: {}", body);
+        } else {
+            logger.info("succeeded");
+        }
+        assertNodeAlive();
     }
 
     /** Asserts that the request succeeds and that every node survives it. */

@@ -12,13 +12,11 @@ package org.elasticsearch.join.heappressure;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.rest.HeapPressureTestCase;
+import org.elasticsearch.test.rest.SearchHeapPressureTestCase;
 import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
-import java.util.Map;
-import java.util.function.IntFunction;
 
 /**
  * A {@code bool} of many {@code has_child} clauses must not be able to take a node down.
@@ -33,28 +31,16 @@ import java.util.function.IntFunction;
  * than the heap. A case passes if the request either succeeds or is rejected by a circuit breaker and the node survives. Each case should
  * be run on its own, since a case that kills the node leaves the rest without one.
  */
-public class HasChildHeapPressureIT extends HeapPressureTestCase {
+public class HasChildHeapPressureIT extends SearchHeapPressureTestCase {
 
     private static final String INDEX = "has-child-heap-pressure";
     private static final int PARENTS = 500_000;
-    private static final int DOCS_PER_BULK = 10_000;
-
-    private static boolean indexCreated;
 
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .nodes(1)
-        .module("parent-join")
-        .setting("xpack.security.enabled", "false")
+    public static ElasticsearchCluster cluster = heapConstrainedNode("256m").module("parent-join")
         // Pins the clause limit at 4096: 256mb of heap times 64 over the size of the search pool.
         .setting("thread_pool.search.size", "4")
         .setting("indices.queries.cache.size", "0%")
-        // Only charged bytes count towards the parent breaker, see SearchHeapPressureTestCase.
-        .setting("indices.breaker.total.use_real_memory", "false")
-        .jvmArg("-XX:+ExitOnOutOfMemoryError")
-        .jvmArg("-XX:-HeapDumpOnOutOfMemoryError")
-        .jvmArg("-Xms256m")
-        .jvmArg("-Xmx256m")
         .build();
 
     @Override
@@ -62,76 +48,31 @@ public class HasChildHeapPressureIT extends HeapPressureTestCase {
         return cluster;
     }
 
-    @Override
-    protected boolean preserveIndicesUponCompletion() {
-        return true;
-    }
-
-    /** {@link #PARENTS} parents with one child each, in one segment. */
+    /** {@link #PARENTS} parents with one child each, in one segment: parent {@code i} and then its child. */
     @Before
     public void indexDocuments() throws IOException {
-        if (indexCreated) {
-            return;
-        }
-        Request create = new Request("PUT", "/" + INDEX);
-        create.setJsonEntity("""
+        indexBulkEntries(INDEX, 1, """
             {
-              "settings": {"number_of_shards": 1, "number_of_replicas": 0, "refresh_interval": -1},
-              "mappings": {
-                "properties": {
-                  "join": {"type": "join", "relations": {"parent": "child"}},
-                  "n": {"type": "long"}
-                }
-              }
-            }""");
-        client().performRequest(create);
-        StringBuilder bulk = new StringBuilder();
-        for (int i = 0; i < PARENTS; i++) {
-            bulk.append(Strings.format("""
+              "join": {"type": "join", "relations": {"parent": "child"}},
+              "n": {"type": "long"}
+            }""", 2 * PARENTS, i -> {
+            int parent = i / 2;
+            return i % 2 == 0 ? Strings.format("""
                 {"index":{"_id":"p%d"}}
-                {"join":"parent"}
+                {"join":"parent"}""", parent) : Strings.format("""
                 {"index":{"routing":"p%d"}}
-                {"join":{"name":"child","parent":"p%d"},"n":%d}
-                """, i, i, i, i));
-            if ((i + 1) % DOCS_PER_BULK == 0 || i == PARENTS - 1) {
-                Request request = new Request("POST", "/" + INDEX + "/_bulk");
-                request.setJsonEntity(bulk.toString());
-                assertFalse((Boolean) entityAsMap(client().performRequest(request)).get("errors"));
-                bulk.setLength(0);
-                // Test clusters run with assertions, and the translog then keeps every operation until it is rolled.
-                client().performRequest(new Request("POST", "/" + INDEX + "/_flush"));
-            }
-        }
-        Request forceMerge = new Request("POST", "/" + INDEX + "/_forcemerge");
-        forceMerge.addParameter("max_num_segments", "1");
-        client().performRequest(forceMerge);
-        client().performRequest(new Request("POST", "/" + INDEX + "/_refresh"));
-        indexCreated = true;
-        logger.info("Indexed {} parents and {} children", PARENTS, PARENTS);
+                {"join":{"name":"child","parent":"p%d"},"n":%d}""", parent, parent, parent);
+        });
     }
 
     /** Each clause reaches nearly every parent and keeps a bit per parent. */
     public void testHasChildClausesWithoutScores() throws IOException {
-        assertOnlyTripsOrSucceeds(n -> hasChildSearch(n, "none"), 20, 4000);
+        assertSucceedsOrTripsWhenLarge(n -> hasChildSearch(n, "none"), 20, 4000);
     }
 
     /** Each clause reaches nearly every parent and keeps a float and an int per parent. */
     public void testHasChildClausesWithAvgScores() throws IOException {
-        assertOnlyTripsOrSucceeds(n -> hasChildSearch(n, "avg"), 2, 100);
-    }
-
-    private void assertOnlyTripsOrSucceeds(IntFunction<Request> request, int small, int large) throws IOException {
-        assertNull("expected the request to succeed", errorBodyOrNull(request.apply(small)));
-        assertNodeAlive();
-        logger.info("Searching for {} clauses", large);
-        Map<String, Object> body = errorBodyOrNull(request.apply(large));
-        if (body != null) {
-            assertTrue("expected only a circuit_breaking_exception, but got: " + body, containsCircuitBreakingException(body));
-            logger.info("rejected by a circuit breaker: {}", body);
-        } else {
-            logger.info("succeeded");
-        }
-        assertNodeAlive();
+        assertSucceedsOrTripsWhenLarge(n -> hasChildSearch(n, "avg"), 2, 100);
     }
 
     /** A {@code bool} of {@code count} {@code has_child} clauses, each with a different child query so that they are not merged. */
@@ -144,11 +85,8 @@ public class HasChildHeapPressureIT extends HeapPressureTestCase {
             clauses.append(Strings.format("""
                 {"has_child": {"type": "child", "score_mode": "%s", "query": {"range": {"n": {"gte": %d}}}}}""", scoreMode, i));
         }
-        Request search = new Request("POST", "/" + INDEX + "/_search");
-        search.addParameter("request_cache", "false");
-        search.setJsonEntity(Strings.format("""
+        return search(INDEX, Strings.format("""
             {"size": 0, "track_total_hits": true, "query": {"bool": {"should": [%s]}}}
             """, clauses));
-        return search;
     }
 }

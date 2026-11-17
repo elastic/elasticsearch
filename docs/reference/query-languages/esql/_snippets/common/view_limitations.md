@@ -96,7 +96,7 @@ destination index as the source in the view definition.
 #### Data Federation datasets
 ```yaml {applies_to}
 stack: preview 9.6+, experimental =9.5
-serverless: unavailable
+serverless: preview
 ```
 
 A view definition can read from a [dataset](/reference/query-languages/esql/esql-data-federation-datasets.md), which [{{esql}} Data Federation](/reference/query-languages/esql/esql-data-federation.md) uses to query external data.

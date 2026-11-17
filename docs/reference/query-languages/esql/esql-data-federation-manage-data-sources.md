@@ -43,7 +43,7 @@ To connect a data source:
 2. Enter a **Name** and an optional **Description**.
 3. In **Preferred method**, choose how {{es}} [authenticates](esql-data-federation-sources.md#authentication) to your storage:
    - Your bucket is public: select **Anonymous**. No credentials are stored.
-   - Your bucket is private and your deployment runs on {{ech}} on AWS, Azure, or Google Cloud: select **Federated Identity**. It's the recommended method because no keys are stored, and it's the default when it's available. Refer to [connect with federated identity](esql-data-federation-federated-identity.md).
+   - Your bucket is private and your deployment or project runs on {{ech}} or {{serverless-short}} on AWS, Azure, or Google Cloud: select **Federated Identity**. It's the recommended method because no keys are stored, and it's the default when it's available. Refer to [connect with federated identity](esql-data-federation-federated-identity.md).
    - Your bucket is private and federated identity isn't available: select **Access and Secret Keys**, then enter the key pair. Refer to [connect with static credentials](esql-data-federation-static-credentials.md).
 4. Click **Connect**.
 

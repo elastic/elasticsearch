@@ -44,8 +44,9 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
- * Binding and rejection of {@code NESTED_EXPAND} during analysis. The mappings go through {@link org.elasticsearch.xpack.esql.session.IndexResolver}
- * from field caps, so the nested scope fields the command reads are built as they are for a real query.
+ * Binding and rejection of {@code NESTED_EXPAND} during analysis. The mappings go through
+ * {@link org.elasticsearch.xpack.esql.session.IndexResolver} from field caps, so the nested scope fields the command reads
+ * are built as they are for a real query.
  * <ul>
  *     <li>{@code ne}: {@code id}, nested {@code items} with {@code sku}, {@code qty}, {@code loc} and nested {@code items.parts},
  *     and nested {@code events} with {@code start}.</li>

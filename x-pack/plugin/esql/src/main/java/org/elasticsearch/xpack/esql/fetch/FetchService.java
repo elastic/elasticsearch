@@ -7,85 +7,130 @@
 
 package org.elasticsearch.xpack.esql.fetch;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
+import org.elasticsearch.compute.data.LocalCircuitBreaker;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
+import org.elasticsearch.compute.lucene.read.FetchDocsSourceOperator;
+import org.elasticsearch.compute.operator.Driver;
+import org.elasticsearch.compute.operator.DriverCompletionInfo;
+import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.DriverExecutor;
+import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.OutputOperator;
+import org.elasticsearch.compute.operator.PlanTimeProfile;
+import org.elasticsearch.compute.operator.ProjectOperator;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.search.internal.ReaderContext;
+import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
+import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.DefaultShardContext;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
+import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.IntStream;
 
 /**
  * The fetch action of this node: it loads the fetched columns of the documents this node holds, at the request of a
  * coordinator. The handler is registered whether the fetch phase is on or not, so a node answers even when the feature
  * flags of the nodes differ.
+ * <p>
+ * For each shard of a request it finds the reader context the query phase kept open and builds a search context on it,
+ * on the thread that received the request, so the searcher applies the document and field level security of that request.
+ * Then one driver loads the documents of every shard, in request order. A request that fails for one shard fails as a
+ * whole, like a fetch request of {@code _search}.
+ * <p>
+ * The request holds the first reference on the context of each shard, and the pages take their own while they load. It
+ * drops its references once the response is sent, because dropping the last reference to a reader can block. Before that
+ * it frees the contexts the request reads for the last time, like the fetch phase of {@code _search} frees the context it
+ * read.
  */
 public final class FetchService {
+    private static final Logger logger = LogManager.getLogger(FetchService.class);
+
     /**
-     * Loads documents on the node that holds them. Its requests carry the index expressions of the query, so they are
-     * authorized like the query's other index actions.
+     * Loads documents on the node that holds them. Its requests name the indices they read, so security authorizes them for
+     * every shard they read.
      */
     public static final String FETCH_ACTION_NAME = EsqlQueryAction.NAME + "/fetch";
 
     /**
-     * The most drivers one fetch request runs at the same time on a node, and the most pieces one of its shards splits
-     * into. Each piece of a shard is a driver on the worker pool of ES|QL, next to the drivers of the query phase. It bounds
-     * the loading only: the node opens the search contexts of every shard of the request before the first driver starts,
-     * on the thread that received it, so they all apply the security of the request.
+     * Describes the driver that loads the fetched columns, in profiles.
      */
-    public static final Setting<Integer> MAX_CONCURRENT_SHARD_TASKS = Setting.intSetting(
-        "esql.fetch.max_concurrent_shard_tasks",
-        10,
-        1,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
+    public static final String DESCRIPTION = "fetch";
 
     private final TransportService transportService;
+    private final ClusterService clusterService;
+    private final SearchService searchService;
+    private final BigArrays bigArrays;
     private final BlockFactory blockFactory;
-    private final DataNodeFetchExecutor executor;
-    private volatile int maxConcurrentShardTasks;
+    private final Supplier<PlannerSettings> plannerSettings;
+    private final DriverExecutor driverExecutor;
+    private final LocalCircuitBreaker.SizeSettings localBreakerSettings;
 
     /**
-     * @param blockFactory    the root block factory of the node, which accounts the responses while they are serialized
-     * @param driverExecutors runs the drivers that load the documents, next to the drivers of the query phase
-     * @param plannerFactory  builds the planner of each fetch request
+     * @param blockFactory   the root block factory of the node, which accounts the responses while they are serialized
+     * @param driverExecutor runs the driver that loads the documents, on the worker pool of ES|QL next to the drivers of the
+     *                       query phase
      */
     public FetchService(
         TransportService transportService,
         ClusterService clusterService,
         SearchService searchService,
+        BigArrays bigArrays,
         BlockFactory blockFactory,
-        FetchDriverExecutors driverExecutors,
         Supplier<PlannerSettings> plannerSettings,
-        FetchPlannerFactory plannerFactory
+        DriverExecutor driverExecutor
     ) {
         this.transportService = transportService;
+        this.clusterService = clusterService;
+        this.searchService = searchService;
+        this.bigArrays = bigArrays;
         this.blockFactory = blockFactory;
-        this.executor = new DataNodeFetchExecutor(
-            transportService,
-            clusterService,
-            searchService,
-            blockFactory,
-            driverExecutors,
-            plannerSettings,
-            plannerFactory,
-            () -> maxConcurrentShardTasks
-        );
-        clusterService.getClusterSettings().initializeAndWatch(MAX_CONCURRENT_SHARD_TASKS, max -> maxConcurrentShardTasks = max);
+        this.plannerSettings = plannerSettings;
+        this.driverExecutor = driverExecutor;
+        this.localBreakerSettings = new LocalCircuitBreaker.SizeSettings(clusterService.getSettings());
     }
 
     /**
@@ -124,7 +169,319 @@ public final class FetchService {
             FETCH_ACTION_NAME,
             transportService.getThreadPool().executor(ThreadPool.Names.SEARCH),
             FetchRequest::new,
-            (request, channel, task) -> executor.execute(request, (CancellableTask) task, new ChannelActionListener<>(channel))
+            (request, channel, task) -> execute(request, (CancellableTask) task, new ChannelActionListener<>(channel))
         );
+    }
+
+    /**
+     * Loads the documents of {@code request} on this node. Runs on the thread that received it, whose thread context holds
+     * the authorization of the request.
+     */
+    void execute(FetchRequest request, CancellableTask task, ActionListener<FetchResponse> listener) {
+        new Execution(request, task, listener).start();
+    }
+
+    /**
+     * One fetch request, from receiving it to dropping the references of its shards.
+     */
+    private final class Execution {
+        private final long startNanos = System.nanoTime();
+        private final FetchRequest request;
+        private final CancellableTask task;
+        private final ActionListener<FetchResponse> listener;
+        /**
+         * The context of each shard the request opened, in request order. A request that fails to open a shard opens no
+         * further one.
+         */
+        private final List<DefaultShardContext> contexts;
+        private final AtomicBoolean released = new AtomicBoolean();
+
+        Execution(FetchRequest request, CancellableTask task, ActionListener<FetchResponse> listener) {
+            this.request = request;
+            this.task = task;
+            this.listener = listener;
+            this.contexts = new ArrayList<>(request.shards().size());
+        }
+
+        void start() {
+            // the driver adds its pages on its own thread, and the response reads them once it finished
+            List<Page> pages = Collections.synchronizedList(new ArrayList<>());
+            Driver driver;
+            try {
+                task.ensureNotCancelled();
+                Set<String> unmappedFieldNames = unmappedFieldNames(request.attributes());
+                for (int position = 0; position < request.shards().size(); position++) {
+                    contexts.add(openShard(position, request.shards().get(position), unmappedFieldNames));
+                }
+                driver = createDriver(pages);
+            } catch (Exception e) {
+                fail(e);
+                return;
+            }
+            long setupNanos = System.nanoTime() - startNanos;
+            // runs at once when the task is already cancelled, and the driver fails on its first iteration
+            task.addListener(() -> driver.cancel(Objects.requireNonNullElse(task.getReasonCancelled(), "task was cancelled")));
+            Driver.start(
+                transportService.getThreadPool().getThreadContext(),
+                driverExecutor,
+                driver,
+                Driver.DEFAULT_MAX_ITERATIONS,
+                ActionListener.wrap(ignored -> respond(pages, driver, setupNanos), e -> {
+                    Releasables.closeExpectNoException(pages);
+                    fail(e);
+                })
+            );
+        }
+
+        private DefaultShardContext openShard(int position, FetchRequest.ShardDocs shard, Set<String> unmappedFieldNames)
+            throws IOException {
+            ReaderContext readerContext = searchService.findReaderContext(shard.contextId(), request, shard.shardId());
+            // the lookup ignores the searcher id, and the documents of another searcher are other documents. A scroll or a
+            // point in time whose id the request learned isn't for the fetch phase either, as for the fetch phase of _search.
+            if (readerContext.id().equals(shard.contextId()) == false || readerContext.singleSession() == false) {
+                throw new SearchContextMissingException(shard.contextId());
+            }
+            ShardSearchRequest shardRequest = new ShardSearchRequest(
+                shard.shardId(),
+                request.configuration().absoluteStartedTimeInMillis(),
+                AliasFilter.EMPTY,
+                request.clusterAlias(),
+                SplitShardCountSummary.UNSET
+            );
+            SearchContext searchContext = searchService.createSearchContext(readerContext, shardRequest, SearchService.NO_TIMEOUT);
+            boolean success = false;
+            try {
+                checkBounds(searchContext, shard);
+                // reads the fields as the query phase did, a name under a flattened field included
+                EsqlSearchExecutionContext executionContext = new EsqlSearchExecutionContext(
+                    searchContext.getSearchExecutionContext(),
+                    QueryWarnings.EMIT,
+                    unmappedFieldNames,
+                    request.configuration().flattenedKeys()
+                );
+                searchContext.addReleasable(executionContext::releaseQueryConstructionMemory);
+                // the request's reference, the first on the context. The search context closes once every reference is gone.
+                DefaultShardContext context = new DefaultShardContext(position, searchContext, executionContext, AliasFilter.EMPTY);
+                success = true;
+                return context;
+            } finally {
+                if (success == false) {
+                    searchContext.close();
+                }
+            }
+        }
+
+        /**
+         * One driver that emits the documents of every shard in request order, loads the attributes of the request for them
+         * and drops the {@code _doc} column.
+         */
+        private Driver createDriver(List<Page> pages) {
+            IndexedByShardIdFromList<DefaultShardContext> shardContexts = new IndexedByShardIdFromList<>(contexts);
+            List<FetchDocsSourceOperator.ShardDocs> docs = new ArrayList<>(request.shards().size());
+            for (int position = 0; position < request.shards().size(); position++) {
+                FetchRequest.ShardDocs shard = request.shards().get(position);
+                docs.add(new FetchDocsSourceOperator.ShardDocs(position, shard.segments(), shard.docs()));
+            }
+            EsPhysicalOperationProviders operationProviders = new EsPhysicalOperationProviders(
+                request.configuration().newFoldContext(),
+                request.configuration(),
+                shardContexts,
+                searchService.getIndicesService().getAnalysis(),
+                plannerSettings.get(),
+                searchService.getIndicesService()::currentStoreBytesRead,
+                QueryWarnings.EMIT
+            );
+            LocalCircuitBreaker localBreaker = new LocalCircuitBreaker(
+                blockFactory.breaker(),
+                localBreakerSettings.overReservedBytes(),
+                localBreakerSettings.maxOverReservedBytes()
+            );
+            List<Releasable> built = new ArrayList<>();
+            built.add(localBreaker);
+            boolean success = false;
+            try {
+                DriverContext driverContext = new DriverContext(
+                    bigArrays,
+                    blockFactory.newChildFactory(localBreaker),
+                    localBreakerSettings,
+                    DESCRIPTION
+                );
+                FetchDocsSourceOperator source = new FetchDocsSourceOperator(
+                    driverContext.blockFactory(),
+                    shardContexts,
+                    docs,
+                    pageSize(request.attributes())
+                );
+                built.add(source);
+                Operator reader = operationProviders.valuesSourceReader(request.attributes(), 0).get(driverContext);
+                built.add(reader);
+                Operator dropDocs = new ProjectOperator(IntStream.rangeClosed(1, request.attributes().size()).boxed().toList());
+                built.add(dropDocs);
+                OutputOperator output = new OutputOperator(List.of(), Function.identity(), page -> {
+                    // the response releases the page on another thread
+                    page.allowPassingToDifferentDriver();
+                    pages.add(page);
+                });
+                Driver driver = new Driver(
+                    new TaskId(clusterService.localNode().getId(), task.getId()).toString(),
+                    DESCRIPTION,
+                    clusterService.getClusterName().value(),
+                    clusterService.getNodeName(),
+                    System.currentTimeMillis(),
+                    System.nanoTime(),
+                    driverContext,
+                    request::getDescription,
+                    source,
+                    List.of(reader, dropDocs),
+                    output,
+                    request.configuration().pragmas().statusInterval(),
+                    localBreaker
+                );
+                success = true;
+                return driver;
+            } finally {
+                if (success == false) {
+                    // the driver never existed, so nothing else closes them
+                    Releasables.closeExpectNoException(built);
+                }
+            }
+        }
+
+        private void respond(List<Page> pages, Driver driver, long setupNanos) {
+            FetchResponse response;
+            try {
+                if (task.isCancelled()) {
+                    throw new TaskCancelledException(Objects.requireNonNullElse(task.getReasonCancelled(), "task was cancelled"));
+                }
+                int rows = 0;
+                for (Page page : pages) {
+                    rows += page.getPositionCount();
+                }
+                if (rows != request.totalDocs()) {
+                    throw new IllegalStateException("fetched [" + rows + "] rows for [" + request.totalDocs() + "] documents");
+                }
+                response = new FetchResponse(blockFactory, pages, completionInfo(driver), System.nanoTime() - startNanos, setupNanos);
+            } catch (Exception e) {
+                Releasables.closeExpectNoException(pages);
+                fail(e);
+                return;
+            }
+            logger.debug(
+                "fetch [{}] loaded [{}] rows from [{}] shards in [{}]",
+                request.sessionId(),
+                response.rows(),
+                request.shards().size(),
+                TimeValue.timeValueNanos(response.tookNanos())
+            );
+            try {
+                ActionListener.respondAndRelease(listener, response);
+            } finally {
+                release();
+            }
+        }
+
+        /**
+         * The counters of the driver, and its profile when the query is profiled.
+         */
+        private DriverCompletionInfo completionInfo(Driver driver) {
+            if (request.configuration().profile()) {
+                return DriverCompletionInfo.includingProfiles(
+                    List.of(driver),
+                    DESCRIPTION,
+                    clusterService.getClusterName().value(),
+                    clusterService.getNodeName(),
+                    request.attributes().toString(),
+                    null,
+                    new PlanTimeProfile(),
+                    0L,
+                    false
+                );
+            }
+            return DriverCompletionInfo.excludingProfiles(List.of(driver), 0L, false);
+        }
+
+        private void fail(Exception e) {
+            try {
+                listener.onFailure(e);
+            } finally {
+                release();
+            }
+        }
+
+        /**
+         * Frees the contexts the request reads for the last time, then drops the request's references on its shards, on the
+         * pool that frees search contexts. Once, whichever way the request ended. Only the shards the request opened free
+         * their contexts, so a request frees only contexts it was allowed to read.
+         */
+        private void release() {
+            if (released.compareAndSet(false, true) == false) {
+                return;
+            }
+            searchService.getFreeContextExecutor().execute(new AbstractRunnable() {
+                @Override
+                protected void doRun() {
+                    for (int position = 0; position < contexts.size(); position++) {
+                        FetchRequest.ShardDocs shard = request.shards().get(position);
+                        if (shard.freeAfterFetch()) {
+                            // the request's reference keeps the reader open until it drops it below
+                            boolean found = searchService.freeReaderContext(shard.contextId());
+                            logger.debug(
+                                "freed fetch context [{}] after its last fetch{}",
+                                shard.contextId(),
+                                found ? "" : ", it was gone"
+                            );
+                        }
+                    }
+                    Releasables.close(contexts.stream().map(context -> (Releasable) context::decRef).toList());
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.warn("failed to release the shards of a fetch request", e);
+                }
+            });
+        }
+    }
+
+    /**
+     * The fields among {@code attributes} that some shards may not map. Each shard resolves them to what it holds, like in
+     * the query phase, so a fetched column has the values the query phase would have loaded.
+     */
+    private static Set<String> unmappedFieldNames(List<Attribute> attributes) {
+        Set<String> names = new HashSet<>();
+        for (Attribute attribute : attributes) {
+            if (attribute instanceof FieldAttribute field) {
+                PlannerUtils.collectUnmappedFieldName(field, names);
+            }
+        }
+        return names;
+    }
+
+    /**
+     * The most documents in one page, sized like the pages of the query phase for the columns the request loads.
+     */
+    private static int pageSize(List<Attribute> attributes) {
+        // the shard, the segment and the doc of each row
+        int rowSize = 3 * Integer.BYTES;
+        for (Attribute attribute : attributes) {
+            rowSize += attribute.dataType().estimatedSize();
+        }
+        return Math.max(Operator.MIN_TARGET_PAGE_SIZE, Operator.TARGET_PAGE_SIZE / rowSize);
+    }
+
+    /**
+     * A document outside the reader would fail deep in the loaders, or load another document.
+     */
+    private static void checkBounds(SearchContext searchContext, FetchRequest.ShardDocs shard) {
+        List<LeafReaderContext> leaves = searchContext.searcher().getIndexReader().leaves();
+        int[] segments = shard.segments();
+        int[] docs = shard.docs();
+        for (int i = 0; i < docs.length; i++) {
+            if (segments[i] >= leaves.size() || docs[i] >= leaves.get(segments[i]).reader().maxDoc()) {
+                throw new IllegalArgumentException(
+                    "document [" + segments[i] + ", " + docs[i] + "] isn't in the reader of " + shard.shardId()
+                );
+            }
+        }
     }
 }

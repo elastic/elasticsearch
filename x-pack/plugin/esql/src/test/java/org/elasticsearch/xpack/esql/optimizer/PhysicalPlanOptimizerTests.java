@@ -174,7 +174,6 @@ import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.plan.physical.UriPartsExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
-import org.elasticsearch.xpack.esql.planner.PlannerServices;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
@@ -10299,7 +10298,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             ),
             null,  // OperatorFactoryRegistry - not needed for these tests
             true,  // snapshotBuild - bare external sources are planned without a registered dataset
-            PlannerServices.NONE,
             null,  // parallelWorkerExecutor - not needed for these tests
             0,     // esqlWorkerPoolSize - not needed for these tests
             MatcherWatchdog.noop(),

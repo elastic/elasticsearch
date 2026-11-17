@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.fetch;
 
-import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -23,12 +22,8 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.compute.test.RandomBlock;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.SearchContextMissingException;
-import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.xpack.esql.fetch.FetchResponse.ShardResult;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -38,8 +33,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.nullValue;
 
 public class FetchResponseTests extends ComputeTestCase {
     private static final List<ElementType> TYPES = List.of(ElementType.BYTES_REF, ElementType.LONG, ElementType.BOOLEAN);
@@ -48,12 +41,6 @@ public class FetchResponseTests extends ComputeTestCase {
         BlockFactory factory = blockFactory();
         List<Page> pages = randomPages(factory);
         int rows = pages.stream().mapToInt(Page::getPositionCount).sum();
-        ShardSearchContextId missing = new ShardSearchContextId("session", 7L);
-        List<ShardResult> results = List.of(
-            ShardResult.succeeded(new ShardId("index", "uuid", 0), rows),
-            ShardResult.failed(new ShardId("index", "uuid", 1), new SearchContextMissingException(missing)),
-            ShardResult.failed(new ShardId("index", "uuid", 2), new ElasticsearchSecurityException("no", RestStatus.FORBIDDEN))
-        );
         DriverCompletionInfo info = new DriverCompletionInfo(
             3,
             5,
@@ -72,14 +59,7 @@ public class FetchResponseTests extends ComputeTestCase {
         );
 
         // the original keeps its pages until it is closed, so the copy compares against them
-        try (
-            FetchResponse response = new FetchResponse(factory, results, pages, info, 23, 29);
-            FetchResponse copy = copy(factory, response)
-        ) {
-            assertThat(copy.shardResults().get(0), equalTo(results.get(0)));
-            assertThat(copy.shardResults().get(1).failure(), instanceOf(SearchContextMissingException.class));
-            assertThat(copy.shardResults().get(2).failure(), instanceOf(ElasticsearchSecurityException.class));
-            assertThat(copy.shardResults().get(2).rows(), equalTo(0));
+        try (FetchResponse response = new FetchResponse(factory, pages, info, 23, 29); FetchResponse copy = copy(factory, response)) {
             assertThat(copy.rows(), equalTo(rows));
             assertThat(copy.completionInfo(), equalTo(info));
             assertThat(copy.tookNanos(), equalTo(23L));
@@ -88,7 +68,7 @@ public class FetchResponseTests extends ComputeTestCase {
             try {
                 assertThat(taken, equalTo(pages));
             } finally {
-                FetchResponse.releasePages(taken);
+                Releasables.closeExpectNoException(taken);
             }
         }
     }
@@ -99,7 +79,7 @@ public class FetchResponseTests extends ComputeTestCase {
      */
     public void testAccountsThePagesWhileSerializing() throws IOException {
         BlockFactory factory = blockFactory();
-        FetchResponse response = new FetchResponse(factory, List.of(), randomPages(factory), DriverCompletionInfo.EMPTY, 0, 0);
+        FetchResponse response = new FetchResponse(factory, randomPages(factory), DriverCompletionInfo.EMPTY, 0, 0);
         long blocks = factory.breaker().getUsed();
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             response.writeTo(out);
@@ -117,13 +97,13 @@ public class FetchResponseTests extends ComputeTestCase {
         BlockFactory sender = blockFactory();
         BlockFactory receiver = blockFactory();
         try (
-            FetchResponse response = new FetchResponse(sender, List.of(), randomPages(sender), DriverCompletionInfo.EMPTY, 0, 0);
+            FetchResponse response = new FetchResponse(sender, randomPages(sender), DriverCompletionInfo.EMPTY, 0, 0);
             FetchResponse copy = copy(receiver, response)
         ) {
             List<Page> taken = copy.takePages();
             long bytes = taken.stream().mapToLong(Page::ramBytesUsedByBlocks).sum();
             assertThat(receiver.breaker().getUsed(), equalTo(bytes));
-            FetchResponse.releasePages(taken);
+            Releasables.closeExpectNoException(taken);
         }
         assertThat(receiver.breaker().getUsed(), equalTo(0L));
     }
@@ -135,7 +115,7 @@ public class FetchResponseTests extends ComputeTestCase {
     public void testAResponseTooLargeForTheReceiverLeavesNothingOnItsBreaker() throws IOException {
         BlockFactory sender = blockFactory();
         BlockFactory receiver = blockFactory(ByteSizeValue.ofBytes(between(1, 100)));
-        try (FetchResponse response = new FetchResponse(sender, List.of(), randomPages(sender), DriverCompletionInfo.EMPTY, 0, 0)) {
+        try (FetchResponse response = new FetchResponse(sender, randomPages(sender), DriverCompletionInfo.EMPTY, 0, 0)) {
             expectThrows(CircuitBreakingException.class, () -> copy(receiver, response));
         }
         assertThat(receiver.breaker().getUsed(), equalTo(0L));
@@ -143,7 +123,7 @@ public class FetchResponseTests extends ComputeTestCase {
 
     public void testReleasesThePagesNobodyTook() {
         BlockFactory factory = blockFactory();
-        FetchResponse response = new FetchResponse(factory, List.of(), randomPages(factory), DriverCompletionInfo.EMPTY, 0, 0);
+        FetchResponse response = new FetchResponse(factory, randomPages(factory), DriverCompletionInfo.EMPTY, 0, 0);
 
         response.close();
 
@@ -152,8 +132,8 @@ public class FetchResponseTests extends ComputeTestCase {
 
     public void testHandsThePagesOverOnce() {
         BlockFactory factory = blockFactory();
-        try (FetchResponse response = new FetchResponse(factory, List.of(), randomPages(factory), DriverCompletionInfo.EMPTY, 0, 0)) {
-            FetchResponse.releasePages(response.takePages());
+        try (FetchResponse response = new FetchResponse(factory, randomPages(factory), DriverCompletionInfo.EMPTY, 0, 0)) {
+            Releasables.closeExpectNoException(response.takePages());
             expectThrows(AssertionError.class, response::takePages);
         }
     }
@@ -165,7 +145,7 @@ public class FetchResponseTests extends ComputeTestCase {
         BlockFactory factory = blockFactory();
         BytesReference bytes;
         try (
-            FetchResponse response = new FetchResponse(factory, List.of(), randomPages(factory), DriverCompletionInfo.EMPTY, 0, 0);
+            FetchResponse response = new FetchResponse(factory, randomPages(factory), DriverCompletionInfo.EMPTY, 0, 0);
             BytesStreamOutput out = new BytesStreamOutput()
         ) {
             response.writeTo(out);
@@ -179,10 +159,26 @@ public class FetchResponseTests extends ComputeTestCase {
         assertThat(factory.breaker().getUsed(), equalTo(0L));
     }
 
-    public void testFailedShardsHaveNoRows() {
-        ShardResult failed = ShardResult.failed(new ShardId("index", "uuid", 0), new IllegalStateException("boom"));
-        assertThat(failed.rows(), equalTo(0));
-        assertThat(ShardResult.succeeded(new ShardId("index", "uuid", 0), 3).failure(), nullValue());
+    /**
+     * Every version with the fetch phase reads a response the same way. A node only answers a fetch request, which only
+     * those versions send.
+     */
+    public void testRoundTripsAtEveryVersionWithTheFetchPhase() throws IOException {
+        BlockFactory factory = blockFactory();
+        List<Page> pages = randomPages(factory);
+        TransportVersion version = TransportVersionUtils.randomVersionSupporting(FetchRequest.ESQL_FETCH);
+        try (
+            FetchResponse response = new FetchResponse(factory, pages, DriverCompletionInfo.EMPTY, 23, 29);
+            FetchResponse copy = copy(factory, response, version)
+        ) {
+            assertThat(copy.tookNanos(), equalTo(23L));
+            List<Page> taken = copy.takePages();
+            try {
+                assertThat(taken, equalTo(pages));
+            } finally {
+                Releasables.closeExpectNoException(taken);
+            }
+        }
     }
 
     private static List<Page> randomPages(BlockFactory factory) {
@@ -197,31 +193,6 @@ public class FetchResponseTests extends ComputeTestCase {
             pages.add(new Page(blocks));
         }
         return pages;
-    }
-
-    /**
-     * Every version with the fetch phase reads a response the same way. A node only answers a fetch request, which only
-     * those versions send.
-     */
-    public void testRoundTripsAtEveryVersionWithTheFetchPhase() throws IOException {
-        BlockFactory factory = blockFactory();
-        List<Page> pages = randomPages(factory);
-        int rows = pages.stream().mapToInt(Page::getPositionCount).sum();
-        List<ShardResult> results = List.of(ShardResult.succeeded(new ShardId("index", "uuid", 0), rows));
-        TransportVersion version = TransportVersionUtils.randomVersionSupporting(FetchRequest.ESQL_FETCH);
-        try (
-            FetchResponse response = new FetchResponse(factory, results, pages, DriverCompletionInfo.EMPTY, 23, 29);
-            FetchResponse copy = copy(factory, response, version)
-        ) {
-            assertThat(copy.shardResults(), equalTo(results));
-            assertThat(copy.tookNanos(), equalTo(23L));
-            List<Page> taken = copy.takePages();
-            try {
-                assertThat(taken, equalTo(pages));
-            } finally {
-                FetchResponse.releasePages(taken);
-            }
-        }
     }
 
     private static FetchResponse copy(BlockFactory factory, FetchResponse response) throws IOException {

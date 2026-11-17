@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.fetch;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -30,10 +31,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
-import org.elasticsearch.xpack.esql.plan.physical.FetchSourceExec;
-import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
-import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.io.IOException;
@@ -43,15 +40,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
 
-import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.NONE;
-import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomTables;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 public class FetchRequestTests extends AbstractWireSerializingTestCase<FetchRequest> {
     @Override
@@ -78,7 +73,7 @@ public class FetchRequestTests extends AbstractWireSerializingTestCase<FetchRequ
             ),
             randomList(0, 5, FetchRequestTests::randomShardDocs),
             randomConfiguration(),
-            fetchPlan(randomList(1, 4, FetchRequestTests::randomField))
+            randomList(1, 4, FetchRequestTests::randomField)
         );
         request.setParentTask(randomAlphaOfLength(10), randomNonNegativeLong());
         return request;
@@ -89,12 +84,12 @@ public class FetchRequestTests extends AbstractWireSerializingTestCase<FetchRequ
         String sessionId = instance.sessionId();
         String clusterAlias = instance.clusterAlias();
         List<FetchRequest.ShardDocs> shards = instance.shards();
-        PhysicalPlan fetchPlan = instance.fetchPlan();
+        List<Attribute> attributes = instance.attributes();
         switch (between(0, 3)) {
             case 0 -> sessionId = randomValueOtherThan(sessionId, () -> randomAlphaOfLength(10));
             case 1 -> clusterAlias = randomValueOtherThan(clusterAlias, () -> randomAlphaOfLength(5));
             case 2 -> shards = randomValueOtherThan(shards, () -> randomList(0, 5, FetchRequestTests::randomShardDocs));
-            case 3 -> fetchPlan = randomValueOtherThan(fetchPlan, () -> fetchPlan(randomList(1, 4, FetchRequestTests::randomField)));
+            case 3 -> attributes = randomValueOtherThan(attributes, () -> randomList(1, 4, FetchRequestTests::randomField));
             default -> throw new AssertionError("unknown mutation");
         }
         FetchRequest mutated = new FetchRequest(
@@ -103,20 +98,20 @@ public class FetchRequestTests extends AbstractWireSerializingTestCase<FetchRequ
             new OriginalIndices(instance.indices(), instance.indicesOptions()),
             shards,
             instance.configuration(),
-            fetchPlan
+            attributes
         );
         mutated.setParentTask(instance.getParentTask());
         return mutated;
     }
 
     /**
-     * Runs of one segment each, with gaps that need more than one byte, round trip unchanged.
+     * Documents of several segments, docs that need more than one byte, and no documents at all round trip unchanged.
      */
-    public void testDocsRoundTripAsRuns() throws IOException {
+    public void testDocsRoundTrip() throws IOException {
         FetchRequest.ShardDocs docs = new FetchRequest.ShardDocs(
             new ShardId("index", "uuid", 0),
             randomContextId(),
-            randomFrom(FetchRequest.ContextAfterFetch.values()),
+            randomBoolean(),
             new int[] { 0, 0, 0, 2, 2, 7 },
             new int[] { 1, 5, 100_000, 0, 9, 3 }
         );
@@ -125,7 +120,7 @@ public class FetchRequestTests extends AbstractWireSerializingTestCase<FetchRequ
         FetchRequest.ShardDocs empty = new FetchRequest.ShardDocs(
             new ShardId("index", "uuid", 0),
             randomContextId(),
-            randomFrom(FetchRequest.ContextAfterFetch.values()),
+            randomBoolean(),
             new int[0],
             new int[0]
         );
@@ -135,17 +130,17 @@ public class FetchRequestTests extends AbstractWireSerializingTestCase<FetchRequ
     /**
      * Whether the node frees the context of a shard once it answered survives the wire, for both answers.
      */
-    public void testWhatHappensToTheContextRoundTrips() throws IOException {
-        for (FetchRequest.ContextAfterFetch afterFetch : FetchRequest.ContextAfterFetch.values()) {
+    public void testFreeAfterFetchRoundTrips() throws IOException {
+        for (boolean freeAfterFetch : new boolean[] { true, false }) {
             FetchRequest.ShardDocs docs = new FetchRequest.ShardDocs(
                 new ShardId("index", "uuid", 0),
                 randomContextId(),
-                afterFetch,
+                freeAfterFetch,
                 new int[] { 0 },
                 new int[] { 1 }
             );
 
-            assertThat(copyShardDocs(docs).afterFetch(), equalTo(afterFetch));
+            assertThat(copyShardDocs(docs).freeAfterFetch(), equalTo(freeAfterFetch));
         }
     }
 
@@ -154,58 +149,63 @@ public class FetchRequestTests extends AbstractWireSerializingTestCase<FetchRequ
      */
     public void testRejectsUnsortedDocs() {
         ShardId shardId = new ShardId("index", "uuid", 0);
-        FetchRequest.ContextAfterFetch keep = FetchRequest.ContextAfterFetch.KEEP;
         IllegalArgumentException duplicate = expectThrows(
             IllegalArgumentException.class,
-            () -> new FetchRequest.ShardDocs(shardId, randomContextId(), keep, new int[] { 1, 1 }, new int[] { 4, 4 })
+            () -> new FetchRequest.ShardDocs(shardId, randomContextId(), randomBoolean(), new int[] { 1, 1 }, new int[] { 4, 4 })
         );
         assertThat(duplicate.getMessage(), containsString("sorted by segment and doc without duplicates"));
         expectThrows(
             IllegalArgumentException.class,
-            () -> new FetchRequest.ShardDocs(shardId, randomContextId(), keep, new int[] { 2, 1 }, new int[] { 0, 5 })
+            () -> new FetchRequest.ShardDocs(shardId, randomContextId(), randomBoolean(), new int[] { 2, 1 }, new int[] { 0, 5 })
         );
     }
 
     /**
-     * Runs that don't add up to the docs on the wire fail the read instead of loading other documents.
+     * Unsorted documents on the wire fail the read instead of loading rows in another order.
      */
-    public void testRejectsRunsThatDontMatchTheDocs() throws IOException {
-        assertThat(readMalformed(new int[] { 0 }, new int[] { 3 }, new int[] { 1, 2 }), equalTo("a run of [3] at [0] of [2] docs"));
-        assertThat(readMalformed(new int[] { 0 }, new int[] { 0 }, new int[] { 1 }), equalTo("a run of [0] at [0] of [1] docs"));
-        assertThat(readMalformed(new int[] { 0 }, new int[] { 1 }, new int[] { 1, 2 }), equalTo("the runs hold [1] of [2] docs"));
-        assertThat(readMalformed(new int[] { 0, 1 }, new int[] { 1 }, new int[] { 1 }), equalTo("[2] segments for [1] runs"));
+    public void testRejectsUnsortedDocsOnTheWire() throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            new ShardId("index", "uuid", 0).writeTo(out);
+            randomContextId().writeTo(out);
+            out.writeBoolean(randomBoolean());
+            out.writeVIntArray(new int[] { 0, 0 });
+            out.writeVIntArray(new int[] { 7, 3 });
+            try (StreamInput in = out.bytes().streamInput()) {
+                IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> FetchRequest.ShardDocs.readFrom(in));
+                assertThat(e.getMessage(), containsString("sorted by segment and doc without duplicates"));
+            }
+        }
     }
 
     /**
-     * A gap of zero repeats a doc and a gap past the largest int wraps around. Both break the order the node returns
-     * rows in, so the read fails.
+     * Security can't replace the indices of a fetch request, so it authorizes the request for every index it names, and
+     * the node never reads a shard whose index authorization dropped.
      */
-    public void testRejectsGapsThatBreakTheOrder() throws IOException {
-        assertThat(
-            readMalformed(new int[] { 0 }, new int[] { 2 }, new int[] { 7, 0 }),
-            containsString("sorted by segment and doc without duplicates")
+    public void testSecurityAuthorizesEveryIndexItNames() {
+        assertThat(createTestInstance(), not(instanceOf(IndicesRequest.Replaceable.class)));
+    }
+
+    /**
+     * A {@code _doc} column can't leave the node that holds its shards.
+     */
+    public void testRefusesToLoadDocuments() {
+        Attribute doc = new FieldAttribute(Source.EMPTY, null, null, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new FetchRequest(
+                "session",
+                "",
+                new OriginalIndices(new String[] { "index" }, IndicesOptions.strictExpandOpen()),
+                List.of(),
+                randomConfiguration(),
+                List.of(randomField(), doc)
+            )
         );
-        assertThat(
-            readMalformed(new int[] { 0 }, new int[] { 2 }, new int[] { Integer.MAX_VALUE, 1 }),
-            equalTo("negative segment or doc at [1]")
-        );
+        assertThat(e.getMessage(), containsString("a fetch can't load"));
     }
 
     /**
-     * When authorization leaves no index the request keeps its shards, so the data node fails each of them instead of
-     * returning fewer rows.
-     */
-    public void testKeepsItsShardsWhenAuthorizationLeavesNoIndex() {
-        FetchRequest request = randomValueOtherThanMany(r -> r.shards().isEmpty(), this::createTestInstance);
-        List<FetchRequest.ShardDocs> shards = request.shards();
-
-        request.indices(NO_INDICES_OR_ALIASES_ARRAY);
-
-        assertThat(request.shards(), equalTo(shards));
-    }
-
-    /**
-     * The fetch plan reads no lookup tables, so they never travel with the request.
+     * The fetch reads no lookup tables, so they never travel with the request.
      */
     public void testShipsNoTables() {
         FetchRequest request = new FetchRequest(
@@ -214,7 +214,7 @@ public class FetchRequestTests extends AbstractWireSerializingTestCase<FetchRequ
             new OriginalIndices(new String[] { "index" }, IndicesOptions.strictExpandOpen()),
             List.of(),
             randomConfiguration("FROM index", randomValueOtherThanMany(Map::isEmpty, () -> randomTables())),
-            fetchPlan(List.of(randomField()))
+            List.of(randomField())
         );
         assertThat(request.configuration().tables(), anEmptyMap());
     }
@@ -254,15 +254,6 @@ public class FetchRequestTests extends AbstractWireSerializingTestCase<FetchRequ
         );
     }
 
-    static PhysicalPlan fetchPlan(List<Attribute> fetched) {
-        Attribute doc = new FieldAttribute(Source.EMPTY, null, null, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
-        return new ProjectExec(
-            Source.EMPTY,
-            new FieldExtractExec(Source.EMPTY, new FetchSourceExec(Source.EMPTY, doc, 64), fetched, NONE),
-            fetched
-        );
-    }
-
     private static Attribute randomField() {
         String name = randomAlphaOfLength(6);
         DataType type = randomFrom(DataType.KEYWORD, DataType.LONG, DataType.INTEGER, DataType.DOUBLE);
@@ -286,7 +277,7 @@ public class FetchRequestTests extends AbstractWireSerializingTestCase<FetchRequ
         return new FetchRequest.ShardDocs(
             new ShardId(randomAlphaOfLength(5), randomAlphaOfLength(5), between(0, 10)),
             randomContextId(),
-            randomFrom(FetchRequest.ContextAfterFetch.values()),
+            randomBoolean(),
             segments,
             docs
         );
@@ -294,23 +285,6 @@ public class FetchRequestTests extends AbstractWireSerializingTestCase<FetchRequ
 
     private static ShardSearchContextId randomContextId() {
         return new ShardSearchContextId(randomAlphaOfLength(10), randomNonNegativeLong(), randomBoolean() ? null : randomAlphaOfLength(8));
-    }
-
-    /**
-     * Reads documents written as the given runs, and returns why the read failed.
-     */
-    private static String readMalformed(int[] runSegments, int[] runLengths, int[] gaps) throws IOException {
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            new ShardId("index", "uuid", 0).writeTo(out);
-            randomContextId().writeTo(out);
-            out.writeEnum(randomFrom(FetchRequest.ContextAfterFetch.values()));
-            out.writeVIntArray(runSegments);
-            out.writeVIntArray(runLengths);
-            out.writeVIntArray(gaps);
-            try (StreamInput in = out.bytes().streamInput()) {
-                return expectThrows(IllegalArgumentException.class, () -> FetchRequest.ShardDocs.readFrom(in)).getMessage();
-            }
-        }
     }
 
     private static FetchRequest.ShardDocs copyShardDocs(FetchRequest.ShardDocs docs) throws IOException {

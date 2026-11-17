@@ -58,7 +58,6 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
-import org.elasticsearch.xpack.esql.plan.physical.FetchSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
@@ -159,7 +158,6 @@ public class PlanWritables {
             ExchangeSinkExec.ENTRY,
             ExchangeSourceExec.ENTRY,
             ExternalSourceExec.ENTRY,
-            FetchSourceExec.ENTRY,
             FieldExtractExec.ENTRY,
             FilterExec.ENTRY,
             FragmentExec.ENTRY,

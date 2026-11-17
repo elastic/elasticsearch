@@ -7,66 +7,34 @@
 
 package org.elasticsearch.xpack.esql.fetch;
 
-import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.core.AbstractRefCounted;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 
 /**
  * The fetched columns of the documents a {@link FetchRequest} named, as pages whose rows follow the request: the shards in
- * request order, and the documents of each shard in the order the request listed them. A shard that failed adds no rows.
+ * request order, and the documents of each shard in the order the request listed them. A request that fails for one of
+ * its shards fails as a whole, like a fetch request of {@code _search}, so a response always has a row for every document.
  * <p>
  * The node that sends it accounts the pages on its breaker while it serializes them. The node that reads it gets the
  * pages through {@link #takePages()}, and the response releases the pages nobody took.
  */
 public final class FetchResponse extends TransportResponse implements Releasable {
-    /**
-     * @param rows    the rows of the shard in the pages, every document the request asked the shard for, or 0 when it
-     *                failed
-     * @param failure why the shard returned no rows, or {@code null}
-     */
-    public record ShardResult(ShardId shardId, int rows, @Nullable Exception failure) implements Writeable {
-        static ShardResult succeeded(ShardId shardId, int rows) {
-            return new ShardResult(shardId, rows, null);
-        }
-
-        static ShardResult failed(ShardId shardId, Exception failure) {
-            return new ShardResult(shardId, 0, failure);
-        }
-
-        static ShardResult readFrom(StreamInput in) throws IOException {
-            return new ShardResult(new ShardId(in), in.readVInt(), in.readException());
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            shardId.writeTo(out);
-            out.writeVInt(rows);
-            out.writeException(failure);
-        }
-    }
-
     private final RefCounted refs = AbstractRefCounted.of(this::closeInternal);
     private final BlockFactory blockFactory;
-    private final List<ShardResult> shardResults;
     private final List<Page> pages;
     private final DriverCompletionInfo completionInfo;
     private final long tookNanos;
@@ -76,20 +44,18 @@ public final class FetchResponse extends TransportResponse implements Releasable
 
     /**
      * @param blockFactory   accounts the pages while the response is serialized
-     * @param completionInfo the counters of the fetch drivers, and their profiles when the query is profiled
+     * @param completionInfo the counters of the fetch driver, and its profile when the query is profiled
      * @param tookNanos      from receiving the request to building the response
-     * @param setupNanos     the part of {@code tookNanos} spent before the drivers started
+     * @param setupNanos     the part of {@code tookNanos} spent before the driver started
      */
     public FetchResponse(
         BlockFactory blockFactory,
-        List<ShardResult> shardResults,
         List<Page> pages,
         DriverCompletionInfo completionInfo,
         long tookNanos,
         long setupNanos
     ) {
         this.blockFactory = blockFactory;
-        this.shardResults = List.copyOf(shardResults);
         this.pages = List.copyOf(pages);
         this.completionInfo = completionInfo;
         this.tookNanos = tookNanos;
@@ -101,7 +67,6 @@ public final class FetchResponse extends TransportResponse implements Releasable
      */
     public FetchResponse(BlockStreamInput in, ThreadContext threadContext) throws IOException {
         this.blockFactory = in.blockFactory();
-        this.shardResults = in.readCollectionAsImmutableList(ShardResult::readFrom);
         int pageCount = in.readVInt();
         List<Page> read = new ArrayList<>();
         boolean success = false;
@@ -116,7 +81,7 @@ public final class FetchResponse extends TransportResponse implements Releasable
         } finally {
             if (success == false) {
                 // the pages read so far are on the breaker already
-                releasePages(read);
+                Releasables.closeExpectNoException(read);
             }
         }
         this.pages = Collections.unmodifiableList(read);
@@ -130,15 +95,10 @@ public final class FetchResponse extends TransportResponse implements Releasable
         }
         blockFactory.breaker().addEstimateBytesAndMaybeBreak(bytes, "serialize esql fetch response");
         reservedBytes += bytes;
-        out.writeCollection(shardResults);
         out.writeCollection(pages);
         completionInfo.writeTo(out);
         out.writeVLong(tookNanos);
         out.writeVLong(setupNanos);
-    }
-
-    public List<ShardResult> shardResults() {
-        return shardResults;
     }
 
     /**
@@ -166,12 +126,12 @@ public final class FetchResponse extends TransportResponse implements Releasable
     }
 
     /**
-     * The rows the pages hold, the sum of the rows of every shard.
+     * The rows the pages hold, one for each document of the request.
      */
     public int rows() {
         int rows = 0;
-        for (ShardResult result : shardResults) {
-            rows += result.rows();
+        for (Page page : pages) {
+            rows += page.getPositionCount();
         }
         return rows;
     }
@@ -204,12 +164,7 @@ public final class FetchResponse extends TransportResponse implements Releasable
     private void closeInternal() {
         blockFactory.breaker().addWithoutBreaking(-reservedBytes);
         if (pagesTaken == false) {
-            releasePages(pages);
+            Releasables.closeExpectNoException(pages);
         }
-    }
-
-    static void releasePages(List<Page> pages) {
-        Iterator<Releasable> releasables = Iterators.map(pages.iterator(), page -> page::releaseBlocks);
-        Releasables.closeExpectNoException(Releasables.wrap(releasables));
     }
 }

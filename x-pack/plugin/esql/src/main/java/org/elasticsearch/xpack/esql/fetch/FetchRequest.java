@@ -27,9 +27,10 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.AbstractTransportRequest;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
-import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
@@ -40,117 +41,42 @@ import java.util.Objects;
 
 /**
  * Asks one data node for the fetched columns of documents that survived a cut. For each shard it names the reader context
- * the query phase kept open, whether the node frees it once it answered, and the documents to load, and it carries the
- * fetch plan that loads them.
+ * the query phase kept open, whether the node frees it once it answered, and the documents to load, and it names the
+ * attributes to load for them.
  * <p>
- * It carries the index expressions of the query, so it is authorized like the query's other requests to the node, with
- * the same wildcards and aliases. The node checks every shard against the access control of the request, so a shard
- * whose index authorization dropped fails instead of reading through an unfiltered reader.
+ * It names the indices of its shards, or the aliases the query reached them through, without wildcards, like the shard
+ * requests of {@code _search}. Security authorizes the request for all of them, so a user who can no longer read one of
+ * the indices gets the whole request refused.
  */
-public final class FetchRequest extends AbstractTransportRequest implements IndicesRequest.Replaceable {
+public final class FetchRequest extends AbstractTransportRequest implements IndicesRequest {
     static final TransportVersion ESQL_FETCH = TransportVersion.fromName("esql_fetch_action");
-
-    /**
-     * What the node does with the reader context of a shard once it answered.
-     */
-    public enum ContextAfterFetch {
-        /**
-         * Keeps it open, because the coordinator may read it again.
-         */
-        KEEP,
-        /**
-         * Frees it, because this request reads it for the last time, like the fetch phase of {@code _search} frees the
-         * context it read. The coordinator no longer holds it once the response arrives.
-         */
-        FREE
-    }
 
     /**
      * The documents to load from one shard, sorted by segment and then by doc, without duplicates. The node returns their
      * rows in this order.
      *
-     * @param contextId  the reader context the query phase kept open for the shard
-     * @param afterFetch what the node does with the context once it answered
+     * @param contextId      the reader context the query phase kept open for the shard
+     * @param freeAfterFetch whether the node frees the context once it answered, because this request reads it for the
+     *                       last time, like the fetch phase of {@code _search} frees the context it read
      */
-    public record ShardDocs(ShardId shardId, ShardSearchContextId contextId, ContextAfterFetch afterFetch, int[] segments, int[] docs)
+    public record ShardDocs(ShardId shardId, ShardSearchContextId contextId, boolean freeAfterFetch, int[] segments, int[] docs)
         implements
             Writeable {
         public ShardDocs {
-            Objects.requireNonNull(afterFetch, "afterFetch");
             FetchDocsSourceOperator.ShardDocs.checkSorted(segments, docs);
         }
 
-        /**
-         * Reads the documents as runs of one segment each: the segment and the length of every run, then the docs. The
-         * first doc of a run is written as it is, and every other doc as its gap to the previous one.
-         */
         static ShardDocs readFrom(StreamInput in) throws IOException {
-            ShardId shardId = new ShardId(in);
-            ShardSearchContextId contextId = new ShardSearchContextId(in);
-            ContextAfterFetch afterFetch = in.readEnum(ContextAfterFetch.class);
-            int[] runSegments = in.readVIntArray();
-            int[] runLengths = in.readVIntArray();
-            int[] gaps = in.readVIntArray();
-            if (runSegments.length != runLengths.length) {
-                throw new IllegalArgumentException("[" + runSegments.length + "] segments for [" + runLengths.length + "] runs");
-            }
-            int[] segments = new int[gaps.length];
-            int[] docs = new int[gaps.length];
-            int position = 0;
-            for (int r = 0; r < runLengths.length; r++) {
-                if (runLengths[r] < 1 || runLengths[r] > gaps.length - position) {
-                    throw new IllegalArgumentException(
-                        "a run of [" + runLengths[r] + "] at [" + position + "] of [" + gaps.length + "] docs"
-                    );
-                }
-                int doc = 0;
-                for (int i = 0; i < runLengths[r]; i++) {
-                    doc = i == 0 ? gaps[position] : doc + gaps[position];
-                    segments[position] = runSegments[r];
-                    docs[position] = doc;
-                    position++;
-                }
-            }
-            if (position != gaps.length) {
-                throw new IllegalArgumentException("the runs hold [" + position + "] of [" + gaps.length + "] docs");
-            }
-            return new ShardDocs(shardId, contextId, afterFetch, segments, docs);
+            return new ShardDocs(new ShardId(in), new ShardSearchContextId(in), in.readBoolean(), in.readVIntArray(), in.readVIntArray());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             shardId.writeTo(out);
             contextId.writeTo(out);
-            out.writeEnum(afterFetch);
-            int runs = runs();
-            int[] runSegments = new int[runs];
-            int[] runLengths = new int[runs];
-            int[] gaps = new int[docs.length];
-            int run = -1;
-            for (int i = 0; i < docs.length; i++) {
-                if (i == 0 || segments[i] != segments[i - 1]) {
-                    run++;
-                    runSegments[run] = segments[i];
-                    gaps[i] = docs[i];
-                } else {
-                    // positive, because the docs of a segment are strictly increasing
-                    gaps[i] = docs[i] - docs[i - 1];
-                }
-                runLengths[run]++;
-            }
-            out.writeVIntArray(runSegments);
-            out.writeVIntArray(runLengths);
-            out.writeVIntArray(gaps);
-        }
-
-        private int runs() {
-            int runs = 0;
-            for (int i = 0; i < segments.length; i++) {
-                if (i == 0 || segments[i] != segments[i - 1]) {
-                    runs++;
-                }
-            }
-            return runs;
+            out.writeBoolean(freeAfterFetch);
+            out.writeVIntArray(segments);
+            out.writeVIntArray(docs);
         }
 
         public int docCount() {
@@ -168,50 +94,50 @@ public final class FetchRequest extends AbstractTransportRequest implements Indi
             ShardDocs that = (ShardDocs) o;
             return shardId.equals(that.shardId)
                 && contextId.equals(that.contextId)
-                && afterFetch == that.afterFetch
+                && freeAfterFetch == that.freeAfterFetch
                 && Arrays.equals(segments, that.segments)
                 && Arrays.equals(docs, that.docs);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(shardId, contextId, afterFetch, Arrays.hashCode(segments), Arrays.hashCode(docs));
+            return Objects.hash(shardId, contextId, freeAfterFetch, Arrays.hashCode(segments), Arrays.hashCode(docs));
         }
 
         @Override
         public String toString() {
-            return "ShardDocs[" + shardId + ", " + contextId + ", " + afterFetch + ", docs=" + docs.length + "]";
+            return "ShardDocs[" + shardId + ", " + contextId + ", freeAfterFetch=" + freeAfterFetch + ", docs=" + docs.length + "]";
         }
     }
 
     private final String sessionId;
     private final String clusterAlias;
-    private String[] indices;
+    private final String[] indices;
     private final IndicesOptions indicesOptions;
     private final List<ShardDocs> shards;
     private final Configuration configuration;
-    private final PhysicalPlan fetchPlan;
+    private final List<Attribute> attributes;
 
     /**
-     * @param originalIndices the index expressions of the query for the cluster of the node
-     * @param fetchPlan       the plan that loads the fetched columns, its output is the schema of the response pages
+     * @param indices    the indices of the shards, or the aliases the query reached them through, without wildcards
+     * @param attributes the attributes to load, the columns of the response pages
      */
     public FetchRequest(
         String sessionId,
         String clusterAlias,
-        OriginalIndices originalIndices,
+        OriginalIndices indices,
         List<ShardDocs> shards,
         Configuration configuration,
-        PhysicalPlan fetchPlan
+        List<Attribute> attributes
     ) {
         this.sessionId = sessionId;
         this.clusterAlias = clusterAlias;
-        this.indices = originalIndices.indices();
-        this.indicesOptions = originalIndices.indicesOptions();
+        this.indices = indices.indices();
+        this.indicesOptions = indices.indicesOptions();
         this.shards = List.copyOf(shards);
-        // the fetch plan reads no lookup tables, so the request doesn't ship them
+        // the fetch reads no lookup tables, so the request doesn't ship them
         this.configuration = configuration.withoutTables();
-        this.fetchPlan = fetchPlan;
+        this.attributes = checkAttributes(attributes);
     }
 
     public FetchRequest(StreamInput in) throws IOException {
@@ -219,7 +145,7 @@ public final class FetchRequest extends AbstractTransportRequest implements Indi
     }
 
     /**
-     * @param idMapper {@code null} in production. Tests map the ids of the plan's attributes so a copy equals the original.
+     * @param idMapper {@code null} in production. Tests map the ids of the attributes so a copy equals the original.
      */
     FetchRequest(StreamInput in, @Nullable PlanStreamInput.NameIdMapper idMapper) throws IOException {
         super(in);
@@ -235,9 +161,23 @@ public final class FetchRequest extends AbstractTransportRequest implements Indi
                 BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker(CircuitBreaker.REQUEST)).build()
             )
         );
-        this.fetchPlan = new PlanStreamInput(in, in.namedWriteableRegistry(), configuration, idMapper).readNamedWriteable(
-            PhysicalPlan.class
+        this.attributes = checkAttributes(
+            new PlanStreamInput(in, in.namedWriteableRegistry(), configuration, idMapper).readNamedWriteableCollectionAsList(
+                Attribute.class
+            )
         );
+    }
+
+    /**
+     * A {@code _doc} column can't leave the node, and its shard references would leak to the coordinator.
+     */
+    private static List<Attribute> checkAttributes(List<Attribute> attributes) {
+        for (Attribute attribute : attributes) {
+            if (attribute.dataType() == DataType.DOC_DATA_TYPE) {
+                throw new IllegalArgumentException("a fetch can't load [" + attribute + "]");
+            }
+        }
+        return List.copyOf(attributes);
     }
 
     @Override
@@ -253,7 +193,7 @@ public final class FetchRequest extends AbstractTransportRequest implements Indi
         indicesOptions.writeIndicesOptions(out);
         out.writeCollection(shards);
         configuration.writeTo(out);
-        new PlanStreamOutput(out, configuration).writeNamedWriteable(fetchPlan);
+        new PlanStreamOutput(out, configuration).writeNamedWriteableCollection(attributes);
     }
 
     public String sessionId() {
@@ -272,8 +212,8 @@ public final class FetchRequest extends AbstractTransportRequest implements Indi
         return configuration;
     }
 
-    public PhysicalPlan fetchPlan() {
-        return fetchPlan;
+    public List<Attribute> attributes() {
+        return attributes;
     }
 
     public int totalDocs() {
@@ -287,16 +227,6 @@ public final class FetchRequest extends AbstractTransportRequest implements Indi
     @Override
     public String[] indices() {
         return indices;
-    }
-
-    /**
-     * Keeps the shards even when authorization leaves no index: the node then fails each of them, because no index of
-     * theirs is in the access control of the request.
-     */
-    @Override
-    public IndicesRequest indices(String... indices) {
-        this.indices = indices;
-        return this;
     }
 
     @Override
@@ -344,7 +274,7 @@ public final class FetchRequest extends AbstractTransportRequest implements Indi
             && indicesOptions.equals(that.indicesOptions)
             && shards.equals(that.shards)
             && configuration.equals(that.configuration)
-            && fetchPlan.equals(that.fetchPlan)
+            && attributes.equals(that.attributes)
             && getParentTask().equals(that.getParentTask());
     }
 
@@ -357,7 +287,7 @@ public final class FetchRequest extends AbstractTransportRequest implements Indi
             indicesOptions,
             shards,
             configuration,
-            fetchPlan,
+            attributes,
             getParentTask()
         );
     }

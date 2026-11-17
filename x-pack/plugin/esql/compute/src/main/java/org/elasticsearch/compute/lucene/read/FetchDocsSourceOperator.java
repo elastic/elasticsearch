@@ -33,7 +33,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Emits the documents a fetch asks one shard for, as {@code _doc} pages for {@link ValuesSourceReaderOperator}. Each
+ * Emits the documents a fetch asks its shards for, as {@code _doc} pages for {@link ValuesSourceReaderOperator}. Each
  * page holds documents of a single segment: a constant shard, a constant segment and strictly increasing docs. That is
  * the shape the reader loads fastest, with one reader per page and no sorting or copying.
  */
@@ -210,10 +210,13 @@ public final class FetchDocsSourceOperator extends SourceOperator {
 
     private final BlockFactory blockFactory;
     private final IndexedByShardId<? extends RefCounted> refCounteds;
-    @Nullable
-    private final ShardDocs shardDocs;
+    private final List<ShardDocs> shards;
     private final int maxPageSize;
 
+    /**
+     * The position in {@link #shards} of the shard the next page comes from.
+     */
+    private int shardIndex;
     private int cursor;
     private boolean finished;
 
@@ -230,10 +233,36 @@ public final class FetchDocsSourceOperator extends SourceOperator {
         @Nullable ShardDocs shardDocs,
         int maxPageSize
     ) {
+        this(blockFactory, refCounteds, shardDocs == null ? List.of() : List.of(shardDocs), maxPageSize);
+    }
+
+    /**
+     * Emits the documents of several shards, one shard after the other, so one driver loads them all.
+     *
+     * @param shards the documents to emit, in the order their rows come out
+     */
+    public FetchDocsSourceOperator(
+        BlockFactory blockFactory,
+        IndexedByShardId<? extends RefCounted> refCounteds,
+        List<ShardDocs> shards,
+        int maxPageSize
+    ) {
         this.blockFactory = blockFactory;
         this.refCounteds = refCounteds;
-        this.shardDocs = shardDocs;
+        this.shards = List.copyOf(shards);
         this.maxPageSize = checkMaxPageSize(maxPageSize);
+        skipEmittedShards();
+    }
+
+    /**
+     * Moves past the shards whose documents all went out, so {@link #shardIndex} names a shard with documents left, or the
+     * end.
+     */
+    private void skipEmittedShards() {
+        while (shardIndex < shards.size() && cursor >= shards.get(shardIndex).docCount()) {
+            shardIndex++;
+            cursor = 0;
+        }
     }
 
     private static int checkMaxPageSize(int maxPageSize) {
@@ -251,7 +280,7 @@ public final class FetchDocsSourceOperator extends SourceOperator {
 
     @Override
     public boolean isFinished() {
-        return finished || shardDocs == null || cursor >= shardDocs.docCount();
+        return finished || shardIndex >= shards.size();
     }
 
     @Override
@@ -259,6 +288,7 @@ public final class FetchDocsSourceOperator extends SourceOperator {
         if (isFinished()) {
             return null;
         }
+        ShardDocs shardDocs = shards.get(shardIndex);
         int[] segments = shardDocs.segments();
         int segment = segments[cursor];
         int end = cursor;
@@ -291,6 +321,7 @@ public final class FetchDocsSourceOperator extends SourceOperator {
             segmentRuns++;
         }
         cursor = end;
+        skipEmittedShards();
         pagesEmitted++;
         docsEmitted += positions;
         return page;

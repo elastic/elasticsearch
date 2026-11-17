@@ -12,6 +12,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -27,6 +28,7 @@ import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
@@ -50,11 +52,6 @@ import org.elasticsearch.xpack.esql.fetch.FetchRequest;
 import org.elasticsearch.xpack.esql.fetch.FetchResponse;
 import org.elasticsearch.xpack.esql.fetch.FetchService;
 import org.elasticsearch.xpack.esql.fetch.NodeFetchContexts;
-import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
-import org.elasticsearch.xpack.esql.plan.physical.FetchSourceExec;
-import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
-import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -63,17 +60,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.NONE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.nullValue;
 
 /**
  * The fetch action between two nodes. A node that didn't run the query phase asks the node that holds the documents for
  * their columns, over the wire. The data node finds the reader contexts the query phase kept open, loads the documents
- * in one driver per shard, and returns their rows in request order. The contexts stay open until the coordinator frees
- * them.
+ * in one driver, and returns their rows in request order. The contexts stay open until the coordinator frees them.
  */
 @ESIntegTestCase.ClusterScope(numDataNodes = 2)
 public class FetchActionIT extends AbstractEsqlIntegTestCase {
@@ -129,32 +123,56 @@ public class FetchActionIT extends AbstractEsqlIntegTestCase {
             });
             int[] segments = wanted.stream().mapToInt(e -> e.getValue()[0]).toArray();
             int[] docs = wanted.stream().mapToInt(e -> e.getValue()[1]).toArray();
-            shardDocs.add(
-                new FetchRequest.ShardDocs(shard.shardId(), shard.contextId(), FetchRequest.ContextAfterFetch.KEEP, segments, docs)
-            );
+            shardDocs.add(new FetchRequest.ShardDocs(shard.shardId(), shard.contextId(), false, segments, docs));
             for (Map.Entry<Long, int[]> doc : wanted) {
                 expected.add(Tuple.tuple("doc-" + doc.getKey(), doc.getKey()));
             }
         }
-        // a shard whose context is gone fails on its own and adds no rows
+
+        assertThat(fetch(dataNode, coordinator, shardDocs).actionGet(TimeValue.timeValueSeconds(30)), equalTo(expected));
+
+        // a shard whose context is gone fails the whole request, like a fetch request of _search
         OpenShard any = randomFrom(open);
         ShardSearchContextId gone = new ShardSearchContextId(any.contextId().getSessionId(), Long.MAX_VALUE);
-        int missingPosition = between(0, shardDocs.size());
         shardDocs.add(
-            missingPosition,
-            new FetchRequest.ShardDocs(any.shardId(), gone, FetchRequest.ContextAfterFetch.KEEP, new int[] { 0 }, new int[] { 0 })
+            between(0, shardDocs.size()),
+            new FetchRequest.ShardDocs(any.shardId(), gone, false, new int[] { 0 }, new int[] { 0 })
         );
+        Exception e = expectThrows(
+            Exception.class,
+            () -> fetch(dataNode, coordinator, shardDocs).actionGet(TimeValue.timeValueSeconds(30))
+        );
+        assertThat(ExceptionsHelper.unwrapCause(e), instanceOf(SearchContextMissingException.class));
+
+        // a fetch frees no context it doesn't read for the last time, the coordinator does once the query ends
+        SearchService searchService = internalCluster().getInstance(SearchService.class, dataNode);
+        assertThat(searchService.getActiveContexts(), equalTo(open.size()));
+        for (OpenShard shard : open) {
+            assertTrue(searchService.freeReaderContext(shard.contextId()));
+        }
+        assertBusy(() -> assertThat(searchService.getActiveContexts(), equalTo(0)));
+        ensureBlocksReleased();
+    }
+
+    /**
+     * Sends a fetch request for {@code shardDocs} from {@code coordinator} to {@code dataNode}, and reads the rows of the
+     * response.
+     */
+    private PlainActionFuture<List<Tuple<String, Long>>> fetch(
+        String dataNode,
+        String coordinator,
+        List<FetchRequest.ShardDocs> shardDocs
+    ) {
         FetchRequest request = new FetchRequest(
             "session",
             "",
             new OriginalIndices(new String[] { INDEX }, IndicesOptions.strictExpandOpen()),
             shardDocs,
             EsqlTestUtils.TEST_CFG,
-            fetchPlan(List.of(ID, N))
+            List.of(ID, N)
         );
         request.setParentTask(new TaskId(clusterService(coordinator).localNode().getId(), randomNonNegativeLong()));
-
-        PlainActionFuture<Tuple<List<FetchResponse.ShardResult>, List<Tuple<String, Long>>>> future = new PlainActionFuture<>();
+        PlainActionFuture<List<Tuple<String, Long>>> future = new PlainActionFuture<>();
         BlockFactory blockFactory = internalCluster().getInstance(BlockFactoryProvider.class, coordinator).blockFactory();
         TransportService transportService = internalCluster().getInstance(TransportService.class, coordinator);
         transportService.sendRequest(
@@ -165,9 +183,9 @@ public class FetchActionIT extends AbstractEsqlIntegTestCase {
             new ActionListenerResponseHandler<>(future.map(response -> {
                 List<Page> pages = response.takePages();
                 try {
-                    return Tuple.tuple(response.shardResults(), rows(pages));
+                    return rows(pages);
                 } finally {
-                    pages.forEach(Page::releaseBlocks);
+                    Releasables.closeExpectNoException(pages);
                 }
             }), in -> {
                 try (BlockStreamInput blocks = new BlockStreamInput(in, blockFactory)) {
@@ -175,27 +193,7 @@ public class FetchActionIT extends AbstractEsqlIntegTestCase {
                 }
             }, EsExecutors.DIRECT_EXECUTOR_SERVICE)
         );
-        Tuple<List<FetchResponse.ShardResult>, List<Tuple<String, Long>>> fetched = future.actionGet(TimeValue.timeValueSeconds(30));
-
-        for (int s = 0; s < shardDocs.size(); s++) {
-            FetchResponse.ShardResult result = fetched.v1().get(s);
-            assertThat(result.shardId(), equalTo(shardDocs.get(s).shardId()));
-            if (s == missingPosition) {
-                assertThat(result.failure(), instanceOf(SearchContextMissingException.class));
-            } else {
-                assertThat(result.failure(), nullValue());
-                assertThat(result.rows(), equalTo(shardDocs.get(s).docCount()));
-            }
-        }
-        assertThat(fetched.v2(), equalTo(expected));
-        // a fetch frees no context, the coordinator does once the query ends
-        SearchService searchService = internalCluster().getInstance(SearchService.class, dataNode);
-        assertThat(searchService.getActiveContexts(), equalTo(open.size()));
-        for (OpenShard shard : open) {
-            assertTrue(searchService.freeReaderContext(shard.contextId()));
-        }
-        assertBusy(() -> assertThat(searchService.getActiveContexts(), equalTo(0)));
-        ensureBlocksReleased();
+        return future;
     }
 
     private static String randomDataNode() {
@@ -260,15 +258,6 @@ public class FetchActionIT extends AbstractEsqlIntegTestCase {
             }
         }
         return rows;
-    }
-
-    private static PhysicalPlan fetchPlan(List<Attribute> fetched) {
-        Attribute doc = new FieldAttribute(Source.EMPTY, null, null, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
-        return new ProjectExec(
-            Source.EMPTY,
-            new FieldExtractExec(Source.EMPTY, new FetchSourceExec(Source.EMPTY, doc, 64), fetched, NONE),
-            fetched
-        );
     }
 
     private static Attribute field(String name, DataType type) {

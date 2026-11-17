@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -28,6 +27,7 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.RunOnce;
@@ -41,6 +41,7 @@ import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.operator.ComputeExecutor;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
+import org.elasticsearch.compute.operator.DriverExecutor;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
@@ -132,9 +133,7 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.DefaultShardContext;
 import org.elasticsearch.xpack.esql.planner.ExplainPlanTransformer;
-import org.elasticsearch.xpack.esql.planner.FetchSourceProvider;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
-import org.elasticsearch.xpack.esql.planner.PlannerServices;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.SubPlan;
@@ -209,10 +208,6 @@ import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.GROK_WATCHDOG_MAX_E
 public class ComputeService {
     public static final String DATA_DESCRIPTION = "data";
     public static final String REDUCE_DESCRIPTION = "node_reduce";
-    /**
-     * Describes the drivers that load fetched columns on the nodes that hold the documents.
-     */
-    public static final String FETCH_DESCRIPTION = "fetch";
     public static final String DATA_ACTION_NAME = EsqlQueryAction.NAME + "/data";
     public static final String CLUSTER_ACTION_NAME = EsqlQueryAction.NAME + "/cluster";
     static final String LOCAL_CLUSTER = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
@@ -305,16 +300,15 @@ public class ComputeService {
         this.plannerSettings = transportActionServices.plannerSettings();
         this.operatorFactoryRegistry = operatorFactoryRegistry;
         this.formatReaderRegistry = formatReaderRegistry;
-        FetchService fetchService = new FetchService(
+        new FetchService(
             transportService,
             clusterService,
             searchService,
+            this.bigArrays,
             blockFactory,
-            (queryId, shards) -> new QueryDriverExecutor(searchService.queryScheduler(), computeExecutor, queryId, shards),
             plannerSettings::get,
-            this::fetchPlanner
-        );
-        fetchService.registerHandlers();
+            computeExecutor
+        ).registerHandlers();
     }
 
     /** The minimum transport version of the nodes that may read the splits planned here. */
@@ -2103,7 +2097,6 @@ public class ComputeService {
                 physicalOperationProviders,
                 operatorFactoryRegistry,
                 datasetConfigResolver.snapshotBuild(),
-                PlannerServices.NONE,
                 // the workers of parallel operators are tasks of the query, with no shard of their own
                 computeLoad == null ? parallelWorkers : TaskLoadAttribution.charging(parallelWorkers, computeLoad),
                 esqlWorkerPoolSize,
@@ -2252,8 +2245,6 @@ public class ComputeService {
                 approximationApplied
             );
             QueryDriverExecutor driverExecutor = new QueryDriverExecutor(
-                searchService.queryScheduler(),
-                computeExecutor,
                 context.queryId(),
                 // only data drivers read the slices of the shards; the node reduce shares the search contexts
                 context.description().equals(DATA_DESCRIPTION) ? searchedShards(context.searchContexts()) : List.of()
@@ -2317,66 +2308,6 @@ public class ComputeService {
 
             return DriverCompletionInfo.excludingProfiles(drivers, planningBytesRead, approximated);
         });
-    }
-
-    /**
-     * The planner of one fetch request on this node, built like the planners of the query phase. A fetch plan has no
-     * exchange.
-     */
-    private LocalExecutionPlanner fetchPlanner(
-        String sessionId,
-        String clusterAlias,
-        CancellableTask task,
-        Configuration configuration,
-        FoldContext foldCtx,
-        IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> shardContexts,
-        FetchSourceProvider fetchSources,
-        Executor parallelWorkers
-    ) {
-        EsPhysicalOperationProviders physicalOperationProviders = new EsPhysicalOperationProviders(
-            foldCtx,
-            configuration,
-            shardContexts,
-            searchService.getIndicesService().getAnalysis(),
-            plannerSettings.get(),
-            directoryBytesReadSupplier(searchService.getIndicesService()),
-            QueryWarnings.EMIT
-        );
-        ThreadPool workerThreadPool = transportService.getThreadPool();
-        // a fetch plan has no EQL source, the only reader of the client, but it gets the client of the query phase planners
-        var parentAssigningClient = new ParentTaskAssigningClient(
-            client,
-            task.taskInfo(transportService.getLocalNode().getId(), false).taskId()
-        );
-        return new LocalExecutionPlanner(
-            sessionId,
-            clusterAlias,
-            task,
-            bigArrays,
-            blockFactory,
-            clusterService.getSettings(),
-            configuration,
-            () -> {
-                throw new IllegalStateException("a fetch plan reads no exchange");
-            },
-            () -> { throw new IllegalStateException("a fetch plan writes no exchange"); },
-            enrichLookupService,
-            lookupFromIndexService,
-            inferenceService,
-            userAgentParserRegistry,
-            ipLocationService,
-            projectResolver,
-            projectResolver.getProjectMetadata(clusterService.state()),
-            physicalOperationProviders,
-            operatorFactoryRegistry,
-            Build.current().isSnapshot(),
-            PlannerServices.forFetchPlan(fetchSources),
-            parallelWorkers,
-            workerThreadPool.info(EsqlPlugin.computePool()).getMax(),
-            grokMatcherWatchdog.get(),
-            clusterService.state().getMinTransportVersion(),
-            parentAssigningClient
-        );
     }
 
     /**
@@ -2485,6 +2416,30 @@ public class ComputeService {
      */
     TaskId queryId(Task coordinatorTask) {
         return new TaskId(transportService.getLocalNode().getId(), coordinatorTask.getId());
+    }
+
+    /**
+     * Runs the drivers of a query on the node's {@link ComputeExecutor}, through the query scheduler both when they start
+     * and when they resume.
+     */
+    private final class QueryDriverExecutor implements DriverExecutor {
+        private final QueryScheduler.QueryExecutor executor;
+        /** The scheduler passes a wrapped {@link AbstractRunnable} on as an {@link AbstractRunnable}, so the cast holds. */
+        private final Executor resumed = task -> computeExecutor.executeResumed((AbstractRunnable) task);
+
+        QueryDriverExecutor(TaskId queryId, List<QueryScheduler.SearchedShard> shards) {
+            this.executor = searchService.queryScheduler().executor(queryId, computeExecutor, shards);
+        }
+
+        @Override
+        public void execute(Runnable task) {
+            executor.execute(task);
+        }
+
+        @Override
+        public void executeResumed(AbstractRunnable task) {
+            executor.execute(task, resumed);
+        }
     }
 
     /**

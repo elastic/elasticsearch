@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator.exchange;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
@@ -63,6 +64,14 @@ public final class ExchangeResponse extends TransportResponse implements Releasa
         } else {
             return 0;
         }
+    }
+
+    /**
+     * The breaker of the page's blocks, or {@code null} if it has none.
+     */
+    @Nullable
+    CircuitBreaker pageBreaker() {
+        return page == null || page.getBlockCount() == 0 ? null : page.getBlock(0).blockFactory().breaker();
     }
 
     /**

@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -344,8 +345,19 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         @Override
         public void messageReceived(ExchangeRequest request, TransportChannel channel, Task exchangeTask) {
             final String exchangeId = request.exchangeId();
-            // The serialized page is charged until it is written, so a page waiting for a slow reader is charged.
-            ActionListener<ExchangeResponse> listener = new ChannelActionListener<>(channel, blockFactory.breaker());
+            ActionListener<ExchangeResponse> listener = new ActionListener<>() {
+                @Override
+                public void onResponse(ExchangeResponse response) {
+                    // The serialized page is charged to its query until it is written, so a page waiting for a slow reader is charged.
+                    CircuitBreaker breaker = Objects.requireNonNullElse(response.pageBreaker(), blockFactory.breaker());
+                    new ChannelActionListener<ExchangeResponse>(channel, breaker).onResponse(response);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    new ChannelActionListener<ExchangeResponse>(channel).onFailure(e);
+                }
+            };
             final ExchangeSinkHandler sinkHandler = sinks.get(exchangeId);
             if (sinkHandler == null) {
                 listener.onResponse(new ExchangeResponse(null, true));
@@ -443,6 +455,20 @@ public final class ExchangeService extends AbstractLifecycleComponent {
      * @param conn             the connection to the remote node where the remote exchange sink is located
      */
     public RemoteSink newRemoteSink(Task parentTask, String exchangeId, TransportService transportService, Transport.Connection conn) {
+        return newRemoteSink(parentTask, exchangeId, transportService, conn, blockFactory);
+    }
+
+    /**
+     * Like {@link #newRemoteSink(Task, String, TransportService, Transport.Connection)}, but reads and charges the pages through
+     * {@code blockFactory}.
+     */
+    public RemoteSink newRemoteSink(
+        Task parentTask,
+        String exchangeId,
+        TransportService transportService,
+        Transport.Connection conn,
+        BlockFactory blockFactory
+    ) {
         return new TransportRemoteSink(transportService, blockFactory, conn, parentTask, exchangeId, executor);
     }
 

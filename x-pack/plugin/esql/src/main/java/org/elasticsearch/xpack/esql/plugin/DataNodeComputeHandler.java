@@ -276,7 +276,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 sameNodeAsCoordinator && queryPragmas.singleNodeOptimizations() && Strings.isEmpty(clusterAlias)
                             );
                             ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
-                            final var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, connection);
+                            final var sinkPart = computeService.remoteSinkPart(computeService.queryId(parentTask), groupTask);
+                            final var remoteSink = computeService.newRemoteSink(groupTask, childSessionId, connection, sinkPart);
                             transportService.sendChildRequest(
                                 connection,
                                 ComputeService.DATA_ACTION_NAME,
@@ -297,7 +298,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 configuration.allowPartialResults() == false,
                                 pagesFetched::incrementAndGet,
                                 queryPragmas.concurrentExchangeClients(),
-                                computeListener.acquireAvoid()
+                                ActionListener.releaseAfter(computeListener.acquireAvoid(), sinkPart)
                             );
                         }
                     })
@@ -433,7 +434,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             currentNode
                         );
                         ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
-                        var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, connection);
+                        var sinkPart = computeService.remoteSinkPart(computeService.queryId(parentTask), groupTask);
+                        var remoteSink = computeService.newRemoteSink(groupTask, childSessionId, connection, sinkPart);
                         transportService.sendChildRequest(
                             connection,
                             ComputeService.DATA_ACTION_NAME,
@@ -452,7 +454,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             false,
                             walk::pageFetched,
                             queryPragmas.concurrentExchangeClients(),
-                            walk.sinkListener(0, computeListener.acquireAvoid())
+                            ActionListener.releaseAfter(walk.sinkListener(0, computeListener.acquireAvoid()), sinkPart)
                         );
                     }
                 });
@@ -1029,7 +1031,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             final String childSessionId = computeService.newChildSession(sessionId);
             final ActionListener<Void> opened = ActionListener.wrap(unused -> {
                 ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
-                var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, next.connection());
+                var sinkPart = computeService.remoteSinkPart(queryId, groupTask);
+                var remoteSink = computeService.newRemoteSink(groupTask, childSessionId, next.connection(), sinkPart);
                 transportService.sendChildRequest(
                     next.connection(),
                     ComputeService.DATA_ACTION_NAME,
@@ -1048,7 +1051,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     false,
                     this::pageFetched,
                     queryPragmas.concurrentExchangeClients(),
-                    sinkListener(attempt, sink)
+                    ActionListener.releaseAfter(sinkListener(attempt, sink), sinkPart)
                 );
             }, e -> {
                 if (abandonAttempt(attempt, e)) {

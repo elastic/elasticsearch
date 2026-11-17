@@ -11,7 +11,6 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
@@ -530,7 +529,7 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
         );
 
         when(client.execute(eq(TransportSearchAction.TYPE), any())).thenThrow(
-            new SearchPhaseExecutionException("phase 1", "boom", ShardSearchFailure.EMPTY_ARRAY)
+            new SearchPhaseExecutionException("phase 1", "boom", List.of())
         );
 
         assertThat(extractor.hasNext(), is(true));

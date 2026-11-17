@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.ExternalReadCounters;
 
@@ -40,7 +42,15 @@ import java.util.concurrent.Executor;
  * skipping) are set via {@link #withPushedFilter(Object)} from the plan and reminted per
  * file. Per-read execution
  * parameters (projection, batch size, limit, error policy, split config) are bundled in
- * {@link FormatReadContext}.
+ * {@link FormatReadContext}. Page and per-read sample allocations bind through
+ * {@link #withBlockFactory(BlockFactory)} immediately before each read; node-level caches
+ * stay on the factory the reader was constructed with.
+ * <p>
+ * Lifecycle: the registry holds one prototype per format for the node lifetime and closes it
+ * when the data-source module closes. {@code with*} methods that return a new object mint a
+ * copy the caller must close; identity returns ({@code this}) are not mints. {@link #close()}
+ * must be idempotent. Implementations that hold decompressors, native handles, cached metadata,
+ * or connections release them here — page iterators still close their own streams.
  */
 public interface FormatReader extends Closeable {
 
@@ -379,22 +389,54 @@ public interface FormatReader extends Closeable {
     }
 
     /**
+     * Returns a reader that allocates pages and per-read scratch against {@code blockFactory}.
+     * Node-level caches (Parquet/ORC footers) stay on the receiver: a copy forwards those
+     * instances and must not close them. The operator applies this immediately before each
+     * {@link #read}, {@link #readAsync}, or {@code readRange} so a query factory charges that
+     * query. CSV, NDJSON, Parquet, and ORC override this; other formats keep this no-op default.
+     * <p>
+     * A copy must not share closeable state with the receiver ({@link DynamicThreshold}, a
+     * footer handle). The operator closes the pre-bind mint when this returns a distinct object;
+     * identity ({@code this}) is not a mint. Sharing a releasable with the receiver would close
+     * it under the copy.
+     * <p>
+     * {@code blockFactory} must be safe for concurrent allocations: parallel-parsing workers and
+     * {@code esql_external_io} threads may allocate from it at the same time. The default returns
+     * {@code this} for every factory. An override must treat {@code null} and the already-bound
+     * factory as identity.
+     */
+    default FormatReader withBlockFactory(@Nullable BlockFactory blockFactory) {
+        return this;
+    }
+
+    /**
      * Fewest rows (lines) a shared schema sample still takes from each file (see {@link #sharedSchemaSampleSize}), so
      * that every file of a listing contributes type evidence, and a headerless file its width.
      */
     int MIN_SHARED_SCHEMA_SAMPLE_SIZE = 100;
 
     /**
-     * Returns a reader whose schema inference treats its sample size as a budget shared by {@code files} files rather
-     * than spent on each one: it samples {@link #sharedSchemaSampleSize} rows (lines) from the file it reads.
+     * Fewest decoded bytes a shared schema sample still takes from each file (see {@link #sharedSchemaSampleBytes}).
+     * 1 MiB fits a typical JSON object and a CSV header plus rows; below that, a first record can exceed the budget
+     * and inference refuses. The schema-cache key is the effective row count, so the byte budget is only divided when
+     * the row sample is also divided — otherwise two listings that share a row-count key would infer under different
+     * byte caps.
+     */
+    long MIN_SHARED_SCHEMA_SAMPLE_BYTES = 1L << 20;
+
+    /**
+     * Returns a reader whose schema inference treats its sample as a budget shared by {@code files} files rather
+     * than spent on each one: it samples {@link #sharedSchemaSampleSize} rows (lines) from the file it reads, and
+     * when that share is actually narrower, {@link #sharedSchemaSampleBytes} decoded bytes as well.
      * <p>
      * The planner calls this when it must infer the schema of every file in a listing ({@code union_by_name},
      * {@code strict}). Without it, planning reads {@code files x sample} rows, which for a listing of many small files
-     * is the whole dataset. With it, planning reads about one sample's worth, or {@link #MIN_SHARED_SCHEMA_SAMPLE_SIZE}
-     * rows from every file once there are more files than the sample has such shares (for the default CSV sample,
-     * from a few hundred files on). The total still grows with the file count, by a floor's worth per file rather than
-     * a sample's. The cost is the one any sample has: a column or a value that only appears past a file's share is not
-     * seen at planning.
+     * is the whole dataset — and {@code files x} the decoded-byte cap, which for wide rows is the same failure the
+     * row share was added to prevent. With it, planning reads about one sample's worth, or
+     * {@link #MIN_SHARED_SCHEMA_SAMPLE_SIZE} rows / {@link #MIN_SHARED_SCHEMA_SAMPLE_BYTES} from every file once
+     * there are more files than the sample has such shares. The total still grows with the file count, by a floor's
+     * worth per file rather than a sample's. The cost is the one any sample has: a column or a value that only
+     * appears past a file's share is not seen at planning.
      * <p>
      * The narrower sample decides only how much of a file planning reads, so it must not change
      * {@link Configured#identity()}: that string is also the fingerprint a data node stamps on the statistics it
@@ -420,6 +462,13 @@ public interface FormatReader extends Closeable {
     }
 
     /**
+     * Decoded-byte cap this configured reader samples for schema inference, or {@code 0} when it does not sample.
+     */
+    default long schemaSampleBytes() {
+        return 0;
+    }
+
+    /**
      * Rows (lines) each of {@code files} files samples out of a {@code sampleSize} budget: an even share, but at least
      * {@link #MIN_SHARED_SCHEMA_SAMPLE_SIZE}, and never more than {@code sampleSize}.
      */
@@ -428,6 +477,17 @@ public interface FormatReader extends Closeable {
             return sampleSize;
         }
         return Math.min(sampleSize, Math.max(MIN_SHARED_SCHEMA_SAMPLE_SIZE, Math.ceilDiv(sampleSize, files)));
+    }
+
+    /**
+     * Decoded bytes each of {@code files} files samples out of a {@code sampleBytes} budget: an even share, but at
+     * least {@link #MIN_SHARED_SCHEMA_SAMPLE_BYTES}, and never more than {@code sampleBytes}.
+     */
+    static long sharedSchemaSampleBytes(long sampleBytes, int files) {
+        if (files <= 1) {
+            return sampleBytes;
+        }
+        return Math.min(sampleBytes, Math.max(MIN_SHARED_SCHEMA_SAMPLE_BYTES, Math.ceilDiv(sampleBytes, files)));
     }
 
     /**

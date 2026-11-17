@@ -32,6 +32,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
@@ -530,6 +531,33 @@ public class CacheTests extends ESTestCase {
                 assertNotNull(cache.get(i));
             }
         }
+    }
+
+    // a predicate that throws part way through must not leave entries removed from a segment but still linked and counted
+    public void testRemoveIfWithThrowingPredicate() {
+        Set<Integer> notifications = new HashSet<>();
+        Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder()
+            .removalListener(notification -> notifications.add(notification.getKey()))
+            .build();
+        for (int i = 0; i < numberOfEntries; i++) {
+            cache.put(i, Integer.toString(i));
+        }
+        // the first tested key matches and the second throws; with far more entries than segments both are in the same segment
+        final AtomicInteger calls = new AtomicInteger();
+        expectThrows(IllegalStateException.class, () -> cache.removeIf(key -> {
+            if (calls.incrementAndGet() == 2) {
+                throw new IllegalStateException("poison");
+            }
+            return true;
+        }));
+        assertEquals(numberOfEntries, cache.count());
+        assertThat(notifications, empty());
+        for (int i = 0; i < numberOfEntries; i++) {
+            assertNotNull("key [" + i + "] was removed by a removeIf that threw", cache.get(i));
+        }
+        cache.removeIf(key -> true);
+        assertEquals(0, cache.count());
+        assertEquals(numberOfEntries, notifications.size());
     }
 
     // reads promote entries in the LRU list, which must not make removeIf skip any matching entry

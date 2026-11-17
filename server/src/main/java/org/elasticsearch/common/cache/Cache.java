@@ -355,14 +355,16 @@ public class Cache<K, V> {
                 if (map == null) {
                     return List.of();
                 }
-                List<CompletableFuture<Entry<K, V>>> removed = new ArrayList<>();
-                Iterator<Map.Entry<K, CompletableFuture<Entry<K, V>>>> iterator = map.entrySet().iterator();
-                while (iterator.hasNext()) {
-                    Map.Entry<K, CompletableFuture<Entry<K, V>>> mapEntry = iterator.next();
-                    if (predicate.test(mapEntry.getKey())) {
-                        removed.add(mapEntry.getValue());
-                        iterator.remove();
+                // evaluate the predicate before mutating the map so that a throwing predicate leaves the segment unchanged
+                List<K> matchingKeys = new ArrayList<>();
+                for (K key : map.keySet()) {
+                    if (predicate.test(key)) {
+                        matchingKeys.add(key);
                     }
+                }
+                List<CompletableFuture<Entry<K, V>>> removed = new ArrayList<>(matchingKeys.size());
+                for (K key : matchingKeys) {
+                    removed.add(map.remove(key));
                 }
                 if (map.isEmpty()) {
                     map = null;

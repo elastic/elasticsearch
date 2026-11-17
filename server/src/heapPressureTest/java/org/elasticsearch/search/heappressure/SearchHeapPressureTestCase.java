@@ -191,6 +191,7 @@ public abstract class SearchHeapPressureTestCase extends HeapPressureTestCase {
         restClient.performRequest(forceMerge);
         restClient.performRequest(new Request("POST", "/" + index + "/_refresh"));
         ensureGreen(restClient, index);
+        logger.info("Indexed {} documents into [{}]", docs, index);
     }
 
     /**

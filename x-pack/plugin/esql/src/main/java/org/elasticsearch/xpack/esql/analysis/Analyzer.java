@@ -1770,6 +1770,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return expand;
             }
             NamedExpression target = expand.target();
+            // Older nodes report no nested collections, so this comes before the lookup that would miss them
+            if (context.minimumVersion().supports(NestedExpand.VERSION) == false) {
+                throw nestedExpandError(target, "NESTED_EXPAND requires all nodes to support nested expansion");
+            }
             String name = target.name();
             String rootName = NestedScopeField.PREFIX + name;
             FieldAttribute root = null;
@@ -1789,9 +1793,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     throw nestedExpandError(target, "NESTED_EXPAND requires a mapped nested field, not [" + name + "]");
                 }
                 return resolveExpressions(expand, childrenOutput);
-            }
-            if (context.minimumVersion().supports(NestedExpand.VERSION) == false) {
-                throw nestedExpandError(target, "NESTED_EXPAND requires all nodes to support nested expansion");
             }
             NestedScopeField scope = (NestedScopeField) root.field();
             if (scope.conflict() != null) {

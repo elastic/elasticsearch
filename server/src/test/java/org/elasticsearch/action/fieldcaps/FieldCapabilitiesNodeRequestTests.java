@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
@@ -20,7 +21,9 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -259,6 +262,30 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
         assertThat(
             r2.getDescription(),
             equalTo("shards[[index-1][0]], fields[*], filters[-nested,-metadata], types[], includeEmptyFields[false]")
+        );
+    }
+
+    /** A node from before the nested collections filter rejects it, so it does not get it. */
+    public void testNestedCollectionsFilterLeftOutForOlderNodes() throws IOException {
+        FieldCapabilitiesNodeRequest request = new FieldCapabilitiesNodeRequest(
+            List.of(new ShardId("index", "n/a", 0)),
+            new String[] { "*" },
+            new String[] { FieldCapabilitiesFetcher.NESTED_COLLECTIONS_FILTER, "-metadata" },
+            Strings.EMPTY_ARRAY,
+            randomOriginalIndices(1),
+            null,
+            randomNonNegativeLong(),
+            Map.of(),
+            true
+        );
+        TransportVersion older = TransportVersionUtils.randomVersionNotSupporting(FieldCapabilitiesFetcher.NESTED_COLLECTIONS);
+        assertThat(
+            copyWriteable(request, getNamedWriteableRegistry(), instanceReader(), older).filters(),
+            equalTo(new String[] { "-metadata" })
+        );
+        assertThat(
+            copyWriteable(request, getNamedWriteableRegistry(), instanceReader(), TransportVersion.current()).filters(),
+            equalTo(request.filters())
         );
     }
 }

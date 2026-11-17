@@ -566,6 +566,15 @@ setup:
   - length: { values: 2 }
   - match: { values.0: ["n", 1] }
   - match: { values.1: ["n", 2] }
+  # A column of the query with the name _doc is carried under
+  - do:
+      esql.query:
+        body:
+          query: 'FROM nested_expand | EVAL _doc = CONCAT(id, "-user"), `$$nested_expand$_doc` = CONCAT(id, "-other") | NESTED_EXPAND items | KEEP _doc, `$$nested_expand$_doc`, items.qty | SORT items.qty | LIMIT 10'
+  - length: { values: 3 }
+  - match: { values.0: ["1-user", "1-other", 1] }
+  - match: { values.1: ["1-user", "1-other", 2] }
+  - match: { values.2: ["2-user", "2-other", null] }
 
 ---
 "Expanding two nested fields in turn gives every pair of their objects":

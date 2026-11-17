@@ -15,6 +15,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.search.LeafNestedDocuments;
@@ -25,6 +26,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -79,6 +81,10 @@ final class NestedChildSourceLoader implements SourceLoader {
         private Source lastRootSource = null;
         private int lastChildDoc = -1;
         private SearchHit.NestedIdentity lastChildIdentity = null;
+        /** The objects of one top-level nested field in the last root's source, which every child of that field slices. */
+        private int collectionRootDoc = -1;
+        private String collectionPath = null;
+        private List<Map<?, ?>> collectionObjects = null;
 
         ChildLeaf(
             LeafReaderContext ctx,
@@ -117,7 +123,32 @@ final class NestedChildSourceLoader implements SourceLoader {
                 lastRootSource = rootLeaf.source(leafRootLoader, rootDoc);
                 lastRootDoc = rootDoc;
             }
-            return nestedIdentity.extractSource(lastRootSource);
+            return extractSource(nestedIdentity);
+        }
+
+        /**
+         * Like {@link SearchHit.NestedIdentity#extractSource}, which walks the whole field to find one object, so reading all
+         * of a root's children is quadratic in their number. This walks the field once per root.
+         */
+        private Source extractSource(SearchHit.NestedIdentity nestedIdentity) {
+            if (nestedIdentity.getChild() != null) {
+                return nestedIdentity.extractSource(lastRootSource);
+            }
+            String path = nestedIdentity.getField().string();
+            if (collectionRootDoc != lastRootDoc || path.equals(collectionPath) == false) {
+                collectionObjects = XContentMapValues.extractNestedSources(path, lastRootSource.source());
+                collectionRootDoc = lastRootDoc;
+                collectionPath = path;
+            }
+            if (collectionObjects == null || collectionObjects.isEmpty()) {
+                return Source.empty(lastRootSource.sourceContentType());
+            }
+            if (nestedIdentity.getOffset() >= collectionObjects.size()) {
+                throw new IllegalStateException("Error retrieving path " + path);
+            }
+            Map<String, Object> child = new HashMap<>();
+            child.put(path, collectionObjects.get(nestedIdentity.getOffset()));
+            return Source.fromMap(child, lastRootSource.sourceContentType());
         }
 
         /**

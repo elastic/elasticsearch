@@ -181,6 +181,12 @@ public class AnalyzerNestedExpandTests extends AnalyzerTestCase {
             .error("FROM ne | NESTED_EXPAND items", equalTo("1:25: NESTED_EXPAND requires all nodes to support nested expansion"));
     }
 
+    /** Older nodes are not sent the filter that reports nested collections, so a collection only they hold is missing. */
+    public void testOlderNodeReportsNoCollection() {
+        nestedAnalyzer().minimumTransportVersion(TransportVersionUtils.randomVersionNotSupporting(NestedExpand.VERSION))
+            .error("FROM ne_orders | NESTED_EXPAND items", equalTo("1:32: NESTED_EXPAND requires all nodes to support nested expansion"));
+    }
+
     public void testBeforeTimeSeriesStats() {
         nestedAnalyzer().error(
             "TS ne_ts | NESTED_EXPAND items | STATS max(cpu)",

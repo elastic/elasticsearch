@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
@@ -44,6 +45,7 @@ import org.elasticsearch.tasks.CancellableTask;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -61,6 +63,18 @@ class FieldCapabilitiesFetcher {
      * Not a documented filter: ES|QL sends it to also get nested objects that have no mapped leaves, so it can expand them.
      */
     static final String NESTED_COLLECTIONS_FILTER = "+nested_collections";
+    static final TransportVersion NESTED_COLLECTIONS = TransportVersion.fromName("esql_nested_expand");
+
+    /**
+     * The {@code filters} to send to a node of {@code version}. Nodes from before {@link #NESTED_COLLECTIONS_FILTER} reject it,
+     * so it is left out for them; ES|QL sees their version in the response and rejects the command that needs it.
+     */
+    static String[] filtersFor(String[] filters, TransportVersion version) {
+        if (version.supports(NESTED_COLLECTIONS) || Arrays.asList(filters).contains(NESTED_COLLECTIONS_FILTER) == false) {
+            return filters;
+        }
+        return Arrays.stream(filters).filter(filter -> NESTED_COLLECTIONS_FILTER.equals(filter) == false).toArray(String[]::new);
+    }
 
     private final IndicesService indicesService;
     private final boolean includeEmptyFields;

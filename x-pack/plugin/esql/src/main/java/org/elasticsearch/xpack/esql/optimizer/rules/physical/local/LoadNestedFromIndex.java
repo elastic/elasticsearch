@@ -19,7 +19,9 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * {@code NESTED_EXPAND} reads each parent's child documents through the parent's {@code _doc}. This keeps {@code _doc}
@@ -27,7 +29,7 @@ import java.util.List;
  * it with a column of the query also named {@code _doc}.
  */
 public final class LoadNestedFromIndex extends PhysicalOptimizerRules.OptimizerRule<PhysicalPlan> {
-    /** A name no column of a query can take, for {@code _doc} where a column of the query takes its own. */
+    /** The name for {@code _doc} where a column of the query takes its own, made unique by {@link #carriedDocName}. */
     private static final String CARRIED_DOC = Attribute.rawTemporaryName("nested_expand", EsQueryExec.DOC_ID_FIELD.getName());
 
     @Override
@@ -36,23 +38,37 @@ public final class LoadNestedFromIndex extends PhysicalOptimizerRules.OptimizerR
             return plan;
         }
         UnaryExec unary = (UnaryExec) plan;
-        PhysicalPlan child = keepDoc(unary.child());
+        PhysicalPlan child = keepDoc(unary.child(), carriedDocName(plan));
         return child == unary.child() ? plan : unary.replaceChild(child);
     }
 
-    private static PhysicalPlan keepDoc(PhysicalPlan plan) {
+    /**
+     * A name for {@code _doc} that no column in {@code plan} has. Commands merge their output by name, so a column of the
+     * query with the carried name would replace {@code _doc}, and the {@code $$} prefix does not keep a query from using it.
+     */
+    private static String carriedDocName(PhysicalPlan plan) {
+        Set<String> names = new HashSet<>();
+        plan.forEachDown(node -> node.output().forEach(attribute -> names.add(attribute.name())));
+        String name = CARRIED_DOC;
+        for (int suffix = 1; names.contains(name); suffix++) {
+            name = CARRIED_DOC + "$" + suffix;
+        }
+        return name;
+    }
+
+    private static PhysicalPlan keepDoc(PhysicalPlan plan, String carriedName) {
         if (doc(plan) != null) {
             return plan;
         }
         if (plan instanceof LookupJoinExec join) {
-            PhysicalPlan left = keepDoc(join.left());
+            PhysicalPlan left = keepDoc(join.left(), carriedName);
             Attribute doc = doc(left);
             if (doc == null) {
                 return plan;
             }
             PhysicalPlan replaced = join.replaceChildren(left, join.right());
             if (doc(replaced) == null) {
-                replaced = join.replaceChildren(carryDoc(left, doc), join.right());
+                replaced = join.replaceChildren(carryDoc(left, doc, carriedName), join.right());
             }
             return doc(replaced) == null ? plan : replaced;
         }
@@ -60,27 +76,27 @@ public final class LoadNestedFromIndex extends PhysicalOptimizerRules.OptimizerR
             return plan;
         }
         UnaryExec unary = (UnaryExec) plan;
-        PhysicalPlan child = keepDoc(unary.child());
+        PhysicalPlan child = keepDoc(unary.child(), carriedName);
         Attribute doc = doc(child);
         if (doc == null) {
             return plan;
         }
         if (unary instanceof ProjectExec project) {
             List<NamedExpression> projections = new ArrayList<>(project.projections());
-            projections.add(namesADocColumn(project.output()) ? new Alias(doc.source(), CARRIED_DOC, doc, null, true) : doc);
+            projections.add(namesADocColumn(project.output()) ? new Alias(doc.source(), carriedName, doc, null, true) : doc);
             return new ProjectExec(project.source(), child, projections);
         }
         PhysicalPlan replaced = unary.replaceChild(child);
         if (doc(replaced) == null) {
-            replaced = unary.replaceChild(carryDoc(child, doc));
+            replaced = unary.replaceChild(carryDoc(child, doc, carriedName));
         }
         return doc(replaced) == null ? plan : replaced;
     }
 
-    /** Adds {@code doc} to the output of {@code plan} under a name no command above it can give a column. */
-    private static PhysicalPlan carryDoc(PhysicalPlan plan, Attribute doc) {
+    /** Adds {@code doc} to the output of {@code plan} as {@code carriedName}, which no column above it has. */
+    private static PhysicalPlan carryDoc(PhysicalPlan plan, Attribute doc, String carriedName) {
         List<NamedExpression> projections = new ArrayList<>(plan.output());
-        projections.add(new Alias(doc.source(), CARRIED_DOC, doc, null, true));
+        projections.add(new Alias(doc.source(), carriedName, doc, null, true));
         return new ProjectExec(doc.source(), plan, projections);
     }
 

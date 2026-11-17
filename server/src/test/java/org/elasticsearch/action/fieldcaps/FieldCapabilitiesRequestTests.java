@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
@@ -20,6 +21,7 @@ import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -169,6 +171,21 @@ public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCa
         assertTrue(request.cacheable());
         request.clusterAlias("remote");
         assertFalse(request.cacheable());
+    }
+
+    /** A cluster from before the nested collections filter rejects it, so it does not get it. */
+    public void testNestedCollectionsFilterLeftOutForOlderClusters() throws IOException {
+        FieldCapabilitiesRequest request = new FieldCapabilitiesRequest().fields("*")
+            .filters(FieldCapabilitiesFetcher.NESTED_COLLECTIONS_FILTER, "+dimension");
+        TransportVersion older = TransportVersionUtils.randomVersionNotSupporting(FieldCapabilitiesFetcher.NESTED_COLLECTIONS);
+        assertThat(
+            copyWriteable(request, getNamedWriteableRegistry(), instanceReader(), older).filters(),
+            equalTo(new String[] { "+dimension" })
+        );
+        assertThat(
+            copyWriteable(request, getNamedWriteableRegistry(), instanceReader(), TransportVersion.current()).filters(),
+            equalTo(request.filters())
+        );
     }
 
     public void testFromXContent() throws IOException {

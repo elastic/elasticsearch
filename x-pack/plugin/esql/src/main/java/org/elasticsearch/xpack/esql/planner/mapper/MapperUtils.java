@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Fetch;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
@@ -52,6 +53,7 @@ import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.EqlSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
+import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FuseScoreEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
@@ -88,7 +90,23 @@ import java.util.List;
 public class MapperUtils {
     private MapperUtils() {}
 
+    /**
+     * Records {@code logical}'s id on {@code physical} when the physical node does not already name an origin.
+     * 1:1 translations call this once; a node that already has an origin is left alone so a second stamp
+     * does not duplicate the id.
+     */
+    static <P extends PhysicalPlan> P stampOrigin(P physical, LogicalPlan logical) {
+        if (physical != null && logical != null && physical.planOrigin().isEmpty()) {
+            physical.withOrigin(logical.planId());
+        }
+        return physical;
+    }
+
     static PhysicalPlan mapLeaf(LeafPlan p) {
+        return stampOrigin(mapLeafUnstamped(p), p);
+    }
+
+    private static PhysicalPlan mapLeafUnstamped(LeafPlan p) {
         if (p instanceof LocalRelation local) {
             return new LocalSourceExec(local.source(), local.output(), local.supplier());
         }
@@ -115,6 +133,10 @@ public class MapperUtils {
     }
 
     static PhysicalPlan mapUnary(UnaryPlan p, PhysicalPlan child) {
+        return stampOrigin(mapUnaryUnstamped(p, child), p);
+    }
+
+    private static PhysicalPlan mapUnaryUnstamped(UnaryPlan p, PhysicalPlan child) {
         if (p instanceof Filter f) {
             return new FilterExec(f.source(), child, f.condition());
         }
@@ -211,6 +233,18 @@ public class MapperUtils {
 
         if (p instanceof MvExpand mvExpand) {
             return new MvExpandExec(mvExpand.source(), child, mvExpand.target(), mvExpand.expanded());
+        }
+
+        if (p instanceof Fetch fetch) {
+            return new FetchExec(
+                fetch.source(),
+                child,
+                fetch.doc(),
+                fetch.fetchedAttributes(),
+                fetch.indexPattern(),
+                fetch.originalIndices(),
+                null
+            );
         }
 
         if (p instanceof Highlight highlight) {
@@ -340,7 +374,7 @@ public class MapperUtils {
     }
 
     static AggregateExec aggExec(Aggregate aggregate, PhysicalPlan child, AggregatorMode aggMode, List<Attribute> intermediateAttributes) {
-        return switch (aggregate) {
+        AggregateExec exec = switch (aggregate) {
             case TimeSeriesAggregate ts -> new TimeSeriesAggregateExec(
                 aggregate.source(),
                 child,
@@ -373,6 +407,7 @@ public class MapperUtils {
                 null
             );
         };
+        return stampOrigin(exec, aggregate);
     }
 
     static PhysicalPlan unsupported(LogicalPlan p) {

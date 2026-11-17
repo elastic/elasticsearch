@@ -20,7 +20,9 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
@@ -46,6 +48,7 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
@@ -63,7 +66,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * Tests that a tracked parser charges for every token however it is read, that the breaker is checked each time a request charges a
- * chunk, and that the charge is held until the reservation closes.
+ * chunk, and that the charge is held until the reservation closes and no hold remains.
  */
 public class ParsedContentReservationTests extends ESTestCase {
 
@@ -298,6 +301,54 @@ public class ParsedContentReservationTests extends ESTestCase {
         assertThat(tight.getUsed(), equalTo(0L));
     }
 
+    public void testContentParsedOnTheRequestsBehalfIsCheckedButNotHeld() throws IOException {
+        XContentType type = randomFrom(TYPES);
+        CircuitBreaker breaker = requestBreaker(ByteSizeValue.ofMb(100));
+        try (ParsedContentReservation reservation = new ParsedContentReservation(breaker, true)) {
+            Releasable hold = reservation.hold();
+            // As a reindex parses the query inside a wrapper query again for every search it sends.
+            int searches = between(2, 5);
+            for (int i = 0; i < searches; i++) {
+                try (XContentParser parser = reservation.trackWhileParsing(parser(type, document(type, 20_000)))) {
+                    readAllTokens(parser);
+                    assertThat(breaker.getUsed(), greaterThan(0L));
+                }
+                assertThat("released when the parser is closed", breaker.getUsed(), equalTo(0L));
+            }
+            assertThat("not held by the request, even while its work holds the charge", reservation.reservedBytes(), equalTo(0L));
+            hold.close();
+        }
+
+        CircuitBreaker tight = requestBreaker(ByteSizeValue.ofBytes(2 * ChargingXContentParser.CHUNK_BYTES));
+        try (ParsedContentReservation reservation = new ParsedContentReservation(tight, true)) {
+            try (XContentParser parser = reservation.trackWhileParsing(parser(type, document(type, 20_000)))) {
+                CircuitBreakingException e = expectThrows(CircuitBreakingException.class, () -> readAllTokens(parser));
+                assertThat(e.getMessage(), containsString("data for [" + ParsedContentReservation.LABEL + "]"));
+            }
+            assertThat(reservation.reservedBytes(), equalTo(0L));
+        }
+        assertThat(tight.getUsed(), equalTo(0L));
+
+        // Work that runs after the response, such as a reindex started with wait_for_completion=false, still parses.
+        ParsedContentReservation released = new ParsedContentReservation(tight, true);
+        released.close();
+        try (XContentParser parser = released.trackWhileParsing(parser(type, document(type, 20_000)))) {
+            expectThrows(CircuitBreakingException.class, () -> readAllTokens(parser));
+        }
+        assertThat(tight.getTrippedCount(), equalTo(2L));
+        assertThat(tight.getUsed(), equalTo(0L));
+
+        // A request that must not trip the breaker does not trip it for what is parsed on its behalf either.
+        try (ParsedContentReservation reservation = new ParsedContentReservation(tight, false)) {
+            try (XContentParser parser = reservation.trackWhileParsing(parser(type, document(type, 20_000)))) {
+                readAllTokens(parser);
+                assertThat(tight.getUsed(), greaterThan(2 * ChargingXContentParser.CHUNK_BYTES));
+            }
+        }
+        assertThat(tight.getTrippedCount(), equalTo(2L));
+        assertThat(tight.getUsed(), equalTo(0L));
+    }
+
     public void testSmallParsersOfOneRequestAreCheckedTogether() throws IOException {
         CircuitBreaker breaker = requestBreaker(ByteSizeValue.ofBytes(1));
         XContentType type = randomFrom(TYPES);
@@ -500,6 +551,74 @@ public class ParsedContentReservationTests extends ESTestCase {
         assertThat(breaker.getTrippedCount(), equalTo(0L));
         // Closing again releases nothing more.
         reservation.close();
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testChargeIsHeldUntilTheRequestAndEveryHoldAreReleased() throws IOException {
+        CircuitBreaker breaker = requestBreaker(ByteSizeValue.ofMb(100));
+        XContentType type = randomFrom(TYPES);
+        ParsedContentReservation reservation = new ParsedContentReservation(breaker, true);
+        try (XContentParser parser = reservation.track(parser(type, document(type, between(2, 100))))) {
+            readAllTokens(parser);
+        }
+        long charged = reservation.reservedBytes();
+        assertThat(charged, greaterThan(0L));
+        // The request responds, closing the reservation, before or after the work that keeps the parsed request releases its holds.
+        List<Releasable> releases = new ArrayList<>();
+        releases.add(reservation);
+        for (int i = between(1, 3); i > 0; i--) {
+            releases.add(reservation.hold());
+        }
+        Collections.shuffle(releases, random());
+        for (Releasable release : releases.subList(0, releases.size() - 1)) {
+            release.close();
+            // Closing twice does not drop another hold.
+            release.close();
+            assertThat(breaker.getUsed(), equalTo(charged));
+        }
+        // Content parsed for the request while it is held is charged too.
+        try (XContentParser parser = reservation.track(parser(type, document(type, 1)))) {
+            readAllTokens(parser);
+        }
+        long chargedWhileHeld = reservation.reservedBytes();
+        assertThat(chargedWhileHeld, greaterThan(charged));
+        assertThat(breaker.getUsed(), equalTo(chargedWhileHeld));
+        releases.getLast().close();
+        assertThat(reservation.reservedBytes(), equalTo(0L));
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testHoldAfterTheChargeIsReleasedDoesNothing() throws IOException {
+        CircuitBreaker breaker = requestBreaker(ByteSizeValue.ofMb(100));
+        XContentType type = randomFrom(TYPES);
+        ParsedContentReservation reservation = new ParsedContentReservation(breaker, true);
+        reservation.close();
+        try (Releasable ignored = reservation.hold()) {
+            try (XContentParser parser = reservation.track(parser(type, document(type, between(2, 100))))) {
+                readAllTokens(parser);
+            }
+            assertThat(reservation.reservedBytes(), equalTo(0L));
+            assertThat(breaker.getUsed(), equalTo(0L));
+        }
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testHoldsTheReservationInTheThreadContextIfAny() throws IOException {
+        CircuitBreaker breaker = requestBreaker(ByteSizeValue.ofMb(100));
+        XContentType type = randomFrom(TYPES);
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        // No request is handled, so there is nothing to hold.
+        ParsedContentReservation.hold(threadContext).close();
+        ParsedContentReservation reservation = new ParsedContentReservation(breaker, true);
+        threadContext.putTransient(ParsedContentReservation.TRANSIENT_NAME, reservation);
+        try (XContentParser parser = reservation.track(parser(type, document(type, between(2, 100))))) {
+            readAllTokens(parser);
+        }
+        long charged = reservation.reservedBytes();
+        Releasable hold = ParsedContentReservation.hold(threadContext);
+        reservation.close();
+        assertThat(breaker.getUsed(), equalTo(charged));
+        hold.close();
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 

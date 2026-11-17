@@ -255,9 +255,6 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                 ByteSizeValue maxResultSize,
                 ActionListener<Result> resultListener
             ) {
-                if (QuerySettings.UNMAPPED_FIELDS.get(configuration.resolvedSettings()).loadsAllUnmappedFields()) {
-                    throw new IllegalArgumentException("[unmapped_fields=LOAD_ALL] cannot be used with [streaming=true]");
-                }
                 if (role == PlanRunner.Role.INTERMEDIATE) {
                     computeService.execute(
                         sessionId,

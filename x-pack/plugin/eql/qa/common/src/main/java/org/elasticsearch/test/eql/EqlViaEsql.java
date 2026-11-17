@@ -5,12 +5,11 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.eql;
+package org.elasticsearch.test.eql;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -21,34 +20,32 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.StringJoiner;
 import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+/**
+ * Compares the ES|QL {@code EQL} command with {@code _eql/search} on the ordered event ids, sequence grouping and join keys (as strings).
+ * Not compared: other {@code _source} fields, typed join key values, {@code took} and shard failure or partial result metadata.
+ */
 final class EqlViaEsql {
 
     static final List<String> CAPABILITIES = List.of("eql_command", "eql_command_metadata");
 
     private static final int ROW_LIMIT = 10_000;
 
-    record Options(
-        int size,
-        int fetchSize,
-        String resultPosition,
-        String timestampField,
-        String eventCategoryField,
-        @Nullable String tiebreakerField,
-        int maxSamplesPerKey,
-        @Nullable Boolean allowPartialSequenceResults
-    ) {}
-
     private EqlViaEsql() {}
 
-    static ObjectPath runAndCompare(RestClient client, String index, String eqlQuery, Options options, String idField, ObjectPath eql)
-        throws IOException {
+    static ObjectPath runAndCompare(
+        RestClient client,
+        String index,
+        String eqlQuery,
+        Map<String, Object> options,
+        String idField,
+        ObjectPath eql
+    ) throws IOException {
         ObjectPath esql = run(client, index, eqlQuery, options, idField);
         assertEquals(
             "ES|QL EQL command diverges from _eql/search for query [" + eqlQuery + "]",
@@ -58,11 +55,12 @@ final class EqlViaEsql {
         return esql;
     }
 
-    private static ObjectPath run(RestClient client, String index, String eqlQuery, Options options, String idField) throws IOException {
+    private static ObjectPath run(RestClient client, String index, String eqlQuery, Map<String, Object> options, String idField)
+        throws IOException {
         String esql = "EQL "
             + Arrays.stream(index.split(",")).map(i -> "\"" + i.trim() + "\"").collect(Collectors.joining(","))
             + " ?q METADATA _source WITH "
-            + withOptions(options)
+            + Strings.toString(JsonXContent.contentBuilder().map(options))
             + " | LIMIT "
             + ROW_LIMIT;
         XContentBuilder body = JsonXContent.contentBuilder()
@@ -77,26 +75,12 @@ final class EqlViaEsql {
         Request request = new Request("POST", "/_query");
         request.setJsonEntity(Strings.toString(body));
         ObjectPath response = ObjectPath.createFromResponse(client.performRequest(request));
-        return toEqlResponse(response.evaluate("columns"), response.evaluate("values"), idField);
-    }
-
-    private static String withOptions(Options options) {
-        StringJoiner with = new StringJoiner(", ", "{", "}");
-        with.add("\"size\": " + options.size());
-        with.add("\"fetch_size\": " + options.fetchSize());
-        with.add("\"result_position\": \"" + options.resultPosition() + "\"");
-        with.add("\"timestamp_field\": \"" + options.timestampField() + "\"");
-        with.add("\"event_category_field\": \"" + options.eventCategoryField() + "\"");
-        if (options.tiebreakerField() != null) {
-            with.add("\"tiebreaker_field\": \"" + options.tiebreakerField() + "\"");
-        }
-        if (options.maxSamplesPerKey() > 0) {
-            with.add("\"max_samples_per_key\": " + options.maxSamplesPerKey());
-        }
-        if (options.allowPartialSequenceResults() != null) {
-            with.add("\"allow_partial_sequence_results\": " + options.allowPartialSequenceResults());
-        }
-        return with.toString();
+        List<List<Object>> rows = response.evaluate("values");
+        assertTrue(
+            "ES|QL result reached the LIMIT [" + ROW_LIMIT + "] and may be truncated for query [" + eqlQuery + "]",
+            rows.size() < ROW_LIMIT
+        );
+        return toEqlResponse(response.evaluate("columns"), rows, idField);
     }
 
     private static ObjectPath toEqlResponse(List<Map<String, Object>> columns, List<List<Object>> rows, String idField) {
@@ -104,6 +88,7 @@ final class EqlViaEsql {
         int sourceColumn = names.indexOf("_source");
         int idColumn = names.indexOf(idField);
         int sequenceColumn = names.indexOf("_sequence");
+        int stageColumn = names.indexOf("_sequence_stage");
         int joinKeysColumn = names.indexOf("join_keys");
 
         Map<String, Object> hits = new LinkedHashMap<>();
@@ -114,6 +99,7 @@ final class EqlViaEsql {
             }
             hits.put("events", events);
         } else {
+            assertTrue("no [_sequence_stage] column", stageColumn >= 0);
             Map<Object, List<Map<String, Object>>> sequences = new LinkedHashMap<>();
             Map<Object, Object> joinKeys = new LinkedHashMap<>();
             Object previous = null;
@@ -125,7 +111,13 @@ final class EqlViaEsql {
                     joinKeys.put(sequence, row.get(joinKeysColumn));
                     previous = sequence;
                 }
-                sequences.get(sequence).add(event(row, sourceColumn, idColumn, idField));
+                List<Map<String, Object>> sequenceEvents = sequences.get(sequence);
+                assertEquals(
+                    "stage of the event at position [" + sequenceEvents.size() + "] of sequence [" + sequence + "]",
+                    sequenceEvents.size(),
+                    ((Number) row.get(stageColumn)).intValue()
+                );
+                sequenceEvents.add(event(row, sourceColumn, idColumn, idField));
             }
             List<Map<String, Object>> rebuilt = new ArrayList<>(sequences.size());
             sequences.forEach((sequence, events) -> {

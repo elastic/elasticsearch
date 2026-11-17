@@ -19,6 +19,7 @@ dependencies {
   clusterModules project(':x-pack:plugin:eql')
   clusterModules project(':x-pack:plugin:esql')
   clusterModules project(':x-pack:plugin:mapper-version')
+  // x-pack-esql extends x-pack-ml, which extends x-pack-autoscaling and installs ILM policies and index templates that use x-pack-ilm
   clusterModules project(':x-pack:plugin:autoscaling')
   clusterModules project(':x-pack:plugin:ilm')
   clusterModules project(':modules:repository-gcs')

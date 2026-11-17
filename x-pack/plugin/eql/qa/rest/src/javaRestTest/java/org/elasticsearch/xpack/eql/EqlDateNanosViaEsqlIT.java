@@ -54,21 +54,6 @@ public class EqlDateNanosViaEsqlIT extends EqlDateNanosSpecTestCase {
 
     @Override
     protected ObjectPath runQuery(String index, String query) throws Exception {
-        assumeTrue(
-            "requires the ES|QL EQL command",
-            clusterHasCapability("POST", "/_query", List.of(), EqlViaEsql.CAPABILITIES).orElse(false)
-        );
-        ObjectPath eql = super.runQuery(index, query);
-        EqlViaEsql.Options options = new EqlViaEsql.Options(
-            size(),
-            fetchSize(),
-            resultPosition(),
-            timestamp(),
-            eventCategory(),
-            tiebreaker(),
-            maxSamplesPerKey(),
-            allowPartialSequenceResults()
-        );
-        return EqlViaEsql.runAndCompare(client(), index, query, options, idField(), eql);
+        return runQueryViaEsql(index, query);
     }
 }

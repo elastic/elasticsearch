@@ -90,6 +90,7 @@ public class EsEQLCorrectnessIT extends ESRestTestCase {
     private static Properties CFG;
     private static RequestOptions COMMON_REQUEST_OPTIONS;
     private static long totalTime = 0;
+    private static long esqlTotalTime = 0;
 
     private static final Logger LOGGER = LogManager.getLogger(EsEQLCorrectnessIT.class);
 
@@ -117,6 +118,7 @@ public class EsEQLCorrectnessIT extends ESRestTestCase {
     @AfterClass
     public static void logTotalExecutionTime() {
         LOGGER.info("Total time: {} ms", totalTime);
+        LOGGER.info("Total ES|QL time: {} ms", esqlTotalTime);
     }
 
     @Override
@@ -268,8 +270,13 @@ public class EsEQLCorrectnessIT extends ESRestTestCase {
 
         int responseTime = response.evaluate("took");
         LOGGER.info("ES|QL QueryNo: {}, took: {}ms", queryNo, responseTime);
+        esqlTotalTime += responseTime;
 
         List<List<Object>> rows = response.evaluate("values");
+        assertTrue(
+            "ES|QL result reached the LIMIT [" + ESQL_ROW_LIMIT + "] and may be truncated for query No: " + queryNo,
+            rows.size() < ESQL_ROW_LIMIT
+        );
         assertEquals(
             "Failed to match sequence count for ES|QL query No: " + queryNo + " : " + spec.query() + System.lineSeparator(),
             spec.seqCount(),

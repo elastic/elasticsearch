@@ -481,6 +481,30 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
         assertThat(expandedJobsBuilders, hasSize(3));
     }
 
+    public void testCountJobsWithNoJobsShouldReturnZero() throws Exception {
+        Long count = blockingCall(actionListener -> jobConfigProvider.countJobs(actionListener));
+
+        assertThat(count, equalTo(0L));
+    }
+
+    public void testCountJobsShouldExcludeJobsMarkedAsDeleting() throws Exception {
+        putJob(createJob("count-1", null));
+        putJob(createJob("count-2", Collections.singletonList("some-group")));
+        putJob(createJob("count-deleting", null));
+        this.<PutJobAction.Response>blockingCall(
+            actionListener -> jobConfigProvider.updateJobBlockReason(
+                "count-deleting",
+                new Blocked(Blocked.Reason.DELETE, null),
+                actionListener
+            )
+        );
+        client().admin().indices().prepareRefresh(MlConfigIndex.indexName()).get();
+
+        Long count = blockingCall(actionListener -> jobConfigProvider.countJobs(actionListener));
+
+        assertThat(count, equalTo(2L));
+    }
+
     public void testExpandJobIdsWithTaskData() throws Exception {
         putJob(createJob("foo-1", null));
         putJob(createJob("bar", null));

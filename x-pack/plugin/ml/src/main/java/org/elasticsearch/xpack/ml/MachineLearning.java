@@ -1565,6 +1565,7 @@ public class MachineLearning extends Plugin
             telemetryProvider.getMeterRegistry(),
             clusterService,
             threadPool,
+            jobConfigProvider,
             datafeedConfigProvider,
             settings,
             xContentRegistry

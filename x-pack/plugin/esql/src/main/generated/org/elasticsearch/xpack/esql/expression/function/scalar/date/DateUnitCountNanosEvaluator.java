@@ -139,7 +139,7 @@ public final class DateUnitCountNanosEvaluator implements ExpressionEvaluator {
 
   public LongVector eval(int positionCount, BytesRefVector toUnitVector,
       BytesRefVector fromUnitVector, LongVector dateVector) {
-    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
+    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount, true)) {
       BytesRef toUnitScratch = new BytesRef();
       BytesRef fromUnitScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {

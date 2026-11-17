@@ -66,7 +66,7 @@ public class RoundTo extends EsqlScalarFunction implements BlockLoaderExpression
     private final List<Expression> points;
     private final Rounding.RoundingConvention convention;
 
-    private volatile DataType resultType;
+    private DataType resultType;
 
     @FunctionInfo(
         returnType = { "double", "integer", "long", "date", "date_nanos" },

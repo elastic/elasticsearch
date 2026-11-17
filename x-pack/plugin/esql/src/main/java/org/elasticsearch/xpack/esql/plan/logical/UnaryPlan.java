@@ -21,7 +21,7 @@ import java.util.Objects;
 public abstract class UnaryPlan extends LogicalPlan {
 
     private final LogicalPlan child;
-    private volatile AttributeSet lazyOutputSet;
+    private AttributeSet lazyOutputSet;
 
     protected UnaryPlan(Source source, LogicalPlan child) {
         super(source, Collections.singletonList(child));
@@ -46,11 +46,13 @@ public abstract class UnaryPlan extends LogicalPlan {
 
     @Override
     public AttributeSet outputSet() {
-        if (lazyOutputSet == null) {
+        AttributeSet outputSet = lazyOutputSet;
+        if (outputSet == null) {
             List<Attribute> output = output();
-            lazyOutputSet = output == child.output() ? child.outputSet() : AttributeSet.of(output);
+            outputSet = output == child.output() ? child.outputSet() : AttributeSet.of(output);
+            lazyOutputSet = outputSet;
         }
-        return lazyOutputSet;
+        return outputSet;
     }
 
     @Override

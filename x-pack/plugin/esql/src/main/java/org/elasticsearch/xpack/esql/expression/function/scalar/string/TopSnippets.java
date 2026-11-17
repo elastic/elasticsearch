@@ -108,7 +108,7 @@ public class TopSnippets extends EsqlScalarFunction
     private static final int MAX_PASSAGES_PER_CHUNK = 1;
 
     private final Expression field, query, options;
-    private volatile TopSnippetsOptions topSnippetsOptions;
+    private TopSnippetsOptions topSnippetsOptions;
 
     private static final String NUM_SNIPPETS = "num_snippets";
     private static final String NUM_WORDS = "num_words";
@@ -364,10 +364,12 @@ public class TopSnippets extends EsqlScalarFunction
     }
 
     private TopSnippetsOptions topSnippetsOptions() {
-        if (topSnippetsOptions == null) {
-            topSnippetsOptions = parseTopSnippetsOptions();
+        TopSnippetsOptions parsed = topSnippetsOptions;
+        if (parsed == null) {
+            parsed = parseTopSnippetsOptions();
+            topSnippetsOptions = parsed;
         }
-        return topSnippetsOptions;
+        return parsed;
     }
 
     private TopSnippetsOptions parseTopSnippetsOptions() {

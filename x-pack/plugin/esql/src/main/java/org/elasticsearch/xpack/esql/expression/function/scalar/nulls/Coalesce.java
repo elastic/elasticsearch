@@ -47,7 +47,7 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
         .capabilities("flattened")
         .name("coalesce");
 
-    private volatile DataType dataType;
+    private DataType dataType;
 
     @FunctionInfo(
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
@@ -163,9 +163,15 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
 
     @Override
     public DataType dataType() {
-        if (dataType == null) {
-            resolveType();
-        }
+        DataType cached = dataType;
+        return cached != null ? cached : resolveDataType();
+    }
+
+    /**
+     * {@link #resolveType} assigns {@link #dataType}. Reading it after this thread assigned it can't see {@code null}.
+     */
+    private DataType resolveDataType() {
+        resolveType();
         return dataType;
     }
 

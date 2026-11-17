@@ -25,10 +25,10 @@ import java.util.function.Predicate;
  */
 public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends Node<PlanType> {
 
-    private volatile AttributeSet lazyOutputSet;
-    private volatile AttributeSet lazyInputSet;
+    private AttributeSet lazyOutputSet;
+    private AttributeSet lazyInputSet;
     private volatile List<Expression> lazyExpressions;
-    private volatile AttributeSet lazyReferences;
+    private AttributeSet lazyReferences;
 
     public QueryPlan(Source source, List<PlanType> children) {
         super(source, children);
@@ -41,17 +41,21 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
     public abstract List<Attribute> output();
 
     public AttributeSet outputSet() {
-        if (lazyOutputSet == null) {
-            lazyOutputSet = AttributeSet.of(output());
+        AttributeSet outputSet = lazyOutputSet;
+        if (outputSet == null) {
+            outputSet = AttributeSet.of(output());
+            lazyOutputSet = outputSet;
         }
-        return lazyOutputSet;
+        return outputSet;
     }
 
     public AttributeSet inputSet() {
-        if (lazyInputSet == null) {
-            lazyInputSet = AttributeSet.of(children(), QueryPlan::output);
+        AttributeSet inputSet = lazyInputSet;
+        if (inputSet == null) {
+            inputSet = AttributeSet.of(children(), QueryPlan::output);
+            lazyInputSet = inputSet;
         }
-        return lazyInputSet;
+        return inputSet;
     }
 
     /**
@@ -80,10 +84,12 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
      * {@code some_enrich_field}.
      */
     public AttributeSet references() {
-        if (lazyReferences == null) {
-            lazyReferences = computeReferences();
+        AttributeSet references = lazyReferences;
+        if (references == null) {
+            references = computeReferences();
+            lazyReferences = references;
         }
-        return lazyReferences;
+        return references;
     }
 
     /**

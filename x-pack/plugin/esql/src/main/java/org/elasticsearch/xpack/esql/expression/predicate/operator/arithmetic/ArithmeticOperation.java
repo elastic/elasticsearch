@@ -18,7 +18,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType
 
 public abstract class ArithmeticOperation extends BinaryOperator<Object, Object, Object, BinaryArithmeticOperation> {
 
-    private volatile DataType dataType;
+    private DataType dataType;
 
     protected ArithmeticOperation(Source source, Expression left, Expression right, BinaryArithmeticOperation operation) {
         super(source, left, right, operation);
@@ -36,9 +36,11 @@ public abstract class ArithmeticOperation extends BinaryOperator<Object, Object,
 
     @Override
     public DataType dataType() {
-        if (dataType == null) {
-            dataType = commonType(left().dataType(), right().dataType());
+        DataType type = dataType;
+        if (type == null) {
+            type = commonType(left().dataType(), right().dataType());
+            dataType = type;
         }
-        return dataType;
+        return type;
     }
 }

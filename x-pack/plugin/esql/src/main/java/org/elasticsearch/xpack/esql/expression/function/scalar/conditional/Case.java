@@ -84,7 +84,7 @@ public final class Case extends EsqlScalarFunction {
 
     private final List<Condition> conditions;
     private final Expression elseValue;
-    private volatile DataType dataType;
+    private DataType dataType;
 
     @FunctionInfo(
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
@@ -214,9 +214,15 @@ public final class Case extends EsqlScalarFunction {
 
     @Override
     public DataType dataType() {
-        if (dataType == null) {
-            resolveType();
-        }
+        DataType cached = dataType;
+        return cached != null ? cached : resolveDataType();
+    }
+
+    /**
+     * {@link #resolveType} assigns {@link #dataType}. Reading it after this thread assigned it can't see {@code null}.
+     */
+    private DataType resolveDataType() {
+        resolveType();
         return dataType;
     }
 

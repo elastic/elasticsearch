@@ -39,7 +39,7 @@ public final class Alias extends NamedExpression {
      * Postpone attribute creation until it is actually created.
      * Being immutable, create only one instance.
      */
-    private volatile Attribute lazyAttribute;
+    private Attribute lazyAttribute;
 
     public Alias(Source source, String name, Expression child) {
         this(source, name, child, null);
@@ -129,8 +129,9 @@ public final class Alias extends NamedExpression {
 
     @Override
     public Attribute toAttribute() {
-        if (lazyAttribute == null) {
-            lazyAttribute = resolved()
+        Attribute attribute = lazyAttribute;
+        if (attribute == null) {
+            attribute = resolved()
                 // the values analyzer carries across the aliasing boundary just like the data type: covers
                 // EVAL t = TO_TEXT(...) (child is the TO_TEXT) as well as RENAME t AS u and EVAL u = t (child is an
                 // already-carrying reference)
@@ -145,8 +146,9 @@ public final class Alias extends NamedExpression {
                     AnalyzedTextExpression.valuesAnalyzerOf(child)
                 )
                 : new UnresolvedAttribute(source(), name());
+            lazyAttribute = attribute;
         }
-        return lazyAttribute;
+        return attribute;
     }
 
     @Override

@@ -66,7 +66,7 @@ public class StEnvelope extends SpatialUnaryDocValuesFunction implements AnyNull
         SpatialCoordinateTypes.CARTESIAN,
         new CartesianPointVisitor()
     );
-    private volatile DataType dataType;
+    private DataType dataType;
 
     @FunctionInfo(
         returnType = { "geo_shape", "cartesian_shape" },
@@ -137,9 +137,15 @@ public class StEnvelope extends SpatialUnaryDocValuesFunction implements AnyNull
 
     @Override
     public DataType dataType() {
-        if (dataType == null) {
-            resolveType();
-        }
+        DataType cached = dataType;
+        return cached != null ? cached : resolveDataType();
+    }
+
+    /**
+     * {@link #resolveType} assigns {@link #dataType}. Reading it after this thread assigned it can't see {@code null}.
+     */
+    private DataType resolveDataType() {
+        resolveType();
         return dataType;
     }
 

@@ -58,7 +58,7 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper, Any
         .name("mv_append");
 
     private final Expression field1, field2;
-    private volatile DataType dataType;
+    private DataType dataType;
 
     @FunctionInfo(
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
@@ -205,9 +205,15 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper, Any
 
     @Override
     public DataType dataType() {
-        if (dataType == null) {
-            resolveType();
-        }
+        DataType cached = dataType;
+        return cached != null ? cached : resolveDataType();
+    }
+
+    /**
+     * {@link #resolveType} assigns {@link #dataType}. Reading it after this thread assigned it can't see {@code null}.
+     */
+    private DataType resolveDataType() {
+        resolveType();
         return dataType;
     }
 

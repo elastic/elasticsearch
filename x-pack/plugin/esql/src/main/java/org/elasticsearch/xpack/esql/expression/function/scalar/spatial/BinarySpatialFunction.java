@@ -57,7 +57,7 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction
     );
 
     protected final SpatialTypeResolver spatialTypeResolver;
-    private volatile SpatialCrsType crsType;
+    private SpatialCrsType crsType;
     protected final boolean leftDocValues;
     protected final boolean rightDocValues;
 
@@ -268,9 +268,15 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction
 
     @Override
     public SpatialCrsType crsType() {
-        if (crsType == null) {
-            resolveType();
-        }
+        SpatialCrsType cached = crsType;
+        return cached != null ? cached : resolveCrsType();
+    }
+
+    /**
+     * {@link #resolveType} assigns {@link #crsType}. Reading it after this thread assigned it can't see {@code null}.
+     */
+    private SpatialCrsType resolveCrsType() {
+        resolveType();
         return crsType;
     }
 

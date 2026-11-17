@@ -41,13 +41,29 @@ import static java.util.Collections.emptyList;
  * <h2>Thread safety</h2>
  * A node is shared by every thread that holds the plan it belongs to: on a data node, the drivers for all shards run the
  * same physical plan, and some of them call back into its expressions while they run (for example to build a converter for
- * each shard). Nodes are not otherwise synchronized, so they must be safe to read from several threads at once:
+ * each shard). Plans are also shared during planning, for example by concurrent lookup join requests, or by a data node's
+ * node-level reduction and its shard batches. Nodes are not otherwise synchronized, so they must be safe to read from
+ * several threads at once:
  * <ul>
  *     <li>Every instance field is {@code final}, unless it caches a value that is computed lazily.</li>
- *     <li>A lazily computed field is {@code volatile}. Compute its value in a local variable and assign the field once,
- *     when the value is complete: never assign a partly built collection or array and fill it in afterwards, and never
- *     store an intermediate result in the field. Two threads may both compute the value; that's fine as long as they
- *     compute the same one.</li>
+ *     <li>Compute a lazily computed value in a local variable and assign the field once, when the value is complete:
+ *     never assign a partly built collection or array and fill it in afterwards, and never store an intermediate result
+ *     in the field. Two threads may both compute the value; that's fine as long as they compute the same one.</li>
+ *     <li>If the value is immutable through {@code final} fields (an enum, a record, a boxed primitive, a {@code String},
+ *     an {@link org.elasticsearch.xpack.esql.core.expression.AttributeSet}, another node, ...), the field can be plain,
+ *     but read it only once per method, into a local, like {@link String#hashCode()} does:
+ *     <pre>{@code
+ *     AttributeSet outputSet = lazyOutputSet;
+ *     if (outputSet == null) {
+ *         outputSet = AttributeSet.of(output());
+ *         lazyOutputSet = outputSet;
+ *     }
+ *     return outputSet;
+ *     }</pre>
+ *     Two plain reads of a field can be reordered, so a second read can return {@code null} after the first one didn't.
+ *     </li>
+ *     <li>Any other lazily computed field, like a {@code List} or an array, is {@code volatile}: otherwise another thread
+ *     can see the reference before the contents.</li>
  *     <li>A helper object that memoizes something, such as a {@link java.util.function.Supplier}, must be thread-safe
  *     itself; prefer {@code org.elasticsearch.common.util.CachedSupplier}.</li>
  *     <li>Never mutate an object reachable from a node after the node is constructed, other than by such a lazy
@@ -55,8 +71,9 @@ import static java.util.Collections.emptyList;
  * </ul>
  * {@code PlanFieldSafePublicationTests} checks the shape of the code for all subclasses of {@link Node} and
  * {@link org.elasticsearch.xpack.esql.core.type.EsField}, plus the inner and anonymous classes declared in them. It checks
- * that every instance field is {@code final} or {@code volatile}, and that a method doesn't read a lazily computed field
- * again after assigning it, except to return it. Passing it doesn't make a node thread-safe; it can't see, for example:
+ * that every instance field is {@code final}, {@code volatile}, or of a type on its list of immutable types, that a method
+ * reads a plain lazy field at most once, and that a method doesn't read a lazily computed field again after assigning it,
+ * except to return it. Passing it doesn't make a node thread-safe; it can't see, for example:
  * <ul>
  *     <li>a value that is filled in through a local variable or a helper method after it was assigned to the field;</li>
  *     <li>objects a node holds that are neither nodes nor {@code EsField}s, or static state;</li>

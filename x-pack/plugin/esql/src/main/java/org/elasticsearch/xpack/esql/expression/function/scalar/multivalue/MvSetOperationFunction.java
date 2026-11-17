@@ -33,7 +33,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  */
 public abstract class MvSetOperationFunction extends BinaryScalarFunction implements EvaluatorMapper {
 
-    protected volatile DataType dataType;
+    protected DataType dataType;
 
     protected MvSetOperationFunction(Source source, Expression left, Expression right) {
         super(source, left, right);
@@ -46,9 +46,15 @@ public abstract class MvSetOperationFunction extends BinaryScalarFunction implem
 
     @Override
     public DataType dataType() {
-        if (dataType == null) {
-            resolveType();
-        }
+        DataType cached = dataType;
+        return cached != null ? cached : resolveDataType();
+    }
+
+    /**
+     * {@link #resolveType} assigns {@link #dataType}. Reading it after this thread assigned it can't see {@code null}.
+     */
+    private DataType resolveDataType() {
+        resolveType();
         return dataType;
     }
 

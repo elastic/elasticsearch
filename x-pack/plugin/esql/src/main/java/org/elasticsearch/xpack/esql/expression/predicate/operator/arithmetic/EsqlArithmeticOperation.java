@@ -107,7 +107,7 @@ public abstract class EsqlArithmeticOperation extends ArithmeticOperation implem
     // path's per-row /-by-zero warning contract is preserved (Mod, Div).
     private final boolean excludeZeroRhs;
 
-    private volatile DataType dataType;
+    private DataType dataType;
 
     EsqlArithmeticOperation(
         Source source,
@@ -192,10 +192,12 @@ public abstract class EsqlArithmeticOperation extends ArithmeticOperation implem
     }
 
     public DataType dataType() {
-        if (dataType == null) {
-            dataType = commonType(left().dataType(), right().dataType());
+        DataType type = dataType;
+        if (type == null) {
+            type = commonType(left().dataType(), right().dataType());
+            dataType = type;
         }
-        return dataType;
+        return type;
     }
 
     @Override

@@ -29,9 +29,9 @@ public abstract class LogicalPlan extends QueryPlan<LogicalPlan> implements Reso
         OPTIMIZED;
     }
 
-    private volatile Stage stage = Stage.PARSED;
-    private volatile Boolean lazyChildrenResolved = null;
-    private volatile Boolean lazyResolved = null;
+    private Stage stage = Stage.PARSED;
+    private Boolean lazyChildrenResolved = null;
+    private Boolean lazyResolved = null;
 
     public LogicalPlan(Source source, List<LogicalPlan> children) {
         super(source, children);
@@ -70,18 +70,22 @@ public abstract class LogicalPlan extends QueryPlan<LogicalPlan> implements Reso
     }
 
     public final boolean childrenResolved() {
-        if (lazyChildrenResolved == null) {
-            lazyChildrenResolved = Boolean.valueOf(Resolvables.resolved(children()));
+        Boolean childrenResolved = lazyChildrenResolved;
+        if (childrenResolved == null) {
+            childrenResolved = Boolean.valueOf(Resolvables.resolved(children()));
+            lazyChildrenResolved = childrenResolved;
         }
-        return lazyChildrenResolved;
+        return childrenResolved;
     }
 
     @Override
     public boolean resolved() {
-        if (lazyResolved == null) {
-            lazyResolved = expressionsResolved() && childrenResolved();
+        Boolean resolved = lazyResolved;
+        if (resolved == null) {
+            resolved = expressionsResolved() && childrenResolved();
+            lazyResolved = resolved;
         }
-        return lazyResolved;
+        return resolved;
     }
 
     public abstract boolean expressionsResolved();

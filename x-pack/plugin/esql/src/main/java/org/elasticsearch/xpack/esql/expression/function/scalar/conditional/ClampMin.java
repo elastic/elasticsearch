@@ -52,7 +52,7 @@ public class ClampMin extends EsqlScalarFunction implements AnyNullIsNull {
         .stdDivergence("A `min` that isn't a number literal, such as `clamp_min(a, scalar(b))`, isn't supported yet.")
         .name("clamp_min");
 
-    private volatile DataType resolvedType;
+    private DataType resolvedType;
 
     @FunctionInfo(
         returnType = { "double", "integer", "long", "double", "unsigned_long", "keyword", "ip", "boolean", "date", "version" },
@@ -96,7 +96,15 @@ public class ClampMin extends EsqlScalarFunction implements AnyNullIsNull {
 
     @Override
     public DataType dataType() {
-        if (resolvedType == null && resolveType().resolved() == false) {
+        DataType cached = resolvedType;
+        return cached != null ? cached : resolveDataType();
+    }
+
+    /**
+     * {@link #resolveType} assigns {@link #resolvedType}. Reading it after this thread assigned it can't see {@code null}.
+     */
+    private DataType resolveDataType() {
+        if (resolveType().resolved() == false) {
             throw new EsqlIllegalArgumentException("Unable to resolve data type for clamp_min");
         }
         return resolvedType;

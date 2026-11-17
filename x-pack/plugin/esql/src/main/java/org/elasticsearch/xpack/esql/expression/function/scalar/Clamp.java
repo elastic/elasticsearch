@@ -45,7 +45,7 @@ public class Clamp extends EsqlScalarFunction implements OnlySurrogateExpression
     private final Expression field;
     private final Expression min;
     private final Expression max;
-    private volatile DataType resolvedType;
+    private DataType resolvedType;
 
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Clamp.class).ternary(Clamp::new).name("clamp");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
@@ -234,7 +234,15 @@ public class Clamp extends EsqlScalarFunction implements OnlySurrogateExpression
 
     @Override
     public DataType dataType() {
-        if (resolvedType == null && resolveType().resolved() == false) {
+        DataType cached = resolvedType;
+        return cached != null ? cached : resolveDataType();
+    }
+
+    /**
+     * {@link #resolveType} assigns {@link #resolvedType}. Reading it after this thread assigned it can't see {@code null}.
+     */
+    private DataType resolveDataType() {
+        if (resolveType().resolved() == false) {
             throw new EsqlIllegalArgumentException("Unable to resolve data type for clamp_max");
         }
         return resolvedType;

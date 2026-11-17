@@ -37,7 +37,7 @@ public class Div extends DenseVectorArithmeticOperation implements BinaryCompari
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Div", Div::new);
     public static final String OP_NAME = "Div";
 
-    private volatile DataType type;
+    private DataType type;
 
     /**
      * When {@code true}, the scalar double division follows IEEE-754: division by zero yields {@code ±Inf} (or
@@ -120,10 +120,12 @@ public class Div extends DenseVectorArithmeticOperation implements BinaryCompari
 
     @Override
     public DataType dataType() {
-        if (type == null) {
-            type = super.dataType();
+        DataType dataType = type;
+        if (dataType == null) {
+            dataType = super.dataType();
+            type = dataType;
         }
-        return type;
+        return dataType;
     }
 
     @Override

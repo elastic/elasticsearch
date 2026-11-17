@@ -53,6 +53,11 @@ public class RepositoryS3BasicCredentialsRestIT extends AbstractRepositoryS3Rest
         .setting("s3.client." + CLIENT + ".legacy_content_md5", () -> randomFrom("true", "false"), ignored -> randomBoolean())
         .systemProperty("es.insecure_network_trace_enabled", "true")
         .setting("logger.org.apache.http.headers", "TRACE")
+        .setting(
+            "s3.client." + CLIENT + ".unsafely_omit_request_body_checksums",
+            () -> randomFrom("true", "false"),
+            ignored -> randomBoolean()
+        )
         .build();
 
     @ClassRule

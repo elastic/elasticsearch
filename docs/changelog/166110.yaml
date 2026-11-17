@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 166110
-summary: Charge ES|QL pages in transit
+summary: Add ES|QL pages in transit to the circuit breaker
 type: enhancement

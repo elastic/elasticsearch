@@ -77,7 +77,7 @@ public class QuerySamplingPlugin extends Plugin {
         QuerySampler sampler = new QuerySampler(
             1.0,
             100,
-            Randomness::get, // the pipeline thread draws, so it takes its own generator, not the one of the thread that builds this
+            Randomness::get,
             new PickBudget(System::nanoTime),
             new SpatialStrata(QuerySamplingSettings.SPATIAL_CLUSTERS.get(services.clusterService().getSettings()))
         );

@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
- * The wiring that the unit tests build by hand: the server loads the sink provider of the plugin through SPI, the query
+ * The wiring that the unit tests builds by hand: the server loads the sink provider of the plugin through SPI, the query
  * interceptor hands a real kNN search to the sink, and the sink hands it through the queue to the sampling pipeline.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)

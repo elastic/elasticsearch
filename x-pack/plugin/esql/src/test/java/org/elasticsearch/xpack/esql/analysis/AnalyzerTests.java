@@ -1946,10 +1946,13 @@ public class AnalyzerTests extends AnalyzerTestCase {
                 "line 1:30: argument of [to_string(duration)] must be [" + supportedTypes + "], found value [duration] type [time_duration]"
             )
         );
-        multiFieldVariation().error(
-            "from test | eval to_string(unsupported)",
-            containsString("line 1:28: Cannot use field [unsupported] with unsupported type [ip_range]")
-        );
+        multiFieldVariation().minimumTransportVersion(TransportVersion.minimumCompatible())
+            .error(
+                "from test | eval to_string(unsupported)",
+                containsString("line 1:28: Cannot use field [unsupported] with unsupported type [ip_range]")
+            );
+        multiFieldVariation().minimumTransportVersion(TransportVersion.current()).query("from test | eval to_string(unsupported)");
+        assertWarnings("[unsupported] of type [ip_range] cannot be converted to [KEYWORD] and will be null.");
     }
 
     public void testEnrichPolicyWithError() {
@@ -6426,6 +6429,57 @@ public class AnalyzerTests extends AnalyzerTestCase {
             .error(
                 "FROM test | EVAL x = salary::time_duration",
                 containsString("argument of [salary::time_duration] must be [time_duration or string], found value [salary] type [integer]")
+            );
+    }
+
+    /**
+     * A field of a type ES|QL doesn't support is null under a cast, with a warning naming its original type.
+     */
+    public void testCastOfUnsupportedFieldIsNull() {
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(fieldCapabilitiesIndexResponse("foo", fieldResponseMap("value", "rank_feature"))),
+            List.of()
+        );
+        LogicalPlan plan = analyzer().minimumTransportVersion(TransportVersion.current())
+            .addIndex(mergedResolution("foo", caps))
+            .query("FROM foo | EVAL x = value::keyword");
+        assertWarnings("[value] of type [rank_feature] cannot be converted to [KEYWORD] and will be null.");
+        assertNullLiteral(as(as(plan, Limit.class).child(), Eval.class).fields().get(0).child(), KEYWORD);
+    }
+
+    public void testUnsupportedFieldWithoutCastFails() {
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(fieldCapabilitiesIndexResponse("foo", fieldResponseMap("value", "rank_feature"))),
+            List.of()
+        );
+        analyzer().minimumTransportVersion(TransportVersion.current())
+            .addIndex(mergedResolution("foo", caps))
+            .error("FROM foo | WHERE value == \"x\"", containsString("Cannot use field [value] with unsupported type [rank_feature]"));
+    }
+
+    public void testImpossibleCastWithOptionsIsNull() {
+        LogicalPlan plan = defaultMapping().minimumTransportVersion(TransportVersion.current())
+            .query("FROM test | EVAL x = TO_IP(salary, {\"leading_zeros\": \"octal\"})");
+        assertWarnings("[salary] of type [integer] cannot be converted to [IP] and will be null.");
+        assertNullLiteral(as(as(plan, Limit.class).child(), Eval.class).fields().get(0).child(), IP);
+    }
+
+    /**
+     * An invalid option isn't about the input's type, so it stays an error even when the input can't convert.
+     */
+    public void testImpossibleCastWithInvalidOptionFails() {
+        defaultMapping().minimumTransportVersion(TransportVersion.current())
+            .error("FROM test | EVAL x = TO_IP(salary, {\"leading_zeros\": \"abcdef\"})", containsString("abcdef"));
+    }
+
+    /**
+     * {@code TO_LONG(x, base)} parses strings, and rejects other types on purpose.
+     */
+    public void testImpossibleCastWithBaseFails() {
+        defaultMapping().minimumTransportVersion(TransportVersion.current())
+            .error(
+                "FROM test | EVAL x = TO_LONG(salary, 16)",
+                containsString("first argument of [TO_LONG(salary, 16)] must be [string], found value [salary] type [integer]")
             );
     }
 

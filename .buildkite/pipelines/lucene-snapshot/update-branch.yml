@@ -29,6 +29,3 @@ steps:
       env:
         WORKFLOW: "lucene-merge-conflicts"
         TARGET_BRANCH: "${TARGET_BRANCH}"
-        # compileJava / compileTestJava / spotless run on this agent, not a
-        # forked n4-standard-64 reproduction job.
-        ARCHIMEDES_AGENT_MACHINE_TYPE: "n4-standard-16"

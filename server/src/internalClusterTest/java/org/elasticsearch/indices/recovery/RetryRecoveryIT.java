@@ -886,16 +886,16 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
     /// Inject a one-shot [AlreadyClosedException] from the Lucene Directory during temporary IndexWriter use.
     public static class RetryRecoveryTestPlugin extends Plugin {
-        private static final AtomicBoolean throwAceOnCreateOutput = new AtomicBoolean();
+        private static final AtomicBoolean throwOnCreateOutput = new AtomicBoolean();
 
         public static void reset() {
-            throwAceOnCreateOutput.set(false);
+            throwOnCreateOutput.set(false);
         }
 
         /// Arm the Directory wrapper so the next [IndexOutput] create throws [AlreadyClosedException]/[IOException].
         /// Used to fail temporary IndexWriters used in StoreRecovery once, then allow retry to succeed.
         public static void armDirectoryException() {
-            throwAceOnCreateOutput.set(true);
+            throwOnCreateOutput.set(true);
         }
 
         @Override
@@ -903,7 +903,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             indexModule.setDirectoryWrapper((directory, shardRouting) -> new FilterDirectory(directory) {
                 @Override
                 public IndexOutput createOutput(String name, IOContext context) throws IOException {
-                    if (throwAceOnCreateOutput.compareAndSet(true, false)) {
+                    if (throwOnCreateOutput.compareAndSet(true, false)) {
                         if (randomBoolean()) {
                             throw new AlreadyClosedException("test exception on temp writer");
                         } else {

@@ -137,7 +137,7 @@ final class GuardedRoleCaches {
         }
     }
 
-    synchronized boolean isKnownMissing(ProjectId projectId, String roleName) {
+    synchronized boolean isNegativelyCached(ProjectId projectId, String roleName) {
         // get rather than containsKey so that the lookup counts as an access for eviction purposes
         return negativeLookups.get(new ProjectScoped<>(projectId, roleName)) != null;
     }

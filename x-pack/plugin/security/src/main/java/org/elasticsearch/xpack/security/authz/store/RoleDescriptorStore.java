@@ -60,14 +60,14 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
     private final ThreadContext threadContext;
     private final Consumer<Collection<RoleDescriptor>> effectiveRoleDescriptorsConsumer;
     // Tests whether a role name is recorded as missing in a project; this is the only access the resolver has to the role caches
-    private final BiPredicate<ProjectId, String> isKnownMissing;
+    private final BiPredicate<ProjectId, String> isNegativelyCached;
 
     public RoleDescriptorStore(
         RoleProviders roleProviders,
         ApiKeyService apiKeyService,
         ServiceAccountService serviceAccountService,
         ProjectResolver projectResolver,
-        BiPredicate<ProjectId, String> isKnownMissing,
+        BiPredicate<ProjectId, String> isNegativelyCached,
         XPackLicenseState licenseState,
         ThreadContext threadContext,
         Consumer<Collection<RoleDescriptor>> effectiveRoleDescriptorsConsumer
@@ -79,7 +79,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
         this.licenseState = Objects.requireNonNull(licenseState);
         this.threadContext = threadContext;
         this.effectiveRoleDescriptorsConsumer = Objects.requireNonNull(effectiveRoleDescriptorsConsumer);
-        this.isKnownMissing = Objects.requireNonNull(isKnownMissing);
+        this.isNegativelyCached = Objects.requireNonNull(isNegativelyCached);
     }
 
     @Override
@@ -252,7 +252,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
 
     private void roleDescriptors(Set<String> roleNames, ProjectId projectId, ActionListener<RolesRetrievalResult> rolesResultListener) {
         final Set<String> filteredRoleNames = roleNames.stream().filter((s) -> {
-            if (isKnownMissing.test(projectId, s)) {
+            if (isNegativelyCached.test(projectId, s)) {
                 logger.debug(() -> "Requested role [" + s + "] does not exist in [" + projectId + "] (cached)");
                 return false;
             } else {

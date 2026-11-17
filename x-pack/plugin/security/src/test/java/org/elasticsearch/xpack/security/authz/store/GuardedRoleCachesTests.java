@@ -43,9 +43,9 @@ public class GuardedRoleCachesTests extends ESTestCase {
         assertThat(caches.getRole(project, R1_R2), sameInstance(role));
         assertThat(caches.getRole(project, R1), nullValue());
         assertThat(caches.getRole(randomUniqueProjectId(), R1_R2), nullValue());
-        assertThat(caches.isKnownMissing(project, "m1"), is(true));
-        assertThat(caches.isKnownMissing(project, "r1"), is(false));
-        assertThat(caches.isKnownMissing(randomUniqueProjectId(), "m1"), is(false));
+        assertThat(caches.isNegativelyCached(project, "m1"), is(true));
+        assertThat(caches.isNegativelyCached(project, "r1"), is(false));
+        assertThat(caches.isNegativelyCached(randomUniqueProjectId(), "m1"), is(false));
         // the generation only moves on invalidation, so a token captured earlier is still current
         assertThat(caches.putIfCurrent(generation, project, R2, role("r2"), Set.of()), is(true));
         assertThat(caches.getRole(project, R2), notNullValue());
@@ -115,11 +115,11 @@ public class GuardedRoleCachesTests extends ESTestCase {
         assertThat(caches.putIfCurrent(generation, project, R1, role("r1"), Set.of("m1")), is(false));
 
         assertThat(caches.getRole(project, R1), nullValue());
-        assertThat(caches.isKnownMissing(project, "m1"), is(false));
+        assertThat(caches.isNegativelyCached(project, "m1"), is(false));
         // a generation captured after the invalidation is current again
         assertThat(caches.putIfCurrent(caches.generation(project), project, R1, role("r1"), Set.of("m1")), is(true));
         assertThat(caches.getRole(project, R1), notNullValue());
-        assertThat(caches.isKnownMissing(project, "m1"), is(true));
+        assertThat(caches.isNegativelyCached(project, "m1"), is(true));
     }
 
     // An invalidation scoped to another project must not move this project's generation.
@@ -154,12 +154,12 @@ public class GuardedRoleCachesTests extends ESTestCase {
         assertThat(caches.getRole(project, R1_R2), nullValue());
         assertThat(caches.getRole(project, R2), notNullValue());
         assertThat(caches.getRole(otherProject, R1), notNullValue());
-        assertThat(caches.isKnownMissing(project, "m1"), is(true));
+        assertThat(caches.isNegativelyCached(project, "m1"), is(true));
 
         caches.invalidateRole(project, "m1");
-        assertThat(caches.isKnownMissing(project, "m1"), is(false));
-        assertThat(caches.isKnownMissing(project, "m2"), is(true));
-        assertThat(caches.isKnownMissing(otherProject, "m1"), is(true));
+        assertThat(caches.isNegativelyCached(project, "m1"), is(false));
+        assertThat(caches.isNegativelyCached(project, "m2"), is(true));
+        assertThat(caches.isNegativelyCached(otherProject, "m1"), is(true));
     }
 
     public void testInvalidateClusterScopedRolesRemovesEntriesNamingTheRolesInEveryProject() {
@@ -173,9 +173,9 @@ public class GuardedRoleCachesTests extends ESTestCase {
         assertThat(caches.getRole(project, R1_R2), nullValue());
         assertThat(caches.getRole(project, R2), notNullValue());
         assertThat(caches.getRole(otherProject, R1), nullValue());
-        assertThat(caches.isKnownMissing(project, "m1"), is(false));
-        assertThat(caches.isKnownMissing(otherProject, "m1"), is(false));
-        assertThat(caches.isKnownMissing(project, "m2"), is(true));
+        assertThat(caches.isNegativelyCached(project, "m1"), is(false));
+        assertThat(caches.isNegativelyCached(otherProject, "m1"), is(false));
+        assertThat(caches.isNegativelyCached(project, "m2"), is(true));
     }
 
     public void testInvalidateProjectRemovesEntriesOfThatProjectOnly() {
@@ -197,9 +197,9 @@ public class GuardedRoleCachesTests extends ESTestCase {
         assertThat(caches.getRole(project, R1_R2), nullValue());
         assertThat(caches.getRole(project, R2), nullValue());
         assertThat(caches.getRole(otherProject, R1), notNullValue());
-        assertThat(caches.isKnownMissing(project, "m1"), is(false));
-        assertThat(caches.isKnownMissing(project, "m2"), is(false));
-        assertThat(caches.isKnownMissing(otherProject, "m1"), is(true));
+        assertThat(caches.isNegativelyCached(project, "m1"), is(false));
+        assertThat(caches.isNegativelyCached(project, "m2"), is(false));
+        assertThat(caches.isNegativelyCached(otherProject, "m1"), is(true));
     }
 
     public void testInvalidateAllRemovesEverything() {
@@ -213,9 +213,9 @@ public class GuardedRoleCachesTests extends ESTestCase {
         assertThat(caches.getRole(project, R1_R2), nullValue());
         assertThat(caches.getRole(project, R2), nullValue());
         assertThat(caches.getRole(otherProject, R1), nullValue());
-        assertThat(caches.isKnownMissing(project, "m1"), is(false));
-        assertThat(caches.isKnownMissing(project, "m2"), is(false));
-        assertThat(caches.isKnownMissing(otherProject, "m1"), is(false));
+        assertThat(caches.isNegativelyCached(project, "m1"), is(false));
+        assertThat(caches.isNegativelyCached(project, "m2"), is(false));
+        assertThat(caches.isNegativelyCached(otherProject, "m1"), is(false));
     }
 
     public void testLeastRecentlyUsedRoleIsEvictedBeyondMaximum() {
@@ -240,12 +240,12 @@ public class GuardedRoleCachesTests extends ESTestCase {
         assertThat(caches.putIfCurrent(caches.generation(project), project, roleKey("a"), role("a"), Set.of("m1")), is(true));
         assertThat(caches.putIfCurrent(caches.generation(project), project, roleKey("b"), role("b"), Set.of("m2")), is(true));
         // checking m1 makes m2 the least recently used entry
-        assertThat(caches.isKnownMissing(project, "m1"), is(true));
+        assertThat(caches.isNegativelyCached(project, "m1"), is(true));
         assertThat(caches.putIfCurrent(caches.generation(project), project, roleKey("c"), role("c"), Set.of("m3")), is(true));
 
-        assertThat(caches.isKnownMissing(project, "m2"), is(false));
-        assertThat(caches.isKnownMissing(project, "m1"), is(true));
-        assertThat(caches.isKnownMissing(project, "m3"), is(true));
+        assertThat(caches.isNegativelyCached(project, "m2"), is(false));
+        assertThat(caches.isNegativelyCached(project, "m1"), is(true));
+        assertThat(caches.isNegativelyCached(project, "m3"), is(true));
     }
 
     public void testZeroMaximumRetainsNothing() {
@@ -254,7 +254,7 @@ public class GuardedRoleCachesTests extends ESTestCase {
         assertThat(caches.putIfCurrent(caches.generation(project), project, R1, role("r1"), Set.of("m1")), is(true));
 
         assertThat(caches.getRole(project, R1), nullValue());
-        assertThat(caches.isKnownMissing(project, "m1"), is(false));
+        assertThat(caches.isNegativelyCached(project, "m1"), is(false));
     }
 
     public void testNegativeMaximumMeansNoLimit() {
@@ -270,7 +270,7 @@ public class GuardedRoleCachesTests extends ESTestCase {
         }
         for (int i = 0; i < count; i++) {
             assertThat(caches.getRole(project, roleKey("role-" + i)), notNullValue());
-            assertThat(caches.isKnownMissing(project, "missing-" + i), is(true));
+            assertThat(caches.isNegativelyCached(project, "missing-" + i), is(true));
         }
     }
 

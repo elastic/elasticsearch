@@ -181,7 +181,7 @@ public class CompositeRolesStore {
             apiKeyService,
             serviceAccountService,
             projectResolver,
-            caches::isKnownMissing,
+            caches::isNegativelyCached,
             licenseState,
             threadContext,
             effectiveRoleDescriptorsConsumer
@@ -853,7 +853,7 @@ public class CompositeRolesStore {
 
     // pkg - private for testing
     boolean isValueInNegativeLookupCache(String key, ProjectId projectId) {
-        return caches.isKnownMissing(projectId, key);
+        return caches.isNegativelyCached(projectId, key);
     }
 
     private static void groupIndexPrivilegesByCluster(

@@ -623,6 +623,45 @@ public class PlainCompressionCodecFactoryTests extends ESTestCase {
         assertSame(legacyLz4, factory.getDecompressor(CompressionCodecName.LZ4));
     }
 
+    public void testCorruptLz4RawPayloadThrowsIoException() throws IOException {
+        byte[] source = new byte[4096];
+        for (int i = 0; i < source.length; i++) {
+            source[i] = (byte) (i % 7);
+        }
+        BytesInputCompressor compressor = factory.getCompressor(CompressionCodecName.LZ4_RAW);
+        byte[] compressed = compressor.compress(BytesInput.from(source)).toByteArray();
+        byte[] corrupt = Arrays.copyOf(compressed, compressed.length);
+        for (int i = 8; i < 24; i++) {
+            corrupt[i] ^= 0x5A;
+        }
+        BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.LZ4_RAW);
+        IOException thrown = expectThrows(IOException.class, () -> decompressor.decompress(BytesInput.from(corrupt), source.length));
+        assertThat(thrown.getMessage(), containsString("LZ4_RAW"));
+    }
+
+    public void testEveryCompressedCodecReportsMalformedPayloadAsIoException() throws IOException {
+        byte[] source = new byte[4096];
+        for (int i = 0; i < source.length; i++) {
+            source[i] = (byte) (i % 7);
+        }
+        for (CompressionCodecName codec : new CompressionCodecName[] {
+            CompressionCodecName.SNAPPY,
+            CompressionCodecName.GZIP,
+            CompressionCodecName.ZSTD,
+            CompressionCodecName.LZ4_RAW }) {
+            BytesInputCompressor compressor = factory.getCompressor(codec);
+            byte[] compressed = compressor.compress(BytesInput.from(source)).toByteArray();
+            byte[] corrupt = Arrays.copyOf(compressed, compressed.length);
+            int start = Math.min(8, Math.max(1, compressed.length / 4));
+            int end = Math.min(start + 16, compressed.length);
+            for (int i = start; i < end; i++) {
+                corrupt[i] ^= 0x5A;
+            }
+            BytesInputDecompressor decompressor = factory.getDecompressor(codec);
+            expectThrows(IOException.class, codec.name(), () -> decompressor.decompress(BytesInput.from(corrupt), source.length));
+        }
+    }
+
     private void assertRoundTrip(CompressionCodecName codec) throws IOException {
         BytesInputCompressor compressor = factory.getCompressor(codec);
         BytesInputDecompressor decompressor = factory.getDecompressor(codec);

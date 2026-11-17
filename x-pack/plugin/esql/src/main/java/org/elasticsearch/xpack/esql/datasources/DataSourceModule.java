@@ -529,6 +529,7 @@ public final class DataSourceModule implements Closeable {
         if (admissionWatchdog != null) {
             all.add(admissionWatchdog);
         }
+        all.add(formatReaderRegistry);
         all.add(storageProviderRegistry);
         all.addAll(managedCloseables);
         IOUtils.close(all);

@@ -25,6 +25,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -199,6 +200,47 @@ public class SingletonOrdinalsBuilderTests extends ComputeTestCase {
                 }
             }
         }
+    }
+
+    public void testPooledArrays() throws IOException {
+        BlockFactory parent = blockFactory();
+        LocalCircuitBreaker local = new LocalCircuitBreaker(parent.breaker(), 0, 0);
+        BlockFactory factory = parent.newChildFactory(local);
+        int numOrds = between(2, 1000);
+        try (Directory directory = newDirectory(); IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+            for (int o = 0; o < numOrds; o++) {
+                indexWriter.addDocument(List.of(new SortedDocValuesField("f", new BytesRef("value-" + o))));
+            }
+            try (IndexReader reader = DirectoryReader.open(indexWriter)) {
+                assertThat(reader.leaves(), hasSize(1));
+                LeafReaderContext ctx = reader.leaves().get(0);
+                for (int count : new int[] { 8000, 3000, 5000 }) {
+                    boolean isDense = randomBoolean();
+                    try (
+                        var b1 = new SingletonOrdinalsBuilder(factory, ctx.reader().getSortedDocValues("f"), count, isDense);
+                        var b2 = new SingletonOrdinalsBuilder(factory, ctx.reader().getSortedDocValues("f"), count, isDense)
+                    ) {
+                        for (int i = 0; i < count; i++) {
+                            if (isDense == false && randomBoolean()) {
+                                b1.appendNull();
+                                b2.appendNull();
+                            } else {
+                                int ord = random().nextInt(numOrds);
+                                b1.appendOrd(ord);
+                                b2.appendOrd(ord);
+                            }
+                        }
+                        try (BytesRefBlock block1 = b1.build(); BytesRefBlock block2 = b2.buildRegularBlock()) {
+                            assertThat(block1.getPositionCount(), equalTo(count));
+                            assertThat(block1, equalTo(block2));
+                            assertNotNull(block1.asOrdinals());
+                        }
+                    }
+                }
+            }
+        }
+        local.close();
+        assertThat(parent.breaker().getUsed(), equalTo(0L));
     }
 
     private void appendOrd(SingletonOrdinalsBuilder builder, int ord) {

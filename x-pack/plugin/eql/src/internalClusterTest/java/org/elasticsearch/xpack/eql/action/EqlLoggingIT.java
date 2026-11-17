@@ -52,9 +52,11 @@ import static org.elasticsearch.test.ActivityLoggingUtils.getMessageData;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.eql.action.EqlSearchResponseIntegTestHelpers.decRef;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class EqlLoggingIT extends AbstractEqlBlockingIntegTestCase {
@@ -174,7 +176,7 @@ public class EqlLoggingIT extends AbstractEqlBlockingIntegTestCase {
         EqlSearchResponse response = client().execute(EqlSearchAction.INSTANCE, request).get();
         try {
             assertThat(response.isRunning(), is(false));
-            assertThat(response.shardFailures().length, greaterThanOrEqualTo(1));
+            assertThat(response.shardFailures(), not(empty()));
 
             var event = appender.getLastEventAndReset();
             assertNotNull(event);

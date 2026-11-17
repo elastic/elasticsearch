@@ -31,5 +31,5 @@ public interface Payload {
 
     List<?> values();
 
-    ShardSearchFailure[] shardFailures();
+    List<ShardSearchFailure> shardFailures();
 }

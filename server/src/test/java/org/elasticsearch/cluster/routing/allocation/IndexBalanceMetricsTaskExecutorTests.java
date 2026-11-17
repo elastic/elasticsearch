@@ -22,7 +22,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
-import org.junit.Assert;
 import org.junit.Before;
 
 import java.util.Map;

@@ -7,8 +7,9 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.benchmark.security;
+package org.elasticsearch.benchmark._nightly.security;
 
+import org.elasticsearch.benchmark.ExtraParam;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.cache.Cache;
@@ -39,7 +40,7 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Compares the cache-hit path of the role cache behind {@code CompositeRolesStore#getRole} before and after the cache moved
- * from {@link Cache} to an access-ordered {@link LinkedHashMap} guarded by a single monitor.
+ * from {@link Cache} to an access-ordered {@link LinkedHashMap} guarded by a single monitor and keyed by interned tokens.
  * <p>
  * Every authorization resolves the subject's role through this path, so it is the one place where the choice of data
  * structure and locking is on the hot path. Both implementations pay one global lock per hit: {@link Cache} takes the segment
@@ -70,8 +71,11 @@ import java.util.concurrent.TimeUnit;
  * size with collision cost. Role-key construction is outside the measurement. This benchmark does not measure cache misses
  * or invalidation scans.
  * <p>
+ * The defaults are what the nightly and pull request runs measure. The values listed in {@link ExtraParam} reproduce the
+ * rest of the comparison and are selected with {@code -p}, for example {@code -p impl=monitor,prehashed,segmented}.
+ * <p>
  * Run, for example, with
- * {@code ../gradlew run --args "org.elasticsearch.benchmark.security.RoleCacheHitBenchmark.getRole_08 -p roles=1024 -p namesPerKey=100 -bm thrpt -tu s"}.
+ * {@code ../gradlew run --args "org.elasticsearch.benchmark._nightly.security.RoleCacheHitBenchmark.getRole_08 -p roles=1024 -p namesPerKey=100 -bm thrpt -tu s"}.
  * Larger keys can be selected with {@code -p namesPerKey=1000}.
  */
 @Fork(1)
@@ -89,20 +93,24 @@ public class RoleCacheHitBenchmark {
     }
 
     /** Distinct cached roles that the threads cycle through. */
-    @Param({ "1", "1000", "10000" })
+    @Param({ "1000" })
+    @ExtraParam({ "1", "10000" })
     private int roles;
 
     /** Distinct role names combined into each cached role. */
-    @Param({ "1", "50", "100" })
+    @Param({ "1", "10", "100" })
+    @ExtraParam({ "50", "1000" })
     private int namesPerKey;
 
     /**
-     * {@code cache}: the previous implementation, {@link Cache}. {@code monitor}: the current implementation, a synchronized
-     * access-ordered {@link LinkedHashMap}. {@code prehashed}: the same map with hashing before the monitor.
-     * {@code interned}: the same map keyed by interned tokens. {@code segmented}: the map split into independently locked
-     * segments. {@code concurrent}: a {@link ConcurrentHashMap} with no eviction, as a floor.
+     * {@code cache}: the previous implementation, {@link Cache}. {@code interned}: the current implementation, a synchronized
+     * access-ordered {@link LinkedHashMap} keyed by interned tokens. {@code concurrent}: a {@link ConcurrentHashMap} with no
+     * eviction, as a floor. The alternatives considered: {@code monitor}, the same map keyed by the role key itself;
+     * {@code prehashed}, that map with hashing before the monitor; and {@code segmented}, the map split into independently
+     * locked segments.
      */
-    @Param({ "cache", "monitor", "prehashed", "interned", "segmented", "concurrent" })
+    @Param({ "cache", "interned", "concurrent" })
+    @ExtraParam({ "monitor", "prehashed", "segmented" })
     private String impl;
 
     private RoleCache roleCache;
@@ -238,7 +246,7 @@ public class RoleCacheHitBenchmark {
         }
     }
 
-    /** The current implementation. Every operation, including a hit, runs under the monitor. */
+    /** The implementation before interning. Every operation, including a hit, runs under the monitor. */
     private static final class MonitorRoleCache implements RoleCache {
         private final Map<ProjectScoped<RoleKey>, Role> map;
 

@@ -11,9 +11,7 @@
     },
     "settings": {
       "index.auto_expand_replicas": "0-1",
-      "index.hidden": true,
-      "index.sort.field": "@timestamp",
-      "index.sort.order": "desc"
+      "index.hidden": true
     },
     "mappings": {
       "_meta": {

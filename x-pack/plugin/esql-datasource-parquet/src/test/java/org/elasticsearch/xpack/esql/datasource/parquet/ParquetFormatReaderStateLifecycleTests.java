@@ -89,7 +89,7 @@ public class ParquetFormatReaderStateLifecycleTests extends ESTestCase {
         Map.entry("withDeclaredProvenanceBinding", WitherLifecycle.CREATES_COPY),
         Map.entry("withHeaderBindingByProvenance", WitherLifecycle.IDENTITY_NO_COPY),
         Map.entry("withReadConfig", WitherLifecycle.IDENTITY_NO_COPY),
-        Map.entry("withBlockFactory", WitherLifecycle.IDENTITY_NO_COPY),
+        Map.entry("withBlockFactory", WitherLifecycle.CREATES_COPY),
         Map.entry("withSchemaSampleShare", WitherLifecycle.IDENTITY_NO_COPY)
     );
 
@@ -178,6 +178,33 @@ public class ParquetFormatReaderStateLifecycleTests extends ESTestCase {
                             "wither [" + m.getName() + "] must share [" + field + "] with its parent",
                             fieldOf(receiver, field),
                             fieldOf(product, field)
+                        );
+                    }
+                    if (m.getName().equals("withBlockFactory")) {
+                        assertNotSame(
+                            "withBlockFactory must copy onto the distinct factory, not keep the node's",
+                            fieldOf(receiver, "blockFactory"),
+                            fieldOf(product, "blockFactory")
+                        );
+                        assertSame(
+                            "footer byte cache stays the node instance",
+                            fieldOf(receiver, "footerBytes"),
+                            fieldOf(product, "footerBytes")
+                        );
+                        assertSame(
+                            "parsed footer cache stays the node instance",
+                            fieldOf(receiver, "parsedFooters"),
+                            fieldOf(product, "parsedFooters")
+                        );
+                        assertSame(
+                            "I/O watermark stays the node instance",
+                            fieldOf(receiver, "ioWatermark"),
+                            fieldOf(product, "ioWatermark")
+                        );
+                        assertSame(
+                            "heap buffer pool stays the node instance",
+                            fieldOf(receiver, "heapBufferPool"),
+                            fieldOf(product, "heapBufferPool")
                         );
                     }
                 }

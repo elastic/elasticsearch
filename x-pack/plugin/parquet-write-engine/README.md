@@ -50,7 +50,8 @@ After the flush, `<repository>/logs-parquet/<index uuid>/` holds the table: `met
 The settings provider checks these when the index is created and refuses the index with a message that names the problem.
 
 - `index.mode` must be `columnar`. No field is indexed: every field is doc values only. `index.mapping.source.mode` must be `synthetic`.
-- No replicas. The provider sets `number_of_replicas` to 0, and `auto_expand_replicas` and any other number are refused.
+- No replicas. The provider sets `number_of_replicas` to 0, and `auto_expand_replicas` and any other number are refused. A later settings
+  update is not checked by the provider, and the allocation decider keeps such a replica unassigned (see "Placement: the shard is pinned").
 - `index.parquet.repository` is required, and the repository must keep conditional writes (see "The table commit" below).
 - The supported field types are `long`, `integer`, `short`, `byte`, `date`, `keyword`, `double`, `float` and `boolean`, and objects of them
   (a dotted name is one flat column). A field is single-valued, a flat column, unless its mapping says `"multi_value": true`, and then it is a
@@ -217,7 +218,7 @@ not fail the commit or the flush. The format is ours and not an Iceberg standard
 
 | Package | Contents |
 |---|---|
-| `org.elasticsearch.xpack.parquet.write` | the plugin, the settings, the settings provider and the mapping validator |
+| `org.elasticsearch.xpack.parquet.write` | the plugin, the settings, the settings provider, the mapping validator and the allocation decider |
 | `.engine` | `ParquetWriteEngine`, the shard tables, the commit data, the handling of linkage errors |
 | `.file` | the local files, the batch writer, the merger, the codecs, input files for a directory and for a blob |
 | `.flush` | the flusher and its crash protocol |
@@ -280,6 +281,25 @@ upload is a put-if-absent (`failIfAlreadyExists`):
   the same `index.parquet.base_path`) refuses to open it: its flush fails with a message that names both indices, and its rows stay in the
   local files, with backpressure, until someone fixes the path. Index creation cannot check this, because the table may not exist yet.
 
+## Placement: the shard is pinned
+
+Peer recovery copies only the Lucene commit of a shard, which has no segments, so the local Parquet files (`pqlocal_*`) do not move with a
+shard. They hold rows that are acknowledged and not uploaded yet, so a relocated primary would start with an empty store and lose them
+without an error, and a replica would be an empty copy of a shard that never receives an operation. `ParquetAllocationDecider` (a
+`ClusterPlugin` hook) therefore pins the primary of an index with `index.storage_format: parquet` to its node and refuses its replicas. It
+leaves every other index alone.
+
+- `canAllocate` says no to every replica, and to a started primary that asks for another node. That covers the balancer, the desired
+  balance, the `move` and `allocate_replica` reroute commands, and the replica that `number_of_replicas` creates. An unassigned primary stays
+  allocatable: a new index needs a node, and after a restart the gateway allocator picks the node that holds the copy.
+- `canRebalance` and `shouldAutoExpandToNode` say no, so the balancer does not try and auto-expansion adds nothing.
+- `canForceAllocateDuringReplace` says no. Its default is yes, and it overrides every other no when a node is being replaced.
+
+What a user sees: a primary whose node has to go (a shutdown of type remove or replace, an allocation filter, a disk watermark) cannot
+leave. The allocation explain output says that it cannot remain and has no target, and the decider names the reason; a node shutdown stays
+stalled. Raising `number_of_replicas` gives a yellow index whose replica stays unassigned, with the same explanation. A node that dies still
+loses its local rows. A real handoff (flush and block writes before the move, or ship the local files as recovery files) is future work.
+
 ## Known limits and open questions
 
 - Not secured or reviewed for security. A user who can create an index with this format chooses `index.parquet.repository` and
@@ -297,8 +317,25 @@ upload is a put-if-absent (`failIfAlreadyExists`):
   shards that flush at once queue for them.
 - A clean shutdown does not upload. The local files stay on the disk, and the shard finds them when it starts again. The rows are not safe
   against the loss of the disk before their flush.
-- No relocation. A shard must not move, and the loss of a node loses the rows that are not uploaded yet (there is no translog and no
-  replica). Snapshots of such an index copy only the empty commit.
+- No relocation. A shard cannot move (the allocation decider refuses it, see "Placement: the shard is pinned"), a node shutdown of type
+  remove or replace stalls on such a primary, and the loss of a node loses the rows that are not uploaded yet (there is no translog and no
+  replica). Snapshots of such an index copy only the empty commit, and a restore gives a new history (see "Shard histories and the names of
+  data files").
+- A lossless handoff of the primary is not built. Without it, the decider pins the shard (see "Placement: the shard is pinned"). To let
+  a primary move, the old node must upload every local row after it blocks writes and before it hands off to the new node. The server gives
+  no place for that today: `IndexShard#relocated` blocks the write permits and hands off, and it calls no engine method and no
+  `IndexEventListener`. A flush in `acquireSafeIndexCommit` (before phase 1 of the recovery) is not enough, because bulks keep writing
+  after it, and their `pqlocal_*` files would not move. The cleaner fix is a small hook in `server`: an `Engine` method that `IndexShard#relocated`
+  calls under the blocked permits. Our engine would flush there, and a failed flush (for example a repository that is down) would abort the
+  relocation, so the shard stays. Fencing writes in the engine instead is not an option: no callback tells the engine that a recovery was
+  aborted, so the fence could stay on and reject writes for ever. Peer recovery has also never run with this engine. The target would start with
+  its checkpoint tracker at the uploaded high-water mark, and the handoff asserts things about the checkpoint of the target, so we expect
+  some work there. Then a decider opt-in (an index setting) would let the primary move.
+- An opt-in flush before a shutdown of type remove, replace or sigterm is not built, so a node cannot leave without a loss of its local
+  rows while the shard is pinned. It needs the handoff above, because the node can leave without a loss only if the shard can move after the
+  flush. The alternative that needs no handoff is manual: flush, then let the shard become unassigned and allocate an empty primary with
+  `accept_data_loss`. The rows are safe in the table, and the new primary gets a new history (see "Shard histories and the names of data
+  files"), but the index is red until then.
 - The catalog entry is a file of our own format, with no compare-and-set (it can lag by a version, see "The catalog"). Spark, Trino and DuckDB
   need a shim to use it. An implementation of Iceberg's `Catalog` interface over the entries, the Hadoop-catalog layout, and a REST catalog
   client are not built.

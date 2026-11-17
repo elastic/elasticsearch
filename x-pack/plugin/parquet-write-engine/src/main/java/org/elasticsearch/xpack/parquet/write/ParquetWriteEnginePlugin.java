@@ -10,8 +10,10 @@ package org.elasticsearch.xpack.parquet.write;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -19,6 +21,7 @@ import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -42,7 +45,7 @@ import java.util.Optional;
  * A prototype of an index that stores its documents only as Parquet files. An index opts in with
  * {@code index.storage_format: parquet}; every other index keeps the engine that it has without this plugin.
  */
-public class ParquetWriteEnginePlugin extends Plugin implements EnginePlugin {
+public class ParquetWriteEnginePlugin extends Plugin implements EnginePlugin, ClusterPlugin {
 
     // set when the node creates its components, which is before any index (and so any engine) is created
     private volatile RepositoriesService repositoriesService;
@@ -62,6 +65,12 @@ public class ParquetWriteEnginePlugin extends Plugin implements EnginePlugin {
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
         return ParquetThreadPools.builders(settings);
+    }
+
+    /** Pins the primary of a parquet index and refuses its replicas: the local files do not move with a shard. */
+    @Override
+    public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
+        return List.of(new ParquetAllocationDecider());
     }
 
     @Override

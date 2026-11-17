@@ -4114,6 +4114,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             .values()
             .stream()
             .map(BlobMetadata::name)
+            .filter(BatchedCompoundCommit::startsWithBlobPrefix)
             .max(Comparator.comparingLong(BatchedCompoundCommit::parseGenerationFromBlobName))
             .orElseThrow();
         blobToBlock.set(latestBlob);

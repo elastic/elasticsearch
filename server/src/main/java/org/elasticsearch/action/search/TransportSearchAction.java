@@ -110,6 +110,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
+import org.elasticsearch.search.scheduling.QueryScheduler;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
@@ -1827,7 +1828,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 .setSuccessfulShards(searchResponse.getSuccessfulShards())
                 .setSkippedShards(searchResponse.getSkippedShards())
                 .setFailedShards(searchResponse.getFailedShards())
-                .setFailures(Arrays.asList(searchResponse.getShardFailures()))
+                .setFailures(searchResponse.shardFailuresList())
                 .setTook(searchResponse.getTook())
                 .setTimedOut(searchResponse.isTimedOut())
                 .build();
@@ -2363,15 +2364,25 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 && task.getProgressListener() == SearchProgressListener.NOOP) {
                 task.setProgressListener(new CCSSingleCoordinatorSearchProgressListener());
             }
-            final SearchPhaseResults<SearchPhaseResult> queryResultConsumer = searchPhaseController.newSearchPhaseResults(
-                executor,
-                circuitBreaker,
-                task::isCancelled,
-                task.getProgressListener(),
-                searchRequest,
-                shardIterators.size(),
-                exc -> searchTransportService.cancelSearchTask(task, "failed to merge result [" + exc.getMessage() + "]")
-            );
+            // the results charge the query's breaker. A multi-search keeps the results it buffers charged after the search
+            // completes, on the node's breaker, so they charge that breaker from the start.
+            QueryScheduler.QueryPart coordination = searchService.coordinate(task);
+            final ActionListener<SearchResponse> listener = ActionListener.releaseAfter(this.listener, coordination);
+            final SearchPhaseResults<SearchPhaseResult> queryResultConsumer;
+            try {
+                queryResultConsumer = searchPhaseController.newSearchPhaseResults(
+                    executor,
+                    searchRequest.bufferSubSearchResponseForMultiSearch() ? circuitBreaker : coordination.breaker(),
+                    task::isCancelled,
+                    task.getProgressListener(),
+                    searchRequest,
+                    shardIterators.size(),
+                    exc -> searchTransportService.cancelSearchTask(task, "failed to merge result [" + exc.getMessage() + "]")
+                );
+            } catch (Exception e) {
+                coordination.close();
+                throw e;
+            }
             boolean success = false;
             try {
                 final AbstractSearchAsyncAction<?> searchPhase;
@@ -2432,6 +2443,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 searchPhase.start();
             } finally {
                 if (success == false) {
+                    coordination.close();
                     queryResultConsumer.close();
                 }
             }
@@ -2917,7 +2929,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 );
                 SearchResponseMetrics.ResponseCountTotalStatus responseCountTotalStatus =
                     SearchResponseMetrics.ResponseCountTotalStatus.SUCCESS;
-                if (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0) {
+                if (searchResponse.shardFailuresList().isEmpty() == false) {
                     // Deduplicate failures by exception message and index
                     List<ShardOperationFailedException> groupedFailures = ExceptionsHelper.groupBy(searchResponse.shardFailuresList());
                     for (ShardOperationFailedException f : groupedFailures) {

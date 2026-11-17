@@ -128,7 +128,7 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
             return null;
         }).when(clusterApplierService).runOnApplierThread(anyString(), any(Priority.class), any(), any());
 
-        indicesClusterStateService = createService(true);
+        indicesClusterStateService = createService();
         indicesClusterStateService.start();
     }
 
@@ -252,14 +252,42 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
     }
 
     public void testRetryDisabledBecomesFailSend() {
-        indicesClusterStateService.close();
-        indicesClusterStateService = createService(false);
-        indicesClusterStateService.start();
-
+        // Disable local retries
+        clusterService.getClusterSettings()
+            .applySettings(Settings.builder().put(INDICES_RECOVERY_LOCAL_RETRY_SETTING.getKey(), false).build());
         ShardRouting shardRouting = applyInitializingPrimary();
+
         handleRecoveryFailureWithRetry(shardRouting);
 
         assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
+        assertFalse(isAwaitingRecoveryRetry(shardRouting));
+        assertTrue(isFailureReported(shardRouting));
+        assertFalse(deterministicTaskQueue.hasRunnableTasks());
+        verify(shardStateAction).localShardFailed(eq(shardRouting), anyString(), any(), any(), any());
+    }
+
+    public void testReshardSplitRetryBecomesFailSend() {
+        // RESHARD_SPLIT doesn't support local retry yet (elasticsearch-team/#5759), so a RETRY
+        // classification must still be downgraded to FAIL_SEND for it, even with local retry enabled.
+        // Built directly rather than through a real createShard, since RESHARD_SPLIT also requires a
+        // resolvable source shard that this unit test has no need to model.
+        final var shardRouting = TestShardRouting.shardRoutingBuilder(
+            new ShardId(randomIndexName(), randomUUID(), 0),
+            "node1",
+            true,
+            ShardRoutingState.INITIALIZING
+        ).withRecoverySource(new RecoverySource.ReshardSplitRecoverySource(new ShardId(randomIndexName(), randomUUID(), 0))).build();
+        final var inFlightTicket = new IndicesClusterStateService.PendingAllocationState.InFlight(0, 0, 1);
+        indicesClusterStateService.pendingAllocationStates.put(allocationKey(shardRouting), inFlightTicket);
+
+        indicesClusterStateService.handleRecoveryFailure(
+            shardRouting,
+            RETRY,
+            1,
+            new Exception("simulated recovery failure"),
+            inFlightTicket
+        );
+
         assertFalse(isAwaitingRecoveryRetry(shardRouting));
         assertTrue(isFailureReported(shardRouting));
         assertFalse(deterministicTaskQueue.hasRunnableTasks());
@@ -1161,19 +1189,15 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
 
     // --- helpers ---
 
-    private IndicesClusterStateService createService(boolean localRetryEnabled) {
-        return createService(SHARD_LOCK_RETRY_TIMEOUT_SETTING.getDefault(Settings.EMPTY), localRetryEnabled);
+    private IndicesClusterStateService createService() {
+        return createService(SHARD_LOCK_RETRY_TIMEOUT_SETTING.getDefault(Settings.EMPTY));
     }
 
     private IndicesClusterStateService createService(TimeValue shardLockRetryTimeout) {
-        return createService(shardLockRetryTimeout, INDICES_RECOVERY_LOCAL_RETRY_SETTING.getDefault(Settings.EMPTY));
-    }
-
-    private IndicesClusterStateService createService(TimeValue shardLockRetryTimeout, boolean localRetryEnabled) {
         Set<Setting<?>> settingsSet = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         settingsSet.add(INDICES_RECOVERY_LOCAL_RETRY_SETTING);
         Settings settings = Settings.builder()
-            .put(INDICES_RECOVERY_LOCAL_RETRY_SETTING.getKey(), localRetryEnabled)
+            .put(INDICES_RECOVERY_LOCAL_RETRY_SETTING.getKey(), true)
             .put(SHARD_LOCK_RETRY_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(1))
             .put(SHARD_LOCK_RETRY_TIMEOUT_SETTING.getKey(), shardLockRetryTimeout)
             .build();

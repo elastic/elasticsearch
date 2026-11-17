@@ -1,0 +1,103 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+package org.elasticsearch.xpack.esql.datasources.dataset;
+
+import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeProjectAction;
+import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.Dataset;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
+
+import java.util.Arrays;
+import java.util.List;
+
+public class TransportOpenDatasetAction extends AcknowledgedTransportMasterNodeProjectAction<OpenDatasetAction.Request> {
+    private final DatasetService datasetService;
+    private final DatasetResolutionService datasetResolutionService;
+
+    @Inject
+    public TransportOpenDatasetAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        DatasetService datasetService,
+        ProjectResolver projectResolver,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            OpenDatasetAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            OpenDatasetAction.Request::new,
+            projectResolver,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
+        this.datasetService = datasetService;
+        this.datasetResolutionService = new DatasetResolutionService(indexNameExpressionResolver);
+    }
+
+    @Override
+    protected void masterOperation(
+        Task task,
+        OpenDatasetAction.Request request,
+        ProjectState state,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        // Resolve to datasets only: `resolveDatasets` is additive, so a wildcard expands across the whole
+        // namespace; index names must not reach the registry. Explicit names must still resolve to datasets;
+        // missing, hidden, or co-resident foreign resources are reported as not-found.
+        final DatasetResolutionService.DatasetResolutionResult result;
+        try {
+            result = datasetResolutionService.resolveDatasets(
+                state,
+                request.indices(),
+                request.indicesOptions(),
+                request.getResolvedIndexExpressions()
+            );
+        } catch (IndexNotFoundException e) {
+            final String missing = e.getIndex() != null ? e.getIndex().getName() : String.join(",", request.names());
+            ResourceNotFoundException notFound = new ResourceNotFoundException("dataset [{}] not found", missing);
+            datasetService.recordRejected(null, notFound);
+            listener.onFailure(notFound);
+            return;
+        }
+        if (result.datasets().length == 0) {
+            listener.onResponse(AcknowledgedResponse.TRUE);
+            return;
+        }
+        final List<String> datasetNames = Arrays.stream(result.datasets()).map(Dataset::name).toList();
+        datasetService.setDatasetsEnabled(
+            state.projectId(),
+            request.masterNodeTimeout(),
+            request.ackTimeout(),
+            datasetNames,
+            true,
+            listener
+        );
+    }
+
+    @Override
+    protected ClusterBlockException checkBlock(OpenDatasetAction.Request request, ProjectState state) {
+        return state.blocks().globalBlockedException(state.projectId(), ClusterBlockLevel.METADATA_WRITE);
+    }
+}

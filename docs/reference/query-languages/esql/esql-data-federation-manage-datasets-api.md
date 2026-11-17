@@ -20,6 +20,8 @@ Datasets are managed under the `/_query/dataset` endpoint. All dataset operation
 | [Create or update](#create-or-update-a-dataset) | `PUT /_query/dataset/{name}` | [Create or update an ES\|QL dataset]({{es-apis}}operation/operation-esql-put-dataset) |
 | [Get](#get-a-dataset) | `GET /_query/dataset/{name}` | [Get ES\|QL datasets]({{es-apis}}operation/operation-esql-get-dataset) |
 | [List all](#list-all-datasets) | `GET /_query/dataset` | [Get ES\|QL datasets]({{es-apis}}operation/operation-esql-get-dataset) |
+| [Open](#close-or-open-a-dataset) {applies_to}`stack: preview 9.7+` | `POST /_query/dataset/{name}/_open` | Open an ES\|QL dataset |
+| [Close](#close-or-open-a-dataset) {applies_to}`stack: preview 9.7+` | `POST /_query/dataset/{name}/_close` | Close an ES\|QL dataset |
 | [Delete](#delete-a-dataset) | `DELETE /_query/dataset/{name}` | [Delete ES\|QL datasets]({{es-apis}}operation/operation-esql-delete-dataset) |
 
 This page is a quick reference for each operation. For the complete request and response details, follow the API reference links in the table.
@@ -133,6 +135,27 @@ curl -X GET "${ELASTICSEARCH_URL}/_query/dataset" \
 :::
 
 ::::
+
+## Close or open a dataset
+
+{applies_to}`stack: preview 9.7+` Close a dataset to stop queries from reading it, for example to control cost, then open it again after investigation. Requires `manage_dataset`, `manage`, or `all` on the dataset name. GET responses include a `state` field, `open` or `closed`. Creating a dataset opens it, and replacing a dataset keeps its current state. Closing a closed dataset, or opening an open one, succeeds and changes nothing.
+
+A closed dataset behaves as follows:
+
+* A query that names the dataset in `FROM` fails with a `400` error, the status of the error for a closed index.
+* A `FROM` wildcard skips the dataset silently, as it skips a closed index. A wildcard only reaches datasets when the `wildcards_match_datasets` query setting is on.
+* A query that is already running may finish, or fail if the node that reads the dataset starts after you close it.
+* You can still get, list, and replace the dataset.
+
+Closing and opening are refused until every node in the cluster supports them, for example during a rolling upgrade. Both actions are recorded in the [audit log](esql-data-federation-manage-datasets.md#audit-logging).
+
+```console
+POST /_query/dataset/access_logs/_close
+```
+
+```console
+POST /_query/dataset/access_logs/_open
+```
 
 ## Delete a dataset
 

@@ -476,10 +476,24 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
             equalTo(200)
         );
 
-        got = getDataSource(parent);
+        Map<String, Object> dsetGot = getDataset(dataset);
         @SuppressWarnings("unchecked")
-        List<Map<String, Object>> reopenedHits = (List<Map<String, Object>>) got.get("data_sources");
-        assertThat(reopenedHits.get(0).get("state"), equalTo("open"));
+        List<Map<String, Object>> dsetHits = (List<Map<String, Object>>) dsetGot.get("datasets");
+        assertThat(dsetHits.get(0).get("state"), equalTo("open"));
+
+        assertThat(
+            client().performRequest(new Request("POST", "/_query/dataset/" + dataset + "/_close")).getStatusLine().getStatusCode(),
+            equalTo(200)
+        );
+        dsetGot = getDataset(dataset);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> closedDset = (List<Map<String, Object>>) dsetGot.get("datasets");
+        assertThat(closedDset.get(0).get("state"), equalTo("closed"));
+
+        assertThat(
+            client().performRequest(new Request("POST", "/_query/dataset/" + dataset + "/_open")).getStatusLine().getStatusCode(),
+            equalTo(200)
+        );
 
         deleteDataset(dataset);
         deleteDataSource(parent);

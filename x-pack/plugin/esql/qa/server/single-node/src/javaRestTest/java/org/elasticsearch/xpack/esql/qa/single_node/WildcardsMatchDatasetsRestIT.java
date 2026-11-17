@@ -113,7 +113,21 @@ public class WildcardsMatchDatasetsRestIT extends ESRestTestCase {
         assertThat(body, not(containsString("s3://bucket")));
     }
 
-    public void testDatasetsOfAClosedDataSourceAreRefusedByName() throws IOException {
+    public void testClosedDatasetIsRefusedByName() throws IOException {
+        toggle("dataset", DATA_SOURCE + "_1", "_close");
+        try {
+            ResponseException ex = expectThrows(ResponseException.class, () -> query("FROM " + DATA_SOURCE + "_1 | LIMIT 1"));
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+            assertThat(EntityUtils.toString(ex.getResponse().getEntity()), containsString("dataset [lake_1] is closed"));
+        } finally {
+            toggle("dataset", DATA_SOURCE + "_1", "_open");
+        }
+        // Open again, the dataset is reached again: the query gets as far as listing its resource.
+        ResponseException ex = expectThrows(ResponseException.class, () -> query("FROM " + DATA_SOURCE + "_1 | LIMIT 1"));
+        assertThat(EntityUtils.toString(ex.getResponse().getEntity()), containsString("Access denied listing objects"));
+    }
+
+    public void testClosedDataSourceRefusesItsDatasets() throws IOException {
         toggle("data_source", DATA_SOURCE, "_close");
         try {
             ResponseException ex = expectThrows(ResponseException.class, () -> query("FROM " + DATA_SOURCE + "_1 | LIMIT 1"));
@@ -124,33 +138,31 @@ public class WildcardsMatchDatasetsRestIT extends ESRestTestCase {
         } finally {
             toggle("data_source", DATA_SOURCE, "_open");
         }
-        // Open again, the dataset is reached again: the query gets as far as listing its resource.
-        ResponseException ex = expectThrows(ResponseException.class, () -> query("FROM " + DATA_SOURCE + "_1 | LIMIT 1"));
-        assertThat(EntityUtils.toString(ex.getResponse().getEntity()), containsString("Access denied listing objects"));
     }
 
     /**
-     * A wildcard that reaches the datasets of a closed data source skips them silently, as it skips a closed index. Naming one
-     * of them still fails, as above.
+     * A wildcard that reaches a closed dataset skips it silently, as it skips a closed index. Naming the dataset still
+     * fails, as above.
      */
-    public void testWildcardSkipsTheDatasetsOfAClosedDataSource() throws IOException {
-        toggle("data_source", DATA_SOURCE, "_close");
+    public void testWildcardSkipsAClosedDataset() throws IOException {
+        toggle("dataset", DATA_SOURCE + "_1", "_close");
         try {
-            // Every lake_* dataset is on the closed data source: nothing is left to read, so the query succeeds with no rows.
-            Map<String, Object> response = query("SET wildcards_match_datasets = true; FROM lake_* | LIMIT 1");
+            // lake_1* matches only the closed dataset: nothing is left to read, so the query succeeds with no rows.
+            Map<String, Object> response = query("SET wildcards_match_datasets = true; FROM lake_1* | LIMIT 1");
             @SuppressWarnings("unchecked")
             List<List<Object>> values = (List<List<Object>>) response.get("values");
             assertThat(values, empty());
+
+            // lake_* still reaches the open datasets: the query gets as far as listing their resources.
+            ResponseException ex = expectThrows(
+                ResponseException.class,
+                () -> query("SET wildcards_match_datasets = true; FROM lake_* | LIMIT 1")
+            );
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+            assertThat(EntityUtils.toString(ex.getResponse().getEntity()), containsString("Access denied listing objects"));
         } finally {
-            toggle("data_source", DATA_SOURCE, "_open");
+            toggle("dataset", DATA_SOURCE + "_1", "_open");
         }
-        // Open again, the wildcard reaches the datasets: the query gets as far as listing their resources.
-        ResponseException ex = expectThrows(
-            ResponseException.class,
-            () -> query("SET wildcards_match_datasets = true; FROM lake_1* | LIMIT 1")
-        );
-        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(EntityUtils.toString(ex.getResponse().getEntity()), containsString("Access denied listing objects"));
     }
 
     public void testWildcardMatchingDatasetsRespectsBranchCountLimit() throws IOException {

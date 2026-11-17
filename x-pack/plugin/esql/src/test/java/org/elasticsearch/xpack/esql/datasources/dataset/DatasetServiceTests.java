@@ -8,6 +8,9 @@
 package org.elasticsearch.xpack.esql.datasources.dataset;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataSourceReference;
 import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -19,6 +22,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
@@ -29,10 +33,13 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 /**
@@ -157,12 +164,13 @@ public class DatasetServiceTests extends ESTestCase {
     }
 
     /** Replacing a dataset that already sits on a now-closed data source, without moving it, stays allowed. */
-    public void testReplacingADatasetOnItsOwnClosedDataSourceIsAllowed() {
+    public void testReplacingADatasetOnItsOwnClosedDataSourceIsAllowedAndKeepsItsState() {
         DatasetService service = new DatasetService(clusterService, Map.of("strict", new AcceptAllValidator()));
-        ProjectMetadata project = projectWithClosedParent(existingDataset("ds1", "off"), null);
+        ProjectMetadata project = projectWithClosedParent(existingDataset("ds1", "off").withEnabled(false), null);
 
         Dataset replaced = service.validatePutDataset(project, requestOn("off", "ds1"));
         assertThat(replaced.dataSource().getName(), equalTo("off"));
+        assertThat(replaced.enabled(), is(false));
     }
 
     /** A name taken by an index is a conflict whatever the data source's state, so it is reported as one. */
@@ -172,6 +180,35 @@ public class DatasetServiceTests extends ESTestCase {
         ProjectMetadata project = projectWithClosedParent(null, index);
 
         expectThrows(ResourceAlreadyExistsException.class, () -> service.validatePutDataset(project, requestOn("off", "ds1")));
+    }
+
+    /**
+     * A node that predates the state reads every dataset as open, so while one is in the cluster closing or opening is refused:
+     * the call must not report success for a close that part of the cluster would ignore.
+     */
+    public void testCloseAndOpenAreRefusedUntilAllNodesSupportTheState() {
+        DatasetService service = new DatasetService(clusterService, Map.of("strict", new AcceptAllValidator()));
+        ClusterServiceUtils.setState(
+            clusterService,
+            ClusterState.builder(clusterService.state())
+                .putCompatibilityVersions(
+                    "old-node",
+                    TransportVersionUtils.randomVersionNotSupporting(Dataset.ESQL_DATASET_STATE),
+                    Map.of()
+                )
+        );
+
+        var future = new PlainActionFuture<AcknowledgedResponse>();
+        service.setDatasetsEnabled(
+            ProjectId.DEFAULT,
+            TimeValue.timeValueSeconds(30),
+            TimeValue.timeValueSeconds(30),
+            List.of("ds1"),
+            false,
+            future
+        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> future.actionGet(10, TimeUnit.SECONDS));
+        assertThat(e.getMessage(), containsString("until all nodes in the cluster are upgraded"));
     }
 
     private static Dataset existingDataset(String name, String dataSource) {

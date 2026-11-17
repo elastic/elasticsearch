@@ -171,9 +171,23 @@ public class DatasetConfigResolverTests extends ESTestCase {
     }
 
     /**
-     * A plan from a coordinator that predates the state, or a crafted one, must not read a dataset of a closed data source: the
-     * node checks its own registry, and refuses with a message of its own that names the dataset, not the data source.
+     * A plan from a coordinator that predates the state, or a crafted one, must not read a closed dataset: the node
+     * checks its own registry, and refuses with a message of its own, not the binding failure's.
      */
+    public void testClosedDatasetRefused() {
+        DataSource parent = dataSource(Map.of("auth", "anonymous"));
+        Dataset closed = dataset(Map.of()).withEnabled(false);
+        ExternalSourceExec exec = exec(HOSTILE_CONFIG, DATASET);
+
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> new DatasetConfigResolver(project(parent, closed), randomBoolean()).rebind(exec)
+        );
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), equalTo("external dataset [logs] is closed"));
+    }
+
+    /** A closed data source refuses its datasets too, without naming the data source the caller may not be allowed to see. */
     public void testDatasetOfClosedDataSourceRefused() {
         DataSource closedParent = dataSource(Map.of("auth", "anonymous")).withEnabled(false);
         ExternalSourceExec exec = exec(HOSTILE_CONFIG, DATASET);

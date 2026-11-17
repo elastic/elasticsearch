@@ -215,7 +215,7 @@ curl -X GET "${ELASTICSEARCH_URL}/_query/data_source" \
 
 A closed data source behaves as follows:
 
-* Its datasets are closed too: a query that names one fails with a `400` error, and a `FROM` wildcard skips it silently, as it skips a closed index. A wildcard only reaches datasets when the `wildcards_match_datasets` query setting is on. The error names the dataset, not the data source.
+* Its datasets are closed too: a query that names one fails with a `400` error, and a `FROM` wildcard skips it silently. Refer to [close or open a dataset](esql-data-federation-manage-datasets-api.md#close-or-open-a-dataset). The error names the dataset, not the data source.
 * You cannot create a dataset on it, or move an existing dataset onto it. Replacing a dataset that is already on it works.
 * A query that is already running may finish, or fail if the node that reads one of the datasets starts after you close the data source.
 * You can still get, list, and replace the data source.

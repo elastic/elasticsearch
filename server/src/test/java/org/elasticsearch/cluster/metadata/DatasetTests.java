@@ -9,11 +9,14 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -43,14 +46,15 @@ public class DatasetTests extends AbstractXContentSerializingTestCase<Dataset> {
 
     @Override
     protected Dataset mutateInstance(Dataset instance) {
-        return switch (randomIntBetween(0, 5)) {
+        return switch (randomIntBetween(0, 6)) {
             case 0 -> new Dataset(
                 randomValueOtherThan(instance.name(), () -> randomAlphaOfLength(8).toLowerCase(Locale.ROOT)),
                 instance.dataSource(),
                 instance.resource(),
                 instance.description(),
                 instance.settings(),
-                instance.mapping()
+                instance.mapping(),
+                instance.enabled()
             );
             case 1 -> new Dataset(
                 instance.name(),
@@ -58,7 +62,8 @@ public class DatasetTests extends AbstractXContentSerializingTestCase<Dataset> {
                 instance.resource(),
                 instance.description(),
                 instance.settings(),
-                instance.mapping()
+                instance.mapping(),
+                instance.enabled()
             );
             case 2 -> new Dataset(
                 instance.name(),
@@ -66,7 +71,8 @@ public class DatasetTests extends AbstractXContentSerializingTestCase<Dataset> {
                 randomValueOtherThan(instance.resource(), () -> "s3://" + randomAlphaOfLength(6) + "/" + randomAlphaOfLength(6)),
                 instance.description(),
                 instance.settings(),
-                instance.mapping()
+                instance.mapping(),
+                instance.enabled()
             );
             case 3 -> new Dataset(
                 instance.name(),
@@ -74,7 +80,8 @@ public class DatasetTests extends AbstractXContentSerializingTestCase<Dataset> {
                 instance.resource(),
                 randomValueOtherThan(instance.description(), () -> randomAlphaOfLengthBetween(1, 16)),
                 instance.settings(),
-                instance.mapping()
+                instance.mapping(),
+                instance.enabled()
             );
             case 4 -> new Dataset(
                 instance.name(),
@@ -82,16 +89,28 @@ public class DatasetTests extends AbstractXContentSerializingTestCase<Dataset> {
                 instance.resource(),
                 instance.description(),
                 randomValueOtherThan(instance.settings(), DatasetTests::randomSettings),
-                instance.mapping()
+                instance.mapping(),
+                instance.enabled()
             );
-            default -> new Dataset(
+            case 5 -> new Dataset(
                 instance.name(),
                 instance.dataSource(),
                 instance.resource(),
                 instance.description(),
                 instance.settings(),
-                randomValueOtherThan(instance.mapping(), DatasetTests::randomMappingOrNull)
+                randomValueOtherThan(instance.mapping(), DatasetTests::randomMappingOrNull),
+                instance.enabled()
             );
+            case 6 -> new Dataset(
+                instance.name(),
+                instance.dataSource(),
+                instance.resource(),
+                instance.description(),
+                instance.settings(),
+                instance.mapping(),
+                instance.enabled() == false
+            );
+            default -> throw new AssertionError("unexpected mutation index");
         };
     }
 
@@ -102,7 +121,8 @@ public class DatasetTests extends AbstractXContentSerializingTestCase<Dataset> {
             "s3://" + randomAlphaOfLength(8) + "/" + randomAlphaOfLength(6) + ".parquet",
             randomBoolean() ? null : randomAlphaOfLengthBetween(0, 32),
             randomSettings(),
-            randomMappingOrNull()
+            randomMappingOrNull(),
+            randomBoolean()
         );
     }
 
@@ -181,6 +201,53 @@ public class DatasetTests extends AbstractXContentSerializingTestCase<Dataset> {
 
     public void testRequiresResource() {
         expectThrows(NullPointerException.class, () -> new Dataset("test", new DataSourceReference("ds"), null, null, Map.of()));
+    }
+
+    public void testStateIsOpenByDefaultAndClosedWhenTheFlagIsOff() {
+        Dataset open = new Dataset("test", new DataSourceReference("ds"), "s3://b/p", null, Map.of());
+        assertEquals("open", open.state());
+        assertEquals("closed", open.withEnabled(false).state());
+    }
+
+    /** A closed dataset keeps its state across the wire, and a node that predates the state reads it as open. */
+    public void testStateAcrossTheWireGate() throws IOException {
+        Dataset closed = new Dataset("test", new DataSourceReference("ds"), "s3://b/p", null, Map.of()).withEnabled(false);
+
+        BytesStreamOutput current = new BytesStreamOutput();
+        closed.writeTo(current);
+        assertFalse(new Dataset(current.bytes().streamInput()).enabled());
+
+        TransportVersion older = TransportVersionUtils.randomVersionNotSupporting(Dataset.ESQL_DATASET_STATE);
+        BytesStreamOutput legacy = new BytesStreamOutput();
+        legacy.setTransportVersion(older);
+        closed.writeTo(legacy);
+        // Not exactly one byte less: an older version may also be below the gate of the declared schema.
+        assertTrue("the state is not written below the gate", legacy.size() < current.size());
+        StreamInput in = legacy.bytes().streamInput();
+        in.setTransportVersion(older);
+        assertTrue("a node that predates the state reads it as open", new Dataset(in).enabled());
+    }
+
+    public void testStateIsShownAsOpenOrClosedInTheJson() {
+        Dataset open = new Dataset("test", new DataSourceReference("ds"), "s3://b/p", null, Map.of());
+        assertTrue(Strings.toString(open).contains("\"state\":\"open\""));
+        assertTrue(Strings.toString(open.withEnabled(false)).contains("\"state\":\"closed\""));
+        assertFalse(Strings.toString(open).contains("enabled"));
+    }
+
+    public void testStateParsing() throws IOException {
+        String base = "{\"name\":\"d\",\"data_source\":\"ds\",\"resource\":\"s3://b/p\"";
+        assertTrue("no state is open", parse(base + "}").enabled());
+        assertTrue(parse(base + ",\"state\":\"open\"}").enabled());
+        assertFalse(parse(base + ",\"state\":\"closed\"}").enabled());
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parse(base + ",\"state\":\"bogus\"}"));
+        assertTrue(e.getMessage(), e.getMessage().contains("bogus") || e.getCause() != null && e.getCause().getMessage().contains("bogus"));
+    }
+
+    private Dataset parse(String json) throws IOException {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            return Dataset.fromXContent(parser);
+        }
     }
 
     public void testNullDescription() throws IOException {

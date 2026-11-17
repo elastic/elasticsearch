@@ -569,6 +569,8 @@ public class Constants {
         "indices:admin/data_stream/options/put",
         "indices:admin/delete",
         "indices:admin/esql/dataset/delete",
+        "indices:admin/esql/dataset/close",
+        "indices:admin/esql/dataset/open",
         "indices:admin/esql/dataset/get",
         "indices:admin/esql/dataset/put",
         "indices:admin/esql/view/delete",

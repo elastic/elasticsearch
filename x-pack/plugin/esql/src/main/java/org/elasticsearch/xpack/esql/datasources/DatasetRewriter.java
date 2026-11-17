@@ -414,8 +414,8 @@ public final class DatasetRewriter {
             throw new VerificationException("Unknown index [" + resolution.explicitUnauthorized().iterator().next() + "]");
         }
 
-        // A dataset whose data source is closed is refused when the FROM names it, and silently skipped when only a wildcard
-        // reaches it, as a closed index is. The refusal is not a cluster block, so it is not the error a closed index gives.
+        // A closed dataset, or one whose data source is closed, is refused when the FROM names it, and silently skipped when only
+        // a wildcard reaches it, as a closed index is. The refusal is not a cluster block, so it is not the error a closed index gives.
         Set<String> namedInRelation = exactNames(patternsOf(relation));
         List<String> datasetNames = new ArrayList<>();
         for (String name : resolution.resolvedExternalDatasets()) {
@@ -635,13 +635,16 @@ public final class DatasetRewriter {
     }
 
     /**
-     * Whether an admin closed the data source of {@code name}. A dataset whose data source is not registered is not closed:
+     * Whether an admin closed {@code name}, or its data source. A dataset whose data source is not registered is not closed:
      * {@link #buildDatasetBranch} reports that state.
      */
     static boolean isClosed(String name, DatasetMetadata datasets, DataSourceMetadata dataSources) {
         Dataset dataset = datasets.get(name);
         if (dataset == null) {
             return false;
+        }
+        if (dataset.enabled() == false) {
+            return true;
         }
         DataSource parent = dataSources.get(dataset.dataSource().getName());
         return parent != null && parent.enabled() == false;

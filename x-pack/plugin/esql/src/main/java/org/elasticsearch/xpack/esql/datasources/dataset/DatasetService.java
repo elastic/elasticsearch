@@ -147,13 +147,16 @@ public class DatasetService {
         // A `path` column rename is honored by all formats (translation is centralized at the reader boundary).
         DeclaredSchemaValidator.validate(request.mapping());
         Map<String, Object> settings = PartitionSpec.alignWithMapping(validatedSettings, request.mapping());
+        // PUT create defaults to open; PUT replace preserves the existing state (the close and open APIs change it).
+        final boolean enabled = existing == null || existing.enabled();
         return new Dataset(
             request.name(),
             new DataSourceReference(request.dataSource()),
             request.resource(),
             request.description(),
             settings,
-            request.mapping()
+            request.mapping(),
+            enabled
         );
     }
 
@@ -298,6 +301,96 @@ public class DatasetService {
                     metrics.recordConfigChange(
                         ConfigChangeTelemetry.KIND_DATASET,
                         ConfigChangeTelemetry.OP_DELETED,
+                        ConfigChangeTelemetry.typeToken(type),
+                        null
+                    );
+                }
+            }
+            delegate.onResponse(r);
+        }, e -> {
+            recordRejected(null, e);
+            delegate.onFailure(e);
+        });
+    }
+
+    /**
+     * Close ({@code enabled = false}) or open datasets by name. Idempotent if already in the target state; only names
+     * whose state actually changed are counted in the config-change telemetry, tagged with their parent data source's
+     * type. Fails with 404 if a name does not exist.
+     */
+    public void setDatasetsEnabled(
+        ProjectId projectId,
+        TimeValue masterNodeTimeout,
+        TimeValue ackTimeout,
+        Collection<String> names,
+        boolean enabled,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        // A node that predates the state reads every resource as open, so a query it coordinates would ignore the
+        // close while this call reported success. Refuse until every node knows the state.
+        if (clusterService.state().getMinTransportVersion().supports(Dataset.ESQL_DATASET_STATE) == false) {
+            IllegalArgumentException e = new IllegalArgumentException(
+                "cannot close or open datasets until all nodes in the cluster are upgraded to a version that supports it"
+            );
+            recordRejected(null, e);
+            listener.onFailure(e);
+            return;
+        }
+        final ProjectMetadata projectMetadata = clusterService.state().metadata().getProject(projectId);
+        final DatasetMetadata metadata = getMetadata(projectMetadata);
+        final Optional<String> notFound = names.stream().filter(n -> metadata.get(n) == null).findAny();
+        if (notFound.isPresent()) {
+            ResourceNotFoundException e = new ResourceNotFoundException("dataset [{}] not found", notFound.get());
+            recordRejected(null, e);
+            listener.onFailure(e);
+            return;
+        }
+        logger.debug("submitting set enabled={} for datasets {}", enabled, names);
+        final AtomicReference<List<String>> flippedTypes = new AtomicReference<>();
+        final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(
+            masterNodeTimeout,
+            ackTimeout,
+            enabledRecordingListener(listener, enabled, flippedTypes)
+        ) {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                final ProjectMetadata project = currentState.metadata().getProject(projectId);
+                final DatasetMetadata current = getMetadata(project);
+                final Map<String, Dataset> updated = new HashMap<>(current.datasets());
+                final List<String> flipped = new ArrayList<>();
+                for (String name : names) {
+                    final Dataset existing = updated.get(name);
+                    if (existing == null) {
+                        throw new ResourceNotFoundException("dataset [{}] not found", name);
+                    }
+                    final Dataset next = existing.withEnabled(enabled);
+                    if (next != existing) {
+                        updated.put(name, next);
+                        flipped.add(parentType(project, existing.dataSource().getName()));
+                    }
+                }
+                if (flipped.isEmpty()) {
+                    return currentState;
+                }
+                flippedTypes.set(flipped);
+                return ClusterState.builder(currentState).putProjectMetadata(ProjectMetadata.builder(project).datasets(updated)).build();
+            }
+        };
+        taskQueue.submitTask("set-state-esql-dataset-metadata-" + names, task, task.timeout());
+    }
+
+    private ActionListener<AcknowledgedResponse> enabledRecordingListener(
+        ActionListener<AcknowledgedResponse> delegate,
+        boolean enabled,
+        AtomicReference<List<String>> flippedTypes
+    ) {
+        return ActionListener.wrap(r -> {
+            List<String> types = flippedTypes.get();
+            if (types != null) {
+                for (String type : types) {
+                    metrics.recordConfigChange(
+                        ConfigChangeTelemetry.KIND_DATASET,
+                        enabled ? ConfigChangeTelemetry.OP_OPENED : ConfigChangeTelemetry.OP_CLOSED,
                         ConfigChangeTelemetry.typeToken(type),
                         null
                     );

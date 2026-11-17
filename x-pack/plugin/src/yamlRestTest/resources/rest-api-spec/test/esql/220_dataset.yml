@@ -440,3 +440,62 @@ teardown:
   - do:
       esql.delete_data_source:
         name: toggle_parent
+
+---
+"close-open-dataset":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query/dataset/{name}/_close
+          capabilities: [dataset_open_close]
+      test_runner_features: capabilities
+      reason: "close and open APIs for datasets"
+
+  - do:
+      esql.put_data_source:
+        name: toggle_parent
+        body:
+          type: s3
+          settings:
+            auth: anonymous
+
+  - do:
+      esql.put_dataset:
+        name: toggle_child
+        body:
+          data_source: toggle_parent
+          resource: "s3://x/*.csv"
+
+  - do:
+      esql.get_dataset:
+        name: toggle_child
+
+  - match: { datasets.0.state: open }
+
+  - do:
+      esql.close_dataset:
+        name: toggle_child
+
+  - do:
+      esql.get_dataset:
+        name: toggle_child
+
+  - match: { datasets.0.state: closed }
+
+  - do:
+      esql.open_dataset:
+        name: toggle_child
+
+  - do:
+      esql.get_dataset:
+        name: toggle_child
+
+  - match: { datasets.0.state: open }
+
+  - do:
+      esql.delete_dataset:
+        name: toggle_child
+
+  - do:
+      esql.delete_data_source:
+        name: toggle_parent

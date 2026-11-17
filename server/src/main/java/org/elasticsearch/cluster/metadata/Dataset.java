@@ -56,6 +56,16 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
     /** Gates the optional {@link DatasetMapping} (the declared {@code mappings} block) on the wire. */
     private static final TransportVersion DATASET_DECLARED_SCHEMA = TransportVersion.fromName("dataset_declared_schema");
 
+    /**
+     * Gates the {@link #enabled} flag on the wire. A version of its own, not the data source one: a node with only the
+     * data source state would otherwise advertise this version without writing the flag a node with the dataset state reads.
+     */
+    public static final TransportVersion ESQL_DATASET_STATE = TransportVersion.fromName("esql_dataset_state");
+
+    private static final ParseField STATE = new ParseField("state");
+    private static final String STATE_OPEN = "open";
+    private static final String STATE_CLOSED = "closed";
+
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<Dataset, Void> PARSER = new ConstructingObjectParser<>(
         "dataset",
@@ -66,7 +76,8 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
             (String) args[2],
             (String) args[3],
             args[4] != null ? (Map<String, Object>) args[4] : Map.of(),
-            DatasetMapping.assemble((DatasetMapping.Mappings) args[5])
+            DatasetMapping.assemble((DatasetMapping.Mappings) args[5]),
+            isOpen((String) args[6])
         )
     );
 
@@ -83,6 +94,7 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
         // cluster state, which on a cluster upgraded from 9.5 can still carry an `_id` block this version has no
         // field for, so it uses the tolerant entry point. The registration API uses the strict one.
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> DatasetMapping.parseStoredMappings(p), MAPPINGS);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), STATE);
     }
 
     private final String name;
@@ -92,6 +104,7 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
     private final Map<String, Object> settings;
     @Nullable
     private final DatasetMapping mapping;
+    private final boolean enabled;
 
     public Dataset(
         String name,
@@ -100,7 +113,7 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
         @Nullable String description,
         Map<String, Object> settings
     ) {
-        this(name, dataSource, resource, description, settings, null);
+        this(name, dataSource, resource, description, settings, null, true);
     }
 
     public Dataset(
@@ -111,12 +124,25 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
         Map<String, Object> settings,
         @Nullable DatasetMapping mapping
     ) {
+        this(name, dataSource, resource, description, settings, mapping, true);
+    }
+
+    public Dataset(
+        String name,
+        DataSourceReference dataSource,
+        String resource,
+        @Nullable String description,
+        Map<String, Object> settings,
+        @Nullable DatasetMapping mapping,
+        boolean enabled
+    ) {
         this.name = Objects.requireNonNull(name, "name must not be null");
         this.dataSource = Objects.requireNonNull(dataSource, "data source must not be null");
         this.resource = Objects.requireNonNull(resource, "resource must not be null");
         this.description = description;
         this.settings = settings != null ? Collections.unmodifiableMap(settings) : Map.of();
         this.mapping = mapping;
+        this.enabled = enabled;
     }
 
     public Dataset(StreamInput in) throws IOException {
@@ -127,6 +153,7 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
         // readMap returns a mutable HashMap when non-empty; wrap to preserve the class invariant that settings is unmodifiable
         this.settings = Collections.unmodifiableMap(in.readMap(StreamInput::readGenericValue));
         this.mapping = in.getTransportVersion().supports(DATASET_DECLARED_SCHEMA) ? in.readOptionalWriteable(DatasetMapping::new) : null;
+        this.enabled = in.getTransportVersion().supports(ESQL_DATASET_STATE) ? in.readBoolean() : true;
     }
 
     @Override
@@ -138,6 +165,9 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
         out.writeMap(settings, StreamOutput::writeGenericValue);
         if (out.getTransportVersion().supports(DATASET_DECLARED_SCHEMA)) {
             out.writeOptionalWriteable(mapping);
+        }
+        if (out.getTransportVersion().supports(ESQL_DATASET_STATE)) {
+            out.writeBoolean(enabled);
         }
     }
 
@@ -167,6 +197,38 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
         return mapping;
     }
 
+    /**
+     * Whether this dataset is open for query use, the default. When {@code false} it is closed: {@code FROM} queries that
+     * name it fail and wildcards skip it. Admin GET/PUT of the definition still succeed. The flag is kept as a boolean
+     * (and is {@code enabled} on the wire), and the API shows it as {@link #state()}.
+     */
+    public boolean enabled() {
+        return enabled;
+    }
+
+    /** {@code "open"} or {@code "closed"}, as the API shows the state, the way an index has an open or closed state. */
+    public String state() {
+        return enabled ? STATE_OPEN : STATE_CLOSED;
+    }
+
+    private static boolean isOpen(String state) {
+        if (state == null || STATE_OPEN.equals(state)) {
+            return true;
+        }
+        if (STATE_CLOSED.equals(state)) {
+            return false;
+        }
+        throw new IllegalArgumentException("unknown dataset state [" + state + "], expected [open] or [closed]");
+    }
+
+    /** Returns a copy of this dataset with the given enabled flag. */
+    public Dataset withEnabled(boolean enabled) {
+        if (this.enabled == enabled) {
+            return this;
+        }
+        return new Dataset(name, dataSource, resource, description, settings, mapping, enabled);
+    }
+
     public static Dataset fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
@@ -186,6 +248,7 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
         if (mapping != null) {
             mapping.toXContentFragment(builder);
         }
+        builder.field(STATE.getPreferredName(), state());
         builder.endObject();
         return builder;
     }
@@ -230,7 +293,8 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Dataset that = (Dataset) o;
-        return Objects.equals(name, that.name)
+        return enabled == that.enabled
+            && Objects.equals(name, that.name)
             && Objects.equals(dataSource, that.dataSource)
             && Objects.equals(resource, that.resource)
             && Objects.equals(description, that.description)
@@ -240,7 +304,7 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, dataSource, resource, description, settings, mapping);
+        return Objects.hash(name, dataSource, resource, description, settings, mapping, enabled);
     }
 
     @Override

@@ -41,6 +41,7 @@ Dataset operations are authorized by the standard {{es}} [index privileges](../.
 | Query a dataset | `read` |
 | Create, read, or delete a dataset | `manage` or `all` |
 | Dataset administration granted on its own | `create_dataset`, `read_dataset_metadata`, `delete_dataset`, `manage_dataset` |
+| Close or open a dataset {applies_to}`stack: preview 9.7+` | `manage_dataset`, `manage`, or `all` |
 
 The `read` privilege granted on a dataset name must not carry document-level or field-level security. `FROM <dataset>` is rejected if it does. The same restriction applies to [{{esql}} views](esql-views.md#esql-views-privileges).
 

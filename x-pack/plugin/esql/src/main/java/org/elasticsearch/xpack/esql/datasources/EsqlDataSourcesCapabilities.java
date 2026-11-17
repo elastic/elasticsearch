@@ -75,5 +75,12 @@ public final class EsqlDataSourcesCapabilities {
      */
     public static final String DATA_SOURCE_OPEN_CLOSE = "data_source_open_close";
 
+    /**
+     * Signals that this node exposes open/close endpoints for datasets
+     * ({@code POST /_query/dataset/{name}/_open|_close}), that GET responses for datasets include a {@code state} field,
+     * and that a dataset can be closed on its own, not only through its data source.
+     */
+    public static final String DATASET_OPEN_CLOSE = "dataset_open_close";
+
     private EsqlDataSourcesCapabilities() {}
 }

@@ -375,6 +375,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         EsqlDatasetActionNames.ESQL_DELETE_DATASET_ACTION_NAME,
         EsqlDataSourceActionNames.ESQL_PUT_DATA_SOURCE_ACTION_NAME,
         EsqlDataSourceActionNames.ESQL_DELETE_DATA_SOURCE_ACTION_NAME,
+        EsqlDatasetActionNames.ESQL_OPEN_DATASET_ACTION_NAME,
+        EsqlDatasetActionNames.ESQL_CLOSE_DATASET_ACTION_NAME,
         EsqlDataSourceActionNames.ESQL_OPEN_DATA_SOURCE_ACTION_NAME,
         EsqlDataSourceActionNames.ESQL_CLOSE_DATA_SOURCE_ACTION_NAME
     );
@@ -940,6 +942,16 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                             ctx
                         ).withSecurityConfigChange("close_data_source", CHANGE_CONFIG_FIELD_NAME, "data_source", change.auditFields())
                             .build();
+                        case EsqlDatasetActionNames.ESQL_OPEN_DATASET_ACTION_NAME -> securityChangeLogEntryBuilder(
+                            requestId,
+                            authentication,
+                            ctx
+                        ).withSecurityConfigChange("open_dataset", CHANGE_CONFIG_FIELD_NAME, "dataset", change.auditFields()).build();
+                        case EsqlDatasetActionNames.ESQL_CLOSE_DATASET_ACTION_NAME -> securityChangeLogEntryBuilder(
+                            requestId,
+                            authentication,
+                            ctx
+                        ).withSecurityConfigChange("close_dataset", CHANGE_CONFIG_FIELD_NAME, "dataset", change.auditFields()).build();
                         default -> throw new IllegalStateException(
                             "Unknown action type ["
                                 + msg.getClass().getSimpleName()

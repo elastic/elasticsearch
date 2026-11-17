@@ -230,6 +230,8 @@ public class AuditIT extends ESRestTestCase {
             start
         );
 
+        assertToggleAudited("close", "dataset", "/_query/dataset/" + datasetName, datasetName);
+        assertToggleAudited("open", "dataset", "/_query/dataset/" + datasetName, datasetName);
         assertToggleAudited("close", "data_source", "/_query/data_source/" + dataSourceName, dataSourceName);
         assertToggleAudited("open", "data_source", "/_query/data_source/" + dataSourceName, dataSourceName);
 

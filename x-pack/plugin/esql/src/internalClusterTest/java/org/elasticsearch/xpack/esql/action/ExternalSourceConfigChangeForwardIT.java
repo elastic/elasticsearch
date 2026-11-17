@@ -15,6 +15,10 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xpack.esql.datasources.dataset.CloseDatasetAction;
+import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
+import org.elasticsearch.xpack.esql.datasources.dataset.OpenDatasetAction;
+import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.CloseDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.DataSourceService;
 import org.elasticsearch.xpack.esql.datasources.datasource.DeleteDataSourceAction;
@@ -56,6 +60,8 @@ public class ExternalSourceConfigChangeForwardIT extends AbstractEsqlIntegTestCa
     private static final TimeValue TIMEOUT = TimeValue.timeValueSeconds(30);
 
     private static final Set<String> CREATED_DATASOURCES = Set.of("ds_fwd", "ds_fwd_max", "ds_fwd_toggle");
+
+    private static final Set<String> CREATED_DATASETS = Set.of("set_fwd_toggle");
 
     /**
      * Registers a data source type with a real telemetry token ({@code gcs}), so that a toggle's {@code type} attribute can be
@@ -105,6 +111,16 @@ public class ExternalSourceConfigChangeForwardIT extends AbstractEsqlIntegTestCa
 
     @After
     public void cleanup() throws Exception {
+        for (String name : CREATED_DATASETS) {
+            try {
+                client().execute(DeleteDatasetAction.INSTANCE, new DeleteDatasetAction.Request(TIMEOUT, TIMEOUT, new String[] { name }))
+                    .get(30, TimeUnit.SECONDS);
+            } catch (ResourceNotFoundException ignored) {
+                // never created by this method
+            } catch (Exception e) {
+                logger.warn("dataset cleanup [{}] failed", name, e);
+            }
+        }
         for (String name : CREATED_DATASOURCES) {
             try {
                 client().execute(
@@ -202,10 +218,11 @@ public class ExternalSourceConfigChangeForwardIT extends AbstractEsqlIntegTestCa
     }
 
     /**
-     * Close and open forwarded from a non-master node land once, on the master, one event per data source that changed, tagged
-     * with the data source's type. A close or open onto the state the data source already has is acknowledged but not counted.
+     * Close and open forwarded from a non-master node land once, on the master, one event per name that changed, tagged with the
+     * data source's type (the parent's type for a dataset). A close or open onto the state the resource already has is acknowledged but
+     * not counted.
      */
-    public void testCloseOpenFromNonMasterCountsOnce() throws Exception {
+    public void testToggleFromNonMasterCountsOnceWithParentType() throws Exception {
         String master = internalCluster().getMasterName();
         String coord = nonMasterNode(master);
         assertAcked(
@@ -214,9 +231,18 @@ public class ExternalSourceConfigChangeForwardIT extends AbstractEsqlIntegTestCa
                 new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds_fwd_toggle", "gcs", null, new HashMap<>())
             )
         );
+        assertAcked(
+            client(coord).execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(TIMEOUT, TIMEOUT, "set_fwd_toggle", "ds_fwd_toggle", "gcs://bucket/x/", null, new HashMap<>())
+            )
+        );
 
         long closedBefore = clusterTotal(
-            a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASOURCE, DataSourceUsageAccumulator.OP_CLOSED)
+            a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASOURCE, DataSourceUsageAccumulator.OP_CLOSED) + a.configChanges(
+                DataSourceUsageAccumulator.KIND_DATASET,
+                DataSourceUsageAccumulator.OP_CLOSED
+            )
         );
         resetAllMeters();
         for (int i = 0; i < 2; i++) {
@@ -226,14 +252,24 @@ public class ExternalSourceConfigChangeForwardIT extends AbstractEsqlIntegTestCa
                     new CloseDataSourceAction.Request(TIMEOUT, TIMEOUT, new String[] { "ds_fwd_toggle" })
                 )
             );
+            assertAcked(
+                client(coord).execute(
+                    CloseDatasetAction.INSTANCE,
+                    new CloseDatasetAction.Request(TIMEOUT, TIMEOUT, new String[] { "set_fwd_toggle" })
+                )
+            );
         }
         collectAllMeters();
-        assertCountedOnceOnMaster(master, coord, "closed");
+        assertToggleCountedOnceOnMaster(master, coord, "closed");
         assertThat(
-            "phone-home closed once across the cluster",
-            clusterTotal(a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASOURCE, DataSourceUsageAccumulator.OP_CLOSED))
-                - closedBefore,
-            equalTo(1L)
+            "phone-home closed once per kind across the cluster",
+            clusterTotal(
+                a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASOURCE, DataSourceUsageAccumulator.OP_CLOSED) + a.configChanges(
+                    DataSourceUsageAccumulator.KIND_DATASET,
+                    DataSourceUsageAccumulator.OP_CLOSED
+                )
+            ) - closedBefore,
+            equalTo(2L)
         );
 
         resetAllMeters();
@@ -244,31 +280,38 @@ public class ExternalSourceConfigChangeForwardIT extends AbstractEsqlIntegTestCa
                     new OpenDataSourceAction.Request(TIMEOUT, TIMEOUT, new String[] { "ds_fwd_toggle" })
                 )
             );
+            assertAcked(
+                client(coord).execute(
+                    OpenDatasetAction.INSTANCE,
+                    new OpenDatasetAction.Request(TIMEOUT, TIMEOUT, new String[] { "set_fwd_toggle" })
+                )
+            );
         }
         collectAllMeters();
-        assertCountedOnceOnMaster(master, coord, "opened");
+        assertToggleCountedOnceOnMaster(master, coord, "opened");
     }
 
-    private void assertCountedOnceOnMaster(String master, String coord, String op) {
-        String kind = "datasource";
-        assertThat("APM " + op + " once across the cluster", apmConfigChanges(kind, op), equalTo(1L));
-        assertThat("master recorded " + op, apmConfigChangesOn(master, kind, op), equalTo(1L));
-        assertThat("coordinator must not also record " + op, apmConfigChangesOn(coord, kind, op), equalTo(0L));
-        List<Measurement> measurements = counters(ExternalSourceMetrics.CONFIG_CHANGES_TOTAL).stream()
-            .filter(m -> kind.equals(m.attributes().get(ExternalSourceMetrics.KIND_ATTRIBUTE)))
-            .filter(m -> op.equals(m.attributes().get(ExternalSourceMetrics.OP_ATTRIBUTE)))
-            .toList();
-        assertThat(measurements, hasSize(1));
-        assertThat(
-            "tagged with the data source type",
-            measurements.get(0).attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE),
-            equalTo("gcs")
-        );
-        assertThat(
-            "a close or open carries no rejection reason",
-            measurements.get(0).attributes().containsKey(ExternalSourceMetrics.REASON_ATTRIBUTE),
-            equalTo(false)
-        );
+    private void assertToggleCountedOnceOnMaster(String master, String coord, String op) {
+        for (String kind : List.of("datasource", "dataset")) {
+            assertThat("APM " + op + " once across the cluster for " + kind, apmConfigChanges(kind, op), equalTo(1L));
+            assertThat("master recorded " + op + " for " + kind, apmConfigChangesOn(master, kind, op), equalTo(1L));
+            assertThat("coordinator must not also record " + op + " for " + kind, apmConfigChangesOn(coord, kind, op), equalTo(0L));
+            List<Measurement> measurements = counters(ExternalSourceMetrics.CONFIG_CHANGES_TOTAL).stream()
+                .filter(m -> kind.equals(m.attributes().get(ExternalSourceMetrics.KIND_ATTRIBUTE)))
+                .filter(m -> op.equals(m.attributes().get(ExternalSourceMetrics.OP_ATTRIBUTE)))
+                .toList();
+            assertThat(measurements, hasSize(1));
+            assertThat(
+                kind + " is tagged with the data source type",
+                measurements.get(0).attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE),
+                equalTo("gcs")
+            );
+            assertThat(
+                "a close or open carries no rejection reason",
+                measurements.get(0).attributes().containsKey(ExternalSourceMetrics.REASON_ATTRIBUTE),
+                equalTo(false)
+            );
+        }
     }
 
     private String nonMasterNode(String master) {

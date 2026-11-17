@@ -48,9 +48,9 @@ import java.util.function.Predicate;
  *       back to the plan config, since a client can negotiate an older transport version on purpose.</li>
  *   <li>a dataset that is not registered here, whose data source is not, or whose resource this node cannot parse.</li>
  * </ul>
- * A dataset whose data source is closed is refused with its own message. The caller has already been authorized to
- * read the dataset by then, so naming it reveals nothing the caller could not read. This is what stops a plan built
- * before the close, by a coordinator that predates the state, or crafted, from reading a dataset of a closed data source.
+ * A dataset that is closed, or whose data source is, is refused with its own message. The caller has already been
+ * authorized to read the dataset by then, so naming it reveals nothing the caller could not read. This is what stops a
+ * plan built before the close, by a coordinator that predates the state, or crafted, from reading a closed dataset.
  * It cannot stop a query whose plan already passed this point on the node: that query reads on until it finishes.
  * A split outside the dataset's resource is refused naming the split: splits are plan-carried too, and with the
  * registered credentials in hand they could otherwise name any object those credentials reach.
@@ -109,8 +109,8 @@ public final class DatasetConfigResolver {
         if (dataset == null || parent == null) {
             throw notRegistered(name);
         }
-        if (parent.enabled() == false) {
-            // The message names the dataset only, so the refusal does not name a data source the caller may not be allowed to see.
+        if (dataset.enabled() == false || parent.enabled() == false) {
+            // One message for both, so the refusal does not name a data source the caller may not be allowed to see.
             throw DatasetClosedException.refusedByDataNode(name);
         }
         Map<String, Object> resolved = DatasetRewriter.datasetConfig(parent, dataset);

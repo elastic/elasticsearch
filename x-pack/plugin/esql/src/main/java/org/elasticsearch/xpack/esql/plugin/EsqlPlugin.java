@@ -120,15 +120,21 @@ import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.LocalFileAccess;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
+import org.elasticsearch.xpack.esql.datasources.dataset.CloseDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.DatasetService;
 import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.GetDatasetAction;
+import org.elasticsearch.xpack.esql.datasources.dataset.OpenDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
+import org.elasticsearch.xpack.esql.datasources.dataset.RestCloseDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.RestDeleteDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.RestGetDatasetAction;
+import org.elasticsearch.xpack.esql.datasources.dataset.RestOpenDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.RestPutDatasetAction;
+import org.elasticsearch.xpack.esql.datasources.dataset.TransportCloseDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.TransportDeleteDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.TransportGetDatasetAction;
+import org.elasticsearch.xpack.esql.datasources.dataset.TransportOpenDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.TransportPutDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.CloseDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.DataSourceService;
@@ -821,7 +827,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             new ActionHandler(CloseDataSourceAction.INSTANCE, TransportCloseDataSourceAction.class),
             new ActionHandler(PutDatasetAction.INSTANCE, TransportPutDatasetAction.class),
             new ActionHandler(GetDatasetAction.INSTANCE, TransportGetDatasetAction.class),
-            new ActionHandler(DeleteDatasetAction.INSTANCE, TransportDeleteDatasetAction.class)
+            new ActionHandler(DeleteDatasetAction.INSTANCE, TransportDeleteDatasetAction.class),
+            new ActionHandler(OpenDatasetAction.INSTANCE, TransportOpenDatasetAction.class),
+            new ActionHandler(CloseDatasetAction.INSTANCE, TransportCloseDatasetAction.class)
         );
     }
 
@@ -899,6 +907,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             handlers.add(new RestPutDatasetAction(dataSourceSecretSettingNames));
             handlers.add(new RestGetDatasetAction());
             handlers.add(new RestDeleteDatasetAction());
+            handlers.add(new RestOpenDatasetAction());
+            handlers.add(new RestCloseDatasetAction());
         }
         return handlers;
     }

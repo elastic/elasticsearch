@@ -22,6 +22,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 
 import java.util.Map;
@@ -135,6 +136,45 @@ public class IndexBalanceMetricsTaskExecutorTests extends ESTestCase {
         } finally {
             terminate(separatePool);
         }
+    }
+
+    public void testTaskRestartedOnSameNode_stopsStaleTask() {
+        final var executorNodeTask = new AtomicReference<IndexBalanceMetricsTaskExecutor.Task>();
+        final var staleTask = createTaskSharingExecutorNodeTaskReference(1L, executorNodeTask);
+        executorNodeTask.set(staleTask);
+        staleTask.startScheduledComputation();
+        final var staleCancellable = staleTask.getScheduledComputation();
+        assertThat(staleCancellable, notNullValue());
+
+        final var newTask = createTaskSharingExecutorNodeTaskReference(2L, executorNodeTask);
+        assertThat(executorNodeTask.getAndSet(newTask), sameInstance(staleTask));
+        staleTask.stopListeningAndCancelComputation();
+        newTask.startScheduledComputation();
+
+        assertThat(staleCancellable.isCancelled(), equalTo(true));
+        assertThat(staleTask.getScheduledComputation(), nullValue());
+        assertThat(staleTask.getLastState(), nullValue());
+        assertThat(executorNodeTask.get(), sameInstance(newTask));
+        assertThat(newTask.getScheduledComputation(), notNullValue());
+        newTask.onCancelled();
+    }
+
+    private IndexBalanceMetricsTaskExecutor.Task createTaskSharingExecutorNodeTaskReference(
+        long id,
+        AtomicReference<IndexBalanceMetricsTaskExecutor.Task> executorNodeTask
+    ) {
+        return new IndexBalanceMetricsTaskExecutor.Task(
+            id,
+            IndexBalanceMetricsTaskExecutor.TASK_NAME,
+            IndexBalanceMetricsTaskExecutor.TASK_NAME,
+            "test",
+            TaskId.EMPTY_TASK_ID,
+            Map.of(),
+            threadPool,
+            clusterService,
+            () -> TimeValue.timeValueHours(1),
+            executorNodeTask
+        );
     }
 
     public void testDynamicIntervalUpdateReschedules() {

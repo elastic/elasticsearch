@@ -199,8 +199,10 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
         final var indexBalanceMetricsTask = (Task) task;
         final var existingTask = executorNodeTask.getAndSet(indexBalanceMetricsTask);
         if (existingTask != null) {
-            assert existingTask.stopped : "We should never start a new task when there's still one running";
-            existingTask.markAsCompleted();
+            // A stale task can legitimately still be running here: when this node is assigned a new allocation of the task, the node
+            // service starts the new task before the asynchronous cancellation of the old one has been processed. We stop the old task
+            // locally, without notifying the master (the cancellation will unregister it).
+            existingTask.stopListeningAndCancelComputation();
         }
         indexBalanceMetricsTask.startScheduledComputation();
     }
@@ -352,7 +354,8 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
             }
         }
 
-        private void stopListeningAndCancelComputation() {
+        // package private for testing
+        void stopListeningAndCancelComputation() {
             synchronized (lifecycleLock) {
                 stopped = true;
                 clusterService.removeListener(routingTableChangedListener);

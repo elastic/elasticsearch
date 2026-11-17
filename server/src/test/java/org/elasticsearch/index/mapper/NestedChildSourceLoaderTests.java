@@ -17,6 +17,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.search.NestedDocuments;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -24,6 +25,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -216,6 +218,81 @@ public class NestedChildSourceLoaderTests extends MapperServiceTestCase {
                 Map.of("items", Map.of("v", "b1"))
             )
         );
+    }
+
+    public void testRootBytesHeldIsComputedOncePerRoot() throws IOException {
+        MapperService mapperService = createMapperService(MAPPING);
+        List<LuceneDocument> docs = new ArrayList<>();
+        docs.addAll(
+            mapperService.documentMapper()
+                .parse(source(parent("a", List.of(Map.of("v", "a0"), Map.of("v", "a1"), Map.of("v", "a2")))))
+                .docs()
+        );
+        docs.addAll(mapperService.documentMapper().parse(source(parent("b", List.of(Map.of("v", "b0"), Map.of("v", "b1"))))).docs());
+        withLuceneIndex(mapperService, iw -> iw.addDocuments(docs), reader -> {
+            DirectoryReader shardReader = wrapInMockESDirectoryReader(reader);
+            LeafReaderContext ctx = shardReader.leaves().getFirst();
+            MappingLookup lookup = mapperService.mappingLookup();
+            CountingBytesHeldSourceLoader rootLoader = new CountingBytesHeldSourceLoader(
+                lookup.newSourceLoader(null, SourceFieldMetrics.NOOP, null)
+            );
+            SourceLoader loader = new NestedChildSourceLoader(rootLoader, nestedDocuments(mapperService), lookup.nestedLookup());
+            SourceLoader.Leaf leaf = loader.leaf(ctx, null);
+            LeafStoredFieldLoader storedFields = StoredFieldLoader.create(true, loader.requiredStoredFields()).getLoader(ctx, null);
+            LeafStoredFieldLoader rootFields = StoredFieldLoader.create(true, Set.of()).getLoader(ctx, null);
+            rootFields.advanceTo(3);
+            long rootABytes = rootFields.source().length();
+            rootFields.advanceTo(6);
+            long rootBBytes = rootFields.source().length();
+            List<Long> bytesHeld = new ArrayList<>();
+            for (int docId : new int[] { 0, 1, 2, 4, 5 }) {
+                storedFields.advanceTo(docId);
+                bytesHeld.add(leaf.sourceBytesHeld(leaf.source(storedFields, docId)));
+            }
+            assertThat(bytesHeld, equalTo(List.of(rootABytes, rootABytes, rootABytes, rootBBytes, rootBBytes)));
+            assertThat(rootLoader.sourceBytesHeldCalls.get(), equalTo(2));
+        });
+    }
+
+    private static class CountingBytesHeldSourceLoader implements SourceLoader {
+        private final SourceLoader delegate;
+        private final AtomicInteger sourceBytesHeldCalls = new AtomicInteger();
+
+        CountingBytesHeldSourceLoader(SourceLoader delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public boolean reordersFieldValues() {
+            return delegate.reordersFieldValues();
+        }
+
+        @Override
+        public Set<String> requiredStoredFields() {
+            return delegate.requiredStoredFields();
+        }
+
+        @Override
+        public Leaf leaf(LeafReaderContext ctx, int[] docIdsInLeaf) throws IOException {
+            Leaf leaf = delegate.leaf(ctx, docIdsInLeaf);
+            return new Leaf() {
+                @Override
+                public Source source(LeafStoredFieldLoader storedFields, int docId) throws IOException {
+                    return leaf.source(storedFields, docId);
+                }
+
+                @Override
+                public void write(LeafStoredFieldLoader storedFields, int docId, XContentBuilder b) throws IOException {
+                    leaf.write(storedFields, docId, b);
+                }
+
+                @Override
+                public long sourceBytesHeld(Source source) {
+                    sourceBytesHeldCalls.incrementAndGet();
+                    return leaf.sourceBytesHeld(source);
+                }
+            };
+        }
     }
 
     private static CheckedConsumer<XContentBuilder, IOException> parent(String id, List<Map<String, Object>> items) {

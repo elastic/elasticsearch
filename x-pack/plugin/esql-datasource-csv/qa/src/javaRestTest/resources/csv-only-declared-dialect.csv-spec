@@ -61,6 +61,7 @@ FROM mv_sample_declared_none
 ;
 warningRegex:Some rows in \[.+\] cannot be read; skipping them
 warningRegex:row \[\d+\]: \[5\] columns, the header has \[3\]
+warningRegex:row \[\d+\] of \[[^\]]*\](?: counted from byte \[\d+\])?: \[5\] columns, the header has \[3\]
 
 id:integer | tags:keyword | score:integer
 2          | solo         | 20

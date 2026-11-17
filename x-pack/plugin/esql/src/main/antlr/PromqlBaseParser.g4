@@ -82,13 +82,14 @@ modifier
     ;
 
 // NB: PromQL explicitly allows a trailing comma for label enumeration
-// both inside aggregation functions and metric labels.
+// both inside aggregation functions and metric labels, but requires a comma between labels.
 labelList
-    : LP (labelListItem COMMA?)* RP
+    : LP (labelListItem (COMMA labelListItem)* COMMA?)? RP
     ;
 
 labelListItem
-    : labelName
+    : identifier
+    | STRING
     | NAMED_OR_POSITIONAL_DOUBLE_PARAMS
     ;
 
@@ -105,6 +106,7 @@ labelValue
     | NAMED_OR_POSITIONAL_PARAM
     ;
 
+// selectors accept NaN and Inf as label names, which the lexer reads as numbers; grouping lists do not
 labelName
     : identifier
     | STRING

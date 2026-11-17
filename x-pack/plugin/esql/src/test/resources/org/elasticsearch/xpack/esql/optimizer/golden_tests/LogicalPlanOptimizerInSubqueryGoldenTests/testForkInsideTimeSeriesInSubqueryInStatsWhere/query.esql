@@ -1,0 +1,6 @@
+TS k8s
+| STATS m = MAX(network.bytes_in) BY cluster
+| STATS c = COUNT(*) WHERE cluster IN (TS k8s
+                                       | STATS m = MAX(network.bytes_in) BY cluster
+                                       | FORK (WHERE m > 0) (WHERE m <= 0)
+                                       | KEEP cluster)

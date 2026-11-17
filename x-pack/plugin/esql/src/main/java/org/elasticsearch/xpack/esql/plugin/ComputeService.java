@@ -15,6 +15,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -23,6 +24,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -48,6 +50,7 @@ import org.elasticsearch.compute.operator.ThreadCpuTimer;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
+import org.elasticsearch.compute.operator.exchange.RemoteSink;
 import org.elasticsearch.compute.operator.topn.TopNOperator.InputOrdering;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.Assertions;
@@ -73,7 +76,9 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
@@ -106,9 +111,12 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
+import org.elasticsearch.xpack.esql.into.IntoPageWriter;
+import org.elasticsearch.xpack.esql.into.IntoStats;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalVerifier;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ExternalSourceAggregatePushdown;
+import org.elasticsearch.xpack.esql.plan.PlanJsonLog;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
@@ -120,6 +128,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.IntoExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.StreamingOutputExec;
@@ -138,7 +147,6 @@ import org.elasticsearch.xpack.esql.stats.SearchContextStats;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -217,6 +225,7 @@ public class ComputeService {
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
     private final InferenceService inferenceService;
+    private final Client client;
     private final UserAgentParserRegistry userAgentParserRegistry;
     private final IpLocationService ipLocationService;
     private final ClusterService clusterService;
@@ -264,6 +273,7 @@ public class ComputeService {
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
         this.inferenceService = transportActionServices.inferenceService();
+        this.client = transportActionServices.client();
         this.userAgentParserRegistry = transportActionServices.userAgentParserRegistry();
         this.ipLocationService = transportActionServices.ipLocationService();
         this.clusterService = transportActionServices.clusterService();
@@ -302,6 +312,32 @@ public class ComputeService {
 
     PlannerSettings.Holder plannerSettings() {
         return plannerSettings;
+    }
+
+    /**
+     * Options for a request that carries a plan to another node. The plan can hold large local data, such as the result of an
+     * INLINE STATS sub-plan, and the transport layer keeps one serialized copy per target until it has been written, so that
+     * copy is charged to the request breaker and a trip fails the request instead of running the node out of memory.
+     */
+    TransportRequestOptions planRequestOptions() {
+        return TransportRequestOptions.of(null, TransportRequestOptions.Type.REG, blockFactory.breaker());
+    }
+
+    /**
+     * Wraps the listener of a plan request whose target already holds the exchange that {@code remoteSink} reads from. When the
+     * request fails before it is sent, for example because serializing it trips the breaker, nothing runs on the target to finish
+     * that exchange, and once the failure cancels the request's task the coordinator can no longer tell the target to finish it.
+     * So the exchange is finished through {@code remoteSink} before the failure propagates, rather than left on the target until
+     * its inactive-sink reaper removes it.
+     */
+    static <T> ActionListener<T> finishRemoteSinkIfNotSent(RemoteSink remoteSink, ActionListener<T> listener) {
+        return listener.delegateResponse((l, e) -> {
+            if (e instanceof SendRequestTransportException) {
+                remoteSink.close(ActionListener.running(() -> l.onFailure(e)));
+            } else {
+                l.onFailure(e);
+            }
+        });
     }
 
     FormatReaderRegistry formatReaderRegistry() {
@@ -887,7 +923,8 @@ public class ComputeService {
                         // No reservation reaches the synchronous path, which only tests take.
                         PlanningMemory.NONE,
                         0,
-                        minTransportVersion
+                        minTransportVersion,
+                        guarded.filteredLimit()
                     );
                 }
                 if (result.plan() instanceof ExternalSourceExec withSplits) {
@@ -989,6 +1026,7 @@ public class ComputeService {
                 discoveryMemory(run),
                 taskConcurrency,
                 minTransportVersion(),
+                work.guarded().filteredLimit(),
                 ioExecutor,
                 ActionListener.wrap(result -> {
                     try {
@@ -1138,6 +1176,12 @@ public class ComputeService {
             || (exchange.child() instanceof FragmentExec fragment && fragment.fragment().anyMatch(ExternalRelation.class::isInstance));
     }
 
+    /**
+     * Executes {@code physicalPlan} and collects its result pages on the coordinator.
+     *
+     * @param maxResultSize limit on the collected result pages, or {@code null} for no limit. The execution fails as soon as the
+     *                      pages exceed it, see {@link BoundedPageCollector}.
+     */
     public void execute(
         String sessionId,
         CancellableTask rootTask,
@@ -1147,6 +1191,7 @@ public class ComputeService {
         FoldContext foldContext,
         EsqlExecutionInfo execInfo,
         PlanTimeProfile planTimeProfile,
+        @Nullable ByteSizeValue maxResultSize,
         ActionListener<Result> listener
     ) {
         assert ThreadPool.assertCurrentThreadPool(
@@ -1157,6 +1202,27 @@ public class ComputeService {
             // external blob-store pool after ExternalSourceResolver dispatches resolution there.
             EsqlPlugin.externalBlobStorePool()
         );
+        if (physicalPlan instanceof IntoExec into) {
+            IntoPageWriter.Factory sink = IntoPageWriter.Factory.createFactory(client, into.destination(), into.child().output());
+            physicalPlan = OutputExec.withFactory(into.source(), into.child(), sink);
+            listener = listener.delegateFailureAndWrap((l, result) -> {
+                Exception failure = sink.failure();
+                if (failure != null) {
+                    throw failure;
+                }
+                l.onResponse(
+                    new Result(
+                        IntoStats.ATTRIBUTES,
+                        List.of(sink.stats().toPage(blockFactory)),
+                        result.attributeMetadata(),
+                        result.configuration(),
+                        result.completionInfo(),
+                        result.executionInfo(),
+                        result.approximationApplied()
+                    )
+                );
+            });
+        }
         final SubPlan executionPlan;
         final Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses;
         final Runnable warnIndexCoordinatorOnce = newIndexCoordinatorWarningCallback(clusterService.localNode());
@@ -1174,6 +1240,9 @@ public class ComputeService {
         }
 
         final ActionListener<Result> dispatchListener = ActionListener.notifyOnce(listener);
+        if (completeIfStopped(execInfo, physicalPlan, configuration, null, dispatchListener)) {
+            return;
+        }
         try {
             switch (executionPlan) {
                 case SubPlan.Leaf leaf -> executePlan(
@@ -1189,7 +1258,9 @@ public class ComputeService {
                     null,
                     initialClusterStatuses,
                     planTimeProfile,
-                    warnIndexCoordinatorOnce
+                    warnIndexCoordinatorOnce,
+                    SiblingPlacement.SINGLE,
+                    maxResultSize
                 );
                 case SubPlan.Merge merge -> new SubPlansExecutor(
                     this,
@@ -1204,6 +1275,7 @@ public class ComputeService {
                     warnIndexCoordinatorOnce,
                     planTimeProfile,
                     merge,
+                    maxResultSize,
                     dispatchListener
                 ).executePlan();
             }
@@ -1215,42 +1287,39 @@ public class ComputeService {
         }
     }
 
-    public void executePlan(
-        String sessionId,
-        CancellableTask rootTask,
-        EsqlFlags flags,
-        PhysicalPlan physicalPlan,
-        Configuration configuration,
-        FoldContext foldContext,
+    /**
+     * Completes {@code listener} with an empty result when async STOP already landed, so the query does not
+     * start discovery, register an exchange, or run drivers. Returns {@code true} when the caller must return.
+     * <p>
+     * Only the dispatch entry ({@link #execute}) and the post-discovery hop call this, and only when
+     * {@link EsqlExecutionInfo#hasComputeStarted()} is still false. A later {@code execute()} for INLINE
+     * STATS or a subquery must still run so STOP can cut live work instead of replacing in-flight pages
+     * with an empty result.
+     */
+    static boolean completeIfStopped(
         EsqlExecutionInfo execInfo,
-        String profileQualifier,
-        ActionListener<Result> listener,
+        PhysicalPlan plan,
+        Configuration configuration,
         Supplier<ExchangeSink> exchangeSinkSupplier,
-        Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses,
-        PlanTimeProfile planTimeProfile,
-        Runnable warnIndexCoordinatorOnce
+        ActionListener<Result> listener
     ) {
-        executePlan(
-            sessionId,
-            rootTask,
-            flags,
-            physicalPlan,
-            configuration,
-            foldContext,
-            execInfo,
-            profileQualifier,
-            listener,
-            exchangeSinkSupplier,
-            initialClusterStatuses,
-            planTimeProfile,
-            warnIndexCoordinatorOnce,
-            SiblingPlacement.SINGLE
-        );
+        if (execInfo == null || execInfo.isStopped() == false || execInfo.hasComputeStarted()) {
+            return false;
+        }
+        execInfo.markPartial();
+        if (exchangeSinkSupplier == null) {
+            execInfo.markEndQuery();
+        }
+        listener.onResponse(new Result(plan.output(), List.of(), null, configuration, DriverCompletionInfo.EMPTY, execInfo, null));
+        return true;
     }
 
     /**
      * Runs one producer after split discovery, placing it with {@code placement} so sibling
      * UNION leaves rotate and hop instead of stacking on the coordinator.
+     *
+     * @param maxResultSize limit on the result pages collected when {@code exchangeSinkSupplier} is {@code null}, or
+     *                      {@code null} for no limit, see {@link BoundedPageCollector}
      */
     public void executePlan(
         String sessionId,
@@ -1266,7 +1335,8 @@ public class ComputeService {
         Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses,
         PlanTimeProfile planTimeProfile,
         Runnable warnIndexCoordinatorOnce,
-        SiblingPlacement placement
+        SiblingPlacement placement,
+        @Nullable ByteSizeValue maxResultSize
     ) {
         final long splitDiscoveryStart = System.nanoTime();
         ExternalPlanningReservation reservation = execInfo == null ? null : execInfo.externalPlanning();
@@ -1282,6 +1352,9 @@ public class ComputeService {
         // threads. Those completions have no security user; SEARCH's executor would then
         // preserve the empty context into runCompute. Same pattern as ExternalSourceResolver.
         ActionListener<CollectedSplits> afterDiscovery = restoreContextOnCompletion(ActionListener.wrap(collected -> {
+            if (completeIfStopped(execInfo, collected.plan(), configuration, exchangeSinkSupplier, releasing)) {
+                return;
+            }
             // The discovery clock stops here: a wait for a worker below is not object-store time.
             final long discoveryEnd = System.nanoTime();
             final LongConsumer runAfterDiscovery = waitedNanos -> runOnSearch(
@@ -1300,7 +1373,8 @@ public class ComputeService {
                     planTimeProfile,
                     warnIndexCoordinatorOnce,
                     splitDiscoveryStart + waitedNanos,
-                    placement
+                    placement,
+                    maxResultSize
                 ),
                 releasing
             );
@@ -1340,6 +1414,10 @@ public class ComputeService {
         ExternalPlanningReservation.Run run,
         ActionListener<CollectedSplits> afterDiscovery
     ) {
+        if (execInfo != null && execInfo.isStopped()) {
+            afterDiscovery.onResponse(new CollectedSplits(physicalPlan, List.of()));
+            return;
+        }
         if (canSkipSplitDiscovery(physicalPlan, formatReaderRegistry)) {
             recordExternalWarmAggregates(execInfo, physicalPlan);
             afterDiscovery.onResponse(new CollectedSplits(physicalPlan, List.of()));
@@ -1413,7 +1491,8 @@ public class ComputeService {
         PlanTimeProfile planTimeProfile,
         Runnable warnIndexCoordinatorOnce,
         long splitDiscoveryStart,
-        SiblingPlacement placement
+        SiblingPlacement placement,
+        @Nullable ByteSizeValue maxResultSize
     ) {
         final ExternalDistributionResult distributionResult;
         try {
@@ -1436,7 +1515,8 @@ public class ComputeService {
             return;
         }
         final PhysicalPlan resolvedPlan = distributionResult.plan();
-        final List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
+        final BoundedPageCollector pageCollector = new BoundedPageCollector(maxResultSize);
+        final List<Page> collectedPages = pageCollector.pages();
         listener = listener.delegateResponse((l, e) -> {
             collectedPages.forEach(p -> Releasables.closeExpectNoException(p::releaseBlocks));
             l.onFailure(e);
@@ -1449,8 +1529,10 @@ public class ComputeService {
         final PageStreamPublisher streamPublisher = coordinatorPlan instanceof StreamingOutputExec streaming
             ? streaming.pageStream()
             : null;
-        if (exchangeSinkSupplier == null && coordinatorPlan instanceof StreamingOutputExec == false) {
-            coordinatorPlan = new OutputExec(coordinatorPlan, collectedPages::add);
+        if (exchangeSinkSupplier == null
+            && coordinatorPlan instanceof StreamingOutputExec == false
+            && coordinatorPlan instanceof OutputExec == false) {
+            coordinatorPlan = new OutputExec(coordinatorPlan, pageCollector);
         }
 
         PhysicalPlan dataNodePlan = coordinatorAndDataNode.v2();
@@ -1643,7 +1725,11 @@ public class ComputeService {
                     }
                 }
                 // starts computes on remote clusters
-                final var remoteClusters = clusterComputeHandler.getRemoteClusters(clusterToConcreteIndices, clusterToOriginalIndices);
+                final var remoteClusters = clusterComputeHandler.getRemoteClusters(
+                    clusterToConcreteIndices,
+                    clusterToOriginalIndices,
+                    execInfo
+                );
                 for (ClusterComputeHandler.RemoteCluster cluster : remoteClusters) {
                     String clusterAlias = cluster.clusterAlias();
                     // Check the initial cluster status set by planning phase before executing the data node plan on remote clusters,
@@ -2003,6 +2089,9 @@ public class ComputeService {
         PlanTimeProfile planTimeProfile,
         ActionListener<DriverCompletionInfo> listener
     ) {
+        if (task instanceof EsqlQueryTask asyncTask && asyncTask.executionInfo() != null) {
+            asyncTask.executionInfo().markComputeStarted();
+        }
         QueryWarnings singleValueQueryWarnings = QueryWarnings.EMIT;
         Set<String> unmappedFieldNames = PlannerUtils.unmappedFieldNames(plan);
         boolean flattenedKeys = context.configuration().flattenedKeys();
@@ -2022,25 +2111,40 @@ public class ComputeService {
             directoryBytesRead,
             singleValueQueryWarnings
         );
-        // the time its sources do not attribute to a shard goes to all the shards of the compute
-        TaskLoadAttribution.Target computeLoad = context.description().equals(DATA_DESCRIPTION) ? shardsLoad(shardContexts) : null;
+        // the time its sources do not attribute to a shard goes to the shards of the compute, or to its load
+        TaskLoadAttribution.Target computeLoad = context.description().equals(DATA_DESCRIPTION)
+            ? shardsLoad(shardContexts)
+            : context.load();
+        assert context.description().equals(REDUCE_DESCRIPTION) == false || computeLoad != null : "node reduce without a load target";
         Executor parallelWorkers = searchService.queryScheduler().executor(context.queryId(), computeExecutor, List.of());
+        // the compute allocates through the query's breaker until it completes
+        QueryScheduler.QueryPart computePart = searchService.queryScheduler().part(context.queryId(), task.getId());
 
         try {
+            BigArrays queryBigArrays = computePart.bigArrays(bigArrays);
+            BlockFactory queryBlockFactory = blockFactory.newQueryFactory(computePart.breaker(), queryBigArrays);
             var workerThreadPool = transportService.getThreadPool();
             int esqlWorkerPoolSize = workerThreadPool.info(EsqlPlugin.computePool()).getMax();
 
+            // The planner's client is used solely by the coordinator-local EQL source, which delegates one
+            // EqlSearchAction. Assign the compute task as that search's parent so cancelling the ES|QL query
+            // cancels the delegated EQL search instead of orphaning it (and hanging the driver that waits on it).
+            var eqlDelegateClient = new ParentTaskAssigningClient(
+                client,
+                task.taskInfo(transportService.getLocalNode().getId(), false).taskId()
+            );
             // One snapshot of the project for the dataset rebind below and for the planner. The external request handler
             // rebinds under its own snapshot before calling here; the planner does not consult datasets, so the two
             // snapshots cannot disagree on anything that is read.
             ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(clusterService.state());
             DatasetConfigResolver datasetConfigResolver = DatasetConfigResolver.forProduction(projectMetadata);
+            var externalCompute = new LocalExecutionPlanner.ExternalComputeContext(context.queryId(), computeLoad, null);
             LocalExecutionPlanner planner = new LocalExecutionPlanner(
                 context.sessionId(),
                 context.clusterAlias(),
                 task,
-                bigArrays,
-                blockFactory,
+                queryBigArrays,
+                queryBlockFactory,
                 clusterService.getSettings(),
                 context.configuration(),
                 context.exchangeSourceSupplier(),
@@ -2059,7 +2163,9 @@ public class ComputeService {
                 computeLoad == null ? parallelWorkers : TaskLoadAttribution.charging(parallelWorkers, computeLoad),
                 esqlWorkerPoolSize,
                 grokMatcherWatchdog.get(),
-                clusterService.state().getMinTransportVersion()
+                clusterService.state().getMinTransportVersion(),
+                eqlDelegateClient,
+                externalCompute
             );
 
             LOGGER.debug("Received physical plan for {}:\n{}", context.description(), plan);
@@ -2069,6 +2175,7 @@ public class ComputeService {
             );
             PhysicalPlan localPlan;
             final String logicalPlanString;
+            final String logicalPlanJson;
             final boolean approximationApplied;
             if (localPhysicalOptimization == LocalPhysicalOptimization.ENABLED) {
                 // The contexts of the shards, so that planning sees the fields the plan reads as each shard resolves them
@@ -2089,6 +2196,7 @@ public class ComputeService {
                         datasetConfigResolver
                     );
                     logicalPlanString = null;
+                    logicalPlanJson = null;
                     approximationApplied = false;
                 } else {
                     var localPlanResult = PlannerUtils.localPlanWithLogical(
@@ -2102,6 +2210,7 @@ public class ComputeService {
                     );
                     localPlan = localPlanResult.physicalPlan();
                     logicalPlanString = localPlanResult.logicalPlanString();
+                    logicalPlanJson = localPlanResult.logicalPlanJson();
                     approximationApplied = localPlanResult.approximationApplied();
                 }
             } else {
@@ -2110,11 +2219,14 @@ public class ComputeService {
                 // idempotent and free on a plan without external sources, so apply it rather than rely on that.
                 localPlan = plan.transformUp(ExternalSourceExec.class, datasetConfigResolver::rebind);
                 logicalPlanString = null;
+                logicalPlanJson = null;
                 approximationApplied = false;
             }
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("Local plan for {}:\n{}", context.description(), localPlan);
             }
+            // The plan the drivers below are built from, so their plan_node_ids all resolve to nodes in it.
+            PlanJsonLog.debug(PlanJsonLog.Stage.COMPUTE_PLAN, context.description(), localPlan);
 
             // For EXPLAIN mode, replace data sources with empty sources to make execution cheap.
             // The original localPlan is immutable and preserved for profiling.
@@ -2141,6 +2253,7 @@ public class ComputeService {
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("Local execution plan for {}:\n{}", context.description(), localExecutionPlan.describe());
             }
+            PlanJsonLog.debug(PlanJsonLog.Stage.DRIVERS, context.description(), localExecutionPlan::toPrettyJsonString);
             String driverSessionId = new TaskId(clusterService.localNode().getId(), task.getId()).toString();
             var drivers = localExecutionPlan.createDrivers(driverSessionId);
             // Note that the drivers themselves do not hold a reference to the search contexts, but rather, these are held (and therefore
@@ -2197,6 +2310,7 @@ public class ComputeService {
                 context,
                 localPlan,
                 logicalPlanString,
+                logicalPlanJson,
                 planTimeProfile,
                 planningBytesRead,
                 approximationApplied
@@ -2212,9 +2326,12 @@ public class ComputeService {
                         hookExecInfo.removeStopHook(hook);
                     }
                 }
-                Releasables.close(drivers);
+                try (computePart) {
+                    Releasables.close(drivers);
+                }
             }));
         } catch (Exception e) {
+            computePart.close();
             if (context.description().equals(DATA_DESCRIPTION)) {
                 Releasables.close(context.searchContexts().iterable());
             }
@@ -2229,6 +2346,7 @@ public class ComputeService {
         ComputeContext context,
         PhysicalPlan localPlan,
         String logicalPlanString,
+        String logicalPlanJson,
         PlanTimeProfile planTimeProfile,
         long planningBytesRead,
         boolean approximated
@@ -2237,8 +2355,11 @@ public class ComputeService {
          * We *really* don't want to close over the localPlan because it can
          * be quite large, and it isn't tracked.
          */
-        boolean needPlanString = LOGGER.isDebugEnabled() || context.configuration().profile();
+        boolean profile = context.configuration().profile();
+        boolean needPlanString = LOGGER.isDebugEnabled() || profile;
         String planString = needPlanString ? localPlan.toString(Node.NodeStringFormat.LIMITED, NodeStringMapper.IDENTITY) : null;
+        // JSON only when a consumer will read it. EXPLAIN turns profile on, so it takes this path too.
+        String planJson = profile ? PlanJsonLog.toJsonOrNull(localPlan) : null;
         return listener.map(ignored -> {
             if (LOGGER.isDebugEnabled() || context.configuration().profile()) {
                 DriverCompletionInfo driverCompletionInfo = DriverCompletionInfo.includingProfiles(
@@ -2250,7 +2371,9 @@ public class ComputeService {
                     logicalPlanString,
                     planTimeProfile,
                     planningBytesRead,
-                    approximated
+                    approximated,
+                    planJson,
+                    logicalPlanJson
                 );
                 LOGGER.debug("finished {}", driverCompletionInfo);
                 if (context.configuration().profile()) {
@@ -2333,6 +2456,9 @@ public class ComputeService {
             case PlannerUtils.ReducedPlan rp when runNodeLevelReduction -> placePlanBetweenExchanges.apply(rp.plan());
             default -> passThroughReduction;
         };
+        if (reductionPlan.isPassThrough() == false) {
+            reductionPlan = reductionPlan.withLocalExchange();
+        }
         if (planTimeProfile != null) {
             planTimeProfile.addReductionPlanNanos(System.nanoTime() - startTime);
         }
@@ -2366,6 +2492,14 @@ public class ComputeService {
 
     String newChildSession(String session) {
         return session + "/" + childSessionIdGenerator.incrementAndGet();
+    }
+
+    /**
+     * Keeps the query that {@code coordinatorTask} coordinates tracked on this node until {@code listener} completes.
+     * The computes of the coordinator share its memory. The part closes at the latest when the task is removed.
+     */
+    <T> ActionListener<T> coordinate(Task coordinatorTask, ActionListener<T> listener) {
+        return ActionListener.releaseAfter(listener, searchService.coordinate(coordinatorTask));
     }
 
     /**

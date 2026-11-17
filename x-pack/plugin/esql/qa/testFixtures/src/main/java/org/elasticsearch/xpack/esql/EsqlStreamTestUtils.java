@@ -19,7 +19,8 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.WarningsHandler;
-import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -32,7 +33,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -42,13 +44,15 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 /**
  * Shared utilities for testing the ES|QL streaming API ({@code POST /_query?streaming=true}).
  * The main entry point is {@link #stream}, which drives a streaming NDJSON consumer
  * over a real HTTP connection, handing each complete line to a {@link StreamGate}.
+ *
+ * <p>A response is a columns line (a JSON object), one line per row (a JSON array) and a last line (a JSON object),
+ * so a parsed line is a {@link Map} for the columns and last lines and a {@link List} for a row.</p>
  */
 public final class EsqlStreamTestUtils {
 
@@ -63,15 +67,19 @@ public final class EsqlStreamTestUtils {
     public record StreamOutcome(
         Integer httpStatus,
         String contentType,
-        List<Map<String, Object>> lines,
+        List<Object> lines,
         Terminal terminal,
         long rowCount,
         Exception transportFailure,
         boolean truncated,
         boolean clientAborted
     ) {
+        /** The last line if it is an object (the footer or the error), otherwise {@code null}. */
         public Map<String, Object> terminalLine() {
-            return lines.isEmpty() ? null : lines.get(lines.size() - 1);
+            if (lines.isEmpty() || lines.get(lines.size() - 1) instanceof Map == false) {
+                return null;
+            }
+            return asObject(lines.get(lines.size() - 1));
         }
 
         public Map<String, Object> error() {
@@ -97,24 +105,40 @@ public final class EsqlStreamTestUtils {
             return Boolean.TRUE.equals(last.get("is_partial"));
         }
 
+        /** Every row line, in the order it arrived. */
         @SuppressWarnings("unchecked")
         public List<List<Object>> rows() {
             List<List<Object>> result = new ArrayList<>();
-            for (Map<String, Object> line : lines) {
-                Object values = line.get("values");
-                if (values instanceof List<?> pageRows) {
-                    for (Object row : pageRows) {
-                        result.add((List<Object>) row);
-                    }
+            for (Object line : lines) {
+                if (line instanceof List<?> row) {
+                    result.add((List<Object>) row);
                 }
             }
             return result;
         }
     }
 
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> asObject(Object line) {
+        assertThat("expected a JSON object line but got " + line, line, instanceOf(Map.class));
+        return (Map<String, Object>) line;
+    }
+
+    /** Parses one NDJSON line: a {@link Map} for an object, a {@link List} for an array. */
+    private static Object parseLine(String raw) throws IOException {
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, raw)) {
+            XContentParser.Token token = parser.nextToken();
+            return switch (token) {
+                case START_OBJECT -> parser.map();
+                case START_ARRAY -> parser.list();
+                default -> throw new IllegalArgumentException("NDJSON line is neither an object nor an array: " + raw);
+            };
+        }
+    }
+
     @FunctionalInterface
     public interface StreamGate {
-        void onLine(int lineIndex, Map<String, Object> line, StreamControl control) throws IOException;
+        void onLine(int lineIndex, Object line, StreamControl control) throws IOException;
     }
 
     public interface StreamControl {
@@ -167,12 +191,13 @@ public final class EsqlStreamTestUtils {
         return client.performRequest(request);
     }
 
-    public static List<Map<String, Object>> parseNdjson(Response response) throws IOException {
+    /** Parses a whole response body: a {@link Map} for each object line and a {@link List} for each row. */
+    public static List<Object> parseNdjson(Response response) throws IOException {
         String body = EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8);
-        List<Map<String, Object>> result = new ArrayList<>();
+        List<Object> result = new ArrayList<>();
         for (String line : body.split("\n")) {
             if (line.isBlank() == false) {
-                result.add(XContentHelper.convertToMap(XContentType.JSON.xContent(), line, false));
+                result.add(parseLine(line));
             }
         }
         return result;
@@ -213,19 +238,21 @@ public final class EsqlStreamTestUtils {
                 outcome.lines(),
                 hasSize(1)
             );
-            Map<String, Object> errorLine = outcome.lines().get(0);
+            Map<String, Object> errorLine = asObject(outcome.lines().get(0));
             assertThat("Non-200 response line must contain 'error'", errorLine, hasKey("error"));
             assertThat("Non-200 response line must contain 'status'", errorLine, hasKey("status"));
             int statusInBody = ((Number) errorLine.get("status")).intValue();
             if (statusInBody != outcome.httpStatus()) {
                 fail("In-body 'status' " + statusInBody + " does not match HTTP status " + outcome.httpStatus());
             }
+            assertThat("a pre-stream error is never complete", errorLine.get("complete"), equalTo(false));
+            assertThat("a pre-stream error has sent no rows", ((Number) errorLine.get("next_offset")).longValue(), equalTo(0L));
             assertFalse("Body must not be truncated for a non-200 (pre-stream) error response", outcome.truncated());
             assertNoDisallowedErrorType(outcome);
             return;
         }
 
-        List<Map<String, Object>> lines = outcome.lines();
+        List<Object> lines = outcome.lines();
 
         if (lines.isEmpty()) {
             if (outcome.clientAborted() == false && outcome.transportFailure() == null) {
@@ -234,28 +261,39 @@ public final class EsqlStreamTestUtils {
             return;
         }
 
-        Map<String, Object> columnsLine = lines.get(0);
+        Map<String, Object> columnsLine = asObject(lines.get(0));
         assertThat("First line must contain 'columns'", columnsLine, hasKey("columns"));
-        assertThat(columnsLine, not(hasKey("values")));
         assertThat(columnsLine, not(hasKey("took")));
         assertThat(columnsLine, not(hasKey("error")));
-        assertThat("'columns' key must appear exactly once (line 0)", lines.subList(1, lines.size()), everyItem(not(hasKey("columns"))));
 
         int terminalIdx = -1;
         for (int i = 1; i < lines.size(); i++) {
-            Map<String, Object> line = lines.get(i);
+            if (lines.get(i) instanceof List) {
+                continue;
+            }
+            Map<String, Object> line = asObject(lines.get(i));
+            assertThat("'columns' key must appear exactly once (line 0)", line, not(hasKey("columns")));
             if (line.containsKey("took") || line.containsKey("error")) {
                 terminalIdx = i;
                 break;
             }
-            if (line.containsKey("values") == false) {
-                fail("Line " + i + " is neither a values line nor a terminal line: " + line.keySet());
-            }
+            fail("Line " + i + " is neither a row nor a terminal line: " + line.keySet());
         }
 
         if (terminalIdx != -1) {
             assertThat("Lines appeared after the terminal line at index " + terminalIdx, lines, hasSize(terminalIdx + 1));
             assertFalse("Body must not be truncated after the terminal line", outcome.truncated());
+            Map<String, Object> terminalLine = asObject(lines.get(terminalIdx));
+            assertThat(
+                "'next_offset' must be the number of rows that arrived before the terminal line",
+                ((Number) terminalLine.get("next_offset")).longValue(),
+                equalTo(outcome.rowCount())
+            );
+            assertThat(
+                "'complete' must be true exactly when the response ended without an error",
+                terminalLine.get("complete"),
+                equalTo(terminalLine.containsKey("error") == false)
+            );
         }
 
         if (outcome.terminal() == Terminal.NONE) {
@@ -289,9 +327,10 @@ public final class EsqlStreamTestUtils {
 
         if (outcome.terminal() == Terminal.ERROR) {
             assertNoDisallowedErrorType(outcome);
-            assertTrue(
-                "a 200 response that ends in an error must have at least one values line before the error",
-                lines.subList(1, lines.size()).stream().anyMatch(line -> line.containsKey("values"))
+            assertThat(
+                "a 200 response that ends in an error must have at least one row before the error",
+                outcome.rowCount(),
+                greaterThan(0L)
             );
         }
 
@@ -330,7 +369,7 @@ public final class EsqlStreamTestUtils {
     private static final class StreamingNdjsonConsumer implements HttpAsyncResponseConsumer<HttpResponse>, StreamControl {
 
         private final StreamGate gate;
-        private final List<Map<String, Object>> lines = new ArrayList<>();
+        private final List<Object> lines = new ArrayList<>();
         private final StringBuilder lineBuffer = new StringBuilder();
 
         private HttpResponse receivedResponse;
@@ -380,21 +419,20 @@ public final class EsqlStreamTestUtils {
                     lineBuffer.setLength(0);
                     start = nl + 1;
                     if (raw.isEmpty() == false) {
-                        Map<String, Object> line = XContentHelper.convertToMap(XContentType.JSON.xContent(), raw, false);
+                        Object line = parseLine(raw);
                         int lineIndex = lines.size();
                         lines.add(line);
 
-                        Object values = line.get("values");
-                        if (values instanceof List<?> rows) {
-                            rowCount += rows.size();
-                        }
-
-                        // Failure footers carry both "took" and "error"; check "error" first so
-                        // that error lines are classified as Terminal.ERROR rather than Terminal.FOOTER.
-                        if (line.containsKey("error")) {
-                            terminal = Terminal.ERROR;
-                        } else if (line.containsKey("took")) {
-                            terminal = Terminal.FOOTER;
+                        if (line instanceof List) {
+                            rowCount++;
+                        } else if (line instanceof Map<?, ?> object) {
+                            // Failure footers carry both "took" and "error"; check "error" first so
+                            // that error lines are classified as Terminal.ERROR rather than Terminal.FOOTER.
+                            if (object.containsKey("error")) {
+                                terminal = Terminal.ERROR;
+                            } else if (object.containsKey("took")) {
+                                terminal = Terminal.FOOTER;
+                            }
                         }
 
                         if (gate != null) {

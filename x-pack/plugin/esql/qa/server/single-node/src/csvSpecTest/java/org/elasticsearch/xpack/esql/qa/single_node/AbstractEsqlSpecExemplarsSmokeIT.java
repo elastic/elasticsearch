@@ -22,7 +22,7 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXEMPLARS_SETTING_DEVELOPMENT_V8;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXEMPLARS_SETTING_RELEASE;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -82,11 +82,11 @@ public abstract class AbstractEsqlSpecExemplarsSmokeIT extends AbstractEsqlSpecI
         super.shouldSkipTest(testName);
         CsvTestUtils.assumeTrueLogging(
             "Cluster needs to support the exemplars setting",
-            hasCapabilities(adminClient(), List.of(EXEMPLARS_SETTING_DEVELOPMENT_V8.capabilityName()))
+            hasCapabilities(adminClient(), List.of(EXEMPLARS_SETTING_RELEASE.capabilityName()))
         );
         CsvTestUtils.assumeFalseLogging(
             "Tests of the exemplars setting itself run as they are",
-            testCase.requiredCapabilities.contains(EXEMPLARS_SETTING_DEVELOPMENT_V8.capabilityName())
+            testCase.requiredCapabilities.contains(EXEMPLARS_SETTING_RELEASE.capabilityName())
         );
         CsvTestUtils.assumeFalseLogging(
             "dataset-backed spec; covered by the external-source suites",

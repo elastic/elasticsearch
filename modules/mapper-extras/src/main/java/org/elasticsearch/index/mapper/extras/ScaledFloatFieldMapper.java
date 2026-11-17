@@ -701,6 +701,12 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected boolean readsEmptyStringAsNull() {
+        // parseCreateField reads an empty string as null when coercing, and rejects it as malformed otherwise.
+        return coerce.value();
+    }
+
+    @Override
     public ScaledFloatFieldType fieldType() {
         return (ScaledFloatFieldType) super.fieldType();
     }
@@ -745,7 +751,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         if (value == null) {
             if (shouldStoreOffsets) {
-                context.getOffSetContext().recordNull(offsetsFieldName, offsetsFallback);
+                context.getOffSetContext().recordNull(context, offsetsFieldName, offsetsFallback);
             }
             return;
         }

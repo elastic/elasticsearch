@@ -124,9 +124,6 @@ public class IndexResolver {
         .crossProjectModeOptions(new CrossProjectModeOptions(true))
         .build();
 
-    /** The field caps filter that also returns nested objects without mapped leaves, which only {@code NESTED_EXPAND} reads. */
-    private static final String NESTED_COLLECTIONS_FILTER = "+nested_collections";
-
     private final Client client;
     /**
      * Whether the {@code flattened} data type is currently enabled, backing the {@code esql.query.flattened.enabled}
@@ -172,7 +169,7 @@ public class IndexResolver {
         ActionListener<IndexResolution> listener
     ) {
         doResolveIndices(
-            createResolveFieldRequest(DEFAULT_OPTIONS, indexPattern, null, fieldNames, null, false, false, minimumVersion),
+            createResolveFieldRequest(DEFAULT_OPTIONS, indexPattern, null, fieldNames, null, false, false),
             indexPattern,
             false, /* lookup indices should do not be empty */
             minimumVersion,
@@ -229,16 +226,7 @@ public class IndexResolver {
         ActionListener<Versioned<IndexResolution>> listener
     ) {
         doResolveIndices(
-            createResolveFieldRequest(
-                DEFAULT_OPTIONS,
-                indexPattern,
-                null,
-                fieldNames,
-                requestFilter,
-                includeAllDimensions,
-                false,
-                minimumVersion
-            ),
+            createResolveFieldRequest(DEFAULT_OPTIONS, indexPattern, null, fieldNames, requestFilter, includeAllDimensions, false),
             indexPattern,
             true, /* allow empty index resolution when resolving main pattern */
             minimumVersion,
@@ -277,7 +265,7 @@ public class IndexResolver {
         ActionListener<Versioned<IndexResolution>> listener
     ) {
         doResolveIndices(
-            createResolveFieldRequest(DEFAULT_OPTIONS, indexPattern, null, ALL_FIELDS, requestFilter, false, true, minimumVersion),
+            createResolveFieldRequest(DEFAULT_OPTIONS, indexPattern, null, ALL_FIELDS, requestFilter, false, true),
             indexPattern,
             true, /* the derived data streams may not exist */
             minimumVersion,
@@ -345,16 +333,7 @@ public class IndexResolver {
     ) {
         IndicesOptions options = lenient ? FLAT_LENIENT_OPTIONS : FLAT_STRICT_OPTIONS;
         doResolveIndices(
-            createResolveFieldRequest(
-                options,
-                indexPattern,
-                projectRouting,
-                fieldNames,
-                requestFilter,
-                includeAllDimensions,
-                true,
-                minimumVersion
-            ),
+            createResolveFieldRequest(options, indexPattern, projectRouting, fieldNames, requestFilter, includeAllDimensions, true),
             indexPattern,
             true, /* flat index expression could resolve to empty */
             minimumVersion,
@@ -1146,8 +1125,7 @@ public class IndexResolver {
         Set<String> fieldNames,
         QueryBuilder requestFilter,
         boolean includeAllDimensions,
-        boolean includeResolvedTo,
-        @Nullable TransportVersion minimumVersion
+        boolean includeResolvedTo
     ) {
         FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
         request.indices(Strings.commaDelimitedListToStringArray(index));
@@ -1163,13 +1141,7 @@ public class IndexResolver {
         // we ignore the nested data type fields starting with https://github.com/elastic/elasticsearch/pull/111495
         // unless this query expands them, in which case they are kept out of ordinary resolution separately
         if (nestedScope) {
-            // Asks for nested objects without mapped leaves too. Nodes that do not know NESTED_EXPAND reject the filter.
-            boolean collections = minimumVersion != null && minimumVersion.supports(NestedScopeField.FIELD_CAPS_VERSION);
-            if (collections && includeAllDimensions) {
-                request.filters(NESTED_COLLECTIONS_FILTER, "+dimension");
-            } else if (collections) {
-                request.filters(NESTED_COLLECTIONS_FILTER);
-            } else if (includeAllDimensions) {
+            if (includeAllDimensions) {
                 request.filters("+dimension");
             }
         } else if (includeAllDimensions) {

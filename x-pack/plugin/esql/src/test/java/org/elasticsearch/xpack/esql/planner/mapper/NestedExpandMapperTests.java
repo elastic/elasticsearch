@@ -11,7 +11,6 @@ import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.core.type.NestedScopeField;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
@@ -63,9 +62,6 @@ public class NestedExpandMapperTests extends AbstractLogicalPlanOptimizerTests {
     }
 
     private LogicalPlan analyze(String query) {
-        TransportVersion version = minimumVersion.supports(NestedScopeField.FIELD_CAPS_VERSION)
-            ? minimumVersion
-            : NestedScopeField.FIELD_CAPS_VERSION;
-        return nestedAnalyzer(version).query(query);
+        return nestedAnalyzer(minimumVersion).query(query);
     }
 }

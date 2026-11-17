@@ -1745,7 +1745,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Eval p -> resolveEval(p, childrenOutput);
                 case Enrich p -> resolveEnrich(p, childrenOutput);
                 case MvExpand p -> resolveMvExpand(p, childrenOutput);
-                case NestedExpand p -> resolveNestedExpand(p, childrenOutput, context);
+                case NestedExpand p -> resolveNestedExpand(p, childrenOutput);
                 case Lookup l -> resolveLookup(l, childrenOutput);
                 case LookupJoin j -> resolveLookupJoin(j, context);
                 case AbstractSubqueryJoin sj -> resolveSubqueryJoin(sj);
@@ -1765,15 +1765,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * Binds {@code NESTED_EXPAND} to a mapped nested collection. An unknown name stays unresolved, so the verifier
          * reports it like any other unknown column. A name that exists but is not nested fails here.
          */
-        private LogicalPlan resolveNestedExpand(NestedExpand expand, List<Attribute> childrenOutput, AnalyzerContext context) {
+        private LogicalPlan resolveNestedExpand(NestedExpand expand, List<Attribute> childrenOutput) {
             if (expand.bound()) {
                 return expand;
             }
             NamedExpression target = expand.target();
-            // Older nodes report no nested collections, so this comes before the lookup that would miss them
-            if (context.minimumVersion().supports(NestedScopeField.FIELD_CAPS_VERSION) == false) {
-                throw nestedExpandError(target, "NESTED_EXPAND requires all nodes to report nested fields");
-            }
             String name = target.name();
             String rootName = NestedScopeField.PREFIX + name;
             FieldAttribute root = null;

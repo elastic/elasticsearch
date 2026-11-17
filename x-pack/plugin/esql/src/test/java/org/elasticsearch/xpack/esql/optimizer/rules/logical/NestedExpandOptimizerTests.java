@@ -11,7 +11,6 @@ import org.elasticsearch.Build;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.type.NestedScopeField;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
@@ -196,11 +195,8 @@ public class NestedExpandOptimizerTests extends AbstractLogicalPlanOptimizerTest
         return expectThrows(VerificationException.class, () -> optimize(analyzed)).getMessage();
     }
 
-    /** Analysis needs every node to support the command, which is newer than this mode's historical version. */
     private LogicalPlan analyze(String query) {
-        return nestedAnalyzer(
-            minimumVersion.supports(NestedScopeField.FIELD_CAPS_VERSION) ? minimumVersion : NestedScopeField.FIELD_CAPS_VERSION
-        ).query(query);
+        return nestedAnalyzer(minimumVersion).query(query);
     }
 
     private static List<String> names(List<Attribute> attributes) {

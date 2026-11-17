@@ -15,7 +15,6 @@ import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilitiesBuilder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VersionMode;
@@ -177,17 +176,6 @@ public class AnalyzerNestedExpandTests extends AnalyzerTestCase {
         );
     }
 
-    public void testOlderNode() {
-        nestedAnalyzer().minimumTransportVersion(TransportVersionUtils.randomVersionNotSupporting(NestedScopeField.FIELD_CAPS_VERSION))
-            .error("FROM ne | NESTED_EXPAND items", equalTo("1:25: NESTED_EXPAND requires all nodes to report nested fields"));
-    }
-
-    /** Older nodes are not sent the filter that reports nested collections, so a collection only they hold is missing. */
-    public void testOlderNodeReportsNoCollection() {
-        nestedAnalyzer().minimumTransportVersion(TransportVersionUtils.randomVersionNotSupporting(NestedScopeField.FIELD_CAPS_VERSION))
-            .error("FROM ne_orders | NESTED_EXPAND items", equalTo("1:32: NESTED_EXPAND requires all nodes to report nested fields"));
-    }
-
     public void testBeforeTimeSeriesStats() {
         nestedAnalyzer().error(
             "TS ne_ts | NESTED_EXPAND items | STATS max(cpu)",
@@ -198,7 +186,7 @@ public class AnalyzerNestedExpandTests extends AnalyzerTestCase {
     }
 
     private TestAnalyzer nestedAnalyzer() {
-        return nestedAnalyzer(minimumVersionAtLeast(NestedScopeField.FIELD_CAPS_VERSION));
+        return nestedAnalyzer(minimumVersion);
     }
 
     /** An analyzer over the indices this class describes. */

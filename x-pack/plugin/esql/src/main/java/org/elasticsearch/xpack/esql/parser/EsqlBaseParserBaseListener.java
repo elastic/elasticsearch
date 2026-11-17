@@ -230,6 +230,30 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterSourceFunction(EsqlBaseParser.SourceFunctionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitSourceFunction(EsqlBaseParser.SourceFunctionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterSourceFunctionArgument(EsqlBaseParser.SourceFunctionArgumentContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitSourceFunctionArgument(EsqlBaseParser.SourceFunctionArgumentContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterSubquery(EsqlBaseParser.SubqueryContext ctx) { }
   /**
    * {@inheritDoc}

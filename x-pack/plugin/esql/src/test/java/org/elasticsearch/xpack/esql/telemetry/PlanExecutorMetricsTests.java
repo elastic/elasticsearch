@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -38,7 +39,10 @@ import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
+import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.iplocation.api.IpLocationService;
@@ -55,12 +59,16 @@ import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse;
 import org.elasticsearch.xpack.esql.action.ExternalPlanningReservation;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCapabilities;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
 import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
@@ -74,6 +82,9 @@ import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
@@ -85,6 +96,11 @@ import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.session.Versioned;
+import org.elasticsearch.xpack.esql.sourcefunction.SourceFunction;
+import org.elasticsearch.xpack.esql.sourcefunction.SourceFunctionInvocation;
+import org.elasticsearch.xpack.esql.sourcefunction.SourceFunctionRegistry;
+import org.elasticsearch.xpack.esql.sourcefunction.SourceFunctionResolver;
+import org.elasticsearch.xpack.esql.sourcefunction.SourceFunctionSignature;
 import org.elasticsearch.xpack.esql.view.InMemoryViewService;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.mockito.stubbing.Answer;
@@ -115,7 +131,6 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 
 public class PlanExecutorMetricsTests extends ESTestCase {
-
     private static final EncryptionService ENCRYPTION_SERVICE = mock(EncryptionService.class);
 
     private static final TransportActionServices MOCK_TRANSPORT_ACTION_SERVICES = createTransportActionServices(
@@ -377,6 +392,78 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         SUCCESS,
         FAILURE,
         THROW
+    }
+
+    /**
+     * A query calling a source function is counted, which nothing else in the tree would notice.
+     * <p>
+     * The counter cannot come from {@link FeatureMetric}'s own plan walk: that is the Verifier's, and by the time it
+     * runs the call has become the relation its function returned -- for this function, rows, which the walk
+     * excludes -- so the query would be counted as having no source at all. It is read in the session instead, off
+     * the plan view expansion produced, and this asserts that the session really does read it rather than that the
+     * reading is right if called.
+     * <p>
+     * Beside an index pattern rather than alone, so index resolution still has work and the query is the shape a
+     * user would write.
+     */
+    public void testSourceFunctionMetric() throws Exception {
+        assumeTrue("source functions are snapshot-only", EsqlCapabilities.Cap.FROM_SOURCE_FUNCTION.isEnabled());
+        IndexResolver indexResolver = mockIndexResolver();
+
+        try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
+            var planExecutor = buildPlanExecutorWithASourceFunction(indexResolver, dataSourceModule);
+
+            assertEquals(0L, planExecutor.metrics().stats().get("features." + FeatureMetric.SOURCE_FUNCTION));
+
+            var request = new EsqlQueryRequest();
+            request.query("FROM test, one_row(\"a\") | KEEP foo");
+            request.allowPartialResults(false);
+            var executionInfo = createEsqlExecutionInfo(randomBoolean());
+            EsqlSession.PlanRunner runPhase = (role, p, configuration, foldContext, planTimeProfile, maxResultSize, r) -> r.onResponse(
+                createPlanRunnerResult(configuration, executionInfo)
+            );
+
+            executeEsql(planExecutor, request, executionInfo, runPhase, new ActionListener<>() {
+                @Override
+                public void onResponse(Versioned<Result> result) {}
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail("this shouldn't happen: " + e.getMessage());
+                }
+            });
+
+            assertEquals(1L, planExecutor.metrics().stats().get("features." + FeatureMetric.SOURCE_FUNCTION));
+        }
+    }
+
+    /** And a query naming none leaves it alone, so the counter is about the construct and not about every query. */
+    public void testNoSourceFunctionMeansNoMetric() throws Exception {
+        IndexResolver indexResolver = mockIndexResolver();
+
+        try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
+            var planExecutor = buildPlanExecutorWithASourceFunction(indexResolver, dataSourceModule);
+
+            var request = new EsqlQueryRequest();
+            request.query("FROM test | KEEP foo");
+            request.allowPartialResults(false);
+            var executionInfo = createEsqlExecutionInfo(randomBoolean());
+            EsqlSession.PlanRunner runPhase = (role, p, configuration, foldContext, planTimeProfile, maxResultSize, r) -> r.onResponse(
+                createPlanRunnerResult(configuration, executionInfo)
+            );
+
+            executeEsql(planExecutor, request, executionInfo, runPhase, new ActionListener<>() {
+                @Override
+                public void onResponse(Versioned<Result> result) {}
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail("this shouldn't happen: " + e.getMessage());
+                }
+            });
+
+            assertEquals(0L, planExecutor.metrics().stats().get("features." + FeatureMetric.SOURCE_FUNCTION));
+        }
     }
 
     public void testSettingsMetric() throws Exception {
@@ -810,6 +897,36 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         return new DatasetResolver(null, null, CrossProjectModeDecider.NOOP, true, new FederationLicense(() -> null));
     }
 
+    /** A function with one row and one column, enough for a query to name it and the plan to analyze. */
+    private static final class OneRow implements SourceFunction {
+
+        @Override
+        public String name() {
+            return "one_row";
+        }
+
+        @Override
+        public SourceFunctionSignature signature() {
+            return SourceFunctionSignature.of(SourceFunctionSignature.string("x"));
+        }
+
+        @Override
+        public void toRelation(
+            SourceFunctionInvocation call,
+            List<NamedExpression> metadataFields,
+            ProjectMetadata projectMetadata,
+            ActionListener<LeafPlan> listener
+        ) {
+            listener.onResponse(
+                new LocalRelation(
+                    call.source(),
+                    List.of(new ReferenceAttribute(call.source(), "n", DataType.LONG)),
+                    LocalSupplier.of(new Page(BlockUtils.constantBlock(TestBlockFactory.getNonBreakingInstance(), 1L, 1)))
+                )
+            );
+        }
+    }
+
     private List<FieldCapabilitiesIndexResponse> indexFieldCapabilities(String[] indices) {
         List<FieldCapabilitiesIndexResponse> responses = new ArrayList<>();
         for (String idx : indices) {
@@ -862,6 +979,28 @@ public class PlanExecutorMetricsTests extends ESTestCase {
 
     private PlanExecutor buildPlanExecutor(IndexResolver indexResolver, DataSourceModule dataSourceModule) {
         return buildPlanExecutor(indexResolver, dataSourceModule, CrossProjectModeDecider.NOOP);
+    }
+
+    /** The same, with one source function registered, which is what lets a query name one. */
+    private PlanExecutor buildPlanExecutorWithASourceFunction(IndexResolver indexResolver, DataSourceModule dataSourceModule) {
+        return new PlanExecutor(
+            indexResolver,
+            MeterRegistry.NOOP,
+            new XPackLicenseState(() -> 0L),
+            mockQueryLog(),
+            List.of(),
+            CrossProjectModeDecider.NOOP,
+            dataSourceModule,
+            TEST_FUNCTION_REGISTRY,
+            PromqlFunctionRegistry.INSTANCE,
+            TEST_PARSER,
+            null,
+            EsqlTestUtils.TEST_ANALYSIS_REGISTRY,
+            null,
+            null,
+            null,
+            new SourceFunctionResolver(new SourceFunctionRegistry(List.of(new OneRow())), EsExecutors.DIRECT_EXECUTOR_SERVICE)
+        );
     }
 
     private PlanExecutor buildPlanExecutor(

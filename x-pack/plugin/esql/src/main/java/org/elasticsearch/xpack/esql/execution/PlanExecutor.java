@@ -13,6 +13,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Nullable;
@@ -55,6 +56,8 @@ import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.session.Versioned;
+import org.elasticsearch.xpack.esql.sourcefunction.SourceFunctionRegistry;
+import org.elasticsearch.xpack.esql.sourcefunction.SourceFunctionResolver;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetryManager;
@@ -93,6 +96,7 @@ public class PlanExecutor {
     private final IntSupplier maxListedObjects;
     @Nullable
     private final IntSupplier maxDirectoryListings;
+    private final SourceFunctionResolver sourceFunctionResolver;
 
     public PlanExecutor(
         IndexResolver indexResolver,
@@ -123,44 +127,9 @@ public class PlanExecutor {
             analysisRegistry,
             null,
             null,
-            null
-        );
-    }
-
-    public PlanExecutor(
-        IndexResolver indexResolver,
-        MeterRegistry meterRegistry,
-        XPackLicenseState licenseState,
-        EsqlQueryLog queryLog,
-        List<BiConsumer<LogicalPlan, Failures>> extraCheckers,
-        CrossProjectModeDecider crossProjectModeDecider,
-        DataSourceModule dataSourceModule,
-        EsqlFunctionRegistry functionRegistry,
-        PromqlFunctionRegistry promqlFunctionRegistry,
-        EsqlParser parser,
-        ExternalSourceCacheService cacheService,
-        AnalysisRegistry analysisRegistry,
-        @Nullable IntSupplier maxDiscoveredFiles,
-        @Nullable IntSupplier maxGlobExpansion,
-        @Nullable IntSupplier maxListedObjects
-    ) {
-        this(
-            indexResolver,
-            meterRegistry,
-            licenseState,
-            queryLog,
-            extraCheckers,
-            crossProjectModeDecider,
-            dataSourceModule,
-            functionRegistry,
-            promqlFunctionRegistry,
-            parser,
-            cacheService,
-            analysisRegistry,
-            maxDiscoveredFiles,
-            maxGlobExpansion,
-            maxListedObjects,
-            null
+            null,
+            null,
+            new SourceFunctionResolver(new SourceFunctionRegistry(List.of()), EsExecutors.DIRECT_EXECUTOR_SERVICE)
         );
     }
 
@@ -180,7 +149,47 @@ public class PlanExecutor {
         @Nullable IntSupplier maxDiscoveredFiles,
         @Nullable IntSupplier maxGlobExpansion,
         @Nullable IntSupplier maxListedObjects,
-        @Nullable IntSupplier maxDirectoryListings
+        SourceFunctionResolver sourceFunctionResolver
+    ) {
+        this(
+            indexResolver,
+            meterRegistry,
+            licenseState,
+            queryLog,
+            extraCheckers,
+            crossProjectModeDecider,
+            dataSourceModule,
+            functionRegistry,
+            promqlFunctionRegistry,
+            parser,
+            cacheService,
+            analysisRegistry,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            null,
+            sourceFunctionResolver
+        );
+    }
+
+    public PlanExecutor(
+        IndexResolver indexResolver,
+        MeterRegistry meterRegistry,
+        XPackLicenseState licenseState,
+        EsqlQueryLog queryLog,
+        List<BiConsumer<LogicalPlan, Failures>> extraCheckers,
+        CrossProjectModeDecider crossProjectModeDecider,
+        DataSourceModule dataSourceModule,
+        EsqlFunctionRegistry functionRegistry,
+        PromqlFunctionRegistry promqlFunctionRegistry,
+        EsqlParser parser,
+        ExternalSourceCacheService cacheService,
+        AnalysisRegistry analysisRegistry,
+        @Nullable IntSupplier maxDiscoveredFiles,
+        @Nullable IntSupplier maxGlobExpansion,
+        @Nullable IntSupplier maxListedObjects,
+        @Nullable IntSupplier maxDirectoryListings,
+        SourceFunctionResolver sourceFunctionResolver
     ) {
         this.indexResolver = indexResolver;
         this.parser = parser;
@@ -200,6 +209,7 @@ public class PlanExecutor {
         this.maxGlobExpansion = maxGlobExpansion;
         this.maxListedObjects = maxListedObjects;
         this.maxDirectoryListings = maxDirectoryListings;
+        this.sourceFunctionResolver = sourceFunctionResolver;
     }
 
     /**
@@ -362,6 +372,7 @@ public class PlanExecutor {
             enrichPolicyResolver,
             viewResolver,
             datasetResolver,
+            sourceFunctionResolver,
             externalSourceResolver,
             parser,
             preAnalyzer,

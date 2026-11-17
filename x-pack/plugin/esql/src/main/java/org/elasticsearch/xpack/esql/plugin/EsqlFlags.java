@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.esql.parser.EsqlParser;
 
 import java.util.List;
 import java.util.Objects;
@@ -161,6 +162,33 @@ public class EsqlFlags {
         Setting.Property.Dynamic
     );
 
+    /**
+     * Cluster-wide cap on the binary operators between two consecutive separators of a query, checked on the token stream before the
+     * query is parsed. It protects the parser against the huge parse trees of a long operator chain such as {@code 0+0+0+...}; see
+     * {@link EsqlParser#MAX_BINARY_OPERATORS}, the default. Raise it only if legitimate queries are rejected.
+     */
+    public static final Setting<Integer> ESQL_MAX_BINARY_OPERATORS = Setting.intSetting(
+        "esql.query.max_binary_operators",
+        EsqlParser.MAX_BINARY_OPERATORS,
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Cluster-wide cap on the left parentheses, which are the function calls, subqueries and parenthesized expressions, of one top
+     * level item of a query, checked on the token stream before the query is parsed. It protects the parser against the huge
+     * prediction cost of deeply branching nested calls; see {@link EsqlParser#MAX_LEFT_PARENTHESES}, the default. Raise it only if
+     * legitimate queries are rejected.
+     */
+    public static final Setting<Integer> ESQL_MAX_LEFT_PARENTHESES = Setting.intSetting(
+        "esql.query.max_left_parentheses",
+        EsqlParser.MAX_LEFT_PARENTHESES,
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     // this is only used for testing purposes right now
     public static List<Setting<?>> ALL_ESQL_FLAGS_SETTINGS = List.of(
         ESQL_STRING_LIKE_ON_INDEX,
@@ -171,7 +199,9 @@ public class EsqlFlags {
         ESQL_MAX_BRANCH_COUNT_PER_MERGE,
         ESQL_MAX_FILLNULL_FIELDS,
         ESQL_METRICS_INFO_MAX_TIME_RANGE,
-        ESQL_TIME_SERIES_REDUCE_PER_INDEX
+        ESQL_TIME_SERIES_REDUCE_PER_INDEX,
+        ESQL_MAX_BINARY_OPERATORS,
+        ESQL_MAX_LEFT_PARENTHESES
     );
 
     /**
@@ -188,7 +218,9 @@ public class EsqlFlags {
         ESQL_MAX_COMMAND_COUNT.getDefault(Settings.EMPTY),
         ESQL_METRICS_INFO_MAX_TIME_RANGE.getDefault(Settings.EMPTY),
         ESQL_TIME_SERIES_REDUCE_PER_INDEX.getDefault(Settings.EMPTY),
-        FetchPhaseMode.DISABLED
+        FetchPhaseMode.DISABLED,
+        ESQL_MAX_BINARY_OPERATORS.getDefault(Settings.EMPTY),
+        ESQL_MAX_LEFT_PARENTHESES.getDefault(Settings.EMPTY)
     );
 
     private final boolean stringLikeOnIndex;
@@ -210,6 +242,10 @@ public class EsqlFlags {
     private final boolean timeSeriesReducePerIndex;
 
     private final FetchPhaseMode fetchPhaseMode;
+
+    private final int maxBinaryOperators;
+
+    private final int maxLeftParentheses;
 
     /**
      * Constructor for tests.
@@ -355,6 +391,36 @@ public class EsqlFlags {
         boolean timeSeriesReducePerIndex,
         FetchPhaseMode fetchPhaseMode
     ) {
+        this(
+            stringLikeOnIndex,
+            roundToPushdownThreshold,
+            maxBranchCount,
+            maxBranchLevel,
+            maxBranchCountPerMerge,
+            maxFillNullFields,
+            maxCommandCount,
+            metricsInfoMaxTimeRange,
+            timeSeriesReducePerIndex,
+            fetchPhaseMode,
+            ESQL_MAX_BINARY_OPERATORS.getDefault(Settings.EMPTY),
+            ESQL_MAX_LEFT_PARENTHESES.getDefault(Settings.EMPTY)
+        );
+    }
+
+    public EsqlFlags(
+        boolean stringLikeOnIndex,
+        int roundToPushdownThreshold,
+        int maxBranchCount,
+        int maxBranchLevel,
+        int maxBranchCountPerMerge,
+        int maxFillNullFields,
+        int maxCommandCount,
+        TimeValue metricsInfoMaxTimeRange,
+        boolean timeSeriesReducePerIndex,
+        FetchPhaseMode fetchPhaseMode,
+        int maxBinaryOperators,
+        int maxLeftParentheses
+    ) {
         this.stringLikeOnIndex = stringLikeOnIndex;
         this.roundToPushdownThreshold = roundToPushdownThreshold;
         this.maxBranchCount = maxBranchCount;
@@ -365,6 +431,8 @@ public class EsqlFlags {
         this.metricsInfoMaxTimeRange = metricsInfoMaxTimeRange;
         this.timeSeriesReducePerIndex = timeSeriesReducePerIndex;
         this.fetchPhaseMode = fetchPhaseMode;
+        this.maxBinaryOperators = maxBinaryOperators;
+        this.maxLeftParentheses = maxLeftParentheses;
     }
 
     public EsqlFlags(ClusterSettings settings) {
@@ -378,7 +446,29 @@ public class EsqlFlags {
             settings.get(ESQL_MAX_COMMAND_COUNT),
             settings.get(ESQL_METRICS_INFO_MAX_TIME_RANGE),
             settings.get(ESQL_TIME_SERIES_REDUCE_PER_INDEX),
-            FetchPhaseMode.DISABLED
+            FetchPhaseMode.DISABLED,
+            settings.get(ESQL_MAX_BINARY_OPERATORS),
+            settings.get(ESQL_MAX_LEFT_PARENTHESES)
+        );
+    }
+
+    /**
+     * Test helper that leaves the other flags at their defaults.
+     */
+    public static EsqlFlags withParserLimits(int maxBinaryOperators, int maxLeftParentheses) {
+        return new EsqlFlags(
+            ESQL_STRING_LIKE_ON_INDEX.getDefault(Settings.EMPTY),
+            ESQL_ROUNDTO_PUSHDOWN_THRESHOLD.getDefault(Settings.EMPTY),
+            ESQL_MAX_BRANCH_COUNT.getDefault(Settings.EMPTY),
+            ESQL_MAX_BRANCH_LEVEL.getDefault(Settings.EMPTY),
+            ESQL_MAX_BRANCH_COUNT_PER_MERGE.getDefault(Settings.EMPTY),
+            ESQL_MAX_FILLNULL_FIELDS.getDefault(Settings.EMPTY),
+            ESQL_MAX_COMMAND_COUNT.getDefault(Settings.EMPTY),
+            ESQL_METRICS_INFO_MAX_TIME_RANGE.getDefault(Settings.EMPTY),
+            ESQL_TIME_SERIES_REDUCE_PER_INDEX.getDefault(Settings.EMPTY),
+            FetchPhaseMode.DISABLED,
+            maxBinaryOperators,
+            maxLeftParentheses
         );
     }
 
@@ -466,6 +556,14 @@ public class EsqlFlags {
         return fetchPhaseMode;
     }
 
+    public int maxBinaryOperators() {
+        return maxBinaryOperators;
+    }
+
+    public int maxLeftParentheses() {
+        return maxLeftParentheses;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -480,7 +578,9 @@ public class EsqlFlags {
             && maxCommandCount == that.maxCommandCount
             && timeSeriesReducePerIndex == that.timeSeriesReducePerIndex
             && Objects.equals(metricsInfoMaxTimeRange, that.metricsInfoMaxTimeRange)
-            && fetchPhaseMode == that.fetchPhaseMode;
+            && fetchPhaseMode == that.fetchPhaseMode
+            && maxBinaryOperators == that.maxBinaryOperators
+            && maxLeftParentheses == that.maxLeftParentheses;
     }
 
     @Override
@@ -495,7 +595,9 @@ public class EsqlFlags {
             maxCommandCount,
             metricsInfoMaxTimeRange,
             timeSeriesReducePerIndex,
-            fetchPhaseMode
+            fetchPhaseMode,
+            maxBinaryOperators,
+            maxLeftParentheses
         );
     }
 
@@ -521,6 +623,10 @@ public class EsqlFlags {
             + timeSeriesReducePerIndex
             + ", fetchPhaseMode="
             + fetchPhaseMode
+            + ", maxBinaryOperators="
+            + maxBinaryOperators
+            + ", maxLeftParentheses="
+            + maxLeftParentheses
             + ']';
     }
 }

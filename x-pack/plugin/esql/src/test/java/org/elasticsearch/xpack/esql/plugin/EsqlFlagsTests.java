@@ -8,12 +8,15 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags.FetchPhaseMode;
 
 import java.util.HashSet;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class EsqlFlagsTests extends ESTestCase {
@@ -28,6 +31,35 @@ public class EsqlFlagsTests extends ESTestCase {
     public void testWithFetchPhase() {
         for (FetchPhaseMode mode : FetchPhaseMode.values()) {
             assertThat(EsqlFlags.withFetchPhase(mode).fetchPhaseMode(), equalTo(mode));
+        }
+    }
+
+    public void testParserLimitsDefaults() {
+        assertThat(EsqlFlags.DEFAULTS.maxBinaryOperators(), equalTo(EsqlParser.MAX_BINARY_OPERATORS));
+        assertThat(EsqlFlags.DEFAULTS.maxLeftParentheses(), equalTo(EsqlParser.MAX_LEFT_PARENTHESES));
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(EsqlFlags.ALL_ESQL_FLAGS_SETTINGS));
+        assertThat(new EsqlFlags(clusterSettings), equalTo(EsqlFlags.DEFAULTS));
+    }
+
+    public void testParserLimitsFollowDynamicClusterSettings() {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(EsqlFlags.ALL_ESQL_FLAGS_SETTINGS));
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(EsqlFlags.ESQL_MAX_BINARY_OPERATORS.getKey(), 7)
+                .put(EsqlFlags.ESQL_MAX_LEFT_PARENTHESES.getKey(), 3)
+                .build()
+        );
+        EsqlFlags flags = new EsqlFlags(clusterSettings);
+        assertThat(flags.maxBinaryOperators(), equalTo(7));
+        assertThat(flags.maxLeftParentheses(), equalTo(3));
+        assertThat(flags, equalTo(EsqlFlags.withParserLimits(7, 3)));
+    }
+
+    public void testParserLimitsMustBePositive() {
+        for (var setting : new Setting<?>[] { EsqlFlags.ESQL_MAX_BINARY_OPERATORS, EsqlFlags.ESQL_MAX_LEFT_PARENTHESES }) {
+            Settings invalid = Settings.builder().put(setting.getKey(), 0).build();
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> setting.get(invalid));
+            assertThat(e.getMessage(), containsString(setting.getKey()));
         }
     }
 }

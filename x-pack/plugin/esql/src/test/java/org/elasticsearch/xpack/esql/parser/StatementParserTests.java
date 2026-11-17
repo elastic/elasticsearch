@@ -1530,6 +1530,65 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
     }
 
+    private static void parseWithParserLimits(String query, int maxBinaryOperators, int maxLeftParentheses) {
+        TEST_PARSER.parse(
+            query,
+            new QueryParams(),
+            new InferenceSettings(Settings.EMPTY),
+            QueryPragmas.EMPTY,
+            EsqlFlags.withParserLimits(maxBinaryOperators, maxLeftParentheses)
+        );
+    }
+
+    private static void expectParserLimitError(String query, int maxBinaryOperators, int maxLeftParentheses, String message) {
+        expectThrows(
+            ParsingException.class,
+            containsString(message),
+            () -> parseWithParserLimits(query, maxBinaryOperators, maxLeftParentheses)
+        );
+    }
+
+    public void testMaxBinaryOperatorsIsConfigurable() {
+        String query = "row x = 1 + 1 + 1";
+        parseWithParserLimits(query, 2, EsqlParser.MAX_LEFT_PARENTHESES);
+        // the message reports the configured limit, not the default
+        expectParserLimitError(
+            query,
+            1,
+            EsqlParser.MAX_LEFT_PARENTHESES,
+            "ES|QL statement exceeded the maximum number of binary operators allowed between commas or pipes (1)"
+        );
+    }
+
+    public void testMaxLeftParenthesesIsConfigurable() {
+        String query = "row x = abs(abs(1))";
+        parseWithParserLimits(query, EsqlParser.MAX_BINARY_OPERATORS, 2);
+        expectParserLimitError(
+            query,
+            EsqlParser.MAX_BINARY_OPERATORS,
+            1,
+            "ES|QL statement exceeded the maximum number of left parentheses allowed in an expression (1)"
+        );
+    }
+
+    public void testConfiguredLimitsAreResetBySeparators() {
+        // each segment between the commas and the pipes has at most 3 operators and 2 left parentheses
+        parseWithParserLimits("from test | eval a = 1 + 1 + 1, b = abs(abs(1)) | where abs(abs(x)) > 0 and x > 0", 3, 2);
+        // without a separator the same operators and parentheses are over the limit
+        expectParserLimitError(
+            "from test | eval a = 1 + 1 + 1 + 1 + 1",
+            3,
+            EsqlParser.MAX_LEFT_PARENTHESES,
+            "maximum number of binary operators allowed between commas or pipes (3)"
+        );
+        expectParserLimitError(
+            "from test | eval a = abs(abs(abs(1)))",
+            EsqlParser.MAX_BINARY_OPERATORS,
+            2,
+            "maximum number of left parentheses allowed in an expression (2)"
+        );
+    }
+
     private static final String MAX_BINARY_OPERATORS_ERROR =
         "ES|QL statement exceeded the maximum number of binary operators allowed between commas or pipes ("
             + EsqlParser.MAX_BINARY_OPERATORS

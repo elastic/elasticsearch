@@ -674,9 +674,9 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         String dataNode = internalCluster().startDataOnlyNode();
         String indexName = randomIndexName();
 
-        MockTransportService masterATransport = MockTransportService.getInstance(master);
+        MockTransportService masterTransport = MockTransportService.getInstance(master);
         try {
-            failTestIfReceiveShardFailure(masterATransport);
+            failTestIfReceiveShardFailure(masterTransport);
 
             armRandomFailure();
             final var barrier = armRecoveryPause();
@@ -702,7 +702,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             waitNoPendingTasksOnAll();
             ensureGreen(indexName);
         } finally {
-            masterATransport.clearAllRules();
+            masterTransport.clearAllRules();
         }
     }
 
@@ -717,9 +717,9 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         ensureGreen(indexName);
         assertAcked(indicesAdmin().prepareClose(indexName));
 
-        MockTransportService masterATransport = MockTransportService.getInstance(master);
+        MockTransportService masterTransport = MockTransportService.getInstance(master);
         try {
-            failTestIfReceiveShardFailure(masterATransport);
+            failTestIfReceiveShardFailure(masterTransport);
 
             armRandomFailure();
             final var barrier = armRecoveryPause();
@@ -745,7 +745,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             waitNoPendingTasksOnAll();
             ensureGreen(indexName);
         } finally {
-            masterATransport.clearAllRules();
+            masterTransport.clearAllRules();
         }
     }
 
@@ -763,9 +763,9 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         // Required for clone
         updateIndexSettings(Settings.builder().put("index.blocks.write", true), sourceIndexName);
 
-        MockTransportService masterATransport = MockTransportService.getInstance(master);
+        MockTransportService masterTransport = MockTransportService.getInstance(master);
         try {
-            failTestIfReceiveShardFailure(masterATransport);
+            failTestIfReceiveShardFailure(masterTransport);
 
             armRandomFailure();
             final var barrier = armRecoveryPause();
@@ -792,7 +792,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             ensureGreen(sourceIndexName);
             ensureGreen(targetIndexName);
         } finally {
-            masterATransport.clearAllRules();
+            masterTransport.clearAllRules();
         }
     }
 
@@ -815,9 +815,9 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap").setWaitForCompletion(true).get();
         assertAcked(indicesAdmin().prepareDelete(indexName));
 
-        MockTransportService masterATransport = MockTransportService.getInstance(master);
+        MockTransportService masterTransport = MockTransportService.getInstance(master);
         try {
-            failTestIfReceiveShardFailure(masterATransport);
+            failTestIfReceiveShardFailure(masterTransport);
 
             armRandomFailure();
             final var barrier = armRecoveryPause();
@@ -843,7 +843,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             waitNoPendingTasksOnAll();
             ensureGreen(indexName);
         } finally {
-            masterATransport.clearAllRules();
+            masterTransport.clearAllRules();
         }
     }
 

@@ -345,8 +345,9 @@ public class EsqlSessionQueryTimeFilterTests extends ESTestCase {
      */
     public void testTimeSeriesSources() {
         QueryBuilder timeSeries = QueryBuilders.termQuery("_index_mode", "time_series");
-        // The exemplars setting is only available in snapshot builds.
-        String[] allSettings = Build.current().isSnapshot() ? new String[] { "", "SET exemplars=true; " } : new String[] { "" };
+        // The exemplars setting is only available in snapshot builds. The exemplars query replaces the metrics query and its limit,
+        // so the setting carries a limit of its own, for the query not to warn about the default one that it would get.
+        String[] allSettings = Build.current().isSnapshot() ? new String[] { "", "SET exemplars={\"limit\": 10}; " } : new String[] { "" };
         for (String settings : allSettings) {
             indexFilters.clear();
             try {

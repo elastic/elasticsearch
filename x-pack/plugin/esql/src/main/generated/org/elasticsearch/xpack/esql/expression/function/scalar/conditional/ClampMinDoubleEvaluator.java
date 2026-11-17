@@ -104,7 +104,7 @@ public final class ClampMinDoubleEvaluator implements ExpressionEvaluator {
   }
 
   public DoubleVector eval(int positionCount, DoubleVector fieldVector, DoubleVector minVector) {
-    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
+    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         double field = fieldVector.getDouble(p);
         double min = minVector.getDouble(p);

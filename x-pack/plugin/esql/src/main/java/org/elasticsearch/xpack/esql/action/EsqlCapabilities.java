@@ -13,7 +13,6 @@ import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.SliceIndexing;
-import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
@@ -523,9 +522,10 @@ public class EsqlCapabilities {
          * Fields absorbed into the implicit {@code _unmapped} sink of a strict columnar index load under {@code SET unmapped_fields="load"}
          * from the sink's doc values. As for a key of a mapped flattened field, they are keywords and their values are sorted and
          * deduplicated. A field below a nested object is still read from {@code _source}. V2: the sink is opted into with a root
-         * {@code dynamic: flattened}, which the test datasets set and a node of the first version rejects.
+         * {@code dynamic: flattened}, which the test datasets set and a node of the first version rejects. V3: the sink is gated on a later
+         * index version, so a V2 node can create a dataset index that a V3 node rejects.
          */
-        FLATTENED_UNMAPPED_SINK_LOAD_V2(FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG),
+        FLATTENED_UNMAPPED_SINK_LOAD_V3,
 
         /**
          * Support for the {@code flattened} data type in ES|QL, which loads flattened fields as JSON objects.

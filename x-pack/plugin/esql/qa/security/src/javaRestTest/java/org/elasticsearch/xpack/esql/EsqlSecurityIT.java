@@ -20,7 +20,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -1768,7 +1767,6 @@ public class EsqlSecurityIT extends ESRestTestCase {
      * not filter by key. Every unmapped field read or searched there is checked against the role on its own.
      */
     public void testFLS_HidesUnmappedFieldKeptInTheUnmappedField() throws Exception {
-        assumeTrue("flattened_unmapped_fields is enabled", FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled());
         assumeTrue(
             "unmapped fields are read from the _unmapped field",
             hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.UNMAPPED_FIELDS_RESOLVED_BY_SHARD.capabilityName()))

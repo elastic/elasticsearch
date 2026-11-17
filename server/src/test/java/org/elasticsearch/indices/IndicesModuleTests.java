@@ -48,10 +48,8 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.test.LambdaMatchers.falseWith;
 import static org.elasticsearch.test.LambdaMatchers.trueWith;
@@ -84,7 +82,7 @@ public class IndicesModuleTests extends ESTestCase {
         }
     });
 
-    private static final String[] EXPECTED_METADATA_FIELDS = Stream.of(
+    private static final String[] EXPECTED_METADATA_FIELDS = new String[] {
         IgnoredFieldMapper.NAME,
         IdFieldMapper.NAME,
         RoutingFieldMapper.NAME,
@@ -100,9 +98,8 @@ public class IndicesModuleTests extends ESTestCase {
         SeqNoFieldMapper.NAME,
         DocCountFieldMapper.NAME,
         DataStreamTimestampFieldMapper.NAME,
-        FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled() ? FlattenedFieldMapper.UNMAPPED_SINK_NAME : null,
-        FieldNamesFieldMapper.NAME
-    ).filter(Objects::nonNull).toArray(String[]::new);
+        FlattenedFieldMapper.UNMAPPED_SINK_NAME,
+        FieldNamesFieldMapper.NAME };
 
     public void testBuiltinMappers() {
         IndicesModule module = new IndicesModule(Collections.emptyList());

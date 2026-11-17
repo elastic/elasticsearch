@@ -889,15 +889,10 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
         assertNull(ShardBatchMapper.resolveMappers(schemaOf("host"), ms.mappingLookup(), indexSettings));
     }
 
-    private static void assumeUnmappedSinkAvailable() {
-        assumeTrue("flattened_unmapped_fields is enabled", FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled());
-    }
-
     /**
      * With root {@code dynamic: flattened}, an unmapped leaf is absorbed by the {@code _unmapped} sink instead of forcing a fallback.
      */
     public void testUnmappedLeafIsAbsorbedByTheSink() throws IOException {
-        assumeUnmappedSinkAvailable();
         MapperService ms = columnarMapperService(dynamicFlattened(b -> b.startObject("host").field("type", "keyword").endObject()));
         SourceSchema schema = schemaOfJson("{\"host\":\"srv\",\"unknown\":\"x\"}");
         BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings);
@@ -917,7 +912,6 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
      * flattened field, whose relative keys have the owner prefix stripped.
      */
     public void testSinkKeysUnmappedLeafByFullDottedPath() throws IOException {
-        assumeUnmappedSinkAvailable();
         MapperService ms = columnarMapperService(dynamicFlattened(b -> b.startObject("host").field("type", "keyword").endObject()));
         SourceSchema schema = schemaOfJson("{\"a\":{\"b\":\"x\"}}");
         BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings);
@@ -932,7 +926,6 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
      * be silently written into the sink as key {@code a}.
      */
     public void testLeafUnderSinkNameFallsBack() throws IOException {
-        assumeUnmappedSinkAvailable();
         MapperService ms = columnarMapperService(dynamicFlattened(b -> {}));
         String key = randomAlphaOfLength(5);
         String json = randomBoolean() ? "{\"_unmapped\":{\"" + key + "\":\"x\"}}" : "{\"_unmapped." + key + "\":\"x\"}";
@@ -945,7 +938,6 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
      * sink to the column and failing later inside {@code mapColumnBatch}.
      */
     public void testSinkNameAsLeafFallsBack() throws IOException {
-        assumeUnmappedSinkAvailable();
         MapperService ms = columnarMapperService(dynamicFlattened(b -> {}));
         String value = randomAlphaOfLength(5);
         String json = randomBoolean() ? "{\"_unmapped\":\"" + value + "\"}" : "{\"_unmapped\":[\"" + value + "\"]}";
@@ -957,7 +949,6 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
      * than absorbing the value. The batch path cannot evaluate templates, so it must fall back instead of guessing.
      */
     public void testDynamicTemplatesPreEmptTheSink() throws IOException {
-        assumeUnmappedSinkAvailable();
         MapperService ms = columnarMapperService(topMapping(b -> {
             b.field("dynamic", "flattened");
             b.startArray("dynamic_templates");
@@ -981,7 +972,6 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
 
     /** The sink exists on every new strict columnar index, but a root {@code dynamic: false} falls back rather than absorbing the leaf. */
     public void testRootDynamicFalseDoesNotAbsorb() throws IOException {
-        assumeUnmappedSinkAvailable();
         MapperService ms = columnarMapperService(topMapping(b -> {
             b.field("dynamic", "false");
             b.startObject("properties");
@@ -1000,7 +990,6 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
      * index: a batch with no unmapped leaf still batches, and only a batch that would absorb a leaf falls back.
      */
     public void testSinkThatCannotBatchFallsBackOnlyWhenAbsorbing() throws IOException {
-        assumeUnmappedSinkAvailable();
         Settings indexEnabled = Settings.builder().put(IndexSettings.INDEX_DISABLED_BY_DEFAULT.getKey(), false).build();
         MapperService ms = columnarMapperService(
             indexEnabled,

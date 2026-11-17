@@ -23,7 +23,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
-import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldSyntheticWriterHelper;
 import org.elasticsearch.index.mapper.flattened.UnmappedSinkFieldMapper;
 import org.elasticsearch.index.mapper.flattened.UnmappedSinkSyntheticFieldLoader;
@@ -751,7 +750,7 @@ public class ObjectMapper extends Mapper {
             if (UnmappedSinkFieldMapper.isEnabled(indexSettings) == false) {
                 throw new MapperParsingException(
                     "dynamic [flattened] is not supported on indices created before ["
-                        + IndexVersions.UNMAPPED_SINK_ON_STRICT_COLUMNAR.toReleaseVersion()
+                        + IndexVersions.UNMAPPED_SINK_FEATURE_FLAG_REMOVAL.toReleaseVersion()
                         + "]"
                 );
             }
@@ -776,7 +775,7 @@ public class ObjectMapper extends Mapper {
                         throw new MapperParsingException("dynamic [runtime] is not supported in strict columnar mode");
                     }
                     builder.dynamic(Dynamic.RUNTIME);
-                } else if (value.equalsIgnoreCase("flattened") && FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled()) {
+                } else if (value.equalsIgnoreCase("flattened")) {
                     validateDynamicFlattened(parserContext.getIndexSettings(), builder);
                     builder.dynamic(Dynamic.FLATTENED);
                 } else {

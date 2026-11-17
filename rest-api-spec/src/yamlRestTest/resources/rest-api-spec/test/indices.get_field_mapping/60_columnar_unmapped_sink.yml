@@ -6,7 +6,7 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes, dynamic_flattened ]
+          capabilities: [ columnar_index_modes, dynamic_flattened_v2 ]
       reason: "columnar index modes and the flattened _unmapped sink are required"
 
   - do:

@@ -301,9 +301,7 @@ public class IndicesModule extends AbstractModule {
         builtInMetadataMappers.put(SeqNoFieldMapper.NAME, SeqNoFieldMapper.PARSER);
         builtInMetadataMappers.put(DocCountFieldMapper.NAME, DocCountFieldMapper.PARSER);
         builtInMetadataMappers.put(DataStreamTimestampFieldMapper.NAME, DataStreamTimestampFieldMapper.PARSER);
-        if (FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled()) {
-            builtInMetadataMappers.put(FlattenedFieldMapper.UNMAPPED_SINK_NAME, UnmappedSinkFieldMapper.PARSER);
-        }
+        builtInMetadataMappers.put(FlattenedFieldMapper.UNMAPPED_SINK_NAME, UnmappedSinkFieldMapper.PARSER);
         // _field_names must be added last so that it has a chance to see all the other mappers
         builtInMetadataMappers.put(FieldNamesFieldMapper.NAME, FieldNamesFieldMapper.PARSER);
         return Collections.unmodifiableMap(builtInMetadataMappers);

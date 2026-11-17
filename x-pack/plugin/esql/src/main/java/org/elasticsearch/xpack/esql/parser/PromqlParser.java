@@ -73,9 +73,7 @@ public class PromqlParser {
     }
 
     /**
-     * Parses a PromQL expression embedded in an ES|QL query or, when {@code viewName} is not {@code null}, in that view's
-     * definition: every {@link org.elasticsearch.xpack.esql.core.tree.Source} is tagged with the view, so it is read back
-     * against the view's query text rather than the caller's.
+     * Parses a PromQL expression embedded in an ES|QL query or, when {@code viewName} is not {@code null}, in that view's definition.
      */
     public LogicalPlan createStatement(
         String query,

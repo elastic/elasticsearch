@@ -249,9 +249,9 @@ public class MockBlockFactory extends BlockFactory {
     }
 
     @Override
-    public IntBlock.Builder newIntBlockBuilder(int estimatedSize) {
+    public IntBlock.Builder newIntBlockBuilder(int estimatedSize, boolean enablePooling) {
         // var b = new MockIntBlockBuilder(estimatedSize, super);
-        var b = super.newIntBlockBuilder(estimatedSize);
+        var b = super.newIntBlockBuilder(estimatedSize, enablePooling);
         track(b, trackDetail());
         return b;
     }
@@ -271,8 +271,8 @@ public class MockBlockFactory extends BlockFactory {
     }
 
     @Override
-    public IntVector.FixedBuilder newIntVectorFixedBuilder(int size) {
-        var b = super.newIntVectorFixedBuilder(size);
+    public IntVector.FixedBuilder newIntVectorFixedBuilder(int size, boolean enablePooling) {
+        var b = super.newIntVectorFixedBuilder(size, enablePooling);
         track(b, trackDetail());
         return b;
     }
@@ -355,8 +355,8 @@ public class MockBlockFactory extends BlockFactory {
     }
 
     @Override
-    public LongBlock.Builder newLongBlockBuilder(int estimatedSize) {
-        var b = super.newLongBlockBuilder(estimatedSize);
+    public LongBlock.Builder newLongBlockBuilder(int estimatedSize, boolean enablePooling) {
+        var b = super.newLongBlockBuilder(estimatedSize, enablePooling);
         track(b, trackDetail());
         return b;
     }
@@ -376,8 +376,8 @@ public class MockBlockFactory extends BlockFactory {
     }
 
     @Override
-    public LongVector.FixedBuilder newLongVectorFixedBuilder(int size) {
-        var b = super.newLongVectorFixedBuilder(size);
+    public LongVector.FixedBuilder newLongVectorFixedBuilder(int size, boolean enablePooling) {
+        var b = super.newLongVectorFixedBuilder(size, enablePooling);
         track(b, trackDetail());
         return b;
     }
@@ -404,8 +404,8 @@ public class MockBlockFactory extends BlockFactory {
     }
 
     @Override
-    public DoubleBlock.Builder newDoubleBlockBuilder(int estimatedSize) {
-        var b = super.newDoubleBlockBuilder(estimatedSize);
+    public DoubleBlock.Builder newDoubleBlockBuilder(int estimatedSize, boolean enablePooling) {
+        var b = super.newDoubleBlockBuilder(estimatedSize, enablePooling);
         track(b, trackDetail());
         return b;
     }
@@ -425,8 +425,8 @@ public class MockBlockFactory extends BlockFactory {
     }
 
     @Override
-    public DoubleVector.FixedBuilder newDoubleVectorFixedBuilder(int size) {
-        var b = super.newDoubleVectorFixedBuilder(size);
+    public DoubleVector.FixedBuilder newDoubleVectorFixedBuilder(int size, boolean enablePooling) {
+        var b = super.newDoubleVectorFixedBuilder(size, enablePooling);
         track(b, trackDetail());
         return b;
     }

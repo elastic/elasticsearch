@@ -10,7 +10,9 @@
 package org.elasticsearch.search.builder;
 
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -38,6 +40,13 @@ public class PointInTimeBuilderTests extends AbstractXContentSerializingTestCase
 
     @Override
     protected PointInTimeBuilder mutateInstance(PointInTimeBuilder instance) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+        BytesReference encodedId = instance.getEncodedId();
+        TimeValue keepAlive = instance.getKeepAlive();
+        switch (between(0, 1)) {
+            case 0 -> encodedId = randomValueOtherThan(encodedId, () -> new BytesArray(randomAlphaOfLength(20)));
+            case 1 -> keepAlive = randomValueOtherThan(keepAlive, () -> randomBoolean() ? null : randomTimeValue());
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new PointInTimeBuilder(encodedId).setKeepAlive(keepAlive);
     }
 }

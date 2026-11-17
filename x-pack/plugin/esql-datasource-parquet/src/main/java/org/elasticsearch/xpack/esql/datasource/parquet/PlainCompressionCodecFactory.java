@@ -480,8 +480,9 @@ public final class PlainCompressionCodecFactory implements CompressionCodecFacto
     }
 
     /**
-     * LZ4 raw decompressor. Aircompressor's {@code Lz4Decompressor} works with both heap and
-     * direct {@code ByteBuffer}s, so no fallback is needed.
+     * LZ4 raw decompressor. Aircompressor's {@code Lz4Decompressor} works with array-backed and
+     * direct {@code ByteBuffer}s; inputs that are neither (for example read-only heap buffers)
+     * are routed through the byte-array path.
      */
     private static class Lz4RawBytesDecompressor implements HeapDestDecompressor {
         private final Lz4Decompressor lz4 = new Lz4Decompressor();
@@ -500,6 +501,10 @@ public final class PlainCompressionCodecFactory implements CompressionCodecFacto
 
         @Override
         public void decompress(ByteBuffer input, int compressedSize, ByteBuffer output, int decompressedSize) throws IOException {
+            if (input.hasArray() == false && input.isDirect() == false) {
+                decompressViaHeapCopy(this, input, compressedSize, output, decompressedSize);
+                return;
+            }
             decodeRawLz4(lz4, input, compressedSize, output, decompressedSize, "LZ4_RAW");
         }
 
@@ -536,7 +541,7 @@ public final class PlainCompressionCodecFactory implements CompressionCodecFacto
      * codec id without the Hadoop frame. The framing is therefore chosen per payload: the framed
      * decode is attempted first and, if it fails, the payload is decoded as a single raw LZ4 block
      * of the page's declared uncompressed size. A bare block that passes every framed check would be
-     * misread, which requires a declared page size of 16 MiB or more plus a run of chance matches.
+     * misread, which requires a declared page size of 256 MiB or more plus a run of chance matches.
      * When both attempts fail, the framed exception is thrown with the raw failure suppressed.
      *
      * <p>This codec is deliberately read-only. The parquet-format spec deprecated it in November

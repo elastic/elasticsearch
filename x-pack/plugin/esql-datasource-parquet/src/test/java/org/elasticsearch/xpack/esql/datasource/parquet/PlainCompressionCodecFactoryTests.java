@@ -401,12 +401,12 @@ public class PlainCompressionCodecFactoryTests extends ESTestCase {
         BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.LZ4_RAW);
 
         IOException arrayEx = expectThrows(IOException.class, () -> decompressor.decompress(BytesInput.from(garbage), 1000));
-        assertThat(arrayEx.getMessage(), containsString("LZ4_RAW decompression"));
+        assertThat(arrayEx.getMessage(), containsString("LZ4_RAW decompression failed: malformed block"));
         IOException bufferEx = expectThrows(
             IOException.class,
             () -> decompressor.decompress(ByteBuffer.wrap(garbage), garbage.length, ByteBuffer.allocate(1000), 1000)
         );
-        assertThat(bufferEx.getMessage(), containsString("LZ4_RAW decompression"));
+        assertThat(bufferEx.getMessage(), containsString("LZ4_RAW decompression failed: malformed block"));
     }
 
     public void testLz4RawByteBufferShortDecodeRejected() throws IOException {
@@ -518,13 +518,16 @@ public class PlainCompressionCodecFactoryTests extends ESTestCase {
         assertArrayEquals(original, output.array());
     }
 
-    public void testLz4UnframedFromReadOnlyHeapBuffer() throws IOException {
+    public void testLz4UnframedAndRawFromReadOnlyHeapBuffer() throws IOException {
         byte[] original = randomPayload();
         byte[] unframed = LegacyLz4HadoopFramedCodecFactory.unframed()
             .getCompressor(CompressionCodecName.LZ4)
             .compress(BytesInput.from(original))
             .toByteArray();
         assertReadOnlyHeapBufferRoundTrip(CompressionCodecName.LZ4, unframed, original);
+
+        byte[] raw = factory.getCompressor(CompressionCodecName.LZ4_RAW).compress(BytesInput.from(original)).toByteArray();
+        assertReadOnlyHeapBufferRoundTrip(CompressionCodecName.LZ4_RAW, raw, original);
     }
 
     private void assertReadOnlyHeapBufferRoundTrip(CompressionCodecName codec, byte[] compressed, byte[] original) throws IOException {

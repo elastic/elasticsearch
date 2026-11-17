@@ -9,12 +9,16 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.column.ParquetProperties.WriterVersion;
 import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.example.data.Group;
 import org.apache.parquet.example.data.simple.SimpleGroupFactory;
+import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.example.ExampleParquetWriter;
+import org.apache.parquet.hadoop.metadata.BlockMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.io.OutputFile;
 import org.apache.parquet.io.PositionOutputStream;
@@ -24,6 +28,7 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -34,6 +39,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
@@ -186,6 +192,9 @@ public class OptimizedReaderFileVariantTests extends ESTestCase {
         }
 
         byte[] parquetData = createParquetFile(schema);
+        if (unframedLz4) {
+            assertDictionaryPageWritten(parquetData);
+        }
 
         StorageObject storageObject = createStorageObject(parquetData);
         ParquetFormatReader baseline = new ParquetFormatReader(blockFactory, false);
@@ -203,6 +212,28 @@ public class OptimizedReaderFileVariantTests extends ESTestCase {
         assertPagesEqual(baselinePages, optimizedPages, description);
     }
 
+    private void assertDictionaryPageWritten(byte[] parquetData) throws IOException {
+        ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
+        try (
+            ParquetFileReader reader = ParquetFileReader.open(
+                new ParquetStorageObjectAdapter(
+                    createStorageObject(parquetData),
+                    FooterByteCache.fromSettings(Settings.EMPTY),
+                    NoopCircuitBreaker.INSTANCE
+                ),
+                options
+            )
+        ) {
+            boolean hasDictionaryPage = false;
+            for (BlockMetaData rowGroup : reader.getRowGroups()) {
+                for (ColumnChunkMetaData column : rowGroup.getColumns()) {
+                    hasDictionaryPage |= column.hasDictionaryPage();
+                }
+            }
+            assertTrue("variant " + description + " must write at least one dictionary page", hasDictionaryPage);
+        }
+    }
+
     private byte[] createParquetFile(MessageType schema) throws IOException {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         OutputFile outputFile = createOutputFile(outputStream);
@@ -211,6 +242,7 @@ public class OptimizedReaderFileVariantTests extends ESTestCase {
         try (
             ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
                 .withConf(new PlainParquetConfiguration())
+                .withDictionaryEncoding(true)
                 .withCodecFactory(
                     unframedLz4
                         ? LegacyLz4HadoopFramedCodecFactory.forCodecUnframedLz4(codec)
@@ -234,7 +266,7 @@ public class OptimizedReaderFileVariantTests extends ESTestCase {
                 if (nullable && i % 5 == 0) {
                     // leave value null
                 } else {
-                    g.add("value", i * 10);
+                    g.add("value", (i % 8) * 10);
                 }
                 if (nullable && i % 7 == 0) {
                     // leave score null

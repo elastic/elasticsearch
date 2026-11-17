@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.esql.ml;
 
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.EsqlQueryParam;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -18,9 +20,13 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.EsqlConfig;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.QuerySetting;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
+import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
@@ -28,29 +34,34 @@ import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
-import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
+import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryWithParams;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.ParsedEsqlQuery;
 
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.IdentityHashMap;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.OptionalInt;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
-/** {@link EsqlQueryParser} for ES|QL datafeeds, backed by {@link EsqlParser}. It parses only: nothing is resolved against mappings. */
+import static org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.EsqlQueryParam.ParamClassification.IDENTIFIER;
+
+/**
+ * {@link EsqlQueryParser} for ES|QL datafeeds, backed by {@link EsqlParser}. It parses only: nothing is resolved against mappings.
+ * Settings and limits are resolved against the cluster the way {@code EsqlSession} does for a query it runs.
+ */
 public class EsqlDatafeedQueryParser implements EsqlQueryParser {
 
     /** Built on first use, so loading this provider at node startup does not build a function registry. */
@@ -60,16 +71,35 @@ public class EsqlDatafeedQueryParser implements EsqlQueryParser {
     }
 
     @Override
-    public ParsedEsqlQuery parse(String query) {
+    public ParsedEsqlQuery parse(String query, ClusterService clusterService) {
+        Settings nodeSettings = clusterService.getSettings();
         EsqlStatement statement = Holder.PARSER.parse(
             query,
             new QueryParams(),
-            new InferenceSettings(Settings.EMPTY),
+            new InferenceSettings(nodeSettings),
             QueryPragmas.EMPTY,
-            EsqlFlags.DEFAULTS
+            new EsqlFlags(clusterService.getClusterSettings())
         );
+        SettingsValidationContext validation = SettingsValidationContext.from(new CrossProjectModeDecider(nodeSettings));
+        QuerySettings.validate(statement, validation);
+        ResolvedSettings settings = QuerySettings.resolve(
+            clusterService.state().metadata().settings(),
+            nodeSettings,
+            Map.of(),
+            statement,
+            validation
+        );
+        if (statement.letBindings().isEmpty() == false) {
+            throw unsupported("LET", statement.plan());
+        }
+        statement.plan().forEachDown(node -> {
+            String command = unsupportedCommand(node);
+            if (command != null) {
+                throw unsupported(command, node);
+            }
+        });
         LogicalPlan plan = statement.plan();
-        TopLevelPipeline pipeline = TopLevelPipeline.of(plan);
+        Pipeline pipeline = Pipeline.of(plan);
         Set<String> indexPatterns = new TreeSet<>();
         Holder.PRE_ANALYZER.preAnalyze(plan)
             .indexes()
@@ -77,150 +107,119 @@ public class EsqlDatafeedQueryParser implements EsqlQueryParser {
             .forEach(pattern -> indexPatterns.addAll(List.of(Strings.splitStringByCommaToArray(pattern.indexPattern()))));
         return new Parsed(
             query,
-            settings(statement),
             statement.settings().stream().map(setting -> setting.source().text()).collect(Collectors.joining("\n")),
-            sourceCommand(pipeline.source),
-            pipeline.source instanceof UnresolvedRelation || pipeline.source instanceof UnionAll,
+            pipeline.source instanceof UnresolvedRelation ? pipeline.source.source().text() : "",
             indexPatterns,
             pipeline.aggregates > 0,
             pipeline.outputLimit(),
-            pipeline.limitBeforeAggregation(),
             pipeline.filterFields,
-            pipeline.sortFields
+            statement.settings().stream().map(QuerySetting::name).anyMatch(QuerySettings.PROJECT_ROUTING.name()::equals),
+            QuerySettings.TIME_ZONE.get(settings)
         );
     }
 
-    private static Map<String, String> settings(EsqlStatement statement) {
-        Map<String, String> settings = new LinkedHashMap<>();
-        for (QuerySetting setting : statement.settings()) {
-            Expression value = setting.value();
-            settings.put(setting.name(), value instanceof Literal literal ? BytesRefs.toString(literal.value()) : value.sourceText());
+    /** The command that makes a query unsupported, or {@code null}. These are the constructs whose result columns cannot be traced. */
+    private static String unsupportedCommand(LogicalPlan node) {
+        if (node instanceof Fork) {
+            return "FORK";
         }
-        return settings;
+        if (node instanceof UnionAll) {
+            return "FROM with several subqueries";
+        }
+        if (node instanceof Rename) {
+            return "RENAME";
+        }
+        if (node instanceof MvExpand) {
+            return "MV_EXPAND";
+        }
+        if (node instanceof LookupJoin) {
+            return "LOOKUP JOIN";
+        }
+        return null;
     }
 
-    private static String sourceCommand(LogicalPlan source) {
-        if (source instanceof UnresolvedRelation) {
-            return source.source().text();
-        } else if (source instanceof UnionAll) {
-            // The UnionAll source starts after the FROM keyword and ends before METADATA.
-            return "FROM " + source.source().text();
-        }
-        return "";
+    private static ParsingException unsupported(String command, LogicalPlan node) {
+        return new ParsingException(node.source(), "[{}] is not supported in ES|QL datafeeds", command);
     }
 
-    /** What datafeeds ask of the commands after the source, collected in one walk from the last command to the source. */
-    private static final class TopLevelPipeline {
-        private record LimitPosition(int value, int aggregatesAbove, boolean rowsExpandedAbove) {}
+    /** What datafeeds ask of the commands, collected in one walk from the last command to the source. */
+    private static final class Pipeline {
+        private record LimitPosition(Limit limit, int value, int aggregatesAfter) {}
 
         private final List<LimitPosition> limits = new ArrayList<>();
         private final Set<String> filterFields = new LinkedHashSet<>();
-        private final Set<String> sortFields = new LinkedHashSet<>();
         private LogicalPlan source;
         private int aggregates;
-        private boolean rowsExpanded;
 
-        static TopLevelPipeline of(LogicalPlan plan) {
-            TopLevelPipeline pipeline = new TopLevelPipeline();
+        static Pipeline of(LogicalPlan plan) {
+            Pipeline pipeline = new Pipeline();
             LogicalPlan node = plan;
-            // FROM with subqueries is the source command and leads on through the first child. FORK branches are skipped: the walk
-            // continues at the input all branches share.
-            while (node instanceof UnionAll == false && node.children().isEmpty() == false) {
-                if (node instanceof Fork fork) {
-                    pipeline.rowsExpanded = true;
-                    node = sharedInput(fork);
-                    continue;
+            while (node.children().isEmpty() == false) {
+                if (node.children().size() > 1) {
+                    throw unsupported(node.nodeName(), node);
                 }
                 pipeline.visit(node);
+                // INLINE STATS keeps every input row, so its Aggregate does not aggregate the pipeline.
                 node = node instanceof InlineStats inline && inline.child() instanceof Aggregate aggregate
                     ? aggregate.child()
                     : node.children().getFirst();
             }
             pipeline.source = node;
+            pipeline.rejectLimitBeforeAggregation();
             return pipeline;
         }
 
-        /** The plan all branches of {@code fork} read, or the source of the first branch when it cannot be found (one branch). */
-        private static LogicalPlan sharedInput(Fork fork) {
-            List<LogicalPlan> branches = fork.children();
-            Set<LogicalPlan> second = Collections.newSetFromMap(new IdentityHashMap<>());
-            if (branches.size() > 1) {
-                for (LogicalPlan n = branches.get(1); n != null; n = n.children().isEmpty() ? null : n.children().getFirst()) {
-                    second.add(n);
-                }
-            }
-            LogicalPlan n = branches.getFirst();
-            while (second.contains(n) == false && n.children().isEmpty() == false) {
-                n = n.children().getFirst();
-            }
-            return n;
-        }
-
         private void visit(LogicalPlan node) {
-            switch (node) {
-                case Limit limit -> limits.add(new LimitPosition(limitValue(limit), aggregates, rowsExpanded));
-                case MvExpand ignored -> rowsExpanded = true;
-                case LookupJoin ignored -> rowsExpanded = true;
-                case Aggregate ignored -> aggregates++;
-                case Filter filter -> addFields(filter, filterFields);
-                case OrderBy orderBy -> addFields(orderBy, sortFields);
-                default -> {
-                }
+            if (node instanceof Limit limit) {
+                limits.add(new LimitPosition(limit, limitValue(limit), aggregates));
+            } else if (node instanceof Aggregate) {
+                aggregates++;
+            } else if (node instanceof Filter filter) {
+                filter.forEachExpression(UnresolvedAttribute.class, attribute -> filterFields.add(attribute.name()));
             }
         }
 
         private static int limitValue(Limit limit) {
-            return limit.limit() instanceof Literal literal && literal.value() instanceof Number number
-                ? number.intValue()
-                : Integer.MAX_VALUE;
+            Expression value = limit.limit();
+            return value instanceof Literal literal && literal.value() instanceof Number number ? number.intValue() : Integer.MAX_VALUE;
         }
 
-        private static void addFields(LogicalPlan node, Set<String> fields) {
-            node.forEachExpression(UnresolvedAttribute.class, attribute -> fields.add(attribute.name()));
+        /** A LIMIT below every STATS feeds an arbitrary subset of rows into the aggregation, in each window. */
+        private void rejectLimitBeforeAggregation() {
+            for (LimitPosition position : limits) {
+                if (aggregates > 0 && position.aggregatesAfter == aggregates) {
+                    throw new ParsingException(
+                        position.limit.source(),
+                        "[LIMIT] before [STATS] is not supported in ES|QL datafeeds: it feeds an arbitrary subset of rows into the "
+                            + "aggregation. Move the LIMIT after the STATS or remove it"
+                    );
+                }
+            }
         }
 
         /** Limits after the last STATS of the query, or all limits when there is no STATS. */
         OptionalInt outputLimit() {
-            return minLimit(0, false);
-        }
-
-        /** Limits before the first STATS of the query. */
-        OptionalInt limitBeforeAggregation() {
-            return aggregates == 0 ? OptionalInt.empty() : minLimit(aggregates, true);
-        }
-
-        private OptionalInt minLimit(int aggregatesAbove, boolean ignoreRowExpanders) {
-            return limits.stream()
-                .filter(limit -> limit.aggregatesAbove() == aggregatesAbove && (ignoreRowExpanders || limit.rowsExpandedAbove() == false))
-                .mapToInt(LimitPosition::value)
-                .min();
+            return limits.stream().filter(limit -> limit.aggregatesAfter() == 0).mapToInt(LimitPosition::value).min();
         }
     }
 
     private record Parsed(
         String query,
-        Map<String, String> settings,
         String settingsText,
         String sourceCommand,
-        boolean readsIndices,
         Set<String> indexPatterns,
-        boolean aggregates,
+        boolean isAggregating,
         OptionalInt outputLimit,
-        OptionalInt limitBeforeAggregation,
         Set<String> filterFields,
-        Set<String> sortFields
+        boolean setsProjectRoutingInQuery,
+        ZoneId timeZone
     ) implements ParsedEsqlQuery {
 
+        private static final String TIME_FIELD = "timeField";
+
         Parsed {
-            settings = Collections.unmodifiableMap(settings);
             indexPatterns = Collections.unmodifiableSet(indexPatterns);
             filterFields = Collections.unmodifiableSet(filterFields);
-            sortFields = Collections.unmodifiableSet(sortFields);
-        }
-
-        @Override
-        public Optional<String> setting(String name) {
-            return Optional.ofNullable(settings.get(name));
         }
 
         @Override
@@ -229,23 +228,56 @@ public class EsqlDatafeedQueryParser implements EsqlQueryParser {
         }
 
         @Override
-        public boolean sortsOn(String field) {
-            return sortFields.contains(field);
+        public EsqlQueryWithParams limitZeroQuery() {
+            return withPipeline("LIMIT 0", List.of());
         }
 
         @Override
-        public String withPipeline(String pipeline) {
+        public EsqlQueryWithParams orderedByTimeQuery(String timeField, OptionalLong rowLimit) {
+            String pipeline = rowLimit.isPresent() ? "SORT ??timeField ASC\n| LIMIT " + rowLimit.getAsLong() : "SORT ??timeField ASC";
+            return withPipeline(pipeline, timeFieldParams(timeField));
+        }
+
+        @Override
+        public EsqlQueryWithParams outputRowCountQuery() {
+            return withPipeline("STATS " + OUTPUT_ROWS_COLUMN + " = COUNT(*)", List.of());
+        }
+
+        @Override
+        public EsqlQueryWithParams sourceRangeSummaryQuery(String sourceTimeField) {
+            return sourceWithPipeline(
+                "STATS "
+                    + EARLIEST_TIME_COLUMN
+                    + " = MIN(??timeField), "
+                    + LATEST_TIME_COLUMN
+                    + " = MAX(??timeField), "
+                    + TOTAL_HITS_COLUMN
+                    + " = COUNT(*)",
+                timeFieldParams(sourceTimeField)
+            );
+        }
+
+        @Override
+        public EsqlQueryWithParams sourceTimeFieldProbeQuery(String sourceTimeField) {
+            return sourceWithPipeline("KEEP ??timeField | LIMIT 0", timeFieldParams(sourceTimeField));
+        }
+
+        private EsqlQueryWithParams withPipeline(String pipeline, List<EsqlQueryParam> params) {
             // A new line keeps a trailing // comment of the query from swallowing the pipeline.
-            return query + "\n| " + pipeline;
+            return new EsqlQueryWithParams(query + "\n| " + pipeline, params);
         }
 
-        @Override
-        public String sourceWithPipeline(String pipeline) {
-            if (readsIndices == false) {
+        /** The {@code SET} statements and source command, then the pipeline; the user's own commands are left out. */
+        private EsqlQueryWithParams sourceWithPipeline(String pipeline, List<EsqlQueryParam> params) {
+            if (sourceCommand.isEmpty()) {
                 throw new IllegalStateException("the query does not read indices");
             }
             String source = settingsText.isEmpty() ? sourceCommand : settingsText + "\n" + sourceCommand;
-            return source + "\n| " + pipeline;
+            return new EsqlQueryWithParams(source + " | " + pipeline, params);
+        }
+
+        private static List<EsqlQueryParam> timeFieldParams(String field) {
+            return List.of(new EsqlQueryParam(TIME_FIELD, field, IDENTIFIER));
         }
     }
 }

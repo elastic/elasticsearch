@@ -7,49 +7,56 @@
 
 package org.elasticsearch.xpack.ml.datafeed.esql.spi;
 
-import java.util.Optional;
+import java.time.ZoneId;
 import java.util.OptionalInt;
+import java.util.OptionalLong;
 import java.util.Set;
 
 /**
- * A parsed ES|QL datafeed query. Top-level means the commands from the source to the end; FORK branch bodies and several-subquery FROM
- * bodies are skipped, while commands before a FORK count. A single-branch FORK skips all below it. Names are as written, not resolved.
+ * A parsed ES|QL datafeed query. The commands are read as one pipeline: {@code FORK}, {@code FROM} with several subqueries,
+ * {@code RENAME}, {@code MV_EXPAND}, {@code LOOKUP JOIN} and {@code LET} are rejected by the parser. Names are as written, nothing is
+ * checked against mappings, and {@code EVAL} is not followed. No ES|QL text leaves the implementation: callers get finished queries.
  */
 public interface ParsedEsqlQuery {
 
-    /** Whether the query reads indices with {@code FROM} or {@code TS}, as opposed to {@code ROW} or {@code SHOW}. */
-    boolean readsIndices();
+    /** Columns of {@link #sourceRangeSummaryQuery}. */
+    String EARLIEST_TIME_COLUMN = "earliest_time";
+    String LATEST_TIME_COLUMN = "latest_time";
+    String TOTAL_HITS_COLUMN = "total_hits";
 
-    /**
-     * Index patterns the query reads, one pattern per entry, as written (exclusions such as {@code -logs-secret} included), including
-     * subqueries. Lookup indices are not included.
-     */
+    /** Column of {@link #outputRowCountQuery}. */
+    String OUTPUT_ROWS_COLUMN = "probe_output_rows";
+
+    /** Index patterns the query reads, one pattern per entry; empty for a query without an index source such as {@code ROW}. */
     Set<String> indexPatterns();
 
-    /** The value of {@code SET name=value;}, as text. */
-    Optional<String> setting(String name);
+    /** Whether the query has a {@code STATS}. */
+    boolean isAggregating();
 
-    /** Whether the top-level pipeline has a {@code STATS}. */
-    boolean aggregates();
-
-    /**
-     * The smallest {@code LIMIT} that caps the output rows: one after the last {@code STATS}, or any without {@code STATS}. A
-     * {@code LIMIT} followed by {@code FORK}, {@code MV_EXPAND} or {@code LOOKUP JOIN} does not cap the output, as these can add rows.
-     */
+    /** The smallest {@code LIMIT} after the last {@code STATS}, or any without {@code STATS}: it caps the output rows. */
     OptionalInt outputLimit();
 
-    /** The smallest {@code LIMIT} that runs before the first {@code STATS}, so it restricts the aggregated source rows. */
-    OptionalInt limitBeforeAggregation();
-
-    /** Whether a top-level {@code WHERE} reads {@code field}. */
+    /** Whether a {@code WHERE} reads {@code field}. */
     boolean filtersOn(String field);
 
-    /** Whether a top-level {@code SORT} reads {@code field}. */
-    boolean sortsOn(String field);
+    /** Whether the query itself sets {@code project_routing}, as opposed to a cluster default. */
+    boolean setsProjectRoutingInQuery();
 
-    /** The query followed by {@code pipeline}, for example {@code SORT ??timeField ASC}. Pass it without a leading pipe. */
-    String withPipeline(String pipeline);
+    /** The time zone the query runs in: its own {@code SET}, else the cluster default, else UTC. */
+    ZoneId timeZone();
 
-    /** The {@code SET} statements and source command, then {@code pipeline}. Needs {@link #readsIndices}; no METADATA with subqueries. */
-    String sourceWithPipeline(String pipeline);
+    /** The query with no rows read: resolves the output columns. */
+    EsqlQueryWithParams limitZeroQuery();
+
+    /** The query sorted ascending on {@code timeField}, then capped to {@code rowLimit} when present. */
+    EsqlQueryWithParams orderedByTimeQuery(String timeField, OptionalLong rowLimit);
+
+    /** One row with {@link #OUTPUT_ROWS_COLUMN}: the number of rows the whole query returns. */
+    EsqlQueryWithParams outputRowCountQuery();
+
+    /** One row with the {@code *_COLUMN} constants above for {@code sourceTimeField}, over the source command only. Needs an index. */
+    EsqlQueryWithParams sourceRangeSummaryQuery(String sourceTimeField);
+
+    /** No rows, one column {@code sourceTimeField}, over the source command only: checks it resolves. Needs an index source. */
+    EsqlQueryWithParams sourceTimeFieldProbeQuery(String sourceTimeField);
 }

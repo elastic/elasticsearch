@@ -8,30 +8,82 @@
 package org.elasticsearch.xpack.esql.ml;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.spi.SPIClassIterator;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
+import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryWithParams;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.ParsedEsqlQuery;
+import org.junit.After;
+import org.junit.Before;
 
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Optional;
 import java.util.OptionalInt;
+import java.util.OptionalLong;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.EsqlQueryParam.ParamClassification.IDENTIFIER;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class EsqlDatafeedQueryParserTests extends ESTestCase {
 
     private final EsqlDatafeedQueryParser parser = new EsqlDatafeedQueryParser();
+    private ThreadPool threadPool;
+    private ClusterService clusterService;
+
+    @Before
+    public void createClusterService() {
+        threadPool = new TestThreadPool(getTestName());
+        clusterService = clusterService(Settings.EMPTY);
+    }
+
+    @After
+    public void closeClusterService() {
+        clusterService.close();
+        terminate(threadPool);
+    }
+
+    private ClusterService clusterService(Settings settings) {
+        Set<Setting<?>> registered = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        registered.addAll(EsqlFlags.ALL_ESQL_FLAGS_SETTINGS);
+        registered.addAll(QuerySettings.clusterSettings());
+        return ClusterServiceUtils.createClusterService(
+            threadPool,
+            DiscoveryNodeUtils.create("node", "node"),
+            settings,
+            new ClusterSettings(settings, registered)
+        );
+    }
+
+    private ParsedEsqlQuery parse(String query) {
+        return parser.parse(query, clusterService);
+    }
 
     public void testServicesFileShouldRegisterParser() {
         SPIClassIterator<EsqlQueryParser> providers = SPIClassIterator.get(EsqlQueryParser.class, getClass().getClassLoader());
@@ -41,213 +93,259 @@ public class EsqlDatafeedQueryParserTests extends ESTestCase {
     }
 
     public void testNestedCommentsShouldNotHideSource() {
-        ParsedEsqlQuery query = parser.parse("/* outer /* inner */ still outer */ FROM t | LIMIT 5");
+        ParsedEsqlQuery query = parse("/* outer /* inner */ still outer */ FROM t | LIMIT 5");
         assertThat(query.indexPatterns(), contains("t"));
-        assertThat(query.readsIndices(), is(true));
         assertThat(query.outputLimit(), equalTo(OptionalInt.of(5)));
     }
 
-    public void testSetStatementsShouldBeReportedAsSettings() {
-        ParsedEsqlQuery query = parser.parse(
-            "SET unmapped_fields=\"nullify\"; SET project_routing=\"_alias:*\"; SET time_zone=\"Europe/Berlin\";"
-                + "\nFROM idx | STATS c = COUNT(*)"
-        );
-        assertThat(query.setting("unmapped_fields"), equalTo(Optional.of("nullify")));
-        assertThat(query.setting("project_routing"), equalTo(Optional.of("_alias:*")));
-        assertThat(query.setting("time_zone"), equalTo(Optional.of("Europe/Berlin")));
-        assertThat(query.setting("missing"), equalTo(Optional.empty()));
-        assertThat(query.indexPatterns(), contains("idx"));
+    public void testQueryWithoutSettingsShouldRunInUtcAndNotSetProjectRouting() {
+        ParsedEsqlQuery query = parse("FROM idx");
+        assertThat(query.timeZone(), equalTo(ZoneOffset.UTC));
+        assertThat(query.setsProjectRoutingInQuery(), is(false));
     }
 
-    public void testNoSetStatementsShouldGiveNoSettings() {
-        assertThat(parser.parse("FROM idx").setting("time_zone"), equalTo(Optional.empty()));
-    }
-
-    public void testSourceWithPipelineShouldReparseToSameSourceAndSettings() {
-        String[] queries = {
-            "FROM a, b | STATS c = COUNT(*)",
-            "SET unmapped_fields=\"nullify\";\nFROM idx | WHERE x > 1",
-            "/* c */ FROM a /* mid */ , remote:b METADATA _id, _index | LIMIT 5",
-            "FROM (FROM remote:logs | WHERE a > 1), local | STATS c = COUNT(*)",
-            "FROM (FROM a | WHERE a > 1), b METADATA _index | KEEP a",
-            "FROM t // trailing\n| LIMIT 1",
-            "TS metrics | STATS max(cpu) BY TBUCKET(1 hour)",
-            "/* \uD83D\uDE00 */ SET time_zone=\"UTC\"; FROM idx",
-            "SET unmapped_fields=\"nullify\"; FROM (FROM remote:logs | WHERE a > 1) | STATS c = COUNT(*)" };
-        for (String text : queries) {
-            ParsedEsqlQuery query = parser.parse(text);
-            ParsedEsqlQuery reparsed = parser.parse(query.sourceWithPipeline("KEEP a | LIMIT 0"));
-            assertThat(text, reparsed.indexPatterns(), equalTo(query.indexPatterns()));
-            assertThat(text, reparsed.setting("unmapped_fields"), equalTo(query.setting("unmapped_fields")));
-            assertThat(text, reparsed.setting("time_zone"), equalTo(query.setting("time_zone")));
+    public void testTimeZoneSetInQueryShouldWinOverClusterDefault() {
+        try (ClusterService berlin = clusterService(Settings.builder().put("esql.query.settings.time_zone", "Europe/Berlin").build())) {
+            assertThat(parser.parse("FROM idx", berlin).timeZone(), equalTo(ZoneId.of("Europe/Berlin")));
+            assertThat(parser.parse("SET time_zone=\"Asia/Tokyo\"; FROM idx", berlin).timeZone(), equalTo(ZoneId.of("Asia/Tokyo")));
         }
     }
 
-    public void testSourceWithPipelineShouldKeepMetadataOfPlainFrom() {
-        ParsedEsqlQuery query = parser.parse("/* c */ FROM a /* mid */ , remote:b METADATA _id, _index | LIMIT 5");
-        assertThat(query.sourceWithPipeline("LIMIT 0"), equalTo("FROM a /* mid */ , remote:b METADATA _id, _index\n| LIMIT 0"));
+    public void testProjectRoutingSetInQueryShouldBeReportedWhenCrossProjectIsEnabled() {
+        try (ClusterService cps = clusterService(Settings.builder().put("serverless.cross_project.enabled", true).build())) {
+            assertThat(parser.parse("SET project_routing=\"_alias:*\"; FROM idx", cps).setsProjectRoutingInQuery(), is(true));
+            assertThat(parser.parse("FROM idx", cps).setsProjectRoutingInQuery(), is(false));
+        }
     }
 
-    public void testSourceWithPipelineShouldPrefixSettings() {
-        ParsedEsqlQuery query = parser.parse("SET time_zone=\"UTC\"; FROM a | LIMIT 5");
-        assertThat(query.sourceWithPipeline("LIMIT 0"), equalTo("SET time_zone=\"UTC\";\nFROM a\n| LIMIT 0"));
+    public void testProjectRoutingWithoutCrossProjectShouldBeRejectedByEsql() {
+        expectThrows(ParsingException.class, () -> parse("SET project_routing=\"_alias:*\"; FROM idx"));
     }
 
-    public void testWithPipelineShouldNotBeSwallowedByTrailingComment() {
-        ParsedEsqlQuery query = parser.parse("FROM t // trailing");
-        ParsedEsqlQuery extended = parser.parse(query.withPipeline("LIMIT 3"));
-        assertThat(extended.outputLimit(), equalTo(OptionalInt.of(3)));
+    public void testUnknownSettingShouldFailWithBadRequest() {
+        ParsingException e = expectThrows(ParsingException.class, () -> parse("SET not_a_setting=\"x\"; FROM idx"));
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
     }
 
-    public void testSourceWithPipelineShouldFailWithoutIndexSource() {
-        ParsedEsqlQuery query = parser.parse("ROW a = 1 | LIMIT 1");
-        expectThrows(IllegalStateException.class, () -> query.sourceWithPipeline("LIMIT 0"));
+    public void testCommandCountShouldFollowClusterSetting() {
+        // 600 commands in subqueries exceed the default of 500, which counts the whole statement.
+        String evals = "| EVAL x = 1 ".repeat(300);
+        String query = "FROM (FROM a " + evals + "), (FROM b " + evals + ")";
+        ParsingException tooMany = expectThrows(ParsingException.class, () -> parse(query));
+        assertThat(tooMany.getMessage(), not(containsString("not supported in ES|QL datafeeds")));
+        try (ClusterService raised = clusterService(Settings.builder().put("esql.query.max_command_count", 1000).build())) {
+            ParsingException unsupported = expectThrows(ParsingException.class, () -> parser.parse(query, raised));
+            assertThat(unsupported.getMessage(), containsString("[FROM with several subqueries] is not supported in ES|QL datafeeds"));
+        }
     }
 
-    public void testSubqueriesShouldExposeInnerPatterns() {
-        ParsedEsqlQuery query = parser.parse("FROM (FROM remote:logs | WHERE a > 1), local, *:wild, \"quoted:idx\" | LIMIT 5");
-        assertThat(query.indexPatterns(), containsInAnyOrder("remote:logs", "local", "*:wild", "quoted:idx"));
-        assertThat(query.outputLimit(), equalTo(OptionalInt.of(5)));
-        assertThat(query.filtersOn("a"), is(false));
+    public void testSetStatementsShouldPrefixSourceQueries() {
+        ParsedEsqlQuery query = parse("SET time_zone=\"UTC\"; FROM a | LIMIT 5");
+        assertThat(query.sourceTimeFieldProbeQuery("t").query(), equalTo("SET time_zone=\"UTC\";\nFROM a | KEEP ??timeField | LIMIT 0"));
     }
 
-    public void testSingleSubqueryShouldBelongToTopLevelPipeline() {
-        ParsedEsqlQuery query = parser.parse("FROM (FROM remote:logs | WHERE a > 1) | LIMIT 5");
+    public void testSourceQueryShouldKeepMetadataOfPlainFrom() {
+        ParsedEsqlQuery query = parse("/* c */ FROM a /* mid */ , remote:b METADATA _id, _index | LIMIT 5");
+        assertThat(
+            query.sourceTimeFieldProbeQuery("t").query(),
+            equalTo("FROM a /* mid */ , remote:b METADATA _id, _index | KEEP ??timeField | LIMIT 0")
+        );
+    }
+
+    public void testSourceQueryShouldNotBeSwallowedByTrailingComment() {
+        ParsedEsqlQuery query = parse("FROM t // trailing\n| LIMIT 1");
+        assertThat(query.sourceRangeSummaryQuery("t").query(), containsString("FROM t | STATS"));
+    }
+
+    public void testSourceQueryShouldFailWithoutIndexSource() {
+        ParsedEsqlQuery query = parse("ROW a = 1 | LIMIT 1");
+        assertThat(query.indexPatterns(), empty());
+        expectThrows(IllegalStateException.class, () -> query.sourceTimeFieldProbeQuery("t"));
+        expectThrows(IllegalStateException.class, () -> query.sourceRangeSummaryQuery("t"));
+    }
+
+    public void testFullQueryExtensionShouldNotBeSwallowedByTrailingComment() {
+        ParsedEsqlQuery query = parse("FROM t // trailing");
+        assertThat(query.limitZeroQuery().query(), equalTo("FROM t // trailing\n| LIMIT 0"));
+        assertThat(parse(query.limitZeroQuery().query()).outputLimit(), equalTo(OptionalInt.of(0)));
+    }
+
+    public void testOrderedQueryShouldSortOnTimeFieldAndCapRowsOnlyWhenAsked() {
+        ParsedEsqlQuery query = parse("FROM t | WHERE a > 1");
+        EsqlQueryWithParams capped = query.orderedByTimeQuery("@timestamp", OptionalLong.of(10_000));
+        assertThat(capped.query(), equalTo("FROM t | WHERE a > 1\n| SORT ??timeField ASC\n| LIMIT 10000"));
+        EsqlQueryWithParams uncapped = query.orderedByTimeQuery("@timestamp", OptionalLong.empty());
+        assertThat(uncapped.query(), equalTo("FROM t | WHERE a > 1\n| SORT ??timeField ASC"));
+        assertThat(uncapped.params().size(), equalTo(1));
+        assertThat(uncapped.params().getFirst().name(), equalTo("timeField"));
+        assertThat(uncapped.params().getFirst().value(), equalTo("@timestamp"));
+        assertThat(uncapped.params().getFirst().classification(), equalTo(IDENTIFIER));
+    }
+
+    public void testProbeQueriesShouldReadTheColumnsTheInterfaceNames() {
+        ParsedEsqlQuery query = parse("FROM t | STATS c = COUNT(*) BY b = BUCKET(@timestamp, 1 hour)");
+        assertThat(
+            query.sourceRangeSummaryQuery("@timestamp").query(),
+            equalTo(
+                "FROM t | STATS "
+                    + ParsedEsqlQuery.EARLIEST_TIME_COLUMN
+                    + " = MIN(??timeField), "
+                    + ParsedEsqlQuery.LATEST_TIME_COLUMN
+                    + " = MAX(??timeField), "
+                    + ParsedEsqlQuery.TOTAL_HITS_COLUMN
+                    + " = COUNT(*)"
+            )
+        );
+        assertThat(
+            query.outputRowCountQuery().query(),
+            equalTo(
+                "FROM t | STATS c = COUNT(*) BY b = BUCKET(@timestamp, 1 hour)\n| STATS "
+                    + ParsedEsqlQuery.OUTPUT_ROWS_COLUMN
+                    + " = COUNT(*)"
+            )
+        );
+        assertThat(query.outputRowCountQuery().params(), empty());
+    }
+
+    public void testSubqueriesWithSeveralBranchesShouldBeRejected() {
+        ParsingException e = expectThrows(ParsingException.class, () -> parse("FROM (FROM a | WHERE x > 1), b | LIMIT 5"));
+        assertThat(e.getMessage(), containsString("[FROM with several subqueries] is not supported in ES|QL datafeeds"));
+        expectThrows(ParsingException.class, () -> parse("FROM (FROM a | WHERE x > 1), (FROM b)"));
+        expectThrows(ParsingException.class, () -> parse("FROM (ROW a = 1), (ROW b = 2)"));
+    }
+
+    public void testSingleSubqueryShouldBeReadAsOnePipeline() {
+        ParsedEsqlQuery query = parse("FROM (FROM remote:logs | WHERE a > 1) | LIMIT 5");
         assertThat(query.indexPatterns(), contains("remote:logs"));
         assertThat(query.outputLimit(), equalTo(OptionalInt.of(5)));
         assertThat(query.filtersOn("a"), is(true));
     }
 
-    public void testForkShouldSkipBranchesButKeepSharedPrefix() {
-        ParsedEsqlQuery query = parser.parse("FROM t | WHERE b > 1 | FORK (WHERE a > 1 | LIMIT 5) (WHERE a < 1) | LIMIT 3");
-        assertThat(query.outputLimit(), equalTo(OptionalInt.of(3)));
-        assertThat(query.filtersOn("a"), is(false));
-        assertThat(query.filtersOn("b"), is(true));
-        assertThat(query.indexPatterns(), contains("t"));
-        assertThat(query.sourceWithPipeline("LIMIT 0"), equalTo("FROM t\n| LIMIT 0"));
+    public void testForkShouldBeRejected() {
+        ParsingException e = expectThrows(
+            ParsingException.class,
+            () -> parse("FROM t | FORK (STATS c = COUNT(*) BY b = BUCKET(@timestamp, 1 hour)) (WHERE false)")
+        );
+        assertThat(e.getMessage(), containsString("[FORK] is not supported in ES|QL datafeeds"));
+        expectThrows(ParsingException.class, () -> parse("FROM t | FORK (LIMIT 100) (LIMIT 42)"));
     }
 
-    public void testStatsBeforeForkShouldCountAsAggregation() {
-        ParsedEsqlQuery query = parser.parse("FROM t | STATS c = COUNT(*) BY h | FORK (WHERE c > 1) (WHERE c < 1)");
-        assertThat(query.aggregates(), is(true));
+    public void testRenameShouldBeRejected() {
+        ParsingException e = expectThrows(
+            ParsingException.class,
+            () -> parse("FROM t | STATS c = COUNT(*) BY b = BUCKET(@timestamp, 1 hour) | RENAME b AS t")
+        );
+        assertThat(e.getMessage(), containsString("[RENAME] is not supported in ES|QL datafeeds"));
     }
 
-    public void testLimitBeforeForkShouldNotCapOutput() {
-        ParsedEsqlQuery query = parser.parse("FROM t | LIMIT 10 | FORK (WHERE a > 1) (WHERE a < 1)");
-        assertThat(query.outputLimit(), equalTo(OptionalInt.empty()));
+    public void testMvExpandShouldBeRejected() {
+        ParsingException e = expectThrows(ParsingException.class, () -> parse("FROM t | MV_EXPAND x"));
+        assertThat(e.getMessage(), containsString("[MV_EXPAND] is not supported in ES|QL datafeeds"));
     }
 
-    public void testSingleBranchForkShouldSkipEverythingBelow() {
-        ParsedEsqlQuery query = parser.parse("FROM t | WHERE b > 1 | FORK (WHERE a > 1) | LIMIT 3");
-        assertThat(query.outputLimit(), equalTo(OptionalInt.of(3)));
-        assertThat(query.filtersOn("a"), is(false));
-        assertThat(query.filtersOn("b"), is(false));
-        assertThat(query.indexPatterns(), contains("t"));
+    public void testLookupJoinShouldBeRejected() {
+        ParsingException e = expectThrows(ParsingException.class, () -> parse("FROM t | LOOKUP JOIN l ON k"));
+        assertThat(e.getMessage(), containsString("[LOOKUP JOIN] is not supported in ES|QL datafeeds"));
     }
 
-    public void testLimitBeforeMvExpandShouldNotCapOutput() {
-        assertThat(parser.parse("FROM t | LIMIT 10 | MV_EXPAND x").outputLimit(), equalTo(OptionalInt.empty()));
-        assertThat(parser.parse("FROM t | MV_EXPAND x | LIMIT 5").outputLimit(), equalTo(OptionalInt.of(5)));
+    public void testLetBindingShouldBeRejected() {
+        assumeTrue("requires NAMED_SUBQUERY_LET capability", EsqlCapabilities.Cap.NAMED_SUBQUERY_LET.isEnabled());
+        ParsingException e = expectThrows(ParsingException.class, () -> parse("LET top3 = (FROM logs | LIMIT 3); FROM top3"));
+        assertThat(e.getMessage(), containsString("[LET] is not supported in ES|QL datafeeds"));
     }
 
-    public void testLimitBeforeLookupJoinShouldNotCapOutput() {
-        assertThat(parser.parse("FROM t | LIMIT 10 | LOOKUP JOIN l ON k").outputLimit(), equalTo(OptionalInt.empty()));
+    public void testLimitBeforeStatsShouldBeRejected() {
+        ParsingException e = expectThrows(
+            ParsingException.class,
+            () -> parse("FROM x | LIMIT 500 | STATS c = COUNT(*) BY b = BUCKET(@timestamp, 1 hour)")
+        );
+        assertThat(e.getMessage(), containsString("[LIMIT] before [STATS] is not supported in ES|QL datafeeds"));
     }
 
-    public void testLimitBeforeMvExpandAndStatsShouldStillLimitAggregation() {
-        ParsedEsqlQuery query = parser.parse("FROM t | LIMIT 500 | MV_EXPAND x | STATS c = COUNT(*)");
-        assertThat(query.limitBeforeAggregation(), equalTo(OptionalInt.of(500)));
-        assertThat(query.outputLimit(), equalTo(OptionalInt.empty()));
-    }
-
-    public void testParsedCollectionsShouldBeUnmodifiable() {
-        ParsedEsqlQuery query = parser.parse("FROM t | WHERE a > 1");
-        expectThrows(UnsupportedOperationException.class, () -> query.indexPatterns().add("x"));
-    }
-
-    public void testExclusionPatternShouldBeReportedAsWritten() {
-        ParsedEsqlQuery query = parser.parse("FROM logs-*, -logs-secret");
-        assertThat(query.indexPatterns(), containsInAnyOrder("logs-*", "-logs-secret"));
-    }
-
-    public void testLimitBeforeStatsShouldNotCapOutput() {
-        ParsedEsqlQuery query = parser.parse("FROM x | LIMIT 500 | STATS c = COUNT(*) BY b = BUCKET(@timestamp, 1 hour)");
-        assertThat(query.aggregates(), is(true));
-        assertThat(query.outputLimit(), equalTo(OptionalInt.empty()));
-        assertThat(query.limitBeforeAggregation(), equalTo(OptionalInt.of(500)));
+    public void testLimitBeforeStatsWithFiltersInBetweenShouldBeRejected() {
+        expectThrows(ParsingException.class, () -> parse("FROM x | LIMIT 500 | WHERE a > 1 | EVAL y = 1 | STATS c = COUNT(*)"));
     }
 
     public void testLimitAfterStatsShouldCapOutput() {
-        ParsedEsqlQuery query = parser.parse("FROM x | STATS c = COUNT(*) | LIMIT 10");
+        ParsedEsqlQuery query = parse("FROM x | STATS c = COUNT(*) | LIMIT 10");
         assertThat(query.outputLimit(), equalTo(OptionalInt.of(10)));
-        assertThat(query.limitBeforeAggregation(), equalTo(OptionalInt.empty()));
+        assertThat(query.isAggregating(), is(true));
     }
 
-    public void testLimitOnBothSidesOfStatsShouldBeReportedSeparately() {
-        ParsedEsqlQuery query = parser.parse("FROM x | LIMIT 500 | STATS c = COUNT(*) | LIMIT 10");
-        assertThat(query.outputLimit(), equalTo(OptionalInt.of(10)));
-        assertThat(query.limitBeforeAggregation(), equalTo(OptionalInt.of(500)));
+    public void testLimitBetweenTwoStatsShouldNotCapOutput() {
+        ParsedEsqlQuery query = parse("FROM x | STATS c = COUNT(*) BY h | LIMIT 5 | STATS m = MAX(c)");
+        assertThat(query.outputLimit(), equalTo(OptionalInt.empty()));
     }
 
     public void testSmallestOfSeveralOutputLimitsShouldBeReported() {
-        ParsedEsqlQuery query = parser.parse("FROM x | LIMIT 100 | EVAL y = 1 | LIMIT 50");
+        ParsedEsqlQuery query = parse("FROM x | LIMIT 100 | EVAL y = 1 | LIMIT 50");
         assertThat(query.outputLimit(), equalTo(OptionalInt.of(50)));
-        assertThat(query.aggregates(), is(false));
+        assertThat(query.isAggregating(), is(false));
     }
 
     public void testNoLimitShouldReportNone() {
-        ParsedEsqlQuery query = parser.parse("FROM x | STATS c = COUNT(*)");
-        assertThat(query.outputLimit(), equalTo(OptionalInt.empty()));
-        assertThat(query.limitBeforeAggregation(), equalTo(OptionalInt.empty()));
+        assertThat(parse("FROM x | STATS c = COUNT(*)").outputLimit(), equalTo(OptionalInt.empty()));
     }
 
-    public void testBacktickFieldShouldBeUnquoted() {
-        ParsedEsqlQuery query = parser.parse("FROM x | WHERE `@timestamp` > NOW() - 1 day | SORT `@timestamp` DESC");
-        assertThat(query.filtersOn("@timestamp"), is(true));
-        assertThat(query.sortsOn("@timestamp"), is(true));
-        assertThat(query.sortsOn("other"), is(false));
+    public void testStatsBelowOtherCommandsShouldCountAsAggregation() {
+        assertThat(parse("FROM x | STATS c = COUNT(*) BY h | EVAL d = c * 2 | WHERE d > 1 | KEEP h, d").isAggregating(), is(true));
+        assertThat(parse("FROM x | WHERE a > 1 | KEEP a, b").isAggregating(), is(false));
     }
 
     public void testInlineStatsShouldNotCountAsAggregation() {
-        ParsedEsqlQuery query = parser.parse("FROM x | INLINE STATS c = COUNT(*) BY h | LIMIT 5");
-        assertThat(query.aggregates(), is(false));
+        ParsedEsqlQuery query = parse("FROM x | INLINE STATS c = COUNT(*) BY h | LIMIT 5");
+        assertThat(query.isAggregating(), is(false));
         assertThat(query.outputLimit(), equalTo(OptionalInt.of(5)));
         assertThat(query.indexPatterns(), contains("x"));
     }
 
-    public void testLookupJoinShouldWalkLeftAndExcludeLookupIndex() {
-        ParsedEsqlQuery query = parser.parse("FROM x | LOOKUP JOIN l ON k | STATS c = COUNT(*)");
-        assertThat(query.aggregates(), is(true));
-        assertThat(query.indexPatterns(), contains("x"));
-        assertThat(query.sourceWithPipeline("LIMIT 0"), equalTo("FROM x\n| LIMIT 0"));
+    public void testBacktickFieldShouldBeUnquoted() {
+        ParsedEsqlQuery query = parse("FROM x | WHERE `@timestamp` > NOW() - 1 day | SORT `@timestamp` DESC");
+        assertThat(query.filtersOn("@timestamp"), is(true));
+        assertThat(query.filtersOn("other"), is(false));
+    }
+
+    public void testFilterOnOtherFieldShouldNotReportTimeField() {
+        ParsedEsqlQuery query = parse(
+            "FROM x | WHERE k8s.event.reason IS NOT NULL | STATS c = COUNT(*) BY b = BUCKET(@timestamp, 1 minute)"
+        );
+        assertThat(query.filtersOn("k8s.event.reason"), is(true));
+        assertThat(query.filtersOn("@timestamp"), is(false));
+    }
+
+    public void testIndexPatternsShouldBeSplitAndReportedAsWritten() {
+        ParsedEsqlQuery query = parse("FROM logs-*, -logs-secret, remote:b, \"quoted:idx\"");
+        assertThat(query.indexPatterns(), containsInAnyOrder("logs-*", "-logs-secret", "remote:b", "quoted:idx"));
     }
 
     public void testTimeSeriesSourceShouldReadIndices() {
-        ParsedEsqlQuery query = parser.parse("TS metrics | STATS max(cpu) BY TBUCKET(1 hour)");
-        assertThat(query.readsIndices(), is(true));
-        assertThat(query.aggregates(), is(true));
+        ParsedEsqlQuery query = parse("TS metrics | STATS max(cpu) BY TBUCKET(1 hour)");
+        assertThat(query.isAggregating(), is(true));
         assertThat(query.indexPatterns(), contains("metrics"));
     }
 
     public void testRowSourceShouldNotReadIndices() {
-        ParsedEsqlQuery query = parser.parse("ROW a = 1 | LIMIT 1");
-        assertThat(query.readsIndices(), is(false));
-        assertThat(query.indexPatterns(), empty());
+        assertThat(parse("ROW a = 1 | LIMIT 1").indexPatterns(), empty());
+    }
+
+    public void testParsedCollectionsShouldBeUnmodifiable() {
+        ParsedEsqlQuery query = parse("FROM t | WHERE a > 1");
+        expectThrows(UnsupportedOperationException.class, () -> query.indexPatterns().add("x"));
     }
 
     public void testInvalidQueryShouldFailWithBadRequest() {
-        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> parser.parse("FROM t | NOT_A_COMMAND x"));
+        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> parse("FROM t | NOT_A_COMMAND x"));
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
     }
 
     public void testConcurrentParsingShouldMatchSequentialResults() throws Exception {
         String[] queries = {
-            "FROM a | LIMIT 500 | STATS c = COUNT(*) BY b = BUCKET(@timestamp, 1 hour)",
-            "SET unmapped_fields=\"nullify\"; FROM (FROM r:a | WHERE x > 1), b | SORT @timestamp",
-            "FROM t | FORK (WHERE a > 1 | LIMIT 5) (WHERE a < 1) | LIMIT 3" };
+            "FROM a | STATS c = COUNT(*) BY b = BUCKET(@timestamp, 1 hour) | LIMIT 500",
+            "SET unmapped_fields=\"nullify\"; FROM (FROM r:a | WHERE x > 1) | SORT @timestamp",
+            "FROM t | WHERE a > 1 | LIMIT 3" };
         List<ParsedEsqlQuery> expected = new ArrayList<>();
         for (String query : queries) {
-            expected.add(parser.parse(query));
+            expected.add(parse(query));
         }
         ExecutorService executor = Executors.newFixedThreadPool(4);
         try {
@@ -257,7 +355,7 @@ public class EsqlDatafeedQueryParserTests extends ESTestCase {
                     int mismatches = 0;
                     for (int i = 0; i < 100; i++) {
                         int k = i % queries.length;
-                        if (parser.parse(queries[k]).equals(expected.get(k)) == false) {
+                        if (parse(queries[k]).equals(expected.get(k)) == false) {
                             mismatches++;
                         }
                     }

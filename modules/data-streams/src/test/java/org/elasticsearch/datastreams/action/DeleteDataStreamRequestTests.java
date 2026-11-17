@@ -11,8 +11,11 @@ package org.elasticsearch.datastreams.action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction.Request;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+
+import java.util.Arrays;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -31,7 +34,36 @@ public class DeleteDataStreamRequestTests extends AbstractWireSerializingTestCas
 
     @Override
     protected Request mutateInstance(Request instance) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+        // getNames() returns the live array, so copy it to leave the input untouched
+        String[] names = instance.getNames().clone();
+        boolean wildcardExpressionsOriginallySpecified = instance.isWildcardExpressionsOriginallySpecified();
+        IndicesOptions indicesOptions = instance.indicesOptions();
+        switch (between(0, 2)) {
+            case 0 -> names = randomValueOtherThanMany(
+                n -> Arrays.equals(n, instance.getNames()),
+                () -> randomArray(1, 3, String[]::new, () -> randomAlphaOfLength(6))
+            );
+            case 1 -> wildcardExpressionsOriginallySpecified = wildcardExpressionsOriginallySpecified == false;
+            case 2 -> indicesOptions = randomValueOtherThan(
+                indicesOptions,
+                () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean())
+            );
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return request(names, wildcardExpressionsOriginallySpecified, indicesOptions);
+    }
+
+    /**
+     * Builds a request with any combination of names and wildcard flag. The flag is final and derived from
+     * the names passed to the constructor, so the constructor is seeded with a wildcard or a concrete name to
+     * get the wanted flag, then the real names are swapped in, the same way security rewrites wildcard
+     * expressions into concrete names.
+     */
+    private static Request request(String[] names, boolean wildcardExpressionsOriginallySpecified, IndicesOptions indicesOptions) {
+        Request request = new Request(TEST_REQUEST_TIMEOUT, wildcardExpressionsOriginallySpecified ? "*" : "concrete-name");
+        request.indices(names);
+        request.indicesOptions(indicesOptions);
+        return request;
     }
 
     public void testValidateRequest() {

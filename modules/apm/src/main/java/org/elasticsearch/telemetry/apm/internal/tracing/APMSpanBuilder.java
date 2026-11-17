@@ -130,63 +130,18 @@ public class APMSpanBuilder implements SpanBuilder {
     }
 
     private Context startSpanContext() {
-        if (tracer.isEnabled() == false) {
-            // invalid span will break the propagation chain, which is what we want in this case
-            return emptyContext().with(io.opentelemetry.api.trace.Span.getInvalid());
-        }
-
         final var threadContext = tracer.threadContext();
         final Context localParentContext = parentContext != null
             ? parentContext
             : requireNonNullElseGet(threadContext.getTransient(Task.APM_TRACE_CONTEXT), APMSpanBuilder::emptyContext);
-        var localParentSpan = io.opentelemetry.api.trace.Span.fromContextOrNull(localParentContext);
-
-        // local parent span is not sampled, propagate its context to disable any further child spans
-        if (localParentSpan != null && localParentSpan.getSpanContext().isSampled() == false) {
-            logger.trace("Skipping span [{}] as its local trace was dropped", name);
-            return localParentContext;
-        }
-
-        // todo: this will be moved to a sampler
-        if (tracer.isFilteredOut(name)) {
-            logger.trace("Skipping tracing [{}] as it has been filtered out", name);
-            return contextWithInvalidSpan(localParentContext);
-        }
-
-        final var localDepth = LocalTraceDepth.get(localParentContext);
-        final var localSpanCount = LocalSpanCount.getOrNull(localParentContext);
-        if (localSpanCount == null) {
-            assert false : "LocalSpanCount should always be populated, even in empty context";
-            return contextWithInvalidSpan(localParentContext);
-        }
-
-        // todo: this will be moved to a sampler
-        final int maxTraceDepth = tracer.maxTraceDepth();
-        if (localDepth.depth() > maxTraceDepth) {
-            logger.trace("Skipping span [{}] at local trace depth {} (maxTraceDepth={})", name, localDepth, maxTraceDepth);
-            return contextWithInvalidSpan(localParentContext);
-        }
-
-        // todo: this will be moved to a sampler
-        final int maxSpans = tracer.maxSpans();
-        if (localDepth.depth() > 0 && localSpanCount.incrementAndGet() > maxSpans) {
-            logger.trace("Skipping span [{}] as the local trace reached maxSpans={}", name, maxSpans);
-            return contextWithInvalidSpan(localParentContext);
-        }
+        boolean hasLocalParentSpan = io.opentelemetry.api.trace.Span.fromContextOrNull(localParentContext) != null;
 
         final io.opentelemetry.api.trace.SpanBuilder otelSpanBuilder = tracer.otelTracer().spanBuilder(name).setSpanKind(spanKind);
 
-        // A span can have a parent span, which is important for seeing a complete trace in the APM UI.
         // Try to use the local parent first, otherwise look for a remote parent in the request headers; otherwise use emptyContext().
         // A span that was explicitly started without a parent is the root of a new trace: nothing is inherited, not even a remote parent.
-        final Context newSpanParent;
-        if (noParent) {
-            newSpanParent = emptyContext();
-            otelSpanBuilder.setNoParent();
-        } else {
-            newSpanParent = localParentSpan != null ? localParentContext : getRemoteParentContext();
-            otelSpanBuilder.setParent(newSpanParent);
-        }
+        final Context newSpanParent = hasLocalParentSpan || noParent ? localParentContext : getRemoteParentContext();
+        otelSpanBuilder.setParent(newSpanParent);
 
         if (attributesBuilder != null) {
             otelSpanBuilder.setAllAttributes(attributesBuilder.build());
@@ -194,7 +149,7 @@ public class APMSpanBuilder implements SpanBuilder {
 
         setCommonAttributes(otelSpanBuilder);
 
-        if (localParentSpan == null) {
+        if (hasLocalParentSpan == false) {
             Instant startTime = threadContext.removeTransient(Task.LOCAL_TRACE_START_TIME);
             if (startTime != null) {
                 otelSpanBuilder.setStartTimestamp(startTime);
@@ -202,7 +157,7 @@ public class APMSpanBuilder implements SpanBuilder {
         }
 
         final io.opentelemetry.api.trace.Span otelSpan = otelSpanBuilder.startSpan();
-        final Context contextForNewSpan = newSpanParent.with(otelSpan).with(localDepth.increment());
+        final Context contextForNewSpan = newSpanParent.with(otelSpan).with(LocalTraceDepth.get(localParentContext).increment());
 
         logger.trace("Starting span [{}]", name);
         return contextForNewSpan;
@@ -226,11 +181,6 @@ public class APMSpanBuilder implements SpanBuilder {
 
     private static Context emptyContext() {
         return Context.root().with(new LocalSpanCount());
-    }
-
-    /** Returns an OTel {@link Context} that contains an invalid span instance; this prevents child spans from being started. */
-    private static Context contextWithInvalidSpan(Context context) {
-        return context.with(io.opentelemetry.api.trace.Span.getInvalid());
     }
 
     /**

@@ -62,7 +62,7 @@ public final class StGeohashFromFieldAndLiteralEvaluator implements ExpressionEv
   }
 
   public LongBlock eval(int positionCount, BytesRefBlock wkbBlockBlock) {
-    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
         if (!wkbBlockBlock.isNull(p)) {

@@ -139,10 +139,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         Setting.Property.NodeScope
     );
 
-    /**
-     * Enable / disable local retry functionality on recovery failure. When {@code false}, FailureStrategy#RETRY
-     * will be treated as {@link FailureStrategy#FAIL_SEND} by {@link ShardRecoveryListener}.
-     */
+    /// Enable / disable local retry functionality on recovery failure. When `false`, [FailureStrategy#RETRY]
+    /// will be treated as [FailureStrategy#FAIL_SEND] by [ShardRecoveryListener].
     public static final Setting<Boolean> INDICES_RECOVERY_LOCAL_RETRY_SETTING = Setting.boolSetting(
         "indices.recovery.local_retry",
         false,

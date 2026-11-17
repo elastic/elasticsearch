@@ -106,6 +106,7 @@ import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.cache.request.ShardRequestCache;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.FlushMetrics;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.NoOpEngine;
@@ -301,6 +302,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final IndexingStatsSettings indexStatsSettings;
     private final SearchStatsSettings searchStatsSettings;
     private final MergeMetrics mergeMetrics;
+    private final FlushMetrics flushMetrics;
     private final PluggableDirectoryMetricsHolder<StoreMetrics> storeMetricHolder;
     private final Map<String, PluggableDirectoryMetricsHolder<?>> directoryMetricHolderMap;
     private final ThrottlingRecoveryService throttlingRecoveryService;
@@ -381,6 +383,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.queryRewriteInterceptor = builder.queryRewriteInterceptor;
         this.mapperMetrics = builder.mapperMetrics;
         this.mergeMetrics = builder.mergeMetrics;
+        this.flushMetrics = builder.flushMetrics;
         // doClose() is called when shutting down a node, yet there might still be ongoing requests
         // that we need to wait for before closing some resources such as the caches. In order to
         // avoid closing these resources while ongoing requests are still being processed, we use a
@@ -846,6 +849,7 @@ public class IndicesService extends AbstractLifecycleComponent
             indexStatsSettings,
             searchStatsSettings,
             mergeMetrics,
+            flushMetrics,
             storeMetricHolder
         );
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
@@ -947,6 +951,7 @@ public class IndicesService extends AbstractLifecycleComponent
             indexStatsSettings,
             searchStatsSettings,
             mergeMetrics,
+            flushMetrics,
             storeMetricHolder
         );
         pluginsService.forEach(p -> p.onIndexModule(indexModule));

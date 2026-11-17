@@ -79,6 +79,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -90,6 +91,7 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.FlushFailedEngineException;
+import org.elasticsearch.index.engine.FlushMetrics;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.engine.PendingTranslogRecoveryException;
@@ -138,6 +140,10 @@ import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
+import org.elasticsearch.telemetry.metric.MetricAttributes;
 import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.FieldMaskingReader;
@@ -151,6 +157,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.Assert;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -233,6 +240,13 @@ import static org.mockito.Mockito.spy;
  * Simple unit-test IndexShard related operations.
  */
 public class IndexShardTests extends IndexShardTestCase {
+
+    private final RecordingMeterRegistry flushMeterRegistry = new RecordingMeterRegistry();
+
+    @Before
+    public void useRecordingFlushMetrics() {
+        flushMetrics = new FlushMetrics(flushMeterRegistry);
+    }
 
     public static ShardStateMetadata load(Logger logger, Path... shardPaths) throws IOException {
         return ShardStateMetadata.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, shardPaths);
@@ -1792,10 +1806,10 @@ public class IndexShardTests extends IndexShardTestCase {
             () -> shard.forceMerge(new ForceMergeRequest().maxNumSegments(1).flush(true))
         );
         assertThat(ExceptionsHelper.unwrap(failure, IOException.class).getMessage(), equalTo("simulated disk failure on sync"));
-        assertFlushFailureCount(shard, 1L);
+        assertFlushFailureCount(1L);
 
         assertThat(flushFailure(shard), instanceOf(AlreadyClosedException.class));
-        assertFlushFailureCount(shard, 1L);
+        assertFlushFailureCount(1L);
         IOUtils.close(() -> closeShardNoCheck(shard), shard.store());
     }
 
@@ -1821,10 +1835,10 @@ public class IndexShardTests extends IndexShardTestCase {
         Exception failure = flushFailure(shard);
         assertThat(failure, instanceOf(FlushFailedEngineException.class));
         assertThat(ExceptionsHelper.unwrap(failure, IOException.class).getMessage(), startsWith("simulated disk failure writing"));
-        assertFlushFailureCount(shard, 1L);
+        assertFlushFailureCount(1L);
 
         assertThat(flushFailure(shard), instanceOf(AlreadyClosedException.class));
-        assertFlushFailureCount(shard, 1L);
+        assertFlushFailureCount(1L);
         IOUtils.close(() -> closeShardNoCheck(shard), shard.store());
     }
 
@@ -1867,7 +1881,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         assertThat(flushFailure(shard), instanceOf(IndexShardClosedException.class));
 
-        assertFlushFailureCount(shard, 0L);
+        assertFlushFailureCount(0L);
     }
 
     /**
@@ -1889,99 +1903,23 @@ public class IndexShardTests extends IndexShardTestCase {
 
         engineFailure.set(new PendingTranslogRecoveryException("pending translog recovery"));
         flushFailure(shard);
-        assertFlushFailureCount(shard, 0L);
+        assertFlushFailureCount(0L);
 
         engineFailure.set(new AlreadyClosedException("index writer closed while the engine is open"));
         flushFailure(shard);
-        assertFlushFailureCount(shard, 1L);
+        assertFlushFailureCount(1L);
 
         engineFailure.set(new IllegalStateException("unexpected"));
         flushFailure(shard);
-        assertFlushFailureCount(shard, 2L);
+        assertFlushFailureCount(2L);
+        final Measurement lastFailure = flushFailureMeasurements().getLast();
+        assertThat(lastFailure.attributes().get(MetricAttributes.ERROR_TYPE), equalTo("IllegalStateException"));
+        assertThat(lastFailure.attributes().get(MetricAttributes.ES_INDEX_MODE), equalTo(IndexMode.STANDARD.getName()));
 
         engineFailure.set(null);
         flushShard(shard);
-        assertFlushFailureCount(shard, 2L);
+        assertFlushFailureCount(2L);
         closeShards(shard);
-    }
-
-    /**
-     * Flush failure counts must not drop when a stateful shard rolls back its engine (replicas after a primary term change), because
-     * a drop looks like a counter reset to metric consumers. Failures on the new engine must add to the same counts.
-     */
-    public void testFlushFailureCountsSurviveEngineRollback() throws Exception {
-        AtomicReference<RuntimeException> engineFailure = new AtomicReference<>();
-        IndexShard shard = newStartedShard(true, Settings.EMPTY, config -> new InternalEngine(config) {
-            @Override
-            protected void ensureCanFlush() {
-                super.ensureCanFlush();
-                if (engineFailure.get() != null) {
-                    throw engineFailure.get();
-                }
-            }
-        });
-        final Engine engineBeforeRollback = getEngine(shard);
-        failOneFlush(shard, engineFailure);
-        assertFlushFailureCount(shard, 1L);
-
-        final PlainActionFuture<Releasable> onPermitsAcquired = new PlainActionFuture<>();
-        shard.acquireAllPrimaryOperationsPermits(onPermitsAcquired, TimeValue.timeValueMinutes(1L));
-        try (Releasable ignored = safeGet(onPermitsAcquired)) {
-            shard.rollbackEngineToGlobalCheckpoint();
-        }
-
-        assertThat(getEngine(shard), not(sameInstance(engineBeforeRollback)));
-        assertFlushFailureCount(shard, 1L);
-        failOneFlush(shard, engineFailure);
-        assertFlushFailureCount(shard, 2L);
-        closeShards(shard);
-    }
-
-    /**
-     * Flush failure counts must not drop when the shard resets its engine, as stateless does when it hollows or unhollows a shard.
-     * Like stateless, the reset switches to a different engine type, because two {@link InternalEngine}s cannot hold the index writer
-     * lock at the same time.
-     */
-    public void testFlushFailureCountsSurviveEngineReset() throws Exception {
-        AtomicReference<RuntimeException> engineFailure = new AtomicReference<>();
-        AtomicInteger enginesCreated = new AtomicInteger();
-        IndexShard shard = newStartedShard(true, Settings.EMPTY, config -> {
-            if (enginesCreated.getAndIncrement() > 0) {
-                return new ReadOnlyEngine(config, null, new TranslogStats(), false, Function.identity(), true, true);
-            }
-            return new InternalEngine(config) {
-                @Override
-                protected void ensureCanFlush() {
-                    super.ensureCanFlush();
-                    if (engineFailure.get() != null) {
-                        throw engineFailure.get();
-                    }
-                }
-
-                @Override
-                public void prepareForEngineReset() {}
-            };
-        });
-        failOneFlush(shard, engineFailure);
-        assertFlushFailureCount(shard, 1L);
-
-        final PlainActionFuture<Releasable> onPermitsAcquired = new PlainActionFuture<>();
-        shard.acquireAllPrimaryOperationsPermits(onPermitsAcquired, TimeValue.timeValueMinutes(1L));
-        try (Releasable ignored = safeGet(onPermitsAcquired)) {
-            shard.resetEngine(newEngine -> assertThat(newEngine, instanceOf(ReadOnlyEngine.class)));
-        }
-
-        assertFlushFailureCount(shard, 1L);
-        closeShards(shard);
-    }
-
-    private void failOneFlush(IndexShard shard, AtomicReference<RuntimeException> engineFailure) {
-        engineFailure.set(new IllegalStateException("unexpected"));
-        try {
-            flushFailure(shard);
-        } finally {
-            engineFailure.set(null);
-        }
     }
 
     private Exception flushFailure(IndexShard shard) {
@@ -1994,8 +1932,12 @@ public class IndexShardTests extends IndexShardTestCase {
         return failure.get();
     }
 
-    private static void assertFlushFailureCount(IndexShard shard, long failed) {
-        assertThat(shard.flushStats().getFailed(), equalTo(failed));
+    private List<Measurement> flushFailureMeasurements() {
+        return flushMeterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, FlushMetrics.FLUSH_FAILURE_TOTAL);
+    }
+
+    private void assertFlushFailureCount(long failed) {
+        assertThat(flushFailureMeasurements().stream().mapToLong(m -> m.getLong()).sum(), equalTo(failed));
     }
 
     public void testIndexingErrors() throws IOException {

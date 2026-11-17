@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.flush;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -22,13 +21,10 @@ import java.util.Objects;
 
 public class FlushStats implements Writeable, ToXContentFragment {
 
-    private static final TransportVersion FLUSH_STATS_INCLUDE_FAILURES = TransportVersion.fromName("flush_stats_include_failures");
-
     private long total;
     private long periodic;
     private long totalTimeInMillis;
     private long totalTimeExcludingWaitingOnLockInMillis;
-    private long failed;
 
     public FlushStats() {
 
@@ -39,17 +35,20 @@ public class FlushStats implements Writeable, ToXContentFragment {
         totalTimeInMillis = in.readVLong();
         periodic = in.readVLong();
         totalTimeExcludingWaitingOnLockInMillis = in.readVLong();
-        if (in.getTransportVersion().supports(FLUSH_STATS_INCLUDE_FAILURES)) {
-            failed = in.readVLong();
-        }
     }
 
-    public FlushStats(long total, long periodic, long totalTimeInMillis, long totalTimeExcludingWaitingOnLockInMillis, long failed) {
+    public FlushStats(long total, long periodic, long totalTimeInMillis, long totalTimeExcludingWaitingOnLockInMillis) {
         this.total = total;
         this.periodic = periodic;
         this.totalTimeInMillis = totalTimeInMillis;
         this.totalTimeExcludingWaitingOnLockInMillis = totalTimeExcludingWaitingOnLockInMillis;
-        this.failed = failed;
+    }
+
+    public void add(long total, long periodic, long totalTimeInMillis, long totalTimeWithoutWaitingInMillis) {
+        this.total += total;
+        this.periodic += periodic;
+        this.totalTimeInMillis += totalTimeInMillis;
+        this.totalTimeExcludingWaitingOnLockInMillis += totalTimeWithoutWaitingInMillis;
     }
 
     public void add(FlushStats flushStats) {
@@ -64,7 +63,6 @@ public class FlushStats implements Writeable, ToXContentFragment {
         this.periodic += flushStats.periodic;
         this.totalTimeInMillis += flushStats.totalTimeInMillis;
         this.totalTimeExcludingWaitingOnLockInMillis += flushStats.totalTimeExcludingWaitingOnLockInMillis;
-        this.failed += flushStats.failed;
     }
 
     /**
@@ -102,21 +100,11 @@ public class FlushStats implements Writeable, ToXContentFragment {
         return totalTimeExcludingWaitingOnLockInMillis;
     }
 
-    /**
-     * The number of flushes that failed for a reason that is not expected during normal operation, counted by the engine so that the
-     * flushes the engine starts itself are included. Flushes rejected because the shard or engine is closed, or because translog recovery
-     * is still pending, are not counted.
-     */
-    public long getFailed() {
-        return failed;
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.FLUSH);
         builder.field(Fields.TOTAL, total);
         builder.field(Fields.PERIODIC, periodic);
-        builder.field(Fields.FAILED, failed);
         builder.humanReadableField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, getTotalTime());
         builder.humanReadableField(
             Fields.TOTAL_TIME_EXCLUDING_WAITING_ON_LOCK_IN_MILLIS,
@@ -131,7 +119,6 @@ public class FlushStats implements Writeable, ToXContentFragment {
         static final String FLUSH = "flush";
         static final String TOTAL = "total";
         static final String PERIODIC = "periodic";
-        static final String FAILED = "failed";
         static final String TOTAL_TIME = "total_time";
         static final String TOTAL_TIME_IN_MILLIS = "total_time_in_millis";
         static final String TOTAL_TIME_EXCLUDING_WAITING = "total_time_excluding_waiting";
@@ -144,9 +131,6 @@ public class FlushStats implements Writeable, ToXContentFragment {
         out.writeVLong(totalTimeInMillis);
         out.writeVLong(periodic);
         out.writeVLong(totalTimeExcludingWaitingOnLockInMillis);
-        if (out.getTransportVersion().supports(FLUSH_STATS_INCLUDE_FAILURES)) {
-            out.writeVLong(failed);
-        }
     }
 
     @Override
@@ -157,12 +141,11 @@ public class FlushStats implements Writeable, ToXContentFragment {
         return total == that.total
             && totalTimeInMillis == that.totalTimeInMillis
             && periodic == that.periodic
-            && totalTimeExcludingWaitingOnLockInMillis == that.totalTimeExcludingWaitingOnLockInMillis
-            && failed == that.failed;
+            && totalTimeExcludingWaitingOnLockInMillis == that.totalTimeExcludingWaitingOnLockInMillis;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(total, totalTimeInMillis, periodic, totalTimeExcludingWaitingOnLockInMillis, failed);
+        return Objects.hash(total, totalTimeInMillis, periodic, totalTimeExcludingWaitingOnLockInMillis);
     }
 }

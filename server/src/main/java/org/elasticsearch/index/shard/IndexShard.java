@@ -101,6 +101,7 @@ import org.elasticsearch.index.engine.EngineBatch;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.FlushMetrics;
 import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.PendingTranslogRecoveryException;
@@ -292,8 +293,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final MeanMetric externalRefreshMetric = new MeanMetric();
     private final MeanMetric flushMetric = new MeanMetric();
     private final CounterMetric periodicFlushMetric = new CounterMetric();
-    private final CounterMetric flushFailedMetric = new CounterMetric();
     private final MergeMetrics mergeMetrics;
+    private final FlushMetrics flushMetrics;
 
     private final ShardEventListener shardEventListener = new ShardEventListener();
 
@@ -374,7 +375,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final MapperMetrics mapperMetrics,
         final IndexingStatsSettings indexingStatsSettings,
         final SearchStatsSettings searchStatsSettings,
-        final MergeMetrics mergeMetrics
+        final MergeMetrics mergeMetrics,
+        final FlushMetrics flushMetrics
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -481,6 +483,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
         this.indexCommitListener = indexCommitListener;
         this.mergeMetrics = mergeMetrics;
+        this.flushMetrics = flushMetrics;
     }
 
     public ThreadPool getThreadPool() {
@@ -1553,8 +1556,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 flushMetric.count(),
                 periodicFlushMetric.count(),
                 TimeUnit.NANOSECONDS.toMillis(flushMetric.sum()),
-                engine != null ? engine.getTotalFlushTimeExcludingWaitingOnLockInMillis() : 0L,
-                flushFailedMetric.count()
+                engine != null ? engine.getTotalFlushTimeExcludingWaitingOnLockInMillis() : 0L
             )
         );
     }
@@ -4071,14 +4073,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         /**
          * Counts a flush failure unless it is expected during normal operation: a pending translog recovery, or an
          * {@link AlreadyClosedException} while the engine is closing cleanly (relocation, shutdown). An {@link AlreadyClosedException}
-         * on an engine that is not closing comes from a tragically closed index writer or translog and is counted. Called by every
-         * engine this shard creates, so the count survives an engine replacement.
+         * on an engine that is not closing comes from a tragically closed index writer or translog and is counted.
          */
         @Override
         public void onFlushFailed(Exception e, boolean closedCleanly) {
             final boolean expectedClose = closedCleanly && e instanceof AlreadyClosedException;
             if (expectedClose == false && e instanceof PendingTranslogRecoveryException == false) {
-                flushFailedMetric.inc();
+                flushMetrics.onFailure(indexSettings.getMode(), e);
             }
         }
     }

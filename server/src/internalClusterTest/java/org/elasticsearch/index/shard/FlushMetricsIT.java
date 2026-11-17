@@ -7,19 +7,16 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.monitor.metrics;
+package org.elasticsearch.index.shard;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.FlushMetrics;
 import org.elasticsearch.index.engine.InternalEngine;
-import org.elasticsearch.index.engine.PendingTranslogRecoveryException;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -37,26 +34,14 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
+/**
+ * Checks that a node passes its real meter registry down to every shard, so flush failures reach APM. Which failures are counted is
+ * covered by {@code IndexShardTests}.
+ */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
-public class NodeFlushMetricsIT extends ESIntegTestCase {
+public class FlushMetricsIT extends ESIntegTestCase {
 
     private static final AtomicReference<RuntimeException> flushFailure = new AtomicReference<>();
-
-    private static void failFlushes(IndexShard shard, int times, RuntimeException failure) {
-        flushFailure.set(failure);
-        for (int i = 0; i < times; i++) {
-            shard.flush(
-                new FlushRequest().force(true).waitIfOngoing(true),
-                ActionListener.wrap(result -> fail("flush must fail"), e -> {})
-            );
-        }
-    }
-
-    private static long recordedValue(TestTelemetryPlugin plugin, String metricName) {
-        final List<Measurement> measurements = plugin.getLongAsyncCounterMeasurement(metricName);
-        assertThat(metricName, measurements.size(), equalTo(1));
-        return measurements.getFirst().getLong();
-    }
 
     @Override
     protected boolean addMockInternalEngine() {
@@ -65,26 +50,15 @@ public class NodeFlushMetricsIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(TestTelemetryPlugin.class, NodeIndexingMetricsIT.TestAPMInternalSettings.class, TestEnginePlugin.class);
+        return List.of(TestTelemetryPlugin.class, TestEnginePlugin.class);
     }
 
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put("telemetry.export.interval", TimeValue.timeValueSeconds(0)) // disable metrics cache refresh delay
-            .build();
-    }
-
-    public void testOnlyUnexpectedFlushFailuresAreReported() {
+    public void testFlushFailureIsReportedToNodeMeterRegistry() {
         final String dataNode = internalCluster().startNode();
-        ensureStableCluster(1);
-
         final TestTelemetryPlugin plugin = internalCluster().getInstance(PluginsService.class, dataNode)
             .filterPlugins(TestTelemetryPlugin.class)
             .findFirst()
             .orElseThrow();
-        plugin.resetMeter();
 
         assertAcked(prepareCreate("test"));
         client(dataNode).index(new IndexRequest("test").source(Map.of())).actionGet();
@@ -92,22 +66,22 @@ public class NodeFlushMetricsIT extends ESIntegTestCase {
             .indexServiceSafe(resolveIndex("test"))
             .getShard(0);
 
-        // a pending translog recovery is expected, so only the unexpected failures must be reported
+        flushFailure.set(new IllegalStateException("unexpected"));
         try {
-            failFlushes(shard, 2, new PendingTranslogRecoveryException("pending translog recovery"));
-            failFlushes(shard, 3, new IllegalStateException("unexpected"));
+            shard.flush(
+                new FlushRequest().force(true).waitIfOngoing(true),
+                ActionListener.wrap(result -> fail("flush must fail"), e -> {})
+            );
         } finally {
             flushFailure.set(null);
         }
 
-        // simulate async apm `polling` call for metrics
-        plugin.collect();
-
-        assertThat(recordedValue(plugin, "es.flush.failed.total"), equalTo(3L));
+        final List<Measurement> measurements = plugin.getLongCounterMeasurement(FlushMetrics.FLUSH_FAILURE_TOTAL);
+        assertThat(measurements.stream().mapToLong(Measurement::getLong).sum(), equalTo(1L));
     }
 
     /**
-     * Installs an engine whose flushes fail on demand from inside the engine's flush, where failures are counted, without breaking
+     * Installs an engine whose flushes fail on demand from inside the engine's flush, where failures are reported, without breaking
      * real storage.
      */
     public static class TestEnginePlugin extends Plugin implements EnginePlugin {

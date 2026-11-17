@@ -53,8 +53,15 @@ import static java.util.Collections.emptyList;
  *     <li>Never mutate an object reachable from a node after the node is constructed, other than by such a lazy
  *     assignment.</li>
  * </ul>
- * {@code PlanFieldSafePublicationTests} checks the first three rules for all subclasses of {@link Node} and
- * {@link org.elasticsearch.xpack.esql.core.type.EsField}.
+ * {@code PlanFieldSafePublicationTests} checks the shape of the code for all subclasses of {@link Node} and
+ * {@link org.elasticsearch.xpack.esql.core.type.EsField}, plus the inner and anonymous classes declared in them. It checks
+ * that every instance field is {@code final} or {@code volatile}, and that a method doesn't read a lazily computed field
+ * again after assigning it, except to return it. Passing it doesn't make a node thread-safe; it can't see, for example:
+ * <ul>
+ *     <li>a value that is filled in through a local variable or a helper method after it was assigned to the field;</li>
+ *     <li>objects a node holds that are neither nodes nor {@code EsField}s, or static state;</li>
+ *     <li>mutation of an object reachable from a node (the last rule).</li>
+ * </ul>
  *
  * @param <T> node type
  */

@@ -459,3 +459,8 @@ tests:
   tasks:
   - :modules:repository-s3:javaRestTest
   issue: https://github.com/elastic/elasticsearch/issues/166262
+- class: org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDeciderIT
+  tasks:
+  - :server:internalClusterTest
+  method: testRestoreSnapshotAllocationDoesNotExceedWatermarkWithMultipleRestores
+  issue: https://github.com/elastic/elasticsearch/issues/166268

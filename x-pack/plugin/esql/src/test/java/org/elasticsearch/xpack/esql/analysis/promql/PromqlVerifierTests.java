@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.AbstractTimeSeriesMetadataFunction;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslatePromqlToEsqlPlan;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlAstTests;
@@ -58,6 +60,14 @@ public class PromqlVerifierTests extends ESTestCase {
     private final TestAnalyzer tsdb = analyzer().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
         .stripErrorPrefix(true)
         .unmappedResolution(UnmappedResolution.NULLIFY);
+
+    /** A cluster with a node that does not know the label container functions, which still rejects the shapes that take them. */
+    private final TestAnalyzer mixedTsdb = analyzer().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
+        .stripErrorPrefix(true)
+        .unmappedResolution(UnmappedResolution.NULLIFY)
+        .minimumTransportVersion(
+            TransportVersionUtils.getPreviousVersion(AbstractTimeSeriesMetadataFunction.ESQL_TIMESERIES_METADATA_FUNCTIONS)
+        );
 
     public void testPredictLinearArguments() {
         tsdb.error(
@@ -153,7 +163,7 @@ public class PromqlVerifierTests extends ESTestCase {
     public void testPromqlHeterogeneousOffsetBinaryExpression() {
         // Both operands are source-backed and get merged into a single time-series aggregate, which cannot carry
         // two different offsets. `or` (UNION) translates to independent branches and is therefore allowed.
-        tsdb.error(
+        mixedTsdb.error(
             "PROMQL index=test step=5m (network.bytes_in - network.bytes_in offset 1d)",
             containsString("binary expressions with different offsets are not supported at this time")
         );
@@ -162,7 +172,7 @@ public class PromqlVerifierTests extends ESTestCase {
     public void testLogicalSetBinaryOperators() {
         List.of("and", "unless").forEach(op -> {
             // metric op metric: and/unless (INTERSECT/SUBTRACT) are not supported yet.
-            tsdb.error(
+            mixedTsdb.error(
                 "PROMQL index=test step=5m foo " + op + " bar",
                 containsString("set operator [" + op + "] is not supported at this time")
             );
@@ -215,7 +225,7 @@ public class PromqlVerifierTests extends ESTestCase {
 
     public void testNestedUnionIsRejected() {
         // `or` is only supported at the top level; nested inside an aggregation it is rejected.
-        tsdb.error(
+        mixedTsdb.error(
             "PROMQL index=test step=5m sum(network.bytes_in or network.connections)",
             containsString("set operator [or] is only supported at the top-level at this time")
         );
@@ -228,7 +238,7 @@ public class PromqlVerifierTests extends ESTestCase {
         assertTrue(tsdb.query("PROMQL index=test step=5m " + atLimit).resolved());
 
         String tooManyOperands = String.join(" or ", Collections.nCopies(maxOperands + 1, "network.bytes_in"));
-        tsdb.error(
+        mixedTsdb.error(
             "PROMQL index=test step=5m " + tooManyOperands,
             allOf(
                 containsString("PromQL set operator [or] supports up to [" + maxOperands + "] operands, got [" + (maxOperands + 1) + "]"),
@@ -469,7 +479,7 @@ public class PromqlVerifierTests extends ESTestCase {
     }
 
     public void testNonScalarComparison() {
-        tsdb.error(
+        mixedTsdb.error(
             "PROMQL index=test step=5m foo > bar",
             containsString("comparison operators with non-literal right-hand side are not supported at this time")
         );
@@ -486,7 +496,7 @@ public class PromqlVerifierTests extends ESTestCase {
             "network.connections * max by (host) (network.bytes_in)",
             "stddev(network.bytes_in) + network.connections"
         )) {
-            tsdb.error(
+            mixedTsdb.error(
                 query + rejected,
                 containsString("binary operations between an aggregated and a raw vector are not supported at this time")
             );
@@ -499,7 +509,7 @@ public class PromqlVerifierTests extends ESTestCase {
             "sum by (value) (label_replace(network.bytes_in, \"value\", \"$1\", \"host\", \"(.*)\")) "
                 + "* scalar(max(network.connections))"
         )) {
-            tsdb.error(
+            mixedTsdb.error(
                 query + rejected,
                 containsString("binary operations between scalar() of a vector and a vector with labels are not supported at this time")
             );
@@ -512,7 +522,7 @@ public class PromqlVerifierTests extends ESTestCase {
             "topk(2, network.bytes_in) * network.connections",
             "sum by (host) (network.bytes_in) / topk(2, network.connections)"
         )) {
-            tsdb.error(
+            mixedTsdb.error(
                 query + rejected,
                 containsString("binary operations over topk, bottomk, limitk or limit_ratio are not supported at this time")
             );
@@ -523,7 +533,7 @@ public class PromqlVerifierTests extends ESTestCase {
             "sum(limit_ratio(0.5, network.bytes_in)) / sum(network.connections)",
             "sum(network.bytes_in) / scalar(sum(network.connections))"
         )) {
-            tsdb.error(query + rejected, containsString("binary expressions with nested aggregations are not supported at this time"));
+            mixedTsdb.error(query + rejected, containsString("binary expressions with nested aggregations are not supported at this time"));
         }
         for (String accepted : List.of(
             "network.bytes_in / network.connections",
@@ -560,7 +570,7 @@ public class PromqlVerifierTests extends ESTestCase {
                 "limit_ratio(0.5, network.bytes_in)",
                 "sum without (host) (network.bytes_in)"
             )) {
-                tsdb.error(
+                mixedTsdb.error(
                     "PROMQL index=test step=5m " + function + buckets + ")",
                     containsString(
                         "over topk, bottomk, limitk, limit_ratio or a WITHOUT aggregate is not supported at this time "
@@ -604,7 +614,7 @@ public class PromqlVerifierTests extends ESTestCase {
     }
 
     public void testNestedComparisons() {
-        tsdb.error(
+        mixedTsdb.error(
             "PROMQL index=test step=5m avg(foo > 5)",
             containsString("comparison operators are only supported at the top-level at this time")
         );
@@ -811,7 +821,7 @@ public class PromqlVerifierTests extends ESTestCase {
     public void testLabelReplaceBareCallRejected() {
         // A relabel must be consumed by an enclosing by(...) aggregation; a bare (non-aggregated) call is rejected because
         // the derived label is materialized as a column rather than written into the series-identity blob.
-        tsdb.error(
+        mixedTsdb.error(
             "PROMQL index=test step=5m label_replace(network.bytes_in, \"dst\", \"$1\", \"host\", \"(.+)\")",
             containsString(
                 "[label_replace] is only supported inside a `by(...)` aggregation or over the result of one, "
@@ -821,14 +831,14 @@ public class PromqlVerifierTests extends ESTestCase {
     }
 
     public void testLabelReplaceUnderWithoutRejected() {
-        tsdb.error(
+        mixedTsdb.error(
             "PROMQL index=test step=5m sum without (dst) (label_replace(network.bytes_in, \"dst\", \"$1\", \"host\", \"(.+)\"))",
             containsString("[label_replace] is only supported inside a `by(...)` aggregation, but was used with a `without(...)` grouping")
         );
     }
 
     public void testLabelReplaceAsBinaryOperandRejected() {
-        tsdb.error(
+        mixedTsdb.error(
             "PROMQL index=test step=5m label_replace(network.bytes_in, \"dst\", \"$1\", \"host\", \"(.+)\") + network.connections",
             containsString(
                 "[label_replace] is only supported inside a `by(...)` aggregation, but was used as an operand of a binary operator"
@@ -838,7 +848,7 @@ public class PromqlVerifierTests extends ESTestCase {
 
     public void testLabelReplaceUnderGroupAllAggregateRejected() {
         // A group-all aggregation (no by/without) collapses all series, so there is no by(dst) to bind the derived label.
-        tsdb.error(
+        mixedTsdb.error(
             "PROMQL index=test step=5m sum (label_replace(network.bytes_in, \"dst\", \"$1\", \"host\", \"(.+)\"))",
             containsString("[label_replace] is only supported inside a `by(...)` aggregation, but was used without a `by(...)` grouping")
         );
@@ -846,7 +856,7 @@ public class PromqlVerifierTests extends ESTestCase {
 
     public void testLabelReplaceUnderReductionRejected() {
         // A topk/bottomk reduction consumes the series identity directly rather than through a by(dst) grouping.
-        tsdb.error(
+        mixedTsdb.error(
             "PROMQL index=test step=5m topk(3, label_replace(network.bytes_in, \"dst\", \"$1\", \"host\", \"(.+)\"))",
             containsString(
                 "[label_replace] is only supported inside a `by(...)` aggregation or over the result of one, "
@@ -858,19 +868,19 @@ public class PromqlVerifierTests extends ESTestCase {
     public void testLabelReplaceOverNonByAggregateRejectedWithSpecificReason() {
         // The input is aggregated, but not by a `by(...)`: the message names what the relabel actually sits on instead of
         // calling it non-aggregated.
-        tsdb.error(
+        mixedTsdb.error(
             "PROMQL index=test step=5m label_replace(sum (network.bytes_in), \"dst\", \"$1\", \"host\", \"(.+)\")",
             containsString("but was used as a top-level expression over an aggregation without a `by(...)` grouping")
         );
-        tsdb.error(
+        mixedTsdb.error(
             "PROMQL index=test step=5m label_replace(sum without (host) (network.bytes_in), \"dst\", \"$1\", \"host\", \"(.+)\")",
             containsString("but was used as a top-level expression over a `without(...)` aggregation")
         );
-        tsdb.error(
+        mixedTsdb.error(
             "PROMQL index=test step=5m label_replace(topk(3, sum by (host) (network.bytes_in)), \"dst\", \"$1\", \"host\", \"(.+)\")",
             containsString("but was used as a top-level expression over [topk]")
         );
-        tsdb.error(
+        mixedTsdb.error(
             "PROMQL index=test step=5m label_replace(sum by (host) (network.bytes_in) * 2, \"dst\", \"$1\", \"host\", \"(.+)\")",
             containsString("but was used as a top-level expression over a binary operator")
         );
@@ -933,7 +943,7 @@ public class PromqlVerifierTests extends ESTestCase {
     public void testLabelJoinOverBinaryOperatorRejected() {
         // A binary operator's output does not materialize the relabel's source labels as readable columns, so the
         // derivation would silently see them as absent and join empty strings instead of the matched label values.
-        tsdb.error(
+        mixedTsdb.error(
             "PROMQL index=test step=5m "
                 + "label_join(sum by (host) (network.bytes_in) / sum by (host) (network.bytes_in), \"dst\", \"-\", \"host\")",
             containsString(
@@ -946,14 +956,14 @@ public class PromqlVerifierTests extends ESTestCase {
     public void testLabelReplaceOverwritingAggregatedIdentityLabelRejected() {
         // Overwriting a label that is part of the aggregate's identity can map two distinct series onto one label set,
         // which needs Prometheus' duplicate-label-set handling and stays rejected.
-        tsdb.error(
+        mixedTsdb.error(
             "PROMQL index=test step=5m label_replace(sum by (host) (network.bytes_in), \"host\", \"$1\", \"host\", \"(.+)\")",
             containsString(
                 "[label_replace] used as a top-level expression over a `by(...)` aggregation must add a new label, "
                     + "but destination [host] overwrites a label of the aggregation"
             )
         );
-        tsdb.error(
+        mixedTsdb.error(
             "PROMQL index=test step=5m topk(3, label_join(sum by (host) (network.bytes_in), \"host\", \"-\", \"host\"))",
             containsString(
                 "[label_join] used under [topk] over a `by(...)` aggregation must add a new label, "

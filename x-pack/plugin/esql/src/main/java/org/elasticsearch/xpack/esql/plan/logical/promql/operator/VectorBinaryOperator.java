@@ -431,6 +431,8 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
     private static final String SIGNATURE = "$prom_sig";
     /** The one side's labels, under a name of their own since the join merges its output by name. */
     private static final String ONE_LABELS = "$prom_one";
+    /** The many side's labels, read before the join so its page holds only what the join reads. */
+    private static final String PROBE_LABELS = "$prom_many";
     /** The result labels, from which the result's label columns and packings read. */
     private static final String RESULT_LABELS = "$prom_labels";
 
@@ -489,9 +491,28 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         boolean probeRight = leftScalar || match.grouping() == Joining.RIGHT;
         IntermediateResult probe = probeRight ? right : left;
         IntermediateResult build = reidentify(cmd, probeRight ? left : right);
+        // The probe side carries exactly what the join reads, its value, step and labels: a union or a join below can leave a
+        // column in its pages that its output no longer names, which the join would misplace (#158164).
+        Alias probeValue = new Alias(
+            cmd.source(),
+            TemporaryNameGenerator.locallyUniqueTemporaryName(cmd.valueColumnName()),
+            probe.valueColumn()
+        );
+        var pinned = new ArrayList<Alias>(List.of(probeValue));
+        Attribute probeLabels = null;
+        if (leftScalar == false || rightScalar == false) {
+            Alias labelsColumn = new Alias(cmd.source(), PROBE_LABELS, context.labels(probe));
+            pinned.add(labelsColumn);
+            probeLabels = labelsColumn.toAttribute();
+        }
+        var pinnedColumns = new ArrayList<NamedExpression>(List.of(probeValue.toAttribute(), probe.step()));
+        if (probeLabels != null) {
+            pinnedColumns.add(probeLabels);
+        }
+        LogicalPlan probePinned = new Project(cmd.source(), new Eval(cmd.source(), probe.plan(), pinned), pinnedColumns);
+        probe = new IntermediateResult(probePinned, probe.schema(), probeValue.toAttribute(), probe.step(), null, probe.kind());
         Expression leftValue = probeRight ? build.value() : probe.value();
         Expression rightValue = probeRight ? probe.value() : build.value();
-        Expression probeLabels = leftScalar && rightScalar ? null : context.labels(probe);
 
         LogicalPlan join;
         Expression labels;

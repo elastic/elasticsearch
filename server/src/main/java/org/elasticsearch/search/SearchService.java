@@ -150,6 +150,7 @@ import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.CancelledChildRequestListener;
+import org.elasticsearch.tasks.RemovedTaskListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
@@ -504,6 +505,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private final Map<OpeningRequest, Set<ShardSearchContextId>> contextsByOpeningRequest = ConcurrentCollections.newConcurrentMap();
 
     private final CancelledChildRequestListener freeOnCancelledRequest = this::freeReaderContextsOpenedBy;
+    private final RemovedTaskListener closeQueryParts;
 
     private record OpeningRequest(TaskId parentTaskId, long requestId) {}
 
@@ -530,6 +532,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.fetchPhase = fetchPhase;
         this.circuitBreaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
         this.queryScheduler = new QueryScheduler(System::nanoTime, circuitBreaker);
+        // a query is tracked on this node at most until the tasks that run it here are removed
+        this.closeQueryParts = queryScheduler.removedTaskListener();
         this.multiBucketConsumerService = new MultiBucketConsumerService(clusterService, settings, circuitBreaker);
         this.executorSelector = executorSelector;
         this.taskManager = taskManager;
@@ -866,11 +870,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     @Override
     protected void doStart() {
         taskManager.registerCancelledChildRequestListener(freeOnCancelledRequest);
+        taskManager.registerRemovedTaskListener(closeQueryParts);
     }
 
     @Override
     protected void doStop() {
         taskManager.unregisterCancelledChildRequestListener(freeOnCancelledRequest);
+        taskManager.unregisterRemovedTaskListener(closeQueryParts);
         for (final ReaderContext context : activeReaders.values()) {
             freeReaderContext(context.id(), "search service stopping");
         }

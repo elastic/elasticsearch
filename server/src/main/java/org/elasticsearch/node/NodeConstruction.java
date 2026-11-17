@@ -1396,8 +1396,6 @@ class NodeConstruction {
             transportService.getTaskManager()
         );
         searchTransportService.setSearchService(searchService);
-        // a query is tracked on this node at most until the tasks that run it here are removed
-        transportService.getTaskManager().registerRemovedTaskListener(searchService.queryScheduler().removedTaskListener());
 
         final SearchTaskWatchdog searchTaskWatchdog = new SearchTaskWatchdog(
             settingsModule.getClusterSettings(),

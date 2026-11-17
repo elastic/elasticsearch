@@ -145,6 +145,7 @@ import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rank.feature.RankFeatureShardRequest;
 import org.elasticsearch.search.rank.feature.RankFeatureShardResult;
 import org.elasticsearch.search.suggest.SuggestBuilder;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
@@ -960,6 +961,19 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             }
             service.freeReaderContext(queryResult.getContextId());
         }
+    }
+
+    /**
+     * A part left open by its owner is closed when the owner's task is removed, so the node stops tracking the query.
+     */
+    public void testRemovedTaskClosesItsQueryParts() {
+        SearchService service = getInstanceFromNode(SearchService.class);
+        TaskManager taskManager = getInstanceFromNode(TransportService.class).getTaskManager();
+        Task task = taskManager.register("transport", "test", new SearchRequest());
+        service.queryScheduler().part(new TaskId("coordinator", randomNonNegativeLong()), task.getId());
+        assertThat(service.queryScheduler().queries(), equalTo(1));
+        taskManager.unregister(task);
+        assertThat(service.queryScheduler().queries(), equalTo(0));
     }
 
     public void testRankFeaturePhaseUsingClient() {

@@ -3816,6 +3816,14 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_ALL_FORK,
 
         /**
+        /**
+         * Under {@code unmapped_fields="LOAD_ALL"}, the {@code _unmapped_fields} column is the last one of the output, wherever the
+         * commands of the query add their own: it used to sit right after the columns of the relation. Only meaningful when
+         * {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available. See https://github.com/elastic/elasticsearch/issues/162506.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_UNMAPPED_FIELDS_LAST(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
          * Support for {@code GROK}, {@code DISSECT}, {@code MV_EXPAND} and {@code SAMPLE} under {@code unmapped_fields="LOAD_ALL"}.
          * {@code GROK} and {@code DISSECT} read an input field (mapped or unmapped) and add named columns, which shadow an unmapped
          * field of the same name. Expanding a mapped multivalued field with {@code MV_EXPAND} repeats the {@code _unmapped_fields}
@@ -4771,6 +4779,14 @@ public class EsqlCapabilities {
          * does for a search on an indexed field, rather than the score from before it.
          */
         RUNTIME_SCORE_FIX,
+
+        /**
+         * A column declared {@code date} over a Parquet column the file renders {@code date_nanos} decodes straight
+         * to milliseconds. The read this widens is {@code TIMESTAMP(MICROS)}: older nodes scaled to nanoseconds
+         * first, so a value outside 1677-09-21 .. 2262-04-11 answered {@code null} although {@code date} covers it.
+         * Gates the csv-spec cases asserting the wider domain, which such nodes still fail.
+         */
+        PARQUET_DECLARED_DATE_READS_MICROS_IN_ONE_STEP,
 
         /**
          * The query-and-tags pushdown of {@code ROUND_TO} (and the {@code DATE_TRUNC} / {@code BUCKET} date histograms

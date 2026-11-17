@@ -1266,7 +1266,7 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         ) instanceof IndicesClusterStateService.PendingAllocationState.AwaitingRecoveryRetry;
     }
 
-    private Integer awaitingRecoveryRetryCount(ShardRouting routing) {
+    private int awaitingRecoveryRetryCount(ShardRouting routing) {
         var current = indicesClusterStateService.pendingAllocationStates.get(allocationKey(routing));
         assertThat(current, instanceOf(IndicesClusterStateService.PendingAllocationState.AwaitingRecoveryRetry.class));
         return ((IndicesClusterStateService.PendingAllocationState.AwaitingRecoveryRetry) current).localRecoveryRetries();

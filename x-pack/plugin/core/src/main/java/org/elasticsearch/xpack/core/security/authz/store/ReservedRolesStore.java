@@ -116,6 +116,11 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
      * including legacy {@code .entities.v2.metadata.security_*} compatibility aliases.
      */
     public static final String ENTITY_STORE_V2_METADATA_INDEX = ".entities.v2.metadata.*";
+    /**
+     * Entity Store v2 system data streams: task run history and engine lifecycle events,
+     * {@code .entities.v2.system.extraction_runs.{namespace}} and {@code .entities.v2.system.events.{namespace}}.
+     */
+    public static final String ENTITY_STORE_V2_SYSTEM_INDEX = ".entities.v2.system.*";
     public static final String ENTITY_STORE_HISTORY_INDEX = ".entities.*.history.*";
     public static final String ASSET_CRITICALITY_INDEX = ".asset-criticality.asset-criticality-*";
     public static final String PRIVILEGED_USER_MONITORING_INDEX = ".entity_analytics.monitoring*";
@@ -838,6 +843,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         ReservedRolesStore.ENTITY_STORE_V2_LATEST_INDEX,
                         ReservedRolesStore.ENTITY_STORE_V2_UPDATES_INDEX,
                         ReservedRolesStore.ENTITY_STORE_V2_METADATA_INDEX,
+                        ReservedRolesStore.ENTITY_STORE_V2_SYSTEM_INDEX,
                         ReservedRolesStore.ASSET_CRITICALITY_INDEX,
                         ReservedRolesStore.PRIVILEGED_USER_MONITORING_INDEX,
                         ReservedRolesStore.ENTITY_ANALYTICS_ENTITY_LEADS_INDEX,
@@ -926,6 +932,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         ReservedRolesStore.ENTITY_STORE_V2_LATEST_INDEX,
                         ReservedRolesStore.ENTITY_STORE_V2_UPDATES_INDEX,
                         ReservedRolesStore.ENTITY_STORE_V2_METADATA_INDEX,
+                        ReservedRolesStore.ENTITY_STORE_V2_SYSTEM_INDEX,
                         ReservedRolesStore.PRIVILEGED_USER_MONITORING_INDEX,
                         ReservedRolesStore.ENTITY_ANALYTICS_ENTITY_LEADS_INDEX,
                         ReservedRolesStore.ENTITY_ANALYTICS_WATCHLISTS_INDEX,

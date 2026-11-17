@@ -49,6 +49,7 @@ import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIndexFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.codec.vectors.diskbbq.TestIvfQueryConfigResolver;
 import org.junit.Before;
@@ -118,6 +119,19 @@ public abstract class AbstractDiversifyingChildrenIVFKnnVectorQueryTestCase exte
         int k,
         BitSetProducer parentBitSet
     );
+
+    public void testLeafCollectorBudgetHasNoOverspillHeadroom() {
+        int k = random().nextInt(100) + 1;
+        float oversample = 1f + random().nextFloat() * 9f;
+        AbstractIVFKnnVectorQuery query = (AbstractIVFKnnVectorQuery) getDiversifyingChildrenKnnQuery(
+            "field",
+            new float[] { 1f, 2f, 3f, 4f },
+            null,
+            k,
+            new QueryBitSetProducer(new TermQuery(new Term("docType", "_parent")))
+        );
+        assertEquals(IvfSegmentConfig.shardMergeBudget(k, oversample), query.leafCollectorBudget(oversample));
+    }
 
     public void testEmptyIndex() throws IOException {
         try (Directory indexStore = getIndexStore("field"); IndexReader reader = DirectoryReader.open(indexStore)) {

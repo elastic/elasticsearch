@@ -323,13 +323,11 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
      */
     private synchronized boolean assertNoSeqNumberConflict(Translog.IndexBatch batch) throws IOException {
         for (Translog.Operation op : batch.explode()) {
-            final Translog.Serialized operation;
             try (RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(bigArrays.bytesRefRecycler())) {
                 Translog.writeHeaderWithSize(out, op);
                 final BytesReference source = op instanceof Translog.Index index ? index.source() : null;
-                operation = Translog.Serialized.create(out.bytes(), source, new CRC32());
+                assertNoSeqNumberConflict(op.seqNo(), Translog.Serialized.create(out.bytes(), source, new CRC32()));
             }
-            assertNoSeqNumberConflict(op.seqNo(), operation);
         }
         return true;
     }

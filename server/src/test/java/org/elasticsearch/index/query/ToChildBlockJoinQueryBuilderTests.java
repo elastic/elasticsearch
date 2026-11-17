@@ -14,6 +14,7 @@ import org.apache.lucene.search.join.ToChildBlockJoinQuery;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 
@@ -22,6 +23,12 @@ public class ToChildBlockJoinQueryBuilderTests extends AbstractQueryTestCase<ToC
     protected ToChildBlockJoinQueryBuilder doCreateTestQueryBuilder() {
         String filterFieldName = randomBoolean() ? KEYWORD_FIELD_NAME : TEXT_FIELD_NAME;
         return new ToChildBlockJoinQueryBuilder(QueryBuilders.termQuery(filterFieldName, randomAlphaOfLength(10)));
+    }
+
+    @Override
+    protected List<QueryBuilder> subQueriesHiddenFromVisit(QueryBuilder builder) {
+        // the parent query is built when the query is built, but ToChildBlockJoinQuery is a leaf that hides it from the visitor
+        return builder instanceof ToChildBlockJoinQueryBuilder q ? List.of(q.parentQueryBuilder()) : List.of();
     }
 
     @Override

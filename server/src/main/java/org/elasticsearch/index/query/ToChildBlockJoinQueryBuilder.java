@@ -112,4 +112,8 @@ public class ToChildBlockJoinQueryBuilder extends LeafQueryBuilder<ToChildBlockJ
     public TransportVersion getMinimalSupportedVersion() {
         return TO_CHILD_BLOCK_JOIN_QUERY;
     }
+
+    QueryBuilder parentQueryBuilder() {
+        return parentQueryBuilder;
+    }
 }

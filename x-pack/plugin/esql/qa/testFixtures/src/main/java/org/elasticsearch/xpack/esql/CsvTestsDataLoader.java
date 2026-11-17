@@ -207,6 +207,12 @@ public class CsvTestsDataLoader {
         new TestDataset("date_nanos"),
         new TestDataset("date_nanos_union_types"),
         new TestDataset("k8s", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json"),
+        new TestDataset(
+            "metric_floating_point_dims",
+            "metric-floating-point-dims-mappings.json",
+            "metric-floating-point-dims.csv",
+            "k8s-settings.json"
+        ),
         new TestDataset("k8s_unmapped", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json")
             .withTypeMapping(removeFields("region", "event", "network.bytes_in", "network.cost", "network.eth0.tx"))
             .withDynamic("false"),

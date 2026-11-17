@@ -41,6 +41,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -50,6 +51,7 @@ import java.util.function.Function;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class RescoreKnnVectorQueryIT extends ESIntegTestCase {
 
@@ -220,20 +222,15 @@ public class RescoreKnnVectorQueryIT extends ESIntegTestCase {
         assertNoFailuresAndResponse(prepareSearch(INDEX_NAME).setQuery(scriptScoreQueryBuilder).setSize(docCount), exactResponse -> {
             assertHitCount(exactResponse, docCount);
 
-            int i = 0;
-            SearchHit[] exactHits = exactResponse.getHits().getHits();
+            // Look up by id: docs with equal or near-equal scores can rank differently in the kNN and exact searches
+            Map<String, Float> exactScores = new HashMap<>();
+            for (SearchHit exactHit : exactResponse.getHits().getHits()) {
+                exactScores.put(exactHit.getId(), exactHit.getScore());
+            }
             for (SearchHit knnHit : knnResponse.getHits().getHits()) {
-                while (i < exactHits.length && exactHits[i].getId().equals(knnHit.getId()) == false) {
-                    i++;
-                }
-                if (i >= exactHits.length) {
-                    fail("Knn doc not found in exact search");
-                }
-                assertThat(
-                    "Real score is not the same as rescored score",
-                    (double) knnHit.getScore(),
-                    closeTo(exactHits[i].getScore(), DELTA)
-                );
+                Float exactScore = exactScores.get(knnHit.getId());
+                assertThat("Knn doc not found in exact search", exactScore, notNullValue());
+                assertThat("Real score is not the same as rescored score", (double) knnHit.getScore(), closeTo(exactScore, DELTA));
             }
         });
     }

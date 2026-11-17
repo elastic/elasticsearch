@@ -11,6 +11,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefVector;
@@ -154,6 +156,114 @@ final class InternalPacks {
                     builder.appendLong(v);
                     while (row.length > 0) {
                         builder.appendLong(ENCODER.decodeLong(row));
+                    }
+                    builder.endPositionEntry();
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    static BytesRefBlock packDoubleValues(DriverContext driverContext, DoubleBlock raw) {
+        int positionCount = raw.getPositionCount();
+        try (
+            var builder = driverContext.blockFactory().newBytesRefBlockBuilder(estimateForBytesBuilder(positionCount));
+            var work = new BreakingBytesRefBuilder(driverContext.breaker(), "pack_values", 32)
+        ) {
+            for (int p = 0; p < positionCount; p++) {
+                int valueCount = raw.getValueCount(p);
+                if (valueCount == 0) {
+                    builder.appendNull();
+                    continue;
+                }
+                work.clear();
+                int first = raw.getFirstValueIndex(p);
+                if (valueCount == 1) {
+                    ENCODER.encodeDouble(raw.getDouble(first), work);
+                } else {
+                    int end = first + valueCount;
+                    for (int i = first; i < end; i++) {
+                        ENCODER.encodeDouble(raw.getDouble(i), work);
+                    }
+                }
+                builder.appendBytesRef(work.bytesRefView());
+            }
+            return builder.build();
+        }
+    }
+
+    static DoubleBlock unpackDoubleValues(DriverContext driverContext, BytesRefBlock encoded) {
+        int positionCount = encoded.getPositionCount();
+        try (var builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+            BytesRef inScratch = new BytesRef();
+            for (int p = 0; p < positionCount; p++) {
+                if (encoded.isNull(p)) {
+                    builder.appendNull();
+                    continue;
+                }
+                BytesRef row = encoded.getBytesRef(p, inScratch);
+                double v = ENCODER.decodeDouble(row);
+                if (row.length == 0) {
+                    builder.appendDouble(v);
+                } else {
+                    builder.beginPositionEntry();
+                    builder.appendDouble(v);
+                    while (row.length > 0) {
+                        builder.appendDouble(ENCODER.decodeDouble(row));
+                    }
+                    builder.endPositionEntry();
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    static BytesRefBlock packFloatValues(DriverContext driverContext, FloatBlock raw) {
+        int positionCount = raw.getPositionCount();
+        try (
+            var builder = driverContext.blockFactory().newBytesRefBlockBuilder(estimateForBytesBuilder(positionCount));
+            var work = new BreakingBytesRefBuilder(driverContext.breaker(), "pack_values", 32)
+        ) {
+            for (int p = 0; p < positionCount; p++) {
+                int valueCount = raw.getValueCount(p);
+                if (valueCount == 0) {
+                    builder.appendNull();
+                    continue;
+                }
+                work.clear();
+                int first = raw.getFirstValueIndex(p);
+                if (valueCount == 1) {
+                    ENCODER.encodeFloat(raw.getFloat(first), work);
+                } else {
+                    int end = first + valueCount;
+                    for (int i = first; i < end; i++) {
+                        ENCODER.encodeFloat(raw.getFloat(i), work);
+                    }
+                }
+                builder.appendBytesRef(work.bytesRefView());
+            }
+            return builder.build();
+        }
+    }
+
+    static FloatBlock unpackFloatValues(DriverContext driverContext, BytesRefBlock encoded) {
+        int positionCount = encoded.getPositionCount();
+        try (var builder = driverContext.blockFactory().newFloatBlockBuilder(positionCount)) {
+            BytesRef inScratch = new BytesRef();
+            for (int p = 0; p < positionCount; p++) {
+                if (encoded.isNull(p)) {
+                    builder.appendNull();
+                    continue;
+                }
+                BytesRef row = encoded.getBytesRef(p, inScratch);
+                float v = ENCODER.decodeFloat(row);
+                if (row.length == 0) {
+                    builder.appendFloat(v);
+                } else {
+                    builder.beginPositionEntry();
+                    builder.appendFloat(v);
+                    while (row.length > 0) {
+                        builder.appendFloat(ENCODER.decodeFloat(row));
                     }
                     builder.endPositionEntry();
                 }

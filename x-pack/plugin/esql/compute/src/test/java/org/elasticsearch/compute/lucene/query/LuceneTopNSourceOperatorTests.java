@@ -8,7 +8,10 @@
 package org.elasticsearch.compute.lucene.query;
 
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
@@ -245,7 +248,18 @@ public class LuceneTopNSourceOperatorTests extends SourceOperatorTestCase {
     public void testTheResultsAreEmittedWhenTheLastSliceEndsAfterTheStatusInterval() throws IOException {
         int size = 1_000;
         int limit = 10;
-        reader = simpleReader(directory, size, size);
+        // The slow query sleeps once per segment, so the index must have exactly one segment to keep the run time bounded. A
+        // RandomIndexWriter flushes at random points and NoMergePolicy never merges them, so use a plain writer and add all documents
+        // as one block: a block is never split across segments.
+        List<List<IndexableField>> docs = new ArrayList<>(size);
+        for (int d = 0; d < size; d++) {
+            docs.add(List.of(new SortedNumericDocValuesField("s", d)));
+        }
+        try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig())) {
+            writer.addDocuments(docs);
+        }
+        reader = DirectoryReader.open(directory);
+        assertThat(reader.leaves(), hasSize(1));
         ShardContext shardContext = new LuceneSourceOperatorTests.MockShardContext(reader, 0) {
             @Override
             public Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sorts) {

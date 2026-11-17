@@ -82,9 +82,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherIT
   method: testForceCommitPrefetch
   issue: https://github.com/elastic/elasticsearch/issues/147847
-- class: org.elasticsearch.backwards.RareTermsIT
-  method: testSingleValuedString
-  issue: https://github.com/elastic/elasticsearch/issues/147853
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testStressWithRelocationFailures
   issue: https://github.com/elastic/elasticsearch/issues/148129
@@ -356,9 +353,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.CCMServiceIT
   method: testCreatesEisChatCompletionEndpoint
   issue: https://github.com/elastic/elasticsearch/issues/160826
-- class: org.elasticsearch.xpack.watcher.actions.webhook.WebhookTokenIntegrationTests
-  method: testWebhook
-  issue: https://github.com/elastic/elasticsearch/issues/160935
 - class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
   method: test {yaml=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old regression job}
   issue: https://github.com/elastic/elasticsearch/issues/160951
@@ -398,11 +392,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.RevertModelSnapshotIT
   method: testRevertModelSnapshot_DeleteInterveningResults
   issue: https://github.com/elastic/elasticsearch/issues/161086
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  tasks:
-  - :qa:mixed-cluster:v9.2.8#mixedClusterTest
-  - :qa:mixed-cluster:v9.2.8#yamlRestTest
-  issue: https://github.com/elastic/elasticsearch/issues/163053
 - class: org.elasticsearch.xpack.ccr.CcrAliasesIT
   tasks:
   - :x-pack:plugin:ccr:internalClusterTest
@@ -423,19 +412,10 @@ tests:
   - :x-pack:plugin:yamlRestCompatTest
   method: test {yaml=deprecation/10_basic/Test Deprecations}
   issue: https://github.com/elastic/elasticsearch/issues/163655
-- class: org.elasticsearch.xpack.esql.optimizer.promql.PromqlGoldenTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testBinaryWithDifferentSelectors
-  issue: https://github.com/elastic/elasticsearch/issues/163941
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
   tasks:
   - :x-pack:plugin:inference:internalClusterTest
   issue: https://github.com/elastic/elasticsearch/issues/158224
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  issue: https://github.com/elastic/elasticsearch/issues/163299
 - class: org.elasticsearch.xpack.esql.qa.single_node.ExternalSchemaMaxFieldsRestIT
   tasks:
   - :x-pack:plugin:esql:qa:server:single-node:javaRestTest
@@ -446,13 +426,41 @@ tests:
   - :x-pack:plugin:transform:qa:multi-node-tests:javaRestTest
   method: testTransformLifecycleInALoop
   issue: https://github.com/elastic/elasticsearch/issues/155844
-- class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionDisruptionIT
-  tasks:
-  - :x-pack:plugin:dlm-frozen-transition:internalClusterTest
-  method: testMasterFailoverDuringMarkReadOnly
-  issue: https://github.com/elastic/elasticsearch/issues/164244
 - class: org.elasticsearch.xpack.searchablesnapshots.RetrySearchIntegTests
   tasks:
   - :x-pack:plugin:searchable-snapshots:internalClusterTest
   method: testRetryPointInTimeAfterNodeDrop
   issue: https://github.com/elastic/elasticsearch/issues/164396
+- class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotResiliencyWithEnabledTests
+  tasks:
+  - :x-pack:plugin:stateless:test
+  method: testSuccessfulSnapshotWithConcurrentDynamicMappingUpdates
+  issue: https://github.com/elastic/elasticsearch/issues/154731
+- class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
+  tasks:
+  - :server:internalClusterTest
+  method: testSearchWithRandomDisconnects
+  issue: https://github.com/elastic/elasticsearch/issues/165284
+- class: org.elasticsearch.xpack.stateless.cache.CacheMissWaitTimeHeaderIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testCacheMissWaitTimeHeader
+  issue: https://github.com/elastic/elasticsearch/issues/165322
+- class: org.elasticsearch.xpack.sql.qa.jdbc.multi_node.MultiNodeJdbcFetchSizeIT
+  tasks:
+  - :x-pack:plugin:sql:qa:jdbc:v9.5.7#bwcTest
+  issue: https://github.com/elastic/elasticsearch/issues/166074
+- class: org.elasticsearch.xpack.searchablesnapshots.cache.shared.NodesCachesStatsIntegTests
+  tasks:
+  - :x-pack:plugin:searchable-snapshots:internalClusterTest
+  method: testNodesCachesStats
+  issue: https://github.com/elastic/elasticsearch/issues/166076
+- class: org.elasticsearch.repositories.s3.RepositoryS3ContentIntegrityRestIT
+  tasks:
+  - :modules:repository-s3:javaRestTest
+  issue: https://github.com/elastic/elasticsearch/issues/166262
+- class: org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDeciderIT
+  tasks:
+  - :server:internalClusterTest
+  method: testRestoreSnapshotAllocationDoesNotExceedWatermarkWithMultipleRestores
+  issue: https://github.com/elastic/elasticsearch/issues/166268

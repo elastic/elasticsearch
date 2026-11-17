@@ -65,4 +65,10 @@ public class IvfSegmentConfigTests extends ESTestCase {
     public void testShardMergeBudget() {
         assertThat(IvfSegmentConfig.shardMergeBudget(10, 5f), equalTo(50));
     }
+
+    /** With a non-integer k * oversample, half the leaf budget must still cover the merge budget. */
+    public void testLeafCollectorBudgetIsDoubleShardMergeBudget() {
+        assertThat(IvfSegmentConfig.shardMergeBudget(10, 1.02f), equalTo(11));
+        assertThat(IvfSegmentConfig.leafCollectorBudget(10, 1.02f), equalTo(22));
+    }
 }

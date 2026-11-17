@@ -61,7 +61,7 @@ public final class RuntimeUtils {
         boolean allowPartialResults
     ) {
         return listener.delegateFailureAndWrap((delegate, response) -> {
-            List<ShardSearchFailure> failures = response.shardFailuresList();
+            List<ShardSearchFailure> failures = response.getShardFailures();
             if (failures.isEmpty() == false && allowPartialResults == false) {
                 delegate.onFailure(new EqlIllegalArgumentException(failures.getFirst().reason(), failures.getFirst().getCause()));
                 return;
@@ -85,7 +85,7 @@ public final class RuntimeUtils {
 
                 if (failure == null) {
                     if (allowPartialSearchResults == false) {
-                        List<ShardSearchFailure> failures = response.shardFailuresList();
+                        List<ShardSearchFailure> failures = response.getShardFailures();
                         if (failures.isEmpty() == false) {
                             failure = new EqlIllegalArgumentException(failures.getFirst().reason(), failures.getFirst().getCause());
                         }

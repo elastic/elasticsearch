@@ -390,15 +390,27 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
      * branch special can be a property of its position in the parent (e.g. a branch's identity in a union) rather than of the
      * child node itself; and by index, because equal children can sit at positions the parent tells apart.
      */
-    @SuppressWarnings("unchecked")
     public T transformUpSkipBranch(BiPredicate<? super T, Integer> skipChild, Function<? super T, ? extends T> rule) {
+        return transformUpSkipBranchWithOriginal(skipChild, (original, node) -> rule.apply(node));
+    }
+
+    /**
+     * Like {@link #transformUpSkipBranch(BiPredicate, Function)}, but {@code rule} also receives the node as it was before its
+     * children were transformed: {@code rule.apply(original, node)}. A node rebuilt because a child changed is a new instance,
+     * so a rule that looks up what it knows about the input tree by node identity has to look up the original.
+     */
+    @SuppressWarnings("unchecked")
+    public T transformUpSkipBranchWithOriginal(
+        BiPredicate<? super T, Integer> skipChild,
+        BiFunction<? super T, ? super T, ? extends T> rule
+    ) {
         List<T> transformedChildren = null;
         for (int i = 0, s = children.size(); i < s; i++) {
             if (skipChild.test((T) this, i)) {
                 continue;
             }
             T child = children.get(i);
-            T next = child.transformUpSkipBranch(skipChild, rule);
+            T next = child.transformUpSkipBranchWithOriginal(skipChild, rule);
             if (child.equals(next) == false) {
                 if (transformedChildren == null) {
                     transformedChildren = new ArrayList<>(children);
@@ -407,7 +419,7 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
             }
         }
         T base = transformedChildren == null ? (T) this : replaceChildrenSameSize(transformedChildren);
-        T result = rule.apply(base);
+        T result = rule.apply((T) this, base);
         if (result != base) {
             result.adoptIdentityFrom(base);
         }

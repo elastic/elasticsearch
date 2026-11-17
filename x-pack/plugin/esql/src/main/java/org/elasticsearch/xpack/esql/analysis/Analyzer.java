@@ -4224,11 +4224,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
             // A convert inside a view must see that view's unmapped_fields. The caller's mode decides the same convert
-            // outside the view. Keyed by node identity: a node rebuilt because a child changed is not in the map and gets the
-            // context of the scope being resolved.
+            // outside the view. Keyed by the identity of the input plan's nodes. A node rebuilt because a child changed is a new
+            // instance, so the walk looks up the node it was rebuilt from.
             Map<LogicalPlan, AnalyzerContext> contextByPlan = new IdentityHashMap<>();
             assignScopedContext(plan, context, contextByPlan);
-            return resolveScope(plan, context, contextByPlan);
+            return resolveScope(plan, contextByPlan);
         }
 
         /**
@@ -4236,16 +4236,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * {@link IndependentSubqueryJoin} is resolved as a scope of its own: its relations and aggregations say nothing about the
          * fields the main query can convert.
          */
-        private static LogicalPlan resolveScope(
-            LogicalPlan plan,
-            AnalyzerContext context,
-            Map<LogicalPlan, AnalyzerContext> contextByPlan
-        ) {
+        private static LogicalPlan resolveScope(LogicalPlan plan, Map<LogicalPlan, AnalyzerContext> contextByPlan) {
             UnionTypeResolutionState state = new UnionTypeResolutionState();
-            return plan.transformUpSkipBranch(IndependentSubqueryJoin::isSubqueryBranch, p -> {
-                AnalyzerContext planContext = contextByPlan.getOrDefault(p, context);
+            return plan.transformUpSkipBranchWithOriginal(IndependentSubqueryJoin::isSubqueryBranch, (original, p) -> {
+                AnalyzerContext planContext = contextByPlan.get(original);
+                assert planContext != null : "no analyzer context for [" + original.nodeName() + "]";
                 if (p instanceof IndependentSubqueryJoin join) {
-                    LogicalPlan right = resolveScope(join.right(), planContext, contextByPlan);
+                    // The right side is skipped by the walk, so it is still the input plan's node.
+                    LogicalPlan right = resolveScope(join.right(), contextByPlan);
                     if (right.equals(join.right()) == false) {
                         p = p.replaceChildren(List.of(join.left(), right));
                     }

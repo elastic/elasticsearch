@@ -57,8 +57,6 @@ import static org.hamcrest.Matchers.hasSize;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
-    private static final String RETRY_MESSAGE = "RETRY_CAUSE";
-    private static final RuntimeException RETRY_CAUSE = new RuntimeException(RETRY_MESSAGE);
 
     private final AtomicReference<FailureTarget> failureTarget = new AtomicReference<>();
     private final AtomicInteger recoveryCounter = new AtomicInteger();
@@ -96,7 +94,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
         private void maybeThrow(FailureTarget target) {
             if (failureTarget.compareAndSet(target, null)) {
-                throw RETRY_CAUSE;
+                throw new RuntimeException("RETRY_CAUSE");
             }
         }
 
@@ -874,7 +872,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
     }
 
     /// Arm the recovery listener with a random failure target.
-    /// This will cause the next recovery to fail with [RETRY_CAUSE] when it reaches that [FailureTarget].
+    /// This will cause the next recovery to fail when it reaches that [FailureTarget].
     private void armRandomFailure() {
         failureTarget.set(randomFrom(FailureTarget.values()));
         installRecoveryListener();

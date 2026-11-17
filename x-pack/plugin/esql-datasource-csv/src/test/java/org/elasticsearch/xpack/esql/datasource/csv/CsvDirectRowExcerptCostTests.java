@@ -63,8 +63,8 @@ public class CsvDirectRowExcerptCostTests extends ESTestCase {
     /** Bytes of record text across the whole file, which is what an excerpt per row would cost. */
     private static final long RECORD_TEXT_BYTES = (long) ROWS * PAD_CHARS;
 
-    private static final String CLEAN = buildCsv("1");
-    private static final String ONE_BAD_COLUMN = buildCsv("notanumber");
+    private static final byte[] CLEAN = utf8(buildCsv("1"));
+    private static final byte[] ONE_BAD_COLUMN = utf8(buildCsv("notanumber"));
 
     private BlockFactory blockFactory;
 
@@ -100,9 +100,9 @@ public class CsvDirectRowExcerptCostTests extends ESTestCase {
         assumeAllocationCounterAvailable();
         warmUp();
 
-        // Both reads abort on row 1, so the only difference between them is the record's size.
-        long padded = allocatedDuringFailingRead(ONE_BAD_COLUMN);
-        long unpadded = allocatedDuringFailingRead(buildCsv("notanumber", ROWS, 0));
+        // One row each, pre-encoded, so the pad is the only difference between the two reads.
+        long padded = allocatedDuringFailingRead(utf8(buildCsv("notanumber", 1, PAD_CHARS)));
+        long unpadded = allocatedDuringFailingRead(utf8(buildCsv("notanumber", 1, 0)));
 
         logger.info("fail_fast allocated {} bytes on padded records against {} on unpadded", padded, unpadded);
         assertThat(
@@ -143,20 +143,20 @@ public class CsvDirectRowExcerptCostTests extends ESTestCase {
 
     /** Loads the read path, the conversion path and both error paths before anything is measured. */
     private void warmUp() throws IOException {
-        read(buildCsv("1", 4, 64), ErrorPolicy.Mode.NULL_FIELD, 4);
-        read(buildCsv("notanumber", 4, 64), ErrorPolicy.Mode.NULL_FIELD, 4);
-        read(buildCsv("notanumber", 4, 64), ErrorPolicy.Mode.SKIP_ROW, 0);
-        expectThrows(Exception.class, () -> read(buildCsv("notanumber", 4, 64), ErrorPolicy.Mode.FAIL_FAST, 0));
+        read(utf8(buildCsv("1", 4, 64)), ErrorPolicy.Mode.NULL_FIELD, 4);
+        read(utf8(buildCsv("notanumber", 4, 64)), ErrorPolicy.Mode.NULL_FIELD, 4);
+        read(utf8(buildCsv("notanumber", 4, 64)), ErrorPolicy.Mode.SKIP_ROW, 0);
+        expectThrows(Exception.class, () -> read(utf8(buildCsv("notanumber", 4, 64)), ErrorPolicy.Mode.FAIL_FAST, 0));
     }
 
-    private long allocatedDuringRead(String content, ErrorPolicy.Mode mode, int expectedRows) throws IOException {
+    private long allocatedDuringRead(byte[] content, ErrorPolicy.Mode mode, int expectedRows) throws IOException {
         long id = Thread.currentThread().threadId();
         long before = SunThreadInfo.INSTANCE.getThreadAllocatedBytes(id);
         read(content, mode, expectedRows);
         return SunThreadInfo.INSTANCE.getThreadAllocatedBytes(id) - before;
     }
 
-    private long allocatedDuringFailingRead(String content) {
+    private long allocatedDuringFailingRead(byte[] content) {
         long id = Thread.currentThread().threadId();
         long before = SunThreadInfo.INSTANCE.getThreadAllocatedBytes(id);
         expectThrows(Exception.class, () -> read(content, ErrorPolicy.Mode.FAIL_FAST, 0));
@@ -167,9 +167,9 @@ public class CsvDirectRowExcerptCostTests extends ESTestCase {
      * Reads with the direct-to-block walk, projecting only the column that fails to convert: the padded column is
      * never materialized, so what an erroring row costs over a clean one is the excerpt and the error bookkeeping.
      */
-    private void read(String content, ErrorPolicy.Mode mode, int expectedRows) throws IOException {
+    private void read(byte[] content, ErrorPolicy.Mode mode, int expectedRows) throws IOException {
         CsvFormatReader reader = new CsvFormatReader(blockFactory, "csv", List.of(".csv")).withDirectBlockEnabled(true);
-        StorageObject object = new InMemoryStorageObject(content.getBytes(StandardCharsets.UTF_8));
+        StorageObject object = new InMemoryStorageObject(content);
         FormatReadContext ctx = FormatReadContext.builder()
             .projectedColumns(List.of("a"))
             .batchSize(1024)
@@ -184,6 +184,10 @@ public class CsvDirectRowExcerptCostTests extends ESTestCase {
             }
         }
         assertEquals("rows surviving " + mode, expectedRows, rows);
+    }
+
+    private static byte[] utf8(String s) {
+        return s.getBytes(StandardCharsets.UTF_8);
     }
 
     private static String buildCsv(String firstColumn) {

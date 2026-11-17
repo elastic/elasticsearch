@@ -85,7 +85,7 @@ import java.util.function.Consumer;
 import static org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction.getOrCreateSessionID;
 
 /**
- * Transport action for streaming ES|QL execution on {@code POST /_query?streaming=true}.
+ * Transport action for streaming ES|QL execution on {@code POST /_query/stream}.
  * Mirrors {@link TransportEsqlQueryAction} but delivers the schema and publisher out-of-band
  * (via {@link EsqlStreamQueryRequest#resultStreamListener()}) before compute finishes, so the
  * transport task stays registered for the full duration of the query. This keeps
@@ -256,7 +256,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                 ActionListener<Result> resultListener
             ) {
                 if (QuerySettings.UNMAPPED_FIELDS.get(configuration.resolvedSettings()).loadsAllUnmappedFields()) {
-                    throw new IllegalArgumentException("[unmapped_fields=LOAD_ALL] cannot be used with [streaming=true]");
+                    throw new IllegalArgumentException("[unmapped_fields=LOAD_ALL] cannot be used with [POST /_query/stream]");
                 }
                 if (role == PlanRunner.Role.INTERMEDIATE) {
                     computeService.execute(

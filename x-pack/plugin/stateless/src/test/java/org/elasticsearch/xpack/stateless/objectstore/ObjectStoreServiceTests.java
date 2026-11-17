@@ -19,6 +19,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -111,7 +112,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.HexFormat;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -1761,8 +1761,8 @@ public class ObjectStoreServiceTests extends ESTestCase {
             writeRandomBlob(blobContainer, BatchedCompoundCommit.blobNameFromGeneration(generation));
         }
         final long maxBccGeneration = bccGenerations.stream().mapToLong(Long::longValue).max().getAsLong();
-        // a merge blob with a merge start generation above every BCC must neither be listed nor be the latest blob
-        final String mergeBlobName = randomMergeBlobName(maxBccGeneration + randomLongBetween(1L, 100L));
+        // a merge blob must neither be listed nor be the latest blob
+        final String mergeBlobName = randomMergeBlobName();
         writeRandomBlob(blobContainer, mergeBlobName);
         final String junkBlobName = randomAlphaOfLength(10);
         writeRandomBlob(blobContainer, junkBlobName);
@@ -1803,12 +1803,8 @@ public class ObjectStoreServiceTests extends ESTestCase {
         blobContainer.writeBlob(OperationPurpose.INDICES, blobName, new BytesArray(randomByteArrayOfLength(between(1, 64))), true);
     }
 
-    private static String randomMergeBlobName(long mergeStartGeneration) {
-        return MergeBlob.blobName(
-            mergeStartGeneration,
-            randomAlphanumericOfLength(between(1, 5)),
-            HexFormat.of().toHexDigits(randomLong())
-        );
+    private static String randomMergeBlobName() {
+        return MergeBlob.blobName(randomByteArrayOfLength(StringHelper.ID_LENGTH));
     }
 
     private void assertProjectObjectStoreNotFound(ObjectStoreService objectStoreService, ProjectId projectId) {

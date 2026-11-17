@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless.commits;
 
+import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -20,7 +21,6 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.HexFormat;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
@@ -38,7 +38,7 @@ import java.util.stream.Collectors;
 /// injects at all. With a cluster shared across tests (`Scope.SUITE`), a blob of an earlier test is either cleared by the reset or, if
 /// written after it, skipped by the presence check because its index has been deleted.
 ///
-/// Random values are derived from the per-test seed and the event (shard, primary term, moment, generation), not from the thread that
+/// Random values are derived from the per-test seed and the event (shard, primary term, moment, BCC generation), not from the thread that
 /// happens to run the injection, so that a test seed reproduces the same blobs.
 ///
 /// TODO(szybia): remove once merge blobs are uploaded for real
@@ -72,6 +72,9 @@ public class MergeBlobInjector implements IndexEventListener {
     private static final Set<InjectedBlob> INJECTED = ConcurrentHashMap.newKeySet();
     // Primary term of each shard removed by a restore to fewer shards, at the time it was removed
     private static final Map<ShardId, Long> REMOVED_SHARDS = new ConcurrentHashMap<>();
+
+    // Stands for the generation of the BCC that triggered an injection when there is none
+    private static final long NO_BCC_GENERATION = 0L;
 
     private static volatile boolean enabled;
     private static volatile long seed;
@@ -134,9 +137,8 @@ public class MergeBlobInjector implements IndexEventListener {
         }
         final ShardId shardId = indexShard.shardId();
         final long primaryTerm = indexShard.getPendingPrimaryTerm();
-        final long startGeneration = random(shardId, primaryTerm, Moment.AFTER_SHARD_CREATED, 0).nextLong(1, 1000);
         try {
-            threadPool.generic().execute(() -> inject(shardId, primaryTerm, Moment.AFTER_SHARD_CREATED, startGeneration));
+            threadPool.generic().execute(() -> inject(shardId, primaryTerm, Moment.AFTER_SHARD_CREATED, NO_BCC_GENERATION));
         } catch (Exception e) {
             logger.debug(() -> "failed to schedule merge blob injection for " + shardId, e);
         }
@@ -149,11 +151,8 @@ public class MergeBlobInjector implements IndexEventListener {
         }
         final ShardId shardId = indexShard.shardId();
         final long primaryTerm = indexShard.getOperationPrimaryTerm();
-        // No BCC generation to relate to yet: pick any plausible merge start generation, including ones above every BCC the shard
-        // will upload during a short test, so that listings see merge blobs "newer" than the latest commit.
-        final long startGeneration = random(shardId, primaryTerm, Moment.AFTER_SHARD_STARTED, 0).nextLong(1, 1000);
         try {
-            threadPool.generic().execute(() -> inject(shardId, primaryTerm, Moment.AFTER_SHARD_STARTED, startGeneration));
+            threadPool.generic().execute(() -> inject(shardId, primaryTerm, Moment.AFTER_SHARD_STARTED, NO_BCC_GENERATION));
             commitService.addConsumerForNewUploadedBcc(shardId, info -> onBccUploaded(shardId, info));
         } catch (Exception e) {
             // the node may be shutting down, or the shard's commit state already unregistered if the shard closed right after starting
@@ -169,15 +168,13 @@ public class MergeBlobInjector implements IndexEventListener {
         try {
             final var termAndGeneration = info.uploadedBcc().primaryTermAndGeneration();
             final long bccGeneration = termAndGeneration.generation();
-            // below, equal to, or above the BCC generation, like a merge that started a few commits before it was first committed
-            final long startGeneration = Math.max(1L, bccGeneration + (bccGeneration % 5) - 2);
             final Random random = random(shardId, termAndGeneration.primaryTerm(), Moment.AFTER_BCC_UPLOAD, bccGeneration);
             if (random.nextBoolean()) {
                 threadPool.generic()
-                    .execute(() -> inject(shardId, termAndGeneration.primaryTerm(), Moment.AFTER_BCC_UPLOAD, startGeneration));
+                    .execute(() -> inject(shardId, termAndGeneration.primaryTerm(), Moment.AFTER_BCC_UPLOAD, bccGeneration));
             } else {
                 threadPool.schedule(
-                    () -> inject(shardId, termAndGeneration.primaryTerm(), Moment.LATER, startGeneration),
+                    () -> inject(shardId, termAndGeneration.primaryTerm(), Moment.LATER, bccGeneration),
                     TimeValue.timeValueMillis(random.nextInt(51)),
                     threadPool.generic()
                 );
@@ -187,17 +184,15 @@ public class MergeBlobInjector implements IndexEventListener {
         }
     }
 
-    private void inject(ShardId shardId, long primaryTerm, Moment moment, long startGeneration) {
+    private void inject(ShardId shardId, long primaryTerm, Moment moment, long bccGeneration) {
         if (enabled == false) {
             return;
         }
-        final Random random = random(shardId, primaryTerm, moment, startGeneration);
-        // stateless_merge_<gen>_<segment>_<discriminator>: the segment is the moment letter plus the generation in base 36, never a '_'
-        final String blobName = MergeBlob.blobName(
-            startGeneration,
-            moment.letter + Long.toString(startGeneration, 36),
-            HexFormat.of().toHexDigits(random.nextLong())
-        );
+        final Random random = random(shardId, primaryTerm, moment, bccGeneration);
+        // stateless_merge_<segmentId>: a random id of the length of Lucene segment ids
+        final byte[] segmentId = new byte[StringHelper.ID_LENGTH];
+        random.nextBytes(segmentId);
+        final String blobName = MergeBlob.blobName(segmentId);
         final var injectedBlob = new InjectedBlob(shardId, primaryTerm, blobName, random.nextLong());
         final byte[] bytes = injectedBlob.bytes();
         INJECTED.add(injectedBlob);
@@ -211,7 +206,7 @@ public class MergeBlobInjector implements IndexEventListener {
         }
     }
 
-    private static Random random(ShardId shardId, long primaryTerm, Moment moment, long generation) {
-        return new Random(Objects.hash(seed, shardId.getIndexName(), shardId.id(), primaryTerm, moment.letter, generation));
+    private static Random random(ShardId shardId, long primaryTerm, Moment moment, long bccGeneration) {
+        return new Random(Objects.hash(seed, shardId.getIndexName(), shardId.id(), primaryTerm, moment.letter, bccGeneration));
     }
 }

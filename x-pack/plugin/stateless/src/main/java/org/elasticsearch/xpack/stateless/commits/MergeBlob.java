@@ -7,66 +7,67 @@
 
 package org.elasticsearch.xpack.stateless.commits;
 
-import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
+import org.apache.lucene.util.StringHelper;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+
+import java.io.IOException;
+import java.util.HexFormat;
 
 /// A blob holding a single large merged segment, uploaded on its own and independently of the batched compound commits (BCCs), before
 /// the merge is published in a commit.
 ///
-/// The blob name is `stateless_merge_<gen>_<segment>_<discriminator>`, where:
-/// - `gen` is the generation of the last commit when the merge started. Together with the primary term of the container the blob is
-///   stored in, it only approximately links the merge blob to BCCs: it is **not** the generation of the BCC under which the merged
-///   segment was first committed.
-/// - `segment` is the name of the merged Lucene segment without the leading `_` that it always has.
-/// - `discriminator` is a fixed width string of 16 lowercase hexadecimal characters, unique per engine instance.
+/// The blob name is `stateless_merge_<segmentId>`, where `segmentId` is a unique id that Lucene assigns to the merged segment when the
+/// merge is initialized (`SegmentInfo#getId()`), formatted as 32 lowercase hexadecimal characters.
 ///
-/// @param blobName    the name of the blob, from which the merge start generation, the segment, and the discriminator are parsed
+/// Using the segment id makes the name identify the content of the blob rather than the instance that wrote it: the id is written in the
+/// header of every file of the segment, and every merge gets a new one, even when it merges the same input segments and picks the same
+/// segment name (for example after an engine reset). Two different merges can therefore not write to the same blob.
+///
+/// @param blobName    the name of the blob, from which the segment id is parsed
 /// @param primaryTerm the primary term of the container the blob is stored in
 public record MergeBlob(String blobName, long primaryTerm) implements Blob {
 
     /// Prefix of the names of merge blobs.
     public static final String PREFIX = "stateless_merge_";
 
-    private static final int DISCRIMINATOR_LENGTH = 16;
+    private static final int SEGMENT_ID_LENGTH = StringHelper.ID_LENGTH * 2;
 
-    /// @throws IllegalArgumentException if the blob name is not of the form `stateless_merge_<gen>_<segment>_<discriminator>`, with a
-    ///                                  strictly positive generation, a valid segment name and a valid discriminator
+    /// @throws IllegalArgumentException if the blob name is not of the form `stateless_merge_<segmentId>`, with a segment id of 32
+    ///                                  lowercase hexadecimal characters
     public MergeBlob {
         if (startsWithPrefix(blobName) == false) {
             throw new IllegalArgumentException("not a merge blob name [" + blobName + ']');
         }
-        if (parseGenerationFromBlobName(blobName) <= 0) {
-            throw new IllegalArgumentException("invalid merge start generation in merge blob name [" + blobName + ']');
-        }
-        if (isValidSegment(segmentFromBlobName(blobName)) == false) {
-            throw new IllegalArgumentException("invalid segment in merge blob name [" + blobName + ']');
-        }
-        if (isValidDiscriminator(discriminatorFromBlobName(blobName)) == false) {
-            throw new IllegalArgumentException("invalid discriminator in merge blob name [" + blobName + ']');
+        if (isValidSegmentId(blobName.substring(PREFIX.length())) == false) {
+            throw new IllegalArgumentException("invalid segment id in merge blob name [" + blobName + ']');
         }
     }
 
-    /// @return the generation of the last commit when the merge started. This is **not** the generation of the BCC under which the merged
-    ///         segment was first committed, and must not be used as such.
-    public long mergeStartGeneration() {
-        return parseGenerationFromBlobName(blobName);
+    /// @return the id of the merged segment, as 32 lowercase hexadecimal characters
+    public String segmentId() {
+        return blobName.substring(PREFIX.length());
     }
 
-    /// @return the primary term of the container and the generation of the last commit when the merge started. This is **not** the
-    ///         identity of a batched compound commit, nor the generation of the BCC under which the merged segment was first committed,
-    ///         and must not be used as such.
+    /// Writes the blob name and the primary term. Unlike a [BlobFile], a merge blob has no generation.
     @Override
-    public PrimaryTermAndGeneration termAndGeneration() {
-        return new PrimaryTermAndGeneration(primaryTerm, mergeStartGeneration());
+    public void writeTo(StreamOutput out) throws IOException {
+        // WARNING: the blob name must stay the first thing written, as is. Blob#readFrom reads it first to find the type of the blob from
+        // its prefix. BlobTests checks that every implementation of Blob does it.
+        out.writeString(blobName);
+        out.writeVLong(primaryTerm);
     }
 
-    /// @return the name of the merged segment, without its leading `_`
-    public String segment() {
-        return segmentFromBlobName(blobName);
-    }
-
-    /// @return the discriminator of the engine instance that uploaded the blob
-    public String discriminator() {
-        return discriminatorFromBlobName(blobName);
+    /// Reads the primary term of a merge blob whose name was already read by [Blob#readFrom(StreamInput, Class)].
+    ///
+    /// @throws IOException if the blob name is not well-formed
+    static MergeBlob readFrom(String blobName, StreamInput in) throws IOException {
+        final long primaryTerm = in.readVLong();
+        try {
+            return new MergeBlob(blobName, primaryTerm);
+        } catch (IllegalArgumentException e) {
+            throw new IOException("malformed blob name [" + blobName + ']', e);
+        }
     }
 
     @Override
@@ -75,76 +76,29 @@ public record MergeBlob(String blobName, long primaryTerm) implements Blob {
     }
 
     /// @return `true` if the given blob name starts with the prefix of merge blobs. It does not check that the rest of the name is
-    ///         well-formed.
+    /// well-formed.
     public static boolean startsWithPrefix(String name) {
         return name.startsWith(PREFIX);
     }
 
     /// Builds the name of a merge blob.
     ///
-    /// @param generation    the generation of the last commit when the merge started
-    /// @param segment       the name of the merged segment, without its leading `_`
-    /// @param discriminator the discriminator of the engine instance uploading the blob
-    /// @throws IllegalArgumentException if the generation is not positive, or if the segment or the discriminator is not valid
-    public static String blobName(long generation, String segment, String discriminator) {
-        if (generation <= 0) {
-            throw new IllegalArgumentException("invalid merge start generation [" + generation + ']');
+    /// @param segmentId the id of the merged segment, as returned by `SegmentInfo#getId()`
+    /// @throws IllegalArgumentException if the segment id does not have the length of Lucene segment ids
+    public static String blobName(byte[] segmentId) {
+        if (segmentId.length != StringHelper.ID_LENGTH) {
+            throw new IllegalArgumentException("invalid segment id length [" + segmentId.length + ']');
         }
-        if (isValidSegment(segment) == false) {
-            throw new IllegalArgumentException("invalid segment name [" + segment + ']');
-        }
-        if (isValidDiscriminator(discriminator) == false) {
-            throw new IllegalArgumentException("invalid discriminator [" + discriminator + ']');
-        }
-        return PREFIX + generation + '_' + segment + '_' + discriminator;
+        return PREFIX + HexFormat.of().formatHex(segmentId);
     }
 
-    /// Parses the merge start generation out of the name of a merge blob.
-    ///
-    /// @throws IllegalArgumentException if the name does not have the `stateless_merge_<gen>_<segment>_<discriminator>` structure, or if
-    ///                                  the generation is not a number
-    public static long parseGenerationFromBlobName(String name) {
-        assert startsWithPrefix(name) : name;
-        return Long.parseLong(name, PREFIX.length(), generationSeparatorIndex(name), 10);
-    }
-
-    // The following helpers are static so that the constructor can use them before the blobName field is assigned.
-
-    /// Extracts the segment from a merge blob name, assuming that the name has the expected structure.
-    private static String segmentFromBlobName(String name) {
-        return name.substring(generationSeparatorIndex(name) + 1, name.lastIndexOf('_'));
-    }
-
-    /// Extracts the discriminator from a merge blob name, assuming that the name has the expected structure.
-    private static String discriminatorFromBlobName(String name) {
-        return name.substring(name.lastIndexOf('_') + 1);
-    }
-
-    /// Finds the `_` that separates the generation from the segment, which is the first `_` after the prefix. It also checks that the name
-    /// contains one more `_`, the one that separates the segment from the discriminator.
-    ///
-    /// @return the index of the `_` that follows the generation
-    /// @throws IllegalArgumentException if the name has no segment or no discriminator part
-    private static int generationSeparatorIndex(String name) {
-        int separator = name.indexOf('_', PREFIX.length());
-        if (separator == -1 || separator == name.lastIndexOf('_')) {
-            throw new IllegalArgumentException("invalid merge blob name [" + name + ']');
-        }
-        return separator;
-    }
-
-    /// A segment name must not be empty and must not contain a `_`, which separates the parts of the blob name.
-    private static boolean isValidSegment(String segment) {
-        return segment.isEmpty() == false && segment.indexOf('_') == -1;
-    }
-
-    /// A discriminator is 8 random bytes formatted as 16 lowercase hexadecimal characters.
-    private static boolean isValidDiscriminator(String discriminator) {
-        if (discriminator.length() != DISCRIMINATOR_LENGTH) {
+    /// A segment id is formatted as 32 lowercase hexadecimal characters.
+    private static boolean isValidSegmentId(String segmentId) {
+        if (segmentId.length() != SEGMENT_ID_LENGTH) {
             return false;
         }
-        for (int i = 0; i < discriminator.length(); i++) {
-            char c = discriminator.charAt(i);
+        for (int i = 0; i < segmentId.length(); i++) {
+            char c = segmentId.charAt(i);
             if ((c >= '0' && c <= '9') == false && (c >= 'a' && c <= 'f') == false) {
                 return false;
             }

@@ -652,6 +652,17 @@ public class BasicBlockTests extends ESTestCase {
                     assertThat(lookupBlockSizes(values, positions, target), equalTo(List.of(40, 40, 40, 40, 40)));
                 }
             }
+            try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(200)) {
+                builder.beginPositionEntry().appendInt(0).appendInt(1).endPositionEntry();
+                for (int p = 1; p < 200; p++) {
+                    builder.appendInt(0);
+                }
+                try (IntBlock positions = builder.build()) {
+                    // one multivalued position gives every position in its block a first value index
+                    long target = 80 * (Long.BYTES + Integer.BYTES) + Long.BYTES + Integer.BYTES;
+                    assertThat(lookupBlockSizes(values, positions, target), equalTo(List.of(80, 120)));
+                }
+            }
         }
         try (BytesRefVector.Builder builder = blockFactory.newBytesRefVectorBuilder(2)) {
             builder.appendBytesRef(new BytesRef("0123456789")).appendBytesRef(new BytesRef("abcdefghij"));

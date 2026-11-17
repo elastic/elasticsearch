@@ -60,6 +60,7 @@ $endif$
         int estimatedSize = (int) Math.min(remaining, Math.max(Operator.MIN_TARGET_PAGE_SIZE + 1, maxValues));
         try ($Type$Block.Builder builder = positions.blockFactory().new$Type$BlockBuilder(estimatedSize)) {
             int count = 0;
+            boolean multivalued = false;
             usedBytes = 0;
             while (position < positions.getPositionCount()) {
                 int start = positions.getFirstValueIndex(position);
@@ -80,15 +81,17 @@ $endif$
                     }
                     case 1 -> builder.append$Type$(first);
                     default -> {
-                        // A multivalued position adds a first value index.
                         builder.endPositionEntry();
-                        usedBytes += Integer.BYTES;
+                        multivalued = true;
                     }
                 }
                 position++;
+                count++;
                 // TOOD what if the estimate is super huge? should we break even with less than MIN_TARGET?
                 // builder.estimatedBytes() includes the pre-sized capacity, so track the bytes actually used.
-                if (++count > Operator.MIN_TARGET_PAGE_SIZE && usedBytes >= targetByteSize) {
+                // Once a block has a multivalued position, every position has a first value index.
+                long indexBytes = multivalued ? (long) Integer.BYTES * (count + 1) : 0;
+                if (count > Operator.MIN_TARGET_PAGE_SIZE && usedBytes + indexBytes >= targetByteSize) {
                     break;
                 }
             }

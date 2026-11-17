@@ -6385,8 +6385,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * <p>The three grammar walkers share this; the fused projected walker does not, because it interleaves
          * trailing-field handling with its own fill.
          *
-         * <p>Allocation-sensitive: {@link #directRawLine()} materializes the record as a {@link String}, so it is
-         * reached on the error paths only and never on an accepted row.
+         * <p>Allocation-sensitive: {@link #directRawLine()} materializes the record as a {@link String}, and the
+         * {@code hasPendingErrors} short-circuit is what keeps a clean row from paying for it. A row that staged a
+         * field error does pay, accepted or not -- under {@code null_field} such a row is reported and kept.
          *
          * @param totalFields the number of fields the walker counted in this record
          * @return {@code true} if the row was accepted, {@code false} if the error policy rejected it
@@ -6398,8 +6399,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 onRowError(rowTooWideMessage(totalFields), null, directRawLine(), true);
                 return false;
             }
-            // hasPendingErrors first: directRawLine() materialises the row as a String, and this path is meant to
-            // stay String-free on an accepted row.
+            // hasPendingErrors guards the call, not the result: directRawLine() materialises the row as a String, so
+            // a row that staged nothing never builds one. A row that did is reported here and may still be kept.
             if (hasPendingErrors && flushPendingErrors(directRawLine()) == false) {
                 return false;
             }

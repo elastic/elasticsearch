@@ -3616,11 +3616,12 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
     }
 
     // Test that when the source shard is relocated while cloning to the target shard, the clone task is cancelled
-    // and relocation completes promptly. The clone task holds a permit, so if it is not cancelled it will block relocation from
-    // acquiring all permits when it is about to hand off.
+    // when the source shard closes. The clone does not hold a primary operation permit, so relocation must not wait for it.
     public void testSourceRelocationCancelsClone() throws Exception {
         var copyStarted = new CountDownLatch(1);
         var copyBlock = new CountDownLatch(1);
+        var cancelReason = new AtomicReference<String>();
+        var blockedFirstCopy = new AtomicBoolean();
         var copyBlockStrategy = new StatelessMockRepositoryStrategy() {
             @Override
             public void blobContainerCopyBlob(
@@ -3631,8 +3632,11 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
                 String blobName,
                 long blobSize
             ) throws IOException {
-                copyStarted.countDown();
-                safeAwait(copyBlock);
+                // Only block the copy from the split request, relocation flushes which will copy the new commit to the target shard
+                if (blockedFirstCopy.compareAndSet(false, true)) {
+                    copyStarted.countDown();
+                    safeAwait(copyBlock);
+                }
                 super.blobContainerCopyBlob(originalRunnable, purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize);
             }
         };
@@ -3647,6 +3651,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             .addRequestHandlingBehavior(TransportReshardSplitAction.START_SPLIT_ACTION_NAME, (handler, request, channel, task) -> {
                 ((CancellableTask) task).addListener(() -> {
                     logger.info("split task cancelled, unblocking copy: {}", task);
+                    cancelReason.set(((CancellableTask) task).getReasonCancelled());
                     copyBlock.countDown();
                 });
                 handler.messageReceived(request, channel, task);
@@ -3669,7 +3674,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         // allow placement on target node after shard 0 has been placed on source node
         updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", "null"));
 
-        // with one commit, copyShard won't throw, it will unblock on relocation and succeed the copy.
+        // with one commit, copyShard won't throw, it will unblock when the source shard closes and succeeds the copy.
         // With two it should throw. Test both cases.
         for (var i = 0; i < randomIntBetween(1, 2); i++) {
             indexDocs(indexName, 100);
@@ -3685,6 +3690,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
 
         waitForReshardCompletion(indexName);
         ensureGreen(indexName);
+        assertEquals("source shard closed", cancelReason.get());
     }
 
     public void testMismatchedSourceAndTargetPrimaryTerm() {
@@ -4049,13 +4055,12 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
     }
 
     public void testSourceRelocationAndTargetRestart() throws Exception {
-        Set<String> copiesInProgress = ConcurrentHashMap.newKeySet();
         var blobToBlock = new AtomicReference<String>();
         var blockedFirstCopy = new AtomicBoolean(false);
         var copyLatch = new CountDownLatch(1);
         var relocateLatch = new CountDownLatch(1);
         var testFailure = new AtomicReference<Throwable>();
-        var copyRaceCheckStrategy = new StatelessMockRepositoryStrategy() {
+        var blockCopyStrategy = new StatelessMockRepositoryStrategy() {
             @Override
             public void blobContainerCopyBlob(
                 CheckedRunnable<IOException> originalRunnable,
@@ -4065,17 +4070,12 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
                 String blobName,
                 long blobSize
             ) throws IOException {
-                if (copiesInProgress.add(blobName) == false) {
-                    // Copies from the old and new source shard have interfered
-                    testFailure.compareAndSet(null, new AssertionError("Copy still in progress: " + blobName));
-                }
                 // Block only the copy of latest blob from the old source shard
                 if (blobToBlock.get().equals(blobName) && blockedFirstCopy.getAndSet(true) == false) {
                     relocateLatch.countDown();
                     safeAwait(copyLatch);
                 }
                 super.blobContainerCopyBlob(originalRunnable, purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize);
-                copiesInProgress.remove(blobName);
             }
         };
 
@@ -4085,7 +4085,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             Settings.builder().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK).build()
         );
         for (String indexNode : indexNodes) {
-            setNodeRepositoryStrategy(indexNode, copyRaceCheckStrategy);
+            setNodeRepositoryStrategy(indexNode, blockCopyStrategy);
         }
         var searchNode = startSearchNode();
         ensureStableCluster(5);
@@ -4156,15 +4156,15 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         copyLatch.countDown();
 
         // This test simulates a scenario where the source shard gets stuck copying to the target. During this period, the source shard is
-        // scheduled for relocation, which gets blocked because copying takes a permit. The target shard node also restarts, and upon
-        // recovery it starts sending split requests to the new source shard, which rejects them since it hasn't started.
+        // relocated, which does not wait for the copy. The target shard node also restarts, and upon recovery it starts sending split
+        // requests to the new source shard, which rejects them since it hasn't started.
         //
-        // Once the old source shard instance finishes copying, it releases the permit, unblocking relocation. After relocation, the old
-        // source instance continues the initial split request and tries to acquire all primary permits in preparation for handoff but fails
-        // as it is no longer the primary. The new source shard instance, once started, will proceed with the split request.
+        // Once the old source shard instance finishes copying, it continues the initial split request and tries to acquire all primary
+        // permits in preparation for handoff but fails as it is no longer the primary. The new source shard instance, once started, will
+        // proceed with the split request.
         //
-        // This test checks that the old and new source shard instances don't copy concurrently. It also checks that the target shard routes
-        // split requests to the new source shard instance.
+        // This test checks that the target shard routes split requests to the new source shard instance and that the reshard completes
+        // with all the data.
         waitForReshardCompletion(indexName);
         ensureGreen(indexName);
         assertHitCount(prepareSearch(indexName), numDocs);

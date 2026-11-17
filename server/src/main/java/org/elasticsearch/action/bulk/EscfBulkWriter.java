@@ -394,7 +394,7 @@ public final class EscfBulkWriter implements Releasable {
                 () -> breaker.addEstimateBytesAndMaybeBreak(bytes, BREAKER_LABEL),
                 () -> breaker.addWithoutBreaking(bytes)
             );
-        } catch (CircuitBreakingException e) {
+        } catch (RuntimeException e) {
             charged.addAndGet(-bytes);
             throw e;
         }
@@ -406,7 +406,7 @@ public final class EscfBulkWriter implements Releasable {
                 () -> chunk.pressure.increment(operations, pressureBytes),
                 () -> chunk.forcedPressure().increment(operations, pressureBytes)
             );
-        } catch (EsRejectedExecutionException e) {
+        } catch (RuntimeException e) {
             breaker.addWithoutBreaking(-bytes);
             charged.addAndGet(-bytes);
             throw e;

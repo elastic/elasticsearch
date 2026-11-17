@@ -688,6 +688,35 @@ public class EscfBulkWriterTests extends ESTestCase {
         assertThat(expectThrows(IllegalStateException.class, () -> completed(done)).getMessage(), equalTo("handler"));
     }
 
+    public void testBulkFailingRightAwayFailsTheWriter() {
+        // as a client that fails a bulk on the calling thread, before sending it
+        NoOpClient failing = new NoOpClient(threadPool) {
+            @Override
+            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                listener.onFailure(new IllegalStateException("cannot send"));
+            }
+        };
+        EscfBulkWriter writer = service(UNBOUNDED).newWriter(
+            failing,
+            breaker,
+            INDEX,
+            new EscfBulkWriter.Policy(1, MAX_TARGET),
+            FAIL_ON_FAILED_ITEM,
+            capacitySignals::incrementAndGet
+        );
+        try (EscfBulkWriter.Producer producer = writer.newProducer()) {
+            producer.add(page(0, 1), false);
+        }
+        PlainActionFuture<Void> done = new PlainActionFuture<>();
+        writer.finish(done);
+        taskQueue.runAllRunnableTasks();
+        assertThat(expectThrows(IllegalStateException.class, () -> completed(done)).getMessage(), equalTo("cannot send"));
+    }
+
     public void testRejectedBulkFailsTheWriter() {
         EscfBulkWriter writer = writer(new EscfBulkWriter.Policy(1, 1));
         try (EscfBulkWriter.Producer producer = writer.newProducer()) {

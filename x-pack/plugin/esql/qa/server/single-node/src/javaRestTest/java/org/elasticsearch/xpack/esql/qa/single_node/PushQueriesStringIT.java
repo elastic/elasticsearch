@@ -1105,7 +1105,7 @@ public class PushQueriesStringIT extends ESRestTestCase {
         if (type == Type.UNMAPPED_CONTAINER) {
             assumeTrue(
                 "the _unmapped field of a columnar index",
-                clusterHasCapability("PUT", "/{index}", List.of(), List.of("columnar_index_modes", "dynamic_flattened")).orElse(false)
+                clusterHasCapability("PUT", "/{index}", List.of(), List.of("columnar_index_modes", "dynamic_flattened_v2")).orElse(false)
             );
         }
     }

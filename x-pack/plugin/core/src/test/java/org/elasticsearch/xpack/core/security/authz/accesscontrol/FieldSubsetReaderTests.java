@@ -1341,7 +1341,6 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
      * and count only the granted slots of the others.
      */
     public void testUnmappedFieldsIterateOverGrantedDocuments() throws Exception {
-        assumeTrue("flattened_unmapped_fields is enabled", FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled());
         var filter = new CharacterRunAutomaton(FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "*" }, new String[] { "k" }));
         DocumentMapper mapper = unmappedFieldsMapper();
         try (Directory directory = newDirectory()) {
@@ -1375,7 +1374,6 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
      * reading any document, and a granted one is read from the slots as they are stored, sorted and deduplicated.
      */
     public void testUnmappedFieldsBlockLoader() throws Exception {
-        assumeTrue("flattened_unmapped_fields is enabled", FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled());
         var filter = new CharacterRunAutomaton(FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "*" }, new String[] { "k" }));
         String secret = randomAlphanumericOfLength(8);
         String first = randomAlphanumericOfLength(8);
@@ -1416,7 +1414,6 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
      * and are filtered on that path like the fields at the root.
      */
     public void testUnmappedFieldsInsideNestedObjects() throws Exception {
-        assumeTrue("flattened_unmapped_fields is enabled", FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         DocumentMapper mapper = createMapperService(settings, topMapping(b -> {
             b.field("dynamic", "flattened");
@@ -1454,7 +1451,6 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
     }
 
     public void testUnmappedFieldsCountsExposeNoDocValuesSkipper() throws Exception {
-        assumeTrue("flattened_unmapped_fields is enabled", FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled());
         var filter = new CharacterRunAutomaton(FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "*" }, new String[] { "k" }));
         String counts = FlattenedFieldMapper.UNMAPPED_SINK_NAME + FlattenedFieldMapper.KEYED_FIELD_SUFFIX
             + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
@@ -1531,7 +1527,6 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
     }
 
     private List<Map<String, Object>> unmappedFieldsSources(CharacterRunAutomaton filter) throws IOException {
-        assumeTrue("flattened_unmapped_fields is enabled", FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = unmappedFieldsMapper();
         try (Directory directory = newDirectory()) {
             indexUnmappedFields(mapper, directory);

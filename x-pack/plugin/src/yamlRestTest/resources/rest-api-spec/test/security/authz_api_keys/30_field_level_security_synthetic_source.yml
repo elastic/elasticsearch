@@ -1736,11 +1736,11 @@ Unmapped fields kept in the _unmapped field under FLS (columnar):
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes, dynamic_flattened ]
+          capabilities: [ columnar_index_modes, dynamic_flattened_v2 ]
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ flattened_unmapped_sink_load_v2, optional_fields_load_all_single_source_column ]
+          capabilities: [ flattened_unmapped_sink_load_v3, optional_fields_load_all_single_source_column ]
       reason: "the _unmapped field of a columnar index"
 
   - do:

@@ -100,6 +100,7 @@ public class EsqlSearchLoadIT extends AbstractEsqlIntegTestCase {
         long workersAttributedBefore = workers.getAttributedTaskExecutionTime();
         long workersTotalBefore = workers.getTotalTaskExecutionTime();
         long chargedBefore = chargedToShards(dataNode);
+        long reported = 0;
 
         for (int i = between(1, 5); i > 0; i--) {
             String query = randomFrom(
@@ -108,7 +109,9 @@ public class EsqlSearchLoadIT extends AbstractEsqlIntegTestCase {
                 "FROM read | WHERE v > 100 | KEEP k, v | LIMIT 1000"
             );
             try (var response = client(coordinator).execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query)).actionGet()) {
-                assertNotNull(response);
+                assertThat(response.searchLoadNanos(), greaterThan(0L));
+                assertThat(response.searchCpuNanos(), lessThanOrEqualTo(response.searchLoadNanos()));
+                reported += response.searchLoadNanos();
             }
         }
 
@@ -123,6 +126,8 @@ public class EsqlSearchLoadIT extends AbstractEsqlIntegTestCase {
             // and all that is charged goes to the shards, once
             assertThat(chargedToShards(dataNode) - chargedBefore, equalTo(workersAttributed + searchAttributed));
         });
+        // the shards are also charged for tasks still running when the queries complete
+        assertThat(reported, lessThanOrEqualTo(chargedToShards(dataNode) - chargedBefore));
         assertThat(searchLoad("read"), greaterThan(0.0));
         assertCpuIsPartOfTheLoad("read");
         assertThat(searchLoad("other"), equalTo(0.0));

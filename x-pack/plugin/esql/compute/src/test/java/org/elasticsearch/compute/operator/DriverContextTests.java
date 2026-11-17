@@ -8,12 +8,16 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.test.FakeCpuClock;
 import org.elasticsearch.compute.test.NoOpReleasable;
 import org.elasticsearch.compute.test.TestBlockFactory;
@@ -23,6 +27,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
@@ -35,6 +40,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -43,6 +49,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -211,6 +218,40 @@ public class DriverContextTests extends ESTestCase {
         assertThat(cpuNanosAtCompletion[0], equalTo(50L));
         assertThat(driverContext.cpuNanos(), equalTo(55L));
         Releasables.closeExpectNoException(driverContext.getSnapshot());
+    }
+
+    /**
+     * Work on a pool thread can let the driver report its load before the pool charges the task, so the task is charged when
+     * the work returns.
+     */
+    public void testMeteredCpuChargesTheLoadOfItsTask() throws Exception {
+        EsThreadPoolExecutor pool = EsExecutors.newFixed(
+            "test",
+            1,
+            -1,
+            EsExecutors.daemonThreadFactory("test", "load"),
+            new ThreadContext(Settings.EMPTY),
+            EsExecutors.TaskTrackingConfig.builder().trackExecutionTime(0.3).attributeTaskLoad().build()
+        );
+        try {
+            AtomicLong charged = new AtomicLong();
+            TaskLoadAttribution.Target target = (nanos, cpuNanos, finishNanos) -> charged.addAndGet(nanos);
+            DriverContext driverContext = new AssertingDriverContext();
+            PlainActionFuture<Long> chargedOnReturn = new PlainActionFuture<>();
+            pool.execute(ActionRunnable.supply(chargedOnReturn, () -> {
+                TaskLoadAttribution.attribute(target);
+                driverContext.meteredCpu(() -> {
+                    long start = System.nanoTime();
+                    while (System.nanoTime() - start < 1_000) {
+                        Thread.onSpinWait();
+                    }
+                });
+                return charged.get();
+            }));
+            assertThat(chargedOnReturn.get(10, TimeUnit.SECONDS), greaterThan(0L));
+        } finally {
+            ThreadPool.terminate(pool, 10, TimeUnit.SECONDS);
+        }
     }
 
     private static DriverContext driverContext(FakeCpuClock clock) {

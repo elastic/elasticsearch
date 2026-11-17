@@ -930,7 +930,6 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
         ) {
             final Settings settings = Settings.builder()
                 .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), "10s")
-                .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1)
                 .build();
             // cacheSize=1000, default cacheRatio=0.5 -> warmingCacheBytes = 500, so totalBytesToWarm=500 -> dataVolume = remaining
             final var service = newCalculationService(threadPool, settings, 1000L);
@@ -1618,7 +1617,6 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                 .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), gracePeriodCap)
                 .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING.getKey(), 1.0)
                 .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(), true)
-                .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1)
                 .build();
             // cacheSize=1000, default cacheRatio=0.5 → warmingCacheBytes = 500
             final var service = newCalculationService(threadPool, settings, 1000L);
@@ -1685,7 +1683,6 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             final Settings settings = Settings.builder()
                 .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), "10s")
                 .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(), true)
-                .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1)
                 .build();
             final var service = newCalculationService(threadPool, settings, 0L);
 
@@ -1750,7 +1747,6 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             final Settings settings = Settings.builder()
                 .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), "10s")
                 .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(), true)
-                .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1)
                 .build();
             final var service = newCalculationService(threadPool, settings, 0L);
 
@@ -2458,7 +2454,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                 { 1, 400, 675, 640, 1080 },
                 { 3, 1200, 2025, 1920, 3240 },
                 { 5, 2000, 3375, 3200, 5400 },
-                // no data node limit, so the master throttles: only the 2 and 3 relocations in flight are known to use slots
+                // With unlimited data node incoming recovery slots, the timeout is bounded by the grace deadline or data-volume proportion
                 { Integer.MAX_VALUE, 2000, 3375, 3200, 5400 } };
             for (final var testCase : cases) {
                 final var service = newCalculationService(

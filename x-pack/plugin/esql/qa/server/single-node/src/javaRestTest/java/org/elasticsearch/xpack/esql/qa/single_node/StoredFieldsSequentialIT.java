@@ -225,7 +225,8 @@ public class StoredFieldsSequentialIT extends ESRestTestCase {
                 greaterThanOrEqualTo(1)
             ).extraOk();
             MapMatcher expectedOp = matchesMap().entry("operator", name)
-                .entry("status", matchesMap().entry("readers_built", readersBuilt).extraOk());
+                .entry("status", matchesMap().entry("readers_built", readersBuilt).extraOk())
+                .extraOk();
             assertMap(o, expectedOp);
         }
     }

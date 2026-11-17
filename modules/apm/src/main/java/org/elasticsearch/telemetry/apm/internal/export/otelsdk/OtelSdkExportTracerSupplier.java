@@ -21,6 +21,7 @@ import io.opentelemetry.sdk.common.InternalTelemetryVersion;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.SpanProcessor;
 import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
+import io.opentelemetry.sdk.trace.export.SpanExporter;
 import io.opentelemetry.sdk.trace.samplers.Sampler;
 
 import org.elasticsearch.common.settings.Settings;
@@ -32,6 +33,7 @@ import org.elasticsearch.telemetry.apm.internal.export.TraceSupplier;
 
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 /**
  * {@link TraceSupplier} that exports spans via OTLP/gRPC using its own {@link SdkTracerProvider}.
@@ -42,6 +44,7 @@ public class OtelSdkExportTracerSupplier implements TraceSupplier {
 
     private final Settings settings;
     private final Supplier<MeterProvider> meterProvider;
+    private final UnaryOperator<SpanExporter> exporterDecorator;
     private final SpanProcessor spanProcessor;
     private final Sampler sampler;
     final String authHeader;
@@ -54,11 +57,13 @@ public class OtelSdkExportTracerSupplier implements TraceSupplier {
     public OtelSdkExportTracerSupplier(
         Settings settings,
         Supplier<MeterProvider> meterProvider,
+        UnaryOperator<SpanExporter> exporterDecorator,
         SpanProcessor spanProcessor,
         Sampler sampler
     ) {
         this.settings = settings;
         this.meterProvider = meterProvider;
+        this.exporterDecorator = exporterDecorator;
         this.spanProcessor = spanProcessor;
         this.sampler = sampler;
         this.authHeader = OtelSdkExportMeterSupplier.buildOtlpAuthorizationHeader(settings);
@@ -129,7 +134,7 @@ public class OtelSdkExportTracerSupplier implements TraceSupplier {
             builder.addHeader("Authorization", authHeader);
         }
         OtelSdkExportMeterSupplier.configureTls(settings, builder::setSslContext);
-        OtlpGrpcSpanExporter exporter = builder.build();
+        SpanExporter exporter = exporterDecorator.apply(builder.build());
 
         BatchSpanProcessor processor = BatchSpanProcessor.builder(exporter)
             .setMeterProvider(meterProvider)

@@ -277,6 +277,14 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         return false;
     }
 
+    /**
+     * The Prometheus name of a label column: a label column can carry its stored {@code labels.} passthrough name, when a metric
+     * of the same name takes the bare one.
+     */
+    static String prometheusLabelName(String columnName) {
+        return columnName.startsWith("labels.") ? columnName.substring("labels.".length()) : columnName;
+    }
+
     private static void buildMetricLabels(
         XContentBuilder builder,
         boolean useSeriesCol,
@@ -312,11 +320,11 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
                     if (val.length == 0) {
                         continue;
                     }
-                    builder.field(columns.get(i).name());
+                    builder.field(prometheusLabelName(columns.get(i).name()));
                     builder.utf8Value(val.bytes, val.offset, val.length);
                     continue;
                 }
-                builder.field(columns.get(i).name());
+                builder.field(prometheusLabelName(columns.get(i).name()));
                 writeLabelValue(builder, labelBlock, type, position, zoneId, scratch);
             }
         }

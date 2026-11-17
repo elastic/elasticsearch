@@ -638,3 +638,8 @@ tests:
   - :modules:data-streams:yamlRestCompatTest
   method: test {yaml=data_stream/150_tsdb/dynamic templates with incremental indexing}
   issue: https://github.com/elastic/elasticsearch/issues/166250
+- class: org.elasticsearch.search.ccs.CrossClusterSearchDirectoryMetricsIT
+  tasks:
+  - :server:internalClusterTest
+  method: testDirectoryMetricsRemoteOnlyMinimizeRoundtripsTrue
+  issue: https://github.com/elastic/elasticsearch/issues/166258

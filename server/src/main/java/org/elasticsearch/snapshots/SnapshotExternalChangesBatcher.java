@@ -190,7 +190,7 @@ final class SnapshotExternalChangesBatcher {
             // We should refactor it to ideally also go through SnapshotShardsUpdateContext by hand-crafting shard state updates that
             // encapsulate nodes leaving or indices having been deleted and passing them to the executor instead.
             SnapshotsInProgress updatedSnapshots = snapshotsInProgress;
-            final Map<ProjectId, Set<String>> updatedRepositories = new HashMap<>();
+            final Map<ProjectId, Set<String>> updatedRepositories = new HashMap<>(); // Set<ProjectRepo> without allocation for no-op add()
             for (final List<SnapshotsInProgress.Entry> snapshotsInRepo : snapshotsInProgress.entriesByRepo()) {
                 boolean changed = false;
                 final List<SnapshotsInProgress.Entry> updatedEntriesForRepo = new ArrayList<>();

@@ -6186,6 +6186,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * Reports the row's held coercion errors now that its width has been accepted. Returns false when the row
          * must be dropped. A row that failed BOTH its width and a conversion never reaches here: the width guard
          * clears the pending state and reports the structural error, which is the one the caller needs.
+         *
+         * @param rawLine the record text a row-level rejection hands on as its excerpt, or {@code null} from a caller
+         *                whose error mode has no reader for one. Only the row-error branch passes it on at all, and
+         *                only {@code FAIL_FAST} goes on to read it -- see {@link #rowExcerptIfRead()}.
          */
         private boolean flushPendingErrors(String rawLine) {
             if (hasPendingErrors == false) {
@@ -6380,6 +6384,19 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
 
         /**
+         * The record text a row-level error will quote, or {@code null} where nothing goes on to read one.
+         *
+         * <p>{@link #onRowErrorImpl} reads its excerpt in one place, the {@code FAIL_FAST} throw. Below that throw
+         * {@code SKIP_ROW} adds a warning and logs, both carrying {@code message} alone, and under
+         * {@code NULL_FIELD} a failed conversion is reported against its own column and never becomes a row error.
+         * So outside {@code FAIL_FAST} an excerpt is a {@link #directRawLine()} copy of the whole record that
+         * nothing reads, and the direct walkers are the paths that would pay for it per row.
+         */
+        private String rowExcerptIfRead() {
+            return modeOrdinal == ErrorPolicy.Mode.FAIL_FAST.ordinal() ? directRawLine() : null;
+        }
+
+        /**
          * Whether a row of {@code actualFields} fields falls outside the width its binding allows: the file's header
          * width when the schema binds by name, the schema's own width when it binds by position. A declared headerless
          * file states no width, so its limit is {@link HeaderBinding#NO_FILE_WIDTH} and this is never true there.
@@ -6424,12 +6441,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
             if (rowWidthRejected(totalFields)) {
                 // The structural error wins: a row this wide has no meaningful columns to report field errors about.
                 clearPendingErrors();
-                onRowError(rowTooWideMessage(totalFields), null, directRawLine(), true);
+                onRowError(rowTooWideMessage(totalFields), null, rowExcerptIfRead(), true);
                 return false;
             }
             // hasPendingErrors guards the call, not the result: directRawLine() materialises the row as a String, so
             // a row that staged nothing never builds one. A row that did is reported here and may still be kept.
-            if (hasPendingErrors && flushPendingErrors(directRawLine()) == false) {
+            if (hasPendingErrors && flushPendingErrors(rowExcerptIfRead()) == false) {
                 return false;
             }
             // Null-fill projected columns whose source index falls past the row's trailing edge.

@@ -147,7 +147,7 @@ public class FetchServiceTests extends FetchContextsTestCase {
 
         fetch(request).close();
 
-        awaitTheRelease();
+        awaitActiveContexts(SHARDS - lastReads.size());
         for (OpenShard shard : shards) {
             assertThat(
                 "read again " + shard.contextId(),
@@ -175,7 +175,8 @@ public class FetchServiceTests extends FetchContextsTestCase {
         Exception e = expectThrows(Exception.class, () -> fetch(withShards(request, withMissing)));
         assertThat(e, instanceOf(SearchContextMissingException.class));
 
-        awaitTheRelease();
+        // the request frees the contexts of the shards it opened before the missing one
+        awaitActiveContexts(SHARDS - missing);
         for (int position = 0; position < withMissing.size(); position++) {
             if (position != missing) {
                 ShardSearchContextId contextId = withMissing.get(position).contextId();
@@ -302,6 +303,15 @@ public class FetchServiceTests extends FetchContextsTestCase {
      * Waits until the request freed and dropped what it holds. The thread that answered schedules that on the generic
      * pool, through the executor that frees search contexts, so once the search and generic pools are idle it is done.
      */
+    /**
+     * Waits until the node holds {@code expected} contexts, once the request freed the ones it should. Idle pools don't
+     * prove the frees ran: an idle worker can take the free task straight from the queue of its pool, and for a moment
+     * the pool shows neither an active nor a queued task.
+     */
+    private void awaitActiveContexts(int expected) throws Exception {
+        assertBusy(() -> assertThat(searchService().getActiveContexts(), equalTo(expected)));
+    }
+
     private void awaitTheRelease() throws Exception {
         ThreadPool threadPool = getInstanceFromNode(ThreadPool.class);
         Set<String> pools = Set.of(ThreadPool.Names.SEARCH, ThreadPool.Names.GENERIC);

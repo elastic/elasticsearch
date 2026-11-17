@@ -68,14 +68,17 @@ public class StoredStreamIT extends AbstractEsqlIntegTestCase {
     @Before
     public void requireStoredResults() {
         assumeTrue("stored results are behind a feature flag", EsqlStreamResultsIndex.FEATURE_FLAG.isEnabled());
+        assumeTrue("storing needs batch indexing, behind a feature flag", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
     }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), true)
-            .build();
+        Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
+        // nodes refuse the setting while its feature flag is off, and the tests are skipped then
+        if (BatchIndexingEnabled.FEATURE_FLAG.isEnabled()) {
+            settings.put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), true);
+        }
+        return settings.build();
     }
 
     private int indexDocs() {

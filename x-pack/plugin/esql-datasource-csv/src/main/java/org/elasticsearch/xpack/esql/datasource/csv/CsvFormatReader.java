@@ -1312,7 +1312,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     "the header of ["
                         + object.path().objectName()
                         + "] has duplicate column name ["
-                        + name
+                        + ErrorExcerpts.summarize(name)
                         + "]; columns cannot bind by name"
                 );
             }
@@ -1921,7 +1921,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 ""
             );
             headerEx.setDetail(
-                "CSV header has duplicate column names " + rendered + "; if the file has no header row, set header_row=false"
+                "CSV header has duplicate column names "
+                    + ErrorExcerpts.summarize(rendered.toString())
+                    + "; if the file has no header row, set header_row=false"
             );
             throw headerEx;
         }
@@ -3013,7 +3015,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     "",
                     ""
                 );
-                schemaEx.setDetail("Invalid CSV schema format: [" + column + "]. Expected 'name:type'");
+                schemaEx.setDetail("Invalid CSV schema format: [" + ErrorExcerpts.summarize(column) + "]. Expected 'name:type'");
                 throw schemaEx;
             }
             String name = options.quoting() ? unquoteHeaderName(parts[0], options.quoteChar()) : parts[0].trim();
@@ -3055,7 +3057,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     "",
                     ""
                 );
-                dtEx.setDetail("illegal data type [" + typeName + "]");
+                dtEx.setDetail("illegal data type [" + ErrorExcerpts.summarize(typeName) + "]");
                 throw dtEx;
             }
         };

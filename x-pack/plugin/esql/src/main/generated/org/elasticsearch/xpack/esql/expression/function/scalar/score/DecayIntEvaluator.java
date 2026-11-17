@@ -76,7 +76,7 @@ public final class DecayIntEvaluator implements ExpressionEvaluator {
   }
 
   public DoubleBlock eval(int positionCount, IntBlock valueBlock) {
-    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (valueBlock.isNull(p)) {
           result.appendNull();

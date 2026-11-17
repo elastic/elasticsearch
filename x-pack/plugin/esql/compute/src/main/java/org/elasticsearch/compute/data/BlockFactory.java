@@ -287,8 +287,15 @@ public class BlockFactory {
         return v;
     }
 
-    public IntBlock.Builder newIntBlockBuilder(int estimatedSize) {
-        return new IntBlockBuilder(estimatedSize, this);
+    public final IntBlock.Builder newIntBlockBuilder(int estimatedSize) {
+        return newIntBlockBuilder(estimatedSize, false);
+    }
+
+    /**
+     * @param enablePooling Use this for short-lived blocks to let the driver reuse the backing arrays
+     */
+    public IntBlock.Builder newIntBlockBuilder(int estimatedSize, boolean enablePooling) {
+        return new IntBlockBuilder(estimatedSize, this, enablePooling && localPool != null);
     }
 
     public final IntBlock newIntArrayBlock(int[] values, int positionCount, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
@@ -410,8 +417,15 @@ public class BlockFactory {
         return v;
     }
 
-    public LongBlock.Builder newLongBlockBuilder(int estimatedSize) {
-        return new LongBlockBuilder(estimatedSize, this);
+    public final LongBlock.Builder newLongBlockBuilder(int estimatedSize) {
+        return newLongBlockBuilder(estimatedSize, false);
+    }
+
+    /**
+     * @param enablePooling Use this for short-lived blocks to let the driver reuse the backing arrays
+     */
+    public LongBlock.Builder newLongBlockBuilder(int estimatedSize, boolean enablePooling) {
+        return new LongBlockBuilder(estimatedSize, this, enablePooling && localPool != null);
     }
 
     public final LongBlock newLongArrayBlock(long[] values, int pc, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
@@ -464,8 +478,15 @@ public class BlockFactory {
         return v;
     }
 
-    public DoubleBlock.Builder newDoubleBlockBuilder(int estimatedSize) {
-        return new DoubleBlockBuilder(estimatedSize, this);
+    public final DoubleBlock.Builder newDoubleBlockBuilder(int estimatedSize) {
+        return newDoubleBlockBuilder(estimatedSize, false);
+    }
+
+    /**
+     * @param enablePooling Use this for short-lived blocks to let the driver reuse the backing arrays
+     */
+    public DoubleBlock.Builder newDoubleBlockBuilder(int estimatedSize, boolean enablePooling) {
+        return new DoubleBlockBuilder(estimatedSize, this, enablePooling && localPool != null);
     }
 
     public final DoubleBlock newDoubleArrayBlock(double[] values, int pc, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {

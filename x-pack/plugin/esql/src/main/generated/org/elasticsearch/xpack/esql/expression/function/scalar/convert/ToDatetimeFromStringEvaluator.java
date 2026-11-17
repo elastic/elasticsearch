@@ -56,7 +56,7 @@ public final class ToDatetimeFromStringEvaluator extends AbstractConvertFunction
         return driverContext.blockFactory().newConstantNullBlock(positionCount);
       }
     }
-    try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+    try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount, true)) {
       for (int p = 0; p < positionCount; p++) {
         try {
           builder.appendLong(evalValue(vector, p, scratchPad));
@@ -78,7 +78,7 @@ public final class ToDatetimeFromStringEvaluator extends AbstractConvertFunction
   public Block evalBlock(Block b) {
     BytesRefBlock block = (BytesRefBlock) b;
     int positionCount = block.getPositionCount();
-    try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+    try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount, true)) {
       BytesRef scratchPad = new BytesRef();
       for (int p = 0; p < positionCount; p++) {
         int valueCount = block.getValueCount(p);

@@ -323,17 +323,17 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
             return https ? httpsS3Fixture : httpS3Fixture;
         }
 
+        /// Names only the flags that are switched on, in short form, because the name is part of every keystore key. The test cluster adds
+        /// all the keys in one `elasticsearch-keystore add` command, and on Windows cmd.exe rejects a command line over 8191 characters
+        /// ("The command line is too long."). Spelling out every flag, on and off, made this overflow.
+        /// `sign` is always_sign_requests, `md5` is legacy_content_md5 and `nochecksum` is unsafely_omit_request_body_checksums.
         String getClientName() {
-            return "content_integrity_client_"
+            return "ci_"
                 + (https ? "https" : "http")
-                + "_chunked_encoding_"
-                + chunkedEncoding
-                + "_always_sign_requests_"
-                + alwaysSignRequests
-                + "_legacy_content_md5_"
-                + legacyContentMd5
-                + "_unsafely_omit_request_body_checksums_"
-                + unsafelyOmitRequestBodyChecksums;
+                + (chunkedEncoding ? "_chunked" : "")
+                + (alwaysSignRequests ? "_sign" : "")
+                + (legacyContentMd5 ? "_md5" : "")
+                + (unsafelyOmitRequestBodyChecksums ? "_nochecksum" : "");
         }
 
         String getRepositoryBasePath() {

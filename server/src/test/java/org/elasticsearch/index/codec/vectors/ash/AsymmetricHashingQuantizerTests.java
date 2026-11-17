@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
@@ -569,6 +570,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         );
         var inheritedProjection = train(quantizer, vectors, centroidGetter);
         assertEquals(Math.min(dim * trainingFactor, vectors.length), inheritedProjection.matrix().trainingSampleSize());
+        assertEquals("a trained matrix gets a random UUID", 4, inheritedProjection.matrix().id().version());
         AshProjectionMatrix inheritedMatrix = inheritedProjection.matrix();
         float[] inherited = inheritedMatrix.wT();
         float[] inheritedCopy = inherited.clone();
@@ -888,7 +890,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
             dim,
             dim,
             true,
-            AshProjectionMatrix.newId(),
+            UUID.randomUUID(),
             0
         );
         var warm = quantizer.trainWarmStart(ord -> { throw new AssertionError("must not read vectors"); }, vectors.length, dim, ord -> {
@@ -922,7 +924,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
             dim,
             dim,
             true,
-            AshProjectionMatrix.newId(),
+            UUID.randomUUID(),
             0
         );
         expectThrows(

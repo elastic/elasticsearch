@@ -115,7 +115,7 @@ public class AshProjectionMatrixTests extends ESTestCase {
         int originalDim = randomIntBetween(4, 50);
         int nDims = randomIntBetween(2, originalDim);
         float[] wT = AshUtils.randomGaussians(random(), originalDim * nDims);
-        UUID id = AshProjectionMatrix.newId();
+        UUID id = UUID.randomUUID();
         int trainingSampleSize = randomIntBetween(0, 100_000);
 
         AshProjectionMatrix original = new AshProjectionMatrix(wT, originalDim, nDims, true, id, trainingSampleSize);
@@ -128,10 +128,7 @@ public class AshProjectionMatrixTests extends ESTestCase {
     }
 
     public void testRejectsNegativeTrainingSampleSize() {
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> new AshProjectionMatrix(new float[8], 4, 2, true, AshProjectionMatrix.newId(), -1)
-        );
+        expectThrows(IllegalArgumentException.class, () -> new AshProjectionMatrix(new float[8], 4, 2, true, UUID.randomUUID(), -1));
     }
 
     public void testEmptyMatrix() throws IOException {
@@ -146,7 +143,7 @@ public class AshProjectionMatrixTests extends ESTestCase {
 
     /** A matrix with a new id and no recorded sample. */
     private static AshProjectionMatrix matrix(float[] wT, int originalDim, int nDims, boolean learned) {
-        return new AshProjectionMatrix(wT, originalDim, nDims, learned, AshProjectionMatrix.newId(), 0);
+        return new AshProjectionMatrix(wT, originalDim, nDims, learned, UUID.randomUUID(), 0);
     }
 
     private AshProjectionMatrix writeAndRead(AshProjectionMatrix pm) throws IOException {

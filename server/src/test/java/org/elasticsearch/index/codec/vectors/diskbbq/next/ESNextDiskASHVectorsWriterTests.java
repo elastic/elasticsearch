@@ -15,6 +15,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Unit tests for the merge-time projection-matrix selection rule
@@ -26,13 +27,13 @@ public class ESNextDiskASHVectorsWriterTests extends ESTestCase {
     private static AshProjectionMatrix learned(int originalDim, int nDims, float fill) {
         float[] wT = new float[originalDim * nDims];
         Arrays.fill(wT, fill);
-        return new AshProjectionMatrix(wT, originalDim, nDims, true, AshProjectionMatrix.newId(), 0);
+        return new AshProjectionMatrix(wT, originalDim, nDims, true, UUID.randomUUID(), 0);
     }
 
     private static AshProjectionMatrix random(int originalDim, int nDims, float fill) {
         float[] wT = new float[originalDim * nDims];
         Arrays.fill(wT, fill);
-        return new AshProjectionMatrix(wT, originalDim, nDims, false, AshProjectionMatrix.newId(), 0);
+        return new AshProjectionMatrix(wT, originalDim, nDims, false, UUID.randomUUID(), 0);
     }
 
     public void testReturnsNullWhenNoCandidates() {

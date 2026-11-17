@@ -11,8 +11,6 @@ package org.elasticsearch.index.codec.vectors.ash;
 
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.util.StringHelper;
-import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
@@ -38,7 +36,7 @@ import java.util.UUID;
  *   [float[originalDim * nDims]] WT matrix in row-major order (little-endian)
  * </pre>
  * <p>
- * The id identifies the content of W: a newly trained matrix gets a new random id, and a matrix that is reused as-is,
+ * The id identifies the content of W: a newly trained matrix gets a new random (version 4) UUID, and a matrix that is reused as-is,
  * for instance by a merge from one of its input segments, keeps its id. Two segments with the same id therefore have the
  * same W, so a query projected through one of them can be reused for the other, and readers can share a single in-memory
  * copy. The training sample size is the number of vectors W's subspace was estimated from, 0 if none, so that a matrix
@@ -52,15 +50,6 @@ public final class AshProjectionMatrix {
     private final boolean learned;
     private final UUID id;
     private final int trainingSampleSize;
-
-    /**
-     * Returns a new random id for a newly trained matrix. It uses Lucene's segment id generator, which is unique enough to
-     * tell matrices apart without the cost of a cryptographically secure random UUID.
-     */
-    public static UUID newId() {
-        byte[] bytes = StringHelper.randomId();
-        return new UUID(ByteUtils.readLongBE(bytes, 0), ByteUtils.readLongBE(bytes, Long.BYTES));
-    }
 
     /**
      * W^T quantized to int8, each row (one projected dimension) with its own scale.

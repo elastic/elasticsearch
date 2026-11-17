@@ -24,6 +24,7 @@ import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.util.Arrays;
 import java.util.Random;
+import java.util.UUID;
 import java.util.function.IntUnaryOperator;
 
 /**
@@ -188,7 +189,7 @@ public final class AsymmetricHashingQuantizer {
     private static TrainedProjection newProjection(float[] wT, int originalDim, int nDims, boolean learned, int trainingSampleSize) {
         return new TrainedProjection(
             ESVectorUtil.transposeMatrix(wT, nDims, originalDim),
-            new AshProjectionMatrix(wT, originalDim, nDims, learned, AshProjectionMatrix.newId(), trainingSampleSize)
+            new AshProjectionMatrix(wT, originalDim, nDims, learned, UUID.randomUUID(), trainingSampleSize)
         );
     }
 

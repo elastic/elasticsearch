@@ -136,7 +136,9 @@ This value doesn't include the object storage reads {{es}} made while planning t
 
 ## Monitor S3 usage over time [s3-monitor-usage]
 
-You can track S3 usage directly from {{es}} or from AWS. {applies_to}`serverless: preview` {{serverless-short}} projects don't expose the usage API, so use the AWS method.
+You can track S3 usage directly from {{es}} or from AWS.
+
+{applies_to}`serverless: preview` {{serverless-short}} projects don't expose the usage API, so use the AWS method.
 
 ### From {{es}} [s3-monitor-cluster]
 ```{applies_to}

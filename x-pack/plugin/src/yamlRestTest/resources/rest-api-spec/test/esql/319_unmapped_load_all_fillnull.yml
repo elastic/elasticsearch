@@ -210,7 +210,7 @@ teardown:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ views_with_branching, optional_fields_load_all_views, fillnull_late_loaded_columns ]
+          capabilities: [ views_with_branching, optional_fields_load_all_views, fillnull_late_loaded_columns, optional_fields_load_all_unmapped_fields_last ]
       reason: "LOAD_ALL over views is only available with this capability"
   - do:
       esql.put_view:
@@ -231,14 +231,14 @@ teardown:
   - match: { columns.1.type: keyword }
   - match: { columns.2.name: other }
   - match: { columns.2.type: keyword }
-  - match: { columns.3.name: _unmapped_fields }
-  - match: { columns.3.type: _source }
-  - match: { columns.4.name: x }
-  - match: { columns.4.type: keyword }
-  - match: { values.0: [ 1, "la_fill_source", "o", { _unmapped_fields: "src" }, "o" ] }
-  - match: { values.1: [ 1, "nothing", "nothing", null, "nothing" ] }
-  - match: { values.2: [ 2, "la_fill_source", "p", null, "p" ] }
-  - match: { values.3: [ 2, "nothing", "nothing", null, "nothing" ] }
+  - match: { columns.3.name: x }
+  - match: { columns.3.type: keyword }
+  - match: { columns.4.name: _unmapped_fields }
+  - match: { columns.4.type: _source }
+  - match: { values.0: [ 1, "la_fill_source", "o", "o", { _unmapped_fields: "src" } ] }
+  - match: { values.1: [ 1, "nothing", "nothing", "nothing", null ] }
+  - match: { values.2: [ 2, "la_fill_source", "p", "p", null ] }
+  - match: { values.3: [ 2, "nothing", "nothing", "nothing", null ] }
   - length: { values: 4 }
 
 ---

@@ -1445,7 +1445,7 @@ public class EsqlCapabilities {
         /**
          * Support for the {@code exemplars} query setting.
          */
-        EXEMPLARS_SETTING_DEVELOPMENT_V8(Build.current().isSnapshot()),
+        EXEMPLARS_SETTING_RELEASE,
 
         /**
          * Are the {@code documents_found} and {@code values_loaded} fields available
@@ -2128,6 +2128,11 @@ public class EsqlCapabilities {
          */
         EXPLAIN_WITH_REMOTE_PLANS(Build.current().isSnapshot()),
         /**
+         * EXPLAIN command with the JSON form of each plan (6 columns: cluster, node, role, type, plan, plan_json).
+         * Older nodes return the five columns of {@link #EXPLAIN_WITH_REMOTE_PLANS}.
+         */
+        EXPLAIN_WITH_JSON_PLANS(Build.current().isSnapshot()),
+        /**
          * Support for the RLIKE operator with a list of regexes.
          */
         RLIKE_WITH_LIST_OF_PATTERNS,
@@ -2461,6 +2466,8 @@ public class EsqlCapabilities {
          * Pack dimension values in TS command
          */
         PACK_DIMENSIONS_IN_TS,
+
+        PACK_DOUBLE_FLOAT_DIMENSIONS,
 
         /**
          * Support for exponential_histogram fields in the state of when it first was released into tech preview.
@@ -3814,6 +3821,14 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_ALL_FORK,
 
         /**
+        /**
+         * Under {@code unmapped_fields="LOAD_ALL"}, the {@code _unmapped_fields} column is the last one of the output, wherever the
+         * commands of the query add their own: it used to sit right after the columns of the relation. Only meaningful when
+         * {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available. See https://github.com/elastic/elasticsearch/issues/162506.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_UNMAPPED_FIELDS_LAST(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
          * Support for {@code GROK}, {@code DISSECT}, {@code MV_EXPAND} and {@code SAMPLE} under {@code unmapped_fields="LOAD_ALL"}.
          * {@code GROK} and {@code DISSECT} read an input field (mapped or unmapped) and add named columns, which shadow an unmapped
          * field of the same name. Expanding a mapped multivalued field with {@code MV_EXPAND} repeats the {@code _unmapped_fields}
@@ -4771,6 +4786,14 @@ public class EsqlCapabilities {
         RUNTIME_SCORE_FIX,
 
         /**
+         * A column declared {@code date} over a Parquet column the file renders {@code date_nanos} decodes straight
+         * to milliseconds. The read this widens is {@code TIMESTAMP(MICROS)}: older nodes scaled to nanoseconds
+         * first, so a value outside 1677-09-21 .. 2262-04-11 answered {@code null} although {@code date} covers it.
+         * Gates the csv-spec cases asserting the wider domain, which such nodes still fail.
+         */
+        PARQUET_DECLARED_DATE_READS_MICROS_IN_ONE_STEP,
+
+        /**
          * The query-and-tags pushdown of {@code ROUND_TO} (and the {@code DATE_TRUNC} / {@code BUCKET} date histograms
          * rewritten to it) keeps documents without a value in the null bucket when there is a single rounding point.
          * Older nodes tagged the whole main query with the point, so e.g. {@code date_trunc(1 month, field)} returned
@@ -4891,6 +4914,13 @@ public class EsqlCapabilities {
          * The {@code INTO} command, which writes a query's rows into an index and returns a summary row of total and created counts.
          */
         INTO_COMMAND(Build.current().isSnapshot()),
+
+        /**
+         * The usage information for ESQL counts queries by the Elastic product in {@code X-elastic-product-origin}: one
+         * {@code queries.<product>} per known product origin, {@code queries.other} for any other origin, and {@code queries.rest}
+         * for a request without the header. Before this, every query was counted as {@code rest}.
+         */
+        USAGE_QUERIES_BY_CLIENT,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

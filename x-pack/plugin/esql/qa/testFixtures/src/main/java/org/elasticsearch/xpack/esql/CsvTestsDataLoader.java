@@ -321,6 +321,12 @@ public class CsvTestsDataLoader {
         new TestDataset("date_nanos"),
         new TestDataset("date_nanos_union_types"),
         new TestDataset("k8s", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json"),
+        new TestDataset(
+            "metric_floating_point_dims",
+            "metric-floating-point-dims-mappings.json",
+            "metric-floating-point-dims.csv",
+            "k8s-settings.json"
+        ),
         // The flavor of k8s dataset ingested via Prometheus Remote Write.
         new TestDataset("prometheus-k8s", "prometheus-k8s-mappings.json", "prometheus-k8s.csv", "prometheus-k8s-settings.json")
             .withRequiredCapabilities(EsqlCapabilities.Cap.FIX_TS_BLOCK_LOADER_PASSTHROUGH_ALIASING),
@@ -359,19 +365,19 @@ public class CsvTestsDataLoader {
             "otel-exemplar-source-metrics-mappings.json",
             "exemplar-source-metrics.csv",
             "otel-metrics-settings.json"
-        ).asDataStream().withRequiredCapabilities(EsqlCapabilities.Cap.EXEMPLARS_SETTING_DEVELOPMENT_V8),
+        ).asDataStream().withRequiredCapabilities(EsqlCapabilities.Cap.EXEMPLARS_SETTING_RELEASE),
         new TestDataset("exemplars-cpu", "otel-exemplars-mappings.json", "exemplars.csv", "otel-metrics-settings.json").asDataStream()
-            .withRequiredCapabilities(EsqlCapabilities.Cap.EXEMPLARS_SETTING_DEVELOPMENT_V8),
+            .withRequiredCapabilities(EsqlCapabilities.Cap.EXEMPLARS_SETTING_RELEASE),
         new TestDataset(
             "metrics-noexemplars",
             "otel-exemplar-source-metrics-mappings.json",
             "exemplar-source-metrics.csv",
             "otel-metrics-settings.json"
-        ).asDataStream().withRequiredCapabilities(EsqlCapabilities.Cap.EXEMPLARS_SETTING_DEVELOPMENT_V8),
+        ).asDataStream().withRequiredCapabilities(EsqlCapabilities.Cap.EXEMPLARS_SETTING_RELEASE),
         // Metrics with different fields than metrics-cpu and without an exemplar data stream (no exemplars-k8s data stream)
         new TestDataset("metrics-k8s", "k8s-mappings.json", "k8s.csv").asDataStream()
             .withSetting("k8s-settings.json")
-            .withRequiredCapabilities(EsqlCapabilities.Cap.EXEMPLARS_SETTING_DEVELOPMENT_V8),
+            .withRequiredCapabilities(EsqlCapabilities.Cap.EXEMPLARS_SETTING_RELEASE),
         new TestDataset(
             "promql-long-dimension",
             "promql-long-dimension-mappings.json",

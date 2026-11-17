@@ -28,6 +28,7 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -108,7 +109,10 @@ public class ListColumnParityTests extends ESTestCase {
             .as(LogicalTypeAnnotation.stringType())
             .named("strs");
         Type longList = Types.optionalList().optionalElement(PrimitiveType.PrimitiveTypeName.INT64).named("longs");
-        MessageType schema = new MessageType("list_parity", intList, strList, longList);
+        // A plain float list is a dense_vector and takes the optimized reader's bulk page decoder (FloatListPageReader),
+        // while the baseline keeps parquet-mr's per-value ColumnReader: the two must agree on every list, null and notice.
+        Type floatList = Types.optionalList().optionalElement(PrimitiveType.PrimitiveTypeName.FLOAT).named("floats");
+        MessageType schema = new MessageType("list_parity", intList, strList, longList, floatList);
 
         byte[] parquetData = writeFile(schema);
 
@@ -133,7 +137,7 @@ public class ListColumnParityTests extends ESTestCase {
         assertPagesEqual(baselinePages, optimizedPages, description);
         assertThat(description + ": warning parity", optimizedWarnings, equalTo(baselineWarnings));
         if (nullable) {
-            // writeFile plants null elements in `ints` and `strs` only, and `longs` never. Exactly one notice per
+            // writeFile plants null elements in `ints`, `strs` and `floats` only, and `longs` never. Exactly one notice per
             // affected column across all four batches, so this also pins the per-read deduplication.
             assertThat(
                 description + ": dropped-element notices",
@@ -141,7 +145,8 @@ public class ListColumnParityTests extends ESTestCase {
                 containsInAnyOrder(
                     ParquetColumnDecoding.NULL_LIST_ELEMENTS_SUMMARY,
                     ParquetColumnDecoding.nullListElementsMessage("ints"),
-                    ParquetColumnDecoding.nullListElementsMessage("strs")
+                    ParquetColumnDecoding.nullListElementsMessage("strs"),
+                    ParquetColumnDecoding.nullListElementsMessage("floats")
                 )
             );
         } else {
@@ -205,6 +210,18 @@ public class ListColumnParityTests extends ESTestCase {
                         longs.addGroup("list").append("element", (long) row * 1_000L + k);
                     }
                 }
+                if (nullable && row % 19 == 0) {
+                    // null float list
+                } else {
+                    Group floats = g.addGroup("floats");
+                    for (int k = 0; k < listLen; k++) {
+                        if (nullable && (row * 7 + k) % 23 == 0) {
+                            floats.addGroup("list");
+                        } else {
+                            floats.addGroup("list").append("element", row * 0.5f + k);
+                        }
+                    }
+                }
                 writer.write(g);
             }
         }
@@ -253,6 +270,8 @@ public class ListColumnParityTests extends ESTestCase {
                     assertThat(ctx + " int@" + pos + "[" + k + "]", ab.getInt(aStart + k), equalTo(eb.getInt(eStart + k)));
                 } else if (expected instanceof LongBlock eb && actual instanceof LongBlock ab) {
                     assertThat(ctx + " long@" + pos + "[" + k + "]", ab.getLong(aStart + k), equalTo(eb.getLong(eStart + k)));
+                } else if (expected instanceof FloatBlock eb && actual instanceof FloatBlock ab) {
+                    assertThat(ctx + " float@" + pos + "[" + k + "]", ab.getFloat(aStart + k), equalTo(eb.getFloat(eStart + k)));
                 } else if (expected instanceof BytesRefBlock eb && actual instanceof BytesRefBlock ab) {
                     assertThat(
                         ctx + " bytes@" + pos + "[" + k + "]",

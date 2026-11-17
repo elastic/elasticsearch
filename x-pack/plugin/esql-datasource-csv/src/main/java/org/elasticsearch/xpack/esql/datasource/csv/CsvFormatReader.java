@@ -1386,6 +1386,32 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     @Override
+    public CsvFormatReader withBlockFactory(@Nullable BlockFactory factory) {
+        if (factory == null || factory == blockFactory) {
+            return this;
+        }
+        return new CsvFormatReader(
+            factory,
+            options,
+            format,
+            extensions,
+            resolvedSchema,
+            schemaSampleSize,
+            schemaSampleBytes,
+            schemaMaxFields,
+            effectivePolicy,
+            canonicalConfig,
+            readConfig,
+            directBlockEnabled,
+            declaredDateFormats,
+            declaredProvenanceBinding,
+            headerBindingByProvenance,
+            configWarnings,
+            multilineFields
+        );
+    }
+
+    @Override
     public CsvFormatReader withSchemaSampleShare(int files) {
         int sharedRows = FormatReader.sharedSchemaSampleSize(schemaSampleSize, files);
         // The schema-cache key is the effective row count. Divide the byte cap only when that count

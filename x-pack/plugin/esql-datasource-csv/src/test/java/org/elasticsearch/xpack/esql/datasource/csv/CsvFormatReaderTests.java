@@ -1158,6 +1158,33 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertEquals("draining to exhaustion then closing must leave the breaker at zero", 0L, breaker[0].getUsed());
     }
 
+    /**
+     * A node-singleton reader stays on its construction factory. {@code withBlockFactory} copies
+     * configuration onto a per-read factory. The node breaker is one byte, so any sample or page
+     * that still hit it would trip; success plus live usage on the per-read breaker is the proof.
+     */
+    public void testWithBlockFactoryChargesThePerReadBreakerNotTheNodeFactory() throws IOException {
+        LimitedBreaker nodeBreaker = new LimitedBreaker("node", ByteSizeValue.ofBytes(1));
+        CircuitBreaker[] readBreaker = new CircuitBreaker[1];
+        BlockFactory nodeFactory = new BlockFactory(nodeBreaker, BigArrays.NON_RECYCLING_INSTANCE);
+        BlockFactory readFactory = trackingBlockFactory(readBreaker);
+        CsvFormatReader nodeReader = new CsvFormatReader(nodeFactory);
+        assertSame("same factory is a no-op so the node singleton is unchanged", nodeReader, nodeReader.withBlockFactory(nodeFactory));
+        CsvFormatReader perRead = nodeReader.withBlockFactory(readFactory);
+        assertNotSame("a distinct factory must copy, not mutate the node singleton", nodeReader, perRead);
+
+        String csv = "id,name\n1,Alice\n2,Bob\n";
+        try (CloseableIterator<Page> iterator = perRead.read(createStorageObject(csv), List.of("id", "name"), 8)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertThat("per-read page allocations must hit the bound factory", readBreaker[0].getUsed(), Matchers.greaterThan(0L));
+            assertEquals("the node singleton must not see those allocations", 0L, nodeBreaker.getUsed());
+            page.releaseBlocks();
+        }
+        assertEquals(0L, readBreaker[0].getUsed());
+        assertEquals(0L, nodeBreaker.getUsed());
+    }
+
     public void testReadWithBatching() throws IOException {
         StringBuilder csv = new StringBuilder("id:long,value:integer\n");
         for (int i = 1; i <= 25; i++) {

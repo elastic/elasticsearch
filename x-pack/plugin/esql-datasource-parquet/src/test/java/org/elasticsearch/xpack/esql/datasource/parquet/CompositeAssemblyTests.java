@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.util.BytesRef;
 import org.apache.parquet.column.ParquetProperties.WriterVersion;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.conf.PlainParquetConfiguration;
@@ -41,7 +42,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Step 1 of the composite-assembly prototype: establishes a Parquet file whose contents the test knows
@@ -224,6 +227,18 @@ public class CompositeAssemblyTests extends ESTestCase {
         return sb.append('}').toString();
     }
 
+    /** The control column: a list of primitives, always present, with one to three entries. */
+    private static String expectedTagsJson(int i) {
+        StringBuilder sb = new StringBuilder("[");
+        for (int k = 0; k <= i % 3; k++) {
+            if (k > 0) {
+                sb.append(',');
+            }
+            sb.append(quoteOrNull("t" + i + "-" + k));
+        }
+        return sb.append(']').toString();
+    }
+
     private static String quoteOrNull(String s) {
         if (s == null) {
             return "null";
@@ -391,6 +406,75 @@ public class CompositeAssemblyTests extends ESTestCase {
             assertEquals("id at row " + i, i, row.getLong("id", 0));
             assertEquals("items at row " + i, expectedItemsJson(i), groupToJson(row, "items"));
             assertEquals("attrs at row " + i, expectedAttrsJson(i), groupToJson(row, "attrs"));
+        }
+    }
+
+    // --- step 2: the converter, driven by parquet-mr over parquet-mr's own page store -----------
+
+    /**
+     * Reads the named composite columns through {@link JsonRecordMaterializer}, one record reader per
+     * column over a shared row group. The columns are disjoint, so their leaf page readers are disjoint
+     * too and the readers can be advanced in step; the oracle gets its own pass over the file because it
+     * reads every column and a page reader is consumed once.
+     *
+     * @return per field, one entry per row in file order, null where the column is absent for that row
+     */
+    private Map<String, List<String>> converterRows(byte[] file, List<String> fields) throws IOException {
+        Map<String, List<String>> out = new LinkedHashMap<>();
+        for (String field : fields) {
+            out.put(field, new ArrayList<>(ROWS));
+        }
+        try (
+            ParquetFileReader reader = ParquetFileReader.open(
+                new ParquetStorageObjectAdapter(
+                    createStorageObject(file),
+                    FooterByteCache.fromSettings(Settings.EMPTY),
+                    new NoopCircuitBreaker("composite-assembly-test")
+                ),
+                PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build()
+            )
+        ) {
+            MessageType schema = reader.getFileMetaData().getSchema();
+            PageReadStore pages;
+            while ((pages = reader.readNextRowGroup()) != null) {
+                Map<String, RecordReader<BytesRef>> readers = new LinkedHashMap<>();
+                for (String field : fields) {
+                    MessageType sub = new MessageType(schema.getName(), schema.getType(field));
+                    readers.put(field, new ColumnIOFactory().getColumnIO(sub).getRecordReader(pages, new JsonRecordMaterializer(sub)));
+                }
+                for (long r = 0; r < pages.getRowCount(); r++) {
+                    for (String field : fields) {
+                        BytesRef value = readers.get(field).read();
+                        out.get(field).add(value == null ? null : value.utf8ToString());
+                    }
+                }
+            }
+        }
+        return out;
+    }
+
+    /**
+     * The converter agrees with the oracle and with the independently built expectation, on every row and
+     * for all three composite shapes: a list of structs, a map, and a list of primitives.
+     * <p>
+     * Agreeing with the oracle is the part that matters. Both run over the same leaves at a page size that
+     * breaks {@code sku} and {@code price} on different rows, so a converter that paired values by position
+     * instead of by repetition level would disagree here.
+     */
+    public void testConverterMatchesOracleOverParquetMrPages() throws IOException {
+        byte[] file = writeFile();
+        List<Group> oracle = oracleRows(file);
+        assertEquals("oracle row count", ROWS, oracle.size());
+        Map<String, List<String>> converted = converterRows(file, List.of("items", "attrs", "tags"));
+        for (String field : List.of("items", "attrs", "tags")) {
+            assertEquals("converter row count for " + field, ROWS, converted.get(field).size());
+        }
+        for (int i = 0; i < ROWS; i++) {
+            assertEquals("items vs expectation at row " + i, expectedItemsJson(i), converted.get("items").get(i));
+            assertEquals("attrs vs expectation at row " + i, expectedAttrsJson(i), converted.get("attrs").get(i));
+            assertEquals("tags vs expectation at row " + i, expectedTagsJson(i), converted.get("tags").get(i));
+            assertEquals("items vs oracle at row " + i, groupToJson(oracle.get(i), "items"), converted.get("items").get(i));
+            assertEquals("attrs vs oracle at row " + i, groupToJson(oracle.get(i), "attrs"), converted.get("attrs").get(i));
         }
     }
 

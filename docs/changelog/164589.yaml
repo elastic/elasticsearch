@@ -10,4 +10,4 @@ issues:
  - 164588
 pr: 164589
 summary: "[Dedup] Reject union-type columns"
-type: "breaking, enhancement"
+type: breaking

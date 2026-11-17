@@ -5455,9 +5455,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 if (byteHintColumns.length > 0) {
                     for (String[] row : rows) {
                         for (int slot : byteHintColumns) {
-                            int si = projectedIdx[slot];
-                            if (si >= 0 && si < row.length && row[si] != null) {
-                                byteHints[slot] += UnicodeUtil.calcUTF16toUTF8Length(row[si], 0, row[si].length());
+                            String value = fieldOrNull(row, projectedIdx[slot]);
+                            if (value != null) {
+                                byteHints[slot] += UnicodeUtil.calcUTF16toUTF8Length(value, 0, value.length());
                             }
                         }
                     }
@@ -6372,7 +6372,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * <p>Two distinct absences return the same {@code null}: a negative index, which is {@link #ABSENT_FIELD}
          * for a schema column this file does not carry, and an index past the row's trailing edge, which is a row
          * shorter than the binding allows. The negative arm is reachable -- a by-name binding produces it -- so it
-         * is a guard rather than defensive habit.
+         * is a guard rather than defensive habit. A caller that only needs to know whether the field is there asks
+         * for the value and compares it to {@code null}.
          */
         private static String fieldOrNull(String[] row, int idx) {
             return idx >= 0 && idx < row.length ? row[idx] : null;

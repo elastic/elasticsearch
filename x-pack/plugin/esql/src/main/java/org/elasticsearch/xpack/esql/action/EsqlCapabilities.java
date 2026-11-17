@@ -2187,6 +2187,8 @@ public class EsqlCapabilities {
          */
         PACK_DIMENSIONS_IN_TS,
 
+        PACK_DOUBLE_FLOAT_DIMENSIONS,
+
         /**
          * Support for exponential_histogram fields in the state of when it first was released into tech preview.
          */

@@ -446,11 +446,6 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testCacheMissWaitTimeHeader
   issue: https://github.com/elastic/elasticsearch/issues/165322
-- class: org.elasticsearch.xpack.stateless.StatelessRecoveryIT
-  tasks:
-  - :x-pack:plugin:stateless:internalClusterTest
-  method: testRelocateIndexingShardDoesNotReadFromTranslog
-  issue: https://github.com/elastic/elasticsearch/issues/165841
 - class: org.elasticsearch.xpack.sql.qa.jdbc.multi_node.MultiNodeJdbcFetchSizeIT
   tasks:
   - :x-pack:plugin:sql:qa:jdbc:v9.5.7#bwcTest
@@ -460,3 +455,12 @@ tests:
   - :x-pack:plugin:searchable-snapshots:internalClusterTest
   method: testNodesCachesStats
   issue: https://github.com/elastic/elasticsearch/issues/166076
+- class: org.elasticsearch.repositories.s3.RepositoryS3ContentIntegrityRestIT
+  tasks:
+  - :modules:repository-s3:javaRestTest
+  issue: https://github.com/elastic/elasticsearch/issues/166262
+- class: org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDeciderIT
+  tasks:
+  - :server:internalClusterTest
+  method: testRestoreSnapshotAllocationDoesNotExceedWatermarkWithMultipleRestores
+  issue: https://github.com/elastic/elasticsearch/issues/166268

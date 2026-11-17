@@ -111,7 +111,7 @@ public class MockServer {
     /**
      * Returns all interactions with the mockserver since startup, the last call to {@link #reset()} or the
      * last call to {@link #clearExpectations()}. The JSON returned by the mockserver is flattened, so that
-     * the period-seperated keys in each map represent the structure of the JSON.
+     * the period-separated keys in each map represent the structure of the JSON.
      *
      * @return a list of interactions
      * @throws Exception if anything goes wrong

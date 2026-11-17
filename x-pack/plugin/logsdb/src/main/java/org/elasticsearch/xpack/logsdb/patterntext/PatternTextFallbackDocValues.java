@@ -26,7 +26,7 @@ import static org.elasticsearch.xpack.logsdb.patterntext.PatternTextDocValues.ge
 
 /**
  * Values which exceed 32kb cannot be stored as sorted set doc values. Such values must be stored outside sorted set doc values.
- * This class relies on {@link PatternTextDocValues} but can fall back to values that were stored seperately because limit was exceded.
+ * This class relies on {@link PatternTextDocValues} but can fall back to values that were stored separately because limit was exceeded.
  * <p>
  * Depending on index version the raw values may be stored in binary doc values or stored fields.
  */

@@ -43,7 +43,9 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.escf.EscfBatchBuilder;
 import org.elasticsearch.escf.EscfEncoder;
+import org.elasticsearch.escf.EscfRowBuffer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -960,6 +962,73 @@ public class BatchBulkIT extends ESIntegTestCase {
         assertThat(primaryStats.getIndexFailedCount(), equalTo((long) numDocs));
         assertThat(primaryStats.getIndexFailedDueToVersionConflictCount(), equalTo((long) numDocs));
         assertThat(primaryStats.getIndexCurrent(), equalTo(0L));
+    }
+
+    /**
+     * A pre-built batch can carry raw binary values, which a JSON source cannot, and they are indexed as a batch.
+     */
+    public void testRawBinaryBatchMode() throws IOException {
+        String index = "test-columnar-binary";
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", randomIntBetween(1, 3))
+                        .put("index.number_of_replicas", 1)
+                        .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                )
+                .setMapping("""
+                    {"dynamic":"strict","properties":{"blob":{"type":"binary","multi_value":false}}}""")
+        );
+        ensureGreen(index);
+        String coordinatingNode = findCoordinatingNode();
+
+        int numDocs = randomIntBetween(10, 40);
+        byte[][] values = new byte[numDocs][];
+        Recycler<BytesRef> recycler = internalCluster().getInstance(BigArrays.class, coordinatingNode).bytesRefRecycler();
+        SourceBatch batch;
+        try (EscfBatchBuilder builder = new EscfBatchBuilder(recycler)) {
+            for (int i = 0; i < numDocs; i++) {
+                values[i] = randomByteArrayOfLength(between(1, 256));
+                EscfRowBuffer row = builder.beginRow();
+                row.binaryField("blob", new BytesRef(values[i]));
+                row.finishRow();
+                builder.commit(0);
+            }
+            batch = builder.buildPartition(0);
+        }
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            IndexRequest request = new IndexRequest(index).id("doc-" + i).opType(DocWriteRequest.OpType.CREATE);
+            request.indexSource().setSourceRow(batch, i, XContentType.JSON);
+            bulkRequest.add(request);
+        }
+        bulkRequest.setPreBuiltBatches(Map.of(index, batch));
+
+        final Logger batchLogger = LogManager.getLogger(ShardBatchIndexer.class);
+        final Level origLevel = batchLogger.getLevel();
+        Loggers.setLevel(batchLogger, Level.TRACE);
+        try (var mockLog = MockLog.capture(ShardBatchIndexer.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "batch indexed on primary",
+                    ShardBatchIndexer.class.getName(),
+                    Level.TRACE,
+                    "batch indexed * operations on primary shard *"
+                )
+            );
+            assertNoFailures(client(coordinatingNode).bulk(bulkRequest).actionGet());
+            mockLog.assertAllExpectationsMatched();
+        } finally {
+            Loggers.setLevel(batchLogger, origLevel);
+        }
+
+        refresh(index);
+        for (int i = 0; i < numDocs; i++) {
+            var getResponse = client().prepareGet(index, "doc-" + i).get();
+            assertTrue(getResponse.isExists());
+            assertThat(getResponse.getSourceAsMap().get("blob"), equalTo(Base64.getEncoder().encodeToString(values[i])));
+        }
     }
 
     public void testSyntheticSourceReconstruction() throws IOException {

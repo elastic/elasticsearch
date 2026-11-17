@@ -40,6 +40,8 @@ import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
+import org.elasticsearch.common.blobstore.fs.FsBlobStore;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -108,6 +110,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.HexFormat;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -1739,6 +1742,70 @@ public class ObjectStoreServiceTests extends ESTestCase {
             assertThat(objectStoreUploads.getFirst().attributes().get(BccUploadMetrics.BCC_UPLOAD_SUCCESS_ATTRIBUTE_KEY), equalTo(true));
             assertThat(objectStoreUploads.getFirst().attributes().get(BccUploadMetrics.BCC_SIZE_ATTRIBUTE_KEY), notNullValue());
         }
+    }
+
+    public void testListBlobsIgnoresMergeBlobsWithoutWarning() throws Exception {
+        final var blobStorePath = PathUtils.get(createTempDir().toString());
+        final var blobContainer = new FsBlobContainer(
+            new FsBlobStore(randomIntBetween(1, 8) * 1024, blobStorePath, false),
+            BlobPath.EMPTY,
+            blobStorePath
+        );
+        final long primaryTerm = randomLongBetween(1L, 100L);
+        final var bccGenerations = new HashSet<Long>();
+        for (int i = randomIntBetween(1, 5); i > 0; i--) {
+            bccGenerations.add(randomLongBetween(1L, 1000L));
+        }
+        for (long generation : bccGenerations) {
+            writeRandomBlob(blobContainer, BatchedCompoundCommit.blobNameFromGeneration(generation));
+        }
+        final long maxBccGeneration = bccGenerations.stream().mapToLong(Long::longValue).max().getAsLong();
+        // a merge blob with a merge start generation above every BCC must neither be listed nor be the latest blob
+        final String mergeBlobName = randomMergeBlobName(maxBccGeneration + randomLongBetween(1L, 100L));
+        writeRandomBlob(blobContainer, mergeBlobName);
+        final String junkBlobName = randomAlphaOfLength(10);
+        writeRandomBlob(blobContainer, junkBlobName);
+
+        MockLog.assertThatLogger(() -> {
+            try {
+                final var blobs = ObjectStoreService.listBlobs(primaryTerm, blobContainer);
+                assertThat(blobs, aMapWithSize(bccGenerations.size()));
+                for (long generation : bccGenerations) {
+                    assertThat(blobs, hasKey(new PrimaryTermAndGeneration(primaryTerm, generation)));
+                }
+
+                final var latestBlob = ObjectStoreService.getLatestBlob(blobContainer);
+                assertThat(latestBlob, notNullValue());
+                assertThat(latestBlob.v1(), equalTo(maxBccGeneration));
+                assertThat(latestBlob.v2().name(), equalTo(BatchedCompoundCommit.blobNameFromGeneration(maxBccGeneration)));
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        },
+            ObjectStoreService.class,
+            new MockLog.UnseenEventExpectation(
+                "no warning for merge blob",
+                ObjectStoreService.class.getCanonicalName(),
+                Level.WARN,
+                "*" + mergeBlobName + "*"
+            ),
+            new MockLog.SeenEventExpectation(
+                "warning for unknown blob",
+                ObjectStoreService.class.getCanonicalName(),
+                Level.WARN,
+                "*" + junkBlobName + "*"
+            )
+        );
+    }
+
+    private static void writeRandomBlob(BlobContainer blobContainer, String blobName) throws IOException {
+        blobContainer.writeBlob(OperationPurpose.INDICES, blobName, new BytesArray(randomByteArrayOfLength(between(1, 64))), true);
+    }
+
+    // TODO(szybia): use MergeBlobFile.blobName (#162535)
+    private static String randomMergeBlobName(long mergeStartGeneration) {
+        return BatchedCompoundCommit.MERGE_BLOB_PREFIX + mergeStartGeneration + '_' + randomAlphanumericOfLength(between(1, 5)) + '_'
+            + HexFormat.of().toHexDigits(randomLong());
     }
 
     private void assertProjectObjectStoreNotFound(ObjectStoreService objectStoreService, ProjectId projectId) {

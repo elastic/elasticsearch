@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.ml;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -316,6 +318,34 @@ public class EsqlDatafeedQueryParserTests extends ESTestCase {
     public void testIndexPatternsShouldBeSplitAndReportedAsWritten() {
         ParsedEsqlQuery query = parse("FROM logs-*, -logs-secret, remote:b, \"quoted:idx\"");
         assertThat(query.indexPatterns(), containsInAnyOrder("logs-*", "-logs-secret", "remote:b", "quoted:idx"));
+    }
+
+    public void testTimeSeriesSourceShouldBeProbedWithFrom() {
+        ParsedEsqlQuery query = parse("TS metrics METADATA _index | STATS max(cpu) BY TBUCKET(1 hour)");
+        assertThat(query.sourceRangeSummaryQuery("@timestamp").query(), containsString("FROM metrics METADATA _index | STATS"));
+        assertThat(query.sourceTimeFieldProbeQuery("@timestamp").query(), containsString("FROM metrics METADATA _index | KEEP"));
+    }
+
+    public void testInSubqueryShouldBeRejected() {
+        ParsingException e = expectThrows(ParsingException.class, () -> parse("FROM logs | WHERE host IN (FROM remote:hosts | KEEP host)"));
+        assertThat(e.getMessage(), containsString("[IN (subquery)] is not supported in ES|QL datafeeds"));
+    }
+
+    public void testDynamicInferenceSettingShouldOverrideNodeSetting() {
+        String completion = "FROM t | COMPLETION prompt_field WITH { \"inference_id\" : \"id\" }";
+        try (ClusterService disabled = clusterService(Settings.builder().put("esql.command.completion.enabled", false).build())) {
+            expectThrows(ParsingException.class, () -> parser.parse(completion, disabled));
+            ClusterServiceUtils.setState(
+                disabled,
+                ClusterState.builder(disabled.state())
+                    .metadata(
+                        Metadata.builder(disabled.state().metadata())
+                            .persistentSettings(Settings.builder().put("esql.command.completion.enabled", true).build())
+                    )
+                    .build()
+            );
+            assertThat(parser.parse(completion, disabled).indexPatterns(), contains("t"));
+        }
     }
 
     public void testTimeSeriesSourceShouldReadIndices() {

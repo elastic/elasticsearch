@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.ml;
 
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -17,6 +18,8 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.MultiColumnInSubquery;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.EsqlConfig;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
@@ -73,17 +76,20 @@ public class EsqlDatafeedQueryParser implements EsqlQueryParser {
     @Override
     public ParsedEsqlQuery parse(String query, ClusterService clusterService) {
         Settings nodeSettings = clusterService.getSettings();
+        ClusterState clusterState = clusterService.state();
+        // Dynamic cluster settings override node configuration, as they do for queries ES|QL runs.
+        Settings effectiveSettings = Settings.builder().put(nodeSettings).put(clusterState.metadata().settings()).build();
         EsqlStatement statement = Holder.PARSER.parse(
             query,
             new QueryParams(),
-            new InferenceSettings(nodeSettings),
+            new InferenceSettings(effectiveSettings),
             QueryPragmas.EMPTY,
             new EsqlFlags(clusterService.getClusterSettings())
         );
         SettingsValidationContext validation = SettingsValidationContext.from(new CrossProjectModeDecider(nodeSettings));
         QuerySettings.validate(statement, validation);
         ResolvedSettings settings = QuerySettings.resolve(
-            clusterService.state().metadata().settings(),
+            clusterState.metadata().settings(),
             nodeSettings,
             Map.of(),
             statement,
@@ -97,6 +103,9 @@ public class EsqlDatafeedQueryParser implements EsqlQueryParser {
             if (command != null) {
                 throw unsupported(command, node);
             }
+            // The relations inside an IN subquery would be missed by the single-pipeline reading.
+            node.forEachExpression(InSubquery.class, in -> { throw unsupported("IN (subquery)", node); });
+            node.forEachExpression(MultiColumnInSubquery.class, in -> { throw unsupported("IN (subquery)", node); });
         });
         LogicalPlan plan = statement.plan();
         Pipeline pipeline = Pipeline.of(plan);
@@ -108,7 +117,7 @@ public class EsqlDatafeedQueryParser implements EsqlQueryParser {
         return new Parsed(
             query,
             statement.settings().stream().map(setting -> setting.source().text()).collect(Collectors.joining("\n")),
-            pipeline.source instanceof UnresolvedRelation ? pipeline.source.source().text() : "",
+            pipeline.source instanceof UnresolvedRelation relation ? sourceCommand(relation) : "",
             indexPatterns,
             pipeline.aggregates > 0,
             pipeline.outputLimit(),
@@ -136,6 +145,12 @@ public class EsqlDatafeedQueryParser implements EsqlQueryParser {
             return "LOOKUP JOIN";
         }
         return null;
+    }
+
+    /** Source probes aggregate with {@code COUNT(*)}, which {@code TS} rejects, so a time series source is read with {@code FROM}. */
+    private static String sourceCommand(UnresolvedRelation relation) {
+        String text = relation.source().text();
+        return relation.isTimeSeriesMode() ? "FROM" + text.substring(2) : text;
     }
 
     private static ParsingException unsupported(String command, LogicalPlan node) {

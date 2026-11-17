@@ -70,7 +70,7 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedNodeSelector;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedProjectRoutingDiagnostics;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
-import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
+import org.elasticsearch.xpack.ml.datafeed.esql.BoundEsqlQueryParser;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
@@ -110,7 +110,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     private final DatafeedConfigProvider datafeedConfigProvider;
     private final AnomalyDetectionAuditor auditor;
     private final NamedXContentRegistry xContentRegistry;
-    private final EsqlQueryParser esqlQueryParser;
+    private final BoundEsqlQueryParser esqlQueryParser;
     private final boolean remoteClusterClient;
     private final ProjectResolver projectResolver;
     private final CrossProjectModeDecider crossProjectModeDecider;

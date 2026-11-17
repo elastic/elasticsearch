@@ -35,9 +35,9 @@ import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.ml.EsqlDatafeedQueryParser;
 import org.elasticsearch.xpack.ml.datafeed.crossproject.NoMatchingProjectTestMessages;
-import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
+import org.elasticsearch.xpack.ml.datafeed.esql.BoundEsqlQueryParser;
+import org.elasticsearch.xpack.ml.datafeed.esql.EsqlParserTestSupport;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -51,7 +51,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -65,7 +64,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
     private static final String ESQL_QUERY =
         "FROM logs | STATS avg_bytes = AVG(bytes), doc_count = COUNT(*) BY ts = BUCKET(@timestamp, 1 hour)";
     private static final String TIME_FIELD = "ts";
-    private static final EsqlQueryParser PARSER = new EsqlDatafeedQueryParser();
+    private static final BoundEsqlQueryParser PARSER = EsqlParserTestSupport.parser();
     private static final EsqlDatafeedQueryValidator STRUCTURE_VALIDATOR = new EsqlDatafeedQueryValidator(PARSER);
     private static final String SUMMARY_COUNT_FIELD = "doc_count";
 
@@ -467,13 +466,13 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         );
 
         assertThat(succeeded.get(), is(true));
-        assertThat(harness.capturedQuery, equalTo("FROM logs\n| KEEP ??sourceTimeField | LIMIT 0"));
+        assertThat(harness.capturedQuery, equalTo("FROM logs | KEEP ??timeField | LIMIT 0"));
         assertThat(
             harness.capturedParams,
             equalTo(
                 List.of(
                     new EsqlQueryRequestBuilder.EsqlQueryParam(
-                        "sourceTimeField",
+                        "timeField",
                         "@timestamp",
                         EsqlQueryRequestBuilder.EsqlQueryParam.ParamClassification.IDENTIFIER
                     )
@@ -661,7 +660,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             null
         );
 
-        assertThat(harness.capturedQuery, equalTo("FROM logs\n| KEEP ??sourceTimeField | LIMIT 0"));
+        assertThat(harness.capturedQuery, equalTo("FROM logs | KEEP ??timeField | LIMIT 0"));
     }
 
     public void testLeadingCommandEndingInLineCommentShouldAppendKeepOnNewLineForSourceTimeField() {
@@ -679,7 +678,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             null
         );
 
-        assertThat(harness.capturedQuery, equalTo("FROM logs\n| KEEP ??sourceTimeField | LIMIT 0"));
+        assertThat(harness.capturedQuery, equalTo("FROM logs | KEEP ??timeField | LIMIT 0"));
     }
 
     public void testQueryWithoutIndexSourceShouldFailSourceTimeFieldValidation() {
@@ -723,7 +722,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         );
 
         assertThat(succeeded.get(), is(true));
-        assertThat(harness.capturedQuery, equalTo("FROM logs\n| KEEP ??sourceTimeField | LIMIT 0"));
+        assertThat(harness.capturedQuery, equalTo("FROM logs | KEEP ??timeField | LIMIT 0"));
     }
 
     // Same as above but for a leading block comment.
@@ -745,7 +744,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         );
 
         assertThat(succeeded.get(), is(true));
-        assertThat(harness.capturedQuery, equalTo("FROM logs\n| KEEP ??sourceTimeField | LIMIT 0"));
+        assertThat(harness.capturedQuery, equalTo("FROM logs | KEEP ??timeField | LIMIT 0"));
     }
 
     // TS is a real ES|QL source command (time-series source);
@@ -770,7 +769,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         );
 
         assertThat(succeeded.get(), is(true));
-        assertThat(harness.capturedQuery, equalTo("TS metrics-*\n| KEEP ??sourceTimeField | LIMIT 0"));
+        assertThat(harness.capturedQuery, equalTo("FROM metrics-* | KEEP ??timeField | LIMIT 0"));
     }
 
     public void testNullEmittedTimeInSourceWindowShouldUseMessages() {
@@ -889,28 +888,19 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(e.getMessage(), containsString(TIME_FIELD));
     }
 
-    public void testConflictingOuterClausesShouldAddActionableWarnings() {
+    public void testOuterLimitShouldAddActionableWarning() {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         HeaderWarning.setThreadContext(threadContext);
         try {
-            EsqlDatafeedQueryValidator.warnForConflictingOuterClauses(
+            EsqlDatafeedQueryValidator.warnForOuterLimit(
                 "datafeed-1",
-                EsqlDatafeedQuery.parse(PARSER, "FROM logs | WHERE ts >= 0 | SORT ts DESC | LIMIT 20"),
-                TIME_FIELD,
+                EsqlDatafeedQuery.parse(PARSER, "FROM logs | SORT ts DESC | LIMIT 20"),
                 false
             );
 
             assertWarnings(
                 false,
                 List.of(
-                    allOf(
-                        containsString("ES|QL datafeed [datafeed-1] query contains an outer WHERE clause"),
-                        containsString("ML owns the request window")
-                    ),
-                    allOf(
-                        containsString("ES|QL datafeed [datafeed-1] query contains an outer SORT clause"),
-                        containsString("ML owns the request order")
-                    ),
                     allOf(
                         containsString("ES|QL datafeed [datafeed-1] query contains an outer LIMIT [20]"),
                         containsString("ML sets the row limit")
@@ -926,12 +916,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         HeaderWarning.setThreadContext(threadContext);
         try {
-            EsqlDatafeedQueryValidator.warnForConflictingOuterClauses(
-                "datafeed-1",
-                EsqlDatafeedQuery.parse(PARSER, "FROM logs | LIMIT 20"),
-                TIME_FIELD,
-                true
-            );
+            EsqlDatafeedQueryValidator.warnForOuterLimit("datafeed-1", EsqlDatafeedQuery.parse(PARSER, "FROM logs | LIMIT 20"), true);
 
             assertWarnings(
                 false,
@@ -947,22 +932,19 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         }
     }
 
-    public void testRawKeepAndLexicalFalsePositivesShouldNotWarn() {
+    public void testRawKeepAndLexicalFalsePositivesShouldNotWarnOrReject() {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         HeaderWarning.setThreadContext(threadContext);
         try {
-            EsqlDatafeedQueryValidator.warnForConflictingOuterClauses(
-                "datafeed-1",
-                EsqlDatafeedQuery.parse(
-                    PARSER,
-                    "FROM logs | KEEP ts, value | EVAL note = \"WHERE ts | SORT ts | LIMIT 20\" "
-                        + "| EVAL triple_note = \"\"\"WHERE ts | SORT ts | LIMIT 20\"\"\" "
-                        + "| KEEP `WHERE ts`, value /* WHERE ts | SORT ts | LIMIT 20 /* WHERE ts */ */ "
-                        + "// WHERE ts | SORT ts | LIMIT 20\n | FORK (WHERE ts > 0 | SORT ts | LIMIT 20)"
-                ),
-                TIME_FIELD,
-                true
+            EsqlDatafeedQuery query = EsqlDatafeedQuery.parse(
+                PARSER,
+                "FROM logs | KEEP ts, value | EVAL note = \"WHERE ts | SORT ts | LIMIT 20\" "
+                    + "| EVAL triple_note = \"\"\"WHERE ts | SORT ts | LIMIT 20\"\"\" "
+                    + "| KEEP `WHERE ts`, value /* WHERE ts | SORT ts | LIMIT 20 /* WHERE ts */ */ "
+                    + "// WHERE ts | SORT ts | LIMIT 20\n"
             );
+            EsqlDatafeedQueryValidator.rejectOuterTimeFilter("datafeed-1", query, TIME_FIELD);
+            EsqlDatafeedQueryValidator.warnForOuterLimit("datafeed-1", query, true);
 
             assertWarnings();
         } finally {
@@ -1218,8 +1200,16 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
     }
 
     public void testRemoteSourceInSubqueryShouldBeRejected() {
-        assertThat(expectRejected("FROM (FROM remote:logs | WHERE a > 1), local").getMessage(), containsString("[remote:logs]"));
         assertThat(expectRejected("FROM (FROM remote:logs | WHERE a > 1) | LIMIT 5").getMessage(), containsString("[remote:logs]"));
+    }
+
+    public void testMultipleSubqueriesShouldBeRejectedByTheParser() {
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> STRUCTURE_VALIDATOR.validateQueryStructure("FROM (FROM remote:logs | WHERE a > 1), local", false)
+        );
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), containsString("several subqueries"));
     }
 
     public void testRemoteSourceAfterSetStatementShouldBeRejected() {
@@ -1240,12 +1230,23 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
     }
 
     public void testProjectRoutingSettingShouldBeRejected() {
+        EsqlDatafeedQueryValidator crossProjectValidator = new EsqlDatafeedQueryValidator(
+            EsqlParserTestSupport.parser(Settings.builder().put("serverless.cross_project.enabled", true).build())
+        );
         ElasticsearchStatusException e = expectThrows(
             ElasticsearchStatusException.class,
-            () -> STRUCTURE_VALIDATOR.validateQueryStructure("SET project_routing=\"_alias:*\"; FROM logs", true)
+            () -> crossProjectValidator.validateQueryStructure("SET project_routing=\"_alias:*\"; FROM logs", true)
         );
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(e.getMessage(), containsString("SET project_routing"));
+    }
+
+    public void testProjectRoutingSettingWithoutCrossProjectShouldBeRejectedByEsql() {
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> STRUCTURE_VALIDATOR.validateQueryStructure("SET project_routing=\"_alias:*\"; FROM logs", false)
+        );
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
     }
 
     public void testNonUtcTimeZoneSettingShouldBeRejected() {
@@ -1271,40 +1272,22 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
     }
 
-    public void testLimitBeforeStatsShouldOnlyWarnAboutLimitBeforeStats() {
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        HeaderWarning.setThreadContext(threadContext);
-        try {
-            EsqlDatafeedQueryValidator.warnForConflictingOuterClauses(
-                "datafeed-1",
-                EsqlDatafeedQuery.parse(PARSER, "FROM logs | LIMIT 500 | STATS c = COUNT(*) BY b = BUCKET(ts, 1 hour)"),
-                TIME_FIELD,
-                true
-            );
-
-            assertWarnings(
-                false,
-                List.of(
-                    allOf(
-                        containsString("ES|QL datafeed [datafeed-1] query applies LIMIT [500] before an aggregation (STATS)"),
-                        containsString("Use SAMPLE or remove the LIMIT"),
-                        containsString("The delayed data check applies the LIMIT to the whole check window")
-                    )
-                )
-            );
-        } finally {
-            HeaderWarning.removeThreadContext(threadContext);
-        }
+    public void testLimitBeforeStatsShouldFailParsingWithBadRequest() {
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> EsqlDatafeedQuery.parse(PARSER, "FROM logs | LIMIT 500 | STATS c = COUNT(*) BY b = BUCKET(ts, 1 hour)")
+        );
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), containsString("[LIMIT] before [STATS] is not supported"));
     }
 
-    public void testLimitBeforeAndAfterStatsShouldWarnAboutBoth() {
+    public void testLimitAfterStatsShouldWarnAboutOutputLimitWithDelayedDataNote() {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         HeaderWarning.setThreadContext(threadContext);
         try {
-            EsqlDatafeedQueryValidator.warnForConflictingOuterClauses(
+            EsqlDatafeedQueryValidator.warnForOuterLimit(
                 "datafeed-1",
-                EsqlDatafeedQuery.parse(PARSER, "FROM logs | LIMIT 500 | STATS c = COUNT(*) BY b = BUCKET(ts, 1 hour) | LIMIT 10"),
-                TIME_FIELD,
+                EsqlDatafeedQuery.parse(PARSER, "FROM logs | STATS c = COUNT(*) BY b = BUCKET(ts, 1 hour) | LIMIT 10"),
                 true
             );
 
@@ -1314,10 +1297,6 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
                     allOf(
                         containsString("ES|QL datafeed [datafeed-1] query contains an outer LIMIT [10]"),
                         containsString("The delayed data check applies the LIMIT to the whole check window")
-                    ),
-                    allOf(
-                        containsString("ES|QL datafeed [datafeed-1] query applies LIMIT [500] before an aggregation (STATS)"),
-                        not(containsString("The delayed data check"))
                     )
                 )
             );
@@ -1326,21 +1305,17 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         }
     }
 
-    public void testBacktickTimeFieldShouldWarnAboutOuterWhere() {
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        HeaderWarning.setThreadContext(threadContext);
-        try {
-            EsqlDatafeedQueryValidator.warnForConflictingOuterClauses(
+    public void testBacktickTimeFieldFilterShouldBeRejected() {
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> EsqlDatafeedQueryValidator.rejectOuterTimeFilter(
                 "datafeed-1",
                 EsqlDatafeedQuery.parse(PARSER, "FROM logs | WHERE `@timestamp` > NOW() - 1 day"),
-                "@timestamp",
-                false
-            );
-
-            assertWarnings(false, List.of(containsString("query contains an outer WHERE clause on job time field [@timestamp]")));
-        } finally {
-            HeaderWarning.removeThreadContext(threadContext);
-        }
+                "@timestamp"
+            )
+        );
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), containsString("WHERE clause on job time field [@timestamp]"));
     }
 
     private static ElasticsearchStatusException expectRejected(String query) {

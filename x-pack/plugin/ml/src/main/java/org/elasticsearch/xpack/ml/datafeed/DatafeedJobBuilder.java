@@ -30,7 +30,7 @@ import org.elasticsearch.xpack.ml.action.datafeed.TransportStartDatafeedAction;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory;
-import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
+import org.elasticsearch.xpack.ml.datafeed.esql.BoundEsqlQueryParser;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDatafeedQuery;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
@@ -60,7 +60,7 @@ public class DatafeedJobBuilder {
     // here and silently strip the cloud token from the datafeed runner's field_caps probe.
     private final Supplier<CloudCredentialManager> cloudCredentialManagerSupplier;
     private final DatafeedSearchTelemetry searchTelemetry;
-    private final EsqlQueryParser esqlQueryParser;
+    private final BoundEsqlQueryParser esqlQueryParser;
 
     private volatile long delayedDataCheckFreq;
     private volatile int ccsStabilizationCycles;
@@ -77,7 +77,7 @@ public class DatafeedJobBuilder {
         ClusterService clusterService,
         Supplier<CloudCredentialManager> cloudCredentialManagerSupplier,
         DatafeedSearchTelemetry searchTelemetry,
-        EsqlQueryParser esqlQueryParser
+        BoundEsqlQueryParser esqlQueryParser
     ) {
         this.client = client;
         this.xContentRegistry = Objects.requireNonNull(xContentRegistry);

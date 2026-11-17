@@ -19,9 +19,9 @@ import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.esql.ml.EsqlDatafeedQueryParser;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
-import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
+import org.elasticsearch.xpack.ml.datafeed.esql.BoundEsqlQueryParser;
+import org.elasticsearch.xpack.ml.datafeed.esql.EsqlParserTestSupport;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.junit.Before;
 
@@ -41,7 +41,7 @@ import static org.mockito.Mockito.mock;
 
 public class EsqlDataExtractorFactoryTests extends ESTestCase {
 
-    private static final EsqlQueryParser PARSER = new EsqlDatafeedQueryParser();
+    private static final BoundEsqlQueryParser PARSER = EsqlParserTestSupport.parser();
 
     private static final String ESQL_QUERY =
         "FROM logs | STATS avg_bytes = AVG(bytes), doc_count = COUNT(*) BY ts = BUCKET(@timestamp, 1 hour)";

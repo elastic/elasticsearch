@@ -9,11 +9,13 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.esql;
 
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
+import org.elasticsearch.xpack.ml.datafeed.esql.BoundEsqlQueryParser;
+import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryWithParams;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.ParsedEsqlQuery;
 
 import java.util.Objects;
 import java.util.OptionalInt;
+import java.util.OptionalLong;
 
 /** An ES|QL datafeed query with its parsed form: the datafeed rules that depend on the query shape, and the query texts ML runs. */
 public final class EsqlDatafeedQuery {
@@ -24,12 +26,6 @@ public final class EsqlDatafeedQuery {
      */
     public static final long INJECTED_ROW_LIMIT = 10_000L;
 
-    private static final String TIME_SORT = "SORT ??timeField ASC";
-    private static final String ROW_LIMIT = "\n| LIMIT " + INJECTED_ROW_LIMIT;
-    private static final String SOURCE_RANGE_SUMMARY_STATS =
-        "STATS earliest_time = MIN(??timeField), latest_time = MAX(??timeField), total_hits = COUNT(*)";
-    private static final String OUTPUT_ROWS_STATS = "STATS probe_output_rows = COUNT(*)";
-    private static final String KEEP_SOURCE_TIME_FIELD_LIMIT_ZERO = "KEEP ??sourceTimeField | LIMIT 0";
     private static final String LIMIT_ZERO = "LIMIT 0";
 
     private final String query;
@@ -40,10 +36,10 @@ public final class EsqlDatafeedQuery {
         this.parsed = Objects.requireNonNull(parsed);
     }
 
-    /** Parses {@code query}; throws a 400 if it is not valid ES|QL or does not read from indices with FROM or TS. */
-    public static EsqlDatafeedQuery parse(EsqlQueryParser parser, String query) {
+    /** Parses {@code query}; throws a 400 if it is not valid ES|QL, uses an unsupported construct, or has no index source. */
+    public static EsqlDatafeedQuery parse(BoundEsqlQueryParser parser, String query) {
         ParsedEsqlQuery parsed = parser.parse(query);
-        if (parsed.readsIndices() == false) {
+        if (parsed.indexPatterns().isEmpty()) {
             // Source probes and the extractor time filter need an index source.
             throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.DATAFEED_ESQL_SOURCE_COMMAND_REQUIRED));
         }
@@ -59,9 +55,9 @@ public final class EsqlDatafeedQuery {
         return parsed;
     }
 
-    /** Whether the top-level pipeline aggregates, so source document count is a poor proxy for output rows. */
+    /** Whether the query aggregates, so source document count is a poor proxy for output rows. */
     public boolean hasAggregation() {
-        return parsed.aggregates();
+        return parsed.isAggregating();
     }
 
     /** Whether {@link #orderedQuery} appends {@link #INJECTED_ROW_LIMIT}: no user LIMIT caps the output rows. */
@@ -74,17 +70,8 @@ public final class EsqlDatafeedQuery {
         return parsed.outputLimit();
     }
 
-    /** The user LIMIT that runs before the first STATS, so each extraction window aggregates only some of its source rows. */
-    OptionalInt limitBeforeAggregation() {
-        return parsed.limitBeforeAggregation();
-    }
-
     boolean hasOuterTimeFilter(String timeField) {
         return parsed.filtersOn(timeField);
-    }
-
-    boolean hasOuterTimeSort(String timeField) {
-        return parsed.sortsOn(timeField);
     }
 
     /** {@code query | LIMIT 0}: resolves the output columns without reading rows. Text-level so it also works before parsing. */
@@ -92,23 +79,23 @@ public final class EsqlDatafeedQuery {
         return query + "\n| " + LIMIT_ZERO;
     }
 
-    /** The user query sorted on the job time field and, when {@link #injectsRowLimit}, capped after the sort. */
-    String orderedQuery() {
-        return parsed.withPipeline(injectsRowLimit() ? TIME_SORT + ROW_LIMIT : TIME_SORT);
+    /** The user query sorted on {@code timeField} and, when {@link #injectsRowLimit}, capped after the sort. */
+    EsqlQueryWithParams orderedQuery(String timeField) {
+        return parsed.orderedByTimeQuery(timeField, injectsRowLimit() ? OptionalLong.of(INJECTED_ROW_LIMIT) : OptionalLong.empty());
     }
 
     /** MIN/MAX/COUNT over the source command only, so the estimate does not depend on the user pipeline. */
-    String sourceRangeSummaryQuery() {
-        return parsed.sourceWithPipeline(SOURCE_RANGE_SUMMARY_STATS);
+    EsqlQueryWithParams sourceRangeSummaryQuery(String sourceTimeField) {
+        return parsed.sourceRangeSummaryQuery(sourceTimeField);
     }
 
     /** Counts the output rows of the full user pipeline. */
-    String outputRowsProbeQuery() {
-        return parsed.withPipeline(OUTPUT_ROWS_STATS);
+    EsqlQueryWithParams outputRowsProbeQuery() {
+        return parsed.outputRowCountQuery();
     }
 
-    /** Resolves {@code ??sourceTimeField} against the source command, as the extractor time filter does. */
-    String sourceTimeFieldProbeQuery() {
-        return parsed.sourceWithPipeline(KEEP_SOURCE_TIME_FIELD_LIMIT_ZERO);
+    /** Resolves {@code sourceTimeField} against the source command, as the extractor time filter does. */
+    EsqlQueryWithParams sourceTimeFieldProbeQuery(String sourceTimeField) {
+        return parsed.sourceTimeFieldProbeQuery(sourceTimeField);
     }
 }

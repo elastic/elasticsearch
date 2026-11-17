@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.core.esql.action.EsqlResponse;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
+import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryWithParams;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 
 import java.io.IOException;
@@ -43,7 +44,6 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction.TASKS_ORIGIN;
-import static org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.EsqlQueryParam.ParamClassification.IDENTIFIER;
 
 public class EsqlDataExtractor implements DataExtractor {
 
@@ -122,9 +122,9 @@ public class EsqlDataExtractor implements DataExtractor {
 
     /** Source-level MIN/MAX/COUNT probe on the source command, not the user pipeline. */
     private SourceRangeSummary fetchSourceRangeSummary(QueryBuilder timeFilter) {
-        String sourceQuery = context.query().sourceRangeSummaryQuery();
+        EsqlQueryWithParams sourceQuery = context.query().sourceRangeSummaryQuery(context.sourceTimeField());
         long startMs = client.threadPool().relativeTimeInMillis();
-        try (EsqlQueryResponse response = runQueryWithSingleRetry(sourceQuery, timeFilter, sourceTimeFieldParam())) {
+        try (EsqlQueryResponse response = runQueryWithSingleRetry(sourceQuery, timeFilter)) {
             long durationMs = client.threadPool().relativeTimeInMillis() - startMs;
             timingStatsReporter.reportSearchDuration(TimeValue.timeValueMillis(durationMs));
             DataSummary summary = parseSummaryResponse(response.response());
@@ -161,9 +161,9 @@ public class EsqlDataExtractor implements DataExtractor {
      */
     private long runBoundedAggregationProbe(long probeStart, long probeEnd) {
         QueryBuilder probeFilter = EsqlQueryExecutor.timeRangeFilter(context.sourceTimeField(), probeStart, probeEnd);
-        String probeQuery = context.query().outputRowsProbeQuery();
+        EsqlQueryWithParams probeQuery = context.query().outputRowsProbeQuery();
         long startMs = client.threadPool().relativeTimeInMillis();
-        try (EsqlQueryResponse response = runQueryWithSingleRetry(probeQuery, probeFilter, List.of())) {
+        try (EsqlQueryResponse response = runQueryWithSingleRetry(probeQuery, probeFilter)) {
             long durationMs = client.threadPool().relativeTimeInMillis() - startMs;
             timingStatsReporter.reportSearchDuration(TimeValue.timeValueMillis(durationMs));
             for (Iterable<Object> row : response.response().rows()) {
@@ -218,10 +218,10 @@ public class EsqlDataExtractor implements DataExtractor {
 
         QueryBuilder timeFilter = buildTimeFilter();
 
-        String orderedQuery = context.query().orderedQuery();
+        EsqlQueryWithParams orderedQuery = context.query().orderedQuery(context.emittedTimeField());
 
         long startMs = client.threadPool().relativeTimeInMillis();
-        try (EsqlQueryResponse response = runQueryWithSingleRetry(orderedQuery, timeFilter, timeFieldParam())) {
+        try (EsqlQueryResponse response = runQueryWithSingleRetry(orderedQuery, timeFilter)) {
             long durationMs = client.threadPool().relativeTimeInMillis() - startMs;
             timingStatsReporter.reportSearchDuration(TimeValue.timeValueMillis(durationMs));
             Optional<InputStream> data = Optional.empty();
@@ -260,21 +260,19 @@ public class EsqlDataExtractor implements DataExtractor {
         }
     }
 
-    private EsqlQueryResponse runQueryWithSingleRetry(String query, QueryBuilder timeFilter, List<EsqlQueryParam> params) {
-        return EsqlQueryRunner.runWithSingleRetry(syncQueryRunner, query, timeFilter, params, () -> isCancelled, context.jobId());
+    private EsqlQueryResponse runQueryWithSingleRetry(EsqlQueryWithParams query, QueryBuilder timeFilter) {
+        return EsqlQueryRunner.runWithSingleRetry(
+            syncQueryRunner,
+            query.query(),
+            timeFilter,
+            query.params(),
+            () -> isCancelled,
+            context.jobId()
+        );
     }
 
     private EsqlQueryResponse executeDefaultSyncQuery(String orderedQuery, QueryBuilder timeFilter, List<EsqlQueryParam> params) {
         return execute(EsqlQueryExecutor.newRequest(client, orderedQuery, timeFilter, params, context.projectRouting()));
-    }
-
-    private List<EsqlQueryParam> timeFieldParam() {
-        return List.of(new EsqlQueryParam("timeField", context.emittedTimeField(), IDENTIFIER));
-    }
-
-    /** Binds {@code ??timeField} to {@link EsqlDataExtractorContext#sourceTimeField()} for pre-pipeline probes. */
-    private List<EsqlQueryParam> sourceTimeFieldParam() {
-        return List.of(new EsqlQueryParam("timeField", context.sourceTimeField(), IDENTIFIER));
     }
 
     EsqlQueryResponse execute(EsqlQueryRequestBuilder<? extends EsqlQueryRequest, ? extends EsqlQueryResponse> request) {

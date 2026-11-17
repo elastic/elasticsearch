@@ -37,9 +37,9 @@ import org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.core.esql.action.EsqlResponse;
 import org.elasticsearch.xpack.core.esql.action.internal.SharedSecrets;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
-import org.elasticsearch.xpack.esql.ml.EsqlDatafeedQueryParser;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
-import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
+import org.elasticsearch.xpack.ml.datafeed.esql.BoundEsqlQueryParser;
+import org.elasticsearch.xpack.ml.datafeed.esql.EsqlParserTestSupport;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.junit.After;
 import org.junit.Before;
@@ -79,7 +79,7 @@ import static org.mockito.Mockito.when;
 
 public class EsqlDataExtractorTests extends ESTestCase {
 
-    private static final EsqlQueryParser PARSER = new EsqlDatafeedQueryParser();
+    private static final BoundEsqlQueryParser PARSER = EsqlParserTestSupport.parser();
 
     private static final String DEFAULT_QUERY = "FROM logs";
     private static final String TIME_FIELD = "ts";
@@ -521,7 +521,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
 
         assertThat(
             extractor.capturedOrderedQuery,
-            equalTo(DEFAULT_QUERY + "\n| STATS earliest_time = MIN(??timeField), latest_time = MAX(??timeField), total_hits = COUNT(*)")
+            equalTo(DEFAULT_QUERY + " | STATS earliest_time = MIN(??timeField), latest_time = MAX(??timeField), total_hits = COUNT(*)")
         );
         assertThat(extractor.capturedParams, equalTo(List.of(new EsqlQueryParam("timeField", TIME_FIELD, IDENTIFIER))));
         assertThat(extractor.capturedTimeFilter, equalTo(new RangeQueryBuilder(TIME_FIELD).gte(1000L).lt(9000L).format("epoch_millis")));
@@ -627,7 +627,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
         assertThat(extractor.capturedQueries.size(), equalTo(2));
         assertThat(
             extractor.capturedQueries.get(0),
-            equalTo("FROM logs\n| STATS earliest_time = MIN(??timeField), latest_time = MAX(??timeField), total_hits = COUNT(*)")
+            equalTo("FROM logs | STATS earliest_time = MIN(??timeField), latest_time = MAX(??timeField), total_hits = COUNT(*)")
         );
         assertThat(extractor.capturedQueries.get(1), equalTo(aggregatingQuery + "\n| STATS probe_output_rows = COUNT(*)"));
         assertThat(
@@ -651,7 +651,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
 
         assertThat(
             extractor.capturedQueries.get(0),
-            equalTo("FROM logs\n| STATS earliest_time = MIN(??timeField), latest_time = MAX(??timeField), total_hits = COUNT(*)")
+            equalTo("FROM logs | STATS earliest_time = MIN(??timeField), latest_time = MAX(??timeField), total_hits = COUNT(*)")
         );
     }
 

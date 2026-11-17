@@ -319,7 +319,7 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedJobBuilder;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry;
-import org.elasticsearch.xpack.ml.datafeed.esql.UnavailableEsqlQueryParser;
+import org.elasticsearch.xpack.ml.datafeed.esql.BoundEsqlQueryParser;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
 import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDatafeedQueryValidator;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
@@ -607,9 +607,9 @@ public class MachineLearning extends Plugin
     }
 
     /** The ES|QL query parser the ES|QL plugin provides, or one that rejects ES|QL datafeeds when there is none. */
-    EsqlQueryParser esqlQueryParser() {
+    BoundEsqlQueryParser esqlQueryParser(ClusterService clusterService) {
         EsqlQueryParser parser = esqlQueryParser.get();
-        return parser != null ? parser : new UnavailableEsqlQueryParser();
+        return parser != null ? BoundEsqlQueryParser.of(parser, clusterService) : BoundEsqlQueryParser.unavailable();
     }
 
     // This is not used in v8 and higher, but users are still prevented from setting it directly to avoid confusion
@@ -1147,7 +1147,11 @@ public class MachineLearning extends Plugin
         if (enabled == false) {
             // Holders for @link(MachineLearningFeatureSetUsage) which needs access to job manager and ML extension,
             // both empty if ML is disabled
-            return List.of(new JobManagerHolder(), new MachineLearningExtensionHolder(), new EsqlQueryParserHolder(esqlQueryParser()));
+            return List.of(
+                new JobManagerHolder(),
+                new MachineLearningExtensionHolder(),
+                new EsqlQueryParserHolder(esqlQueryParser(clusterService))
+            );
         }
 
         machineLearningExtension.get().configure(environment.settings());
@@ -1205,7 +1209,7 @@ public class MachineLearning extends Plugin
             resultsPersisterService,
             anomalyDetectionAuditor
         );
-        EsqlDatafeedQueryValidator esqlDatafeedQueryValidator = new EsqlDatafeedQueryValidator(esqlQueryParser());
+        EsqlDatafeedQueryValidator esqlDatafeedQueryValidator = new EsqlDatafeedQueryValidator(esqlQueryParser(clusterService));
         JobConfigProvider jobConfigProvider = new JobConfigProvider(
             client,
             xContentRegistry,
@@ -1345,7 +1349,7 @@ public class MachineLearning extends Plugin
             clusterService,
             () -> machineLearningExtension.get().getCloudCredentialManager(),
             datafeedSearchTelemetry,
-            esqlQueryParser()
+            esqlQueryParser(clusterService)
         );
         DatafeedContextProvider datafeedContextProvider = new DatafeedContextProvider(
             jobConfigProvider,
@@ -1625,7 +1629,7 @@ public class MachineLearning extends Plugin
             deploymentManager.get(),
             nodeAvailabilityZoneMapper,
             new MachineLearningExtensionHolder(machineLearningExtension.get()),
-            new EsqlQueryParserHolder(esqlQueryParser()),
+            new EsqlQueryParserHolder(esqlQueryParser(clusterService)),
             mlMetrics,
             mlConfigMetrics,
             deploymentPathUnsafeIdTelemetry

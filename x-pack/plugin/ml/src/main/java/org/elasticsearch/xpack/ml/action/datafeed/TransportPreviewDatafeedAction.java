@@ -52,7 +52,7 @@ import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
 import org.elasticsearch.xpack.ml.EsqlQueryParserHolder;
 import org.elasticsearch.xpack.ml.MachineLearningExtensionHolder;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
-import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
+import org.elasticsearch.xpack.ml.datafeed.esql.BoundEsqlQueryParser;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
@@ -81,7 +81,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
     private final DatafeedConfigProvider datafeedConfigProvider;
     private final NamedXContentRegistry xContentRegistry;
     private final SecurityContext securityContext;
-    private final EsqlQueryParser esqlQueryParser;
+    private final BoundEsqlQueryParser esqlQueryParser;
     private final CrossProjectModeDecider crossProjectModeDecider;
     private final CloudCredentialManager cloudCredentialManager;
 

@@ -98,12 +98,9 @@ public final class Messages {
     public static final String DATAFEED_ESQL_PROBE_UNKNOWN_ERROR = "unknown error";
     public static final String DATAFEED_ESQL_EXPECTED_DATE_VALUE = "expected date value";
     public static final String DATAFEED_ESQL_EXPECTED_NUMERIC_TIMESTAMP = "expected numeric timestamp";
-    public static final String DATAFEED_ESQL_OUTER_TIME_WHERE_WARNING =
-        "{0} query contains an outer WHERE clause on job time field [{1}]; remove the time-field WHERE clause because ML owns the request "
-            + "window.";
-    public static final String DATAFEED_ESQL_OUTER_TIME_SORT_WARNING =
-        "{0} query contains an outer SORT clause on job time field [{1}]; remove or change the time-field SORT clause because ML owns the "
-            + "request order.";
+    public static final String DATAFEED_ESQL_OUTER_TIME_FILTER_NOT_SUPPORTED =
+        "{0} query contains a WHERE clause on job time field [{1}]. ES|QL datafeeds do not support a time filter in esql_query "
+            + "because ML owns the request window. Remove the time-field WHERE clause.";
     public static final String DATAFEED_ESQL_OUTER_LIMIT_WARNING =
         "{0} query contains an outer LIMIT [{1}]. ML sets the row limit. Remove the LIMIT.";
     public static final String DATAFEED_ESQL_OUTER_LIMIT_DELAYED_DATA_WARNING =
@@ -133,9 +130,6 @@ public final class Messages {
         "ES|QL datafeeds do not support SET project_routing in esql_query. Set project_routing on the datafeed.";
     public static final String DATAFEED_ESQL_TIME_ZONE_SETTING_NOT_UTC =
         "ES|QL datafeeds require the UTC time zone. The esql_query sets time_zone to [{0}]. Remove the SET time_zone statement.";
-    public static final String DATAFEED_ESQL_LIMIT_BEFORE_STATS_WARNING =
-        "{0} query applies LIMIT [{1}] before an aggregation (STATS). The LIMIT restricts the source rows in each extraction window. "
-            + "Aggregated values can be incomplete and depend on chunking. Use SAMPLE or remove the LIMIT to reduce the data volume.";
     public static final String DATAFEED_ESQL_UPDATE_QUERY_SHAPE_IMMUTABLE =
         "Recreate ES|QL datafeed [{0}] to change esql_query, source_time_field, grouping_interval, indices, query, "
             + "aggregations, scroll_size, indices_options, or runtime_mappings. The update API only supports operational "

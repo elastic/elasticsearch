@@ -193,7 +193,8 @@ public class Clusters {
      * one thread and every read after the first is submitted by a thread released by the previous read's completion.
      */
     public static ElasticsearchCluster securityEnabledTestCluster(Supplier<String> s3EndpointSupplier) {
-        return clusterBuilder(s3EndpointSupplier, DATASET_ENCRYPTION_CONFIG, true).setting("esql.external.max_concurrent_requests", "1")
+        return clusterBuilder(s3EndpointSupplier, DATASET_ENCRYPTION_CONFIG, true).nodes(3)
+            .setting("esql.external.max_concurrent_requests", "1")
             .user(SECURITY_USER, SECURITY_PASSWORD, "superuser", true)
             .build();
     }

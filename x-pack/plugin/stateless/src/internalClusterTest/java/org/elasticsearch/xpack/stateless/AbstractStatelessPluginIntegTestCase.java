@@ -190,6 +190,7 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
     // TODO(szybia): remove once merge blobs are uploaded for real
     private MockLog mergeBlobLogCapture;
     // Drawn once per test so that all nodes share the same recovery throttling configuration
+    // Note that individual tests can override those settings.
     private Settings recoveryThrottlingSettings = Settings.EMPTY;
 
     @Before
@@ -207,7 +208,10 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
         }
         if (randomBoolean()) {
             recoveryThrottlingSettings = randomDataNodeRecoveryThrottlingSettings();
-            logger.info("Overriding recovery throttling settings with: {}", recoveryThrottlingSettings);
+            logger.info(
+                "Configuring data node recovery throttling settings (individual tests then may override some of them): {}",
+                recoveryThrottlingSettings
+            );
         }
         if (MERGE_BLOBS_ENABLED) {
             final boolean injectMergeBlobs = randomBoolean();
@@ -1461,6 +1465,32 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
         return Settings.builder()
             .put(IndexingMemoryController.SHARD_MEMORY_INTERVAL_TIME_SETTING.getKey(), TimeValue.timeValueHours(1L))
             .put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), TimeValue.MINUS_ONE)
+            .build();
+    }
+
+    /// Settings that lift the data node recovery throttling (DNRT) limits on incoming recoveries.
+    protected static Settings unthrottledIncomingRecoveryNodeSettings() {
+        return Settings.builder()
+            .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE)
+            .put(
+                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
+                Double.MAX_VALUE
+            )
+            .put(
+                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING.getKey(),
+                "100%"
+            )
+            .build();
+    }
+
+    /// Settings that lift the data node recovery throttling (DNRT) limits on outgoing recoveries.
+    protected static Settings unthrottledOutgoingRecoveryNodeSettings() {
+        return Settings.builder()
+            .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE)
+            .put(
+                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
+                Double.MAX_VALUE
+            )
             .build();
     }
 

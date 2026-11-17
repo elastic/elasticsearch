@@ -39,7 +39,6 @@ import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
@@ -93,15 +92,7 @@ public class BlockRefreshUponIndexCreationIT extends AbstractStatelessPluginInte
             .put("cluster.routing.allocation.node_concurrent_outgoing_recoveries", 3)
             // This test holds the commit registration of every search shard recovering on the single search node and only
             // releases them once all of them are held, so all of those recoveries must be able to run at the same time.
-            .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE)
-            .put(
-                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
-                Double.MAX_VALUE
-            )
-            .put(
-                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING.getKey(),
-                "100%"
-            )
+            .put(unthrottledIncomingRecoveryNodeSettings())
             .build();
         startMasterAndIndexNode(nodeSettings);
         var searchNode = startSearchNode(nodeSettings);
@@ -196,23 +187,7 @@ public class BlockRefreshUponIndexCreationIT extends AbstractStatelessPluginInte
         var maxNumberOfReplicas = randomIntBetween(2, 4);
         // This test holds the commit registration of every recovering search shard and only releases them once all of
         // them are held, so all of those recoveries must be able to run at the same time.
-        var searchNodes = startSearchNodes(
-            maxNumberOfReplicas,
-            Settings.builder()
-                .put(
-                    DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
-                    Integer.MAX_VALUE
-                )
-                .put(
-                    DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
-                    Double.MAX_VALUE
-                )
-                .put(
-                    DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING.getKey(),
-                    "100%"
-                )
-                .build()
-        );
+        var searchNodes = startSearchNodes(maxNumberOfReplicas, unthrottledIncomingRecoveryNodeSettings());
 
         var numberOfIndices = randomIntBetween(2, 4);
         var indices = new ArrayList<String>();

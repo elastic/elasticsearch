@@ -35,7 +35,6 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -393,15 +392,7 @@ public class StatelessIndexBalanceAllocationDeciderIT extends AbstractStatelessP
             // A split target's recovery only completes once its start split request does, and this test stalls every one of
             // those requests until all of them have arrived. All the targets an index node holds must therefore be able to
             // recover at the same time, otherwise the ones left queued never send the request being waited on.
-            .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE)
-            .put(
-                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
-                Double.MAX_VALUE
-            )
-            .put(
-                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING.getKey(),
-                "100%"
-            )
+            .put(unthrottledIncomingRecoveryNodeSettings())
             .build();
         startMasterOnlyNode(settings);
         final var indexNodes = startIndexNodes(2, settings);

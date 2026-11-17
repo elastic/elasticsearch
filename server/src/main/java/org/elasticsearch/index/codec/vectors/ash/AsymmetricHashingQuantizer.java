@@ -329,6 +329,13 @@ public final class AsymmetricHashingQuantizer {
             return new TrainedProjection(ESVectorUtil.transposeMatrix(inheritedWT, nDims, originalDim), inheritedWT, true);
         }
 
+        // No dimensionality reduction: the subspace is the whole space, so there is nothing to refine, and without
+        // Procrustes iterations the rotation applied afterwards is random. Skip the second-moment matrix, as train does.
+        if (nDims == originalDim && nTrainingIterations == 0) {
+            float[] wT = randomOrthogonal(originalDim, nDims);
+            return new TrainedProjection(ESVectorUtil.transposeMatrix(wT, nDims, originalDim), wT, true);
+        }
+
         int trainingSize = Math.min(originalDim * trainingFactor, count);
         float[] secondMoment = buildSecondMoment(vectors, count, centroids, originalDim, trainingSize);
         if (trace(secondMoment, originalDim) <= 0) {

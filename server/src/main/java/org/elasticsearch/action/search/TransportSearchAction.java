@@ -2919,7 +2919,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     SearchResponseMetrics.ResponseCountTotalStatus.SUCCESS;
                 if (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0) {
                     // Deduplicate failures by exception message and index
-                    ShardOperationFailedException[] groupedFailures = ExceptionsHelper.groupBy(searchResponse.getShardFailures());
+                    List<ShardOperationFailedException> groupedFailures = ExceptionsHelper.groupBy(searchResponse.shardFailuresList());
                     for (ShardOperationFailedException f : groupedFailures) {
                         boolean causeHas500Status = false;
                         if (f.getCause() != null) {

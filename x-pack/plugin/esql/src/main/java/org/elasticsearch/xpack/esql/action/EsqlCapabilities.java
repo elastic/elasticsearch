@@ -1445,7 +1445,7 @@ public class EsqlCapabilities {
         /**
          * Support for the {@code exemplars} query setting.
          */
-        EXEMPLARS_SETTING_DEVELOPMENT_V8(Build.current().isSnapshot()),
+        EXEMPLARS_SETTING_RELEASE,
 
         /**
          * Are the {@code documents_found} and {@code values_loaded} fields available
@@ -2136,6 +2136,11 @@ public class EsqlCapabilities {
          * EXPLAIN command with remote plans (5 columns: cluster, node, role, type, plan)
          */
         EXPLAIN_WITH_REMOTE_PLANS(Build.current().isSnapshot()),
+        /**
+         * EXPLAIN command with the JSON form of each plan (6 columns: cluster, node, role, type, plan, plan_json).
+         * Older nodes return the five columns of {@link #EXPLAIN_WITH_REMOTE_PLANS}.
+         */
+        EXPLAIN_WITH_JSON_PLANS(Build.current().isSnapshot()),
         /**
          * Support for the RLIKE operator with a list of regexes.
          */
@@ -4788,6 +4793,14 @@ public class EsqlCapabilities {
          * does for a search on an indexed field, rather than the score from before it.
          */
         RUNTIME_SCORE_FIX,
+
+        /**
+         * A column declared {@code date} over a Parquet column the file renders {@code date_nanos} decodes straight
+         * to milliseconds. The read this widens is {@code TIMESTAMP(MICROS)}: older nodes scaled to nanoseconds
+         * first, so a value outside 1677-09-21 .. 2262-04-11 answered {@code null} although {@code date} covers it.
+         * Gates the csv-spec cases asserting the wider domain, which such nodes still fail.
+         */
+        PARQUET_DECLARED_DATE_READS_MICROS_IN_ONE_STEP,
 
         /**
          * The query-and-tags pushdown of {@code ROUND_TO} (and the {@code DATE_TRUNC} / {@code BUCKET} date histograms

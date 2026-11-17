@@ -648,3 +648,8 @@ tests:
   - :server:internalClusterTest
   method: testDirectoryMetricsLocalAndRemoteMinimizeRoundtripsTrue
   issue: https://github.com/elastic/elasticsearch/issues/166260
+- class: org.elasticsearch.action.search.QueryPhaseTopHitsLeakIT
+  tasks:
+  - :server:internalClusterTest
+  method: testTopHitsReleasedAfterSuccessfulHighlight
+  issue: https://github.com/elastic/elasticsearch/issues/166292

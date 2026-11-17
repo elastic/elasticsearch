@@ -392,9 +392,8 @@ public interface FormatReader extends Closeable {
      * Returns a reader that allocates pages and per-read scratch against {@code blockFactory}.
      * Node-level caches (Parquet/ORC footers) stay bound to the factory the reader was constructed
      * with. The operator applies this immediately before each {@link #read}, {@link #readAsync}, or
-     * {@code readRange} so a query factory charges that query. CSV overrides this; formats that still
-     * allocate on the construction factory (NDJSON, Parquet, ORC) keep this no-op default until they
-     * opt in.
+     * {@code readRange} so a query factory charges that query. CSV, NDJSON, Parquet, and ORC
+     * override this; other formats keep this no-op default.
      * <p>
      * {@code blockFactory} must be safe for concurrent allocations: parallel-parsing workers and
      * {@code esql_external_io} threads may allocate from it at the same time. The default returns

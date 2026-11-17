@@ -1649,7 +1649,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             || shard.state() == IndexShardState.POST_RECOVERY
             : "found shard in unexpected state despite live ticket: " + shardRouting + " in state " + shard.state();
 
-        final FailureStrategy finalStrategy = reviseFinalStrategy(shardRouting, failureStrategy);
+        final FailureStrategy finalStrategy;
+        if (failureStrategy == FailureStrategy.RETRY) {
+            finalStrategy = canRetryRecovery(shardRouting) ? FailureStrategy.RETRY : FailureStrategy.FAIL_SEND;
+        } else {
+            finalStrategy = failureStrategy;
+        }
         final String message = isRecoveryCancellation(failure) ? "recovery cancelled by master" : "failed recovery";
         try {
             CloseUtils.executeDirectly(
@@ -1722,18 +1727,15 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
     }
 
-    private FailureStrategy reviseFinalStrategy(ShardRouting shardRouting, FailureStrategy failureStrategy) {
-        if (failureStrategy != FailureStrategy.RETRY) {
-            return failureStrategy;
-        } else if (localRecoveryRetryEnabled == false) {
+    private boolean canRetryRecovery(ShardRouting shardRouting) {
+        if (localRecoveryRetryEnabled == false) {
             // local recovery retry is disabled
-            return FailureStrategy.FAIL_SEND;
+            return false;
         } else if (shardRouting.recoverySource().getType().equals(Type.RESHARD_SPLIT)) {
             // TODO: Remove RESHARD_SPLIT exclusion once local retries support it (elasticsearch-team/#5759)
-            return FailureStrategy.FAIL_SEND;
-        } else {
-            return FailureStrategy.RETRY;
+            return false;
         }
+        return true;
     }
 
     private synchronized void retryRecovery(

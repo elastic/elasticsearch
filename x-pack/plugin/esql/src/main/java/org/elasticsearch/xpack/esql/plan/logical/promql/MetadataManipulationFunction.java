@@ -17,9 +17,12 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataSet;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlBuiltinFunctionDefinitions;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
@@ -32,6 +35,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.Inter
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.finite;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.union;
@@ -201,10 +205,30 @@ public final class MetadataManipulationFunction extends PromqlFunctionCall {
         Expression destinationValue = definition() == PromqlBuiltinFunctionDefinitions.LABEL_REPLACE
             ? labelReplaceValue(context, source, aggregated)
             : labelJoinValue(context, source, aggregated);
+        if (context.containerFunctions()) {
+            // An empty value removes the label, as in Prometheus: the destination reads as absent, like a label never set.
+            Expression empty = new Equals(source, destinationValue, Literal.keyword(source, ""));
+            destinationValue = new Case(source, empty, List.of(new Literal(source, null, DataType.KEYWORD), destinationValue));
+        }
 
         String name = TranslationContext.mapFinite(destination);
         Alias derived = new Alias(source, destination.name(), destinationValue, destination.id());
         LogicalPlan plan = new Eval(context.cmd().source(), aggregated.plan(), List.of(derived));
+        boolean opaque = aggregated.schema().isOpen();
+        if (context.containerFunctions() && opaque) {
+            // The label is written into every packing holding it too, so the series' identity is the relabeled one.
+            var packings = new ArrayList<Alias>();
+            for (var skip : aggregated.schema().skips()) {
+                if (skip.contains(name) == false) {
+                    Attribute packing = aggregated.packed(skip);
+                    var written = new TimeSeriesMetadataSet(source, packing, Literal.keyword(source, name), derived.toAttribute());
+                    packings.add(new Alias(source, packing.name(), written));
+                }
+            }
+            if (packings.isEmpty() == false) {
+                plan = new Eval(context.cmd().source(), plan, packings);
+            }
+        }
         var unshadowed = new ArrayList<NamedExpression>();
         for (Attribute attribute : plan.output()) {
             if (attribute.id().equals(derived.id()) || TranslationContext.mapFinite(attribute).equals(name) == false) {
@@ -215,6 +239,27 @@ public final class MetadataManipulationFunction extends PromqlFunctionCall {
             plan = new Project(context.cmd().source(), plan, unshadowed);
         }
         TranslationSchema schema = union(aggregated.schema(), finite(List.of(name)));
+        // A relabel that may overwrite a label can leave two series with one label set, which Prometheus fails. The check reads
+        // every label of a series, so only where the packing and the label columns hold them all.
+        Set<String> finest = schema.finestSkip();
+        boolean overwrites = aggregated.label(name) != null
+            || opaque
+                && finest.contains(name) == false
+                && context.cmd().child().output().stream().anyMatch(field -> PromqlLabels.labelName(field).equals(name));
+        if (context.containerFunctions() && overwrites && finest != null && schema.labels().containsAll(finest)) {
+            var labels = new ArrayList<Attribute>();
+            Attribute packing = opaque ? TranslationContext.find(plan.output(), TranslationContext.mapOpen(schema.finestSkip())) : null;
+            if (packing != null) {
+                labels.add(packing);
+            }
+            for (String label : schema.labels()) {
+                Attribute column = TranslationContext.find(plan.output(), label);
+                if (column != null) {
+                    labels.add(column);
+                }
+            }
+            plan = TranslationContext.uniqueSeries(context.cmd().source(), plan, aggregated.step(), labels);
+        }
         return new IntermediateResult(
             plan,
             schema,

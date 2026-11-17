@@ -46,8 +46,10 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerator;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.DistinctBy;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -72,6 +74,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -209,7 +212,28 @@ public record TranslationContext(
         }
         Attribute packed = table.packed(skip);
         assert packed != null : "invariant: packing " + skip + " must be carried by the finished table";
-        Expression value = containerFunctions() ? canonical(packed) : packed;
+        Expression value = packed;
+        if (containerFunctions()) {
+            // A label the command outputs as a column of its own is left out of _timeseries, so each label shows once; a
+            // sort_by_label key is a column only to sort by.
+            var sortKeys = new HashSet<String>();
+            for (SortByLabelFunction sort : cmd.promqlPlan().collect(SortByLabelFunction.class)) {
+                sort.usableSortLabels().forEach(label -> sortKeys.add(mapFinite(label)));
+            }
+            var promoted = new TreeSet<String>();
+            for (Attribute attribute : cmd.output()) {
+                String name = attribute.name();
+                String label = mapFinite(attribute);
+                if (MetadataAttribute.isTimeSeriesAttributeName(name) == false
+                    && name.equals(cmd.valueColumnName()) == false
+                    && name.equals(cmd.stepColumnName()) == false
+                    && skip.contains(label) == false
+                    && sortKeys.contains(label) == false) {
+                    promoted.add(label);
+                }
+            }
+            value = unset(packed, promoted.stream());
+        }
         return new Eval(cmd.source(), table.plan(), List.of(new Alias(cmd.source(), MetadataAttribute.TIMESERIES, value, id)));
     }
 
@@ -463,14 +487,21 @@ public record TranslationContext(
 
     /**
      * A finished table over {@code plan}, whose labels are the label container {@code labels}: every label column {@code wanted}
-     * names reads its values out of it, and every packing leaves its labels out of it. The labels of {@code wanted} stand
-     * beside the packing of every other label, which takes the place of a whole-label-set packing, so a label shows once.
+     * names reads its values out of it, and every packing leaves its labels out of it. The {@code promoted} labels, the ones
+     * a node declares as its own columns, stand beside the packing of every other label, which takes the place of a
+     * whole-label-set packing, so a label shows once.
      */
-    public IntermediateResult fromLabels(LogicalPlan plan, Attribute labels, TranslationSchema wanted, Attribute value, Attribute step) {
+    public IntermediateResult fromLabels(
+        LogicalPlan plan,
+        Attribute labels,
+        TranslationSchema wanted,
+        Set<String> promoted,
+        Attribute value,
+        Attribute step
+    ) {
         Source source = cmd.source();
         var columns = new ArrayList<Alias>();
         var skips = new LinkedHashSet<Set<String>>();
-        Set<String> promoted = new TreeSet<>(wanted.labels());
         for (Set<String> skip : wanted.skips()) {
             skips.add(skip.isEmpty() ? promoted : skip);
         }
@@ -490,6 +521,22 @@ public record TranslationContext(
             null,
             Kind.AFTER_INITIAL_AGGREGATE
         );
+    }
+
+    /**
+     * {@code plan} failing the query where two of its series share a label set at a step, as Prometheus fails a result
+     * vector holding one label set twice. {@code labels} are the columns the label set reads from.
+     */
+    public static LogicalPlan uniqueSeries(Source source, LogicalPlan plan, Attribute step, List<Attribute> labels) {
+        // Binary, not keyword: a sort the optimizer pushes below the result's projection carries it along. Named apart from
+        // a join key packed below.
+        Attribute packed = PackDims.newPackedAttribute(
+            source,
+            TemporaryNameGenerator.locallyUniqueTemporaryName(PackDims.PACKED_FIELD_NAME)
+        );
+        var keys = new ArrayList<Attribute>(List.of(step));
+        keys.addAll(labels);
+        return new DistinctBy(source, new PackDims(source, plan, keys, packed), packed, true);
     }
 
     /** {@code packing} leaving {@code labels} out as well: the canonical label container of the remaining labels. */

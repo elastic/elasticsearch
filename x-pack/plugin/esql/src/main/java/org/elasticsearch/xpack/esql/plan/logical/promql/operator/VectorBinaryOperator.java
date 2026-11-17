@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesReduction;
+import org.elasticsearch.xpack.esql.plan.logical.promql.MetadataManipulationFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan;
@@ -362,6 +363,11 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         if (this instanceof VectorBinaryComparison comparison && comparison.filterMode()) {
             return true;
         }
+        // A relabel changes the series' labels, which one shared aggregate does not carry for both operands.
+        if (left().anyMatch(MetadataManipulationFunction.class::isInstance)
+            || right().anyMatch(MetadataManipulationFunction.class::isInstance)) {
+            return true;
+        }
         if (hasSourceBackedExpression(left()) == false || hasSourceBackedExpression(right()) == false) {
             return false;
         }
@@ -507,12 +513,17 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         Attribute step = probe.step();
         Alias stepAlias = new Alias(step.source(), step.name(), step, context.stepAttr().id());
         Alias valueAlias = new Alias(source(), cmd.valueColumnName(), value, new NameId());
-        var definitions = new ArrayList<Alias>(List.of(valueAlias, stepAlias));
         Alias labelsAlias = labels == null ? null : new Alias(source(), RESULT_LABELS, labels, new NameId());
+        LogicalPlan plan = join;
         if (labelsAlias != null) {
-            definitions.add(labelsAlias);
+            plan = new Eval(cmd.source(), plan, List.of(labelsAlias));
+            if (match.grouping() != Joining.NONE) {
+                // Prometheus fails a group_left/group_right match before it compares values: copying the one side's labels
+                // over the many side's can leave two many side series with the same labels.
+                plan = TranslationContext.uniqueSeries(cmd.source(), plan, step, List.of(labelsAlias.toAttribute()));
+            }
         }
-        LogicalPlan plan = new Eval(cmd.source(), join, definitions);
+        plan = new Eval(cmd.source(), plan, List.of(valueAlias, stepAlias));
         if (filter != null) {
             plan = new Filter(source(), plan, filter);
         }
@@ -532,14 +543,16 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
             );
         }
         // The labels the operator declares, and whatever the enclosing translation requires, read out of the result labels.
-        var declared = new LinkedHashSet<String>(context.required().labels());
+        var declared = new TreeSet<String>();
         for (Attribute attribute : output()) {
             if (MetadataAttribute.isTimeSeriesAttributeName(attribute.name()) == false) {
                 declared.add(TranslationContext.mapFinite(attribute));
             }
         }
-        TranslationSchema wanted = new TranslationSchema(declared, context.required().skips());
-        return context.fromLabels(plan, labelsAlias.toAttribute(), wanted, valueAlias.toAttribute(), stepAlias.toAttribute());
+        var columns = new LinkedHashSet<String>(context.required().labels());
+        columns.addAll(declared);
+        TranslationSchema wanted = new TranslationSchema(columns, context.required().skips());
+        return context.fromLabels(plan, labelsAlias.toAttribute(), wanted, declared, valueAlias.toAttribute(), stepAlias.toAttribute());
     }
 
     /** The labels two series match on: Prometheus' signature. */
@@ -743,6 +756,12 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         List<Alias> definitions = new ArrayList<>(List.of(valueAlias, stepAlias));
         definitions.addAll(defined(output));
         LogicalPlan plan = new Eval(cmd.source(), join, definitions);
+        if (match.grouping() != Joining.NONE) {
+            // Prometheus fails a group_left/group_right match before it compares values: copying the one side's labels over
+            // the many side's can leave two many side series with the same labels.
+            List<Attribute> labels = output.stream().map(NamedExpression::toAttribute).toList();
+            plan = TranslationContext.uniqueSeries(cmd.source(), plan, stepAlias.toAttribute(), labels);
+        }
         if (filter != null) {
             plan = new Filter(source(), plan, filter);
         }

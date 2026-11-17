@@ -1480,7 +1480,7 @@ public class SnapshotsWithReshardingIT extends AbstractStatelessPluginIntegTestC
         return super.nodeSettings().put(RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.getKey(), TimeValue.ZERO)
             // Split targets recover as non-critical shards, and restoreOverOpenIndexWhileResharding holds the state update
             // request of every target at once, releasing them only once all of them are held. They must therefore all be
-            // able to recover at the same time: a target whose recovery is queued never sends the request being waited on.
+            // able to recover at the same time.
             .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE)
             .put(
                 DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),

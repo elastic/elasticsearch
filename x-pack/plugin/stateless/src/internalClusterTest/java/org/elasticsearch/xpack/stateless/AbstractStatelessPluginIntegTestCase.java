@@ -188,7 +188,6 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
     private boolean useBasePath;
     private boolean hollowIndexShardsDisabled;
     private boolean hollowIndexShardsZeroTtl;
-    private boolean throttleRecoveriesOnDataNodes;
     // TODO(szybia): remove once merge blobs are uploaded for real
     private MockLog mergeBlobLogCapture;
 
@@ -198,7 +197,6 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
             ? between(1, 10)
             : StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getDefault(Settings.EMPTY);
         useBasePath = randomBoolean();
-        throttleRecoveriesOnDataNodes = randomBoolean();
         if (randomBoolean()) {
             // Randomly disable hollow shards
             hollowIndexShardsDisabled = true;
@@ -523,10 +521,9 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
             var cacheBoostPreference = StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING;
             builder.put(cacheBoostPreference.getKey(), cacheBoostPreference.getDefault(Settings.EMPTY));
         }
-        // if (throttleRecoveriesOnDataNodes) {
-        // builder.put(randomDataNodeRecoveryThrottlingSettings());
-        // }
-        builder.put(randomDataNodeRecoveryThrottlingSettings());
+        if (randomBoolean()) {
+            builder.put(randomDataNodeRecoveryThrottlingSettings());
+        }
         return builder;
     }
 
@@ -537,8 +534,7 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
     private static Settings randomDataNodeRecoveryThrottlingSettings() {
         // Bounds of the effective concurrent recovery limits drawn below.
         final int minConcurrentRecoveries = 1;
-        // final int maxConcurrentRecoveries = 10;
-        final int maxConcurrentRecoveries = 1;
+        final int maxConcurrentRecoveries = 10;
         return Settings.builder()
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE)
             .put(

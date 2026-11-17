@@ -192,10 +192,8 @@ public class BlockRefreshUponIndexCreationIT extends AbstractStatelessPluginInte
                 .build()
         );
         var maxNumberOfReplicas = randomIntBetween(2, 4);
-        // This test holds the commit registration of every recovering search shard and only releases them once all of them are
-        // held, so all of those recoveries must be able to run at the same time. An incoming limit below the number of search
-        // shards a node recovers would leave the last ones queued, and a queued recovery never sends the registration being
-        // waited on.
+        // This test holds the commit registration of every recovering search shard and only releases them once all of
+        // them are held, so all of those recoveries must be able to run at the same time.
         var searchNodes = startSearchNodes(
             maxNumberOfReplicas,
             Settings.builder()

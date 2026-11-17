@@ -136,9 +136,12 @@ This value doesn't include the object storage reads {{es}} made while planning t
 
 ## Monitor S3 usage over time [s3-monitor-usage]
 
-You can track S3 usage directly from {{es}} or from AWS.
+You can track S3 usage directly from {{es}} or from AWS. {applies_to}`serverless: preview` {{serverless-short}} projects don't expose the usage API, so use the AWS method.
 
 ### From {{es}} [s3-monitor-cluster]
+```{applies_to}
+stack: preview 9.6+
+```
 
 The [usage API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-xpack-usage) (`GET /_xpack/usage`) reports cumulative counters for Data Federation under `esql.datasources.storage`. The counters cover every query, including queries from {{kib}}, and add up all nodes since each node started.
 

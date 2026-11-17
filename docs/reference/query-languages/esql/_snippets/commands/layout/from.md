@@ -102,7 +102,7 @@ FROM employees-00001,other-employees-*
 ### Query a dataset
 ```{applies_to}
 stack: preview 9.6+, experimental =9.5
-serverless: unavailable
+serverless: preview
 ```
 
 Use a [dataset](/reference/query-languages/esql/esql-data-federation-datasets.md) name to query external data through [{{esql}} Data Federation](/reference/query-languages/esql/esql-data-federation.md):

@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.esql.datasources.spi.AdmissionGate;
 import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 import org.elasticsearch.xpack.esql.datasources.spi.QueryAdmission;
@@ -61,17 +63,21 @@ class ConcurrencyBudgetAllocator implements AdmissionGate {
 
     /**
      * Registers a new source-node and returns its concurrency budget. Existing budgets are
-     * rebalanced to accommodate the new entrant.
+     * rebalanced to accommodate the new entrant. {@code queryId} is stall/debug identity only.
      */
     QueryConcurrencyBudget register() {
+        return register(null);
+    }
+
+    QueryConcurrencyBudget register(@Nullable TaskId queryId) {
         if (totalBudget <= 0) {
             return QueryConcurrencyBudget.UNLIMITED;
         }
-        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(MIN_PERMITS_PER_QUERY, acquireTimeoutMs, this, tracker);
+        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(MIN_PERMITS_PER_QUERY, acquireTimeoutMs, this, tracker, queryId);
         activeBudgets.add(budget);
         rebalance();
         int count = activeBudgets.size();
-        logger.debug("Registered query budget, active sources [{}], per-source permits [{}]", count, computePerQuery(count));
+        logger.debug("Registered query budget [{}], active sources [{}], per-source permits [{}]", queryId, count, computePerQuery(count));
         return budget;
     }
 
@@ -82,7 +88,12 @@ class ConcurrencyBudgetAllocator implements AdmissionGate {
         if (activeBudgets.remove(budget)) {
             rebalance();
             int count = activeBudgets.size();
-            logger.debug("Deregistered query budget, active sources [{}], per-source permits [{}]", count, computePerQuery(count));
+            logger.debug(
+                "Deregistered query budget [{}], active sources [{}], per-source permits [{}]",
+                budget.queryId(),
+                count,
+                computePerQuery(count)
+            );
         }
     }
 

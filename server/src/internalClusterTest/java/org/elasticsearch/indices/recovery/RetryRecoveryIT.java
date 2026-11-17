@@ -9,6 +9,7 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
@@ -31,7 +32,9 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockIndexEventListener;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.disruption.NetworkDisruption;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -231,6 +234,10 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         }
     }
 
+    @TestLogging(
+        reason = "waiting for the recovery-aborted log line to confirm termination",
+        value = "org.elasticsearch.indices.cluster.IndicesClusterStateService:TRACE"
+    )
     public void testDontRetryAfterShardClosedDuringRecoveryFromEmptyStore() {
         String node = internalCluster().startNode();
         String indexName = randomIndexName();
@@ -248,8 +255,19 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             internalCluster().getInstance(IndicesService.class, node)
                 .indexServiceSafe(resolveIndex(indexName))
                 .removeShard(0, "test", internalCluster().getInstance(ThreadPool.class, node).generic(), closed);
-            safeAwait(recoveryBarrier);
-            safeGet(closed);
+            // Recovery must ABORT on CLOSED shard
+            MockLog.awaitLogger(() -> {
+                safeAwait(recoveryBarrier);
+                safeGet(closed);
+            },
+                IndicesClusterStateService.class,
+                new MockLog.SeenEventExpectation(
+                    "recovery aborted",
+                    IndicesClusterStateService.class.getCanonicalName(),
+                    Level.TRACE,
+                    "recovery aborted"
+                )
+            );
 
             assertThat(recoveryCounter.get(), equalTo(1));
             assertThat(
@@ -261,6 +279,10 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         }
     }
 
+    @TestLogging(
+        reason = "waiting for the recovery-aborted log line to confirm termination",
+        value = "org.elasticsearch.indices.cluster.IndicesClusterStateService:TRACE"
+    )
     public void testDontRetryAfterShardClosedDuringRecoveryFromExistingStore() {
         String node = internalCluster().startNode();
         String indexName = randomIndexName();
@@ -284,8 +306,19 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             internalCluster().getInstance(IndicesService.class, node)
                 .indexServiceSafe(resolveIndex(indexName))
                 .removeShard(0, "test", internalCluster().getInstance(ThreadPool.class, node).generic(), closed);
-            safeAwait(recoveryBarrier);
-            safeGet(closed);
+            // Recovery must ABORT on CLOSED shard
+            MockLog.awaitLogger(() -> {
+                    safeAwait(recoveryBarrier);
+                    safeGet(closed);
+                },
+                IndicesClusterStateService.class,
+                new MockLog.SeenEventExpectation(
+                    "recovery aborted",
+                    IndicesClusterStateService.class.getCanonicalName(),
+                    Level.TRACE,
+                    "recovery aborted"
+                )
+            );
 
             assertThat(recoveryCounter.get(), equalTo(1));
             // EXISTING_STORE inactive primaries are RED (see ClusterShardHealth#getInactivePrimaryHealth)
@@ -295,6 +328,10 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         }
     }
 
+    @TestLogging(
+        reason = "waiting for the recovery-aborted log line to confirm termination",
+        value = "org.elasticsearch.indices.cluster.IndicesClusterStateService:TRACE"
+    )
     public void testDontRetryAfterShardClosedDuringRecoveryFromLocalShard() {
         String node = internalCluster().startNode();
         final var sourceIndexName = randomIndexName();
@@ -322,8 +359,19 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             internalCluster().getInstance(IndicesService.class, node)
                 .indexServiceSafe(resolveIndex(targetIndexName))
                 .removeShard(0, "test", internalCluster().getInstance(ThreadPool.class, node).generic(), closed);
-            safeAwait(recoveryBarrier);
-            safeGet(closed);
+            // Recovery must ABORT on CLOSED shard
+            MockLog.awaitLogger(() -> {
+                    safeAwait(recoveryBarrier);
+                    safeGet(closed);
+                },
+                IndicesClusterStateService.class,
+                new MockLog.SeenEventExpectation(
+                    "recovery aborted",
+                    IndicesClusterStateService.class.getCanonicalName(),
+                    Level.TRACE,
+                    "recovery aborted"
+                )
+            );
 
             assertThat(recoveryCounter.get(), equalTo(1));
             assertThat(
@@ -335,6 +383,10 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         }
     }
 
+    @TestLogging(
+        reason = "waiting for the recovery-aborted log line to confirm the race has settled",
+        value = "org.elasticsearch.indices.cluster.IndicesClusterStateService:TRACE"
+    )
     public void testDontRetryAfterShardClosedDuringRecoveryFromSnapshot() {
         String node = internalCluster().startNode();
         final var indexName = randomIndexName();
@@ -368,8 +420,19 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             internalCluster().getInstance(IndicesService.class, node)
                 .indexServiceSafe(resolveIndex(indexName))
                 .removeShard(0, "test", internalCluster().getInstance(ThreadPool.class, node).generic(), closed);
-            safeAwait(recoveryBarrier);
-            safeGet(closed);
+            // Recovery must ABORT on CLOSED shard
+            MockLog.awaitLogger(() -> {
+                    safeAwait(recoveryBarrier);
+                    safeGet(closed);
+                },
+                IndicesClusterStateService.class,
+                new MockLog.SeenEventExpectation(
+                    "recovery aborted",
+                    IndicesClusterStateService.class.getCanonicalName(),
+                    Level.TRACE,
+                    "recovery aborted"
+                )
+            );
 
             assertThat(recoveryCounter.get(), equalTo(1));
             assertThat(

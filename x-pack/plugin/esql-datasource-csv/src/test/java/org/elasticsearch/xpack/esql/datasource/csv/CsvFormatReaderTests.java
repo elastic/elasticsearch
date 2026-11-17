@@ -9166,8 +9166,9 @@ public class CsvFormatReaderTests extends ESTestCase {
             // Batch conversion over materialized String[] rows: the regular branch, then the zero-column COUNT(*) branch.
             new Walker("batch/projected", csv, false, Map.of("multi_value_syntax", "NONE"), List.of("id", "tags")),
             new Walker("batch/count-star", csv, false, Map.of("multi_value_syntax", "NONE"), List.of()),
-            // Direct-to-block, one walker per grammar. The quoted dialect enters through the optimistic walker and
-            // hands the whole row to the full quoted walker as soon as a field opens with a quote.
+            // Direct-to-block, three walkers. The quoted dialect enters through the optimistic walker and hands the
+            // whole row to the full quoted walker as soon as a field opens with a quote; escaped mode never reaches
+            // this path at all, since directEligible requires decodesEscapes() == false.
             new Walker("direct/plain", csv, true, Map.of("multi_value_syntax", "NONE", "mode", "plain"), List.of("id", "tags")),
             new Walker(
                 "direct/optimistic-quoted",

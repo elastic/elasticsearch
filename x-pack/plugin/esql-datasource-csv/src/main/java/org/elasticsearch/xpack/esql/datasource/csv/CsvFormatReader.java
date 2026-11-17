@@ -6355,7 +6355,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
         /**
          * Whether a row of {@code actualFields} fields falls outside the width its binding allows: the file's header
-         * width under by-name binding, the schema's under positional binding.
+         * width when the schema binds by name, the schema's own width when it binds by position. A declared headerless
+         * file states no width, so its limit is {@link HeaderBinding#NO_FILE_WIDTH} and this is never true there.
          *
          * <p>It decides only that. A caller that gets {@code true} still raises the error itself, because what a
          * rejection costs differs: the materialized path has nothing staged to discard and moves to the next row,
@@ -6379,11 +6380,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
         /**
          * Closes out a direct-path row once its last field is consumed, which is the first moment the row is whole:
-         * enforce the width rule, surface any field errors the walk staged, then null-fill the projected columns whose
-         * source index falls past the row's trailing edge.
+         * enforce the width rule, surface any field errors the walk staged, then null-fill every projected column the
+         * row has no field for -- past its trailing edge, or {@link #ABSENT_FIELD} because the file lacks that column.
          *
-         * <p>The three grammar walkers share this; the fused projected walker does not, because it interleaves
-         * trailing-field handling with its own fill.
+         * <p>The three direct walkers share this -- plain, and the quoted dialect's optimistic and full walkers. The
+         * fused projected walker does not, because it interleaves trailing-field handling with its own fill.
          *
          * <p>Allocation-sensitive: {@link #directRawLine()} materializes the record as a {@link String}, and the
          * {@code hasPendingErrors} short-circuit is what keeps a clean row from paying for it. A row that staged a
@@ -7076,7 +7077,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             boolean presentTrailingEmpty = fieldIndex > 0;
             int totalFields = (trailingFieldHasContent || presentTrailingEmpty) ? fieldIndex + 1 : fieldIndex;
             if (rowWidthRejected(totalFields)) {
-                // The structural error wins (see the direct walkers).
+                // The structural error wins: a row this wide has no meaningful columns to report field errors about.
                 clearPendingErrors();
                 onRowError(rowTooWideMessage(totalFields), null, line, true);
                 return false;

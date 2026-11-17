@@ -188,8 +188,9 @@ public class RowInTableLookupOperatorTests extends OperatorTestCase {
 
     /**
      * The driver that built the table can finish, closing its local breaker, while another driver still uses the
-     * table. Bytes released to a closed local breaker never reach its parent, so the table must be charged to the
-     * parent.
+     * table. A closed local breaker keeps up to its maximum over-reservation of the bytes released to it, so the
+     * table must be charged to the parent. These local breakers never pass released bytes on, which makes a wrong
+     * charge visible.
      */
     public void testTableOutlivesBuilderLocalBreaker() {
         TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();

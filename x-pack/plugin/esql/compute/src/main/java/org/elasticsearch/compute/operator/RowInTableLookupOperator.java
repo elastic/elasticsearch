@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
@@ -74,9 +75,11 @@ import java.util.List;
  * }
  * <p>
  *     The {@link Factory} holds the key {@link Block}s and is shared across
- *     all drivers. Every operator it creates probes one shared table, so the
- *     factory's blocks are never released by this operator. The first
- *     {@link Factory#get} builds that table.
+ *     all drivers. The table is built from views or temporary copies of those
+ *     blocks, so this operator never releases them. Every operator the factory
+ *     creates probes one shared table. The first {@link Factory#get} builds it,
+ *     and a later one builds a fresh table once every operator using the old
+ *     one has closed.
  * </p>
  */
 public class RowInTableLookupOperator extends AbstractPageMappingToIteratorOperator {
@@ -111,7 +114,7 @@ public class RowInTableLookupOperator extends AbstractPageMappingToIteratorOpera
         private final Key[] keys;
         private final int[] blockMapping;
         /**
-         * The table shared by the operators this factory created, or {@code null} before the first {@link #get}.
+         * The table shared by the operators this factory created, or {@code null} when no operator holds one.
          * Guarded by {@code this}.
          */
         private SharedLookup shared;
@@ -131,18 +134,25 @@ public class RowInTableLookupOperator extends AbstractPageMappingToIteratorOpera
              * the table outlives any single driver and is released from whichever driver closes last, so it must not
              * be charged to a driver-local breaker.
              */
-            SharedLookup shared = acquire(driverContext.blockFactory().parent());
-            return new RowInTableLookupOperator(driverContext.blockFactory(), keyNames(keys), shared, blockMapping);
+            SharedLookup lookup = acquire(driverContext.blockFactory().parent());
+            return new RowInTableLookupOperator(driverContext.blockFactory(), keyNames(keys), lookup, blockMapping);
         }
 
         /**
          * Returns the shared table with a reference taken for the caller, building it if no live one exists.
          */
         private synchronized SharedLookup acquire(BlockFactory blockFactory) {
+            // A released table stays here until its forget call gets the lock, so check it is still live.
             if (shared == null || shared.tryIncRef() == false) {
-                shared = new SharedLookup(buildLookup(blockFactory, keys));
+                shared = new SharedLookup(buildLookup(blockFactory, keys), this);
             }
             return shared;
+        }
+
+        private synchronized void forget(SharedLookup released) {
+            if (shared == released) {
+                shared = null;
+            }
         }
 
         @Override
@@ -156,13 +166,24 @@ public class RowInTableLookupOperator extends AbstractPageMappingToIteratorOpera
      */
     private static final class SharedLookup extends AbstractRefCounted {
         private final RowInTableLookup table;
+        /**
+         * The factory that hands out this table, or {@code null} if a single operator owns it. Drivers keep their
+         * factories reachable after closing their operators, so a released table must be cleared from the factory
+         * to become unreachable.
+         */
+        @Nullable
+        private final Factory factory;
 
-        private SharedLookup(RowInTableLookup table) {
+        private SharedLookup(RowInTableLookup table, @Nullable Factory factory) {
             this.table = table;
+            this.factory = factory;
         }
 
         @Override
         protected void closeInternal() {
+            if (factory != null) {
+                factory.forget(this);
+            }
             table.close();
         }
     }
@@ -217,7 +238,7 @@ public class RowInTableLookupOperator extends AbstractPageMappingToIteratorOpera
      * Builds a table used by this operator alone.
      */
     public RowInTableLookupOperator(BlockFactory blockFactory, Key[] keys, int[] blockMapping) {
-        this(blockFactory, keyNames(keys), new SharedLookup(buildLookup(blockFactory, keys)), blockMapping);
+        this(blockFactory, keyNames(keys), new SharedLookup(buildLookup(blockFactory, keys), null), blockMapping);
     }
 
     /**

@@ -3697,6 +3697,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         serializationParams
                     );
                     snapshotStatus.addProcessedFiles(filesInShardMetadataCount, filesInShardMetadataSize);
+                    // Notify here, and not from allFilesUploadedListener: that listener lives until every file of this shard has been
+                    // uploaded, so referencing updatedBlobStoreIndexShardSnapshots (the history of every retained snapshot of the shard)
+                    // from it would keep that history reachable for the whole upload. All shards of a node run this step before any file
+                    // is uploaded, so that would hold every shard's history in memory at once.
+                    notifyShardGenerationWritten(context.indexId(), shardId.id(), indexGeneration, updatedBlobStoreIndexShardSnapshots);
                 } catch (IOException e) {
                     throw new IndexShardSnapshotFailedException(
                         shardId,
@@ -3797,9 +3802,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     throw new IndexShardSnapshotFailedException(shardId, "Failed to write commit point", e);
                 }
                 afterWriteSnapBlob.run();
-                if (writeShardGens) {
-                    notifyShardGenerationWritten(context.indexId(), shardId.id(), indexGeneration, updatedBlobStoreIndexShardSnapshots);
-                }
                 final ShardSnapshotResult shardSnapshotResult = new ShardSnapshotResult(
                     indexGeneration,
                     ByteSizeValue.ofBytes(blobStoreIndexShardSnapshot.totalSize()),

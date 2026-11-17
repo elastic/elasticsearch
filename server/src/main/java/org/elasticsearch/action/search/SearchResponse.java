@@ -161,41 +161,6 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         }
     }
 
-    @Deprecated // use List<ShardSearchFailure> instead
-    public SearchResponse(
-        SearchHits hits,
-        InternalAggregations aggregations,
-        Suggest suggest,
-        boolean timedOut,
-        Boolean terminatedEarly,
-        SearchProfileResults profileResults,
-        int numReducePhases,
-        String scrollId,
-        int totalShards,
-        int successfulShards,
-        int skippedShards,
-        long tookInMillis,
-        ShardSearchFailure[] shardFailures,
-        Clusters clusters
-    ) {
-        this(
-            hits,
-            aggregations,
-            suggest,
-            timedOut,
-            terminatedEarly,
-            profileResults,
-            numReducePhases,
-            scrollId,
-            totalShards,
-            successfulShards,
-            skippedShards,
-            tookInMillis,
-            shardFailures != null ? List.of(shardFailures) : List.of(),
-            clusters
-        );
-    }
-
     public SearchResponse(
         SearchHits hits,
         InternalAggregations aggregations,
@@ -461,16 +426,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     /**
      * The failures that occurred during the search.
      */
-    // TODO: rename this method to replace getShardFailures
-    public List<ShardSearchFailure> shardFailuresList() {
-        return this.shardFailures;
-    }
-
-    /**
-     * The failures that occurred during the search.
-     */
-    public ShardSearchFailure[] getShardFailures() {
-        return this.shardFailures.toArray(ShardSearchFailure.EMPTY_ARRAY);
+    public List<ShardSearchFailure> getShardFailures() {
+        return shardFailures;
     }
 
     /**

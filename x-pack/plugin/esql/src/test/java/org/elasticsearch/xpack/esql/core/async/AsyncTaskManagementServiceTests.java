@@ -18,8 +18,13 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LimitedBreaker;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.ParsedContentReservation;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
@@ -30,6 +35,8 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.AsyncResultsService;
 import org.elasticsearch.xpack.core.async.AsyncTaskIndexService;
@@ -51,6 +58,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService.addCompletionListener;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -590,6 +598,108 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
             });
         } finally {
             transportService.getTaskManager().unregister(submitTask);
+        }
+    }
+
+    /**
+     * The submit responds with an id before the operation ends, so the operation holds the charge of the parsed request until it ends.
+     */
+    public void testOperationHoldsParsedContentChargeUntilItEnds() throws Exception {
+        BlockingOperation operation = new BlockingOperation();
+        AsyncTaskManagementService<TestRequest, TestResponse, TestTask> service = createManagementService(operation);
+        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofMb(100));
+        ParsedContentReservation reservation = chargedReservation(breaker);
+        long charged = reservation.reservedBytes();
+        PlainActionFuture<TestResponse> submit = new PlainActionFuture<>();
+        TestRequest request = new TestRequest(randomAlphaOfLength(8), TimeValue.timeValueDays(1));
+        try {
+            asyncExecuteWithReservation(service, request, TimeValue.timeValueMillis(1), reservation, submit, null);
+            TestResponse initial = submit.get(10, TimeUnit.SECONDS);
+            assertThat(initial.string, nullValue());
+            // As the REST layer closes the reservation once it sends the response.
+            reservation.close();
+            assertThat(breaker.getUsed(), equalTo(charged));
+
+            operation.release.countDown();
+            assertBusy(() -> assertThat(breaker.getUsed(), equalTo(0L)));
+            assertBusy(() -> assertThat(transportService.getTaskManager().getTask(operation.running.get().getId()), nullValue()));
+        } finally {
+            operation.release.countDown();
+        }
+    }
+
+    public void testParsedContentChargeIsReleasedWhenTheOperationThrows() {
+        AsyncTaskManagementService<TestRequest, TestResponse, TestTask> service = createManagementService(new TestOperation() {
+            @Override
+            public void execute(TestRequest request, TestTask task, ActionListener<TestResponse> listener) {
+                throw new IllegalStateException("test exception");
+            }
+        });
+        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofMb(100));
+        ParsedContentReservation reservation = chargedReservation(breaker);
+        TestRequest request = new TestRequest(randomAlphaOfLength(8), TimeValue.timeValueDays(1));
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> asyncExecuteWithReservation(service, request, TimeValue.timeValueMinutes(1), reservation, new PlainActionFuture<>(), null)
+        );
+        assertThat(e.getMessage(), equalTo("test exception"));
+        reservation.close();
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testParsedContentChargeIsReleasedWhenTheSubmitIsCancelledBeforeTheOperationStarts() {
+        AtomicReference<TestTask> inner = new AtomicReference<>();
+        AsyncTaskManagementService<TestRequest, TestResponse, TestTask> service = createManagementService(new TestOperation() {
+            @Override
+            public void execute(TestRequest request, TestTask task, ActionListener<TestResponse> listener) {
+                inner.set(task);
+                super.execute(request, task, listener);
+            }
+        });
+        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofMb(100));
+        ParsedContentReservation reservation = chargedReservation(breaker);
+        CancellableTask submitTask = registerSubmitTask();
+        transportService.getTaskManager().cancel(submitTask, "http channel closed", () -> {});
+        PlainActionFuture<TestResponse> submit = new PlainActionFuture<>();
+        TestRequest request = new TestRequest(randomAlphaOfLength(8), TimeValue.timeValueDays(1));
+        try {
+            asyncExecuteWithReservation(service, request, TimeValue.timeValueMinutes(1), reservation, submit, submitTask);
+            expectThrows(TaskCancelledException.class, () -> submit.actionGet(10, TimeUnit.SECONDS));
+            assertThat(inner.get(), nullValue());
+            reservation.close();
+            assertThat(breaker.getUsed(), equalTo(0L));
+        } finally {
+            transportService.getTaskManager().unregister(submitTask);
+        }
+    }
+
+    /** Returns a reservation charged for a small request body, as the REST layer's parse charges it. */
+    private ParsedContentReservation chargedReservation(CircuitBreaker breaker) {
+        ParsedContentReservation reservation = new ParsedContentReservation(breaker, true);
+        try (XContentParser parser = reservation.track(createParser(JsonXContent.jsonXContent, "{\"query\":\"FROM test\"}"))) {
+            while (parser.nextToken() != null) {
+                // Charges each token.
+            }
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+        assertThat(reservation.reservedBytes(), greaterThan(0L));
+        return reservation;
+    }
+
+    /** Executes {@code request} as the transport action does for a REST request, with the request's reservation in the thread context. */
+    private void asyncExecuteWithReservation(
+        AsyncTaskManagementService<TestRequest, TestResponse, TestTask> service,
+        TestRequest request,
+        TimeValue waitForCompletionTimeout,
+        ParsedContentReservation reservation,
+        ActionListener<TestResponse> listener,
+        @Nullable CancellableTask submitTask
+    ) {
+        ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+            threadContext.putTransient(ParsedContentReservation.TRANSIENT_NAME, reservation);
+            service.asyncExecute(request, waitForCompletionTimeout, request.keepAlive, randomBoolean(), listener, submitTask);
         }
     }
 

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
@@ -25,9 +26,12 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.WrapperQueryBuilder;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+
+import java.util.function.Consumer;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -48,36 +52,104 @@ public class ParsedContentChargeIT extends ESIntegTestCase {
             .build();
     }
 
-    public void testQueuedMultiSearchItemsChargeTheRequest() throws Exception {
+    /**
+     * Every item of an {@code _msearch} parses its wrapper query again, so the parses are checked against the request's breaker but not
+     * held by the request, which would grow its charge with the items.
+     */
+    public void testMultiSearchItemsAreCheckedAgainstTheRequestButNotHeldByIt() throws Exception {
         assertAcked(prepareCreate("test").setSettings(indexSettings(6, 0)));
         indexRandom(true, prepareIndex("test").setSource("k", "v"));
         ensureGreen("test");
-        WrapperQueryBuilder wrapper = new WrapperQueryBuilder(Strings.toString(new TermQueryBuilder("k", "v")));
         String node = internalCluster().getRandomNodeName();
-        long one = charge(node, 1, 1, wrapper);
-        assertThat(one, greaterThan(0L));
         int searches = between(2, 6);
-        assertThat(charge(node, searches, searches, wrapper), equalTo(searches * one));
-        // Searches past the first wait for one to complete, and are sent from its listener.
-        assertThat(charge(node, searches, 1, wrapper), equalTo(searches * one));
+        WrapperQueryBuilder small = new WrapperQueryBuilder(Strings.toString(new TermQueryBuilder("k", "v")));
+        WrapperQueryBuilder large = new WrapperQueryBuilder(Strings.toString(overAChunk()));
+        // With one at a time, searches past the first wait for one to complete, and are sent from its listener.
+        for (int concurrent : new int[] { 1, searches }) {
+            LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofMb(100));
+            long held = multiSearch(
+                node,
+                breaker,
+                searches,
+                concurrent,
+                small,
+                item -> assertFalse(String.valueOf(item.getFailure()), item.isFailure())
+            );
+            assertThat(held, equalTo(0L));
+            assertThat(breaker.getUsed(), equalTo(0L));
+
+            // Only the request's reservation reaches this breaker, so every item tripping it shows that every item checks the request.
+            LimitedBreaker tight = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofKb(512));
+            multiSearch(node, tight, searches, concurrent, large, item -> {
+                assertTrue(item.isFailure());
+                assertThat(ExceptionsHelper.status(item.getFailure()), equalTo(RestStatus.TOO_MANY_REQUESTS));
+            });
+            assertThat(tight.getTrippedCount(), equalTo((long) searches));
+            assertThat(tight.getUsed(), equalTo(0L));
+        }
+    }
+
+    /**
+     * Field caps checks its index filter on every shard, and on the node that handles the REST request the shard requests keep its thread
+     * context. Their parses are not held by the request either, as ES|QL resolves its indices with the request's {@code filter} this way.
+     */
+    public void testFieldCapsIndexFilterOnTheRestRequestsNodeIsNotHeldByIt() throws Exception {
+        String node = internalCluster().getRandomDataNodeName();
+        // Every shard on the node that handles the request, so each one parses the filter next to it.
+        assertAcked(
+            prepareCreate("test").setSettings(indexSettings(between(2, 6), 0).put("index.routing.allocation.require._name", node))
+                .setMapping("k", "type=keyword")
+        );
+        indexRandom(true, prepareIndex("test").setSource("k", "v"));
+        ensureGreen("test");
+        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofMb(100));
+        assertThat(fieldCapsHeld(node, breaker, new WrapperQueryBuilder(Strings.toString(new TermQueryBuilder("k", "v")))), equalTo(0L));
+        assertThat(breaker.getUsed(), equalTo(0L));
+
+        // Only the request's reservation reaches this breaker, so a trip shows that the shards check the request.
+        LimitedBreaker tight = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofKb(512));
+        assertThat(fieldCapsHeld(node, tight, new WrapperQueryBuilder(Strings.toString(overAChunk()))), equalTo(0L));
+        assertThat(tight.getTrippedCount(), greaterThan(0L));
+        assertThat(tight.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * Runs field caps on {@code node} as if for a REST request whose reservation charges {@code breaker}, and returns what the reservation
+     * holds once the response is in.
+     */
+    private long fieldCapsHeld(String node, CircuitBreaker breaker, QueryBuilder indexFilter) {
+        ThreadContext threadContext = internalCluster().getInstance(ThreadPool.class, node).getThreadContext();
+        try (ParsedContentReservation reservation = new ParsedContentReservation(breaker, true)) {
+            try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                threadContext.putTransient(ParsedContentReservation.TRANSIENT_NAME, reservation);
+                FieldCapabilitiesResponse response = client(node).prepareFieldCaps("test").setFields("k").setIndexFilter(indexFilter).get();
+                // A trip while the filter is checked counts the shard as a possible match.
+                assertTrue(response.get().containsKey("k"));
+            }
+            return reservation.reservedBytes();
+        }
+    }
+
+    /** A query whose parse charges over a chunk, so the breaker is checked while it is parsed. */
+    private static BoolQueryBuilder overAChunk() {
+        BoolQueryBuilder query = new BoolQueryBuilder();
+        for (int i = 0; i < 5_000; i++) {
+            query.should(new TermQueryBuilder("k", "value-" + i));
+        }
+        return query;
     }
 
     public void testFieldCapsIndexFilterIsCheckedOnDataNodes() throws Exception {
         assertAcked(prepareCreate("test").setSettings(indexSettings(6, 0)).setMapping("k", "type=keyword"));
         indexRandom(true, prepareIndex("test").setSource("k", "v"));
         ensureGreen("test");
-        BoolQueryBuilder inner = new BoolQueryBuilder();
-        // Charged over a chunk while parsed, so the breaker is checked while the source is parsed.
-        for (int i = 0; i < 5_000; i++) {
-            inner.should(new TermQueryBuilder("k", "value-" + i));
-        }
         long tripsBefore = requestBreakerTrips();
         String limit = HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey();
         updateClusterSettings(Settings.builder().put(limit, "512kb"));
         try {
             FieldCapabilitiesResponse response = client().prepareFieldCaps("test")
                 .setFields("k")
-                .setIndexFilter(new WrapperQueryBuilder(Strings.toString(inner)))
+                .setIndexFilter(new WrapperQueryBuilder(Strings.toString(overAChunk())))
                 .get();
             // A trip while the filter is checked counts the shard as a possible match.
             assertTrue(response.get().containsKey("k"));
@@ -87,13 +159,23 @@ public class ParsedContentChargeIT extends ESIntegTestCase {
         assertThat(requestBreakerTrips(), greaterThan(tripsBefore));
     }
 
-    private long charge(String node, int searches, int concurrent, QueryBuilder query) {
+    /**
+     * Runs an {@code _msearch} on {@code node} as if for a REST request whose reservation charges {@code breaker}, and returns what the
+     * reservation holds once the response is in.
+     */
+    private long multiSearch(
+        String node,
+        CircuitBreaker breaker,
+        int searches,
+        int concurrent,
+        QueryBuilder query,
+        Consumer<MultiSearchResponse.Item> checkItem
+    ) {
         MultiSearchRequest request = new MultiSearchRequest().maxConcurrentSearchRequests(concurrent);
         for (int i = 0; i < searches; i++) {
             request.add(new SearchRequest("test").source(new SearchSourceBuilder().query(query)));
         }
         ThreadContext threadContext = internalCluster().getInstance(ThreadPool.class, node).getThreadContext();
-        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofMb(100));
         try (ParsedContentReservation reservation = new ParsedContentReservation(breaker, true)) {
             // As the REST layer publishes the reservation of the request it handles.
             try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
@@ -101,7 +183,7 @@ public class ParsedContentChargeIT extends ESIntegTestCase {
                 MultiSearchResponse response = client(node).multiSearch(request).actionGet();
                 try {
                     for (MultiSearchResponse.Item item : response) {
-                        assertFalse(String.valueOf(item.getFailure()), item.isFailure());
+                        checkItem.accept(item);
                     }
                 } finally {
                     response.decRef();

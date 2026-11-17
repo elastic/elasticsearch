@@ -266,6 +266,9 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
     @SuppressWarnings("unchecked")
     public T transformDown(Function<? super T, ? extends T> rule) {
         T root = rule.apply((T) this);
+        if (root != this) {
+            root.adoptIdentityFrom(this);
+        }
         Node<T> node = this.equals(root) ? this : root;
         return node.transformChildren(child -> child.transformDown(rule));
     }
@@ -279,6 +282,9 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
     @SuppressWarnings("unchecked")
     T transformDownSkipBranch(Holder<Boolean> skipBranch, BiFunction<? super T, Holder<Boolean>, ? extends T> rule) {
         T root = rule.apply((T) this, skipBranch);
+        if (root != this) {
+            root.adoptIdentityFrom(this);
+        }
         Node<T> node = this.equals(root) ? this : root;
         if (skipBranch.get()) {
             skipBranch.set(false);
@@ -322,6 +328,9 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
     @SuppressWarnings("unchecked")
     void transformDown(BiConsumer<? super T, ActionListener<T>> rule, Executor executor, int depth, ActionListener<T> listener) {
         rule.accept((T) this, listener.delegateFailureAndWrap((originalListener, root) -> {
+            if (root != this) {
+                root.adoptIdentityFrom(this);
+            }
             Node<T> node = this.equals(root) ? this : root;
             node.transformChildren((child, childListener) -> {
                 if (depth > 0 && depth % ASYNC_TRANSFORM_STACK_DEPTH_LIMIT == 0) {
@@ -366,7 +375,11 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
     public T transformUp(Function<? super T, ? extends T> rule) {
         T transformed = transformChildren(child -> child.transformUp(rule));
         T node = this.equals(transformed) ? (T) this : transformed;
-        return rule.apply(node);
+        T result = rule.apply(node);
+        if (result != node) {
+            result.adoptIdentityFrom(node);
+        }
+        return result;
     }
 
     /**
@@ -393,7 +406,12 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
                 transformedChildren.set(i, next);
             }
         }
-        return rule.apply(transformedChildren == null ? (T) this : replaceChildrenSameSize(transformedChildren));
+        T base = transformedChildren == null ? (T) this : replaceChildrenSameSize(transformedChildren);
+        T result = rule.apply(base);
+        if (result != base) {
+            result.adoptIdentityFrom(base);
+        }
+        return result;
     }
 
     @SuppressWarnings("unchecked")
@@ -440,6 +458,12 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
     }
 
     public abstract T replaceChildren(List<T> newChildren);
+
+    /**
+     * A transform built {@code this} as a replacement for {@code original}. Query plans copy stable identity
+     * here; other nodes ignore it. See {@code QueryPlan#adoptIdentityFrom}.
+     */
+    protected void adoptIdentityFrom(Node<?> original) {}
 
     //
     // transform the node properties and use the tree only for navigation

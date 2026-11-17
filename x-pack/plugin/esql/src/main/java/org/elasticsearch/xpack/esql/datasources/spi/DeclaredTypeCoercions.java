@@ -298,6 +298,27 @@ public final class DeclaredTypeCoercions {
     }
 
     /**
+     * Whether a column stored as {@code fileType} has to be decoded at that type and then cast to reach the
+     * declared {@code declared}: the two differ, no decode arm produces {@code declared} directly, and the pair
+     * is one {@link #castBlock} can carry. Equivalently, whether a read takes the defused route.
+     *
+     * <p>Every columnar read path asks this question, and before this method each of them spelled the same four
+     * terms out again. A reader that spells it out can get it wrong in two ways, and both have happened: it can
+     * disagree with the others about which pairs fuse, or it can skip the question and cast unconditionally, which
+     * is what left a declared {@code date} over a microsecond column reading null on one route and not the other.
+     * The question belongs here because {@link #fusedInDecode} and {@link #supports} both do.
+     *
+     * @param fileType the type the file stores, or {@code null} when the column is read at the declared type
+     *                 with nothing to coerce from
+     */
+    public static boolean needsBlockCast(@Nullable DataType fileType, DataType declared, boolean hasDeclaredFormat) {
+        return fileType != null
+            && declared != fileType
+            && fusedInDecode(fileType, declared, hasDeclaredFormat) == false
+            && supports(fileType, declared);
+    }
+
+    /**
      * Coerces a decoded physical-type block into a declared-type block, value by value, with the
      * field mappers' ingest coercion (see the class Javadoc). Preserves nulls and multi-value
      * positions. Does NOT take ownership of {@code source}; the caller closes it. The returned

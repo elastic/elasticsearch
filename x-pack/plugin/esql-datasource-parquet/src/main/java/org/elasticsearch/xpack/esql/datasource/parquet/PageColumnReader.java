@@ -226,10 +226,7 @@ final class PageColumnReader implements Releasable {
         // response Warning, a null sink (fail_fast) fails the read.
         DataType declared = info.esqlType();
         DataType fileType = info.fileEsqlType();
-        if (fileType != null
-            && declared != fileType
-            && DeclaredTypeCoercions.fusedInDecode(fileType, declared, info.dateFormatter() != null) == false
-            && DeclaredTypeCoercions.supports(fileType, declared)) {
+        if (DeclaredTypeCoercions.needsBlockCast(fileType, declared, info.dateFormatter() != null)) {
             Block physical = readBatchAs(fileType, maxRows, blockFactory);
             try {
                 return DeclaredTypeCoercions.castBlock(
@@ -395,12 +392,26 @@ final class PageColumnReader implements Releasable {
         }
 
         // General path: decompose survivorPositions into (skip, read) runs of contiguous
-        // positions. Each run produces a small Block via readBatch; chunks are combined
-        // at the end.
+        // positions. Each run produces a small Block; chunks are combined at the end.
+        //
+        // A declared-type coercion is decided once here rather than inside each run. readBatch would
+        // take the same decision per run and convert each run's block separately, which costs one
+        // conversion set-up and one transient block per run -- on this path a run is often a single
+        // row, since the positions arrive from a TopN or a filter and need not be neighbours. So when
+        // the column needs one, every run decodes at the file's own type and the joined block is
+        // converted once. The values are identical either way: the runs are in ascending position
+        // order, so the joined block holds the same values in the same order as the per-run blocks
+        // concatenated. Under a strict policy the same value still fails, one pass later -- the whole
+        // batch is decoded before the conversion walks it.
+        DataType declared = info.esqlType();
+        DataType fileType = info.fileEsqlType();
+        boolean coerceOnce = DeclaredTypeCoercions.needsBlockCast(fileType, declared, info.dateFormatter() != null);
+
         List<Block> chunks = new ArrayList<>();
         int cursor = 0;
         int runStart = 0;
 
+        Block joined;
         try {
             while (runStart < survivorCount) {
                 int pos = survivorPositions[runStart];
@@ -417,7 +428,7 @@ final class PageColumnReader implements Releasable {
                 }
                 int runLength = runEnd - runStart;
 
-                chunks.add(readBatch(runLength, blockFactory));
+                chunks.add(coerceOnce ? readBatchAs(fileType, runLength, blockFactory) : readBatch(runLength, blockFactory));
                 cursor += runLength;
                 runStart = runEnd;
             }
@@ -429,21 +440,44 @@ final class PageColumnReader implements Releasable {
             }
 
             if (chunks.size() == 1) {
-                return chunks.get(0);
+                joined = chunks.get(0);
+            } else {
+                // Exact-count guard: the sparse loop must have decoded exactly survivorCount rows across
+                // the chunks. This caught a real page-skip miscount and stays local to this path because
+                // the gather path in ParquetColumnExtractor has no such fixed 1:1 relationship.
+                assert sumPositions(chunks) == survivorCount : "chunk total " + sumPositions(chunks) + " != expected " + survivorCount;
+                // BlockChunks.concat resolves the element type from the first non-NULL chunk (so a
+                // null-leading run cannot poison a ConstantNullBlock builder) and closes the chunks on
+                // success; on a throw the catch below releases them.
+                joined = BlockChunks.concat(chunks, blockFactory);
             }
-            // Exact-count guard: the sparse loop must have decoded exactly survivorCount rows across
-            // the chunks. This caught a real page-skip miscount and stays local to this path because
-            // the gather path in ParquetColumnExtractor has no such fixed 1:1 relationship.
-            assert sumPositions(chunks) == survivorCount : "chunk total " + sumPositions(chunks) + " != expected " + survivorCount;
-            // BlockChunks.concat resolves the element type from the first non-NULL chunk (so a
-            // null-leading run cannot poison a ConstantNullBlock builder) and closes the chunks on
-            // success; on a throw the catch below releases them.
-            return BlockChunks.concat(chunks, blockFactory);
+            // Ownership has moved to `joined` -- concat closed the chunks it consumed, and the
+            // single-chunk arm handed its one block over. Clearing the list is what stops the catch
+            // below double-closing them if the conversion throws.
+            chunks.clear();
         } catch (RuntimeException e) {
             for (Block chunk : chunks) {
                 ParquetReadFailures.closePreservingCause(e, chunk);
             }
             throw e;
+        }
+
+        if (coerceOnce == false) {
+            return joined;
+        }
+        try {
+            return DeclaredTypeCoercions.castBlock(
+                joined,
+                fileType,
+                declared,
+                info.dateFormatter(),
+                blockFactory,
+                String.join(".", descriptor.getPath()),
+                coercionWarnings,
+                failedPositionSink
+            );
+        } finally {
+            joined.close();
         }
     }
 

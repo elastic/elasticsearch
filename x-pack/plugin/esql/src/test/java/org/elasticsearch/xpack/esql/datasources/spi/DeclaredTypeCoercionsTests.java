@@ -1626,6 +1626,53 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
      * single scale, so both must decline — and the compound case must not be mistaken for the identity by a
      * substring test, which would push a bound scaled 1000x wrong.
      */
+    /**
+     * The refactor that gave the decode-vs-cast decision a name rests on this equivalence: every reader used to
+     * spell the four terms out, and {@code needsBlockCast} has to answer identically for every pair, with and
+     * without a declared format. If it ever diverges, the readers it replaced disagree again.
+     */
+    public void testNeedsBlockCastMatchesTheConditionTheReadersUsedToSpellOut() {
+        Set<DataType> types = Set.of(
+            DataType.KEYWORD,
+            DataType.TEXT,
+            DataType.INTEGER,
+            DataType.LONG,
+            DataType.DOUBLE,
+            DataType.BOOLEAN,
+            DataType.DATETIME,
+            DataType.DATE_NANOS,
+            DataType.IP,
+            DataType.UNSIGNED_LONG
+        );
+        for (DataType fileType : types) {
+            for (DataType declared : types) {
+                for (boolean hasDeclaredFormat : new boolean[] { false, true }) {
+                    boolean spelledOut = declared != fileType
+                        && DeclaredTypeCoercions.fusedInDecode(fileType, declared, hasDeclaredFormat) == false
+                        && DeclaredTypeCoercions.supports(fileType, declared);
+                    assertEquals(
+                        fileType.typeName() + "->" + declared.typeName() + " with format=" + hasDeclaredFormat,
+                        spelledOut,
+                        DeclaredTypeCoercions.needsBlockCast(fileType, declared, hasDeclaredFormat)
+                    );
+                }
+            }
+        }
+        // Not a vacuous suite: at least one pair each side of the predicate, so a constant implementation fails.
+        assertTrue(DeclaredTypeCoercions.needsBlockCast(DataType.DOUBLE, DataType.LONG, false));
+        assertFalse(DeclaredTypeCoercions.needsBlockCast(DataType.INTEGER, DataType.LONG, false));
+    }
+
+    /**
+     * A column with no file type is read at the declared type, so there is nothing to coerce from. The readers
+     * relied on this arm: {@code ColumnInfo.fileEsqlType} is null for a column that was never retyped.
+     */
+    public void testNeedsBlockCastDeclinesWhenTheFileTypeIsAbsent() {
+        assertFalse(DeclaredTypeCoercions.needsBlockCast(null, DataType.DATETIME, false));
+        assertFalse(DeclaredTypeCoercions.needsBlockCast(null, DataType.DATETIME, true));
+        assertFalse(DeclaredTypeCoercions.needsBlockCast(null, DataType.KEYWORD, false));
+    }
+
     public void testNonEpochFormatsAdmitNoScale() {
         assertNull(DeclaredTypeCoercions.declaredEpochFormatScale("yyyyMMdd", DataType.DATETIME));
         assertNull(DeclaredTypeCoercions.declaredEpochFormatScale("strict_date_optional_time", DataType.DATETIME));

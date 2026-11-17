@@ -75,6 +75,7 @@ import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT32;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT64;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT96;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 
 /**
  * Compares the optimized {@link PageColumnReader} path against the baseline row-at-a-time
@@ -385,6 +386,107 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
             assertTrue(b.isNull(0));
             assertIntAt(b, 1, 5 * 7);
             assertTrue(b.isNull(2));
+        }
+    }
+
+    /**
+     * The sparse path takes a declared-type conversion once over the joined block rather than once per
+     * run of neighbouring positions. The values must not move, so the oracle is the same positions read
+     * as one whole batch and then picked out: an INT32 column declared {@code keyword} is a pair no
+     * decode arm produces directly, so it takes the conversion, and this survivor set straddles the
+     * fixture's null rows so a null-leading run is in play.
+     */
+    public void testSparseReadOfADeclaredConvertingColumnMatchesTheWholeBatch() throws IOException {
+        byte[] data = sparseFile();
+        int[] survivors = { 0, 2, 3, 5, 9 };
+        try (
+            Block sparse = declaredRead(data, "opt_int", DataType.INTEGER, DataType.KEYWORD, survivors);
+            Block whole = declaredRead(data, "opt_int", DataType.INTEGER, DataType.KEYWORD, null)
+        ) {
+            assertEquals(survivors.length, sparse.getPositionCount());
+            BytesRefBlock s = (BytesRefBlock) sparse;
+            BytesRefBlock w = (BytesRefBlock) whole;
+            for (int i = 0; i < survivors.length; i++) {
+                int at = survivors[i];
+                assertEquals("null-ness at source position " + at, w.isNull(at), s.isNull(i));
+                if (w.isNull(at) == false) {
+                    assertEquals(
+                        "value at source position " + at,
+                        w.getBytesRef(w.getFirstValueIndex(at), new BytesRef()),
+                        s.getBytesRef(s.getFirstValueIndex(i), new BytesRef())
+                    );
+                }
+            }
+        }
+    }
+
+    /**
+     * Opens a fresh reader over a column the file stores as {@code fileType} and the query declared as
+     * {@code declared}, retyped the way {@code ParquetColumnExtractor} retypes its own column view, so
+     * {@code readBatch}'s conversion branch is live. A null {@code survivors} reads the whole batch,
+     * which converts once by construction and is the oracle. The caller closes the returned block.
+     */
+    private Block declaredRead(byte[] data, String column, DataType fileType, DataType declared, int[] survivors) throws IOException {
+        return declaredRead(data, column, fileType, declared, survivors, blockFactory);
+    }
+
+    private Block declaredRead(byte[] data, String column, DataType fileType, DataType declared, int[] survivors, BlockFactory factory)
+        throws IOException {
+        try (ParquetFileReader reader = openReader(data)) {
+            BlockMetaData block = reader.getRowGroups().getFirst();
+            MessageType schema = reader.getFileMetaData().getSchema();
+            ColumnDescriptor desc = schema.getColumnDescription(new String[] { column });
+            ColumnInfo info = new ColumnInfo(
+                desc,
+                desc.getPrimitiveType().getPrimitiveTypeName(),
+                fileType,
+                desc.getMaxDefinitionLevel(),
+                desc.getMaxRepetitionLevel(),
+                desc.getPrimitiveType().getLogicalTypeAnnotation()
+            ).targetTyped(declared, null);
+            PageReadStore store = reader.readNextRowGroup();
+            assertNotNull(store);
+            int rgRows = Math.toIntExact(block.getRowCount());
+            try (PageColumnReader pcr = new PageColumnReader(store.getPageReader(desc), desc, info, RowRanges.all(rgRows))) {
+                return survivors == null
+                    ? pcr.readBatch(rgRows, factory)
+                    : pcr.readBatchSparse(rgRows, factory, survivors, survivors.length);
+            }
+        }
+    }
+
+    /**
+     * The declared-type conversion runs once for the batch rather than once per run of neighbouring
+     * positions. The observable is allocation: every run decodes into its own block either way, but
+     * converting inside each run allocates a converted block per run on top of that, where one
+     * conversion over the joined block allocates a single one. Eight isolated survivors reserve 11
+     * times with the conversion hoisted and 17 times with it back inside the loop -- both figures
+     * measured by running this test against each shape -- so the threshold sits between them with
+     * margin on either side. Forcing {@code coerceOnce} false in {@code readBatchSparse} reddens this.
+     */
+    public void testSparseReadConvertsOncePerBatchNotOncePerRun() throws IOException {
+        byte[] data = sparseFile();
+        // Eight isolated non-null rows, so each is its own run and a per-run conversion pays eight times.
+        int[] survivors = { 1, 3, 5, 7, 11, 13, 15, 17 };
+        CountingBreaker breaker = new CountingBreaker();
+        BlockFactory counting = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
+        try (Block b = declaredRead(data, "opt_int", DataType.INTEGER, DataType.KEYWORD, survivors, counting)) {
+            assertEquals(survivors.length, b.getPositionCount());
+        }
+        assertThat("a per-run conversion reserves 17 times here; hoisted it reserves 11", breaker.reservations, lessThan(14));
+    }
+
+    /** Counts the block factory's byte reservations, so a per-call allocation becomes observable. */
+    private static final class CountingBreaker extends NoopCircuitBreaker {
+        private int reservations;
+
+        CountingBreaker() {
+            super("counting-test-breaker");
+        }
+
+        @Override
+        public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
+            reservations++;
         }
     }
 

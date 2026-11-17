@@ -1921,10 +1921,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             // coercionWarnings()). Mirrors the Parquet readers so the two columnar formats cannot
             // drift.
             DataType fileType = leafType != null ? convertOrcTypeToEsql(leafType) : null;
-            if (fileType != null
-                && dataType != fileType
-                && DeclaredTypeCoercions.fusedInDecode(fileType, dataType, dateFormatter != null) == false
-                && DeclaredTypeCoercions.supports(fileType, dataType)) {
+            if (DeclaredTypeCoercions.needsBlockCast(fileType, dataType, dateFormatter != null)) {
                 Block physical = createBlockAs(vector, fileType, rowCount, ancestorNulls, leafType, dateFormatter, columnName, null);
                 try {
                     return DeclaredTypeCoercions.castBlock(

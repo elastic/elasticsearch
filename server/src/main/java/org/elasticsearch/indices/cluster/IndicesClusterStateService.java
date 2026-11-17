@@ -489,7 +489,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
      * Removes pending-allocation-state entries no longer allocated to this node, or re-allocated under a
      * different allocation id. {@link PendingAllocationState.InFlight} and
      * {@link PendingAllocationState.AwaitingRecoveryRetry} entries are also removed once their allocation
-     * stops initializing, since their lifecycle only makes sense up until shard is started.
+     * stops initializing, since their lifecycle only makes sense up until the shard is started.
      * For {@link PendingAllocationState.FailureReported} entries, either drops the entry once
      * master has processed the failure, or resends it if master hasn't yet -- the initial failure report
      * is sent separately, from {@link #createIndicesAndUpdateShards}.

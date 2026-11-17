@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166167
+summary: "ESQL:DS: Cap CSV header error exceprts"
+type: bug

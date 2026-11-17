@@ -54,7 +54,7 @@ final class RecordBoundaryProbe {
      * it is about to parse. That walk is not split discovery; naming it as such made testers treat the
      * reason as a phase signal it was not.
      */
-    static final String READ_CANCELLED_MESSAGE = "ES|QL external read cancelled while probing record boundaries";
+    static final String READ_CANCELLED_MESSAGE = RecordSplitter.RECORD_WALK_CANCELLED_MESSAGE;
 
     /**
      * With more than this many bytes of a probe's window left to transfer, reconnecting on the next probe is

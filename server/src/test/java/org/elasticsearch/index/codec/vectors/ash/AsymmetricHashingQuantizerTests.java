@@ -325,18 +325,16 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
     }
 
     public void testReconstructedDotProductApproximatesTrueDotProduct() throws IOException {
-        // With no dimensionality reduction (projectedDimsFraction=1.0, so nDims == originalDim and W
-        // is a random orthogonal matrix -- a pure rotation, not a projection), the only source of
-        // reconstruction error is the quantization of the residual (vector - centroid). This
-        // isolates the quantizer's fidelity, matching the near-linear ⟨q, x⟩ ~ ⟨q, quant(x)⟩
-        // relationship reported for ASH (see https://arxiv.org/pdf/2606.07870, Figure 4 and the
-        // surrounding "estimator bias" discussion, which notes the fit is not exact -- there's a
-        // small, bitsPerDim-dependent bias -- but the pairs are tightly clustered around the line).
-        //
-        // Thresholds below were calibrated empirically (aggregate relative RMSE over many random
-        // query/vector/centroid trials, stable across seeds) with a safety margin of roughly
-        // 1.5x (3 bits), 2x (4 bits), 5x (8 bits) over the observed values, to catch a real regression without being
-        // flaky.
+        /* With no dimensionality reduction (projectedDimsFraction=1.0, so nDims == originalDim and W
+         * is a random orthogonal matrix), the only source of reconstruction error is the quantization of the residual
+         * (vector - centroid). This isolates the quantizer's fidelity, matching the near-linear ⟨q, x⟩ ~ ⟨q, quant(x)⟩
+         * relationship reported for ASH (see https://arxiv.org/pdf/2606.07870, Figure 4 and the
+         * surrounding "estimator bias" discussion, which notes the fit is not exact -- there's a
+         * small, bitsPerDim-dependent bias -- but the pairs are tightly clustered around the line).
+         *
+         * Thresholds below are about 1.5x the maximum relative RMSE observed over 2000 seeds
+         * (0.33 for 3 bits, 0.19 for 4 bits, 0.011 for 8 bits).
+         */
         int dim = 128;
         int nVectors = 200;
         // does not divide nVectors, so each run encodes full blocks and one partial block
@@ -344,7 +342,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
 
         record Config(int bitsPerDim, double relRmseThreshold) {}
 
-        for (var config : List.of(new Config(3, 0.9), new Config(4, 0.35), new Config(8, 0.05))) {
+        for (var config : List.of(new Config(3, 0.5), new Config(4, 0.3), new Config(8, 0.02))) {
             AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
                 1.0f,
                 Integer.MAX_VALUE,
@@ -363,6 +361,10 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
             float[][] vectors = new float[nVectors][];
             for (int i = 0; i < nVectors; i++) {
                 vectors[i] = AshUtils.randomGaussians(random(), dim);
+                // center the vector around the centroid
+                for (int d = 0; d < dim; d++) {
+                    vectors[i][d] += centroid[d];
+                }
             }
 
             // Raw query projection: qt = wT @ query
@@ -847,6 +849,38 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         for (float v : warm.wT()) {
             assertTrue(Float.isFinite(v));
         }
+    }
+
+    public void testWarmStartWithoutDimensionalityReductionSkipsRefinement() throws IOException {
+        // With no dimensionality reduction and no Procrustes iterations there is nothing to refine, so warm-starting must
+        // not read the merged vectors (to build the second-moment matrix) and must return a fresh random rotation
+        int dim = 16;
+        float[][] vectors = new float[200][];
+        for (int i = 0; i < vectors.length; i++) {
+            vectors[i] = VectorTestUtils.randomFloatVector(random(), dim);
+        }
+        float[] zero = new float[dim];
+        AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
+            1.0f,
+            Integer.MAX_VALUE,
+            2,
+            AsymmetricHashingQuantizer.Method.LEARNED,
+            0,
+            10,
+            42L,
+            executor()
+        );
+        var trained = train(quantizer, vectors, i -> zero);
+        assertTrue(trained.learned());
+
+        float[] inherited = AshUtils.randomOrthogonal(random(), dim, executor());
+        var warm = quantizer.trainWarmStart(ord -> { throw new AssertionError("must not read vectors"); }, vectors.length, dim, ord -> {
+            throw new AssertionError("must not read centroids");
+        }, inherited, 2);
+
+        assertTrue(warm.learned());
+        assertOrthonormalRows(warm.wT(), dim, dim, 1e-4f);
+        assertArrayEquals("fresh rotation, as from training", trained.wT(), warm.wT(), 0f);
     }
 
     public void testProcrustesWithFewerVectorsThanProjectedDimensionsStaysOrthonormal() throws IOException {

@@ -161,6 +161,8 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Encapsulates all valid cluster level settings.
@@ -231,7 +233,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         }
     }
 
-    public static final Set<Setting<?>> BUILT_IN_CLUSTER_SETTINGS = Set.of(
+    private static final Set<Setting<?>> RELEASED_CLUSTER_SETTINGS = Set.of(
         AllocationService.PRESERVE_DECISION_LABELS_SETTING,
         AllocationBalancingRoundSummaryService.ENABLE_BALANCER_ROUND_SUMMARIES_METRICS_SETTING,
         AllocationBalancingRoundSummaryService.ENABLE_BALANCER_ROUND_SUMMARIES_LOGGING_SETTING,
@@ -723,7 +725,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
         BlobStoreRepository.MAX_HEAP_SIZE_FOR_SNAPSHOT_DELETION_SETTING,
         ShardsCapacityHealthIndicatorService.SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW,
         ShardsCapacityHealthIndicatorService.SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED,
-        AnalysisRegistry.SHARED_ANALYZERS_ENABLED_SETTING,
         QueryLogger.QUERY_LOGGER_ENABLED,
         QueryLogger.QUERY_LOGGER_THRESHOLD,
         QueryLogger.QUERY_LOGGER_LEVEL,
@@ -733,4 +734,13 @@ public final class ClusterSettings extends AbstractScopedSettings {
         SystemIndices.NUMBER_OF_REPLICAS_SETTING,
         SystemIndices.AUTO_EXPAND_REPLICAS_SETTING
     );
+
+    /**
+     * The escape hatch for the not-yet-released analyzer sharing feature is registered only while its feature flag is on, so it is
+     * not exposed publicly before the feature ships.
+     */
+    public static final Set<Setting<?>> BUILT_IN_CLUSTER_SETTINGS = AnalysisRegistry.SHARED_ANALYZERS_FEATURE_FLAG.isEnabled()
+        ? Stream.concat(RELEASED_CLUSTER_SETTINGS.stream(), Stream.of(AnalysisRegistry.SHARED_ANALYZERS_ENABLED_SETTING))
+            .collect(Collectors.toUnmodifiableSet())
+        : RELEASED_CLUSTER_SETTINGS;
 }

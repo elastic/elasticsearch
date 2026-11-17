@@ -202,11 +202,13 @@ public class AnalysisRegistryTests extends ESTestCase {
         IndexAnalyzers a = buildSharedNormalizerIndex("a");
         IndexAnalyzers b = buildSharedNormalizerIndex("b");
         assertNotSame(a.getNormalizer("my_norm").analyzer(), b.getNormalizer("my_norm").analyzer());
+        assertNotSame(a.getWhitespaceNormalizer("my_norm").analyzer(), b.getWhitespaceNormalizer("my_norm").analyzer());
 
         clusterSettings.applySettings(Settings.EMPTY);
         IndexAnalyzers c = buildSharedNormalizerIndex("c");
         IndexAnalyzers d = buildSharedNormalizerIndex("d");
         assertSame(c.getNormalizer("my_norm").analyzer(), d.getNormalizer("my_norm").analyzer());
+        assertSame(c.getWhitespaceNormalizer("my_norm").analyzer(), d.getWhitespaceNormalizer("my_norm").analyzer());
         assertThat(nonEmptyRegistry.normalizerCacheSize(), greaterThan(0));
 
         clusterSettings.applySettings(sharingDisabled());

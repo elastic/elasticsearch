@@ -83,9 +83,14 @@ public final class AnalysisRegistry implements Closeable {
 
     /**
      * Escape hatch: {@code false} makes subsequently built index analyzers private, as if the feature flag
-     * were off; already-shared analyzers stay shared until their indices close or are rebuilt. Deliberately
-     * {@link Setting.Property#Dynamic}, not operator-only: it can only restore legacy per-index behavior
-     * (losing the memory dedup), so cluster admins may self-serve a rollback.
+     * were off. Deliberately {@link Setting.Property#Dynamic}, not operator-only: it can only restore legacy
+     * per-index behavior (losing the memory dedup), so cluster admins may self-serve a rollback.
+     * <p>
+     * Only registered while {@link #SHARED_ANALYZERS_FEATURE_FLAG} is enabled.
+     * <p>
+     * Indices that are already open keep their shared analyzers. To drop sharing completely, close and reopen the
+     * affected indices or do a rolling restart (a persisted value is applied before indices are built on restart).
+     * Re-enabling does not re-share analyzers built while sharing was off.
      */
     public static final Setting<Boolean> SHARED_ANALYZERS_ENABLED_SETTING = Setting.boolSetting(
         "indices.analysis.shared_analyzers.enabled",
@@ -219,6 +224,9 @@ public final class AnalysisRegistry implements Closeable {
      * Tracks {@link #SHARED_ANALYZERS_ENABLED_SETTING}, applying its current value immediately.
      */
     public void watchSharingSetting(ClusterSettings clusterSettings) {
+        if (SHARED_ANALYZERS_ENABLED == false) {
+            return; // the setting is not registered without the feature flag
+        }
         clusterSettings.initializeAndWatch(SHARED_ANALYZERS_ENABLED_SETTING, enabled -> this.sharingEnabled = enabled);
     }
 

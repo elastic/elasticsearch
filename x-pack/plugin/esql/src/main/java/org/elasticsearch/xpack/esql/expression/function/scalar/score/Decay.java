@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
+import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -91,7 +92,12 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatialPoint;
  * - Spatial types (geo_point, cartesian_point)
  * - Temporal types (datetime, date_nanos)
  */
-public class Decay extends EsqlScalarFunction implements OptionalArgument, PostOptimizationVerificationAware, AnyNullIsNull {
+public class Decay extends EsqlScalarFunction
+    implements
+        OptionalArgument,
+        PostOptimizationVerificationAware,
+        AnyNullIsNull,
+        SurrogateExpression {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Decay", Decay::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Decay.class)
@@ -374,6 +380,29 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
     @Override
     public DataType dataType() {
         return DOUBLE;
+    }
+
+    /**
+     * Rewrites day-based periods to durations on the coordinator, so data nodes and remote clusters that predate
+     * {@code date_period} support can still run the plan. Periods with months or years are kept for
+     * {@link #postOptimizationVerification} to reject.
+     */
+    @Override
+    public Expression surrogate() {
+        Expression newScale = dayPeriodAsDuration(scale);
+        Expression newOptions = options == null ? null : options.transformUp(Literal.class, Decay::dayPeriodAsDuration);
+        return newScale == scale && newOptions == options ? null : new Decay(source(), value, origin, newScale, newOptions);
+    }
+
+    private static Expression dayPeriodAsDuration(Expression e) {
+        if (e.dataType() == DATE_PERIOD
+            && e.foldable()
+            && e.fold(FoldContext.small()) instanceof Period period
+            && period.getYears() == 0
+            && period.getMonths() == 0) {
+            return Literal.timeDuration(e.source(), Duration.ofDays(period.getDays()));
+        }
+        return e;
     }
 
     @Override

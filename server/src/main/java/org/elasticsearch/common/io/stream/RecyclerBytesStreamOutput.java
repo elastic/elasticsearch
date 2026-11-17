@@ -612,6 +612,14 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         seek(position() + length);
     }
 
+    /**
+     * The bytes of the recycled pages this stream holds: {@code 0} once it is closed or its bytes are moved out.
+     */
+    public long allocatedBytes() {
+        var pages = this.pages;
+        return pages == null ? 0 : (long) pageSize * pages.size();
+    }
+
     @Override
     public void close() {
         var pages = this.pages;

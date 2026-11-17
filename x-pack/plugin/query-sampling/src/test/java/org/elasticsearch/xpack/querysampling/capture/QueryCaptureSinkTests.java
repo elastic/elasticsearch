@@ -17,10 +17,13 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -82,6 +85,7 @@ public class QueryCaptureSinkTests extends ESTestCase {
         notComparable.add(knnSearch(randomVector(8)).source(knnSource().sort("category"))); // its hits have no score
         notComparable.add(knnSearch(randomVector(8)).source(knnSource().sort(SortBuilders.scoreSort().order(SortOrder.ASC)))); // the worst
         notComparable.add(knnSearch(randomVector(8)).indices("remote:idx")); // its hits do not say which cluster they are from
+        notComparable.add(knnSearch(new float[DenseVectorFieldMapper.MAX_DIMS_COUNT + 1])); // no mapping has so many dimensions
         notComparable.add(knnSearch(randomVector(8)).source(knnSource().postFilter(QueryBuilders.termQuery("category", 1))));
         notComparable.add(knnSearch(randomVector(8)).source(knnSource().searchAfter(new Object[] { 1 })));
         notComparable.add(knnSearch(randomVector(8)).source(knnSource().terminateAfter(5)));
@@ -101,6 +105,32 @@ public class QueryCaptureSinkTests extends ESTestCase {
         search(sink, knnSearch(randomVector(8)).source(knnSource().sort(SortBuilders.scoreSort())), TaskId.EMPTY_TASK_ID);
 
         assertThat(captured.size(), equalTo(1));
+    }
+
+    public void testTheHitsAreCopiedInOrderAndStayAfterTheResponseIsReleased() {
+        QueryCaptureSink sink = sink(true, 1.0, captured::add);
+        SearchShardTarget shard = new SearchShardTarget("node", new ShardId("idx", "_na_", 0), null);
+        SearchHit[] hits = new SearchHit[3];
+        for (int i = 0; i < hits.length; i++) {
+            hits[i] = new SearchHit(i, "doc" + i); // pooled: released together with the response
+            hits[i].score(3f - i);
+            hits[i].shard(shard);
+        }
+
+        search(sink, knnSearch(randomVector(8)), TaskId.EMPTY_TASK_ID, response(7, hits)); // the response is released after it
+
+        assertThat(captured.size(), equalTo(1));
+        assertThat(captured.get(0).tookMillis(), equalTo(7L));
+        assertThat(
+            captured.get(0).hits(),
+            equalTo(
+                List.of(
+                    new CapturedSearch.Hit("idx", "doc0", 3f),
+                    new CapturedSearch.Hit("idx", "doc1", 2f),
+                    new CapturedSearch.Hit("idx", "doc2", 1f)
+                )
+            )
+        );
     }
 
     public void testASearchOfAMultiSearchHasAParentTaskAndIsCaptured() {
@@ -177,8 +207,12 @@ public class QueryCaptureSinkTests extends ESTestCase {
 
     /** What the query interceptor does with a sink: hand it the context of the completed search if it is enabled. */
     private static void search(QueryCaptureSink sink, SearchRequest request, TaskId parent) {
+        search(sink, request, parent, response(1));
+    }
+
+    /** As above, with the response that the search got, which is released once the sink has handled it. */
+    private static void search(QueryCaptureSink sink, SearchRequest request, TaskId parent, SearchResponse response) {
         Task task = new Task(1, "transport", TransportSearchAction.NAME, "", parent, Map.of(Task.X_OPAQUE_ID_HTTP_HEADER, "q7"));
-        SearchResponse response = response(1);
         try {
             SearchCaptureContext context = new SearchCaptureContextBuilder(task, new NamedWriteableRegistry(List.of()), request).build(
                 response

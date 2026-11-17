@@ -61,7 +61,10 @@ public final class SamplingPipeline implements Consumer<CapturedSearch> {
         QueryFingerprint fingerprint = QueryFingerprint.of(captured.query());
         TrackedQuery tracked = tracker.record(fingerprint, captured.captureRate());
         if (tracked != null && tracked.weights().multiplicity() == 1) {
-            sampler.assignStratum(tracked, captured.query().field(), captured.query().queryVector());
+            // a search that found nothing says nothing of the data, its field may not even exist, and every field makes a space
+            if (captured.hits().isEmpty() == false) {
+                sampler.assignStratum(tracked, captured.query().field(), captured.query().queryVector());
+            }
             sampler.assignHardness(tracked, captured.query().field(), captured.query().queryVector().length, captured.hits());
         }
         if (tracked != null && sampler.offer(tracked)) {

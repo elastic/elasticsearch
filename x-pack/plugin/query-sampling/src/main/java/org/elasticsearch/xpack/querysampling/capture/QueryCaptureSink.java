@@ -14,6 +14,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.logging.activity.QueryCaptureContext;
 import org.elasticsearch.common.logging.activity.QuerySink;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchHit;
@@ -49,7 +50,8 @@ import java.util.function.Supplier;
  * a similarity threshold, a sort by a field, which leaves the hits without a score, or a sort by the lowest score first),
  * and no remote indices, whose hits would not tell the clusters apart. Searches from another cluster are skipped, and so are
  * answers that are partial: a timeout, a search that stopped early or shards that failed would count as a low recall.
- * What is not looked at yet is document level security: the same request of users who see other documents counts as one query.
+ * Vectors with more dimensions than a dense_vector field can have are skipped too. What is not looked at yet is document level
+ * security: the same request of users who see other documents counts as one query.
  * <p>
  * The interceptor sees the request as it was received, before the search rewrites it, so a vector that is only known after the
  * rewrite (a query vector builder such as a {@code semantic_text} field, or a {@code knn} query inside {@code query}) is not
@@ -226,6 +228,11 @@ public final class QueryCaptureSink extends QuerySink<QueryCaptureContext> {
         KnnSearchBuilder knn = source.knnSearch().get(0);
         VectorData vector = knn.getQueryVector();
         if (knn.getQueryVectorBuilder() != null || vector == null || vector.isFloat() == false) {
+            return null;
+        }
+        // no mapping has more dimensions, so there is nothing to compare such a vector with, and it could only make the memory of
+        // what is kept per vector length grow
+        if (vector.floatVector().length > DenseVectorFieldMapper.MAX_DIMS_COUNT) {
             return null;
         }
         // with a similarity threshold the result count depends on the data, so an exact search of k does not match

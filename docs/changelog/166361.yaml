@@ -1,5 +1,6 @@
 area: Search
-issues: []
+issues:
+ - 164391
 pr: 166361
 summary: Skip fetch-phase re-scoring in linear retriever
 type: bug

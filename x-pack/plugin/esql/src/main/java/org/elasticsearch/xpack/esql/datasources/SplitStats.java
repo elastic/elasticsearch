@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -846,6 +847,46 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
             }
         }
 
+        return builder.build();
+    }
+
+    /**
+     * The compact form of a typed {@link SourceStatistics}, built without the flat {@code _stats.*} map in
+     * between. A text read holds its statistics typed as it harvests, so routing them through the flat map
+     * would only parse the values back out of string keys just written. {@code null} when the statistics carry
+     * no row count, matching
+     * {@link #of(Map)}'s refusal of a map without one.
+     * <p>
+     * Carries every statistic {@link SourceStatistics} can express, which is every one that reaches the fold.
+     * It cannot carry a servability marker, because that type has no channel for one — and neither can the
+     * flat-map route, since {@code DeserializedColumnStatistics} does not read a marker and
+     * {@code embedStatistics} cannot write one. So a marker is unavailable on either route rather than lost on
+     * this one.
+     * <p>
+     * Deliberately not an {@code of} overload: {@code of(null)} would stop compiling, and a reader of a call
+     * site would have to resolve which form it meant. Key-equivalent to
+     * {@code of(SourceStatisticsSerializer.embedStatistics(Map.of(), statistics))} by
+     * construction and by a differential test, which is what lets a staged record carry the keys and values of
+     * the contribution a chunk publishes for the same stripe. The column ORDER may differ, since each path
+     * discovers the columns in its own
+     * map's iteration order; {@link #toMap()} is order-independent, and nothing downstream reads the ordinals.
+     */
+    @Nullable
+    public static SplitStats fromStatistics(SourceStatistics statistics) {
+        if (statistics == null || statistics.rowCount().isPresent() == false) {
+            return null;
+        }
+        Builder builder = new Builder().rowCount(statistics.rowCount().getAsLong());
+        statistics.sizeInBytes().ifPresent(builder::sizeInBytes);
+        for (Map.Entry<String, SourceStatistics.ColumnStatistics> column : statistics.columnStatistics().orElse(Map.of()).entrySet()) {
+            SourceStatistics.ColumnStatistics cs = column.getValue();
+            int ordinal = builder.addColumn(column.getKey());
+            cs.nullCount().ifPresent(nullCount -> builder.nullCount(ordinal, nullCount));
+            cs.valueCount().ifPresent(valueCount -> builder.valueCount(ordinal, valueCount));
+            cs.minValue().ifPresent(min -> builder.min(ordinal, min));
+            cs.maxValue().ifPresent(max -> builder.max(ordinal, max));
+            cs.sizeInBytes().ifPresent(sizeBytes -> builder.sizeBytes(ordinal, sizeBytes));
+        }
         return builder.build();
     }
 

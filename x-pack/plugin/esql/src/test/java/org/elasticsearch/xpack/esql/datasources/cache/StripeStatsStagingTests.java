@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources.cache;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
@@ -19,14 +20,20 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.SplitStats;
+import org.elasticsearch.xpack.esql.datasources.spi.StripeStatsSink;
 
 import java.io.IOException;
+import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
+
+import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * What a read stages for a stripe its chunks each saw part of. A chunk is cut on buffer fill, never on the
@@ -200,12 +207,122 @@ public class StripeStatsStagingTests extends ESTestCase {
 
         assertEquals(1, staged(stagedSink).size());
         assertEquals(1, staged(directSink).size());
-        assertEquals("the staged record must carry the same keys and values", staged(directSink).get(0), staged(stagedSink).get(0));
-        assertArrayEquals(
-            "and serialize to the same bytes, since the wire form is unchanged",
-            wire(staged(directSink).get(0)),
-            wire(staged(stagedSink).get(0))
+
+        // The bytes FIRST, and from a record no lookup has touched. Writing one goes through the compact
+        // size() and entrySet(); a kept flat form would answer both instead, so the comparison would not
+        // exercise the path it exists to pin. The value equality below calls get() -- HashMap.equals probes the
+        // argument key by key -- so it has to come after this, not before it.
+        Map<String, Object> stagedRecord = staged(stagedSink).get(0);
+        assertFalse(
+            "the serialization path must be exercised from a record no lookup has made keep its flat form",
+            ((StagedStripeRecord) stagedRecord).keepsFlatForm()
         );
+        assertArrayEquals(
+            "a staged record must serialize to the bytes the chunk would have published",
+            wire(staged(directSink).get(0)),
+            wire(stagedRecord)
+        );
+        assertFalse("and writing it must leave the record compact", ((StagedStripeRecord) stagedRecord).keepsFlatForm());
+
+        assertEquals("the staged record must carry the same keys and values", staged(directSink).get(0), stagedRecord);
+    }
+
+    /**
+     * The contract that makes staging cheap. A consumer that walks the whole record once — which is what
+     * serialization does, asking the size and then the entries — must leave nothing behind, because it is
+     * walking every staged record in turn and one kept flat would put the whole pile back. A membership test
+     * is a walk too: asking whether a key is there is not evidence its value is about to be read, and
+     * {@code Status.stripesCommitted} proves it by testing two keys per record from a task-status render and
+     * reading neither. Only looking a VALUE up keeps the map, because hundreds more lookups follow it.
+     */
+    public void testAWalkOverAStagedRecordKeepsNoFlatForm() {
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        StripeStatsStaging staging = new StripeStatsStaging(sink);
+        chunk(staging, 1024, true, 0, 1024, row(0, 1L, "a"));
+
+        StagedStripeRecord record = (StagedStripeRecord) staged(sink).get(0);
+        assertFalse("a stripe is staged in compact form", record.keepsFlatForm());
+
+        int size = record.size();
+        assertThat("the record carries its addressing keys and both columns", size, greaterThan(12));
+        assertFalse("asking the size must leave the record compact", record.keepsFlatForm());
+
+        int walked = 0;
+        for (Map.Entry<String, Object> entry : record.entrySet()) {
+            assertNotNull(entry.getKey());
+            walked++;
+        }
+        assertEquals("a walk sees every entry", size, walked);
+        assertFalse("walking the entries must leave the record compact", record.keepsFlatForm());
+
+        assertTrue("the record carries its addressing keys", record.containsKey(ExternalStats.STRIPE_ORDINAL_KEY));
+        assertFalse("a membership test must leave the record compact: asking is not reading", record.keepsFlatForm());
+
+        assertEquals("a lookup answers from the flat form", 1024L, record.get(ExternalStats.STRIPE_SIZE_KEY));
+        assertTrue("and keeps it, because more lookups follow", record.keepsFlatForm());
+    }
+
+    /**
+     * A write through a staged record must fail rather than be dropped by the next rebuild of its flat form.
+     * <p>
+     * {@code put} alone does not hold that: {@code AbstractMap} throws {@link UnsupportedOperationException}
+     * from {@code put} on its own, so the assertion passes whether or not {@code flatten} wraps its result —
+     * the wrapper is what this test is named for and {@code put} never reached it. The entry view does: a write
+     * through a live entry is served by the underlying map, so it succeeds silently on a bare {@code HashMap}
+     * and is refused only by the wrapper. Both assertions are kept, because they fail for different reasons.
+     */
+    public void testAStagedRecordRefusesAWrite() {
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        StripeStatsStaging staging = new StripeStatsStaging(sink);
+        chunk(staging, 1024, true, 0, 1024, row(0, 1L, "a"));
+
+        Map<String, Object> record = staged(sink).get(0);
+        expectThrows(UnsupportedOperationException.class, () -> record.put("_stats.row_count", 99L));
+        expectThrows(
+            UnsupportedOperationException.class,
+            () -> record.entrySet().iterator().next().setValue("written through the entry view")
+        );
+        expectThrows(UnsupportedOperationException.class, record::clear);
+        assertEquals("the record is unchanged", 1L, record.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+    }
+
+    /**
+     * The size of a column that carries one extremum and not the other. {@link StagedStripeRecord#size} counts
+     * the min key and the max key independently, while the entries come from {@code flatten}, so a count that
+     * inferred one from the other would write a length the entries do not match — and a stream whose length
+     * prefix disagrees with what follows it is corrupt, not merely wrong.
+     * <p>
+     * No text harvest reaches this shape yet: {@code ColumnStatsAccumulator} folds each value into a column's
+     * MIN and MAX together, so the fixture builds the compact form directly rather than through a read. That
+     * makes this a guard on the arithmetic and not on the producing path; the read that does produce a
+     * one-sided pair arrives with the extremum width limit, and is held separately there.
+     */
+    public void testTheSizeAgreesWithTheBuiltMapForAOneSidedColumn() {
+        SplitStats.Builder builder = new SplitStats.Builder().rowCount(2);
+        int column = builder.addColumn("k");
+        builder.nullCount(column, 0);
+        builder.valueCount(column, 2);
+        builder.min(column, new BytesRef("a")); // and deliberately no max
+        StagedStripeRecord record = new StagedStripeRecord(
+            new StripeStatsSink.ReadIdentity(MTIME, FINGERPRINT, READ_CONFIG, true, 1024L),
+            0L,
+            0L,
+            1024L,
+            true,
+            true,
+            true,
+            builder.build(),
+            SCHEMA
+        );
+
+        // Read the preconditions through a COPY. A lookup on the record would make it keep its flat form, and
+        // size() would then answer from that map instead of from the compact count this test exists to check.
+        Map<String, Object> entries = new HashMap<>(record);
+        assertEquals("the fixture must carry one extremum", new BytesRef("a"), entries.get("_stats.columns.k.min"));
+        assertNull("and not the other, or it guards nothing", entries.get("_stats.columns.k.max"));
+        assertFalse("copying the entries must leave the record compact", record.keepsFlatForm());
+
+        assertEquals("the counted size must equal the built map's", entries.size(), record.size());
     }
 
     /**
@@ -302,6 +419,173 @@ public class StripeStatsStagingTests extends ESTestCase {
             statistics(chainFolded),
             statistics(joined)
         );
+    }
+
+    /**
+     * Byte identity where the fold actually runs. A joined record is one no single chunk would have published,
+     * so the property that holds it is the round trip: what a stream writes it must read back equal, which
+     * also pins the length prefix against the entries that follow it.
+     */
+    public void testAJoinedRecordSurvivesTheWireUnchanged() throws IOException {
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        StripeStatsStaging staging = new StripeStatsStaging(sink);
+        chunk(staging, 1024, false, 0, 512, row(0, 7L, "m"), row(16, 3L, "a"));
+        chunk(staging, 1024, true, 512, 1024, row(512, 9L, "z"));
+
+        Map<String, Object> joined = staged(sink).get(0);
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeGenericMap(joined);
+            try (StreamInput in = out.bytes().streamInput()) {
+                assertEquals("a joined record must read back exactly as it was written", joined, in.readGenericMap());
+            }
+        }
+    }
+
+    /**
+     * The length a stream writes and the entries it then writes come from two different computations, so they
+     * must agree on every shape a record takes: with and without a read configuration, with and without the
+     * count licence, and with columns that carry both extrema or neither. Those are the two a text harvest
+     * produces here, because {@code ColumnStatsAccumulator} folds each value into a column's MIN and MAX
+     * together, so a one-sided pair is unreachable until something withholds one end of one.
+     */
+    public void testTheSizeAgreesWithTheBuiltMap() {
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        StripeStatsStaging staging = new StripeStatsStaging(sink);
+        chunk(staging, 1024, true, 0, 1024, row(0, 1L, "a"), new Row(16, null, null));
+        chunk(staging, 2048, true, MTIME, null, false, 0, 2048, row(0, 5L, "q"));
+        chunk(staging, 4096, true, MTIME, "", true, 0, 4096, new Row(0, null, null));
+
+        List<Map<String, Object>> records = staged(sink);
+        assertEquals("each read staged its own stripe", 3, records.size());
+        for (Map<String, Object> record : records) {
+            assertEquals("the counted size must equal the built map's", new HashMap<>(record).size(), record.size());
+            // Asserted rather than left to the copy being a walk: without it a later change that made the copy
+            // pin the flat form would hollow this test out silently, because size() would then answer from the
+            // kept map and agree with it for any arithmetic at all. The sibling one-sided test holds the same.
+            assertFalse(
+                "copying the entries must leave the record compact, or the size came from the kept map",
+                ((StagedStripeRecord) record).keepsFlatForm()
+            );
+        }
+    }
+
+    /**
+     * Every key of the contribution vocabulary: the ten {@link StagedStripeRecord} writes unconditionally, the
+     * two it writes only when they are set, the three this path never writes at all, the row count, a per-column
+     * statistic, and a name that is not vocabulary. The membership test below probes all of them.
+     */
+    private static final List<String> CONTRIBUTION_KEYS = List.of(
+        ExternalStats.MTIME_MILLIS_KEY,
+        ExternalStats.CONFIG_FINGERPRINT_KEY,
+        ExternalStats.PARTIAL_CHUNK_KEY,
+        ExternalStats.STRIPE_SIZE_KEY,
+        ExternalStats.STRIPE_ORDINAL_KEY,
+        ExternalStats.COVERAGE_START_KEY,
+        ExternalStats.COVERAGE_END_KEY,
+        ExternalStats.STRIPE_AT_START_KEY,
+        ExternalStats.STRIPE_AT_END_KEY,
+        ExternalStats.COVERAGE_IS_LAST_KEY,
+        ExternalStats.READ_CONFIG_FINGERPRINT_KEY,
+        ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY,
+        ExternalStats.CHUNK_HAD_ERRORS_KEY,
+        ExternalStats.STRIPE_LAST_INDEX_KEY,
+        ExternalStats.STRIPE_GRID_KEY,
+        SourceStatisticsSerializer.STATS_ROW_COUNT,
+        "_stats.columns.n.min",
+        "_stats.columns.k.max",
+        "_stats.not_a_contribution_key"
+    );
+
+    /**
+     * Membership, key by key, against the map the record builds. {@link StagedStripeRecord#containsKey} answers
+     * the keys every record carries out of {@code ALWAYS_PRESENT_KEYS}, so that set is a second, hand-maintained
+     * statement of what {@code flatten} writes — and the only one nothing else checks. The size tests cannot:
+     * a key swapped into the set for another leaves the set the same size, so every count still agrees while
+     * {@code containsKey} claims a key the entries do not carry.
+     * <p>
+     * Probed over records with the read configuration set, absent and blank, and with the count licence on and
+     * off, so a key wrongly in the set is caught whichever side of a conditional it sits on.
+     */
+    public void testMembershipAgreesWithTheBuiltMap() {
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        StripeStatsStaging staging = new StripeStatsStaging(sink);
+        chunk(staging, 1024, true, 0, 1024, row(0, 1L, "a"));
+        chunk(staging, 2048, true, MTIME, null, false, 0, 2048, row(0, 5L, "q"));
+        chunk(staging, 4096, true, MTIME, "", true, 0, 4096, new Row(0, null, null));
+
+        List<Map<String, Object>> records = staged(sink);
+        assertEquals("each read staged its own stripe", 3, records.size());
+        for (Map<String, Object> record : records) {
+            Map<String, Object> built = new HashMap<>(record);
+            for (String key : CONTRIBUTION_KEYS) {
+                assertEquals("membership of [" + key + "] must agree with the built map", built.containsKey(key), record.containsKey(key));
+            }
+            assertFalse("probing membership must leave the record compact", ((StagedStripeRecord) record).keepsFlatForm());
+        }
+    }
+
+    /**
+     * The other half of {@link StagedStripeRecord#containsKey}: an always-present key is answered without
+     * building the flat form at all, not merely without keeping it. {@code keepsFlatForm} cannot see that — a
+     * walk builds and discards, so it reports {@code false} either way — so the builds are counted directly,
+     * through a schema list that ticks each time {@code flatten} iterates it. Without the counter, deleting the
+     * early return leaves every answer correct and every other assertion in this suite green while costing one
+     * build per probe, and {@code Status.stripesCommitted} runs two probes per staged record on every
+     * {@code GET _tasks?detailed} during a large text scan.
+     */
+    public void testMembershipOfAnAlwaysPresentKeyBuildsNothing() {
+        CountingSchema schema = new CountingSchema();
+        SplitStats.Builder builder = new SplitStats.Builder().rowCount(1);
+        int column = builder.addColumn("n");
+        builder.nullCount(column, 0);
+        builder.valueCount(column, 1);
+        builder.min(column, 7L);
+        builder.max(column, 7L);
+        StagedStripeRecord record = new StagedStripeRecord(
+            new StripeStatsSink.ReadIdentity(MTIME, FINGERPRINT, READ_CONFIG, true, 1024L),
+            0L,
+            0L,
+            1024L,
+            true,
+            true,
+            true,
+            builder.build(),
+            schema
+        );
+
+        assertEquals("a staged record builds nothing until someone asks", 0, schema.builds);
+        record.size();
+        assertEquals("the size comes from the compact count", 0, schema.builds);
+        assertTrue(record.containsKey(ExternalStats.STRIPE_ORDINAL_KEY));
+        assertTrue(record.containsKey(ExternalStats.STRIPE_SIZE_KEY));
+        assertEquals("membership of the keys every record carries must build nothing", 0, schema.builds);
+
+        // The control: a key the set does not carry has to walk, so the counter can tick at all and a zero
+        // above is evidence about the early return rather than about a schema nothing ever iterates.
+        assertFalse("a key this path never writes must not be claimed", record.containsKey(ExternalStats.STRIPE_GRID_KEY));
+        assertEquals("a key outside the set walks, which builds once", 1, schema.builds);
+        assertFalse("and the walk keeps nothing", record.keepsFlatForm());
+    }
+
+    /** {@link #SCHEMA}, counting the times {@code flatten} iterates it — one tick per flat-form build. */
+    private static final class CountingSchema extends AbstractList<Attribute> {
+        private int builds;
+
+        @Override
+        public Attribute get(int index) {
+            return SCHEMA.get(index);
+        }
+
+        @Override
+        public int size() {
+            return SCHEMA.size();
+        }
+
+        @Override
+        public Iterator<Attribute> iterator() {
+            builds++;
+            return SCHEMA.iterator();
+        }
     }
 
     /** The {@code _stats.*} statistics of a contribution, without the addressing keys a fold re-stamps. */
@@ -418,8 +702,36 @@ public class StripeStatsStagingTests extends ESTestCase {
         long stripeSize,
         boolean fileFinal,
         long mtime,
+        @Nullable String readConfig,
+        boolean licensed,
         long start,
         long end,
+        Row... rows
+    ) {
+        chunk(staging, stripeSize, fileFinal, mtime, start, end, readConfig, licensed, rows);
+    }
+
+    private void chunk(
+        @Nullable StripeStatsStaging staging,
+        long stripeSize,
+        boolean fileFinal,
+        long mtime,
+        long start,
+        long end,
+        Row... rows
+    ) {
+        chunk(staging, stripeSize, fileFinal, mtime, start, end, READ_CONFIG, true, rows);
+    }
+
+    private void chunk(
+        @Nullable StripeStatsStaging staging,
+        long stripeSize,
+        boolean fileFinal,
+        long mtime,
+        long start,
+        long end,
+        @Nullable String readConfig,
+        boolean licensed,
         Row... rows
     ) {
         StripeStatsHarvester harvester = new StripeStatsHarvester(stripeSize, fileFinal, staging);
@@ -440,7 +752,7 @@ public class StripeStatsStagingTests extends ESTestCase {
                 accum.cols.acceptBytesRefAt(1, r.keyword());
             }
         }
-        harvester.emit(PATH, start, end - start, mtime, FINGERPRINT, READ_CONFIG, true, SCHEMA);
+        harvester.emit(PATH, start, end - start, mtime, FINGERPRINT, readConfig, licensed, SCHEMA);
     }
 
     /**

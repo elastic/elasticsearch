@@ -133,7 +133,14 @@ public final class StripeStatsStaging implements StripeStatsSink {
         SourceStatistics statistics,
         List<Attribute> schema
     ) {
-        StripeSpan span = new StripeSpan(identity, schema, start, end, atStripeStart, atStripeEnd, eof, compact(statistics));
+        SplitStats compact = SplitStats.fromStatistics(statistics);
+        // A piece always carries a row count: TextFormatStats.build sets one for every stripe the emit loop
+        // walks, including the empty ones. Assert rather than absorb it, and safe-miss in production.
+        assert compact != null : "a stripe piece reached staging without a row count";
+        if (compact == null) {
+            return;
+        }
+        StripeSpan span = new StripeSpan(identity, schema, start, end, atStripeStart, atStripeEnd, eof, compact);
         StripeKey key = new StripeKey(sourceLocation, ordinal);
         synchronized (this) {
             List<StripeSpan> spans = open.computeIfAbsent(key, k -> new ArrayList<>(1));
@@ -191,12 +198,17 @@ public final class StripeStatsStaging implements StripeStatsSink {
         }
     }
 
-    /** Appends one stripe-addressed record for {@code span} to the capture sink. */
+    /**
+     * Appends one stripe-addressed record for {@code span} to the capture sink, in the compact form the span was
+     * folded in. A staged record builds its flat {@code _stats.*} map on demand and keeps the compact form, so
+     * the pile a query leaves in the sink is proportional to the statistics rather than to the string-keyed
+     * entries they serialize as — see {@link StagedStripeRecord}.
+     */
     private void stage(String sourceLocation, long ordinal, StripeSpan span) {
         ExternalStatsCapture.recordTo(
             sink,
             sourceLocation,
-            StripeStatsHarvester.flatten(
+            new StagedStripeRecord(
                 span.identity,
                 ordinal,
                 span.start,
@@ -204,51 +216,10 @@ public final class StripeStatsStaging implements StripeStatsSink {
                 span.atStripeStart,
                 span.atStripeEnd,
                 span.eof,
-                span.stats.rowCount(),
-                columnStats(span.stats),
+                span.stats,
                 span.schema
             )
         );
     }
 
-    /**
-     * The compact form of one piece's statistics, built straight from the harvest rather than from a flat
-     * {@code _stats.*} map, so a chunk's piece never exists as one.
-     */
-    private static SplitStats compact(SourceStatistics statistics) {
-        SplitStats.Builder builder = new SplitStats.Builder().rowCount(statistics.rowCount().orElse(0L));
-        for (Map.Entry<String, SourceStatistics.ColumnStatistics> column : statistics.columnStatistics().orElse(Map.of()).entrySet()) {
-            SourceStatistics.ColumnStatistics cs = column.getValue();
-            int ordinal = builder.addColumn(column.getKey());
-            cs.nullCount().ifPresent(nullCount -> builder.nullCount(ordinal, nullCount));
-            cs.valueCount().ifPresent(valueCount -> builder.valueCount(ordinal, valueCount));
-            cs.minValue().ifPresent(min -> builder.min(ordinal, min));
-            cs.maxValue().ifPresent(max -> builder.max(ordinal, max));
-        }
-        return builder.build();
-    }
-
-    /**
-     * The per-column statistics a staged record publishes.
-     * <p>
-     * A column the fold found unservable is published with its counts and WITHOUT an extremum, which is the only
-     * encoding a staged record has ever had and is the conservative one: the reconciler reads a column that is
-     * present, carries rows that are not all null, and offers no extremum as one it cannot answer, and poisons
-     * it in exactly the way the unservable marker would. That the two conditions coincide is not luck — a fold
-     * only reaches unservable through a piece that held a value, and a column with a value is not all null.
-     * <p>
-     * Presence is the load-bearing half, and it is why every harvested column is written even when it has
-     * nothing but zeros: "harvested, and every row was null" and "never harvested" are different answers, and
-     * the reconciler tells them apart by whether the column is in the record at all.
-     */
-    private static Map<String, ExternalStats.ColumnStats> columnStats(SplitStats stats) {
-        Map<String, ExternalStats.ColumnStats> columns = new HashMap<>();
-        for (int i = 0; i < stats.columnCount(); i++) {
-            columns.put(
-                stats.columnName(i),
-                new ExternalStats.ColumnStats(stats.nullCount(i), stats.valueCount(i), stats.min(i), stats.max(i))
-            );
-        }
-        return columns;
-    }
 }

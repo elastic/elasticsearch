@@ -35,6 +35,19 @@ This filter uses Lucene’s [MinHashFilter](https://lucene.apache.org/core/10_0_
 :   (Optional, Boolean) If `true`, the filter fills empty buckets with the value of the first non-empty bucket to its circular right if the `hash_set_size` is `1`. If the `bucket_count` argument is greater than `1`, this parameter defaults to `true`. Otherwise, this parameter defaults to `false`.
 
 
+## Parameter limits [analysis-minhash-tokenfilter-limits]
+
+```{applies_to}
+stack: ga 9.7
+serverless: ga
+```
+
+The filter reads all of its input before it outputs any tokens, and can keep up to `hash_count` × `bucket_count` × `hash_set_size` hashes in memory while doing so. To bound this memory, the parameters are limited:
+
+* For a filter defined in index settings: `hash_count` × `bucket_count` must not exceed `10000`, and `hash_count` × `bucket_count` × `hash_set_size` must not exceed `100000`. Indices created before these limits were introduced keep working, but report a deprecation warning if their filter exceeds them. Lower the parameters before you reindex such an index.
+* For a filter defined inline in an [analyze API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-analyze) request: each parameter must not exceed `10000`, and `hash_count` × `bucket_count` × `hash_set_size` must not exceed [`index.analyze.max_token_count`](/reference/elasticsearch/index-settings/index-modules.md#dynamic-index-settings).
+
+
 ## Tips for configuring the `min_hash` filter [analysis-minhash-tokenfilter-configuration-tips]
 
 * `min_hash` filter input tokens should typically be k-words shingles produced from [shingle token filter](/reference/text-analysis/analysis-shingle-tokenfilter.md). You should choose `k` large enough so that the probability of any given shingle occurring in a document is low. At the same time, as internally each shingle is hashed into to 128-bit hash, you should choose `k` small enough so that all possible different k-words shingles can be hashed to 128-bit hash with minimal collision.

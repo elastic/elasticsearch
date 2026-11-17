@@ -64,6 +64,12 @@ public final class AnalysisRegistry implements Closeable {
     public static final String INDEX_ANALYSIS_FILTER = "index.analysis.filter";
     public static final String INDEX_ANALYSIS_ANALYZER = "index.analysis.analyzer";
     public static final String INDEX_ANALYSIS_TOKENIZER = "index.analysis.tokenizer";
+    /**
+     * Prefix of the name given to analysis components that are defined inline in a request (for example in an
+     * {@code _analyze} request) rather than in index settings. Factories can use it to apply stricter validation to
+     * such definitions.
+     */
+    public static final String ANONYMOUS_COMPONENT_PREFIX = "__anonymous__";
 
     public static final String DEFAULT_ANALYZER_NAME = "default";
     public static final String DEFAULT_SEARCH_ANALYZER_NAME = "default_search";
@@ -236,7 +242,7 @@ public final class AnalysisRegistry implements Closeable {
             if (settings == null) {
                 settings = NO_INDEX_SETTINGS;
             }
-            return factory.get(settings, environment, "__anonymous__" + type, nod.definition);
+            return factory.get(settings, environment, ANONYMOUS_COMPONENT_PREFIX + type, nod.definition);
         }
         if (settings == null) {
             // no index provided, so we use prebuilt analysis components

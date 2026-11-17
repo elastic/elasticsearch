@@ -12,12 +12,16 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.TriFunction;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.LegacyFormatNames;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.analysis.MinHashIndexParamBounds;
 import org.elasticsearch.xpack.core.deprecation.DeprecatedIndexPredicate;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
@@ -49,7 +53,8 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
         this::checkIndexDataPath,
         this::storeTypeSettingCheck,
         this::deprecatedCamelCasePattern,
-        this::legacyRoutingSettingCheck
+        this::legacyRoutingSettingCheck,
+        this::minHashParamBoundsCheck
     );
 
     public IndexDeprecationChecker(IndexNameExpressionResolver indexNameExpressionResolver) {
@@ -299,6 +304,55 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
             "One or more of your indices is configured with 'index.routing.allocation.*.data' settings. " + DEPRECATION_COMMON_DETAIL,
             false,
             DeprecationIssue.createMetaMapForRemovableSettings(deprecatedSettings)
+        );
+    }
+
+    /**
+     * Reports {@code min_hash} filters on indices created before {@link IndexVersions#MIN_HASH_INDEX_PARAM_BOUNDS} whose
+     * parameters exceed {@link MinHashIndexParamBounds}. Such indices keep working, but the same configuration is rejected
+     * for a new index, for example a reindex destination.
+     */
+    private DeprecationIssue minHashParamBoundsCheck(
+        IndexMetadata indexMetadata,
+        ProjectMetadata project,
+        Map<String, List<String>> ignored
+    ) {
+        if (indexMetadata.getCreationVersion().onOrAfter(IndexVersions.MIN_HASH_INDEX_PARAM_BOUNDS)) {
+            return null;
+        }
+        List<String> violations = new ArrayList<>();
+        Map<String, Settings> filters = indexMetadata.getSettings().getGroups(AnalysisRegistry.INDEX_ANALYSIS_FILTER);
+        for (Map.Entry<String, Settings> filter : filters.entrySet()) {
+            Settings filterSettings = filter.getValue();
+            if ("min_hash".equals(filterSettings.get("type")) == false) {
+                continue;
+            }
+            String violation;
+            try {
+                violation = MinHashIndexParamBounds.violation(filterSettings);
+            } catch (IllegalArgumentException e) {
+                // Not parseable as an int; the index couldn't have been opened with this filter, so there is nothing to report.
+                continue;
+            }
+            if (violation != null) {
+                violations.add("[" + filter.getKey() + "]: " + violation);
+            }
+        }
+        if (violations.isEmpty()) {
+            return null;
+        }
+        return new DeprecationIssue(
+            DeprecationIssue.Level.WARNING,
+            "min_hash token filter parameters exceed the limits for new indices",
+            "https://www.elastic.co/docs/reference/text-analysis/analysis-minhash-tokenfilter",
+            "The following [min_hash] filters on index ["
+                + indexMetadata.getIndex().getName()
+                + "] can't be used on new indices: "
+                + String.join(" ", violations)
+                + " This index keeps working. Before reindexing, lower hash_count, bucket_count, or hash_set_size in the "
+                + "settings of the destination index; note that this changes the hashes the filter produces.",
+            false,
+            null
         );
     }
 

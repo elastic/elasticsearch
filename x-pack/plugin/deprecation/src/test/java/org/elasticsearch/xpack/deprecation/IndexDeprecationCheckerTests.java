@@ -25,9 +25,11 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
@@ -515,6 +517,71 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
         );
         List<DeprecationIssue> issues = issuesByIndex.get("test");
         assertEquals(singletonList(expected), issues);
+    }
+
+    public void testMinHashParamBoundsOnLegacyIndex() {
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.UPGRADE_TO_LUCENE_10_0_0,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.MIN_HASH_INDEX_PARAM_BOUNDS)
+        );
+        Settings.Builder settings = settings(version).put("index.analysis.filter.big.type", "min_hash")
+            .put("index.analysis.filter.big.hash_count", 1)
+            .put("index.analysis.filter.big.bucket_count", 512)
+            .put("index.analysis.filter.big.hash_set_size", 200)
+            .put("index.analysis.filter.small.type", "min_hash")
+            .put("index.analysis.filter.small.hash_set_size", 20)
+            .put("index.analysis.filter.other.type", "lowercase");
+        List<DeprecationIssue> issues = minHashIssues(settings);
+        assertThat(
+            issues,
+            contains(
+                new DeprecationIssue(
+                    DeprecationIssue.Level.WARNING,
+                    "min_hash token filter parameters exceed the limits for new indices",
+                    "https://www.elastic.co/docs/reference/text-analysis/analysis-minhash-tokenfilter",
+                    "The following [min_hash] filters on index [test] can't be used on new indices: [big]: The product of "
+                        + "hash_count [1], bucket_count [512], and hash_set_size [200] is [102400], which exceeds the limit [100000]. "
+                        + "This index keeps working. Before reindexing, lower hash_count, bucket_count, or hash_set_size in the "
+                        + "settings of the destination index; note that this changes the hashes the filter produces.",
+                    false,
+                    null
+                )
+            )
+        );
+    }
+
+    public void testMinHashParamBoundsWithinLimitsOnLegacyIndex() {
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.UPGRADE_TO_LUCENE_10_0_0,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.MIN_HASH_INDEX_PARAM_BOUNDS)
+        );
+        Settings.Builder settings = settings(version).put("index.analysis.filter.small.type", "min_hash")
+            .put("index.analysis.filter.small.hash_set_size", 20);
+        assertThat(minHashIssues(settings), equalTo(List.of()));
+    }
+
+    public void testMinHashParamBoundsNotReportedOnNewIndex() {
+        // Indices created on or after the bounds were introduced can't hold such a filter, so there is nothing to report.
+        IndexVersion version = IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.MIN_HASH_INDEX_PARAM_BOUNDS);
+        Settings.Builder settings = settings(version).put("index.analysis.filter.big.type", "min_hash")
+            .put("index.analysis.filter.big.hash_set_size", 200);
+        assertThat(minHashIssues(settings), equalTo(List.of()));
+    }
+
+    private List<DeprecationIssue> minHashIssues(Settings.Builder settings) {
+        IndexMetadata indexMetadata = IndexMetadata.builder("test")
+            .settings(settings)
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .state(indexMetdataState)
+            .build();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true).build();
+        Map<String, List<DeprecationIssue>> issuesByIndex = checker.check(
+            project,
+            new DeprecationInfoAction.Request(TimeValue.THIRTY_SECONDS),
+            emptyPrecomputedData
+        );
+        return issuesByIndex.getOrDefault("test", List.of()).stream().filter(issue -> issue.getMessage().startsWith("min_hash")).toList();
     }
 
     public void testTranslogRetentionSettings() {

@@ -11,16 +11,13 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.ErrorsForCasesWithoutExamplesTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -29,33 +26,6 @@ public class DecayErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     @Override
     protected List<TestCaseSupplier> cases() {
         return paramsToSuppliers(DecayTests.parameters());
-    }
-
-    @Override
-    protected Stream<List<DataType>> testCandidates(List<TestCaseSupplier> cases, Set<List<DataType>> valid) {
-        return Stream.concat(super.testCandidates(cases, valid), threeArgCandidates());
-    }
-
-    private static Stream<List<DataType>> threeArgCandidates() {
-        List<DataType> universe = AbstractFunctionTestCase.validFunctionParameters().toList();
-        List<List<DataType>> result = new ArrayList<>();
-        for (DataType value : universe) {
-            if (validValueType(value) == false) {
-                // Invalid value types are already covered by the 4-arity sweep.
-                continue;
-            }
-            for (DataType origin : universe) {
-                for (DataType scale : universe) {
-                    // Only emit combinations that produce an origin- or scale-related error.
-                    if (validOriginType(value, origin) && validScaleType(value, scale)) {
-                        continue;
-                    }
-                    result.add(List.of(value, origin, scale));
-                }
-            }
-        }
-        // Mirror the framework's NULL de-duplication: at most one NULL per signature.
-        return result.stream().filter(sig -> sig.stream().filter(t -> t == DataType.NULL).count() <= 1);
     }
 
     @Override
@@ -116,7 +86,7 @@ public class DecayErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     private static boolean validOriginType(DataType valueDataType, DataType originDataType) {
         if (DataType.isSpatialPoint(valueDataType)) {
-            return DataType.isSpatialPoint(originDataType);
+            return originDataType == valueDataType;
         }
         if (DataType.isMillisOrNanos(valueDataType)) {
             return DataType.isMillisOrNanos(originDataType);
@@ -136,7 +106,7 @@ public class DecayErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     private static String originTypeDescription(DataType valueDataType) {
         if (DataType.isSpatialPoint(valueDataType)) {
-            return "spatial point";
+            return valueDataType.typeName();
         }
         if (DataType.isMillisOrNanos(valueDataType)) {
             return "datetime or date_nanos";

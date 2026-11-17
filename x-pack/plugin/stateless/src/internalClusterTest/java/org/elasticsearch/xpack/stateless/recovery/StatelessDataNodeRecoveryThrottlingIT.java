@@ -86,7 +86,7 @@ public class StatelessDataNodeRecoveryThrottlingIT extends AbstractStatelessPlug
     /// The smallest allowed per-heap-GB ratio, which deterministically sets heap-based limit to 1.
     private static final double MIN_PER_HEAP_GB = Double.MIN_NORMAL;
 
-    /// Unthrottle master-side allocation and data node limits. Each test customizes their own throttle.
+    /// Unthrottle master-side allocation and data node limits. Each test customizes its own throttle.
     @Override
     protected Settings.Builder nodeSettings() {
         return super.nodeSettings().put(

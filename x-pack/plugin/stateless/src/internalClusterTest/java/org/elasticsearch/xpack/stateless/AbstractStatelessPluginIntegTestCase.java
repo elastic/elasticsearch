@@ -559,7 +559,7 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
             )
             .put(ConcurrentRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING.getKey(), -1)
             .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), between(1, 10))
-            // Tests run with a 512MB heap (`tests.heap.size`), so this yields a heap-based limit between 1 and 10
+            // Tests run with a 512MB heap by default (`tests.heap.size`), so this yields a heap-based limit between 1 and 10
             .put(
                 DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
                 randomDoubleBetween(1, 20, true)

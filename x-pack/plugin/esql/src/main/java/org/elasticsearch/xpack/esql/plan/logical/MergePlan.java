@@ -207,9 +207,7 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
      */
     protected List<Attribute> refreshedOutput() {
         List<Attribute> merged = mergeColumns(children(), output());
-        List<Attribute> converted = mergesScoreAsMetadata()
-            ? toReferenceAttributesPreservingIds(children(), merged, output())
-            : Expressions.toReferenceAttributesPreservingIds(merged, output());
+        List<Attribute> converted = toReferenceAttributesPreservingIds(children(), merged, output());
         // LOAD_ALL stamps _unmapped_fields; preserve type-conflict UnsupportedAttributes that union-type resolution Eval-null'd in
         // children.
         if (unmappedFieldsAttributeFromChildren() != null) {
@@ -219,11 +217,9 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
     }
 
     /**
-     * Converts the merged columns {@code mergedColumns} into output attributes, preserving the ids of the columns of {@code existingOutput}
-     * ({@link Expressions#toReferenceAttributesPreservingIds}), then re-classes {@code _score} according to {@code branches}, see
-     * {@link #withScoreAttributeFromChildren}. A merge for which {@link #mergesScoreAsMetadata()} is {@code false} must use
-     * {@link Expressions#toReferenceAttributesPreservingIds} directly instead.
-     *
+     * Similar to {@link Expressions#toReferenceAttributesPreservingIds}, except {@code _score} column is converted to
+     * a {@code MetadataAttribute} based on the {@code branches} that produced it.
+
      * @param branches the branches as they will be after this output is installed, which may differ from {@link #children()}
      *                 while the analyzer is still aligning them
      * @param mergedColumns the merged columns to convert into output attributes
@@ -235,13 +231,6 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
         List<Attribute> existingOutput
     ) {
         return withScoreAttributeFromChildren(branches, Expressions.toReferenceAttributesPreservingIds(mergedColumns, existingOutput));
-    }
-
-    /**
-     * Whether the merged {@code _score} column should be converted to {@link MetadataAttribute}.
-     */
-    public boolean mergesScoreAsMetadata() {
-        return true;
     }
 
     /**

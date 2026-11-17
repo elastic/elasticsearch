@@ -4037,7 +4037,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assertThat(aggregate.groupings().size(), equalTo(2));
 
         FuseScoreEval scoreEval = as(aggregate.child(), FuseScoreEval.class);
-        assertThat(scoreEval.score(), instanceOf(ReferenceAttribute.class));
+        assertThat(scoreEval.score(), instanceOf(MetadataAttribute.class));
         assertThat(scoreEval.score().name(), equalTo("_score"));
         assertThat(scoreEval.discriminator(), instanceOf(ReferenceAttribute.class));
         assertThat(scoreEval.discriminator().name(), equalTo("_fork"));

@@ -1,5 +1,5 @@
 Limit[10000[INTEGER],false,false]
-\_Fork[[author{r}#0, author.keyword{r}#1, book_no{r}#2, collection{r}#3, description{r}#4, publisher{r}#5, ratings{r}#6, title{r}#7, year{r}#8, _score{r}#9, _fork{r}#10, total{r}#11]]
+\_Fork[[author{r}#0, author.keyword{r}#1, book_no{r}#2, collection{r}#3, description{r}#4, publisher{r}#5, ratings{r}#6, title{r}#7, year{r}#8, _score{m}#9, _fork{r}#10, total{r}#11]]
   |_Eval[[fork1[KEYWORD] AS _fork#12]]
   | \_Limit[3[INTEGER],false,false]
   |   \_OrderBy[[Order[_score{m}#13,DESC,FIRST]]]

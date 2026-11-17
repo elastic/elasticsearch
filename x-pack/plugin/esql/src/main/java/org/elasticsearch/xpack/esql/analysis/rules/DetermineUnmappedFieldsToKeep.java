@@ -64,8 +64,8 @@ import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferen
  * from another branch, the view contributes nulls to it, like any branch that cannot surface it.
  *
  * <p>{@link MergePlan} is n-ary: each branch is stamped with its own pattern. Named unmapped mentions are aligned
- * like {@code LOAD}: a mention in one branch is materialized in every sibling that can surface it, so that
- * name is excluded from {@code _unmapped_fields}. Extra fields that a branch does not keep (literal
+ * like {@code LOAD}: a mention in one branch is materialized in every sibling that can surface it, and the key stays in
+ * {@code _unmapped_fields}, as for any other name the query uses. Extra fields that a branch does not keep (literal
  * {@code KEEP}, {@code STATS}) are not loaded there; such a branch contributes nulls to the merge's
  * {@code _unmapped_fields} so the coordinator can still return extras from siblings.
  *
@@ -161,19 +161,20 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
      * Computes the {@link UnmappedFieldsPattern} describing which additional (currently unmapped)
      * source fields would survive to the output of {@code plan}.
      * <p>
-     * Two things restrict the pattern. KEEP/DROP (as {@link ResolvingProject}) contribute the
-     * include/exclude patterns they were written with: each one adds a single OR group, while
-     * {@link UnmappedFieldsPattern#intersect} applies AND across chained commands. And the names of the columns of a relation are
-     * excluded: a mapped field, or a field that the query names and that is loaded for it, is already a column of its own, so
-     * returning a source field of that name in {@code _unmapped_fields} as well would repeat it. A column that a command adds or
-     * shadows (an EVAL alias, a RENAME target, an ENRICH or LOOKUP JOIN field) is not excluded: it is a different value from the
-     * source field of that name, and the unmapped fields hold what the documents had, as the keys of a {@code flattened} field do
-     * after such a command.
+     * Only KEEP and DROP (as {@link ResolvingProject}) restrict the pattern: they contribute the include/exclude patterns they were
+     * written with, each one adding a single OR group, while {@link UnmappedFieldsPattern#intersect} applies AND across chained
+     * commands. DROP removes what it matches everywhere, columns and keys.
      * <p>
-     * For {@link Join}, only the left side is recursed into. {@link MergePlan} is treated as transparent (no include restriction beyond
-     * excluding its output names); branch-local {@code KEEP}/{@code DROP} patterns are applied in {@link #annotate} by recomputing
-     * this for each child. Other non-unary plans fall back to {@link UnmappedFieldsPattern#ALL}; those queries are rejected by the
-     * {@code Verifier}'s {@code LOAD_ALL} command allow-list.
+     * Nothing else does. A column is a name, and it leaves the keys of the unmapped fields as they are, whatever the column is: a field
+     * that some index maps (which is not a key of the documents of an index that does not), a field that the query names and that is
+     * loaded for it, or one that a command adds or shadows (an EVAL alias, a RENAME target, an ENRICH or LOOKUP JOIN field). The unmapped
+     * fields hold what the documents had, as the keys of a {@code flattened} field do when a query names them, and RENAME renames
+     * columns, not keys.
+     * <p>
+     * For {@link Join}, only the left side is recursed into. {@link MergePlan} is treated as transparent; branch-local
+     * {@code KEEP}/{@code DROP} patterns are applied in {@link #annotate} by recomputing this for each child. Other non-unary plans fall
+     * back to {@link UnmappedFieldsPattern#ALL}; those queries are rejected by the {@code Verifier}'s {@code LOAD_ALL} command
+     * allow-list.
      */
     private static UnmappedFieldsPattern computeUnmappedFieldsToKeep(LogicalPlan plan) {
         if (plan instanceof Aggregate) {
@@ -190,11 +191,9 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
             case Join join -> computeUnmappedFieldsToKeep(join.left());
             default -> UnmappedFieldsPattern.ALL;
         };
-        UnmappedFieldsPattern restricted = plan instanceof ResolvingProject project
-            ? project.unmappedFieldsPattern().intersect(fromChild)
-            : fromChild;
-        // A relation's own columns, mapped or demand-loaded, are not unmapped fields. What a command adds or shadows is not excluded.
-        return plan instanceof EsRelation relation ? restricted.withAdditionalExcludes(Expressions.names(relation.output())) : restricted;
+        // Nothing but KEEP and DROP restricts the keys: a column, whether a mapped field, one the query names or one that a command adds,
+        // is a name of its own and leaves the keys of the unmapped fields as they are, as it does for the keys of a flattened field.
+        return plan instanceof ResolvingProject project ? project.unmappedFieldsPattern().intersect(fromChild) : fromChild;
     }
 
     /**

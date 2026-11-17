@@ -84,7 +84,7 @@ teardown:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ optional_fields_load_all_unmapped_fields_last, optional_fields_load_all_command_output_does_not_shadow ]
+          capabilities: [ optional_fields_load_all_unmapped_fields_last, optional_fields_load_all_only_keep_and_drop_reach_keys ]
       reason: "The column is last, and a column a command adds does not hide a leaf, only with these capabilities"
   - do:
       esql.query:

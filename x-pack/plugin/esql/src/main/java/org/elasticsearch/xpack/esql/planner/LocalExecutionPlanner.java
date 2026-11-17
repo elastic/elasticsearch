@@ -187,7 +187,7 @@ import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
 import org.elasticsearch.xpack.esql.inference.textembedding.TextEmbeddingOperator;
 import org.elasticsearch.xpack.esql.into.IntoOperator;
 import org.elasticsearch.xpack.esql.into.IntoPageWriter;
-import org.elasticsearch.xpack.esql.into.IntoStatsSumOperator;
+import org.elasticsearch.xpack.esql.into.IntoStatsMergeOperator;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -991,14 +991,14 @@ public class LocalExecutionPlanner {
                     client,
                     into.destination(),
                     into.sourceAttributes(),
-                    configuration.explainOnly() ? IntoPageWriter.Factory.Indexing.EXPLAIN : IntoPageWriter.Factory.Indexing.INDEX
+                    configuration.explainOnly() ? IntoPageWriter.Factory.Indexing.DISCARD : IntoPageWriter.Factory.Indexing.INDEX
                 );
                 yield source.with(
                     new IntoOperator.Factory(sink, alignPageToAttributes(into.sourceAttributes(), source.layout)),
                     outputLayout
                 );
             }
-            case SUM -> source.with(new IntoStatsSumOperator.Factory(), outputLayout);
+            case MERGE_STATS -> source.with(new IntoStatsMergeOperator.Factory(), outputLayout);
         };
     }
 

@@ -64,8 +64,10 @@ public final class IntoPageWriter {
         private final AtomicReference<Exception> failure = new AtomicReference<>();
 
         public enum Indexing {
+            /** Sends incoming pages to the destination as bulk requests. */
             INDEX,
-            EXPLAIN
+            /** Releases incoming pages without sending any bulk requests. */
+            DISCARD
         }
 
         public static Factory createFactory(Client client, String destination, List<Attribute> output, Indexing indexing) {

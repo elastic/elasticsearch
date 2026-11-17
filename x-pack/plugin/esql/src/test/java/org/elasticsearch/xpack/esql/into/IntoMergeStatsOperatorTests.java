@@ -13,10 +13,10 @@ import org.elasticsearch.compute.test.ComputeTestCase;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.stats;
 import static org.hamcrest.Matchers.equalTo;
 
-public class IntoStatsSumOperatorTests extends ComputeTestCase {
+public class IntoMergeStatsOperatorTests extends ComputeTestCase {
     public void testZeroInputPagesEmitsZeroZero() {
         BlockFactory bf = blockFactory();
-        IntoStatsSumOperator op = new IntoStatsSumOperator(bf);
+        IntoMergeStatsOperator op = new IntoMergeStatsOperator(bf);
         op.finish();
         assertTrue(op.canProduceMoreDataWithoutExtraInput());
         assertThat(stats(op.getOutput()), equalTo(new IntoStats(0L, 0L)));
@@ -25,7 +25,7 @@ public class IntoStatsSumOperatorTests extends ComputeTestCase {
 
     public void testMultiplePagesAreSummed() {
         BlockFactory bf = blockFactory();
-        IntoStatsSumOperator op = new IntoStatsSumOperator(bf);
+        IntoMergeStatsOperator op = new IntoMergeStatsOperator(bf);
         op.addInput(new IntoStats(3L, 2L).toPage(bf));
         op.addInput(new IntoStats(5L, 4L).toPage(bf));
         op.addInput(new IntoStats(1L, 1L).toPage(bf));

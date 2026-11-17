@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
-import org.elasticsearch.xpack.esql.core.tree.Node.NodeStringFormat;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -29,7 +28,7 @@ import java.util.Objects;
  * <ul>
  *   <li>{@link Mode#WRITE}: runs per driver (data node or coordinator). Reads all source columns,
  *       bulk-indexes them into the destination index, and emits one row {@code [total, created]}.</li>
- *   <li>{@link Mode#SUM}: runs on the coordinator. Receives one {@code [total, created]} row per
+ *   <li>{@link Mode#MERGE_STATS}: runs on the coordinator. Receives one {@code [total, created]} row per
  *       upstream driver and sums them into a single final row.</li>
  * </ul>
  */
@@ -42,7 +41,7 @@ public class IntoExec extends UnaryExec {
 
     public enum Mode {
         WRITE,
-        SUM
+        MERGE_STATS
     }
 
     private final String destination;
@@ -112,7 +111,7 @@ public class IntoExec extends UnaryExec {
     protected AttributeSet computeReferences() {
         return switch (mode) {
             case WRITE -> AttributeSet.of(sourceAttributes);
-            case SUM -> child().outputSet();
+            case MERGE_STATS -> child().outputSet();
         };
     }
 

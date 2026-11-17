@@ -240,7 +240,7 @@ public class Mapper {
             PhysicalPlan write = mappedChild instanceof FragmentExec
                 ? addExchangeForFragment(into, mappedChild)
                 : MapperUtils.mapIntoWrite(into, mappedChild);
-            return new IntoExec(into.source(), write, into.destination(), List.of(), into.output(), IntoExec.Mode.SUM);
+            return new IntoExec(into.source(), write, into.destination(), List.of(), into.output(), IntoExec.Mode.MERGE_STATS);
         }
 
         //

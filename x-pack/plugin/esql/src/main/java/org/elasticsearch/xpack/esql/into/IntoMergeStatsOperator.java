@@ -14,20 +14,21 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 
 /**
- * Operator for the {@code SUM} phase of an {@code INTO} command.
+ * Operator for the {@link org.elasticsearch.xpack.esql.plan.physical.IntoExec.Mode#MERGE_STATS} phase of an {@code INTO} command.
  * Receives one {@code [total, created]} row from each upstream driver and sums
  * them into a single final row. Emits {@code [0, 0]} when no input pages arrive.
+ * Where more features are added to {@code INTO} in the future, this operator will be extended to merge additional statistics.
  */
-public final class IntoStatsSumOperator implements Operator {
+public final class IntoMergeStatsOperator implements Operator {
     public record Factory() implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new IntoStatsSumOperator(driverContext.blockFactory());
+            return new IntoMergeStatsOperator(driverContext.blockFactory());
         }
 
         @Override
         public String describe() {
-            return "IntoStatsSumOperator";
+            return "IntoStatsMergeOperator";
         }
     }
 
@@ -38,7 +39,7 @@ public final class IntoStatsSumOperator implements Operator {
     private boolean finished;
     private boolean outputEmitted;
 
-    IntoStatsSumOperator(BlockFactory blockFactory) {
+    IntoMergeStatsOperator(BlockFactory blockFactory) {
         this.blockFactory = blockFactory;
     }
 

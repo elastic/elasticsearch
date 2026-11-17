@@ -57,6 +57,7 @@ public class Into extends UnaryPlan
     }
 
     private Into(StreamInput in) throws IOException {
+        // TODO: once FROM supports INTO, align regenerated output NameIds with ProjectAwayColumns and ComputeService.reductionPlan
         this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(LogicalPlan.class), in.readString());
     }
 
@@ -105,6 +106,7 @@ public class Into extends UnaryPlan
     public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
         // A child feeds its parent, so the root is the last command. The verifier runs this check on every
         // node, and true means that node has this INTO as its input, so a command runs after it.
+        // TODO: Support EXPLAIN after INTO for debugging
         return (p, failures) -> {
             if (p.children().contains(this)) {
                 failures.add(fail(this, "INTO must be the last command of the query"));

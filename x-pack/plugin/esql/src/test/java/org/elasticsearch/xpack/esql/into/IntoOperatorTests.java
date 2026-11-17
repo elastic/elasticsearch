@@ -31,7 +31,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.esql.into.IntoPageWriter.Factory.Indexing.EXPLAIN;
+import static org.elasticsearch.xpack.esql.into.IntoPageWriter.Factory.Indexing.DISCARD;
 import static org.elasticsearch.xpack.esql.into.IntoPageWriter.Factory.Indexing.INDEX;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.CREATED;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.REFUSED;
@@ -119,10 +119,10 @@ public class IntoOperatorTests extends ComputeTestCase {
         assertThat(e.getMessage(), containsString("simulated IO failure"));
     }
 
-    public void testExplainModeDiscardsPages() {
-        IntoPageWriter.Factory explainSink = IntoPageWriter.Factory.createFactory(client, IntoTestUtils.DESTINATION, COLUMNS, EXPLAIN);
-        Operator op = new IntoOperator.Factory(explainSink, Function.identity()).get(driverContext);
-        op.addInput(page("explained"));
+    public void testDiscardModeDiscardsPages() {
+        IntoPageWriter.Factory discardSink = IntoPageWriter.Factory.createFactory(client, IntoTestUtils.DESTINATION, COLUMNS, DISCARD);
+        Operator op = new IntoOperator.Factory(discardSink, Function.identity()).get(driverContext);
+        op.addInput(page("discarded"));
         op.finish();
         assertThat(client.bulks, empty());
         assertThat(stats(op.getOutput()), equalTo(new IntoStats(0, 0)));

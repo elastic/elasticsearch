@@ -811,7 +811,6 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         // Publish routing change without CS create so the retry applier is what recreates,
         // proving the retry path passes currentRouting (relocating cleared) into createShard.
         state = stateWithShardRouting(clearedRelocating);
-        when(clusterService.state()).thenReturn(state);
         assertTrue(isAwaitingRecoveryRetry(shardRouting));
 
         deterministicTaskQueue.runAllRunnableTasks();
@@ -982,7 +981,6 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         // lock-wait is pending must not cause the continuation to give up -- only a genuine
         // allocation change should. The claim survives and uses the fresh state once it wakes up.
         state = ClusterState.builder(state).stateUUID(UUIDs.randomBase64UUID()).build();
-        when(clusterService.state()).thenReturn(state);
 
         deterministicTaskQueue.runAllTasksInTimeOrder();
 
@@ -1287,7 +1285,6 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
     private void applyState(ClusterState newState) {
         ClusterState previous = state;
         state = newState;
-        when(clusterService.state()).thenReturn(state);
         indicesClusterStateService.applyClusterState(new ClusterChangedEvent("test", state, previous));
     }
 

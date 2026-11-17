@@ -558,7 +558,7 @@ public class SearchResponseTests extends ESTestCase {
                 0,
                 0,
                 0,
-                ShardSearchFailure.EMPTY_ARRAY,
+                List.of(),
                 SearchResponse.Clusters.EMPTY
             );
             try {
@@ -600,7 +600,7 @@ public class SearchResponseTests extends ESTestCase {
                 0,
                 0,
                 0,
-                ShardSearchFailure.EMPTY_ARRAY,
+                List.of(),
                 new SearchResponse.Clusters(5, 3, 2)
             );
             try {
@@ -650,7 +650,7 @@ public class SearchResponseTests extends ESTestCase {
                 9,
                 2,
                 0,
-                ShardSearchFailure.EMPTY_ARRAY,
+                List.of(),
                 createCCSClusterObject(4, 3, true, 1, 1, 1, 1, List.of(new ShardSearchFailure(new IllegalStateException("corrupt index"))))
             );
             try {

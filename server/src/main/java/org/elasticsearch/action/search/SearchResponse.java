@@ -170,41 +170,6 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         }
     }
 
-    @Deprecated // use List<ShardSearchFailure> instead
-    public SearchResponse(
-        SearchHits hits,
-        InternalAggregations aggregations,
-        Suggest suggest,
-        boolean timedOut,
-        Boolean terminatedEarly,
-        SearchProfileResults profileResults,
-        int numReducePhases,
-        String scrollId,
-        int totalShards,
-        int successfulShards,
-        int skippedShards,
-        long tookInMillis,
-        ShardSearchFailure[] shardFailures,
-        Clusters clusters
-    ) {
-        this(
-            hits,
-            aggregations,
-            suggest,
-            timedOut,
-            terminatedEarly,
-            profileResults,
-            numReducePhases,
-            scrollId,
-            totalShards,
-            successfulShards,
-            skippedShards,
-            tookInMillis,
-            shardFailures != null ? List.of(shardFailures) : List.of(),
-            clusters
-        );
-    }
-
     public SearchResponse(
         SearchHits hits,
         InternalAggregations aggregations,
@@ -678,7 +643,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             getSuccessfulShards(),
             getSkippedShards(),
             getFailedShards(),
-            getShardFailures()
+            shardFailuresList()
         );
         return builder;
     }
@@ -1367,9 +1332,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 }
                 if (failures != null && failures.isEmpty() == false) {
                     builder.startArray(RestActions.FAILURES_FIELD.getPreferredName());
-                    ShardOperationFailedException[] groupedFailures = ExceptionsHelper.groupBy(
-                        failures.toArray(ShardSearchFailure.EMPTY_ARRAY)
-                    );
+                    List<ShardOperationFailedException> groupedFailures = ExceptionsHelper.groupBy(failures);
                     for (ShardOperationFailedException failure : groupedFailures) {
                         failure.toXContent(builder, params);
                     }

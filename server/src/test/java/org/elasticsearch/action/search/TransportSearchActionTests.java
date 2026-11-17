@@ -2000,7 +2000,7 @@ public class TransportSearchActionTests extends ESTestCase {
             1,
             0,
             100L,
-            ShardSearchFailure.EMPTY_ARRAY,
+            List.of(),
             SearchResponse.Clusters.EMPTY
         );
     }

@@ -114,11 +114,8 @@ public class TransformUsageTransportAction extends XPackUsageFeatureTransportAct
         });
 
         ActionListener<SearchResponse> totalTransformCountListener = ActionListener.wrap(transformCountSuccess -> {
-            if (transformCountSuccess.getShardFailures().length > 0) {
-                logger.warn(
-                    "total transform count search returned shard failures: {}",
-                    Arrays.toString(transformCountSuccess.getShardFailures())
-                );
+            if (transformCountSuccess.shardFailuresList().isEmpty() == false) {
+                logger.warn("total transform count search returned shard failures: {}", transformCountSuccess.shardFailuresList());
             }
             long totalTransforms = transformCountSuccess.getHits().getTotalHits().value();
             if (totalTransforms == 0) {

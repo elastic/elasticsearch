@@ -251,7 +251,7 @@ public final class SearchResponseMerger implements Releasable {
             numReducePhases += searchResponse.getNumReducePhases();
             mergedDirectoryMetrics = mergedDirectoryMetrics.merge(searchResponse.getDirectoryMetrics());
 
-            Collections.addAll(shardFailures, searchResponse.getShardFailures());
+            shardFailures.addAll(searchResponse.shardFailuresList());
             phaseFailures.addAll(searchResponse.getPhaseFailures());
 
             shardProfileResults.putAll(searchResponse.getSearchProfileShardResults());

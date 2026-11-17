@@ -359,7 +359,10 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
 
                     @Override
                     public FieldComparator<?> getComparator(int numHits, Pruning enableSkipping) {
-                        return new LongComparator(1, delegate.getField(), (Long) missingValue, delegate.getReverse(), Pruning.NONE) {
+                        // Documents without a value must compare as the index sort placed them, or the search for the first
+                        // document after the after key, which assumes the comparator follows the index order, goes astray.
+                        Long missing = (Long) delegate.getMissingValue();
+                        return new LongComparator(1, delegate.getField(), missing, delegate.getReverse(), Pruning.NONE) {
                             @Override
                             public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
                                 return new LongLeafComparator(context) {

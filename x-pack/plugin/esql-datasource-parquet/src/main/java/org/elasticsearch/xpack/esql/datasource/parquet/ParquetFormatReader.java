@@ -23,6 +23,7 @@ import org.apache.parquet.filter2.predicate.FilterPredicate;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
+import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.hadoop.metadata.FileMetaData;
 import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 import org.apache.parquet.io.InputFile;
@@ -1819,14 +1820,24 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     }
 
     /**
-     * Validates footer-level invariants that, if violated, indicate a corrupt file. Currently
-     * checks that required columns (maxDefinitionLevel == 0) do not report non-zero null counts
-     * in their row-group statistics. Such files pass parquet-mr footer parsing but produce
-     * garbage or exceptions during data-page decoding.
+     * Validates footer-level invariants that, if violated, indicate a corrupt or unreadable file.
+     * Checks that every column chunk uses a compression codec this reader implements, and that
+     * required columns (maxDefinitionLevel == 0) do not report non-zero null counts in their
+     * row-group statistics. Both refusals are {@link IllegalArgumentException} so they map to
+     * HTTP 400. Unsupported codecs are readable from the footer, so they are refused here before
+     * any page is fetched; {@link PrefetchedRowGroupBuilder} keeps a backstop on the read path.
      */
     static void validateFooterIntegrity(MessageType schema, List<BlockMetaData> rowGroups) {
-        for (BlockMetaData rowGroup : rowGroups) {
+        Set<CompressionCodecName> supported = PlainCompressionCodecFactory.supportedDecompressionCodecs();
+        for (int rowGroupOrdinal = 0; rowGroupOrdinal < rowGroups.size(); rowGroupOrdinal++) {
+            BlockMetaData rowGroup = rowGroups.get(rowGroupOrdinal);
             for (ColumnChunkMetaData col : rowGroup.getColumns()) {
+                CompressionCodecName codec = col.getCodec();
+                if (supported.contains(codec) == false) {
+                    throw invalidParquet(
+                        PlainCompressionCodecFactory.unsupportedDecompressionDetail(col.getPath().toDotString(), codec, rowGroupOrdinal)
+                    );
+                }
                 String[] path = col.getPath().toArray();
                 ColumnDescriptor desc = schema.getColumnDescription(path);
                 if (desc != null && desc.getMaxDefinitionLevel() == 0) {
@@ -4068,8 +4079,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     /**
      * Whether values from a column whose Parquet schema maps to {@code fileDerived} can be read using
      * the planner's {@code planner} type (same widening notion as globbed external sources). Package-private so the
-     * deferred-extraction path ({@link ParquetColumnExtractor#coerceToTarget}) makes the identical widening decision as
-     * the eager gate — the two must agree or a column reads differently depending on whether extraction was deferred.
+     * deferred-extraction path ({@link ParquetColumnExtractor#coercionAdmissible}) makes the identical widening
+     * decision as the eager gate — the two must agree or a column reads differently depending on whether extraction
+     * was deferred.
      */
     static boolean plannerTypeCompatibleWithFileDerivedType(DataType planner, DataType fileDerived) {
         DataType unified = EsqlDataTypeConverter.commonType(planner, fileDerived);
@@ -4870,7 +4882,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     values[i] = switch (decode) {
                         case DATE_DAYS -> ParquetColumnDecoding.dateDaysToMillis(cr.getInteger());
                         case INT32_EPOCH_MILLIS -> ParquetColumnDecoding.int32AsInferredLong(cr.getInteger(), info.logicalType());
-                        case INT64_EPOCH_MILLIS -> ParquetColumnDecoding.int64AsInferredLong(cr.getLong(), info.logicalType());
+                        case INT64_EPOCH_MILLIS -> ParquetColumnDecoding.int64AsMillis(cr.getLong(), info.logicalType());
                         case INT96, STRING_PARSE -> throw new AssertionError("handled before the loop: " + decode);
                     };
                 }

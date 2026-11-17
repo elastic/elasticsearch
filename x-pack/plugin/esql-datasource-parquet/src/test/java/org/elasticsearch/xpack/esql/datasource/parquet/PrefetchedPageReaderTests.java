@@ -73,6 +73,17 @@ public class PrefetchedPageReaderTests extends ESTestCase {
         assertV1RoundTripDecompresses(CompressionCodecName.LZ4_RAW);
     }
 
+    public void testDecompressionFailureNamesTheCodec() throws IOException {
+        CompressionCodecName codec = randomFrom(
+            CompressionCodecName.SNAPPY,
+            CompressionCodecName.GZIP,
+            CompressionCodecName.ZSTD,
+            CompressionCodecName.LZ4_RAW
+        );
+        assertV1DecompressFailureNamesCodec(codec);
+        assertV2DecompressFailureNamesCodec(codec);
+    }
+
     public void testReadsV2PageUncompressed() throws IOException {
         assertV2RoundTripDecompressesDataOnly(CompressionCodecName.UNCOMPRESSED);
     }
@@ -499,6 +510,76 @@ public class PrefetchedPageReaderTests extends ESTestCase {
             assertThat(out.getValueCount(), equalTo(5));
             assertThat(out.getBytes().toByteArray(), equalTo(payload));
         }
+    }
+
+    private void assertV1DecompressFailureNamesCodec(CompressionCodecName codec) throws IOException {
+        byte[] payload = randomBytesOfLength(64);
+        byte[] compressed = scramble(codecFactory.getCompressor(codec).compress(BytesInput.from(payload)).toByteArray());
+        DataPageV1 v1 = new DataPageV1(
+            BytesInput.from(compressed),
+            10,
+            payload.length,
+            intStats(),
+            Encoding.RLE,
+            Encoding.RLE,
+            Encoding.PLAIN
+        );
+        try (
+            PrefetchedPageReader reader = new PrefetchedPageReader(
+                codecFactory.getDecompressor(codec),
+                breaker,
+                List.of(new PrefetchedPageReader.CompressedPage(v1, -1L)),
+                null,
+                10,
+                ParquetDecodeBudget.NOOP,
+                codec
+            )
+        ) {
+            ParquetDecodingException e = expectThrows(ParquetDecodingException.class, reader::readPage);
+            assertThat(e.getMessage(), equalTo("Could not decompress V1 data page (codec " + codec + ")"));
+        }
+    }
+
+    private void assertV2DecompressFailureNamesCodec(CompressionCodecName codec) throws IOException {
+        byte[] rl = new byte[] { 1, 2, 3, 4 };
+        byte[] dl = new byte[] { 5, 6 };
+        byte[] data = randomBytesOfLength(64);
+        byte[] compressedData = scramble(codecFactory.getCompressor(codec).compress(BytesInput.from(data)).toByteArray());
+        DataPageV2 v2 = new DataPageV2(
+            8,
+            1,
+            10,
+            BytesInput.from(rl),
+            BytesInput.from(dl),
+            Encoding.PLAIN,
+            BytesInput.from(compressedData),
+            rl.length + dl.length + data.length,
+            intStats(),
+            true
+        );
+        try (
+            PrefetchedPageReader reader = new PrefetchedPageReader(
+                codecFactory.getDecompressor(codec),
+                breaker,
+                List.of(new PrefetchedPageReader.CompressedPage(v2, -1L)),
+                null,
+                10,
+                ParquetDecodeBudget.NOOP,
+                codec
+            )
+        ) {
+            ParquetDecodingException e = expectThrows(ParquetDecodingException.class, reader::readPage);
+            assertThat(e.getMessage(), equalTo("Could not decompress V2 data page (codec " + codec + ")"));
+        }
+    }
+
+    private static byte[] scramble(byte[] compressed) {
+        assertTrue("compressed page too small to scramble", compressed.length > 0);
+        byte[] damaged = compressed.clone();
+        for (int i = 0; i < damaged.length; i++) {
+            damaged[i] ^= 0x5A;
+        }
+        return damaged;
     }
 
     private void assertV1RoundTripDecompresses(CompressionCodecName codec) throws IOException {

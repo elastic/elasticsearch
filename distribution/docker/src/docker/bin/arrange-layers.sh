@@ -14,6 +14,10 @@ set -eu
 
 # Many modules and plugins bundle identical copies of the same jar. Replace them with hard links, i.e. several
 # paths to a single file, so that the file is stored only once in the image.
+#
+# `ln -f` keys on content only, so the linked paths take the mode and owner of the first file. That is only safe
+# because the Dockerfile resets the permissions of all files before running this script, which leaves every jar
+# with the same mode and owner.
 dedupe_jars() {
     previous_sum=
     find lib modules plugins -type f -name '*.jar' -exec sha256sum {} + | sort | while read -r sum path; do

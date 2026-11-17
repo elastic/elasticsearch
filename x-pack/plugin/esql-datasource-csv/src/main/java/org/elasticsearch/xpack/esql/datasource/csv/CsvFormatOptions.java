@@ -72,6 +72,11 @@ import java.util.Locale;
  *                           blank and comment-prefix records (which do not count toward N) and
  *                           before {@link #headerRow} is applied. Default {@code 0}. Must be
  *                           non-negative; the reader also caps the value at registration.
+ * @param padShortRows       whether a row that stops before the file's width is read with its missing trailing
+ *                           fields as null (each such row is reported by a warning), instead of being a row error
+ *                           the {@code error_mode} decides the fate of. Default {@code false}: a row narrower than
+ *                           the file's width is as structural a fault as a wider one, and a padded null cannot be
+ *                           told from a null the file carries.
  */
 public record CsvFormatOptions(
     char delimiter,
@@ -88,7 +93,8 @@ public record CsvFormatOptions(
     boolean quoting,
     boolean escaping,
     boolean trimSpaces,
-    int skipRows
+    int skipRows,
+    boolean padShortRows
 ) {
 
     public enum MultiValueSyntax {
@@ -170,7 +176,8 @@ public record CsvFormatOptions(
         true,
         true,
         false, // trimSpaces (default; see the record javadoc)
-        0
+        0,
+        false // padShortRows (default; see the record javadoc)
     );
 
     /**
@@ -195,7 +202,8 @@ public record CsvFormatOptions(
         false,
         false,
         false, // trimSpaces (default; see the record javadoc)
-        0
+        0,
+        false // padShortRows (default; see the record javadoc)
     );
 
     /**
@@ -231,7 +239,8 @@ public record CsvFormatOptions(
             true,
             true,
             false, // trimSpaces (default; see the record javadoc)
-            0
+            0,
+            false // padShortRows (default; see the record javadoc)
         );
     }
 
@@ -269,7 +278,49 @@ public record CsvFormatOptions(
             quoting,
             escaping,
             trimSpaces,
-            0
+            0,
+            false // padShortRows (default; see the record javadoc)
+        );
+    }
+
+    /**
+     * Pre-{@code pad_short_rows} constructor: callers that don't say otherwise read a row narrower than the file's
+     * width as a row error rather than null-padding it.
+     */
+    public CsvFormatOptions(
+        char delimiter,
+        char quoteChar,
+        char escapeChar,
+        String commentPrefix,
+        @Nullable String nullValue,
+        Charset encoding,
+        DateFormatter datetimeFormatter,
+        int maxFieldSize,
+        MultiValueSyntax multiValueSyntax,
+        boolean headerRow,
+        String columnPrefix,
+        boolean quoting,
+        boolean escaping,
+        boolean trimSpaces,
+        int skipRows
+    ) {
+        this(
+            delimiter,
+            quoteChar,
+            escapeChar,
+            commentPrefix,
+            nullValue,
+            encoding,
+            datetimeFormatter,
+            maxFieldSize,
+            multiValueSyntax,
+            headerRow,
+            columnPrefix,
+            quoting,
+            escaping,
+            trimSpaces,
+            skipRows,
+            false // padShortRows (default; see the record javadoc)
         );
     }
 

@@ -78,3 +78,44 @@ emp_no:integer
 10018
 10019
 ;
+
+// A row that stops before the file's width is a row error, not a row of nulls: ragged_short_rows.csv holds
+// `2,bob` against a three-column header, and under error_mode: skip_row it is dropped with a warning naming
+// the row and both widths. The default fail_fast fails the query outright, which a csv-spec cannot assert.
+shortRowDroppedUnderSkipRow
+required_capability: dataset_in_from_command
+required_capability: external_dataset_messages
+required_capability: external_csv_short_row_is_a_row_error
+dataset: ragged_short_skip: "{{ragged_short_rows}}" WITH {"error_mode": "skip_row", "max_errors": 10}
+
+FROM ragged_short_skip
+| KEEP id, name, score
+| SORT id
+;
+warningRegex:Some rows in \[.+\] cannot be read; skipping them
+warningRegex:row \[2\]: missing trailing fields: \[2\] columns, the header has \[3\]
+
+id:integer | name:keyword | score:integer
+1          | alice        | 10
+3          | carol        | 30
+;
+
+// pad_short_rows asks for the old reading back: the short row is kept with its missing field null, and the
+// padding is reported whatever the error mode, so nothing is padded silently.
+shortRowPaddedWhenOptedIn
+required_capability: dataset_in_from_command
+required_capability: external_csv_short_row_is_a_row_error
+dataset: ragged_short_padded: "{{ragged_short_rows}}" WITH {"pad_short_rows": true}
+
+FROM ragged_short_padded
+| KEEP id, name, score
+| SORT id
+;
+warningRegex:Some rows in \[.+\] are missing trailing fields; reading those fields as null
+warningRegex:row \[2\]: missing trailing fields, read as null: \[2\] columns, the header has \[3\]
+
+id:integer | name:keyword | score:integer
+1          | alice        | 10
+2          | bob          | null
+3          | carol        | 30
+;

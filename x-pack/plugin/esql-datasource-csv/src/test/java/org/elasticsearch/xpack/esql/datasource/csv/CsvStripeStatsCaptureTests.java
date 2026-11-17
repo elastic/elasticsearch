@@ -624,6 +624,91 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         assertEquals("val max", 30, ((Number) SourceStatisticsSerializer.extractColumnMax(meta, "val")).intValue());
     }
 
+    /**
+     * The ALL-scope harvest runs AFTER the row-width rule, so what the rule rejects never reaches the per-column
+     * statistics. A row that stops short of the file's width used to be padded and harvested, contributing a null
+     * for each field it lacked; now it is dropped, and the published null count is the file's own nulls only.
+     * Under {@code pad_short_rows} the row is kept and those nulls are counted again — the two halves of the same
+     * change, pinned together so neither can move alone.
+     */
+    public void testShortRowReachesTheAllScopeHarvestOnlyWhenPadded() throws Exception {
+        byte[] full = "a,b\n0,100\n1\n2,102\n".getBytes(StandardCharsets.UTF_8);
+        long stripe = 1024; // one stripe over the whole file
+        List<Attribute> twoColSchema = List.of(intCol("a"), intCol("b"));
+        ErrorPolicy skipRow = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 100, 1.0, false);
+
+        Map<String, Object> dropped = reconcileToMetadata(
+            captureScopedWithPolicy(full, stripe, List.of("a"), StripeColumnScope.ALL, skipRow, Map.of()),
+            twoColSchema
+        );
+        assertEquals(
+            "the short row is not among the rows",
+            2L,
+            ((Number) dropped.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue()
+        );
+        assertEquals(
+            "a dropped row contributes no null to the unprojected column b",
+            0L,
+            SourceStatisticsSerializer.extractColumnNullCount(dropped, "b").longValue()
+        );
+
+        Map<String, Object> padded = reconcileToMetadata(
+            captureScopedWithPolicy(
+                full,
+                stripe,
+                List.of("a"),
+                StripeColumnScope.ALL,
+                skipRow,
+                Map.of(CsvFormatReader.CONFIG_PAD_SHORT_ROWS, true)
+            ),
+            twoColSchema
+        );
+        assertEquals("the padded row is a row", 3L, ((Number) padded.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
+        assertEquals(
+            "the padded field is harvested as a null of column b",
+            1L,
+            SourceStatisticsSerializer.extractColumnNullCount(padded, "b").longValue()
+        );
+        assertEquals("b min is unaffected", 100, ((Number) SourceStatisticsSerializer.extractColumnMin(padded, "b")).intValue());
+        assertEquals("b max is unaffected", 102, ((Number) SourceStatisticsSerializer.extractColumnMax(padded, "b")).intValue());
+    }
+
+    /** {@link #captureScoped} with an explicit error policy and extra reader config, for a file with a bad row. */
+    private List<Map<String, Object>> captureScopedWithPolicy(
+        byte[] bytes,
+        long stripeSize,
+        List<String> projectedColumns,
+        StripeColumnScope scope,
+        ErrorPolicy policy,
+        Map<String, Object> extraConfig
+    ) throws Exception {
+        StorageObject o = memoryObject(bytes);
+        FormatReadContext ctx = FormatReadContext.builder()
+            .projectedColumns(projectedColumns)
+            .batchSize(1000)
+            .recordAligned(true)
+            .firstSplit(true)
+            .lastSplit(true)
+            .splitStartByte(0)
+            .stats(0, stripeSize, true)
+            .statsColumnScope(scope)
+            .errorPolicy(policy)
+            .build();
+        Map<String, Object> config = new HashMap<>(extraConfig);
+        config.put(CsvFormatReader.CONFIG_HEADER_ROW, true);
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        try (
+            var handle = ExternalStatsCapture.bind(sink);
+            CloseableIterator<Page> it = new CsvFormatReader(blockFactory, "csv", List.of(".csv")).withConfig(config).read(o, ctx)
+        ) {
+            while (it.hasNext()) {
+                it.next().releaseBlocks();
+            }
+        }
+        List<Map<String, Object>> raw = sink.get(o.path().toString());
+        return raw == null ? List.of() : raw;
+    }
+
     // header "a,b\n" + rows "i,100+i\n"; both columns inferred INTEGER.
     private static byte[] twoColumnCsv(int count) {
         StringBuilder sb = new StringBuilder("a,b\n");

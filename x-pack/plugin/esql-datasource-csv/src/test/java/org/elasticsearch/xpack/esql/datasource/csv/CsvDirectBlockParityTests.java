@@ -984,8 +984,15 @@ public class CsvDirectBlockParityTests extends ESTestCase {
         );
     }
 
-    public void testTsvPlainMissingTrailingColumnNullFilled() throws IOException {
-        List<List<Object>> rows = read(true, nullField(), "a:long\tb:keyword\n1\n");
+    /** A row that stops short of the header is dropped on TSV too, and both walkers drop the same row. */
+    public void testTsvPlainMissingTrailingColumnSkipRowDropsRow() throws IOException {
+        List<List<Object>> rows = read(true, Map.of(), skipRow(), null, "a:long\tb:keyword\n1\n2\ty\n");
+        assertEquals(List.of(row(2L, br("y"))), rows);
+    }
+
+    /** {@code pad_short_rows} null-fills it instead, identically on both arms. */
+    public void testTsvPlainMissingTrailingColumnNullFilledWhenPadded() throws IOException {
+        List<List<Object>> rows = read(true, Map.of("pad_short_rows", true), nullField(), null, "a:long\tb:keyword\n1\n");
         assertEquals(List.of(row(1L, null)), rows);
     }
 
@@ -1261,8 +1268,25 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     // Ragged / extra columns
     // ---------------------------------------------------------------------------------------------
 
-    public void testMissingTrailingColumnNullFilled() throws IOException {
-        List<List<Object>> rows = read(false, nullField(), "a:long,b:keyword\n1\n");
+    /**
+     * A row narrower than the file's width is a structural row error, as a wider one is, so {@code skip_row} drops
+     * it and its neighbour survives — the mirror of {@code testTsvPlainExtraColumnSkipRowDropsRow}. Both walkers
+     * must drop the same row; the error's wording is pinned in {@code CsvFormatReaderTests}.
+     */
+    public void testMissingTrailingColumnSkipRowDropsRow() throws IOException {
+        List<List<Object>> rows = read(false, Map.of(), skipRow(), null, "a:long,b:keyword\n1\n2,y\n");
+        assertEquals(List.of(row(2L, br("y"))), rows);
+    }
+
+    /** {@code null_field} does not save it either: a row of the wrong shape has no one cell to null. */
+    public void testMissingTrailingColumnUnderNullFieldDropsRow() throws IOException {
+        List<List<Object>> rows = read(false, Map.of(), nullField(), null, "a:long,b:keyword\n1\n2,y\n");
+        assertEquals(List.of(row(2L, br("y"))), rows);
+    }
+
+    /** {@code pad_short_rows} restores the null-fill, on both walkers. */
+    public void testMissingTrailingColumnNullFilledWhenPadded() throws IOException {
+        List<List<Object>> rows = read(false, Map.of("pad_short_rows", true), nullField(), null, "a:long,b:keyword\n1\n");
         assertEquals(List.of(row(1L, null)), rows);
     }
 

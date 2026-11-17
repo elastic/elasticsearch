@@ -1,3 +1,17 @@
+floating_point_dimensions
+required_capability: ts_command_v0
+required_capability: pack_double_float_dimensions
+
+TS metric_floating_point_dims
+| STATS max_tx = MAX(MAX_OVER_TIME(network.eth0.tx)) BY double_dim, float_dim
+| SORT double_dim NULLS FIRST;
+
+max_tx:integer | double_dim:double | float_dim:double
+58             | null              | null
+48             | -3.5              | -4.25
+81             | 1.25              | 2.5
+;
+
 timeseriesWithoutAggs
 required_capability: ts_command_v0
 TS k8s | sort @timestamp DESC, cluster, pod | keep @timestamp,cluster,pod,network.bytes_in,network.cost | limit 5;
@@ -671,6 +685,34 @@ cnt:long | cluster:keyword | pod:keyword
 1        | prod            | one
 1        | prod            | two
 1        | prod            | three
+;
+
+statsByTsid
+required_capability: ts_command_v0
+required_capability: metadata_tsid_field
+required_capability: fix_ts_stats_by_tsid
+
+TS k8s METADATA _tsid
+| STATS BY _tsid
+| STATS series = COUNT(*)
+;
+
+series:long
+9
+;
+
+statsByAliasedTsidWithAggregate
+required_capability: ts_command_v0
+required_capability: metadata_tsid_field
+required_capability: fix_ts_stats_by_tsid
+
+TS k8s METADATA _tsid
+| STATS bytes = max(last_over_time(network.bytes_in)) BY series = _tsid
+| STATS series = COUNT(series), bytes = max(bytes)
+;
+
+series:long | bytes:long
+9           | 972
 ;
 
 inlineStatsAfterStatsCommand

@@ -71,11 +71,14 @@ import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
 import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Describe;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
+import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Fetch;
 import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -104,6 +107,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesReduction;
+import org.elasticsearch.xpack.esql.plan.logical.promql.CountValuesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.HistogramFraction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.HistogramFunctionCall;
 import org.elasticsearch.xpack.esql.plan.logical.promql.HistogramQuantile;
@@ -172,6 +176,7 @@ public class ApproximationSupportTests extends ESTestCase {
         PromqlFunctionCall.class,
         WithinSeriesAggregate.class,
         AcrossSeriesAggregate.class,
+        CountValuesAggregate.class,
         AcrossSeriesReduction.class,
         HistogramFunctionCall.class,
         HistogramFraction.class,
@@ -199,6 +204,9 @@ public class ApproximationSupportTests extends ESTestCase {
         ShowInfo.class,
         MetricsInfo.class,
         ExternalRelation.class,
+        // EQL delegates to an exact _eql/search over its own bounded result set; there is no index scan to
+        // sample, so a query with SET approximation over an EQL source runs exact (approximation is skipped).
+        EqlRelation.class,
         TsInfo.class,
 
         // The plans are superclasses of other plans.
@@ -219,6 +227,7 @@ public class ApproximationSupportTests extends ESTestCase {
         FillNull.class,
         HashJoin.class,
         InlineStats.class,
+        Into.class,
         Keep.class,
         MarkJoin.class,
         Lookup.class,
@@ -230,6 +239,7 @@ public class ApproximationSupportTests extends ESTestCase {
         SparklineGenerateEmptyBuckets.class,
 
         // internals
+        Fetch.class,
         PackDims.class,
         UnpackDims.class,
         TopNPreFilter.class

@@ -1386,7 +1386,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     @Override
-    public CsvFormatReader withBlockFactory(BlockFactory factory) {
+    public CsvFormatReader withBlockFactory(@Nullable BlockFactory factory) {
         if (factory == null || factory == blockFactory) {
             return this;
         }

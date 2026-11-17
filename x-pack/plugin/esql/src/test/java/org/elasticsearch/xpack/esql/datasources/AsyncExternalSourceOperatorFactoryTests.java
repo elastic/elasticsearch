@@ -816,6 +816,69 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         }
     }
 
+    public void testBindProducerFactoryClosesThePreBindMint() throws Exception {
+        AtomicInteger preBindCloses = new AtomicInteger();
+        Page filePage = new Page(1, TEST_BLOCK_FACTORY.newIntArrayVector(new int[] { 7 }, 1).asBlock());
+        FormatReader formatReader = new SinglePageReader(() -> filePage) {
+            @Override
+            public FormatReader withReadConfig(String readConfig) {
+                return new SinglePageReader(() -> filePage) {
+                    @Override
+                    public FormatReader withBlockFactory(BlockFactory blockFactory) {
+                        return new SinglePageReader(() -> filePage) {
+                            @Override
+                            public void close() {}
+                        };
+                    }
+
+                    @Override
+                    public void close() {
+                        preBindCloses.incrementAndGet();
+                    }
+                };
+            }
+        };
+
+        StoragePath filePath = StoragePath.of("s3://bucket/data/year=2024/f1.parquet");
+        FileList fileList = GlobExpander.fileListOf(
+            List.of(new StorageEntry(filePath, 100, Instant.EPOCH)),
+            "s3://bucket/data/**" + "/f1.parquet"
+        );
+        List<Attribute> attributes = List.of(ref("value", DataType.INTEGER), ref("year", DataType.INTEGER));
+        DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TEST_BLOCK_FACTORY, null);
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            new StubMultiFileStorageProvider(),
+            formatReader,
+            filePath,
+            attributes,
+            100,
+            10,
+            Runnable::run
+        ).fileList(fileList).partitionColumnNames(Set.of("year")).partitionValues(Map.of("year", 2024)).build();
+
+        SourceOperator operator = factory.get(driverContext);
+        Page page = null;
+        try {
+            while (operator.isFinished() == false) {
+                Page p = operator.getOutput();
+                if (p != null) {
+                    if (page == null) {
+                        page = p;
+                    } else {
+                        p.releaseBlocks();
+                    }
+                }
+            }
+            assertNotNull(page);
+            assertThat("withBlockFactory copy must close the withReadConfig mint it replaced", preBindCloses.get(), equalTo(1));
+        } finally {
+            if (page != null) {
+                page.releaseBlocks();
+            }
+            operator.close();
+        }
+    }
+
     public void testMultiFileReadIteratesAllFiles() throws Exception {
         AtomicInteger readCount = new AtomicInteger(0);
         List<StorageEntry> entries = List.of(

@@ -1227,11 +1227,18 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
     /**
      * Binds {@code reader} to the producer-thread factory immediately before a read. Node-level
-     * caches stay on the registry singleton; page and per-read sample allocations go to this factory.
-     * {@code null} is a no-op (tests that mock a {@link DriverContext} without one).
+     * caches stay on the registry singleton. Page and per-read sample allocations go to this factory
+     * once the format overrides {@link FormatReader#withBlockFactory}; otherwise this is a no-op.
+     * When that wither returns a copy, the pre-bind mint ({@code withReadConfig} / {@code wrapForObject})
+     * is closed so it is not dropped unclosed. {@code null} is a no-op (tests that mock a
+     * {@link DriverContext} without one).
      */
-    private static FormatReader bindProducerFactory(FormatReader reader, @Nullable BlockFactory factory) {
-        return reader.withBlockFactory(factory);
+    private FormatReader bindProducerFactory(FormatReader reader, @Nullable BlockFactory factory) {
+        FormatReader bound = reader.withBlockFactory(factory);
+        if (bound != reader) {
+            closeMinted(reader);
+        }
+        return bound;
     }
 
     @Nullable

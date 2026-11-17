@@ -744,13 +744,25 @@ public final class MappingLookup {
      * <p>A child's object is found by the child's offset among its parent's children, so the parent's stored {@code _source}
      * must still hold every object of the nested field. A mapping-level {@code _source} {@code includes} or {@code excludes}
      * filters the stored source when it is indexed, and for example an {@code excludes} that leaves an object empty removes
-     * that object. The later objects then shift: a child is given another object's slice, or the read throws
-     * {@link IllegalStateException}. Synthetic source cannot be filtered. Callers must not read source-backed fields of
-     * children of an index whose stored source is filtered.
+     * that object. The later objects then shift: a child would be given another object's slice, or reading it would fail. So this
+     * throws {@link IllegalStateException} for an index with a nested field and such a filter. Synthetic source cannot be filtered.
      */
     public SourceLoader newNestedChildSourceLoader(NestedDocuments nestedDocuments) {
-        SourceLoader parentLoader = newSourceLoader(null, SourceFieldMetrics.NOOP, null);
-        return nestedLookup == NestedLookup.EMPTY ? parentLoader : new NestedChildSourceLoader(parentLoader, nestedDocuments, nestedLookup);
+        if (nestedLookup == NestedLookup.EMPTY) {
+            return newSourceLoader(null, SourceFieldMetrics.NOOP, null);
+        }
+        if (storesFilteredSource()) {
+            throw new IllegalStateException("cannot read nested child documents from the filtered _source of this index");
+        }
+        return new NestedChildSourceLoader(newSourceLoader(null, SourceFieldMetrics.NOOP, null), nestedDocuments, nestedLookup);
+    }
+
+    /**
+     * Whether the stored {@code _source} was filtered by the mapping's {@code includes} or {@code excludes} as it was indexed.
+     */
+    public boolean storesFilteredSource() {
+        SourceFieldMapper source = mapping.getMetadataMapperByClass(SourceFieldMapper.class);
+        return isSourceEnabled && isSourceSynthetic == false && source != null && source.isComplete() == false;
     }
 
     private SourceFilter removeExcludedSyntheticVectorFields(@Nullable SourceFilter filter) {

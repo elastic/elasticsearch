@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 /// - `segment` is the name of the merged Lucene segment without the leading `_` that it always has.
 /// - `discriminator` is a fixed width string of 16 lowercase hexadecimal characters, unique per engine instance.
 ///
-/// @param blobName    the name of the blob, from which the merge start generation, the segment and the discriminator are deduced
+/// @param blobName    the name of the blob, from which the merge start generation, the segment, and the discriminator are parsed
 /// @param primaryTerm the primary term of the container the blob is stored in
 public record MergeBlob(String blobName, long primaryTerm) implements Blob {
 

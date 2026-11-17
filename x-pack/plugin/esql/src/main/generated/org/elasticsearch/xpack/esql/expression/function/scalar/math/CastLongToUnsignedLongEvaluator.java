@@ -59,7 +59,7 @@ public final class CastLongToUnsignedLongEvaluator implements ExpressionEvaluato
   }
 
   public LongBlock eval(int positionCount, LongBlock vBlock) {
-    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (vBlock.isNull(p)) {
           result.appendNull();
@@ -81,7 +81,7 @@ public final class CastLongToUnsignedLongEvaluator implements ExpressionEvaluato
   }
 
   public LongVector eval(int positionCount, LongVector vVector) {
-    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
+    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         long v = vVector.getLong(p);
         result.appendLong(p, Cast.castLongToUnsignedLong(v));

@@ -9,8 +9,6 @@ setup:
 
 ---
 "index creation rejects enabled false on a second level object":
-  - skip:
-      awaits_fix: "https://github.com/elastic/elasticsearch/issues/162523"
   - do:
       catch: bad_request
       indices.create:
@@ -61,8 +59,6 @@ setup:
 
 ---
 "composable index template rejects enabled false on a second level object":
-  - skip:
-      awaits_fix: "https://github.com/elastic/elasticsearch/issues/162523"
   - do:
       catch: bad_request
       indices.put_index_template:
@@ -92,8 +88,6 @@ setup:
 "composable index template composed from a component template rejects enabled false on a second level object":
   # The component template has no index.mode of its own, so it is accepted on its own. The mapping is only
   # rejected once it is composed into an index template that resolves to a columnar index mode.
-  - skip:
-      awaits_fix: "https://github.com/elastic/elasticsearch/issues/162523"
   - do:
       cluster.put_component_template:
         name: test_deep_object_disabled_component
@@ -127,8 +121,6 @@ setup:
 
 ---
 "index creation rejects enabled false on a second level nested":
-  - skip:
-      awaits_fix: "https://github.com/elastic/elasticsearch/issues/162523"
   - do:
       catch: bad_request
       indices.create:
@@ -203,8 +195,6 @@ setup:
 
 ---
 "composable index template rejects enabled false on a second level nested":
-  - skip:
-      awaits_fix: "https://github.com/elastic/elasticsearch/issues/162523"
   - do:
       catch: bad_request
       indices.put_index_template:
@@ -261,8 +251,6 @@ setup:
 "composable index template composed from a component template rejects enabled false on a second level nested":
   # The component template has no index.mode of its own, so it is accepted on its own. The mapping is only
   # rejected once it is composed into an index template that resolves to a columnar index mode.
-  - skip:
-      awaits_fix: "https://github.com/elastic/elasticsearch/issues/162523"
   - do:
       cluster.put_component_template:
         name: test_deep_nested_disabled_component

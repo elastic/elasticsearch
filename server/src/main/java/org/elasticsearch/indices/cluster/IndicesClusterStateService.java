@@ -228,6 +228,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
         /// No attempt is currently running; the next [createShard] for this allocation should use
         /// this retry count. Put on [FailureStrategy#RETRY] in [#handleRecoveryFailure].
+        /// Hold primaryTerm so that [updatePendingAllocationTracker] can correctly cleanup stale ticket.
         record AwaitingRecoveryRetry(int localRecoveryRetries, long primaryTerm) implements PendingAllocationState {}
 
         /// Failure has been (or is being) reported to master; will prevent shard creation for this allocation until removed.

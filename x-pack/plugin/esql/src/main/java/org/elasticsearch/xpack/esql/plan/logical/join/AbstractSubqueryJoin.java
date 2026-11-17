@@ -73,7 +73,12 @@ import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
  * flips a couple of hooks for {@code NOT IN}, and {@link MarkJoin} returns Eval-based plans that preserve every left row and produce a
  * boolean mark attribute with three-valued logic.
  */
-public abstract class AbstractSubqueryJoin extends Join implements SortPreserving, ExecutesOn.Coordinator, DocPreserving {
+public abstract class AbstractSubqueryJoin extends Join
+    implements
+        IndependentSubqueryJoin,
+        SortPreserving,
+        ExecutesOn.Coordinator,
+        DocPreserving {
 
     protected AbstractSubqueryJoin(Source source, LogicalPlan left, LogicalPlan right, JoinConfig config) {
         super(source, left, right, config, ExecuteLocation.ANY);

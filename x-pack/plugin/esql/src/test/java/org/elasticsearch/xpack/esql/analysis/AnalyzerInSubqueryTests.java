@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.hamcrest.Matcher;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +38,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -590,6 +592,47 @@ public class AnalyzerInSubqueryTests extends AnalyzerTestCase {
 
     private void errorWithIncompatible(String query, Matcher<String> messageMatcher) {
         analyzer().addEmployees().addIndex("employees_incompatible", "mapping-default-incompatible.json").error(query, messageMatcher);
+    }
+
+    /**
+     * The subquery's STATS must not hide the union-typed fields of the main query from the cast that follows the IN.
+     */
+    public void testUnionTypeCastAfterInSubqueryWithStats() {
+        LogicalPlan plan = analyzer().addIndex(unionIndexResolution()).addEmployees().query("""
+            FROM union_index*
+            | WHERE name IN (FROM employees | STATS c = COUNT(*) BY last_name | KEEP last_name)
+            | EVAL id_string = id::keyword
+            """);
+
+        assertThat(outputType(plan, "id_string"), equalTo(DataType.KEYWORD));
+        assertNoConvertedFieldInSubquery(plan, "id");
+    }
+
+    public void testUnionTypeCastAfterInSubqueryIsNotLoadedBySubquery() {
+        LogicalPlan plan = analyzer().addIndex(unionIndexResolution()).addEmployees().query("""
+            FROM union_index*
+            | WHERE name IN (FROM employees | KEEP last_name)
+            | EVAL id_string = id::keyword
+            """);
+
+        assertThat(outputType(plan, "id_string"), equalTo(DataType.KEYWORD));
+        assertNoConvertedFieldInSubquery(plan, "id");
+    }
+
+    private static DataType outputType(LogicalPlan plan, String name) {
+        return plan.output().stream().filter(attribute -> attribute.name().equals(name)).findFirst().orElseThrow().dataType();
+    }
+
+    private static void assertNoConvertedFieldInSubquery(LogicalPlan plan, String field) {
+        List<SemiJoin> semiJoins = new ArrayList<>();
+        plan.forEachDown(SemiJoin.class, semiJoins::add);
+        assertThat(semiJoins, hasSize(1));
+
+        List<EsRelation> subqueryRelations = new ArrayList<>();
+        semiJoins.getFirst().right().forEachDown(EsRelation.class, subqueryRelations::add);
+        assertThat(subqueryRelations, hasSize(1));
+        String convertedPrefix = "$$" + field + "$converted_to$";
+        assertFalse(subqueryRelations.getFirst().output().stream().anyMatch(attribute -> attribute.name().startsWith(convertedPrefix)));
     }
 
     private static IndexResolution unionIndexResolution() {

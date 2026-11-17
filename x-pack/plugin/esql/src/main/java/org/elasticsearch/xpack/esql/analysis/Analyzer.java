@@ -218,6 +218,7 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
@@ -4226,12 +4227,32 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // outside the view. Keyed by node identity because transformUp hands us the original node.
             Map<LogicalPlan, AnalyzerContext> contextByPlan = new IdentityHashMap<>();
             assignScopedContext(plan, context, contextByPlan);
+            return resolveScope(plan, context, contextByPlan);
+        }
+
+        /**
+         * Resolves one query scope bottom-up. The state is shared by the whole scope, so the right side of an
+         * {@link IndependentSubqueryJoin} is resolved as a scope of its own: its relations and aggregations say nothing about the
+         * fields the main query can convert.
+         */
+        private static LogicalPlan resolveScope(
+            LogicalPlan plan,
+            AnalyzerContext context,
+            Map<LogicalPlan, AnalyzerContext> contextByPlan
+        ) {
             UnionTypeResolutionState state = new UnionTypeResolutionState();
-            return plan.transformUp(LogicalPlan.class, p -> {
+            return plan.transformUpSkipBranch(IndependentSubqueryJoin::isSubqueryBranch, p -> {
+                AnalyzerContext planContext = contextByPlan.getOrDefault(p, context);
+                if (p instanceof IndependentSubqueryJoin join) {
+                    LogicalPlan right = resolveScope(join.right(), context, contextByPlan);
+                    if (right.equals(join.right()) == false) {
+                        p = p.replaceChildren(List.of(join.left(), right));
+                    }
+                }
                 if (p.childrenResolved() == false) {
                     return p;
                 }
-                return doRule(p, state, contextByPlan.getOrDefault(p, context));
+                return doRule(p, state, planContext);
             });
         }
 
@@ -4320,19 +4341,22 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<FieldAttribute> unionFieldAttributes,
             boolean preserveResolvingProject
         ) {
-            var res = plan.transformDown(EsRelation.class, esr -> {
-                List<Attribute> missing = new ArrayList<>();
-                for (FieldAttribute fa : unionFieldAttributes) {
-                    // Using outputSet().contains looks by NameId, resp. uses semanticEquals.
-                    if (esr.outputSet().contains(fa) == false) {
-                        missing.add(fa);
+            // The right side of an IndependentSubqueryJoin is a separate query: the fields converted here are not its to load.
+            var res = plan.transformUpSkipBranch(IndependentSubqueryJoin::isSubqueryBranch, node -> {
+                if (node instanceof EsRelation esr) {
+                    List<Attribute> missing = new ArrayList<>();
+                    for (FieldAttribute fa : unionFieldAttributes) {
+                        // Using outputSet().contains looks by NameId, resp. uses semanticEquals.
+                        if (esr.outputSet().contains(fa) == false) {
+                            missing.add(fa);
+                        }
+                    }
+
+                    if (missing.isEmpty() == false) {
+                        return esr.withAttributes(CollectionUtils.combine(esr.output(), missing));
                     }
                 }
-
-                if (missing.isEmpty() == false) {
-                    return esr.withAttributes(CollectionUtils.combine(esr.output(), missing));
-                }
-                return esr;
+                return node;
             });
             if (res.equals(plan) == false) {
                 res = carryOverSyntheticAttributesThroughProjects(res, preserveResolvingProject);

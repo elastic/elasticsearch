@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.scheduling.QueryLoad;
 
 import java.io.IOException;
@@ -153,6 +154,35 @@ public record DriverCompletionInfo(
     }
 
     /**
+     * Returns a copy whose drivers and plans are labelled as belonging to {@code phase} of the query, for a query that runs in several.
+     * See {@link ProfileLabels}.
+     */
+    public DriverCompletionInfo withPhase(String phase, String phaseKind) {
+        if (driverProfiles.isEmpty() && planProfiles.isEmpty()) {
+            return this;
+        }
+        return new DriverCompletionInfo(
+            documentsFound,
+            valuesLoaded,
+            rowsEmitted,
+            bytesRead,
+            readNanos,
+            readCpuNanos,
+            cpuNanos,
+            driverNanos,
+            searchLoadNanos,
+            searchCpuNanos,
+            searchWaitingNanos,
+            driverProfiles.stream().map(p -> p.withPhase(phase, phaseKind)).toList(),
+            planProfiles.stream().map(p -> p.withPhase(phase, phaseKind)).toList(),
+            capturedSourceMetadata,
+            partial,
+            approximationApplied,
+            warnings
+        );
+    }
+
+    /**
      * Returns a copy with {@code additional} raw warning bodies merged in, preserving insertion
      * order (existing warnings first). Empty or null input returns {@code this}.
      */
@@ -204,7 +234,9 @@ public record DriverCompletionInfo(
         PlanTimeProfile planTimeProfile,
         long planningBytesRead,
         QueryLoad computeLoad,
-        boolean approximationApplied
+        boolean approximationApplied,
+        @Nullable String planJson,
+        @Nullable String logicalPlanJson
     ) {
         long documentsFound = 0;
         long valuesLoaded = 0;
@@ -247,7 +279,9 @@ public record DriverCompletionInfo(
             searchCpuNanos,
             searchWaitingNanos,
             collectedProfiles,
-            List.of(new PlanProfile(description, clusterName, nodeName, planTree, logicalPlanTree, planTimeProfile)),
+            List.of(
+                new PlanProfile(description, clusterName, nodeName, planTree, logicalPlanTree, planTimeProfile, planJson, logicalPlanJson)
+            ),
             collectCapturedSourceMetadata(drivers),
             collectPartial(drivers),
             approximationApplied,

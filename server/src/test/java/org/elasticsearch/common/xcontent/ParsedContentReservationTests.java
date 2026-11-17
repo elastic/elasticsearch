@@ -301,6 +301,54 @@ public class ParsedContentReservationTests extends ESTestCase {
         assertThat(tight.getUsed(), equalTo(0L));
     }
 
+    public void testContentParsedOnTheRequestsBehalfIsCheckedButNotHeld() throws IOException {
+        XContentType type = randomFrom(TYPES);
+        CircuitBreaker breaker = requestBreaker(ByteSizeValue.ofMb(100));
+        try (ParsedContentReservation reservation = new ParsedContentReservation(breaker, true)) {
+            Releasable hold = reservation.hold();
+            // As a reindex parses the query inside a wrapper query again for every search it sends.
+            int searches = between(2, 5);
+            for (int i = 0; i < searches; i++) {
+                try (XContentParser parser = reservation.trackWhileParsing(parser(type, document(type, 20_000)))) {
+                    readAllTokens(parser);
+                    assertThat(breaker.getUsed(), greaterThan(0L));
+                }
+                assertThat("released when the parser is closed", breaker.getUsed(), equalTo(0L));
+            }
+            assertThat("not held by the request, even while its work holds the charge", reservation.reservedBytes(), equalTo(0L));
+            hold.close();
+        }
+
+        CircuitBreaker tight = requestBreaker(ByteSizeValue.ofBytes(2 * ChargingXContentParser.CHUNK_BYTES));
+        try (ParsedContentReservation reservation = new ParsedContentReservation(tight, true)) {
+            try (XContentParser parser = reservation.trackWhileParsing(parser(type, document(type, 20_000)))) {
+                CircuitBreakingException e = expectThrows(CircuitBreakingException.class, () -> readAllTokens(parser));
+                assertThat(e.getMessage(), containsString("data for [" + ParsedContentReservation.LABEL + "]"));
+            }
+            assertThat(reservation.reservedBytes(), equalTo(0L));
+        }
+        assertThat(tight.getUsed(), equalTo(0L));
+
+        // Work that runs after the response, such as a reindex started with wait_for_completion=false, still parses.
+        ParsedContentReservation released = new ParsedContentReservation(tight, true);
+        released.close();
+        try (XContentParser parser = released.trackWhileParsing(parser(type, document(type, 20_000)))) {
+            expectThrows(CircuitBreakingException.class, () -> readAllTokens(parser));
+        }
+        assertThat(tight.getTrippedCount(), equalTo(2L));
+        assertThat(tight.getUsed(), equalTo(0L));
+
+        // A request that must not trip the breaker does not trip it for what is parsed on its behalf either.
+        try (ParsedContentReservation reservation = new ParsedContentReservation(tight, false)) {
+            try (XContentParser parser = reservation.trackWhileParsing(parser(type, document(type, 20_000)))) {
+                readAllTokens(parser);
+                assertThat(tight.getUsed(), greaterThan(2 * ChargingXContentParser.CHUNK_BYTES));
+            }
+        }
+        assertThat(tight.getTrippedCount(), equalTo(2L));
+        assertThat(tight.getUsed(), equalTo(0L));
+    }
+
     public void testSmallParsersOfOneRequestAreCheckedTogether() throws IOException {
         CircuitBreaker breaker = requestBreaker(ByteSizeValue.ofBytes(1));
         XContentType type = randomFrom(TYPES);

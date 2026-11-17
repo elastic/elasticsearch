@@ -400,7 +400,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         );
     }
 
-    private void innerExecute(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
+    private void innerExecute(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> queryListener) {
+        ActionListener<EsqlQueryResponse> listener = computeService.coordinate(task, queryListener);
         if (request.allowPartialResults() == null) {
             request.allowPartialResults(defaultAllowPartialResults);
         }
@@ -410,17 +411,19 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         // async-query uses EsqlQueryTask, so pull the EsqlExecutionInfo out of the task
         // sync query uses CancellableTask which does not have EsqlExecutionInfo, so create one
         EsqlExecutionInfo executionInfo = getOrCreateExecutionInfo(task, request);
-        PlanRunner planRunner = (role, plan, configuration, foldCtx, planTimeProfile, resultListener) -> computeService.execute(
-            sessionId,
-            (CancellableTask) task,
-            flags,
-            plan,
-            configuration,
-            foldCtx,
-            executionInfo,
-            planTimeProfile,
-            resultListener
-        );
+        PlanRunner planRunner = (role, plan, configuration, foldCtx, planTimeProfile, maxResultSize, resultListener) -> computeService
+            .execute(
+                sessionId,
+                (CancellableTask) task,
+                flags,
+                plan,
+                configuration,
+                foldCtx,
+                executionInfo,
+                planTimeProfile,
+                maxResultSize,
+                resultListener
+            );
         planExecutor.esql(
             request,
             sessionId,

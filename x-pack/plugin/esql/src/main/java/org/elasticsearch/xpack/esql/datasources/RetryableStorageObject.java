@@ -19,6 +19,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
@@ -127,9 +128,10 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
             // A permit timeout (LOCAL_CAPACITY) is this node's own admission limit, not a store fault, so it stays out of
             // storage.errors / storage.throttled, which describe the store. Its backoff is still a real read stall.
             if (isStorageFault(failure)) {
-                // The category is classified like a failed query's, so the give-up and the query failure it causes agree on it. The
-                // status is the store's own HTTP status, which is what on-call needs to see; it is omitted for a fault that was not an
-                // HTTP response.
+                // Storage counters classify the recorded type (what was failing), not the surface type (why
+                // retrying stopped). A scheduler refusal is 429 resource_limit to the client; the give-up is
+                // still a store fault here. The status is the store's own HTTP status; omitted when the fault
+                // was not an HTTP response.
                 QueryFailureTelemetry.Failure classified = QueryFailureTelemetry.classify(failure);
                 retryCounters.addError(classified.errorType(), QueryFailureTelemetry.storeStatus(failure));
                 if (RetryPolicy.isThrottlingError(failure)) {
@@ -144,11 +146,29 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
         }
     }
 
+    /**
+     * Whether {@code failure} is a store fault for {@code storage.errors}. Walks the cause chain the
+     * same way retry classification does (so an {@link UncheckedIOException} wrapping a
+     * {@link java.net.SocketTimeoutException} still counts), and never searches suppressed failures:
+     * a 429 that suppressed the original must be recorded from the original, not from the refusal.
+     * {@link Condition#LOCAL_CAPACITY} is this node's admission limit, not a store outage.
+     */
     private static boolean isStorageFault(Throwable failure) {
-        if (failure instanceof ExternalUnavailableException unavailable) {
-            return unavailable.condition() != Condition.LOCAL_CAPACITY;
+        Throwable current = failure;
+        for (int depth = 0; current != null && depth < 12; depth++) {
+            if (current instanceof ExternalUnavailableException unavailable) {
+                return unavailable.condition() != Condition.LOCAL_CAPACITY;
+            }
+            if (current instanceof IOException) {
+                return true;
+            }
+            Throwable cause = current.getCause();
+            if (cause == current) {
+                break;
+            }
+            current = cause;
         }
-        return failure instanceof IOException;
+        return false;
     }
 
     RetryableStorageObject(StorageObject delegate, RetryPolicy retryPolicy) {
@@ -565,11 +585,10 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
                         executor
                     );
                 } catch (Exception rejected) {
-                    // Scheduler/executor rejected the retry (e.g. shutdown or saturated queue) — a terminal failure.
-                    // Record it (mirroring the give-up branch: error + accumulated read-stall; the pending backoff
-                    // was never actually slept) and surface it so the listener is always completed, never dropped.
-                    recordTerminalFailure(rejected, accumulatedBackoffMillis);
-                    listener.onFailure(rejected);
+                    // Scheduler/executor refused the continuation. Surface the refusal (429); record the store
+                    // fault that was being retried. Do not initCause the store fault onto the refusal: query
+                    // error_type walks cause and would then disagree with the 429.
+                    completeWithRefusal(rejected, e, accumulatedBackoffMillis, listener);
                 }
             }
         };
@@ -636,8 +655,7 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
                 executor
             );
         } catch (Exception rejected) {
-            recordTerminalFailure(rejected, accumulatedBackoffMillis);
-            listener.onFailure(rejected);
+            completeWithRefusal(rejected, miss, accumulatedBackoffMillis, listener);
         }
     }
 
@@ -649,6 +667,23 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
         try (ThreadContext.StoredContext ignored = issuingContext.get()) {
             command.run();
         }
+    }
+
+    /**
+     * Completes a refused continuation: record {@code recorded} (what was failing), surface {@code surface}
+     * (why retrying stopped), and attach the recorded type as suppressed when it already carries a status.
+     * A permit miss is typed as {@link Condition#LOCAL_CAPACITY} first so classify keeps it and
+     * {@code storage.errors} does not move.
+     */
+    private void completeWithRefusal(
+        Exception surface,
+        Exception recorded,
+        long accumulatedBackoffMillis,
+        ActionListener<DirectReadBuffer> listener
+    ) {
+        Exception toRecord = recorded instanceof ConcurrencyLimiter.PermitMissException miss ? miss.toUnavailable() : recorded;
+        recordTerminalFailure(toRecord, accumulatedBackoffMillis);
+        listener.onFailure(ExternalFailures.attachRecorded(surface, toRecord));
     }
 
     @Override

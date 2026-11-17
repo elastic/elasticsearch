@@ -608,6 +608,13 @@ public class EsqlBaseParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> im
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
+  @Override public T visitIntoCommand(EsqlBaseParser.IntoCommandContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
   @Override public T visitHighlightCommand(EsqlBaseParser.HighlightCommandContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
@@ -1070,7 +1077,14 @@ public class EsqlBaseParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> im
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitJoinTarget(EsqlBaseParser.JoinTargetContext ctx) { return visitChildren(ctx); }
+  @Override public T visitSubqueryJoinTarget(EsqlBaseParser.SubqueryJoinTargetContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitLookupJoinTarget(EsqlBaseParser.LookupJoinTargetContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *

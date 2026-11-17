@@ -23,8 +23,11 @@ import org.xerial.snappy.Snappy;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Collections;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
@@ -87,6 +90,23 @@ import java.util.zip.GZIPOutputStream;
  */
 public final class PlainCompressionCodecFactory implements CompressionCodecFactory {
 
+    /**
+     * Codecs this factory can decompress. The constructor registers exactly this set; an
+     * assertion there (and a unit test) fail if the decompressor map drifts.
+     * {@code BROTLI} and {@code LZO} are the parquet-mr {@link CompressionCodecName} values that
+     * are absent here — they need native libraries this factory exists to keep off the classpath.
+     */
+    private static final Set<CompressionCodecName> SUPPORTED_DECOMPRESSION_CODECS = Collections.unmodifiableSet(
+        EnumSet.of(
+            CompressionCodecName.UNCOMPRESSED,
+            CompressionCodecName.SNAPPY,
+            CompressionCodecName.GZIP,
+            CompressionCodecName.ZSTD,
+            CompressionCodecName.LZ4_RAW,
+            CompressionCodecName.LZ4
+        )
+    );
+
     private final Map<CompressionCodecName, LazyInitializable<BytesInputDecompressor, RuntimeException>> decompressors;
     private final Map<CompressionCodecName, LazyInitializable<BytesInputCompressor, RuntimeException>> compressors;
 
@@ -105,6 +125,7 @@ public final class PlainCompressionCodecFactory implements CompressionCodecFacto
         // and ES|QL must not emit it. getCompressor(LZ4) continues to throw.
         dec.put(CompressionCodecName.LZ4, lazy(Lz4HadoopFramedBytesDecompressor::new));
         this.decompressors = dec;
+        assert dec.keySet().equals(SUPPORTED_DECOMPRESSION_CODECS) : "decompressor map must match supportedDecompressionCodecs()";
 
         Map<CompressionCodecName, LazyInitializable<BytesInputCompressor, RuntimeException>> com = new EnumMap<>(
             CompressionCodecName.class
@@ -119,6 +140,38 @@ public final class PlainCompressionCodecFactory implements CompressionCodecFacto
 
     private static <T> LazyInitializable<T, RuntimeException> lazy(CheckedSupplier<T, RuntimeException> supplier) {
         return new LazyInitializable<>(supplier);
+    }
+
+    /**
+     * Codecs this factory can decompress. Iteration is {@link CompressionCodecName} declaration
+     * order. Used by footer validation so the refusal set cannot drift from the decompressor map.
+     */
+    static Set<CompressionCodecName> supportedDecompressionCodecs() {
+        return SUPPORTED_DECOMPRESSION_CODECS;
+    }
+
+    /**
+     * Client-facing refusal for a codec this factory does not implement. Raised as an
+     * {@link IllegalArgumentException} at the footer and row-group boundaries so
+     * {@code ExternalFailures.classify} maps it to HTTP 400. Does not embed a storage URI:
+     * a path in the message would be withheld from the user, hiding the codec name.
+     */
+    static String unsupportedDecompressionDetail(String columnPath, CompressionCodecName codec, int rowGroupOrdinal) {
+        StringBuilder supported = new StringBuilder();
+        for (CompressionCodecName name : SUPPORTED_DECOMPRESSION_CODECS) {
+            if (supported.length() > 0) {
+                supported.append(", ");
+            }
+            supported.append(name.name());
+        }
+        return "column ["
+            + columnPath
+            + "] in row group ["
+            + rowGroupOrdinal
+            + "] uses compression codec ["
+            + codec
+            + "], which is not supported; supported codecs are "
+            + supported;
     }
 
     @Override
@@ -197,6 +250,41 @@ public final class PlainCompressionCodecFactory implements CompressionCodecFacto
         if (written != destLen) {
             throw new IOException(codec + " decompression produced " + written + " bytes, expected " + destLen + " from page header");
         }
+    }
+
+    private static void decodeRawLz4(Lz4Decompressor lz4, byte[] src, int srcOff, int srcLen, byte[] dest, int destLen, String codec)
+        throws IOException {
+        int written;
+        try {
+            written = lz4.decompress(src, srcOff, srcLen, dest, 0, destLen);
+        } catch (MalformedInputException e) {
+            throw new IOException(codec + " decompression failed: malformed block", e);
+        }
+        requireExactUncompressedSize(written, destLen, codec);
+    }
+
+    private static void decodeRawLz4(
+        Lz4Decompressor lz4,
+        ByteBuffer input,
+        int compressedSize,
+        ByteBuffer output,
+        int decompressedSize,
+        String codec
+    ) throws IOException {
+        int inPos = input.position();
+        int outPos = output.position();
+        ByteBuffer in = input.duplicate();
+        in.position(inPos).limit(inPos + compressedSize);
+        ByteBuffer out = output.duplicate();
+        out.position(outPos).limit(outPos + decompressedSize);
+        try {
+            lz4.decompress(in, out);
+        } catch (MalformedInputException e) {
+            throw new IOException(codec + " decompression failed: malformed block", e);
+        }
+        requireExactUncompressedSize(out.position() - outPos, decompressedSize, codec);
+        output.position(outPos + decompressedSize);
+        input.position(inPos + compressedSize);
     }
 
     // ------------------------------- decompressors -------------------------------
@@ -392,8 +480,9 @@ public final class PlainCompressionCodecFactory implements CompressionCodecFacto
     }
 
     /**
-     * LZ4 raw decompressor. Aircompressor's {@code Lz4Decompressor} works with both heap and
-     * direct {@code ByteBuffer}s, so no fallback is needed.
+     * LZ4 raw decompressor. Aircompressor's {@code Lz4Decompressor} works with array-backed and
+     * direct {@code ByteBuffer}s; inputs that are neither (for example read-only heap buffers)
+     * are routed through the byte-array path.
      */
     private static class Lz4RawBytesDecompressor implements HeapDestDecompressor {
         private final Lz4Decompressor lz4 = new Lz4Decompressor();
@@ -402,24 +491,21 @@ public final class PlainCompressionCodecFactory implements CompressionCodecFacto
         public void decompressInto(BytesInput compressed, byte[] dest, int destLen) throws IOException {
             requireDestCapacity(dest, destLen);
             ByteBuffer input = compressed.toByteBuffer();
-            int written;
             if (input.hasArray()) {
-                written = lz4.decompress(input.array(), input.arrayOffset() + input.position(), input.remaining(), dest, 0, destLen);
+                decodeRawLz4(lz4, input.array(), input.arrayOffset() + input.position(), input.remaining(), dest, destLen, "LZ4_RAW");
             } else {
                 byte[] in = compressed.toByteArray();
-                written = lz4.decompress(in, 0, in.length, dest, 0, destLen);
+                decodeRawLz4(lz4, in, 0, in.length, dest, destLen, "LZ4_RAW");
             }
-            requireExactUncompressedSize(written, destLen, "LZ4_RAW");
         }
 
         @Override
         public void decompress(ByteBuffer input, int compressedSize, ByteBuffer output, int decompressedSize) throws IOException {
-            int origLimit = input.limit();
-            int origPos = input.position();
-            input.limit(origPos + compressedSize);
-            lz4.decompress(input, output);
-            input.limit(origLimit);
-            input.position(origPos + compressedSize);
+            if (input.hasArray() == false && input.isDirect() == false) {
+                decompressViaHeapCopy(this, input, compressedSize, output, decompressedSize);
+                return;
+            }
+            decodeRawLz4(lz4, input, compressedSize, output, decompressedSize, "LZ4_RAW");
         }
 
         @Override
@@ -451,6 +537,13 @@ public final class PlainCompressionCodecFactory implements CompressionCodecFacto
      * reason {@link PlainCompressionCodecFactory} exists: keep the ~50 MB Hadoop jar off the
      * runtime classpath.
      *
+     * <p>Some writers (notably early parquet-cpp / Arrow) store a bare raw LZ4 block under this
+     * codec id without the Hadoop frame. The framing is therefore chosen per payload: the framed
+     * decode is attempted first and, if it fails, the payload is decoded as a single raw LZ4 block
+     * of the page's declared uncompressed size. A bare block that passes every framed check would be
+     * misread, which requires a declared page size of 256 MiB or more plus a run of chance matches.
+     * When both attempts fail, the framed exception is thrown with the raw failure suppressed.
+     *
      * <p>This codec is deliberately read-only. The parquet-format spec deprecated it in November
      * 2021 in favor of {@code LZ4_RAW} (see PARQUET-2032); ES|QL accepts files written during the
      * deprecation window (notably ClickHouse {@code FORMAT Parquet} exports from v23.3 through
@@ -464,20 +557,46 @@ public final class PlainCompressionCodecFactory implements CompressionCodecFacto
         public void decompressInto(BytesInput compressed, byte[] dest, int destLen) throws IOException {
             requireDestCapacity(dest, destLen);
             byte[] in = compressed.toByteArray();
-            decompressHadoopFramed(in, 0, in.length, dest, 0, destLen);
+            try {
+                decompressHadoopFramed(in, 0, in.length, dest, 0, destLen);
+            } catch (IOException framed) {
+                try {
+                    decodeRawLz4(lz4, in, 0, in.length, dest, destLen, "LZ4");
+                } catch (IOException raw) {
+                    framed.addSuppressed(raw);
+                    throw framed;
+                }
+            }
         }
 
         @Override
         public void decompress(ByteBuffer input, int compressedSize, ByteBuffer output, int decompressedSize) throws IOException {
-            // The frame envelope and sub-block headers are parsed via ByteBuffer slicing, then each
-            // sub-block is handed to aircompressor's ByteBuffer decompress overload — preserving the
-            // direct-buffer fast path when both buffers are off-heap and avoiding any extra copy of
-            // the compressed payload regardless of buffer kind. The byte-array fallback is reserved
-            // for inputs that are neither direct nor heap-backed (rare).
             if (input.hasArray() == false && input.isDirect() == false) {
                 decompressViaHeapCopy(this, input, compressedSize, output, decompressedSize);
                 return;
             }
+            int origPos = input.position();
+            try {
+                decompressHadoopFramed(input, compressedSize, output, decompressedSize);
+            } catch (IOException framed) {
+                input.position(origPos);
+                try {
+                    decodeRawLz4(lz4, input, compressedSize, output, decompressedSize, "LZ4");
+                } catch (IOException raw) {
+                    input.position(origPos + compressedSize);
+                    framed.addSuppressed(raw);
+                    throw framed;
+                }
+            }
+        }
+
+        private void decompressHadoopFramed(ByteBuffer input, int compressedSize, ByteBuffer output, int decompressedSize)
+            throws IOException {
+            // The frame envelope and sub-block headers are parsed via ByteBuffer slicing, then each
+            // sub-block is handed to aircompressor's ByteBuffer decompress overload — preserving the
+            // direct-buffer fast path when both buffers are off-heap and avoiding any extra copy of
+            // the compressed payload regardless of buffer kind. Inputs that are neither direct nor
+            // heap-backed (rare) are routed through the byte-array path by the caller.
             int origLimit = input.limit();
             int origPos = input.position();
             int compressedEnd = origPos + compressedSize;

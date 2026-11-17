@@ -12,10 +12,14 @@ package org.elasticsearch.escf;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.xcontent.XContentString;
 
+import java.io.IOException;
 import java.util.Arrays;
 
 /**
@@ -121,10 +125,24 @@ public final class EscfRowBuffer {
 
     /** Stages a double; uses {@code FLOAT} encoding if it round-trips exactly through float. Returns the leaf column index. */
     public int doubleField(String name, double value) {
+        return doubleField(name, value, null);
+    }
+
+    /**
+     * Stages a double together with {@code lexicalForm}, the client's spelling when it is not the canonical
+     * {@code Double.toString} rendering of {@code value}; {@code null} stages a plain double as
+     * {@link #doubleField(String, double)} does. Returns the leaf column index.
+     */
+    public int doubleField(String name, double value, @Nullable XContentString.UTF8Bytes lexicalForm) {
         int colIdx = addLeaf(name);
         float fval = (float) value;
         scratchType[colIdx] = ((double) fval == value) ? SourceValueType.FLOAT : SourceValueType.DOUBLE;
         scratchNumeric[colIdx] = Double.doubleToRawLongBits(value);
+        if (lexicalForm != null) {
+            // A spelled value stays a DOUBLE so that it lands in a DOUBLE column, where the spellings sidecar lives.
+            scratchType[colIdx] = SourceValueType.DOUBLE;
+            scratchVar[colIdx] = lexicalForm;
+        }
         return colIdx;
     }
 
@@ -139,6 +157,28 @@ public final class EscfRowBuffer {
     /** Stages a UTF-8 string value from a raw byte slice. Returns the leaf column index. */
     public int stringField(String name, byte[] bytes, int offset, int length) {
         return stringField(name, new XContentString.UTF8Bytes(bytes, offset, length));
+    }
+
+    /**
+     * Stages a raw binary value. The bytes are copied on {@link EscfBatchBuilder#commit}, so they must not change before.
+     * Returns the leaf column index.
+     */
+    public int binaryField(String name, BytesRef value) {
+        int colIdx = addLeaf(name);
+        scratchType[colIdx] = SourceValueType.BINARY;
+        scratchVar[colIdx] = value;
+        return colIdx;
+    }
+
+    /**
+     * Stages a raw binary value that {@code writer} writes into the column on {@link EscfBatchBuilder#commit}, without an
+     * intermediate copy. Returns the leaf column index.
+     */
+    public int binaryField(String name, CheckedConsumer<StreamOutput, IOException> writer) {
+        int colIdx = addLeaf(name);
+        scratchType[colIdx] = SourceValueType.BINARY;
+        scratchVar[colIdx] = writer;
+        return colIdx;
     }
 
     /** Stages a boolean value. Returns the leaf column index. */

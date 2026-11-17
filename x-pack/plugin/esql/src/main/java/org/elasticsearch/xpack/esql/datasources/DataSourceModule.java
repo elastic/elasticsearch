@@ -452,15 +452,15 @@ public final class DataSourceModule implements Closeable {
 
         // Register the framework-internal FileSourceFactory as a catch-all fallback.
         // It must be last so that plugin-provided factories (Iceberg, Flight) get priority.
-        // Pass the node-level (root) BlockFactory so VirtualColumnIterator allocations route
-        // through the global request circuit breaker rather than the driver-local breaker.
+        // Producer-thread allocations resolve the request-level BlockFactory via
+        // AsyncExternalSourceOperatorFactory.producerBlockFactory(DriverContext); this factory
+        // no longer threads one in.
         FileSourceFactory fileFallback = new FileSourceFactory(
             storageProviderRegistry,
             formatReaderRegistry,
             codecRegistry,
             settings,
             splitDiscoveryExecutor != null ? splitDiscoveryExecutor : executor,
-            blockFactory,
             effectiveLocalFileAccess,
             externalSourceMetrics,
             listingService,
@@ -530,6 +530,7 @@ public final class DataSourceModule implements Closeable {
         if (admissionWatchdog != null) {
             all.add(admissionWatchdog);
         }
+        all.add(formatReaderRegistry);
         all.add(storageProviderRegistry);
         all.addAll(managedCloseables);
         IOUtils.close(all);

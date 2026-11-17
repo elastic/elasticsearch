@@ -315,8 +315,15 @@ public class BlockFactory {
     /**
      * Build a {@link IntVector.FixedBuilder} that never grows.
      */
-    public IntVector.FixedBuilder newIntVectorFixedBuilder(int size) {
-        return new IntVectorFixedBuilder(size, this);
+    public final IntVector.FixedBuilder newIntVectorFixedBuilder(int size) {
+        return newIntVectorFixedBuilder(size, false);
+    }
+
+    /**
+     * @param enablePooling Use this for short-lived vectors to let the driver reuse the backing array
+     */
+    public IntVector.FixedBuilder newIntVectorFixedBuilder(int size, boolean enablePooling) {
+        return new IntVectorFixedBuilder(size, this, enablePooling && localPool != null);
     }
 
     /**
@@ -445,8 +452,15 @@ public class BlockFactory {
     /**
      * Build a {@link LongVector.FixedBuilder} that never grows.
      */
-    public LongVector.FixedBuilder newLongVectorFixedBuilder(int size) {
-        return new LongVectorFixedBuilder(size, this);
+    public final LongVector.FixedBuilder newLongVectorFixedBuilder(int size) {
+        return newLongVectorFixedBuilder(size, false);
+    }
+
+    /**
+     * @param enablePooling Use this for short-lived vectors to let the driver reuse the backing array
+     */
+    public LongVector.FixedBuilder newLongVectorFixedBuilder(int size, boolean enablePooling) {
+        return new LongVectorFixedBuilder(size, this, enablePooling && localPool != null);
     }
 
     public final LongVector newLongArrayVector(long[] values, int positionCount) {
@@ -507,8 +521,15 @@ public class BlockFactory {
     /**
      * Build a {@link DoubleVector.FixedBuilder} that never grows.
      */
-    public DoubleVector.FixedBuilder newDoubleVectorFixedBuilder(int size) {
-        return new DoubleVectorFixedBuilder(size, this);
+    public final DoubleVector.FixedBuilder newDoubleVectorFixedBuilder(int size) {
+        return newDoubleVectorFixedBuilder(size, false);
+    }
+
+    /**
+     * @param enablePooling Use this for short-lived vectors to let the driver reuse the backing array
+     */
+    public DoubleVector.FixedBuilder newDoubleVectorFixedBuilder(int size, boolean enablePooling) {
+        return new DoubleVectorFixedBuilder(size, this, enablePooling && localPool != null);
     }
 
     public final DoubleVector newDoubleArrayVector(double[] values, int positionCount) {

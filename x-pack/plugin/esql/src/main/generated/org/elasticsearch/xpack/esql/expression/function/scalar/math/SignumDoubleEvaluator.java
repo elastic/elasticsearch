@@ -81,7 +81,7 @@ public final class SignumDoubleEvaluator implements ExpressionEvaluator {
   }
 
   public DoubleVector eval(int positionCount, DoubleVector valVector) {
-    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
+    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         double val = valVector.getDouble(p);
         result.appendDouble(p, Signum.process(val));

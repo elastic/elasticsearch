@@ -10302,7 +10302,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             0,     // esqlWorkerPoolSize - not needed for these tests
             MatcherWatchdog.noop(),
             TransportVersion.current(),
-            null   // client - not needed for these tests
+            null,  // client - not needed for these tests
+            LocalExecutionPlanner.ExternalComputeContext.NONE
         );
 
         return planner.plan("test", FoldContext.small(), plannerSettings, plan, EmptyIndexedByShardId.instance(), randomBoolean());

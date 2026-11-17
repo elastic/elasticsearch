@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -19,6 +21,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGrea
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLess;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -342,6 +346,41 @@ public class FilterAdaptationTests extends ESTestCase {
         );
     }
 
+    public void testAdaptFilter_unrecognizedLeavesOnUnpushableColumnDoNotNarrowConjunct() {
+        Expression yEqualsTwo = eqLong("y", 2);
+        List<Expression> leaves = List.of(
+            new WildcardLike(SRC, keywordFieldAttr("x"), new WildcardPattern("1*")),
+            new StartsWith(SRC, keywordFieldAttr("x"), keywordLiteral("1"))
+        );
+        Set<String> presentColumns = Set.of("x", "y", "w");
+        Set<String> unpushableColumns = Set.of("x");
+        Expression independent = gtLong("w", 3);
+
+        for (Expression leaf : leaves) {
+            for (Expression shape : List.of(
+                new Or(SRC, leaf, yEqualsTwo),
+                new Or(SRC, new Not(SRC, leaf), yEqualsTwo),
+                new Not(SRC, new And(SRC, leaf, yEqualsTwo))
+            )) {
+                assertEquals(
+                    shape + " must remain entirely unpushed",
+                    List.of(),
+                    FilterAdaptation.adaptFilterForFile(List.of(shape), presentColumns, Map.of(), unpushableColumns)
+                );
+                assertEquals(
+                    shape + " must not prevent an independent conjunct from being pushed",
+                    List.of(independent),
+                    FilterAdaptation.adaptFilterForFile(List.of(shape, independent), presentColumns, Map.of(), unpushableColumns)
+                );
+            }
+            assertEquals(
+                leaf + " on a column with no unpushable widening",
+                List.of(leaf),
+                FilterAdaptation.adaptFilterForFile(List.of(leaf), presentColumns, Map.of(), Set.of())
+            );
+        }
+    }
+
     private static FieldAttribute fieldAttr(String name) {
         return new FieldAttribute(SRC, name, new EsField(name, DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE));
     }
@@ -364,6 +403,14 @@ public class FilterAdaptationTests extends ESTestCase {
 
     private static FieldAttribute doubleFieldAttr(String name) {
         return new FieldAttribute(SRC, name, new EsField(name, DataType.DOUBLE, Map.of(), false, EsField.TimeSeriesFieldType.NONE));
+    }
+
+    private static FieldAttribute keywordFieldAttr(String name) {
+        return new FieldAttribute(SRC, name, new EsField(name, DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE));
+    }
+
+    private static Literal keywordLiteral(String value) {
+        return new Literal(SRC, new BytesRef(value), DataType.KEYWORD);
     }
 
     private static Literal longLiteral(long value) {

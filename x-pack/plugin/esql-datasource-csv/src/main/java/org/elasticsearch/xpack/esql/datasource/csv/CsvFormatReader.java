@@ -4296,6 +4296,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * would reject every row of it. Zero where nothing states a width, which admits any row.
          * <p>Set even when {@code pad_short_rows} turns the rejection off, because the padding warning names it.
          */
+        /** A floor no row can fall below, for a file that states no width. */
+        private static final int NO_ROW_WIDTH_FLOOR = 0;
         private int rowWidthFloor;
         /** The binding's widest row, or {@link HeaderBinding#NO_FILE_WIDTH}; resolves {@link #rowWidthLimit}. Unused when no binding. */
         private final int bindingMaxRowWidth;
@@ -5418,7 +5420,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
          */
         private int fileStatedRowWidth(int schemaSize) {
             if (schemaFieldIndex == null) {
-                return schemaSize;
+                // An inferred HEADERED schema's width is the header's, which is a width the file states. A headerless
+                // file with no declaration states neither of the rule's two authorities, so it gets no floor -- just
+                // as it gets no upper limit.
+                return options.headerRow() ? schemaSize : NO_ROW_WIDTH_FLOOR;
             }
             if (bindingMaxRowWidth != HeaderBinding.NO_FILE_WIDTH) {
                 return bindingMaxRowWidth;

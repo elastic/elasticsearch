@@ -9398,13 +9398,13 @@ public class CsvFormatReaderTests extends ESTestCase {
      * not fall short of — the alternative being a file whose rows are bounded from above and not from below, which
      * is the asymmetry this change exists to remove.
      */
-    public void testInferredHeaderlessRowMustFillTheSampledWidth() throws Exception {
-        // The sample's widest row is 3 fields, so that is the schema; the second row carries 2.
+    public void testInferredHeaderlessRowKeepsNullFillingBecauseNoWidthIsStated() throws Exception {
+        // A headerless file with no mapping states neither of the rule's authorities, so it has no floor -- just as
+        // it has no upper limit. The sample's widest row is 3 fields; the second row's 2 still null-fill.
         StorageObject object = createStorageObject("1,x,10\n2,y\n");
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
-        Exception e = expectThrows(Exception.class, () -> drainAllPages(reader.read(object, null, 10)));
-        assertThat(e.getMessage(), containsString("Row [2] of"));
-        assertThat(e.getMessage(), containsString("missing trailing fields: [2] columns, the schema has [3]"));
+        // No row error: reaching the end is the assertion, since a floor here would throw on row 2.
+        drainAllPages(reader.read(object, null, 10));
     }
 
     /** fail_fast was inert for this error class: the guard that invokes the policy was unreachable under declared binding. */

@@ -14,13 +14,16 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.DecisionQuestions;
 import org.elasticsearch.inference.DecisionRequest;
 import org.elasticsearch.inference.DocumentExtractionRequest;
+import org.elasticsearch.inference.EmbeddingInferenceService;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -94,7 +97,10 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInva
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUnsupportedTaskTypeStatusException;
 import static org.elasticsearch.xpack.inference.services.openai.action.OpenAiActionCreator.USER_ROLE;
 
-public class ElasticInferenceService extends SenderService<ElasticInferenceServiceModel> implements RerankingInferenceService {
+public class ElasticInferenceService extends SenderService<ElasticInferenceServiceModel>
+    implements
+        EmbeddingInferenceService,
+        RerankingInferenceService {
 
     public static final String NAME = "elastic";
     public static final String ELASTIC_INFERENCE_SERVICE_IDENTIFIER = "Elastic Inference Service";
@@ -376,6 +382,11 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
     @Override
     public boolean supportsNonTextEmbeddingContent() {
         return true;
+    }
+
+    @Override
+    public boolean requiresSingleInputEmbeddingRequest(Model model, InferenceString input) {
+        return input.dataType() == DataType.PDF;
     }
 
     @Override

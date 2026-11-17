@@ -1,0 +1,58 @@
+{
+  "index_patterns": [
+    ".context-engine-session-memory"
+  ],
+  "data_stream": {
+    "hidden": true
+  },
+  "template": {
+    "lifecycle": {
+      "data_retention": "90d"
+    },
+    "settings": {
+      "index.auto_expand_replicas": "0-1",
+      "index.sort.field": "@timestamp",
+      "index.sort.order": "desc"
+    },
+    "mappings": {
+      "_meta": {
+        "version": "${xpack.contextengine.version}",
+        "managed_index_mappings_version": ${xpack.contextengine.managed.index.version}
+      },
+      "dynamic": "strict",
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        },
+        "id": {
+          "type": "keyword"
+        },
+        "space": {
+          "type": "keyword"
+        },
+        "ai_index_ids": {
+          "type": "keyword"
+        },
+        "session_id": {
+          "type": "keyword"
+        },
+        "user_id": {
+          "type": "keyword"
+        },
+        "content": {
+          "type": "text"
+        },
+        "inputs": {
+          "type": "semantic",
+          "inference_id": "${xpack.contextengine.session_memory.inference_id}"
+        },
+        "attributes": {
+          "type": "flattened"
+        }
+      }
+    }
+  },
+  "composed_of": [],
+  "priority": 500,
+  "version": 1
+}

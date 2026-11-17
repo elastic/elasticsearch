@@ -146,14 +146,6 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
         .setAllowsTemplates()
         .build();
 
-    public static final SystemIndexDescriptor CONTEXT_ENGINE_INDEX_DESCRIPTOR = SystemIndexDescriptor.builder()
-        .setIndexPattern(".context-engine-*")
-        .setDescription("Context Engine system indices")
-        .setType(Type.EXTERNAL_UNMANAGED)
-        .setAllowedElasticProductOrigins(KIBANA_PRODUCT_ORIGIN)
-        .setAllowsTemplates()
-        .build();
-
     // TODO: Remove once all system indices have been ported from .contextengine-* to .context-engine-*
     public static final SystemIndexDescriptor CONTEXT_ENGINE_LEGACY_INDEX_DESCRIPTOR = SystemIndexDescriptor.builder()
         .setIndexPattern(".contextengine-*")
@@ -191,7 +183,6 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
             KIBANA_INDEX_DESCRIPTOR,
             REPORTING_INDEX_DESCRIPTOR,
             ONECHAT_INDEX_DESCRIPTOR,
-            CONTEXT_ENGINE_INDEX_DESCRIPTOR,
             CONTEXT_ENGINE_LEGACY_INDEX_DESCRIPTOR,
             WORKFLOWS_INDEX_DESCRIPTOR,
             APM_AGENT_CONFIG_INDEX_DESCRIPTOR,

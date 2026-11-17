@@ -30,6 +30,7 @@ import static org.elasticsearch.synonyms.SynonymsManagementAPIService.SYNONYMS_O
 import static org.elasticsearch.xpack.core.ClientHelper.APM_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.CONNECTORS_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.CONTEXT_ENGINE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.DATA_RECOVERY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.DEPRECATION_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
@@ -183,6 +184,7 @@ public final class AuthorizationUtils {
             case INFERENCE_ORIGIN:
             case ESQL_ORIGIN:
             case DATA_RECOVERY_ORIGIN:
+            case CONTEXT_ENGINE_ORIGIN:
             case TASKS_ORIGIN:   // TODO use a more limited user for tasks
                 securityContext.executeAsInternalUser(InternalUsers.XPACK_USER, version, consumer);
                 break;

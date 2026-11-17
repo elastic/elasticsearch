@@ -86,6 +86,8 @@ class KibanaOwnedReservedRoleDescriptors {
                 "manage_ilm",
                 // For connectors telemetry
                 "monitor_connector",
+                // For Context Engine session memory APIs
+                "manage_context_engine",
                 // For the endpoint package that ships a transform
                 "manage_transform",
                 InvalidateApiKeyAction.NAME,
@@ -131,7 +133,8 @@ class KibanaOwnedReservedRoleDescriptors {
                     .privileges("all")
                     .allowRestrictedIndices(true)
                     .build(),
-                // Context Engine system indices defined in KibanaPlugin
+                // Context Engine system indices: .contextengine-* is defined in KibanaPlugin, .context-engine-* in the
+                // context-engine plugin
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".context-engine-*", ".contextengine-*")
                     .privileges("read", "write", "manage")

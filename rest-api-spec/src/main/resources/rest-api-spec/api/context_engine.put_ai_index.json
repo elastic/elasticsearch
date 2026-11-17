@@ -1,0 +1,45 @@
+{
+  "context_engine.put_ai_index": {
+    "documentation": {
+      "url": null,
+      "description": "Creates or replaces a Context Engine AI index registry record"
+    },
+    "stability": "experimental",
+    "visibility": "private",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_context_engine/ai_index/{id}",
+          "methods": [
+            "PUT"
+          ],
+          "parts": {
+            "id": {
+              "type": "string",
+              "description": "The AI index id, unique within its space"
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "create": {
+        "type": "boolean",
+        "default": false,
+        "description": "Fail with a conflict if a record with this id already exists in the space"
+      }
+    },
+    "body": {
+      "description": "The AI index record, including its space and backing store",
+      "required": true
+    }
+  }
+}

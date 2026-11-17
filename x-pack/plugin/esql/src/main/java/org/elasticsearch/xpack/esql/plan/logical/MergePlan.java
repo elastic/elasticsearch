@@ -239,9 +239,7 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
     }
 
     /**
-     * Whether {@link #withScoreAttributeFromChildren} may merge {@code _score} as a {@link MetadataAttribute}. Callers that
-     * derive this merge's output pick between {@link #toReferenceAttributesPreservingIds} and the plain
-     * {@link Expressions#toReferenceAttributesPreservingIds} accordingly.
+     * Whether the merged {@code _score} column should be converted to {@link MetadataAttribute}.
      */
     public boolean mergesScoreAsMetadata() {
         return true;
@@ -250,11 +248,7 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
     /**
      * Re-classes the merged {@code _score} column of {@code converted} according to what the {@code branches} put in it.
      * <p>
-     * {@link Expressions#toReferenceAttributesPreservingIds} turns every merged column into a {@link ReferenceAttribute},
-     * but for {@code _score} the attribute class carries a contract: a {@link MetadataAttribute} is the live score that a
-     * scoring search further up adds to (see {@code LocalExecutionPlanner#planFilter}), whereas a reference is a value the
-     * user computed, which scoring leaves alone. Erasing the class at the merge silently drops the score of every search
-     * after it. The class is decided from all branches, not just the first one {@link #outputUnion} keeps for the name,
+     * The class is decided from all branches, not just the first one {@link #outputUnion} keeps for the name,
      * because the column's provenance differs per branch:
      * <ul>
      *   <li>a branch that asked for {@code METADATA _score} contributes the live score;</li>
@@ -267,8 +261,8 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
      * its own, and a reference otherwise. The id is preserved either way, so the alignment projections in the branches and
      * the plans above the merge keep resolving against it.
      *
-     * @param branches the branches as they will be after this output is installed, which may differ from {@link #children()}
-     *                 while the analyzer is still aligning them
+     * @param branches the branches of the MergePlan
+     * @param converted the merged columns, with the {@code _score} column as a reference attribute
      */
     public static List<Attribute> withScoreAttributeFromChildren(List<LogicalPlan> branches, List<Attribute> converted) {
         int index = IntStream.range(0, converted.size())
@@ -334,14 +328,14 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
                 return producesOnlyNull(branch).test(attr) ? BranchScore.EMPTY : BranchScore.USER_DEFINED;
             }
         }
-        // Not aligned yet: the column will be null-filled.
+        // this branch does not define a _score column.
         return BranchScore.EMPTY;
     }
 
     /**
-     * Whether a column of {@code branch}'s output holds nothing but nulls. Branch alignment fills a column a branch
-     * lacks this way, so that every branch outputs the same names; a column written as an explicit
-     * {@code EVAL x = null} is indistinguishable and equally empty, so both are treated alike.
+     * Whether a column of {@code branch}'s output holds nothing but nulls. A column written as an explicit
+     * {@code EVAL x = null} is indistinguishable from one inserted by Analyzer rules (such as {@code InjectOuterMetadataForSubqueries}),
+     * so both are treated alike.
      * <p>
      * Matched on the attribute's id rather than its name: a branch may assign the name more than once, and only the
      * assignment this attribute came from decides what the branch outputs. Matching by name would let an assignment
@@ -402,16 +396,6 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
         if (isGuaranteedNull(alias.child(), onlyNull)) {
             onlyNull.add(alias.id());
         }
-    }
-
-    /** Whether {@code plan} outputs a column named {@code name} that holds nothing but nulls. */
-    private static boolean columnOnlyNull(LogicalPlan plan, String attrName, Set<NameId> onlyNull) {
-        for (Attribute attr : plan.output()) {
-            if (attr.name().equals(attrName)) {
-                return onlyNull.contains(attr.id());
-            }
-        }
-        return false;
     }
 
     /**

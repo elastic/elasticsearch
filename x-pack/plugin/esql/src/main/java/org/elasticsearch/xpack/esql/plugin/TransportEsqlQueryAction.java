@@ -25,6 +25,7 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
 import org.elasticsearch.common.logging.activity.QueryInterceptor;
 import org.elasticsearch.common.logging.activity.QueryLogger;
+import org.elasticsearch.common.logging.activity.QuerySinkRegistry;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -150,6 +151,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         UsageService usageService,
         UserAgentParserRegistry userAgentParserRegistry,
         IpLocationService ipLocationService,
+        QuerySinkRegistry querySinkRegistry,
         ActionLoggingFieldsProvider fieldProvider,
         ActivityLogWriterProvider logWriterProvider,
         CrossProjectModeDecider crossProjectModeDecider,
@@ -223,6 +225,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         this.usageService = usageService;
 
         this.services = new TransportActionServices(
+            client,
             transportService,
             searchService,
             exchangeService,
@@ -271,7 +274,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             fieldProvider,
             indexNameExpressionResolver.getSystemNamePredicate()
         );
-        this.queryInterceptor = new QueryInterceptor<>(List.of(queryLogger));
+        this.queryInterceptor = querySinkRegistry.createInterceptor(queryLogger);
 
         defaultAllowPartialResults = EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS.get(clusterService.getSettings());
         clusterService.getClusterSettings()
@@ -397,7 +400,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         );
     }
 
-    private void innerExecute(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
+    private void innerExecute(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> queryListener) {
+        ActionListener<EsqlQueryResponse> listener = computeService.coordinate(task, queryListener);
         if (request.allowPartialResults() == null) {
             request.allowPartialResults(defaultAllowPartialResults);
         }
@@ -407,17 +411,19 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         // async-query uses EsqlQueryTask, so pull the EsqlExecutionInfo out of the task
         // sync query uses CancellableTask which does not have EsqlExecutionInfo, so create one
         EsqlExecutionInfo executionInfo = getOrCreateExecutionInfo(task, request);
-        PlanRunner planRunner = (role, plan, configuration, foldCtx, planTimeProfile, resultListener) -> computeService.execute(
-            sessionId,
-            (CancellableTask) task,
-            flags,
-            plan,
-            configuration,
-            foldCtx,
-            executionInfo,
-            planTimeProfile,
-            resultListener
-        );
+        PlanRunner planRunner = (role, plan, configuration, foldCtx, planTimeProfile, maxResultSize, resultListener) -> computeService
+            .execute(
+                sessionId,
+                (CancellableTask) task,
+                flags,
+                plan,
+                configuration,
+                foldCtx,
+                executionInfo,
+                planTimeProfile,
+                maxResultSize,
+                resultListener
+            );
         planExecutor.esql(
             request,
             sessionId,

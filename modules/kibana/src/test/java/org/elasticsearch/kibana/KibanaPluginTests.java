@@ -50,6 +50,7 @@ public class KibanaPluginTests extends ESTestCase {
                 KibanaPlugin.WORKFLOWS_EXECUTION_LOGS_DATA_STREAM_NAME,
                 KibanaPlugin.CHANGE_HISTORY_DATA_STREAM_NAME,
                 KibanaPlugin.NOTIFICATION_CENTER_DATA_STREAM_NAME,
+                KibanaPlugin.CONTEXT_ENGINE_SESSION_EVENTS_DATA_STREAM_NAME,
                 KibanaPlugin.CONTEXT_ENGINE_SESSION_MEMORY_DATA_STREAM_NAME
             )
         );
@@ -62,6 +63,7 @@ public class KibanaPluginTests extends ESTestCase {
         assertFalse(indexDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".kibana_change_history")));
         assertFalse(indexDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".kibana_change_history-000001")));
         assertFalse(indexDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".kibana-notifications")));
+        assertFalse(indexDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".context-engine-session-events")));
         assertFalse(indexDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".context-engine-session-memory")));
     }
 
@@ -69,7 +71,33 @@ public class KibanaPluginTests extends ESTestCase {
         assertTrue(KibanaPlugin.CONTEXT_ENGINE_INDEX_DESCRIPTOR.matchesIndexPattern(".context-engine-ai-indices"));
         assertTrue(KibanaPlugin.CONTEXT_ENGINE_INDEX_DESCRIPTOR.matchesIndexPattern(".context-engine-improvements"));
         assertFalse(KibanaPlugin.CONTEXT_ENGINE_INDEX_DESCRIPTOR.matchesIndexPattern(".context-engine-session-memory"));
-        assertTrue(KibanaPlugin.CONTEXT_ENGINE_INDEX_DESCRIPTOR.matchesIndexPattern(".context-engine-session-events"));
+        assertFalse(KibanaPlugin.CONTEXT_ENGINE_INDEX_DESCRIPTOR.matchesIndexPattern(".context-engine-session-events"));
+    }
+
+    /** Kibana writes these fields and nothing in Elasticsearch reads them, so only this test would catch a change that drops one. */
+    public void testContextEngineSessionEventsMapsKibanaFields() {
+        Map<String, Object> properties = mappedProperties(KibanaPlugin.CONTEXT_ENGINE_SESSION_EVENTS_DATA_STREAM_NAME);
+        assertThat(
+            properties.keySet(),
+            containsInAnyOrder(
+                "@timestamp",
+                "event_at",
+                "id",
+                "seq",
+                "space",
+                "ai_index_id",
+                "session_id",
+                "turn_id",
+                "user_id",
+                "type",
+                "content",
+                "tool_name",
+                "status",
+                "raw"
+            )
+        );
+        assertThat(asMap(asMap(properties.get("content")).get("fields")), hasEntry("semantic", Map.of("type", "semantic_text")));
+        assertThat(properties, hasEntry("raw", Map.of("type", "object", "enabled", false)));
     }
 
     /**

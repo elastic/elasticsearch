@@ -525,8 +525,8 @@ public class IndexingShardRecoveryIT extends AbstractStatelessPluginIntegTestCas
         var blobContainer = objectStoreService.getProjectBlobContainer(newIndexShard.shardId());
         var blobNamesAndPrimaryTerms = new HashMap<String, Set<Long>>();
         for (var child : blobContainer.children(operationPurpose).entrySet()) {
-            var blobNames = child.getValue().listBlobs(operationPurpose).keySet();
-            blobNames.forEach(
+            var bccBlobNames = listBccBlobNames(child.getValue());
+            bccBlobNames.forEach(
                 blobName -> blobNamesAndPrimaryTerms.computeIfAbsent(blobName, s -> new HashSet<>()).add(Long.parseLong(child.getKey()))
             );
         }

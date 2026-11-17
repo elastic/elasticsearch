@@ -29,10 +29,9 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.EnrollmentToken;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
@@ -84,10 +83,8 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
     @BeforeClass
     public static void startThreadPool() throws IOException {
         final Settings settings = Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "InternalEnrollmentTokenGeneratorTests").build();
-        threadPool = new ThreadPool(
-            settings,
-            MeterRegistry.NOOP,
-            new DefaultBuiltInExecutorBuilders(),
+        threadPool = new TestThreadPool(
+            "InternalEnrollmentTokenGeneratorTests",
             new FixedExecutorBuilder(
                 settings,
                 TokenService.THREAD_POOL_NAME,

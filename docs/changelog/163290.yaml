@@ -1,0 +1,6 @@
+area: CCS
+issues:
+ - 160954
+pr: 163290
+summary: Preserve requested pagination in interim async cross-cluster search responses
+type: bug

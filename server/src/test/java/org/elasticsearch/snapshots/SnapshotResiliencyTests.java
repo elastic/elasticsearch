@@ -318,7 +318,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
             // Only disconnect master if we have more than a single master and can simulate a failover
             final boolean disconnectedMaster = randomBoolean() && masterNodes > 1;
             if (disconnectedMaster) {
-                scheduleNow(this::disconnectOrRestartMasterNode);
+                scheduleNow(this::disruptMasterNode);
+            } else if (masterNodes == 1 && testClusterNodes.canUsurpCurrentMaster() && randomBoolean()) {
+                scheduleNow(() -> testClusterNodes.usurpCurrentMaster(testClusterNodes.randomMasterNodeSafe()));
             }
             if (disconnectedMaster || randomBoolean()) {
                 scheduleSoon(() -> testClusterNodes.clearNetworkDisruptions());
@@ -491,7 +493,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         final AtomicBoolean snapshotDeleteResponded = new AtomicBoolean(false);
         continueOrDie(createSnapshotResponseStepListener, createSnapshotResponse -> {
-            scheduleNow(this::disconnectOrRestartMasterNode);
+            scheduleNow(this::disruptMasterNode);
             testClusterNodes.randomDataNodeSafe()
                 .client()
                 .admin()
@@ -2130,9 +2132,11 @@ public class SnapshotResiliencyTests extends ESTestCase {
         return testClusterNodes.nodes().values().stream().anyMatch(n -> n.clusterService().state().nodes().isLocalNodeElectedMaster());
     }
 
-    protected void disconnectOrRestartMasterNode() {
+    protected void disruptMasterNode() {
         testClusterNodes.randomMasterNode().ifPresent(masterNode -> {
-            if (randomBoolean()) {
+            if (testClusterNodes.canUsurpCurrentMaster() && randomBoolean()) {
+                testClusterNodes.usurpCurrentMaster(masterNode);
+            } else if (randomBoolean()) {
                 testClusterNodes.disconnectNode(masterNode);
             } else {
                 masterNode.restart();

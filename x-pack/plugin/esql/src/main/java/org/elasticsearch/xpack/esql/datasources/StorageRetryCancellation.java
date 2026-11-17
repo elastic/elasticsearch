@@ -34,8 +34,9 @@ import java.util.function.BooleanSupplier;
  * exit; when no scope is active {@link #isCancelled()} returns {@code false}.
  *
  * <p><b>Scope.</b> Scopes are installed around coordinator-side split-discovery and source-resolution footer
- * reads (see {@code ExternalSourceResolver}) and around the data-node runtime producer read (see
- * {@code AsyncExternalSourceOperatorFactory} and {@code ExternalSourceDrainUtils}). The runtime scope is keyed
+ * reads (see {@code ExternalSourceResolver}), around the data-node runtime producer read (see
+ * {@code AsyncExternalSourceOperatorFactory} and {@code ExternalSourceDrainUtils}), and around deferred
+ * column materialization (see {@code ExternalFieldExtractOperator}). The runtime producer scope is keyed
  * to {@code AsyncExternalSourceBuffer.readCancelled()} — a hard cut of a still-running producer (task cancel /
  * async DELETE / LIMIT teardown), but <em>not</em> async STOP, which keeps buffered pages for a partial
  * response and must therefore let an in-flight read complete cooperatively rather than abort it mid-backoff.

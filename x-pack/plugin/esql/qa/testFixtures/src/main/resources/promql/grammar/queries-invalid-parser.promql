@@ -63,6 +63,8 @@ foo unless on(bar) group_right(baz) bar;
 |no grouping allowed for "unless" operation;
 http_requests{group="production"} + on(instance) group_left(job,instance) cpu_count{type="smp"};
 |label "instance" must not occur in ON and GROUP clause at once;
+http_requests{group="production"} + on(instance) group_left(instance) cpu_count{type="smp"};
+|label "instance" must not occur in ON and GROUP clause at once;
 foo + bool bar;
 |bool modifier can only be used on comparison operators;
 foo + bool 10;
@@ -256,6 +258,8 @@ foo[5s%0d];
 |modulo by zero;
 foo offset 9.5e10;
 |duration out of range;
+foo offset "5m";
+|unexpected string in offset, expected number or duration;
 foo[9.5e10];
 |duration out of range;
 

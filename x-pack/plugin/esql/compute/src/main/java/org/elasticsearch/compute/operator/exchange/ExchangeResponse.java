@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.operator.exchange;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.AbstractRefCounted;
@@ -25,28 +24,22 @@ public final class ExchangeResponse extends TransportResponse implements Releasa
     private final Page page;
     private final boolean finished;
     private boolean pageTaken;
-    private final BlockFactory blockFactory;
-    private long reservedBytes = 0;
 
-    public ExchangeResponse(BlockFactory blockFactory, Page page, boolean finished) {
-        this.blockFactory = blockFactory;
+    public ExchangeResponse(Page page, boolean finished) {
         this.page = page;
         this.finished = finished;
     }
 
     public ExchangeResponse(BlockStreamInput in) throws IOException {
-        this.blockFactory = in.blockFactory();
         this.page = in.readOptionalWriteable(Page::new);
         this.finished = in.readBoolean();
     }
 
+    /**
+     * Writes the page. The bytes written are charged by the channel that sends the response, until they are sent.
+     */
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (page != null) {
-            long bytes = page.ramBytesUsedByBlocks();
-            blockFactory.breaker().addEstimateBytesAndMaybeBreak(bytes, "serialize exchange response");
-            reservedBytes += bytes;
-        }
         out.writeOptionalWriteable(page);
         out.writeBoolean(finished);
     }
@@ -119,7 +112,6 @@ public final class ExchangeResponse extends TransportResponse implements Releasa
     }
 
     private void closeInternal() {
-        blockFactory.breaker().addWithoutBreaking(-reservedBytes);
         if (pageTaken == false && page != null) {
             page.releaseBlocks();
         }

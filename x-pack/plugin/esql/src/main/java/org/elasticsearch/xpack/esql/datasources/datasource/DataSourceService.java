@@ -538,7 +538,7 @@ public class DataSourceService {
     ) {
         // A node that predates the state reads every resource as open, so a query it coordinates would ignore the
         // close while this call reported success. Refuse until every node knows the state.
-        if (clusterService.state().getMinTransportVersion().supports(DataSource.ESQL_DATASOURCE_DATASET_ENABLED) == false) {
+        if (clusterService.state().getMinTransportVersion().supports(DataSource.ESQL_DATASOURCE_STATE) == false) {
             IllegalArgumentException e = new IllegalArgumentException(
                 "cannot close or open data sources until all nodes in the cluster are upgraded to a version that supports it"
             );

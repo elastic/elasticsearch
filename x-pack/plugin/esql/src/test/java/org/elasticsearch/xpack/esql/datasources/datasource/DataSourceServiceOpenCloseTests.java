@@ -48,7 +48,7 @@ public class DataSourceServiceOpenCloseTests extends ESTestCase {
             ClusterState.builder(ClusterName.DEFAULT)
                 .putCompatibilityVersions(
                     "old-node",
-                    TransportVersionUtils.randomVersionNotSupporting(DataSource.ESQL_DATASOURCE_DATASET_ENABLED),
+                    TransportVersionUtils.randomVersionNotSupporting(DataSource.ESQL_DATASOURCE_STATE),
                     Map.of()
                 )
                 .build()

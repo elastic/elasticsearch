@@ -1445,7 +1445,7 @@ public class EsqlCapabilities {
         /**
          * Support for the {@code exemplars} query setting.
          */
-        EXEMPLARS_SETTING_DEVELOPMENT_V8(Build.current().isSnapshot()),
+        EXEMPLARS_SETTING_RELEASE,
 
         /**
          * Are the {@code documents_found} and {@code values_loaded} fields available
@@ -2127,6 +2127,11 @@ public class EsqlCapabilities {
          * EXPLAIN command with remote plans (5 columns: cluster, node, role, type, plan)
          */
         EXPLAIN_WITH_REMOTE_PLANS(Build.current().isSnapshot()),
+        /**
+         * EXPLAIN command with the JSON form of each plan (6 columns: cluster, node, role, type, plan, plan_json).
+         * Older nodes return the five columns of {@link #EXPLAIN_WITH_REMOTE_PLANS}.
+         */
+        EXPLAIN_WITH_JSON_PLANS(Build.current().isSnapshot()),
         /**
          * Support for the RLIKE operator with a list of regexes.
          */
@@ -4917,6 +4922,13 @@ public class EsqlCapabilities {
          * ({@code datasources.queries.failures.by_error_type.closed})? Only operations that change the state are counted.
          */
         USAGE_CONTAINS_DATASOURCE_OPEN_CLOSE,
+
+        /**
+         * The usage information for ESQL counts queries by the Elastic product in {@code X-elastic-product-origin}: one
+         * {@code queries.<product>} per known product origin, {@code queries.other} for any other origin, and {@code queries.rest}
+         * for a request without the header. Before this, every query was counted as {@code rest}.
+         */
+        USAGE_QUERIES_BY_CLIENT,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

@@ -31,7 +31,7 @@ import java.util.Objects;
 public final class DataSource implements Writeable, ToXContentObject {
 
     /** Gates the {@link #enabled} flag on the wire. */
-    public static final TransportVersion ESQL_DATASOURCE_DATASET_ENABLED = TransportVersion.fromName("esql_datasource_dataset_enabled");
+    public static final TransportVersion ESQL_DATASOURCE_STATE = TransportVersion.fromName("esql_datasource_state");
 
     private static final ParseField NAME = new ParseField("name");
     private static final ParseField TYPE_FIELD = new ParseField("type");
@@ -100,7 +100,7 @@ public final class DataSource implements Writeable, ToXContentObject {
         this.type = in.readString();
         this.description = in.readOptionalString();
         this.settings = new DataSourceSettings(in);
-        this.enabled = in.getTransportVersion().supports(ESQL_DATASOURCE_DATASET_ENABLED) ? in.readBoolean() : true;
+        this.enabled = in.getTransportVersion().supports(ESQL_DATASOURCE_STATE) ? in.readBoolean() : true;
     }
 
     @Override
@@ -109,7 +109,7 @@ public final class DataSource implements Writeable, ToXContentObject {
         out.writeString(type);
         out.writeOptionalString(description);
         settings.writeTo(out);
-        if (out.getTransportVersion().supports(ESQL_DATASOURCE_DATASET_ENABLED)) {
+        if (out.getTransportVersion().supports(ESQL_DATASOURCE_STATE)) {
             out.writeBoolean(enabled);
         }
     }

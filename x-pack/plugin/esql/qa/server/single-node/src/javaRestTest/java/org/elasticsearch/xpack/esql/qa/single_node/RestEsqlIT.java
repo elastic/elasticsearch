@@ -146,23 +146,29 @@ public class RestEsqlIT extends RestEsqlTestCase {
         assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("[pragma] only allowed in snapshot builds"));
     }
 
-    public void testStreamingParameterNotAcceptedOnQuery() throws IOException {
+    public void testStreamingParameterNotAcceptedOnQuery() {
         Request request = new Request("POST", "/_query");
         request.addParameter("streaming", "true");
         request.addParameter("format", "ndjson");
         request.setJsonEntity("{\"query\": \"ROW a = 1\"}");
-        ResponseException re = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        ResponseException re = expectThrows(
+            ResponseException.class,
+            containsString("contains unrecognized parameter: [streaming]"),
+            () -> client().performRequest(request)
+        );
         assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("contains unrecognized parameter: [streaming]"));
     }
 
-    public void testStreamingEndpointNotAvailableOnReleaseBuilds() throws IOException {
+    public void testStreamingEndpointNotAvailableOnReleaseBuilds() {
         assumeFalse("streaming is disabled on release builds", Build.current().isSnapshot());
         Request request = new Request("POST", "/_query/stream");
         request.setJsonEntity("{\"query\": \"ROW a = 1\"}");
-        ResponseException re = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        ResponseException re = expectThrows(
+            ResponseException.class,
+            containsString("no handler found for uri"),
+            () -> client().performRequest(request)
+        );
         assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("no handler found for uri"));
     }
 
     public void testDoNotLogWithInfo() throws IOException {

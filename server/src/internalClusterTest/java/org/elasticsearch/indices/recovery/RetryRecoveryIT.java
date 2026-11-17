@@ -246,10 +246,10 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         try {
             failTestIfReceiveShardFailure(transportService);
 
-            final var recoveryBarrier = armRecoveryPause();
+            final var barrier = armRecoveryPause();
 
             prepareCreate(indexName, indexSettings(1, 0)).execute();
-            safeAwait(recoveryBarrier);
+            safeAwait(barrier);
 
             PlainActionFuture<Void> closed = new PlainActionFuture<>();
             internalCluster().getInstance(IndicesService.class, node)
@@ -257,7 +257,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                 .removeShard(0, "test", internalCluster().getInstance(ThreadPool.class, node).generic(), closed);
             // Recovery must ABORT on CLOSED shard
             MockLog.awaitLogger(() -> {
-                safeAwait(recoveryBarrier);
+                safeAwait(barrier);
                 safeGet(closed);
             },
                 IndicesClusterStateService.class,
@@ -297,10 +297,10 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         try {
             failTestIfReceiveShardFailure(transportService);
 
-            final var recoveryBarrier = armRecoveryPause();
+            final var barrier = armRecoveryPause();
 
             indicesAdmin().prepareOpen(indexName).execute();
-            safeAwait(recoveryBarrier);
+            safeAwait(barrier);
 
             PlainActionFuture<Void> closed = new PlainActionFuture<>();
             internalCluster().getInstance(IndicesService.class, node)
@@ -308,7 +308,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                 .removeShard(0, "test", internalCluster().getInstance(ThreadPool.class, node).generic(), closed);
             // Recovery must ABORT on CLOSED shard
             MockLog.awaitLogger(() -> {
-                safeAwait(recoveryBarrier);
+                safeAwait(barrier);
                 safeGet(closed);
             },
                 IndicesClusterStateService.class,
@@ -349,11 +349,11 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         try {
             failTestIfReceiveShardFailure(transportService);
 
-            final var recoveryBarrier = armRecoveryPause();
+            final var barrier = armRecoveryPause();
 
             // Recover from local shard
             ResizeIndexTestUtils.executeResize(ResizeType.CLONE, sourceIndexName, targetIndexName, indexSettings(1, 0));
-            safeAwait(recoveryBarrier);
+            safeAwait(barrier);
 
             PlainActionFuture<Void> closed = new PlainActionFuture<>();
             internalCluster().getInstance(IndicesService.class, node)
@@ -361,7 +361,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                 .removeShard(0, "test", internalCluster().getInstance(ThreadPool.class, node).generic(), closed);
             // Recovery must ABORT on CLOSED shard
             MockLog.awaitLogger(() -> {
-                safeAwait(recoveryBarrier);
+                safeAwait(barrier);
                 safeGet(closed);
             },
                 IndicesClusterStateService.class,
@@ -410,11 +410,11 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         try {
             failTestIfReceiveShardFailure(transportService);
 
-            final var recoveryBarrier = armRecoveryPause();
+            final var barrier = armRecoveryPause();
 
             // Recover from snapshot
             clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap").setWaitForCompletion(true).execute();
-            safeAwait(recoveryBarrier);
+            safeAwait(barrier);
 
             PlainActionFuture<Void> closed = new PlainActionFuture<>();
             internalCluster().getInstance(IndicesService.class, node)
@@ -422,7 +422,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                 .removeShard(0, "test", internalCluster().getInstance(ThreadPool.class, node).generic(), closed);
             // Recovery must ABORT on CLOSED shard
             MockLog.awaitLogger(() -> {
-                safeAwait(recoveryBarrier);
+                safeAwait(barrier);
                 safeGet(closed);
             },
                 IndicesClusterStateService.class,
@@ -542,14 +542,14 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             failTestIfReceiveShardFailure(transportService);
 
             armRandomFailure();
-            final var recoveryBarrier = armRecoveryPause();
+            final var barrier = armRecoveryPause();
 
             prepareCreate(indexName, indexSettings(1, 0)).execute();
-            safeAwait(recoveryBarrier);
+            safeAwait(barrier);
             final var deleted = indicesAdmin().prepareDelete(indexName).execute();
 
             // Release will make recovery/retry race with index deletion
-            safeAwait(recoveryBarrier);
+            safeAwait(barrier);
 
             assertAcked(deleted);
             waitNoPendingTasksOnAll();
@@ -574,15 +574,15 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             failTestIfReceiveShardFailure(transportService);
 
             armRandomFailure();
-            final var recoveryBarrier = armRecoveryPause();
+            final var barrier = armRecoveryPause();
 
             // Recover from existing store
             indicesAdmin().prepareOpen(indexName).execute();
-            safeAwait(recoveryBarrier);
+            safeAwait(barrier);
             final var deleted = indicesAdmin().prepareDelete(indexName).execute();
 
             // Release recovery will make recovery/retry race with index deletion
-            safeAwait(recoveryBarrier);
+            safeAwait(barrier);
 
             assertAcked(deleted);
             waitNoPendingTasksOnAll();
@@ -610,15 +610,15 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             failTestIfReceiveShardFailure(transportService);
 
             armRandomFailure();
-            final var recoveryBarrier = armRecoveryPause();
+            final var barrier = armRecoveryPause();
 
             // Recover from local shard async
             ResizeIndexTestUtils.executeResize(ResizeType.CLONE, sourceIndexName, targetIndexName, indexSettings(1, 0));
-            safeAwait(recoveryBarrier);
+            safeAwait(barrier);
             final var deleted = indicesAdmin().prepareDelete(targetIndexName).execute();
 
             // Release recovery will make recovery/retry race with index deletion
-            safeAwait(recoveryBarrier);
+            safeAwait(barrier);
 
             assertAcked(deleted);
             waitNoPendingTasksOnAll();
@@ -651,15 +651,15 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             failTestIfReceiveShardFailure(transportService);
 
             armRandomFailure();
-            final var recoveryBarrier = armRecoveryPause();
+            final var barrier = armRecoveryPause();
 
             // Recover from snapshot async
             clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap").setWaitForCompletion(false).execute();
-            safeAwait(recoveryBarrier);
+            safeAwait(barrier);
             final var deleted = indicesAdmin().prepareDelete(indexName).execute();
 
             // Release recovery will make recovery/retry race with index deletion
-            safeAwait(recoveryBarrier);
+            safeAwait(barrier);
 
             assertAcked(deleted);
             waitNoPendingTasksOnAll();
@@ -679,11 +679,11 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             failTestIfReceiveShardFailure(masterATransport);
 
             armRandomFailure();
-            final var recoveryBarrier = armRecoveryPause();
+            final var barrier = armRecoveryPause();
 
             // Create index async
             prepareCreate(indexName, indexSettings(1, 0)).execute();
-            safeAwait(recoveryBarrier);
+            safeAwait(barrier);
 
             // Isolating dataNode will cause shard to go unassigned
             NetworkDisruption disruption = new NetworkDisruption(
@@ -696,7 +696,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             awaitClusterState(master, state -> state.nodes().nodeExists(dataNodeId) == false);
 
             // Release recovery will make recovery/retry race with network disruption
-            safeAwait(recoveryBarrier);
+            safeAwait(barrier);
             disruption.stopDisrupting();
 
             waitNoPendingTasksOnAll();
@@ -722,11 +722,11 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             failTestIfReceiveShardFailure(masterATransport);
 
             armRandomFailure();
-            final var recoveryBarrier = armRecoveryPause();
+            final var barrier = armRecoveryPause();
 
             // Recover from existing store async
             indicesAdmin().prepareOpen(indexName).execute();
-            safeAwait(recoveryBarrier);
+            safeAwait(barrier);
 
             // Isolating dataNode will cause shard to go unassigned
             NetworkDisruption disruption = new NetworkDisruption(
@@ -739,7 +739,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             awaitClusterState(master, state -> state.nodes().nodeExists(dataNodeId) == false);
 
             // Release recovery will make recovery/retry race with network disruption
-            safeAwait(recoveryBarrier);
+            safeAwait(barrier);
             disruption.stopDisrupting();
 
             waitNoPendingTasksOnAll();
@@ -768,11 +768,11 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             failTestIfReceiveShardFailure(masterATransport);
 
             armRandomFailure();
-            final var recoveryBarrier = armRecoveryPause();
+            final var barrier = armRecoveryPause();
 
             // Recover from local shard async
             ResizeIndexTestUtils.executeResize(ResizeType.CLONE, sourceIndexName, targetIndexName, indexSettings(1, 0));
-            safeAwait(recoveryBarrier);
+            safeAwait(barrier);
 
             // Isolating dataNode will cause shard to go unassigned
             NetworkDisruption disruption = new NetworkDisruption(
@@ -785,7 +785,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             awaitClusterState(master, state -> state.nodes().nodeExists(dataNodeId) == false);
 
             // Release recovery will make recovery/retry race with network disruption
-            safeAwait(recoveryBarrier);
+            safeAwait(barrier);
             disruption.stopDisrupting();
 
             waitNoPendingTasksOnAll();
@@ -820,11 +820,11 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             failTestIfReceiveShardFailure(masterATransport);
 
             armRandomFailure();
-            final var recoveryBarrier = armRecoveryPause();
+            final var barrier = armRecoveryPause();
 
             // Recover from snapshot async
             clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap").setWaitForCompletion(false).execute();
-            safeAwait(recoveryBarrier);
+            safeAwait(barrier);
 
             // Isolating dataNode will cause shard to go unassigned
             NetworkDisruption disruption = new NetworkDisruption(
@@ -837,7 +837,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             awaitClusterState(master, state -> state.nodes().nodeExists(dataNodeId) == false);
 
             // Release recovery will make recovery/retry race with network disruption
-            safeAwait(recoveryBarrier);
+            safeAwait(barrier);
             disruption.stopDisrupting();
 
             waitNoPendingTasksOnAll();

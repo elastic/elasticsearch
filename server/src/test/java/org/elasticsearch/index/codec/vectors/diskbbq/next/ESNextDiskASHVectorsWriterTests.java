@@ -13,25 +13,26 @@ import org.elasticsearch.index.codec.vectors.ash.AshProjectionMatrix;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Arrays;
 import java.util.List;
 
 /**
  * Unit tests for the merge-time projection-matrix selection rule
  * ({@link ESNextDiskASHVectorsWriter#selectInheritedProjectionMatrix}). The rule decides which input
- * segment's learned W^T is inherited (warm-started) into the merged segment.
+ * segment's learned matrix is inherited (warm-started) into the merged segment.
  */
 public class ESNextDiskASHVectorsWriterTests extends ESTestCase {
 
     private static AshProjectionMatrix learned(int originalDim, int nDims, float fill) {
         float[] wT = new float[originalDim * nDims];
-        java.util.Arrays.fill(wT, fill);
-        return new AshProjectionMatrix(wT, originalDim, nDims, true);
+        Arrays.fill(wT, fill);
+        return new AshProjectionMatrix(wT, originalDim, nDims, true, AshProjectionMatrix.newId(), 0);
     }
 
     private static AshProjectionMatrix random(int originalDim, int nDims, float fill) {
         float[] wT = new float[originalDim * nDims];
-        java.util.Arrays.fill(wT, fill);
-        return new AshProjectionMatrix(wT, originalDim, nDims, false);
+        Arrays.fill(wT, fill);
+        return new AshProjectionMatrix(wT, originalDim, nDims, false, AshProjectionMatrix.newId(), 0);
     }
 
     public void testReturnsNullWhenNoCandidates() {
@@ -45,7 +46,7 @@ public class ESNextDiskASHVectorsWriterTests extends ESTestCase {
             new ESNextDiskASHVectorsWriter.SizedProjectionMatrix(small, 10),
             new ESNextDiskASHVectorsWriter.SizedProjectionMatrix(large, 100)
         );
-        assertSame(large.wT(), ESNextDiskASHVectorsWriter.selectInheritedProjectionMatrix(4, 2, candidates));
+        assertSame(large, ESNextDiskASHVectorsWriter.selectInheritedProjectionMatrix(4, 2, candidates));
     }
 
     public void testSkipsRandomProjections() {
@@ -56,7 +57,7 @@ public class ESNextDiskASHVectorsWriterTests extends ESTestCase {
             new ESNextDiskASHVectorsWriter.SizedProjectionMatrix(largeRandom, 1000),
             new ESNextDiskASHVectorsWriter.SizedProjectionMatrix(smallLearned, 10)
         );
-        assertSame(smallLearned.wT(), ESNextDiskASHVectorsWriter.selectInheritedProjectionMatrix(4, 2, candidates));
+        assertSame(smallLearned, ESNextDiskASHVectorsWriter.selectInheritedProjectionMatrix(4, 2, candidates));
     }
 
     public void testReturnsNullWhenAllRandom() {
@@ -74,7 +75,7 @@ public class ESNextDiskASHVectorsWriterTests extends ESTestCase {
             new ESNextDiskASHVectorsWriter.SizedProjectionMatrix(wrongDim, 1000),
             new ESNextDiskASHVectorsWriter.SizedProjectionMatrix(rightDim, 10)
         );
-        assertSame(rightDim.wT(), ESNextDiskASHVectorsWriter.selectInheritedProjectionMatrix(4, 2, candidates));
+        assertSame(rightDim, ESNextDiskASHVectorsWriter.selectInheritedProjectionMatrix(4, 2, candidates));
     }
 
     public void testSkipsProjectedDimensionMismatch() {
@@ -84,7 +85,7 @@ public class ESNextDiskASHVectorsWriterTests extends ESTestCase {
             new ESNextDiskASHVectorsWriter.SizedProjectionMatrix(wrongProjectedDims, 1000),
             new ESNextDiskASHVectorsWriter.SizedProjectionMatrix(rightProjectedDims, 10)
         );
-        assertSame(rightProjectedDims.wT(), ESNextDiskASHVectorsWriter.selectInheritedProjectionMatrix(4, 2, candidates));
+        assertSame(rightProjectedDims, ESNextDiskASHVectorsWriter.selectInheritedProjectionMatrix(4, 2, candidates));
     }
 
     public void testInheritsProjectionOnlyWhenThereIsSomethingToInherit() {

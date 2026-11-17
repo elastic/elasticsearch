@@ -11,11 +11,15 @@ package org.elasticsearch.index.codec.vectors.ash;
 
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.util.StringHelper;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.Objects;
+import java.util.UUID;
 
 /**
  * Serialization for the ASH projection matrix W in transposed form.
@@ -28,8 +32,17 @@ import java.nio.ByteOrder;
  * <pre>
  *   [int] originalDim (number of rows in W)
  *   [int] nDims (number of columns in W, i.e. projected dimensions)
+ *   [byte] learned
+ *   [long, long] id
+ *   [int] trainingSampleSize
  *   [float[originalDim * nDims]] WT matrix in row-major order (little-endian)
  * </pre>
+ * <p>
+ * The id identifies the content of W: a newly trained matrix gets a new random id, and a matrix that is reused as-is,
+ * for instance by a merge from one of its input segments, keeps its id. Two segments with the same id therefore have the
+ * same W, so a query projected through one of them can be reused for the other, and readers can share a single in-memory
+ * copy. The training sample size is the number of vectors W's subspace was estimated from, 0 if none, so that a matrix
+ * can be reused only by segments for which it is as good as one they would learn themselves.
  */
 public final class AshProjectionMatrix {
 
@@ -37,6 +50,17 @@ public final class AshProjectionMatrix {
     private final int originalDim;
     private final int nDims;
     private final boolean learned;
+    private final UUID id;
+    private final int trainingSampleSize;
+
+    /**
+     * Returns a new random id for a newly trained matrix. It uses Lucene's segment id generator, which is unique enough to
+     * tell matrices apart without the cost of a cryptographically secure random UUID.
+     */
+    public static UUID newId() {
+        byte[] bytes = StringHelper.randomId();
+        return new UUID(ByteUtils.readLongBE(bytes, 0), ByteUtils.readLongBE(bytes, Long.BYTES));
+    }
 
     /**
      * W^T quantized to int8, each row (one projected dimension) with its own scale.
@@ -63,15 +87,22 @@ public final class AshProjectionMatrix {
      *                    projection, or was learned from fewer vectors (e.g. a small flush segment). Such
      *                    a matrix must not be inherited/warm-started at merge time — merge should learn
      *                    a full W instead.
+     * @param id          the identity of W's content, see {@link AshProjectionMatrix}
+     * @param trainingSampleSize the number of vectors W's subspace was estimated from, 0 if none
      */
-    public AshProjectionMatrix(float[] wT, int originalDim, int nDims, boolean learned) {
+    public AshProjectionMatrix(float[] wT, int originalDim, int nDims, boolean learned, UUID id, int trainingSampleSize) {
         if (wT.length != originalDim * nDims) {
             throw new IllegalArgumentException("wT.length " + wT.length + " != originalDim * nDims " + (originalDim * nDims));
+        }
+        if (trainingSampleSize < 0) {
+            throw new IllegalArgumentException("trainingSampleSize must not be negative, got " + trainingSampleSize);
         }
         this.wT = wT;
         this.originalDim = originalDim;
         this.nDims = nDims;
         this.learned = learned;
+        this.id = Objects.requireNonNull(id);
+        this.trainingSampleSize = trainingSampleSize;
     }
 
     /**
@@ -80,6 +111,16 @@ public final class AshProjectionMatrix {
      */
     public boolean isLearned() {
         return learned;
+    }
+
+    /** Returns the identity of W's content. */
+    public UUID id() {
+        return id;
+    }
+
+    /** Returns the number of vectors W's subspace was estimated from, 0 if none. */
+    public int trainingSampleSize() {
+        return trainingSampleSize;
     }
 
     /**
@@ -156,6 +197,9 @@ public final class AshProjectionMatrix {
         out.writeInt(originalDim);
         out.writeInt(nDims);
         out.writeByte((byte) (learned ? 1 : 0));
+        out.writeLong(id.getMostSignificantBits());
+        out.writeLong(id.getLeastSignificantBits());
+        out.writeInt(trainingSampleSize);
         ByteBuffer buffer = ByteBuffer.allocate(wT.length * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
         buffer.asFloatBuffer().put(wT);
         out.writeBytes(buffer.array(), buffer.capacity());
@@ -172,11 +216,13 @@ public final class AshProjectionMatrix {
         int originalDim = in.readInt();
         int nDims = in.readInt();
         boolean learned = in.readByte() != 0;
+        UUID id = new UUID(in.readLong(), in.readLong());
+        int trainingSampleSize = in.readInt();
         float[] wT = new float[originalDim * nDims];
         ByteBuffer buffer = ByteBuffer.allocate(wT.length * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
         in.readBytes(buffer.array(), 0, buffer.capacity());
         buffer.asFloatBuffer().get(wT);
-        return new AshProjectionMatrix(wT, originalDim, nDims, learned);
+        return new AshProjectionMatrix(wT, originalDim, nDims, learned, id, trainingSampleSize);
     }
 
     /**
@@ -185,6 +231,6 @@ public final class AshProjectionMatrix {
      * @return total bytes when serialized
      */
     public long byteSize() {
-        return Integer.BYTES * 2L + Byte.BYTES + (long) originalDim * nDims * Float.BYTES;
+        return Integer.BYTES * 2L + Byte.BYTES + Long.BYTES * 2L + Integer.BYTES + (long) originalDim * nDims * Float.BYTES;
     }
 }

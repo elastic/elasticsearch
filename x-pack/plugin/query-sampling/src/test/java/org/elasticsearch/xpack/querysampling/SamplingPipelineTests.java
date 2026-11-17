@@ -74,7 +74,8 @@ public class SamplingPipelineTests extends ESTestCase {
     }
 
     private static QuerySampler sampler(double scale, double draw) {
-        return new QuerySampler(scale, 100, picking(draw), new PickBudget(System::nanoTime), new SpatialStrata(0));
+        Random random = picking(draw);
+        return new QuerySampler(scale, 100, () -> random, new PickBudget(System::nanoTime), new SpatialStrata(0));
     }
 
     /** A random whose draws are all the given value, so sampling decisions are deterministic. */

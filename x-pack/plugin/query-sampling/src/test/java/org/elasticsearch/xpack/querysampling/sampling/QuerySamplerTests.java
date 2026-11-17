@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.querysampling.dedup.TrackedQuery;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
@@ -28,7 +29,7 @@ public class QuerySamplerTests extends ESTestCase {
         AtomicLong clock = new AtomicLong();
         PickBudget limit = new PickBudget(clock::get);
         limit.perHour(60);
-        QuerySampler sampler = new QuerySampler(1.0, 1000, alwaysDrawing(0.5), limit, new SpatialStrata(0));
+        QuerySampler sampler = new QuerySampler(1.0, 1000, supplying(alwaysDrawing(0.5)), limit, new SpatialStrata(0));
         MultiplicityTracker tracker = new MultiplicityTracker(10);
 
         TrackedQuery first = tracker.record(new QueryFingerprint(1, 1));
@@ -51,7 +52,13 @@ public class QuerySamplerTests extends ESTestCase {
     }
 
     public void testInclusionProbabilityMatchesHowOftenQueriesAreSampled() {
-        QuerySampler sampler = new QuerySampler(0.3, 1000, seededRandom(), new PickBudget(System::nanoTime), new SpatialStrata(0));
+        QuerySampler sampler = new QuerySampler(
+            0.3,
+            1000,
+            supplying(seededRandom()),
+            new PickBudget(System::nanoTime),
+            new SpatialStrata(0)
+        );
         int arrivals = 6;
         int trials = 20_000;
         int sampled = 0;
@@ -68,6 +75,10 @@ public class QuerySamplerTests extends ESTestCase {
         }
         double fiveSigma = 5 * Math.sqrt(inclusionProbability * (1 - inclusionProbability) / trials);
         assertThat((double) sampled / trials, closeTo(inclusionProbability, fiveSigma));
+    }
+
+    private static Supplier<Random> supplying(Random random) {
+        return () -> random;
     }
 
     private Random seededRandom() {

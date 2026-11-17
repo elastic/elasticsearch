@@ -17,6 +17,7 @@ import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 /**
  * Decides which distinct queries are picked. The {@code w}-th arrival is accepted with probability
@@ -38,7 +39,7 @@ public final class QuerySampler {
 
     private volatile double scale;
     private volatile long headThreshold;
-    private final Random random;
+    private final Supplier<Random> random;
     private final PickBudget budget;
     private final SpatialStrata spatial;
     private final HardnessStrata hardness;
@@ -51,11 +52,18 @@ public final class QuerySampler {
      * @param scale         γ, the probability scale
      * @param headThreshold captured arrivals from which a query is always picked
      */
-    public QuerySampler(double scale, long headThreshold, Random random, PickBudget budget, SpatialStrata spatial) {
+    public QuerySampler(double scale, long headThreshold, Supplier<Random> random, PickBudget budget, SpatialStrata spatial) {
         this(scale, headThreshold, random, budget, spatial, System::nanoTime);
     }
 
-    QuerySampler(double scale, long headThreshold, Random random, PickBudget budget, SpatialStrata spatial, LongSupplier nanoTime) {
+    QuerySampler(
+        double scale,
+        long headThreshold,
+        Supplier<Random> random,
+        PickBudget budget,
+        SpatialStrata spatial,
+        LongSupplier nanoTime
+    ) {
         this.nanoTime = nanoTime;
         this.lastRegulation = nanoTime.getAsLong();
         this.spatial = spatial;
@@ -131,7 +139,7 @@ public final class QuerySampler {
             starved.increment();
         }
         query.recordDraw(probability);
-        if (query.isSampled() || random.nextDouble() >= probability) {
+        if (query.isSampled() || random.get().nextDouble() >= probability) {
             return false;
         }
         query.markSampled();

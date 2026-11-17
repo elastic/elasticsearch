@@ -1770,7 +1770,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return expand;
             }
             NamedExpression target = expand.target();
-            // Older nodes report no nested collections, so this comes before the lookup that would miss them
+            // The plan can only run if every node can read and serialize the command
             if (context.minimumVersion().supports(NestedExpand.VERSION) == false) {
                 throw nestedExpandError(target, "NESTED_EXPAND requires all nodes to support nested expansion");
             }
@@ -1817,7 +1817,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (attribute instanceof FieldAttribute field
                     && field.field() instanceof NestedScopeField child
                     && inNestedPath(field.name(), rootName)) {
-                    // Each child's path is the first index's, so one another index nests elsewhere would read nulls there
+                    // A child that another index nests under a different path carries a conflict: one path is read for all indices
                     if (child.conflict() != null) {
                         String publicName = field.name().substring(NestedScopeField.PREFIX.length());
                         throw nestedExpandError(target, "NESTED_EXPAND cannot read [" + publicName + "]: " + child.conflict());

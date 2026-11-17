@@ -39,7 +39,9 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -92,6 +94,24 @@ public class AnalyzerNestedExpandTests extends AnalyzerTestCase {
 
     public void testWithoutNestedExpandChildrenAreUnknown() {
         nestedAnalyzer().error("FROM ne | KEEP items.sku", equalTo("1:16: Unknown column [items.sku]"));
+    }
+
+    public void testMappedChildBeforeExpansionIsUnknown() {
+        nestedAnalyzer().error("FROM ne | WHERE items.sku == \"a\" | NESTED_EXPAND items", equalTo("1:17: Unknown column [items.sku]"));
+    }
+
+    public void testUndeclaredNameBeforeExpansionLoadsFromParent() {
+        LogicalPlan plan = nestedAnalyzer().statement(
+            "SET unmapped_fields=\"load\"; FROM ne | EVAL u = items.undeclared | NESTED_EXPAND items | KEEP id, u"
+        );
+        assertLoadedFromParent(plan);
+    }
+
+    public void testUndeclaredNameAfterExpansionLoadsFromParent() {
+        LogicalPlan plan = nestedAnalyzer().statement(
+            "SET unmapped_fields=\"load\"; FROM ne | NESTED_EXPAND items | EVAL u = items.undeclared | KEEP id, u"
+        );
+        assertLoadedFromParent(plan);
     }
 
     public void testUnknownField() {
@@ -180,12 +200,6 @@ public class AnalyzerNestedExpandTests extends AnalyzerTestCase {
     public void testOlderNode() {
         nestedAnalyzer().minimumTransportVersion(TransportVersionUtils.randomVersionNotSupporting(NestedExpand.VERSION))
             .error("FROM ne | NESTED_EXPAND items", equalTo("1:25: NESTED_EXPAND requires all nodes to support nested expansion"));
-    }
-
-    /** Older nodes are not sent the filter that reports nested collections, so a collection only they hold is missing. */
-    public void testOlderNodeReportsNoCollection() {
-        nestedAnalyzer().minimumTransportVersion(TransportVersionUtils.randomVersionNotSupporting(NestedExpand.VERSION))
-            .error("FROM ne_orders | NESTED_EXPAND items", equalTo("1:32: NESTED_EXPAND requires all nodes to support nested expansion"));
     }
 
     public void testBeforeTimeSeriesStats() {
@@ -284,6 +298,14 @@ public class AnalyzerNestedExpandTests extends AnalyzerTestCase {
 
     private static IndexFieldCapabilities field(String name, String type) {
         return new IndexFieldCapabilitiesBuilder(name, type).build();
+    }
+
+    private static void assertLoadedFromParent(LogicalPlan plan) {
+        assertThat(names(expand(plan).expanded()), not(hasItem("items.undeclared")));
+        List<EsRelation> relations = new ArrayList<>();
+        plan.forEachDown(EsRelation.class, relations::add);
+        assertThat(relations, hasSize(1));
+        assertThat(names(relations.getFirst().output()), hasItem("items.undeclared"));
     }
 
     private static NestedExpand expand(LogicalPlan plan) {

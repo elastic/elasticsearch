@@ -7,14 +7,18 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTestUtils.randomReferenceAttribute;
+import static org.hamcrest.Matchers.containsString;
 
 public class NestedExpandExecSerializationTests extends AbstractPhysicalPlanSerializationTests<NestedExpandExec> {
     @Override
@@ -49,6 +53,14 @@ public class NestedExpandExecSerializationTests extends AbstractPhysicalPlanSeri
     @Override
     protected boolean alwaysEmptySource() {
         return true;
+    }
+
+    public void testWriteToRefusesNodesWithoutNestedExpand() throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(TransportVersionUtils.randomVersionNotSupporting(NestedExpand.VERSION));
+            IOException e = expectThrows(IOException.class, () -> createTestInstance().writeTo(out));
+            assertThat(e.getMessage(), containsString("NESTED_EXPAND requires nested expansion transport support"));
+        }
     }
 
     private static List<Attribute> randomExpanded(int size) {

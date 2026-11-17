@@ -472,7 +472,7 @@ public final class KeywordToFlattenedTransformer {
                 }
             }
             JsonNode nested = fieldObj.path("properties");
-            if (nested.isObject() && isFlattenedField(fieldObj) == false && isNestedField(fieldObj) == false) {
+            if (nested.isObject() && isFlattenedField(fieldObj) == false) {
                 rewriteKeywords((ObjectNode) nested, fullPath, paths, excludedPaths, skipped);
             }
             // Multi-fields under "fields" are intentionally skipped here; if a keyword parent has
@@ -497,18 +497,6 @@ public final class KeywordToFlattenedTransformer {
     private static boolean isFlattenedField(ObjectNode fieldObj) {
         JsonNode typeNode = fieldObj.get("type");
         return typeNode != null && typeNode.isTextual() && FLATTENED_TYPE.equals(typeNode.asText());
-    }
-
-    /**
-     * Returns {@code true} if {@code fieldObj} declares {@code "type":"nested"}.
-     * <p>
-     * The keyword rewrite does not descend into a nested field. Its values sit inside an array of objects, which
-     * {@link #wrapKeywordValuesAsFlattened} does not reach, so a keyword leaf converted to {@code flattened} there
-     * would keep its scalar source values and fail to index.
-     */
-    private static boolean isNestedField(ObjectNode fieldObj) {
-        JsonNode typeNode = fieldObj.get("type");
-        return typeNode != null && typeNode.isTextual() && "nested".equals(typeNode.asText());
     }
 
     /**

@@ -17,8 +17,6 @@ import org.elasticsearch.xpack.esql.KeywordToFlattenedTransformer.FlattenedJunkC
 import java.io.IOException;
 import java.util.Set;
 
-import static org.hamcrest.Matchers.equalTo;
-
 /**
  * Unit tests for the junk-injection logic in {@link KeywordToFlattenedTransformer}.
  * <p>
@@ -142,19 +140,4 @@ public class KeywordToFlattenedTransformerTests extends ESTestCase {
         assertEquals("non-object document must be returned unchanged", documentJson, result);
     }
 
-    /**
-     * Keyword leaves under a nested field stay keyword: their values sit inside an array of objects that
-     * the document wrapping does not reach.
-     */
-    public void testKeywordUnderNestedNotConverted() throws IOException {
-        String mapping = """
-            {"properties": {
-              "id": {"type": "keyword"},
-              "items": {"type": "nested", "properties": {"sku": {"type": "keyword"}}}
-            }}""";
-        KeywordToFlattenedTransformer.MappingResult result = KeywordToFlattenedTransformer.transformMapping(mapping);
-        assertThat(result.keywordFieldPaths(), equalTo(Set.of("id")));
-        JsonNode sku = MAPPER.readTree(result.transformedMapping()).at("/properties/items/properties/sku/type");
-        assertThat(sku.asText(), equalTo("keyword"));
-    }
 }

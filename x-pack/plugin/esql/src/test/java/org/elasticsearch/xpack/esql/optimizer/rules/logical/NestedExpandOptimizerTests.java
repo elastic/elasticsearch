@@ -195,7 +195,6 @@ public class NestedExpandOptimizerTests extends AbstractLogicalPlanOptimizerTest
         return expectThrows(VerificationException.class, () -> optimize(analyzed)).getMessage();
     }
 
-    /** Analysis needs every node to support the command, which is newer than this mode's historical version. */
     private LogicalPlan analyze(String query) {
         return nestedAnalyzer(minimumVersion.supports(NestedExpand.VERSION) ? minimumVersion : NestedExpand.VERSION).query(query);
     }

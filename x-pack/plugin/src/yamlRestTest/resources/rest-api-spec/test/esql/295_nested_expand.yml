@@ -276,15 +276,12 @@ setup:
   - match: { values.1: [2, 5] }
 
 ---
-"A nested collection with no leaf mappings still expands one row per child":
+"A nested collection with no mapped leaf fields is unknown":
   - do:
+      catch: /Unknown column \[items\]/
       esql.query:
         body:
           query: 'FROM ne_empty | NESTED_EXPAND items | KEEP id | SORT id | LIMIT 10'
-  - length: { values: 3 }
-  - match: { values.0: ["a"] }
-  - match: { values.1: ["a"] }
-  - match: { values.2: ["b"] }
 
 ---
 "A nested field hidden by NESTED_EXPAND does not block a cast of the ordinary field":
@@ -646,7 +643,7 @@ setup:
           query: 'FROM ne_two | NESTED_EXPAND items | NESTED_EXPAND items'
 
 ---
-"unmapped_fields LOAD cannot load an unmapped name in a nested field":
+"unmapped_fields LOAD loads an undeclared name in a nested field from the parent row":
   - requires:
       test_runner_features: [capabilities]
       capabilities:
@@ -676,17 +673,31 @@ setup:
         body:
           - { "index": { "_index": "ne_unmapped", "_id": "a" } }
           - { "note": "p", "items": [ { "qty": 1, "extra": "x" }, { "qty": 2, "extra": "y" } ] }
-  # The row's _source has the values of every object, so loading the name would not give each child its own
   - do:
-      catch: /unmapped_fields cannot load \[items\.extra\] in the nested field \[items\]/
       esql.query:
         body:
-          query: 'SET unmapped_fields="load"; FROM ne_unmapped | NESTED_EXPAND items | KEEP items.qty, items.extra'
+          query: 'SET unmapped_fields="load"; FROM ne_unmapped | KEEP note, items.extra | LIMIT 10'
+  - length: { values: 1 }
+  - match: { values.0: ["p", ["x", "y"]] }
+  # An undeclared name is a column of the parent row, so every child row shows the values of all of the parent's objects
   - do:
-      catch: /unmapped_fields cannot load \[items\.extra\] in the nested field \[items\]/
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'SET unmapped_fields="load"; FROM ne_unmapped | EVAL e = items.extra | NESTED_EXPAND items | KEEP items.qty, e'
+          query: 'SET unmapped_fields="load"; FROM ne_unmapped | NESTED_EXPAND items | KEEP items.qty, items.extra | SORT items.qty'
+  - length: { values: 2 }
+  - match: { values.0: [1, ["x", "y"]] }
+  - match: { values.1: [2, ["x", "y"]] }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM ne_unmapped | EVAL e = items.extra | NESTED_EXPAND items | KEEP items.qty, e | SORT items.qty'
+  - length: { values: 2 }
+  - match: { values.0: [1, ["x", "y"]] }
+  - match: { values.1: [2, ["x", "y"]] }
   # An unmapped name outside the nested field still loads
   - do:
       esql.query:
@@ -695,3 +706,194 @@ setup:
   - length: { values: 2 }
   - match: { values.0: [1, "p"] }
   - match: { values.1: [2, "p"] }
+
+---
+"Children of several parents read their own values from the stored source":
+  - do:
+      indices.create:
+        index: ne_text
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              id:
+                type: keyword
+              items:
+                type: nested
+                properties:
+                  note:
+                    type: text
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "ne_text", "_id": "1" } }
+          - { "id": "1", "items": [ { "note": "a1" }, { "note": "a2" }, { "note": "a3" } ] }
+          - { "index": { "_index": "ne_text", "_id": "2" } }
+          - { "id": "2", "items": [ { "note": "b1" } ] }
+          - { "index": { "_index": "ne_text", "_id": "3" } }
+          - { "id": "3", "items": [ { "note": "c1" }, { "note": "c2" } ] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM ne_text | NESTED_EXPAND items | KEEP id, items.note | SORT items.note | LIMIT 10'
+  - length: { values: 6 }
+  - match: { values.0: ["1", "a1"] }
+  - match: { values.1: ["1", "a2"] }
+  - match: { values.2: ["1", "a3"] }
+  - match: { values.3: ["2", "b1"] }
+  - match: { values.4: ["3", "c1"] }
+  - match: { values.5: ["3", "c2"] }
+
+---
+"Source-backed children of an index whose stored source is filtered read null with a warning":
+  - requires:
+      test_runner_features: [allowed_warnings_regex]
+  - do:
+      indices.create:
+        index: ne_filtered
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            _source:
+              excludes: [ "items.skip" ]
+            properties:
+              id:
+                type: keyword
+              items:
+                type: nested
+                properties:
+                  note:
+                    type: text
+                  skip:
+                    type: keyword
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "ne_filtered", "_id": "1" } }
+          - { "id": "1", "items": [ { "skip": "x" }, { "note": "b" }, { "note": "c" } ] }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[\\d+\\]"
+        - "Field \\[items.note\\] cannot be retrieved from the filtered _source of index \\[ne_filtered\\]; returning null"
+      esql.query:
+        body:
+          query: 'FROM ne_filtered | NESTED_EXPAND items | KEEP id, items.note, items.skip | SORT items.skip, items.note'
+  - length: { values: 3 }
+  - match: { values.0: ["1", null, "x"] }
+
+---
+"Source-backed children of an index with a disabled source":
+  - do:
+      indices.create:
+        index: ne_nosource
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            _source:
+              enabled: false
+            properties:
+              id:
+                type: keyword
+              items:
+                type: nested
+                properties:
+                  note:
+                    type: text
+                  sku:
+                    type: keyword
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "ne_nosource", "_id": "1" } }
+          - { "id": "1", "items": [ { "note": "a", "sku": "s1" }, { "note": "b", "sku": "s2" } ] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM ne_nosource | NESTED_EXPAND items | KEEP id, items.sku, items.note | SORT items.sku | LIMIT 10'
+  - length: { values: 2 }
+  - match: { values.0: ["1", "s1", null] }
+  - match: { values.1: ["1", "s2", null] }
+
+---
+"Children of an index with synthetic source read the values the source rebuilds":
+  - do:
+      indices.create:
+        index: ne_syn_field
+        body:
+          settings:
+            number_of_shards: 1
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              id:
+                type: keyword
+              items:
+                type: nested
+                properties:
+                  q:
+                    type: long
+                  sku:
+                    type: keyword
+                    doc_values: false
+                    synthetic_source_keep: all
+  - do:
+      indices.create:
+        index: ne_syn_nested
+        body:
+          settings:
+            number_of_shards: 1
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              id:
+                type: keyword
+              items:
+                type: nested
+                synthetic_source_keep: all
+                properties:
+                  q:
+                    type: long
+                  sku:
+                    type: keyword
+                    doc_values: false
+                    synthetic_source_keep: all
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "ne_syn_field", "_id": "1" } }
+          - { "id": "1", "items": [ { "q": 1, "sku": "a" }, { }, { "q": 3, "sku": "c" } ] }
+          - { "index": { "_index": "ne_syn_field", "_id": "2" } }
+          - { "id": "2", "items": [ { "q": 4, "sku": "d" }, { "q": 5, "sku": "e" } ] }
+          - { "index": { "_index": "ne_syn_nested", "_id": "1" } }
+          - { "id": "1", "items": [ { "q": 1, "sku": "a" }, { }, { "q": 3, "sku": "c" } ] }
+          - { "index": { "_index": "ne_syn_nested", "_id": "2" } }
+          - { "id": "2", "items": [ { "q": 4, "sku": "d" }, { "q": 5, "sku": "e" } ] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM ne_syn_field | NESTED_EXPAND items | KEEP id, items.q, items.sku | SORT id, items.sku | LIMIT 10'
+  - length: { values: 5 }
+  - match: { values.0: ["1", 1, "a"] }
+  - match: { values.1: ["1", 3, "c"] }
+  - match: { values.2: ["1", null, null] }
+  - match: { values.3: ["2", 4, "d"] }
+  - match: { values.4: ["2", 5, "e"] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM ne_syn_nested | NESTED_EXPAND items | KEEP id, items.q, items.sku | SORT id, items.sku | LIMIT 10'
+  - length: { values: 5 }
+  - match: { values.0: ["1", 1, "a"] }
+  - match: { values.1: ["1", 3, "c"] }
+  - match: { values.2: ["1", null, null] }
+  - match: { values.3: ["2", 4, "d"] }
+  - match: { values.4: ["2", 5, "e"] }

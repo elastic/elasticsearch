@@ -100,6 +100,7 @@ import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.scheduling.QueryScheduler;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -2639,6 +2640,12 @@ public final class InternalTestCluster extends TestCluster {
                     });
                 } catch (Exception e) {
                     throw new AssertionError("Exception during check for request breaker reset to 0", e);
+                }
+                try {
+                    QueryScheduler queryScheduler = getInstanceFromNode(SearchService.class, nodeAndClient.node).queryScheduler();
+                    assertBusy(() -> assertThat("Queries still tracked on node: " + name, queryScheduler.queries(), equalTo(0)));
+                } catch (Exception e) {
+                    throw new AssertionError("Exception during check for queries no longer tracked", e);
                 }
 
                 NodeService nodeService = getInstanceFromNode(NodeService.class, nodeAndClient.node);

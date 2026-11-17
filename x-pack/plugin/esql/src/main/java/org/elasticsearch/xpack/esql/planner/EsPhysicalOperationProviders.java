@@ -915,9 +915,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
          * which of a parent's objects each child document was indexed from.
          */
         public boolean storesFilteredSource() {
-            MappingLookup lookup = ctx.getMappingLookup();
-            SourceFieldMapper source = lookup.getMapping().getMetadataMapperByClass(SourceFieldMapper.class);
-            return lookup.isSourceEnabled() && lookup.isSourceSynthetic() == false && source != null && source.isComplete() == false;
+            return ctx.getMappingLookup().storesFilteredSource();
         }
 
         /**

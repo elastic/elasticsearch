@@ -38,7 +38,7 @@ public final class NestedScopeField extends EsField {
      * construction, and type-conflict handling all use this classification.
      */
     public enum Kind {
-        /** The mapped nested object. It exists even when it has no leaf fields. */
+        /** The mapped nested object. */
         COLLECTION,
         /** An object under a collection that is not itself nested. */
         OBJECT,
@@ -107,8 +107,8 @@ public final class NestedScopeField extends EsField {
     }
 
     /**
-     * Whether {@code field} belongs to the private nested scope rather than to ordinary resolution. A nested object belongs
-     * here even when it has no leaves. Each shard decides how to read a child it maps as a runtime field.
+     * Whether {@code field} belongs to the private nested scope rather than to ordinary resolution.
+     * Each shard decides how to read a child it maps as a runtime field.
      */
     public static boolean inNestedScope(IndexFieldCapabilities field, Map<String, IndexFieldCapabilities> fields) {
         return pathFor(field.name(), fields) != null;

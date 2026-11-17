@@ -3930,8 +3930,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     /**
      * Whether values from a column whose Parquet schema maps to {@code fileDerived} can be read using
      * the planner's {@code planner} type (same widening notion as globbed external sources). Package-private so the
-     * deferred-extraction path ({@link ParquetColumnExtractor#coerceToTarget}) makes the identical widening decision as
-     * the eager gate — the two must agree or a column reads differently depending on whether extraction was deferred.
+     * deferred-extraction path ({@link ParquetColumnExtractor#coercionAdmissible}) makes the identical widening
+     * decision as the eager gate — the two must agree or a column reads differently depending on whether extraction
+     * was deferred.
      */
     static boolean plannerTypeCompatibleWithFileDerivedType(DataType planner, DataType fileDerived) {
         DataType unified = EsqlDataTypeConverter.commonType(planner, fileDerived);
@@ -4732,7 +4733,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     values[i] = switch (decode) {
                         case DATE_DAYS -> ParquetColumnDecoding.dateDaysToMillis(cr.getInteger());
                         case INT32_EPOCH_MILLIS -> ParquetColumnDecoding.int32AsInferredLong(cr.getInteger(), info.logicalType());
-                        case INT64_EPOCH_MILLIS -> ParquetColumnDecoding.int64AsInferredLong(cr.getLong(), info.logicalType());
+                        case INT64_EPOCH_MILLIS -> ParquetColumnDecoding.int64AsMillis(cr.getLong(), info.logicalType());
                         case INT96, STRING_PARSE -> throw new AssertionError("handled before the loop: " + decode);
                     };
                 }

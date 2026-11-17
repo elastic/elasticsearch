@@ -37,6 +37,7 @@ import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.externalResolutionFor;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.rewriteDatasetsUnsecured;
@@ -611,7 +612,8 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
     }
 
     private static ExternalSourceResolution heavyExternalSourceResolution() {
-        return new ExternalSourceResolution(
+        return externalResolutionFor(
+            heavyDatasetMetadata(),
             Map.of(
                 HEAVY_A_RESOURCE,
                 new ExternalSourceResolution.ResolvedSource(heavySchema(HEAVY_A_RESOURCE), FileList.UNRESOLVED, Map.of()),

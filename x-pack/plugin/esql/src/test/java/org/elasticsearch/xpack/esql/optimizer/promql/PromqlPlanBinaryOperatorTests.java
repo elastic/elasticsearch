@@ -412,13 +412,14 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         assertThat(aggregate.aggregates().stream().filter(e -> e.anyMatch(Max.class::isInstance)).count(), equalTo(1L));
     }
 
-    public void testBinaryScalarAndNestedAggregationFailsCleanly() {
-        VerificationException e = assertThrows(
-            VerificationException.class,
-            () -> planPromql(
-                "PROMQL index=k8s step=1m result=(scalar(network.bytes_in) * 100 / count(count by (pod) (network.total_bytes_in)))"
-            )
-        );
+    /** Translates as a join of independent pipelines matched on label containers, which takes the container functions. */
+    public void testBinaryScalarAndNestedAggregation() {
+        String query = "PROMQL index=k8s step=1m result=(scalar(network.bytes_in) * 100 / count(count by (pod) (network.total_bytes_in)))";
+        if (containerFunctions()) {
+            planPromql(query);
+            return;
+        }
+        VerificationException e = assertThrows(VerificationException.class, () -> planPromql(query));
         assertThat(e.getMessage(), containsString("binary expressions with nested aggregations are not supported at this time"));
     }
 
@@ -605,38 +606,41 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         );
     }
 
-    public void testVectorMatchRejectsOpaqueWithoutOperand() {
+    /** Translates as a join of independent pipelines matched on label containers, which takes the container functions. */
+    public void testVectorMatchOpaqueWithoutOperand() {
         assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
-        VerificationException e = assertThrows(
-            VerificationException.class,
-            () -> planPromql(
-                "PROMQL index=k8s step=5m result=(sum without (pod) (network.eth0.tx) "
-                    + "/ on (cluster) sum by (cluster) (network.eth0.rx))"
-            )
-        );
+        String query = "PROMQL index=k8s step=5m result=(sum without (pod) (network.eth0.tx) "
+            + "/ on (cluster) sum by (cluster) (network.eth0.rx))";
+        if (containerFunctions()) {
+            planPromql(query);
+            return;
+        }
+        VerificationException e = assertThrows(VerificationException.class, () -> planPromql(query));
         assertThat(e.getMessage(), containsString("vector matching requires operands with concrete label sets"));
     }
 
-    public void testVectorMatchRejectsOpaqueSelectorOperand() {
+    /** Translates as a join of independent pipelines matched on label containers, which takes the container functions. */
+    public void testVectorMatchOpaqueSelectorOperand() {
         assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
-        VerificationException e = assertThrows(
-            VerificationException.class,
-            () -> planPromql("PROMQL index=k8s step=5m result=(sum by (cluster) (network.eth0.tx) / on (cluster) network.eth0.rx)")
-        );
+        String query = "PROMQL index=k8s step=5m result=(sum by (cluster) (network.eth0.tx) / on (cluster) network.eth0.rx)";
+        if (containerFunctions()) {
+            planPromql(query);
+            return;
+        }
+        VerificationException e = assertThrows(VerificationException.class, () -> planPromql(query));
         assertThat(e.getMessage(), containsString("vector matching requires operands with concrete label sets"));
     }
 
-    public void testVectorMatchComposedWithOpaqueOperandRejected() {
+    /** Translates as a join of independent pipelines matched on label containers, which takes the container functions. */
+    public void testVectorMatchComposedWithOpaqueOperand() {
         assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
-        // The unmatched + composes over a vector match and therefore translates as another join: it inherits the
-        // concrete-label requirement, which the bare selector operand does not satisfy.
-        VerificationException e = assertThrows(
-            VerificationException.class,
-            () -> planPromql(
-                "PROMQL index=k8s step=5m result=((sum by (cluster) (network.eth0.tx) "
-                    + "/ on (cluster) sum by (cluster) (network.eth0.rx)) + network.eth0.rx)"
-            )
-        );
+        String query = "PROMQL index=k8s step=5m result=((sum by (cluster) (network.eth0.tx) "
+            + "/ on (cluster) sum by (cluster) (network.eth0.rx)) + network.eth0.rx)";
+        if (containerFunctions()) {
+            planPromql(query);
+            return;
+        }
+        VerificationException e = assertThrows(VerificationException.class, () -> planPromql(query));
         assertThat(e.getMessage(), containsString("vector matching requires operands with concrete label sets"));
     }
 
@@ -893,9 +897,10 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
     /**
      * When {@code __name__} is a dimension, every metric lives in its own series, so an unmatched binary operator between
      * different metrics folded into one shared frame would find one side null on every row and silently return nothing.
-     * Default matching over opaque operands needs match keys derived from runtime-defined labels, so it is rejected.
+     * Default matching over opaque operands needs match keys derived from runtime-defined labels, so it is rejected unless
+     * every node knows the label container functions.
      */
-    public void testDifferentMetricsInSeparateSeriesRejected() {
+    public void testDifferentMetricsInSeparateSeries() {
         for (String promql : List.of(
             "node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes",
             "node_memory_MemAvailable_bytes > bool node_memory_MemTotal_bytes",
@@ -904,6 +909,11 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
             "sum(node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes",
             "sum by (instance) (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)"
         )) {
+            if (containerFunctions()) {
+                // the operands join on their label containers without __name__
+                assertNotNull(promql, planPrometheusLayout(promql));
+                continue;
+            }
             VerificationException e = expectThrows(VerificationException.class, () -> planPrometheusLayout(promql));
             assertThat(
                 promql,

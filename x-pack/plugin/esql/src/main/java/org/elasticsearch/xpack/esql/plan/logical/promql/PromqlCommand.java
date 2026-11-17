@@ -560,6 +560,8 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                             && (containsVectorMatch(binaryOperator.left()) || containsVectorMatch(binaryOperator.right()));
                         if (binaryOperator.match() != VectorMatch.NONE && scalarOperand) {
                             failures.add(fail(lp, "vector matching only allowed between instant vectors [{}]", lp.sourceText()));
+                        } else if (containerFunctions) {
+                            // Operands match on their label containers, opaque or not.
                         } else if ((binaryOperator.match() != VectorMatch.NONE || joinComposed)
                             && (hasConcreteLabels(binaryOperator.left()) == false || hasConcreteLabels(binaryOperator.right()) == false)) {
                                 // TODO: Materialize match keys from runtime-defined labels.
@@ -580,12 +582,15 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                             }
                     }
                     if (binaryOperator instanceof VectorBinaryComparison comp) {
-                        if (comp.match() == VectorMatch.NONE && root.get() == false) {
+                        // With the label container functions a comparison filters in place or joins like any operator.
+                        if (comp.match() == VectorMatch.NONE && root.get() == false && containerFunctions == false) {
                             failures.add(
                                 fail(lp, "comparison operators are only supported at the top-level at this time [{}]", lp.sourceText())
                             );
                         }
-                        if (comp.match() == VectorMatch.NONE && comp.right() instanceof LiteralSelector == false) {
+                        if (comp.match() == VectorMatch.NONE
+                            && comp.right() instanceof LiteralSelector == false
+                            && containerFunctions == false) {
                             failures.add(
                                 fail(
                                     lp,
@@ -599,16 +604,20 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                         }
                     }
                     if (binaryOperator instanceof VectorBinarySet setOp) {
-                        verifySetOperator(failures, setOp, topLevelUnions.contains(setOp));
+                        verifySetOperator(failures, setOp, topLevelUnions.contains(setOp), containerFunctions);
                     }
                     boolean labelMatched = binaryOperator.match().filter() != VectorMatch.Filter.NONE;
                     if (labelMatched == false
+                        && containerFunctions == false
                         && (usesWithoutGrouping(binaryOperator.left()) || usesWithoutGrouping(binaryOperator.right()))) {
                         // TODO: Support WITHOUT-grouped operands in binary expressions.
                         // https://github.com/elastic/elasticsearch/issues/145308
                         failures.add(fail(lp, "binary expressions with WITHOUT are not supported at this time [{}]", lp.sourceText()));
                     }
-                    if (hasSourceBackedExpression(binaryOperator.left()) && hasSourceBackedExpression(binaryOperator.right())) {
+                    // With the label container functions operands that cannot share one aggregate join as independent pipelines.
+                    if (containerFunctions == false
+                        && hasSourceBackedExpression(binaryOperator.left())
+                        && hasSourceBackedExpression(binaryOperator.right())) {
                         verifySourceBackedOperands(failures, binaryOperator);
                     }
                     // Arithmetic/comparison binary operators merge both source-backed operands into a single
@@ -616,6 +625,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                     // different offsets. `or` (UNION) translates to independent branches, so per-branch offsets
                     // are fine and excluded here.
                     if (binaryOperator instanceof VectorBinarySet == false
+                        && containerFunctions == false
                         && hasSourceBackedExpression(binaryOperator.left())
                         && hasSourceBackedExpression(binaryOperator.right())
                         && collectAllOffsetsForBranch(binaryOperator).size() > 1) {
@@ -825,15 +835,16 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
      *       implementation limitations, flagged with "at this time".</li>
      * </ul>
      */
-    private static void verifySetOperator(Failures failures, VectorBinarySet setOp, boolean isTopLevelUnion) {
+    private static void verifySetOperator(Failures failures, VectorBinarySet setOp, boolean isTopLevelUnion, boolean containerFunctions) {
         if (PromqlPlan.returnsScalar(setOp.left()) || PromqlPlan.returnsScalar(setOp.right())) {
             failures.add(fail(setOp, "set operator \"{}\" not allowed in binary scalar expression", setOp.op().keyword()));
             return;
         }
         if (setOp.op() != VectorBinarySet.SetOp.UNION) {
-            // TODO: Support and/unless set operators.
-            // https://github.com/elastic/elasticsearch/issues/158179
-            failures.add(fail(setOp, "set operator [{}] is not supported at this time [{}]", setOp.op().keyword(), setOp.sourceText()));
+            // and/unless match on the operands' label containers.
+            if (containerFunctions == false) {
+                failures.add(fail(setOp, "set operator [{}] is not supported at this time [{}]", setOp.op().keyword(), setOp.sourceText()));
+            }
             return;
         }
         if (setOp.match() != VectorMatch.NONE) {
@@ -989,7 +1000,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
      * carry no data window and are excluded. More than one distinct value within a merged binary operator is
      * unsupported (see the verifier guard).
      */
-    private static Set<Duration> collectAllOffsetsForBranch(LogicalPlan plan) {
+    public static Set<Duration> collectAllOffsetsForBranch(LogicalPlan plan) {
         Set<Duration> offsets = new HashSet<>();
         for (Selector selector : plan.collect(Selector.class)) {
             if (selector instanceof LiteralSelector == false && selector.evaluation() != null) {

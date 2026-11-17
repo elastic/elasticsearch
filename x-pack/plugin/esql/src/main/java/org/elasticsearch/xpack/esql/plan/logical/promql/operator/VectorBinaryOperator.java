@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -19,7 +20,14 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataFilter;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataPath;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataSet;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerator;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
@@ -28,20 +36,29 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
+import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesReduction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan;
+import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarConversionFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult.Kind;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -294,27 +311,316 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
     /** Translates explicit vector matching as a join; other binary operators compose over a shared frame. */
     @Override
     public IntermediateResult translate(TranslationContext context) {
+        boolean containerFunctions = context.containerFunctions();
+        if (this instanceof VectorBinarySet) {
+            return translateMatched(context);
+        }
         if (match().filter() == VectorMatch.Filter.NONE && match().grouping() == Joining.NONE) {
             boolean scalarOperand = left().resolved() && getType(left()) == SCALAR || right().resolved() && getType(right()) == SCALAR;
             boolean nestedMatch = anyMatchVectorBinaryOperator(left()) || anyMatchVectorBinaryOperator(right());
             // Operands over one label set fold into a shared aggregate. Different concrete label sets match like
             // Prometheus does, pair by pair on the actual labels, which only the join expresses.
             if (scalarOperand || (nestedMatch == false && hasMismatchedLabelSets() == false)) {
+                if (containerFunctions && requiresIndependentPipelines(context)) {
+                    return translateContainerJoin(context);
+                }
                 return translateAggregate(context);
             }
+        }
+        return translateMatched(context);
+    }
+
+    /**
+     * Translates the operator as a join: on the operands' label containers when an operand's labels stay packed, or for a set
+     * operator, which matches series many-to-many.
+     */
+    public IntermediateResult translateMatched(TranslationContext context) {
+        if (context.containerFunctions()
+            && (this instanceof VectorBinarySet || hasPackedLabels(left().output()) || hasPackedLabels(right().output()))) {
+            return translateContainerJoin(context);
         }
         return translateJoin(context);
     }
 
+    /**
+     * Whether the operands cannot fold into one shared aggregate, which the verifier rejects without the label container
+     * functions: a source-backed scalar, which broadcasts on the step; operands disagreeing on {@code offset}, as one
+     * aggregate has one evaluation time; an operand aggregated across series beside a raw one, or nested aggregations,
+     * which no single aggregate computes; a {@code topk}-like reduction, which ranks after its own aggregate; a filter
+     * comparison of two vectors, which pairs them like any match; and a filter comparison of different metrics stored as
+     * separate series, which keeps the metric name and so can never share a series.
+     */
+    private boolean requiresIndependentPipelines(TranslationContext context) {
+        boolean leftScalar = PromqlPlan.returnsScalar(left());
+        boolean rightScalar = PromqlPlan.returnsScalar(right());
+        if (leftScalar && rightScalar) {
+            return hasSourceBackedExpression(left()) && hasSourceBackedExpression(right());
+        }
+        if (leftScalar || rightScalar) {
+            return hasSourceBackedExpression(leftScalar ? left() : right());
+        }
+        if (this instanceof VectorBinaryComparison comparison && comparison.filterMode()) {
+            return true;
+        }
+        if (hasSourceBackedExpression(left()) == false || hasSourceBackedExpression(right()) == false) {
+            return false;
+        }
+        return PromqlCommand.collectAllOffsetsForBranch(left()).equals(PromqlCommand.collectAllOffsetsForBranch(right())) == false
+            || aggregatesAcrossSeries(left()) != aggregatesAcrossSeries(right())
+            || nestsAggregations(left())
+            || nestsAggregations(right())
+            || left().anyMatch(AcrossSeriesReduction.class::isInstance)
+            || right().anyMatch(AcrossSeriesReduction.class::isInstance);
+    }
+
+    private static boolean hasSourceBackedExpression(LogicalPlan plan) {
+        return plan.anyMatch(p -> p instanceof Selector && (p instanceof LiteralSelector) == false);
+    }
+
+    private static boolean isAcrossSeries(LogicalPlan plan) {
+        return plan instanceof AcrossSeriesAggregate || plan instanceof AcrossSeriesReduction || plan instanceof ScalarConversionFunction;
+    }
+
+    private static boolean aggregatesAcrossSeries(LogicalPlan plan) {
+        return plan.anyMatch(VectorBinaryOperator::isAcrossSeries);
+    }
+
+    private static boolean nestsAggregations(LogicalPlan plan) {
+        return plan.anyMatch(
+            p -> isAcrossSeries(p) && p instanceof UnaryPlan unary && unary.child().anyMatch(VectorBinaryOperator::isAcrossSeries)
+        );
+    }
+
+    /** The join key column: the labels two series match on. */
+    private static final String SIGNATURE = "$prom_sig";
+    /** The one side's labels, under a name of their own since the join merges its output by name. */
+    private static final String ONE_LABELS = "$prom_one";
+    /** The result labels, from which the result's label columns and packings read. */
+    private static final String RESULT_LABELS = "$prom_labels";
+
+    /**
+     * Translates the operator as a join of independent pipelines matched on their label containers, with the label container
+     * functions: each operand's labels are one container - its packing with its label columns written over it - so an
+     * operand whose labels stay packed in {@code _timeseries} matches like any other. Two series match on Prometheus'
+     * signature, the {@code on(...)} labels or every label but the {@code ignoring(...)} ones and the metric name, and the
+     * result labels are the many side's, as Prometheus' {@code resultMetric} computes them; the columns the enclosing
+     * translation requires read out of them. A scalar operand joins on the step alone.
+     */
+    private IntermediateResult translateContainerJoin(TranslationContext context) {
+        PromqlCommand cmd = context.cmd();
+        TranslationContext operands = context.withRequired(open());
+        IntermediateResult left = operands.translateIntermediate(left(), new NameId(), new NameId());
+        IntermediateResult right = operands.translateIntermediate(right(), new NameId(), new NameId());
+        boolean leftScalar = PromqlPlan.returnsScalar(left());
+        boolean rightScalar = PromqlPlan.returnsScalar(right());
+        // Orientation: the many side probes and keeps its identities; the one side builds and is re-identified, so a
+        // self-join of structurally identical operands has distinct attributes on each side. A scalar always builds.
+        boolean probeRight = leftScalar || match.grouping() == Joining.RIGHT;
+        IntermediateResult probe = probeRight ? right : left;
+        IntermediateResult build = reidentify(cmd, probeRight ? left : right);
+        Expression leftValue = probeRight ? build.value() : probe.value();
+        Expression rightValue = probeRight ? probe.value() : build.value();
+        Expression probeLabels = leftScalar && rightScalar ? null : context.labels(probe);
+
+        LogicalPlan join;
+        Expression labels;
+        if (leftScalar || rightScalar) {
+            // A scalar has one row per step, which every series of the vector shares.
+            LogicalPlan buildPlan = new Project(cmd.source(), build.plan(), List.of(build.step(), build.valueColumn()));
+            join = new HashJoin(
+                cmd.source(),
+                probe.plan(),
+                buildPlan,
+                List.of(probe.step()),
+                List.of(build.step()),
+                List.of(build.valueColumn()),
+                false
+            );
+            labels = probeLabels == null ? null : resultLabels(probeLabels, null);
+        } else {
+            Alias probeSignature = new Alias(cmd.source(), SIGNATURE, signature(probeLabels));
+            LogicalPlan probePlan = new Eval(cmd.source(), probe.plan(), List.of(probeSignature));
+            Expression buildLabels = context.labels(build);
+            Alias buildSignature = new Alias(cmd.source(), SIGNATURE, signature(buildLabels));
+            var buildColumns = new ArrayList<Alias>(List.of(buildSignature));
+            List<Attribute> added = new ArrayList<>(List.of(build.valueColumn()));
+            Attribute oneLabels = null;
+            if (match.groupingLabels().isEmpty() == false) {
+                Alias one = new Alias(cmd.source(), ONE_LABELS, buildLabels);
+                buildColumns.add(one);
+                oneLabels = one.toAttribute();
+                added.add(oneLabels);
+            }
+            LogicalPlan buildPlan = new Eval(cmd.source(), build.plan(), buildColumns);
+            List<Attribute> buildFields = List.of(build.step(), buildSignature.toAttribute());
+            var projection = new ArrayList<NamedExpression>(buildFields);
+            projection.addAll(added);
+            buildPlan = new Project(cmd.source(), buildPlan, projection);
+            boolean setOperator = this instanceof VectorBinarySet;
+            if (setOperator) {
+                // A set operator matches many-to-many: a left series is kept once whichever right series share its signature.
+                var order = new Order(cmd.source(), build.valueColumn(), Order.OrderDirection.ASC, Order.NullsPosition.LAST);
+                buildPlan = new TopNBy(
+                    cmd.source(),
+                    buildPlan,
+                    List.of(order),
+                    new Literal(cmd.source(), 1, DataType.INTEGER),
+                    new ArrayList<>(buildFields)
+                );
+            }
+            // unless keeps the left series no right one matches, so it keeps every left row of the join
+            boolean unless = this instanceof VectorBinarySet set && set.op() == VectorBinarySet.SetOp.SUBTRACT;
+            join = new HashJoin(
+                cmd.source(),
+                probePlan,
+                buildPlan,
+                List.of(probe.step(), probeSignature.toAttribute()),
+                buildFields,
+                added,
+                setOperator == false && match.grouping() == Joining.NONE,
+                unless ? JoinTypes.LEFT : JoinTypes.INNER
+            );
+            labels = resultLabels(probeLabels, oneLabels);
+        }
+
+        Expression lhsExpr = new ToDouble(leftValue.source(), leftValue);
+        Expression rhsExpr = new ToDouble(rightValue.source(), rightValue);
+        Expression value;
+        Expression filter = null;
+        if (this instanceof VectorBinarySet set) {
+            // and keeps the left value where a right series matches, unless where none does
+            Expression matched = set.op() == VectorBinarySet.SetOp.SUBTRACT
+                ? new IsNull(source(), rightValue)
+                : new IsNotNull(source(), rightValue);
+            value = new Case(source(), matched, List.of(lhsExpr));
+        } else {
+            value = binaryOp().asFunction().create(source(), lhsExpr, rhsExpr, context.configuration());
+            if (this instanceof VectorBinaryComparison comparison) {
+                filter = comparison.filterMode() ? value : null;
+                // A filter keeps the vector's value, wherever the scalar sits, as Prometheus does.
+                Expression kept = leftScalar ? rhsExpr : lhsExpr;
+                value = comparison.filterMode() ? kept : new ToDouble(value.source(), value);
+            }
+        }
+        // Expose the step under the enclosing frame's step identity so enclosing translations (union branches, parent
+        // aggregates) resolve it by id, not just by name.
+        Attribute step = probe.step();
+        Alias stepAlias = new Alias(step.source(), step.name(), step, context.stepAttr().id());
+        Alias valueAlias = new Alias(source(), cmd.valueColumnName(), value, new NameId());
+        var definitions = new ArrayList<Alias>(List.of(valueAlias, stepAlias));
+        Alias labelsAlias = labels == null ? null : new Alias(source(), RESULT_LABELS, labels, new NameId());
+        if (labelsAlias != null) {
+            definitions.add(labelsAlias);
+        }
+        LogicalPlan plan = new Eval(cmd.source(), join, definitions);
+        if (filter != null) {
+            plan = new Filter(source(), plan, filter);
+        }
+        List<NamedExpression> projected = new ArrayList<>(List.of(valueAlias.toAttribute(), stepAlias.toAttribute()));
+        if (labelsAlias != null) {
+            projected.add(labelsAlias.toAttribute());
+        }
+        plan = new Project(cmd.source(), plan, projected);
+        if (labelsAlias == null) {
+            return new IntermediateResult(
+                plan,
+                TranslationSchema.EMPTY,
+                valueAlias.toAttribute(),
+                stepAlias.toAttribute(),
+                null,
+                Kind.AFTER_INITIAL_AGGREGATE
+            );
+        }
+        // The labels the operator declares, and whatever the enclosing translation requires, read out of the result labels.
+        var declared = new LinkedHashSet<String>(context.required().labels());
+        for (Attribute attribute : output()) {
+            if (MetadataAttribute.isTimeSeriesAttributeName(attribute.name()) == false) {
+                declared.add(TranslationContext.mapFinite(attribute));
+            }
+        }
+        TranslationSchema wanted = new TranslationSchema(declared, context.required().skips());
+        return context.fromLabels(plan, labelsAlias.toAttribute(), wanted, valueAlias.toAttribute(), stepAlias.toAttribute());
+    }
+
+    /** The labels two series match on: Prometheus' signature. */
+    private Expression signature(Expression labels) {
+        if (match.filter() == VectorMatch.Filter.ON) {
+            return new TimeSeriesMetadataFilter(labels.source(), labels, labelLiterals(labels.source(), match.filterLabels()), false);
+        }
+        var ignored = new TreeSet<String>(match.filterLabels());
+        ignored.add(LabelMatcher.NAME);
+        return new TimeSeriesMetadataFilter(labels.source(), labels, labelLiterals(labels.source(), ignored), true);
+    }
+
+    /**
+     * Prometheus' {@code resultMetric}: the many side's labels, without the metric name for arithmetic and {@code bool},
+     * with only the {@code on(...)} labels or without the {@code ignoring(...)} ones when one-to-one, and with each
+     * {@code group_x} included label written from the one side's. Set operators keep the left series as they are.
+     */
+    private Expression resultLabels(Expression many, Attribute one) {
+        if (this instanceof VectorBinarySet) {
+            return many;
+        }
+        Expression labels = many;
+        if (dropMetricName) {
+            labels = new TimeSeriesMetadataFilter(
+                labels.source(),
+                labels,
+                labelLiterals(labels.source(), List.of(LabelMatcher.NAME)),
+                true
+            );
+        }
+        if (match.grouping() == Joining.NONE && match.filter() != VectorMatch.Filter.NONE) {
+            boolean keep = match.filter() == VectorMatch.Filter.ON;
+            labels = new TimeSeriesMetadataFilter(
+                labels.source(),
+                labels,
+                labelLiterals(labels.source(), match.filterLabels()),
+                keep == false
+            );
+        }
+        for (String included : match.groupingLabels()) {
+            Expression value = one == null
+                ? new Literal(source(), null, DataType.KEYWORD)
+                : new TimeSeriesMetadataPath(one.source(), one, Literal.keyword(one.source(), included));
+            labels = new TimeSeriesMetadataSet(labels.source(), labels, Literal.keyword(labels.source(), included), value);
+        }
+        return labels;
+    }
+
+    private static List<Expression> labelLiterals(Source source, Collection<String> labels) {
+        return new TreeSet<>(labels).stream().<Expression>map(label -> Literal.keyword(source, label)).toList();
+    }
+
+    /**
+     * A filter comparison of a vector against a scalar that reads no source: the vector, aggregated per series, keeps the
+     * series the comparison holds for, with its own value whichever side the scalar is on, as Prometheus does.
+     */
+    private IntermediateResult translateFilter(TranslationContext context, VectorBinaryComparison comparison) {
+        boolean scalarLeft = PromqlPlan.returnsScalar(left());
+        IntermediateResult vector = context.translate(scalarLeft ? right() : left());
+        IntermediateResult scalar = context.translate(scalarLeft ? left() : right());
+        IntermediateResult table = vector.kind().afterInitialAggregation
+            ? vector
+            : context.collapse(vector, vector.schema(), vector.value());
+        Expression value = new ToDouble(table.value().source(), table.value());
+        Expression threshold = new ToDouble(scalar.value().source(), scalar.value());
+        Expression condition = scalarLeft
+            ? comparison.op().asFunction().create(source(), threshold, value, context.configuration())
+            : comparison.op().asFunction().create(source(), value, threshold, context.configuration());
+        return table.with(new Filter(source(), table.plan(), condition), table.schema(), value);
+    }
+
     /** Composes a binary operator as an expression over the operands' shared aggregate. */
     private IntermediateResult translateAggregate(TranslationContext context) {
+        if (this instanceof VectorBinaryComparison comp && comp.filterMode()) {
+            return translateFilter(context, comp);
+        }
         // Arithmetic and a bool comparison drop the metric name; so do both operands, folding into one frame.
+        TranslationContext outer = context;
         context = dropMetricName ? context.withoutMetricName() : context;
         IntermediateResult left = context.translate(left());
         Expression leftExpr = new ToDouble(left.value().source(), left.value());
-        if (this instanceof VectorBinaryComparison comp && comp.filterMode()) {
-            return left.with(left.plan(), left.schema(), leftExpr);
-        }
 
         IntermediateResult right = context.translate(right());
         Expression rightExpr = new ToDouble(right.value().source(), right.value());
@@ -323,6 +629,10 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         LogicalPlan plan;
         Expression filter;
         if (left.kind().afterInitialAggregation && right.kind().afterInitialAggregation) {
+            if (outer.containerFunctions() && sharesGrouping(left, right) == false) {
+                // Aggregates over different groupings, such as two different without, pair like any match.
+                return translateContainerJoin(outer);
+            }
             plan = emitBinaryOperatorAggregateExpression(left, right);
             filter = null;
         } else {
@@ -578,6 +888,27 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
             return a.withId(ids.computeIfAbsent(a.id(), k -> new NameId()));
         }
         return e;
+    }
+
+    /** Whether both operands' aggregates group by the same columns, so they fold into one. */
+    private static boolean sharesGrouping(IntermediateResult left, IntermediateResult right) {
+        List<Aggregate> leftAggregates = left.plan().collect(Aggregate.class);
+        List<Aggregate> rightAggregates = right.plan().collect(Aggregate.class);
+        if (leftAggregates.isEmpty() || rightAggregates.isEmpty()) {
+            return true;
+        }
+        return groupingNames(leftAggregates.getFirst()).equals(groupingNames(rightAggregates.getFirst()))
+            && leftAggregates.getFirst().groupings().size() == rightAggregates.getFirst().groupings().size();
+    }
+
+    private static Set<String> groupingNames(Aggregate aggregate) {
+        Set<String> names = new HashSet<>();
+        for (Expression grouping : aggregate.groupings()) {
+            if (grouping instanceof NamedExpression ne) {
+                names.add(ne.name());
+            }
+        }
+        return names;
     }
 
     /** Fold left and right aggregates into a single plan. */

@@ -34,7 +34,10 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWitho
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataFilter;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataPath;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataSet;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
@@ -57,12 +60,10 @@ import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult.Kind;
-import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinarySet;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
-import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.time.Instant;
@@ -71,6 +72,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
@@ -164,7 +166,8 @@ public record TranslationContext(
         if (cmd.promqlPlan() instanceof VectorBinaryOperator op) {
             VectorMatch match = op.match();
             if (match.filter() != VectorMatch.Filter.NONE || match.grouping() != Joining.NONE) {
-                return doTranslateFinal(op.translateJoin(this).plan(), false);
+                IntermediateResult matched = op.translateMatched(this);
+                return doTranslateFinal(emitTimeSeriesAlias(matched, new NameId()), false);
             }
         }
 
@@ -291,16 +294,6 @@ public record TranslationContext(
                 IntermediateResult collapsed = collapse(ir.with(plan, ir.schema(), value), ir.schema(), value);
                 plan = collapsed.plan();
                 value = collapsed.value();
-            }
-            if (branch instanceof VectorBinaryComparison comparison && comparison.filterMode()) {
-                VectorMatch match = comparison.match();
-                if ((match.filter() != VectorMatch.Filter.NONE || match.grouping() != Joining.NONE) == false) {
-                    // Filter-mode comparison (metric > x): keep the left operand's value, filter rows by the comparison.
-                    // A vector-matched comparison already applied its filter inside the join translation.
-                    ToDouble right = new ToDouble(comparison.right().source(), ((LiteralSelector) comparison.right()).literal());
-                    var condition = comparison.op().asFunction().create(comparison.source(), value, right, configuration());
-                    plan = new Filter(comparison.source(), plan, condition);
-                }
             }
         }
 
@@ -447,6 +440,56 @@ public record TranslationContext(
             false
         );
         return derived.isEmpty() ? collapse : new Eval(source, collapse, derived);
+    }
+
+    /**
+     * The canonical label container of every label of a finished table: its finest packing - every label but the ones the
+     * table leaves out - or no label at all, with each label column written over it, as a column can hold a value the
+     * packing does not (a relabel writes one) and a null column is an absent label.
+     */
+    public Expression labels(IntermediateResult table) {
+        Source source = cmd.source();
+        Set<String> finest = table.schema().finestSkip();
+        Expression labels = finest == null ? Literal.keyword(source, "{}") : canonical(table.packed(finest));
+        for (String label : table.schema().labels()) {
+            Attribute column = table.label(label);
+            Expression value = column == null ? new Literal(source, null, DataType.KEYWORD)
+                : DataType.isString(column.dataType()) ? column
+                : new ToString(source, column, configuration());
+            labels = new TimeSeriesMetadataSet(source, labels, Literal.keyword(source, label), value);
+        }
+        return labels;
+    }
+
+    /**
+     * A finished table over {@code plan}, whose labels are the label container {@code labels}: every label column {@code wanted}
+     * names reads its values out of it, and every packing leaves its labels out of it. The labels of {@code wanted} stand
+     * beside the packing of every other label, which takes the place of a whole-label-set packing, so a label shows once.
+     */
+    public IntermediateResult fromLabels(LogicalPlan plan, Attribute labels, TranslationSchema wanted, Attribute value, Attribute step) {
+        Source source = cmd.source();
+        var columns = new ArrayList<Alias>();
+        var skips = new LinkedHashSet<Set<String>>();
+        Set<String> promoted = new TreeSet<>(wanted.labels());
+        for (Set<String> skip : wanted.skips()) {
+            skips.add(skip.isEmpty() ? promoted : skip);
+        }
+        skips.add(promoted);
+        for (Set<String> skip : skips) {
+            columns.add(new Alias(source, mapOpen(skip), unset(labels, skip.stream())));
+        }
+        for (String label : wanted.labels()) {
+            columns.add(new Alias(source, label, new TimeSeriesMetadataPath(source, labels, Literal.keyword(source, label))));
+        }
+        LogicalPlan table = columns.isEmpty() ? plan : new Eval(source, plan, columns);
+        return new IntermediateResult(
+            table,
+            new TranslationSchema(wanted.labels(), skips),
+            value,
+            step,
+            null,
+            Kind.AFTER_INITIAL_AGGREGATE
+        );
     }
 
     /** {@code packing} leaving {@code labels} out as well: the canonical label container of the remaining labels. */

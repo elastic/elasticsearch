@@ -72,6 +72,14 @@ public final class UnpackDimension extends UnaryScalarFunction {
                 toEvaluator.apply(field).get(ctx),
                 block -> InternalPacks.unpackLongValues(ctx, block)
             );
+            case DOUBLE -> ctx -> new UnpackValuesEvaluator(
+                toEvaluator.apply(field).get(ctx),
+                block -> InternalPacks.unpackDoubleValues(ctx, block)
+            );
+            case FLOAT -> ctx -> new UnpackValuesEvaluator(
+                toEvaluator.apply(field).get(ctx),
+                block -> InternalPacks.unpackFloatValues(ctx, block)
+            );
             case INT -> ctx -> new UnpackValuesEvaluator(
                 toEvaluator.apply(field).get(ctx),
                 block -> InternalPacks.unpackIntValues(ctx, block)

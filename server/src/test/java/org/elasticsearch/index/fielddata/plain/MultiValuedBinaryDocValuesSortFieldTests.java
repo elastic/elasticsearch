@@ -400,6 +400,63 @@ public class MultiValuedBinaryDocValuesSortFieldTests extends ESTestCase {
         assertEquals(original.isArrayOrder(), restored.isArrayOrder());
     }
 
+    // =========================================================================
+    // isMaybeMultiValued — whether the segment's order by this field is the order of every value it holds
+    // =========================================================================
+
+    public void testIsMaybeMultiValued_separateCount() throws IOException {
+        final MultiValuedBinaryDocValuesSortField sortField = new MultiValuedBinaryDocValuesSortField(
+            "name",
+            false,
+            SortField.STRING_LAST,
+            false,
+            false
+        );
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null))) {
+            w.addDocument(new LuceneDocument());
+            try (DirectoryReader reader = DirectoryReader.open(w)) {
+                assertFalse("no document holds the field", sortField.isMaybeMultiValued(getOnlyLeafReader(reader)));
+            }
+            addSingleValueDoc(w, "alice");
+            addSingleValueDoc(w, "bob");
+            w.forceMerge(1);
+            try (DirectoryReader reader = DirectoryReader.open(w)) {
+                assertFalse(sortField.isMaybeMultiValued(getOnlyLeafReader(reader)));
+            }
+            LuceneDocument multiValueDoc = new LuceneDocument();
+            MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(multiValueDoc, "name", new BytesRef("zebra"));
+            MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(multiValueDoc, "name", new BytesRef("carol"));
+            w.addDocument(multiValueDoc);
+            w.forceMerge(1);
+            try (DirectoryReader reader = DirectoryReader.open(w)) {
+                assertTrue(sortField.isMaybeMultiValued(getOnlyLeafReader(reader)));
+            }
+        }
+    }
+
+    public void testIsMaybeMultiValued_arrayOrderInlineNull() throws IOException {
+        final MultiValuedBinaryDocValuesSortField sortField = new MultiValuedBinaryDocValuesSortField(
+            "name",
+            false,
+            SortField.STRING_LAST,
+            false,
+            true
+        );
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null))) {
+            addArrayOrderDoc(w, "alice");
+            addArrayOrderDoc(w, "bob");
+            w.forceMerge(1);
+            try (DirectoryReader reader = DirectoryReader.open(w)) {
+                assertFalse(sortField.isMaybeMultiValued(getOnlyLeafReader(reader)));
+            }
+            addArrayOrderDoc(w, "zebra", "carol");
+            w.forceMerge(1);
+            try (DirectoryReader reader = DirectoryReader.open(w)) {
+                assertTrue(sortField.isMaybeMultiValued(getOnlyLeafReader(reader)));
+            }
+        }
+    }
+
     public void testEqualsIsReflexive() {
         final MultiValuedBinaryDocValuesSortField sf = new MultiValuedBinaryDocValuesSortField("kw", false, SortField.STRING_LAST, false);
         assertEquals(sf, sf);

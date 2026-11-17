@@ -14,7 +14,9 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
@@ -136,6 +138,82 @@ public class InternalPacksTests extends ComputeTestCase {
         var encode2 = InternalPacks.packLongValues(driverContext, block2);
         var decoded1 = InternalPacks.unpackLongValues(driverContext, encode1);
         var decoded2 = InternalPacks.unpackLongValues(driverContext, encode2);
+        try {
+            assertThat(decoded1, equalTo(block1));
+            assertThat(decoded2, equalTo(block2));
+            for (int p = 0; p < positionCount; p++) {
+                List<?> v1 = values1.get(p);
+                List<?> v2 = values2.get(p);
+                if (v1.equals(v2)) {
+                    assertTrue(encodedRowEquals(encode1, encode2, p));
+                } else {
+                    assertFalse(encodedRowEquals(encode1, encode2, p));
+                }
+            }
+        } finally {
+            Releasables.close(block1, encode1, decoded1, block2, encode2, decoded2);
+        }
+    }
+
+    public void testDoubles() {
+        BlockFactory blockFactory = blockFactory();
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        int positionCount = between(1, 100);
+        List<List<?>> values1 = new ArrayList<>();
+        List<List<?>> values2 = new ArrayList<>();
+        for (int i = 0; i < positionCount; i++) {
+            List<Double> v = randomDoubles(between(0, 5)).boxed().toList();
+            values1.add(v);
+            if (randomBoolean()) {
+                values2.add(v);
+            } else {
+                values2.add(randomValueOtherThan(v, () -> randomDoubles(between(0, 5)).boxed().toList()));
+            }
+        }
+        var block1 = (DoubleBlock) buildBlock(blockFactory, ElementType.DOUBLE, values1);
+        var block2 = (DoubleBlock) buildBlock(blockFactory, ElementType.DOUBLE, values2);
+        var encode1 = InternalPacks.packDoubleValues(driverContext, block1);
+        var encode2 = InternalPacks.packDoubleValues(driverContext, block2);
+        var decoded1 = InternalPacks.unpackDoubleValues(driverContext, encode1);
+        var decoded2 = InternalPacks.unpackDoubleValues(driverContext, encode2);
+        try {
+            assertThat(decoded1, equalTo(block1));
+            assertThat(decoded2, equalTo(block2));
+            for (int p = 0; p < positionCount; p++) {
+                List<?> v1 = values1.get(p);
+                List<?> v2 = values2.get(p);
+                if (v1.equals(v2)) {
+                    assertTrue(encodedRowEquals(encode1, encode2, p));
+                } else {
+                    assertFalse(encodedRowEquals(encode1, encode2, p));
+                }
+            }
+        } finally {
+            Releasables.close(block1, encode1, decoded1, block2, encode2, decoded2);
+        }
+    }
+
+    public void testFloats() {
+        BlockFactory blockFactory = blockFactory();
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        int positionCount = between(1, 100);
+        List<List<?>> values1 = new ArrayList<>();
+        List<List<?>> values2 = new ArrayList<>();
+        for (int i = 0; i < positionCount; i++) {
+            List<Float> v = IntStream.range(0, between(0, 5)).mapToObj(n -> randomFloat()).toList();
+            values1.add(v);
+            if (randomBoolean()) {
+                values2.add(v);
+            } else {
+                values2.add(randomValueOtherThan(v, () -> IntStream.range(0, between(0, 5)).mapToObj(n -> randomFloat()).toList()));
+            }
+        }
+        var block1 = (FloatBlock) buildBlock(blockFactory, ElementType.FLOAT, values1);
+        var block2 = (FloatBlock) buildBlock(blockFactory, ElementType.FLOAT, values2);
+        var encode1 = InternalPacks.packFloatValues(driverContext, block1);
+        var encode2 = InternalPacks.packFloatValues(driverContext, block2);
+        var decoded1 = InternalPacks.unpackFloatValues(driverContext, encode1);
+        var decoded2 = InternalPacks.unpackFloatValues(driverContext, encode2);
         try {
             assertThat(decoded1, equalTo(block1));
             assertThat(decoded2, equalTo(block2));

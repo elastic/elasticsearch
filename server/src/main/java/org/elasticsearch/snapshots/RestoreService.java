@@ -227,6 +227,8 @@ public final class RestoreService implements ClusterStateApplier {
 
     private final RestoreLifecycleListener lifecycleListener;
 
+    private final RestoreMetrics restoreMetrics;
+
     public RestoreService(
         ClusterService clusterService,
         RepositoriesService repositoriesService,
@@ -241,7 +243,8 @@ public final class RestoreService implements ClusterStateApplier {
         boolean deserializeProjectMetadata,
         IndexMetadataRestoreTransformer indexMetadataRestoreTransformer,
         FeatureService featureService,
-        RestoreLifecycleListener restoreLifecycleListener
+        RestoreLifecycleListener restoreLifecycleListener,
+        RestoreMetrics restoreMetrics
     ) {
         this.clusterService = clusterService;
         this.repositoriesService = repositoriesService;
@@ -249,6 +252,7 @@ public final class RestoreService implements ClusterStateApplier {
         this.createIndexService = createIndexService;
         this.indexMetadataVerifier = indexMetadataVerifier;
         this.deserializeProjectMetadata = deserializeProjectMetadata;
+        this.restoreMetrics = Objects.requireNonNull(restoreMetrics);
         if (DiscoveryNode.isMasterNode(clusterService.getSettings())) {
             clusterService.addStateApplier(this);
         }
@@ -1401,7 +1405,10 @@ public final class RestoreService implements ClusterStateApplier {
                     if (shardsBuilder == null) {
                         shardsBuilder = ImmutableOpenMap.builder(entry.shards());
                     }
-                    shardsBuilder.put(shardId, new ShardRestoreStatus(null, RestoreInProgress.State.FAILURE, "index was deleted"));
+                    shardsBuilder.put(
+                        shardId,
+                        ShardRestoreStatus.failed(null, RestoreInProgress.ShardRestoreFailureReason.INDEX_DELETED, "index was deleted")
+                    );
                 }
             }
             if (shardsBuilder != null) {
@@ -1459,9 +1466,9 @@ public final class RestoreService implements ClusterStateApplier {
                     if (unassignedInfo.failure() != null && Lucene.isCorruptionException(unassignedInfo.failure().getCause())) {
                         changes(recoverySource).put(
                             failedShard.shardId(),
-                            new ShardRestoreStatus(
+                            ShardRestoreStatus.failed(
                                 failedShard.currentNodeId(),
-                                RestoreInProgress.State.FAILURE,
+                                RestoreInProgress.ShardRestoreFailureReason.CORRUPTION,
                                 unassignedInfo.failure().getCause().getMessage()
                             )
                         );
@@ -1477,9 +1484,9 @@ public final class RestoreService implements ClusterStateApplier {
                 && initializedShard.recoverySource().getType() != RecoverySource.Type.SNAPSHOT) {
                 changes(unassignedShard.recoverySource()).put(
                     unassignedShard.shardId(),
-                    new ShardRestoreStatus(
+                    ShardRestoreStatus.failed(
                         null,
-                        RestoreInProgress.State.FAILURE,
+                        RestoreInProgress.ShardRestoreFailureReason.RECOVERY_SOURCE_CHANGED,
                         "recovery source type changed from snapshot to " + initializedShard.recoverySource()
                     )
                 );
@@ -1494,7 +1501,11 @@ public final class RestoreService implements ClusterStateApplier {
                     String reason = "shard could not be allocated to any of the nodes";
                     changes(recoverySource).put(
                         unassignedShard.shardId(),
-                        new ShardRestoreStatus(unassignedShard.currentNodeId(), RestoreInProgress.State.FAILURE, reason)
+                        ShardRestoreStatus.failed(
+                            unassignedShard.currentNodeId(),
+                            RestoreInProgress.ShardRestoreFailureReason.NO_ELIGIBLE_NODE,
+                            reason
+                        )
                     );
                 }
             }
@@ -2036,8 +2047,23 @@ public final class RestoreService implements ClusterStateApplier {
             @Override
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 cleanupInProgress = false;
+                recordRemovedRestores(oldState, newState);
             }
         });
+    }
+
+    /**
+     * Records each completed restore that the published cleanup removed from the cluster state. A restore whose
+     * {@link RestoreLifecycleListener} notification failed is kept for the next cleanup, and only recorded once it is actually removed.
+     * Package-private for unit tests.
+     */
+    void recordRemovedRestores(ClusterState oldState, ClusterState newState) {
+        final RestoreInProgress remaining = RestoreInProgress.get(newState);
+        for (RestoreInProgress.Entry entry : RestoreInProgress.get(oldState)) {
+            if (entry.state().completed() && remaining.get(entry.uuid()) == null) {
+                restoreMetrics.restoreCompleted(entry);
+            }
+        }
     }
 
     @Override
@@ -2451,7 +2477,7 @@ public final class RestoreService implements ClusterStateApplier {
                     shards.put(
                         new ShardId(renamedIndex, shard),
                         ignoreShards.contains(shard)
-                            ? new ShardRestoreStatus(localNodeId, RestoreInProgress.State.FAILURE)
+                            ? ShardRestoreStatus.failed(localNodeId, RestoreInProgress.ShardRestoreFailureReason.FAILED_IN_SNAPSHOT, null)
                             : new ShardRestoreStatus(localNodeId)
                     );
                 }
@@ -2765,6 +2791,11 @@ public final class RestoreService implements ClusterStateApplier {
                 snapshot,
                 snapshotInfo.indices()
             );
+            // a restore with no shards to restore, such as one of only the global state, has no entry and is not counted
+            final RestoreInProgress.Entry entry = RestoreInProgress.get(newState).get(restoreUUID);
+            if (entry != null && RestoreInProgress.get(oldState).get(restoreUUID) == null) {
+                restoreMetrics.restoreStarted(entry);
+            }
             listener.clusterStateUpdate().onResponse(new RestoreCompletionResponse(restoreUUID, snapshot, restoreInfo));
         }
     }

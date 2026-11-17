@@ -24,6 +24,7 @@ import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.plugins.internal.ShardGenerationListener;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.CachingSnapshotAndShardByStateMetricsService;
+import org.elasticsearch.snapshots.RestoreMetrics;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
 import org.elasticsearch.telemetry.TelemetryProvider;
@@ -45,6 +46,7 @@ public final class RepositoriesModule {
 
     private final RepositoriesService repositoriesService;
     private final SnapshotMetrics snapshotMetrics;
+    private final RestoreMetrics restoreMetrics;
 
     public RepositoriesModule(
         Environment env,
@@ -63,6 +65,7 @@ public final class RepositoriesModule {
             new CachingSnapshotAndShardByStateMetricsService(clusterService),
             this::getRepositoryService
         );
+        this.restoreMetrics = new RestoreMetrics(telemetryProvider.getMeterRegistry(), clusterService, threadPool::absoluteTimeInMillis);
         final RepositoriesMetrics repositoriesMetrics = new RepositoriesMetrics(telemetryProvider.getMeterRegistry());
         Map<String, Repository.Factory> factories = new HashMap<>();
         factories.put(
@@ -187,5 +190,9 @@ public final class RepositoriesModule {
 
     public SnapshotMetrics getSnapshotMetrics() {
         return snapshotMetrics;
+    }
+
+    public RestoreMetrics getRestoreMetrics() {
+        return restoreMetrics;
     }
 }

@@ -252,6 +252,7 @@ import org.elasticsearch.snapshots.IndexMetadataRestoreTransformer;
 import org.elasticsearch.snapshots.IndexMetadataRestoreTransformer.NoOpRestoreTransformer;
 import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
 import org.elasticsearch.snapshots.RepositoryIntegrityHealthIndicatorService;
+import org.elasticsearch.snapshots.RestoreMetrics;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SnapshotGlobalStateTransformer;
 import org.elasticsearch.snapshots.SnapshotShardsService;
@@ -847,6 +848,7 @@ class NodeConstruction {
         );
         RepositoriesService repositoriesService = repositoriesModule.getRepositoryService();
         SnapshotMetrics snapshotMetrics = repositoriesModule.getSnapshotMetrics();
+        RestoreMetrics restoreMetrics = repositoriesModule.getRestoreMetrics();
         final SetOnce<RerouteService> rerouteServiceReference = new SetOnce<>();
         final WriteLoadConstraintSettings writeLoadConstraintSettings = new WriteLoadConstraintSettings(
             clusterService.getClusterSettings()
@@ -1330,7 +1332,8 @@ class NodeConstruction {
             projectResolver.supportsMultipleProjects(),
             pluginsService.loadSingletonServiceProvider(IndexMetadataRestoreTransformer.class, NoOpRestoreTransformer::getInstance),
             featureService,
-            pluginsService.loadSingletonServiceProvider(RestoreLifecycleListener.class, () -> RestoreLifecycleListener.NOOP)
+            pluginsService.loadSingletonServiceProvider(RestoreLifecycleListener.class, () -> RestoreLifecycleListener.NOOP),
+            restoreMetrics
         );
 
         DiscoveryModule discoveryModule = createDiscoveryModule(
@@ -1535,6 +1538,7 @@ class NodeConstruction {
             b.bind(IndicesMetrics.class).toInstance(indicesMetrics);
             b.bind(AnalyzerMetrics.class).toInstance(analyzerMetrics);
             b.bind(SnapshotMetrics.class).toInstance(snapshotMetrics);
+            b.bind(RestoreMetrics.class).toInstance(restoreMetrics);
             b.bind(NetworkService.class).toInstance(networkService);
             b.bind(IndexMetadataVerifier.class).toInstance(indexMetadataVerifier);
             b.bind(ClusterInfoService.class).toInstance(clusterInfoService);

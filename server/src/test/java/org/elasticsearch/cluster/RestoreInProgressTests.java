@@ -9,13 +9,16 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -54,6 +57,49 @@ public class RestoreInProgressTests extends ESTestCase {
         final RestorePair restore = randomRestorePair();
 
         assertThat(toJson(restore.reporting()), equalTo(toJson(restore.notReporting())));
+    }
+
+    /**
+     * A shard's classified failure reason survives a round trip to a node that classifies failures, and an older node that does not
+     * classify them receives the failure without one, keeping the rest of the status.
+     */
+    public void testShardFailureReasonSerialization() throws IOException {
+        final ShardId shardId = new ShardId(randomAlphaOfLength(8), randomUUID(), 0);
+        final RestoreInProgress.ShardRestoreStatus failed = RestoreInProgress.ShardRestoreStatus.failed(
+            randomBoolean() ? null : randomAlphaOfLength(6),
+            randomFrom(RestoreInProgress.ShardRestoreFailureReason.values()),
+            randomBoolean() ? null : randomAlphaOfLength(20)
+        );
+        final RestoreInProgress restore = restoreInProgress(
+            new RestoreInProgress.Entry(
+                randomUUID(),
+                new Snapshot(randomAlphaOfLength(10), new SnapshotId(randomAlphaOfLength(10), randomAlphaOfLength(10))),
+                RestoreInProgress.State.FAILURE,
+                randomBoolean(),
+                List.of(shardId.getIndexName()),
+                Map.of(shardId, failed),
+                randomBoolean()
+            )
+        );
+        final NamedWriteableRegistry registry = new NamedWriteableRegistry(List.of());
+
+        final RestoreInProgress current = copyWriteable(restore, registry, RestoreInProgress::new, TransportVersion.current());
+        assertThat(onlyShardStatus(current), equalTo(failed));
+
+        final RestoreInProgress older = copyWriteable(
+            restore,
+            registry,
+            RestoreInProgress::new,
+            TransportVersionUtils.randomVersionNotSupporting(RestoreInProgress.RESTORE_SHARD_FAILURE_REASON)
+        );
+        assertThat(
+            onlyShardStatus(older),
+            equalTo(new RestoreInProgress.ShardRestoreStatus(failed.nodeId(), RestoreInProgress.State.FAILURE, failed.reason()))
+        );
+    }
+
+    private static RestoreInProgress.ShardRestoreStatus onlyShardStatus(RestoreInProgress restoreInProgress) {
+        return restoreInProgress.iterator().next().shards().values().iterator().next();
     }
 
     private record RestorePair(RestoreInProgress reporting, RestoreInProgress notReporting) {}

@@ -1025,7 +1025,8 @@ public class SnapshotResiliencyTestHelper {
                     false,
                     IndexMetadataRestoreTransformer.NoOpRestoreTransformer.getInstance(),
                     featureService,
-                    RestoreLifecycleListener.NOOP
+                    RestoreLifecycleListener.NOOP,
+                    RestoreMetrics.NOOP
                 );
                 actions.put(
                     TransportPutMappingAction.TYPE,

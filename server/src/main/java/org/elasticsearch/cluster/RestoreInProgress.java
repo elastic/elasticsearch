@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.xcontent.ToXContent;
@@ -38,6 +39,8 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
     private static final TransportVersion RESTORE_IN_PROGRESS_REPORT_SHARD_RESTORING = TransportVersion.fromName(
         "restore_in_progress_report_shard_restoring"
     );
+
+    static final TransportVersion RESTORE_SHARD_FAILURE_REASON = TransportVersion.fromName("restore_shard_failure_reason");
 
     public static final RestoreInProgress EMPTY = new RestoreInProgress(Map.of());
 
@@ -182,9 +185,50 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
     }
 
     /**
-     * Represents status of a restored shard
+     * Why a shard's restore ended in {@link State#FAILURE}. The free-text {@link ShardRestoreStatus#reason()} carries the detail for
+     * diagnostics, while this classifies the failure into a small fixed set so that it can be counted, for example as a metric attribute,
+     * without the unbounded cardinality of the free text.
      */
-    public record ShardRestoreStatus(String nodeId, State state, String reason) implements Writeable {
+    public enum ShardRestoreFailureReason {
+        /** The shard failed or was missing in the snapshot, so a partial restore skipped it from the start. */
+        FAILED_IN_SNAPSHOT("failed_in_snapshot"),
+        /** The snapshot files were found to be corrupt while recovering the shard, so no retry can succeed. */
+        CORRUPTION("corruption"),
+        /** The allocation deciders refused every node, so the shard cannot be allocated to recover from the snapshot. */
+        NO_ELIGIBLE_NODE("no_eligible_node"),
+        /** The primary was allocated from something other than the snapshot, for example forced to an empty or a stale copy. */
+        RECOVERY_SOURCE_CHANGED("recovery_source_changed"),
+        /** The index was deleted before its shard finished restoring. */
+        INDEX_DELETED("index_deleted");
+
+        private final String value;
+
+        ShardRestoreFailureReason(String value) {
+            this.value = value;
+        }
+
+        /** The stable lower-case form, used as a metric attribute value. */
+        public String value() {
+            return value;
+        }
+    }
+
+    /**
+     * Represents status of a restored shard
+     *
+     * @param nodeId        the node the shard is restoring on, if known
+     * @param state         the shard's restore state
+     * @param reason        free-text detail of a failure, for diagnostics
+     * @param failureReason the classified reason for a {@link State#FAILURE}, or {@code null} for any other state. It is also
+     *                      {@code null} for a failure that was recorded by, or received from, a node that does not classify failures.
+     */
+    public record ShardRestoreStatus(String nodeId, State state, @Nullable String reason, @Nullable ShardRestoreFailureReason failureReason)
+        implements
+            Writeable {
+
+        public ShardRestoreStatus {
+            assert failureReason == null || state == State.FAILURE : "failure reason [" + failureReason + "] for state [" + state + "]";
+        }
 
         /**
          * Constructs a new shard restore status in initializing state on the given node
@@ -205,8 +249,33 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
             this(nodeId, state, null);
         }
 
+        /**
+         * Constructs a new shard restore status with the specified state and free-text reason, but no classified failure reason.
+         */
+        public ShardRestoreStatus(String nodeId, State state, @Nullable String reason) {
+            this(nodeId, state, reason, null);
+        }
+
+        /**
+         * Constructs the status of a shard whose restore failed for the given classified reason.
+         *
+         * @param nodeId        node id, if known
+         * @param failureReason why the restore of the shard failed
+         * @param reason        free-text detail, if any
+         */
+        public static ShardRestoreStatus failed(@Nullable String nodeId, ShardRestoreFailureReason failureReason, @Nullable String reason) {
+            return new ShardRestoreStatus(nodeId, State.FAILURE, reason, Objects.requireNonNull(failureReason));
+        }
+
         public static ShardRestoreStatus readFrom(StreamInput in) throws IOException {
-            return new ShardRestoreStatus(in.readOptionalString(), State.fromValue(in.readByte()), in.readOptionalString());
+            final String nodeId = in.readOptionalString();
+            final State state = State.fromValue(in.readByte());
+            final String reason = in.readOptionalString();
+            // nodes that do not classify failures never send it, which leaves a failure unclassified
+            final ShardRestoreFailureReason failureReason = in.getTransportVersion().supports(RESTORE_SHARD_FAILURE_REASON)
+                ? in.readOptionalEnum(ShardRestoreFailureReason.class)
+                : null;
+            return new ShardRestoreStatus(nodeId, state, reason, failureReason);
         }
 
         /**
@@ -219,6 +288,9 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
             out.writeOptionalString(nodeId);
             out.writeByte(state.value);
             out.writeOptionalString(reason);
+            if (out.getTransportVersion().supports(RESTORE_SHARD_FAILURE_REASON)) {
+                out.writeOptionalEnum(failureReason);
+            }
         }
     }
 

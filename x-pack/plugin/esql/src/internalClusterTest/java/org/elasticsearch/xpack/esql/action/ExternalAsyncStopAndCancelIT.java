@@ -90,7 +90,8 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
     private static final long TRICKLE_MILLIS = 10L;
 
     /** Counts down once the storage provider has been asked for the first read of the fixture; the test uses this to
-     *  observe that the query has actually started consuming bytes before it issues STOP / cancel. */
+     *  observe that the query has actually started consuming bytes before it issues STOP / cancel.
+     *  {@link ExternalQueryMemoryIT} also installs and releases these statics in its {@code @Before}/{@code @After}. */
     static volatile CountDownLatch requestArrived;
     /** Counted down by the test (in the {@code finally} block and by {@link #releaseSlowFile()}) to let the slow stream
      *  return EOF and shut its loop down rather than trickling forever. */
@@ -104,6 +105,9 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
     /** Diagnostic counter — number of {@link SlowFileStorageProvider} reads that were forced into the trickle path.
      *  Non-zero means the source was actually slow at STOP / cancel time, not just slow on paper. */
     static final AtomicInteger trickleBytesServed = new AtomicInteger();
+    /** When non-null, the first trickle read parks here so a test can cancel or trip the breaker before
+     *  natural EOF. Null in this class: STOP/cancel tests rely on the timed trickle window. */
+    static volatile CountDownLatch trickleHold;
     /** When non-null, {@link SlowFileObject#exists()} / {@link SlowFileStorageProvider#exists} wait here so a test can
      *  issue STOP during planning, before any compute or exchange exists. */
     static volatile CountDownLatch planningHold;
@@ -221,6 +225,21 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    private static void awaitTrickleHold() throws IOException {
+        CountDownLatch hold = trickleHold;
+        if (hold == null) {
+            return;
+        }
+        try {
+            if (hold.await(60, TimeUnit.SECONDS) == false) {
+                throw new IOException("trickle hold was not released");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("interrupted waiting for trickle hold", e);
+        }
+    }
+
     private static final class SlowFileObject extends AbstractTestStorageObject {
         private final StoragePath path;
         private final Path file;
@@ -291,13 +310,17 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
                 if (releaseHandler != null && releaseHandler.getCount() == 0) {
                     return -1;
                 }
+                trickleBytesServed.incrementAndGet();
+                awaitTrickleHold();
+                if (releaseHandler != null && releaseHandler.getCount() == 0) {
+                    return -1;
+                }
                 try {
                     Thread.sleep(TRICKLE_MILLIS);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     throw new IOException("interrupted reading from slow fixture", e);
                 }
-                trickleBytesServed.incrementAndGet();
             }
             int b = delegate.read();
             if (b < 0) {
@@ -365,13 +388,17 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
                 if (releaseHandler != null && releaseHandler.getCount() == 0) {
                     return -1;
                 }
+                trickleBytesServed.incrementAndGet();
+                awaitTrickleHold();
+                if (releaseHandler != null && releaseHandler.getCount() == 0) {
+                    return -1;
+                }
                 try {
                     Thread.sleep(TRICKLE_MILLIS);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     throw new IOException("interrupted reading from slow fixture", e);
                 }
-                trickleBytesServed.incrementAndGet();
             }
             int b = delegate.read();
             if (b < 0) {
@@ -436,6 +463,7 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
     public void setUpSlowFile() throws Exception {
         requestArrived = new CountDownLatch(1);
         releaseHandler = new CountDownLatch(1);
+        trickleHold = null;
         planningHold = null;
         planningArrived = null;
         trickleBytesServed.set(0);
@@ -475,6 +503,9 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
     public void releaseSlowFile() {
         if (releaseHandler != null) {
             releaseHandler.countDown();
+        }
+        if (trickleHold != null) {
+            trickleHold.countDown();
         }
         if (planningHold != null) {
             planningHold.countDown();

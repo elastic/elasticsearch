@@ -334,10 +334,10 @@ public class LocalExecutionPlanner {
     /** The oldest transport version in this node's cluster, which decides how external text files bind; see FileSourceFactory. */
     private final TransportVersion minTransportVersion;
     /**
-     * Query identity and optional load targets for federated source operators. {@code null} is identity:
-     * registry executors stay unwrapped and {@link SourceOperatorContext#queryId()} is unset.
+     * Query identity and optional load targets for federated source operators.
+     * {@link ExternalComputeContext#NONE} is identity: registry executors stay unwrapped and
+     * {@link SourceOperatorContext#queryId()} is unset.
      */
-    @Nullable
     private final ExternalComputeContext externalCompute;
 
     /**
@@ -351,7 +351,10 @@ public class LocalExecutionPlanner {
         @Nullable TaskId queryId,
         @Nullable TaskLoadAttribution.Target load,
         @Nullable TaskLoadAttribution.Target ioTarget
-    ) {}
+    ) {
+        /** Identity: no query id, registry executors unwrapped. */
+        public static final ExternalComputeContext NONE = new ExternalComputeContext(null, null, null);
+    }
 
     public LocalExecutionPlanner(
         String sessionId,
@@ -378,7 +381,7 @@ public class LocalExecutionPlanner {
         MatcherWatchdog grokMatcherWatchdog,
         TransportVersion minTransportVersion,
         Client client,
-        @Nullable ExternalComputeContext externalCompute
+        ExternalComputeContext externalCompute
     ) {
 
         this.sessionId = sessionId;
@@ -2467,7 +2470,7 @@ public class LocalExecutionPlanner {
             .rowLimit(pushedLimit)
             .executor(attributedExecutor())
             .fileReadExecutor(attributedFileReadExecutor())
-            .queryId(externalCompute == null ? null : externalCompute.queryId())
+            .queryId(externalCompute.queryId())
             .config(externalSource.config())
             .declaredReadSpec(externalSource.declaredReadSpec())
             .sourceMetadata(externalSource.sourceMetadata())
@@ -2492,15 +2495,15 @@ public class LocalExecutionPlanner {
     }
 
     private Executor attributedExecutor() {
-        Executor executor = operatorFactoryRegistry.executor();
-        TaskLoadAttribution.Target load = externalCompute == null ? null : externalCompute.load();
-        return load == null ? executor : TaskLoadAttribution.charging(executor, load);
+        return chargedOrSelf(operatorFactoryRegistry.executor(), externalCompute.load());
     }
 
     private Executor attributedFileReadExecutor() {
-        Executor executor = operatorFactoryRegistry.fileReadExecutor();
-        TaskLoadAttribution.Target ioTarget = externalCompute == null ? null : externalCompute.ioTarget();
-        return ioTarget == null ? executor : TaskLoadAttribution.charging(executor, ioTarget);
+        return chargedOrSelf(operatorFactoryRegistry.fileReadExecutor(), externalCompute.ioTarget());
+    }
+
+    private static Executor chargedOrSelf(Executor executor, @Nullable TaskLoadAttribution.Target target) {
+        return target == null ? executor : TaskLoadAttribution.charging(executor, target);
     }
 
     private static void annotateDatasetLabel(ExternalSourceExec externalSource, SourceOperator.SourceOperatorFactory factory) {

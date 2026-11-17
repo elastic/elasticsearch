@@ -2045,7 +2045,13 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         InferenceService inferenceService,
         boolean snapshotBuild
     ) throws IOException {
-        return planner(operatorFactoryRegistry, federationEnabled, inferenceService, snapshotBuild, null);
+        return planner(
+            operatorFactoryRegistry,
+            federationEnabled,
+            inferenceService,
+            snapshotBuild,
+            LocalExecutionPlanner.ExternalComputeContext.NONE
+        );
     }
 
     private LocalExecutionPlanner planner(

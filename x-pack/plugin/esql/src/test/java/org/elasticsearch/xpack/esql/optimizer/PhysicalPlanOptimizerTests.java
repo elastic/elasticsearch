@@ -10303,7 +10303,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             MatcherWatchdog.noop(),
             TransportVersion.current(),
             null,  // client - not needed for these tests
-            null   // externalCompute - identity wrap
+            LocalExecutionPlanner.ExternalComputeContext.NONE
         );
 
         return planner.plan("test", FoldContext.small(), plannerSettings, plan, EmptyIndexedByShardId.instance(), randomBoolean());

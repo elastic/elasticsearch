@@ -55,7 +55,8 @@ public class ColumnLoadOperator extends AbstractPageMappingToIteratorOperator {
      * The target size of each loaded block. Upstream row-size estimation already budgets
      * the loaded columns into the input page, so ordinary pages stay whole and only pages
      * whose looked-up values blow up (e.g., multivalued aggregates) are split. The target bounds
-     * each loaded column separately, so a page that loads N columns can reach about N times this size.
+     * each loaded column separately, so a page that loads N columns can reach the input page
+     * plus about N times this size.
      * TODO target the size more intelligently
      */
     static final ByteSizeValue TARGET_BLOCK_SIZE = ByteSizeValue.ofBytes(Operator.TARGET_PAGE_SIZE);

@@ -633,9 +633,13 @@ public class BasicBlockTests extends ESTestCase {
         };
     }
 
-    public void testLookupSplitsAtCopiedBytes() {
+    public void testLookupSplitsAtUsedBytes() {
         try (LongBlock values = blockFactory.newLongArrayVector(new long[] { 1, 2 }, 2).asBlock()) {
             try (IntBlock positions = blockFactory.newIntArrayVector(new int[200], 200).asBlock()) {
+                assertThat(lookupBlockSizes(values, positions, 80 * Long.BYTES), equalTo(List.of(80, 80, 40)));
+            }
+            try (IntBlock positions = blockFactory.newConstantIntBlockWith(5, 200)) {
+                // misses are nulls, which still take a value slot
                 assertThat(lookupBlockSizes(values, positions, 80 * Long.BYTES), equalTo(List.of(80, 80, 40)));
             }
             try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(200)) {
@@ -643,20 +647,21 @@ public class BasicBlockTests extends ESTestCase {
                     builder.beginPositionEntry().appendInt(0).appendInt(1).endPositionEntry();
                 }
                 try (IntBlock positions = builder.build()) {
-                    assertThat(lookupBlockSizes(values, positions, 80 * Long.BYTES), equalTo(List.of(40, 40, 40, 40, 40)));
+                    // two values plus a first value index per position
+                    long target = 40 * (2 * Long.BYTES + Integer.BYTES);
+                    assertThat(lookupBlockSizes(values, positions, target), equalTo(List.of(40, 40, 40, 40, 40)));
                 }
             }
         }
-        try (
-            BytesRefBlock values = blockFactory.newBytesRefVectorBuilder(2)
-                .appendBytesRef(new BytesRef("0123456789"))
-                .appendBytesRef(new BytesRef("abcdefghij"))
-                .build()
-                .asBlock();
-            IntBlock positions = blockFactory.newIntArrayVector(new int[200], 200).asBlock()
-        ) {
-            // each 10-byte value also costs a 4-byte offset
-            assertThat(lookupBlockSizes(values, positions, 50 * 14), equalTo(List.of(50, 50, 50, 50)));
+        try (BytesRefVector.Builder builder = blockFactory.newBytesRefVectorBuilder(2)) {
+            builder.appendBytesRef(new BytesRef("0123456789")).appendBytesRef(new BytesRef("abcdefghij"));
+            try (
+                BytesRefBlock values = builder.build().asBlock();
+                IntBlock positions = blockFactory.newIntArrayVector(new int[200], 200).asBlock()
+            ) {
+                // each 10-byte value also costs a 4-byte offset
+                assertThat(lookupBlockSizes(values, positions, 50 * 14), equalTo(List.of(50, 50, 50, 50)));
+            }
         }
     }
 

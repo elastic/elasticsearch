@@ -30,7 +30,7 @@ $endif$
     private final IntBlock positions;
     private final long targetByteSize;
     private int position;
-    private long copiedBytes;
+    private long usedBytes;
 
     private $type$ first;
     private int valuesInPosition;
@@ -60,7 +60,7 @@ $endif$
         int estimatedSize = (int) Math.min(remaining, Math.max(Operator.MIN_TARGET_PAGE_SIZE + 1, maxValues));
         try ($Type$Block.Builder builder = positions.blockFactory().new$Type$BlockBuilder(estimatedSize)) {
             int count = 0;
-            copiedBytes = 0;
+            usedBytes = 0;
             while (position < positions.getPositionCount()) {
                 int start = positions.getFirstValueIndex(position);
                 int end = start + positions.getValueCount(position);
@@ -69,14 +69,26 @@ $endif$
                     copy(builder, positions.getInt(i));
                 }
                 switch (valuesInPosition) {
-                    case 0 -> builder.appendNull();
+                    case 0 -> {
+                        // A null still takes a value slot.
+                        builder.appendNull();
+$if(BytesRef)$
+                        usedBytes += Integer.BYTES;
+$else$
+                        usedBytes += $BYTES$;
+$endif$
+                    }
                     case 1 -> builder.append$Type$(first);
-                    default -> builder.endPositionEntry();
+                    default -> {
+                        // A multivalued position adds a first value index.
+                        builder.endPositionEntry();
+                        usedBytes += Integer.BYTES;
+                    }
                 }
                 position++;
                 // TOOD what if the estimate is super huge? should we break even with less than MIN_TARGET?
-                // builder.estimatedBytes() includes the pre-sized capacity, so track the bytes actually copied.
-                if (++count > Operator.MIN_TARGET_PAGE_SIZE && copiedBytes >= targetByteSize) {
+                // builder.estimatedBytes() includes the pre-sized capacity, so track the bytes actually used.
+                if (++count > Operator.MIN_TARGET_PAGE_SIZE && usedBytes >= targetByteSize) {
                     break;
                 }
             }
@@ -94,10 +106,10 @@ $endif$
             if (valuesInPosition == 0) {
 $if(BytesRef)$
                 first = values.get$Type$(i, firstScratch);
-                copiedBytes += first.length + Integer.BYTES;
+                usedBytes += first.length + Integer.BYTES;
 $else$
                 first = values.get$Type$(i);
-                copiedBytes += $BYTES$;
+                usedBytes += $BYTES$;
 $endif$
                 valuesInPosition++;
                 continue;
@@ -112,11 +124,11 @@ $endif$
             }
 $if(BytesRef)$
             $type$ value = values.get$Type$(i, valueScratch);
-            copiedBytes += value.length + Integer.BYTES;
+            usedBytes += value.length + Integer.BYTES;
             builder.append$Type$(value);
 $else$
             builder.append$Type$(values.get$Type$(i));
-            copiedBytes += $BYTES$;
+            usedBytes += $BYTES$;
 $endif$
             valuesInPosition++;
         }

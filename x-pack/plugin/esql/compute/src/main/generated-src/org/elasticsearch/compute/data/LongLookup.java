@@ -23,7 +23,7 @@ public final class LongLookup implements ReleasableIterator<LongBlock> {
     private final IntBlock positions;
     private final long targetByteSize;
     private int position;
-    private long copiedBytes;
+    private long usedBytes;
 
     private long first;
     private int valuesInPosition;
@@ -49,7 +49,7 @@ public final class LongLookup implements ReleasableIterator<LongBlock> {
         int estimatedSize = (int) Math.min(remaining, Math.max(Operator.MIN_TARGET_PAGE_SIZE + 1, maxValues));
         try (LongBlock.Builder builder = positions.blockFactory().newLongBlockBuilder(estimatedSize)) {
             int count = 0;
-            copiedBytes = 0;
+            usedBytes = 0;
             while (position < positions.getPositionCount()) {
                 int start = positions.getFirstValueIndex(position);
                 int end = start + positions.getValueCount(position);
@@ -58,14 +58,22 @@ public final class LongLookup implements ReleasableIterator<LongBlock> {
                     copy(builder, positions.getInt(i));
                 }
                 switch (valuesInPosition) {
-                    case 0 -> builder.appendNull();
+                    case 0 -> {
+                        // A null still takes a value slot.
+                        builder.appendNull();
+                        usedBytes += Long.BYTES;
+                    }
                     case 1 -> builder.appendLong(first);
-                    default -> builder.endPositionEntry();
+                    default -> {
+                        // A multivalued position adds a first value index.
+                        builder.endPositionEntry();
+                        usedBytes += Integer.BYTES;
+                    }
                 }
                 position++;
                 // TOOD what if the estimate is super huge? should we break even with less than MIN_TARGET?
-                // builder.estimatedBytes() includes the pre-sized capacity, so track the bytes actually copied.
-                if (++count > Operator.MIN_TARGET_PAGE_SIZE && copiedBytes >= targetByteSize) {
+                // builder.estimatedBytes() includes the pre-sized capacity, so track the bytes actually used.
+                if (++count > Operator.MIN_TARGET_PAGE_SIZE && usedBytes >= targetByteSize) {
                     break;
                 }
             }
@@ -82,7 +90,7 @@ public final class LongLookup implements ReleasableIterator<LongBlock> {
         for (int i = start; i < end; i++) {
             if (valuesInPosition == 0) {
                 first = values.getLong(i);
-                copiedBytes += Long.BYTES;
+                usedBytes += Long.BYTES;
                 valuesInPosition++;
                 continue;
             }
@@ -95,7 +103,7 @@ public final class LongLookup implements ReleasableIterator<LongBlock> {
                 throw new IllegalArgumentException("Found a single entry with " + valuesInPosition + " entries");
             }
             builder.appendLong(values.getLong(i));
-            copiedBytes += Long.BYTES;
+            usedBytes += Long.BYTES;
             valuesInPosition++;
         }
     }

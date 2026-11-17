@@ -23,7 +23,7 @@ public final class FloatLookup implements ReleasableIterator<FloatBlock> {
     private final IntBlock positions;
     private final long targetByteSize;
     private int position;
-    private long copiedBytes;
+    private long usedBytes;
 
     private float first;
     private int valuesInPosition;
@@ -49,7 +49,7 @@ public final class FloatLookup implements ReleasableIterator<FloatBlock> {
         int estimatedSize = (int) Math.min(remaining, Math.max(Operator.MIN_TARGET_PAGE_SIZE + 1, maxValues));
         try (FloatBlock.Builder builder = positions.blockFactory().newFloatBlockBuilder(estimatedSize)) {
             int count = 0;
-            copiedBytes = 0;
+            usedBytes = 0;
             while (position < positions.getPositionCount()) {
                 int start = positions.getFirstValueIndex(position);
                 int end = start + positions.getValueCount(position);
@@ -58,14 +58,22 @@ public final class FloatLookup implements ReleasableIterator<FloatBlock> {
                     copy(builder, positions.getInt(i));
                 }
                 switch (valuesInPosition) {
-                    case 0 -> builder.appendNull();
+                    case 0 -> {
+                        // A null still takes a value slot.
+                        builder.appendNull();
+                        usedBytes += Float.BYTES;
+                    }
                     case 1 -> builder.appendFloat(first);
-                    default -> builder.endPositionEntry();
+                    default -> {
+                        // A multivalued position adds a first value index.
+                        builder.endPositionEntry();
+                        usedBytes += Integer.BYTES;
+                    }
                 }
                 position++;
                 // TOOD what if the estimate is super huge? should we break even with less than MIN_TARGET?
-                // builder.estimatedBytes() includes the pre-sized capacity, so track the bytes actually copied.
-                if (++count > Operator.MIN_TARGET_PAGE_SIZE && copiedBytes >= targetByteSize) {
+                // builder.estimatedBytes() includes the pre-sized capacity, so track the bytes actually used.
+                if (++count > Operator.MIN_TARGET_PAGE_SIZE && usedBytes >= targetByteSize) {
                     break;
                 }
             }
@@ -82,7 +90,7 @@ public final class FloatLookup implements ReleasableIterator<FloatBlock> {
         for (int i = start; i < end; i++) {
             if (valuesInPosition == 0) {
                 first = values.getFloat(i);
-                copiedBytes += Float.BYTES;
+                usedBytes += Float.BYTES;
                 valuesInPosition++;
                 continue;
             }
@@ -95,7 +103,7 @@ public final class FloatLookup implements ReleasableIterator<FloatBlock> {
                 throw new IllegalArgumentException("Found a single entry with " + valuesInPosition + " entries");
             }
             builder.appendFloat(values.getFloat(i));
-            copiedBytes += Float.BYTES;
+            usedBytes += Float.BYTES;
             valuesInPosition++;
         }
     }

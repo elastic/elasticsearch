@@ -19,10 +19,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.BufferedMurmur3Hasher;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.sourcebatch.SourceBatchEncodeHelper;
+import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.xcontent.XContentString;
+import org.elasticsearch.xpack.core.analytics.mapper.HistogramEscfSchema;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPoint;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPointGroupingContext;
+import org.elasticsearch.xpack.oteldata.otlp.datapoint.ExponentialHistogramConverter;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.TargetIndex;
 
 import java.util.List;
@@ -33,10 +36,13 @@ import java.util.concurrent.TimeUnit;
  * Columnar counterpart to {@link MetricDocumentBuilder}: writes OTel metric data-point groups directly into
  * an ESCF batch without going through an intermediate XContent representation.
  *
+ * <p>Scalar metrics are written as a single leaf column under {@code metrics}. Structured metric values
+ * (histograms, exponential histograms, summaries) are written through cached sub-schemas such as
+ * {@link HistogramEscfSchema}, see {@link DataPoint#writeColumnarValue}.
+ *
  * <p>{@link #buildMetricRow} writes each group <b>optimistically</b> and returns {@code false} the moment it
- * encounters something that can't be expressed as ESCF columns — a non-scalar data point
- * (histogram/summary/exponential-histogram) or unsupported attributes — rather than scanning the group
- * upfront. A {@code false} return leaves the builder with a half-written row, so callers must discard the
+ * encounters something that can't be expressed as ESCF columns — unsupported attributes — rather than
+ * scanning the group upfront. A {@code false} return leaves the builder with a half-written row, so callers must discard the
  * builder and fall back to the {@link MetricDocumentBuilder} XContent path.
  *
  * <p>The field layout emitted by this class is identical to that of {@link MetricDocumentBuilder}: same field
@@ -72,6 +78,8 @@ public final class OTLPMetricBatchBuilder extends AbstractOTLPBatchBuilder {
     private int unitCol = NOT_REGISTERED;
     private int temporalityCol = NOT_REGISTERED;
     private int docCountCol = NOT_REGISTERED;
+
+    private final ExponentialHistogramConverter.BucketBuffer scratch = new ExponentialHistogramConverter.BucketBuffer();
 
     /** Creates a builder using {@code recycler} to back column byte buffers for high-throughput paths. */
     public OTLPMetricBatchBuilder(Recycler<BytesRef> recycler, MappingHints defaultMappingHints) {
@@ -116,6 +124,16 @@ public final class OTLPMetricBatchBuilder extends AbstractOTLPBatchBuilder {
         }
     }
 
+    /** Returns the column of the scalar metric {@code metricName} within the {@code metrics} object. */
+    public int getMetricLeafField(String metricName) {
+        return leafField(metricName, metricsParentCol);
+    }
+
+    /** Returns the sub-schema for the structured metric {@code metricName} within the {@code metrics} object. */
+    public <T> T getMetricSubSchema(String metricName, SourceSchema.SubSchemaFactory<T> factory) {
+        return getSubSchema(metricsParentCol, metricName, factory);
+    }
+
     private void writeRow(
         DataPointGroupingContext.DataPointGroup dataPointGroup,
         Map<String, String> dynamicTemplates,
@@ -151,13 +169,10 @@ public final class OTLPMetricBatchBuilder extends AbstractOTLPBatchBuilder {
         long docCount = 0;
         for (int i = 0; i < dataPoints.size(); i++) {
             DataPoint dataPoint = dataPoints.get(i);
-            if (dataPoint.supportsColumnarValue() == false) {
-                throw RowIneligibleException.INSTANCE;
-            }
             String metricName = dataPoint.getMetricName();
-            dataPoint.writeColumnarValue(this, leafField(metricName, metricsParentCol));
-
             MappingHints mappingHints = defaultMappingHints.withConfigFromAttributes(dataPoint.getAttributes());
+            dataPoint.writeColumnarValue(mappingHints, this, scratch);
+
             String dynamicTemplate = dataPoint.getDynamicTemplate(mappingHints);
             if (dynamicTemplate != null) {
                 String metricFieldPath = "metrics." + metricName;

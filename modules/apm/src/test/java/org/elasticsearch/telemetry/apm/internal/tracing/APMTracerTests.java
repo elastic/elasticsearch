@@ -31,8 +31,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
+import org.elasticsearch.telemetry.apm.internal.APMTracingService;
+import org.elasticsearch.telemetry.apm.internal.TracingSettingsUpdater;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
-import org.elasticsearch.telemetry.tracing.AttributeKeys;
 import org.elasticsearch.telemetry.tracing.Span;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
@@ -44,12 +45,12 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Stream;
 
 import static io.opentelemetry.api.common.AttributeKey.stringKey;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -88,6 +89,7 @@ public class APMTracerTests extends ESTestCase {
 
     private final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
     private final InMemorySpanExporter exporter = InMemorySpanExporter.create();
+    private TracingSettingsUpdater settingsUpdater;
     private final List<OpenTelemetrySdk> sdks = new ArrayList<>();
 
     @Before
@@ -101,7 +103,7 @@ public class APMTracerTests extends ESTestCase {
     }
 
     public void testConstructorWithMeterProviderSupplierDoesNotThrow() {
-        new APMTracer(threadContext, Settings.EMPTY, MeterProvider::noop);
+        new APMTracingService(threadContext, Settings.EMPTY, MeterProvider::noop);
     }
 
     public void testTracingCanBeEnabledAfterStartingDisabled() {
@@ -109,7 +111,7 @@ public class APMTracerTests extends ESTestCase {
         assertThat(isRecorded(tracer.spanBuilder("name1").startSpan()), is(false));
         assertThat(finishedSpanNames(), empty());
 
-        tracer.setEnabled(true);
+        updateSettings(Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true));
 
         startAndEnd(tracer, "name2");
         assertThat(finishedSpanNames(), containsInAnyOrder("name2"));
@@ -125,14 +127,14 @@ public class APMTracerTests extends ESTestCase {
         startAndEnd(tracer, "resume-test-1");
         assertThat(finishedSpanNames(), containsInAnyOrder("resume-test-1"));
 
-        tracer.setEnabled(false);
+        updateSettings(Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), false));
         exporter.reset();
         final Span disabled = tracer.spanBuilder("resume-test-2").startSpan();
         assertThat(isRecorded(disabled), is(false));
         disabled.end();
         assertThat(finishedSpanNames(), empty());
 
-        tracer.setEnabled(true);
+        updateSettings(Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true));
         startAndEnd(tracer, "resume-test-3");
         assertThat(finishedSpanNames(), containsInAnyOrder("resume-test-3"));
     }
@@ -150,8 +152,6 @@ public class APMTracerTests extends ESTestCase {
         final SpanData data = finishedSpan("name1");
         assertThat(data.getKind(), is(SpanKind.INTERNAL));
         assertThat(data.getParentSpanContext().isValid(), is(false));
-        assertThat(data.getAttributes().get(stringKey(AttributeKeys.NODE_NAME)), equalTo("test-node"));
-        assertThat(data.getAttributes().get(stringKey(AttributeKeys.CLUSTER_NAME)), equalTo("test-cluster"));
     }
 
     public void testStartSpanDoesNotChangeTheThreadContext() {
@@ -416,7 +416,7 @@ public class APMTracerTests extends ESTestCase {
 
     public void testNoParentOnADisabledTracerDoesNotRecord() {
         final APMTracer tracer = tracer(enabledSettings());
-        tracer.setEnabled(false);
+        settingsUpdater.update(disabledSettings());
 
         assertThat(isRecorded(tracer.spanBuilder("name1").setNoParent().startSpan()), is(false));
     }
@@ -538,62 +538,47 @@ public class APMTracerTests extends ESTestCase {
 
         try (var ignored = root.storeInThreadContext()) {
             assertThat(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER), notNullValue());
-            tracer.setEnabled(false);
+            updateSettings(Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), false));
 
-            final Span span = tracer.spanBuilder("name1").startSpan();
+            // not even the spans of the current trace are recorded
+            final Span span = tracer.spanBuilder("name1").setParent(root).startSpan();
             assertThat(isRecorded(span), is(false));
             try (var ignored2 = span.storeInThreadContext()) {
                 assertLocalTraceDropped();
             }
         }
+        root.end();
+
+        assertThat(finishedSpanNames(), not(hasItem("name1")));
     }
 
-    public void testSpanWithAFilteredOutNameDropsTheLocalTrace() {
-        final Settings settings = enabledSettingsBuilder().putList(
-            APMAgentSettings.TELEMETRY_TRACING_NAMES_INCLUDE_SETTING.getKey(),
-            List.of("filtered*")
-        ).build();
-        final APMTracer tracer = tracer(settings);
-        threadContext.putHeader(Task.TRACE_PARENT_HTTP_HEADER, TRACE_PARENT);
+    public void testSpansStartedWhileTheTracerIsDisabledAreNeverRecorded() {
+        final APMTracer tracer = tracer(disabledSettings());
 
         final Span span = tracer.spanBuilder("name1").startSpan();
-        assertThat(isRecorded(span), is(false));
-        try (var ignored = span.storeInThreadContext()) {
-            assertLocalTraceDropped();
-        }
 
+        settingsUpdater.update(enabledSettings());
+
+        // even though tracing is now enabled, the parent is sampled out, and will not allow to start a new child span
+        final Span child = tracer.spanBuilder("child").setParent(span).startSpan();
+
+        assertThat(span, instanceOf(APMSpan.class));
+        assertThat(isRecorded(span), is(false));
+        assertThat(isRecorded(child), is(false));
+        child.end();
+        span.end();
         assertThat(finishedSpanNames(), empty());
     }
 
-    /**
-     * A span that is filtered out is not recorded, and neither is anything that is started under it, but its siblings are not
-     * affected. It also stops the trace from being propagated from where it is stored, since there is no span to continue it.
-     */
-    public void testFilteredOutChildSpanDropsItsSubtree() {
-        final Settings settings = enabledSettingsBuilder().putList(
-            APMAgentSettings.TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING.getKey(),
-            List.of("excluded*")
-        ).build();
-        final APMTracer tracer = tracer(settings, 2);
-        final Span root = tracer.spanBuilder("root").startSpan();
+    public void testCurrentSpanOfADroppedTraceIsNotRecorded() {
+        final APMTracer tracer = tracer(disabledSettings());
+        final Span span = tracer.spanBuilder("name1").startSpan();
 
-        try (var ignored = root.storeInThreadContext()) {
-            final Span excluded = tracer.spanBuilder("excluded-child").startSpan();
-            assertThat(isRecorded(excluded), is(false));
-            try (var ignored2 = excluded.storeInThreadContext()) {
-                assertThat(spanContextOf(threadContext.getTransient(Task.APM_TRACE_CONTEXT)).isValid(), is(false));
-                assertThat(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER), nullValue());
-
-                // part of the dropped subtree
-                assertThat(isRecorded(tracer.spanBuilder("included-grandchild").startSpan()), is(false));
-            }
-            // the context of the parent is back, and so is the sibling's chance
-            startAndEnd(tracer, "included-child");
+        try (var ignored = span.storeInThreadContext()) {
+            final Span current = tracer.currentSpan();
+            assertThat(current, instanceOf(APMSpan.class));
+            assertThat(isRecorded(current), is(false));
         }
-        root.end();
-
-        assertThat(finishedSpanNames(), containsInAnyOrder("root", "included-child"));
-        assertThat(finishedSpan("included-child").getParentSpanId(), equalTo(finishedSpan("root").getSpanId()));
     }
 
     /**
@@ -630,7 +615,9 @@ public class APMTracerTests extends ESTestCase {
                 final Span grandchild = tracer.spanBuilder("grandchild").startSpan();
                 assertThat(isRecorded(grandchild), is(false));
                 try (var ignored3 = grandchild.storeInThreadContext()) {
-                    assertThat(currentSpanContext(), equalTo(discardedContext));
+                    // the decision is the one of the trace
+                    assertThat(currentSpanContext().getTraceId(), equalTo(discardedContext.getTraceId()));
+                    assertThat(currentSpanContext().isSampled(), is(false));
                 }
             }
         }
@@ -666,191 +653,6 @@ public class APMTracerTests extends ESTestCase {
         startAndEnd(tracer, "entry");
 
         assertThat(finishedSpan("entry").getTraceId(), equalTo(TRACE_ID));
-    }
-
-    public void testIncludedSpanNamesAreRecorded() {
-        final Settings settings = enabledSettingsBuilder().putList(
-            APMAgentSettings.TELEMETRY_TRACING_NAMES_INCLUDE_SETTING.getKey(),
-            List.of(
-                // exact name
-                "name-aaa",
-                // regex
-                "name-b*"
-            )
-        ).build();
-        final APMTracer tracer = tracer(settings);
-
-        for (String name : List.of("name-aaa", "name-bbb", "name-ccc")) {
-            startAndEnd(tracer, name);
-        }
-
-        assertThat(finishedSpanNames(), containsInAnyOrder("name-aaa", "name-bbb"));
-    }
-
-    public void testExcludedSpanNamesAreNotRecorded() {
-        final Settings settings = enabledSettingsBuilder().putList(
-            APMAgentSettings.TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING.getKey(),
-            List.of(
-                // exact name
-                "name-aaa",
-                // regex
-                "name-b*"
-            )
-        ).build();
-        final APMTracer tracer = tracer(settings);
-
-        for (String name : List.of("name-aaa", "name-bbb", "name-ccc")) {
-            startAndEnd(tracer, name);
-        }
-
-        assertThat(finishedSpanNames(), containsInAnyOrder("name-ccc"));
-    }
-
-    public void testExcludeTakesPrecedenceOverInclude() {
-        final Settings settings = enabledSettingsBuilder().putList(
-            APMAgentSettings.TELEMETRY_TRACING_NAMES_INCLUDE_SETTING.getKey(),
-            List.of("name-a*")
-        ).putList(APMAgentSettings.TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING.getKey(), List.of("name-a*")).build();
-        final APMTracer tracer = tracer(settings);
-
-        startAndEnd(tracer, "name-aaa");
-
-        assertThat(finishedSpanNames(), empty());
-    }
-
-    public void testSpanNameFiltersCanBeUpdated() {
-        final APMTracer tracer = tracer(enabledSettings());
-
-        tracer.setExcludeNames(List.of("name-a*"));
-        startAndEnd(tracer, "name-aaa");
-        startAndEnd(tracer, "name-bbb");
-        assertThat(finishedSpanNames(), containsInAnyOrder("name-bbb"));
-
-        tracer.setExcludeNames(List.of());
-        tracer.setIncludeNames(List.of("name-a*"));
-        startAndEnd(tracer, "name-aaa");
-        startAndEnd(tracer, "name-ccc");
-        assertThat(finishedSpanNames(), containsInAnyOrder("name-bbb", "name-aaa"));
-    }
-
-    public void testMaxDepthZeroRecordsOnlyTheRootSpan() {
-        final APMTracer tracer = tracer(enabledSettings(), 0);
-
-        final Span root = tracer.spanBuilder("root").startSpan();
-        final Span child = tracer.spanBuilder("child").setParent(root).startSpan();
-        assertThat(isRecorded(child), is(false));
-        child.end();
-        root.end();
-
-        assertThat(finishedSpanNames(), containsInAnyOrder("root"));
-    }
-
-    public void testSpanDroppedByALimitDropsItsSubtree() {
-        final APMTracer tracer = tracer(enabledSettings(), 0);
-        final Span root = tracer.spanBuilder("root").startSpan();
-
-        try (var ignored = root.storeInThreadContext()) {
-            final SpanContext rootContext = currentSpanContext();
-
-            final Span child = tracer.spanBuilder("child").startSpan();
-            assertThat(isRecorded(child), is(false));
-            try (var ignored2 = child.storeInThreadContext()) {
-                assertThat(spanContextOf(threadContext.getTransient(Task.APM_TRACE_CONTEXT)).isValid(), is(false));
-                assertThat(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER), nullValue());
-            }
-
-            // back to the root span
-            assertThat(currentSpanContext(), equalTo(rootContext));
-            assertThat(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER), equalTo(traceParent(rootContext)));
-        }
-        root.end();
-
-        assertThat(finishedSpanNames(), containsInAnyOrder("root"));
-    }
-
-    public void testMaxDepthOneRecordsTheChildButNotTheGrandchild() {
-        final APMTracer tracer = tracer(enabledSettings(), 1);
-
-        final Span root = tracer.spanBuilder("root").startSpan();
-        final Span child = tracer.spanBuilder("child").setParent(root).startSpan();
-        final Span grandchild = tracer.spanBuilder("grandchild").setParent(child).startSpan();
-        assertThat(isRecorded(grandchild), is(false));
-        grandchild.end();
-        child.end();
-        root.end();
-
-        assertThat(finishedSpanNames(), containsInAnyOrder("root", "child"));
-        assertThat(finishedSpan("child").getParentSpanId(), equalTo(finishedSpan("root").getSpanId()));
-    }
-
-    public void testMaxDepthAppliesToStoredParentsToo() {
-        final APMTracer tracer = tracer(enabledSettings(), 1);
-        final Span root = tracer.spanBuilder("root").startSpan();
-
-        try (var ignored = root.storeInThreadContext()) {
-            final Span child = tracer.spanBuilder("child").startSpan();
-            try (var ignored2 = child.storeInThreadContext()) {
-                assertThat(isRecorded(tracer.spanBuilder("grandchild").startSpan()), is(false));
-            }
-            child.end();
-        }
-        root.end();
-
-        assertThat(finishedSpanNames(), containsInAnyOrder("root", "child"));
-    }
-
-    public void testMaxSpansTwoDropsTheThirdChild() {
-        final Settings settings = enabledSettingsBuilder().put(OtelSdkSettings.TELEMETRY_TRACING_MAX_SPANS.getKey(), 2).build();
-        final APMTracer tracer = tracer(settings, 5);
-
-        final Span root = tracer.spanBuilder("root").startSpan();
-        for (String name : List.of("child-1", "child-2", "child-3")) {
-            tracer.spanBuilder(name).setParent(root).startSpan().end();
-        }
-        root.end();
-
-        assertThat(finishedSpanNames(), containsInAnyOrder("root", "child-1", "child-2"));
-    }
-
-    public void testMaxSpansIsSharedByTheWholeLocalTrace() {
-        final Settings settings = enabledSettingsBuilder().put(OtelSdkSettings.TELEMETRY_TRACING_MAX_SPANS.getKey(), 2).build();
-        final APMTracer tracer = tracer(settings, 5);
-
-        final Span root = tracer.spanBuilder("root").startSpan();
-        final Span child = tracer.spanBuilder("child").setParent(root).startSpan();
-        tracer.spanBuilder("grandchild").setParent(child).startSpan().end();
-        child.end();
-        tracer.spanBuilder("second-child").setParent(root).startSpan().end();
-        root.end();
-
-        assertThat(finishedSpanNames(), containsInAnyOrder("root", "child", "grandchild"));
-    }
-
-    public void testMaxDepthZeroRecordsTheEntrySpanOfARemoteTraceButNotItsLocalChildren() {
-        final APMTracer tracer = tracer(enabledSettings(), 0);
-        threadContext.putHeader(Task.TRACE_PARENT_HTTP_HEADER, TRACE_PARENT);
-
-        final Span entry = tracer.spanBuilder("entry-span").startSpan();
-        assertThat(isRecorded(tracer.spanBuilder("local-child").setParent(entry).startSpan()), is(false));
-        entry.end();
-
-        assertThat(finishedSpanNames(), containsInAnyOrder("entry-span"));
-        assertThat(finishedSpan("entry-span").getParentSpanId(), equalTo(SPAN_ID));
-    }
-
-    public void testLimitsCanBeUpdated() {
-        final APMTracer tracer = tracer(enabledSettings(), 0);
-        final Span root = tracer.spanBuilder("root").startSpan();
-        assertThat(isRecorded(tracer.spanBuilder("child-1").setParent(root).startSpan()), is(false));
-
-        tracer.setMaxTraceDepth(1);
-        tracer.setMaxSpans(1);
-
-        tracer.spanBuilder("child-2").setParent(root).startSpan().end();
-        assertThat(isRecorded(tracer.spanBuilder("child-3").setParent(root).startSpan()), is(false));
-        root.end();
-
-        assertThat(finishedSpanNames(), containsInAnyOrder("root", "child-2"));
     }
 
     public void testLocalRootSpanUsesTheTraceStartTime() {
@@ -948,67 +750,105 @@ public class APMTracerTests extends ESTestCase {
         span.end();
     }
 
-    public void testSensitiveAttributeValuesAreRedacted() {
+    public void testExcludedSpanNamesAreNotRecorded() {
+        final Settings settings = enabledSettingsBuilder().putList(
+            APMAgentSettings.TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING.getKey(),
+            List.of("name-a*")
+        ).build();
+        final APMTracer tracer = tracer(settings);
+
+        startAndEnd(tracer, "name-aaa");
+        startAndEnd(tracer, "name-bbb");
+
+        assertThat(finishedSpanNames(), containsInAnyOrder("name-bbb"));
+    }
+
+    public void testOnlyIncludedSpanNamesAreRecorded() {
+        final Settings settings = enabledSettingsBuilder().putList(
+            APMAgentSettings.TELEMETRY_TRACING_NAMES_INCLUDE_SETTING.getKey(),
+            List.of("name-a*")
+        ).build();
+        final APMTracer tracer = tracer(settings);
+
+        startAndEnd(tracer, "name-aaa");
+        startAndEnd(tracer, "name-bbb");
+
+        assertThat(finishedSpanNames(), containsInAnyOrder("name-aaa"));
+    }
+
+    public void testSpanNameFiltersCanBeUpdated() {
         final APMTracer tracer = tracer(enabledSettings());
 
-        tracer.spanBuilder("name1")
-            .setAttribute("password", "hunter2")
-            .setAttribute("http.request.headers.authorization", "Basic abc")
-            .setAttribute("session_id", 1234L)
-            .setAttribute("credit-card", 1.5d)
-            .setAttribute("my-token-flag", true)
-            .setAttribute("not.sensitive", "visible")
-            .startSpan()
-            .end();
+        updateSettings(Settings.builder().putList(APMAgentSettings.TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING.getKey(), "name-a*"));
+        startAndEnd(tracer, "name-aaa");
+        startAndEnd(tracer, "name-bbb");
+        assertThat(finishedSpanNames(), containsInAnyOrder("name-bbb"));
 
-        final Attributes attributes = finishedSpan("name1").getAttributes();
-        for (String key : List.of("password", "http.request.headers.authorization", "session_id", "credit-card", "my-token-flag")) {
-            assertThat(key, attributes.get(stringKey(key)), equalTo("[REDACTED]"));
+        updateSettings(
+            Settings.builder()
+                .putList(APMAgentSettings.TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING.getKey(), List.of())
+                .putList(APMAgentSettings.TELEMETRY_TRACING_NAMES_INCLUDE_SETTING.getKey(), "name-a*")
+        );
+        startAndEnd(tracer, "name-aaa");
+        startAndEnd(tracer, "name-ccc");
+        assertThat(finishedSpanNames(), containsInAnyOrder("name-bbb", "name-aaa"));
+    }
+
+    public void testMaxDepthZeroRecordsOnlyTheRootSpan() {
+        final APMTracer tracer = tracer(enabledSettings(), 0);
+
+        final Span root = tracer.spanBuilder("root").startSpan();
+        final Span child = tracer.spanBuilder("child").setParent(root).startSpan();
+        assertThat(isRecorded(child), is(false));
+        child.end();
+        root.end();
+
+        assertThat(finishedSpanNames(), containsInAnyOrder("root"));
+    }
+
+    public void testMaxDepthOneRecordsTheChildButNotTheGrandchild() {
+        final APMTracer tracer = tracer(enabledSettings(), 1);
+
+        final Span root = tracer.spanBuilder("root").startSpan();
+        final Span child = tracer.spanBuilder("child").setParent(root).startSpan();
+        final Span grandchild = tracer.spanBuilder("grandchild").setParent(child).startSpan();
+        assertThat(isRecorded(grandchild), is(false));
+        grandchild.end();
+        child.end();
+        root.end();
+
+        assertThat(finishedSpanNames(), containsInAnyOrder("root", "child"));
+    }
+
+    public void testMaxSpansDoesNotCountTheLocalRoot() {
+        final Settings settings = enabledSettingsBuilder().put(OtelSdkSettings.TELEMETRY_TRACING_MAX_SPANS.getKey(), 2).build();
+        final APMTracer tracer = tracer(settings, 5);
+
+        final Span root = tracer.spanBuilder("root").startSpan();
+        for (String name : List.of("child-1", "child-2", "child-3")) {
+            tracer.spanBuilder(name).setParent(root).startSpan().end();
         }
-        assertThat(attributes.get(stringKey("not.sensitive")), equalTo("visible"));
+        root.end();
+
+        assertThat(finishedSpanNames(), containsInAnyOrder("root", "child-1", "child-2"));
     }
 
-    public void testRedactedKeysCanBeUpdated() {
-        final APMTracer tracer = tracer(enabledSettings());
-        tracer.setLabelFilters(List.of("custom*"));
+    public void testLimitsCanBeUpdated() {
+        final APMTracer tracer = tracer(enabledSettings(), 0);
+        final Span root = tracer.spanBuilder("root").startSpan();
+        assertThat(isRecorded(tracer.spanBuilder("child-1").setParent(root).startSpan()), is(false));
 
-        tracer.spanBuilder("name1").setAttribute("custom-field", "a").setAttribute("password", "hunter2").startSpan().end();
+        updateSettings(
+            Settings.builder()
+                .put(OtelSdkSettings.TELEMETRY_TRACING_MAX_DEPTH.getKey(), 1)
+                .put(OtelSdkSettings.TELEMETRY_TRACING_MAX_SPANS.getKey(), 1)
+        );
 
-        final Attributes attributes = finishedSpan("name1").getAttributes();
-        assertThat(attributes.get(stringKey("custom-field")), equalTo("[REDACTED]"));
-        assertThat(attributes.get(stringKey("password")), equalTo("hunter2"));
-    }
+        tracer.spanBuilder("child-2").setParent(root).startSpan().end();
+        assertThat(isRecorded(tracer.spanBuilder("child-3").setParent(root).startSpan()), is(false));
+        root.end();
 
-    public void testDefaultSensitiveKeysAreMatchedByTheLabelFilter() {
-        final var labelFilterAutomaton = tracer(disabledSettings()).getLabelFilterAutomaton();
-
-        Stream.of(
-            "auth",
-            "auth-header",
-            "authValue",
-            "card",
-            "card-details",
-            "card-number",
-            "credit",
-            "credit-card",
-            "key",
-            "my-credit-number",
-            "my_session_id",
-            "passwd",
-            "password",
-            "principal",
-            "principal-value",
-            "pwd",
-            "secret",
-            "secure-key",
-            "sensitive-token*",
-            "session",
-            "session_id",
-            "set-cookie",
-            "some-auth",
-            "some-principal",
-            "token-for login"
-        ).forEach(key -> assertTrue("Expected label filter automaton to redact [" + key + "]", labelFilterAutomaton.run(key)));
+        assertThat(finishedSpanNames(), containsInAnyOrder("root", "child-2"));
     }
 
     public void testSpanKindIsInternalUnlessSet() {
@@ -1020,30 +860,6 @@ public class APMTracerTests extends ESTestCase {
 
         assertThat(finishedSpan("server-span").getKind(), is(SpanKind.SERVER));
         assertThat(finishedSpan("internal-span").getKind(), is(SpanKind.INTERNAL));
-    }
-
-    public void testHeadersAreRecordedAsAttributes() {
-        final APMTracer tracer = tracer(enabledSettings());
-        final String projectId = randomAlphaOfLength(16);
-        final String opaqueId = randomAlphaOfLength(16);
-        threadContext.putHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId);
-        threadContext.putHeader(Task.X_OPAQUE_ID_HTTP_HEADER, opaqueId);
-
-        startAndEnd(tracer, "name1");
-
-        final Attributes attributes = finishedSpan("name1").getAttributes();
-        assertThat(attributes.get(stringKey("project.id")), equalTo(projectId));
-        assertThat(attributes.get(stringKey("es.x-opaque-id")), equalTo(opaqueId));
-    }
-
-    public void testNoHeaderAttributesWithoutTheHeaders() {
-        final APMTracer tracer = tracer(enabledSettings());
-
-        startAndEnd(tracer, "name1");
-
-        final Attributes attributes = finishedSpan("name1").getAttributes();
-        assertThat(attributes.get(stringKey("project.id")), nullValue());
-        assertThat(attributes.get(stringKey("es.x-opaque-id")), nullValue());
     }
 
     public void testRecordExceptionWithStacksDisabledEmitsTypeAndMessageOnly() {
@@ -1086,7 +902,7 @@ public class APMTracerTests extends ESTestCase {
 
     public void testRecordExceptionStacksCanBeUpdated() {
         final APMTracer tracer = tracer(enabledSettings(), 0, false);
-        tracer.setRecordExceptionStacks(true);
+        updateSettings(Settings.builder().put(OtelSdkSettings.TELEMETRY_TRACING_RECORD_EXCEPTION_STACKS.getKey(), true));
 
         final Span span = tracer.spanBuilder("span-with-error").startSpan();
         span.recordException(new IllegalStateException("boom"));
@@ -1127,6 +943,11 @@ public class APMTracerTests extends ESTestCase {
 
     // helpers
 
+    /** Changes the settings of the tracer that was created last, the way an update of the cluster settings does. */
+    private void updateSettings(Settings.Builder changes) {
+        settingsUpdater.update(changes.build());
+    }
+
     private static Settings.Builder enabledSettingsBuilder() {
         return Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true);
     }
@@ -1152,21 +973,27 @@ public class APMTracerTests extends ESTestCase {
     }
 
     private APMTracer tracer(Settings settings, int maxTraceDepth, boolean recordExceptionStacks, Sampler sampler) {
-        final SdkTracerProvider tracerProvider = SdkTracerProvider.builder()
-            .setSampler(sampler)
-            .addSpanProcessor(SimpleSpanProcessor.create(exporter))
+        final Settings allSampled = Settings.builder()
+            .put(settings)
+            .put(OtelSdkSettings.TELEMETRY_TRACING_SAMPLE_RATE.getKey(), 1.0)
+            .put(OtelSdkSettings.TELEMETRY_TRACING_MAX_DEPTH.getKey(), maxTraceDepth)
+            .put(OtelSdkSettings.TELEMETRY_TRACING_RECORD_EXCEPTION_STACKS.getKey(), recordExceptionStacks)
             .build();
-        final OpenTelemetrySdk sdk = OpenTelemetrySdk.builder()
-            .setTracerProvider(tracerProvider)
-            .setPropagators(ContextPropagators.create(W3CTraceContextPropagator.getInstance()))
-            .build();
-        sdks.add(sdk);
-
-        final APMTracer tracer = new APMTracer(threadContext, settings, () -> sdk, maxTraceDepth, recordExceptionStacks);
-        tracer.setNodeName("test-node");
-        tracer.setClusterName("test-cluster");
-        tracer.start();
-        return tracer;
+        final APMTracingService service = new APMTracingService(threadContext, allSampled, () -> {
+            final SdkTracerProvider tracerProvider = SdkTracerProvider.builder()
+                .setSampler(sampler)
+                .addSpanProcessor(SimpleSpanProcessor.create(exporter))
+                .build();
+            final OpenTelemetrySdk sdk = OpenTelemetrySdk.builder()
+                .setTracerProvider(tracerProvider)
+                .setPropagators(ContextPropagators.create(W3CTraceContextPropagator.getInstance()))
+                .build();
+            sdks.add(sdk);
+            return sdk;
+        });
+        settingsUpdater = new TracingSettingsUpdater(service, allSampled);
+        service.start();
+        return service.tracer();
     }
 
     private static void startAndEnd(Tracer tracer, String name) {
@@ -1198,6 +1025,13 @@ public class APMTracerTests extends ESTestCase {
         return TimeUnit.SECONDS.toNanos(instant.getEpochSecond()) + instant.getNano();
     }
 
+    /** Asserts that the thread context marks the local trace as dropped and that no trace context is propagated. */
+    private void assertLocalTraceDropped() {
+        assertThat(currentSpanContext().isValid(), is(false));
+        assertThat(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER), nullValue());
+        assertThat(threadContext.getHeader(Task.TRACE_STATE), nullValue());
+    }
+
     private SpanContext currentSpanContext() {
         return spanContextOf(threadContext.getTransient(Task.APM_TRACE_CONTEXT));
     }
@@ -1213,12 +1047,5 @@ public class APMTracerTests extends ESTestCase {
 
     private static String traceParent(SpanContext spanContext) {
         return "00-" + spanContext.getTraceId() + "-" + spanContext.getSpanId() + "-" + spanContext.getTraceFlags().asHex();
-    }
-
-    /** Asserts that the thread context marks the local trace as dropped and that no trace context is propagated. */
-    private void assertLocalTraceDropped() {
-        assertThat(currentSpanContext().isValid(), is(false));
-        assertThat(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER), nullValue());
-        assertThat(threadContext.getHeader(Task.TRACE_STATE), nullValue());
     }
 }

@@ -113,14 +113,12 @@ public class APMSpan implements Span, SpanStatusBuilder {
         // the propagator does not write an empty tracestate, so make sure that no stale value is left behind
         threadContext.removeHeaders(Task.TRACE_PARENT_HTTP_HEADER, Task.TRACE_STATE);
 
-        var services = tracer.services();
-        if (services == null) {
-            return;
-        }
         // propagate current trace headers into thread context
-        services.openTelemetry()
-            .getPropagators()
-            .getTextMapPropagator()
-            .inject(context, threadContext, (tc, key, value) -> requireNonNull(tc).putHeaderAllowOverwrite(key, value));
+        if (tracer.isEnabled()) {
+            tracer.openTelemetry()
+                .getPropagators()
+                .getTextMapPropagator()
+                .inject(context, threadContext, (tc, key, value) -> requireNonNull(tc).putHeaderAllowOverwrite(key, value));
+        }
     }
 }

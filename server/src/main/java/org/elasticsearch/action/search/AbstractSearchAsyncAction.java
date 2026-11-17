@@ -745,7 +745,8 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
                     : null,
                 buildSearchContextId(failures)
             );
-            if (results instanceof QueryPhaseResultConsumer queryPhaseResultConsumer) {
+            // noinspection resource - owned and closed by this action
+            if (queryPhaseResults() instanceof QueryPhaseResultConsumer queryPhaseResultConsumer) {
                 if (request.bufferSubSearchResponseForMultiSearch()) {
                     long handoffBytes = queryPhaseResultConsumer.transferAggregationBreakerBytesForMultiSearch();
                     if (handoffBytes > 0) {
@@ -758,6 +759,14 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
             }
             ActionListener.respondAndRelease(listener, searchResponse);
         }
+    }
+
+    /**
+     * The results of the query phase, which hold the reduced aggregations and their charge. These are the results of the first phase
+     * unless a subclass runs the query phase after another one, like the DFS search.
+     */
+    SearchPhaseResults<?> queryPhaseResults() {
+        return results;
     }
 
     void recordStoreMetrics(DirectoryMetrics directoryMetrics) {

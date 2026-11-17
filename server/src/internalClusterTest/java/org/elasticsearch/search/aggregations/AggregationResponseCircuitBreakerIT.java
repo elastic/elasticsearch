@@ -11,6 +11,7 @@ package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -35,6 +36,15 @@ public class AggregationResponseCircuitBreakerIT extends ESIntegTestCase {
     private static final String INDEX = "aggregation_response";
 
     public void testResponseHoldsAggregationChargeUntilReleased() throws Exception {
+        assertResponseHoldsAggregationChargeUntilReleased(SearchType.QUERY_THEN_FETCH);
+    }
+
+    /** The DFS search keeps its query phase results apart from the results of its DFS phase, so it hands the charge over too. */
+    public void testDfsResponseHoldsAggregationChargeUntilReleased() throws Exception {
+        assertResponseHoldsAggregationChargeUntilReleased(SearchType.DFS_QUERY_THEN_FETCH);
+    }
+
+    private void assertResponseHoldsAggregationChargeUntilReleased(SearchType searchType) throws Exception {
         // The test cluster can make a node's request breaker a noop one, which charges nothing.
         String node = internalCluster().startNode(Settings.builder().put("indices.breaker.request.type", "memory"));
         assertAcked(
@@ -51,6 +61,7 @@ public class AggregationResponseCircuitBreakerIT extends ESIntegTestCase {
 
         long breakerBefore = requestBreakerUsed(node);
         SearchResponse response = client(node).prepareSearch(INDEX)
+            .setSearchType(searchType)
             .setSize(0)
             .setRequestCache(false)
             .addAggregation(terms("tags").field("tag").size(tags).subAggregation(max("max_n").field("n")))

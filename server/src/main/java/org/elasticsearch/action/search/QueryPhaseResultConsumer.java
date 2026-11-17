@@ -27,6 +27,7 @@ import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
@@ -201,8 +202,16 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         if (bytes == 0) {
             return;
         }
-        response.adoptAggregationCharge(Releasables.assertOnce(() -> circuitBreaker.addWithoutBreaking(-bytes)));
+        response.adoptAggregationCharge(releaseCharge(circuitBreaker, bytes));
         circuitBreakerBytes = 0;
+    }
+
+    /**
+     * Releases {@code bytes} from {@code breaker} when closed. Static, so the response that holds it doesn't keep this consumer and its
+     * last partial merge result alive.
+     */
+    private static Releasable releaseCharge(CircuitBreaker breaker, long bytes) {
+        return Releasables.assertOnce(() -> breaker.addWithoutBreaking(-bytes));
     }
 
     @Override

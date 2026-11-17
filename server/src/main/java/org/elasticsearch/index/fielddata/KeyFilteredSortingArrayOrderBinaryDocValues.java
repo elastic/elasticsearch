@@ -20,6 +20,7 @@ import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Objects;
 
 /**
  * Reader for the {@link MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull} binary doc-values format that filters slots by a target
@@ -38,10 +39,7 @@ public final class KeyFilteredSortingArrayOrderBinaryDocValues extends SortingBi
     private final BytesRef targetKey;
     private final ByteArrayStreamInput in = new ByteArrayStreamInput();
 
-    /**
-     * @param targetKey the key whose values to return, or {@code null} to return the values of every key
-     */
-    public KeyFilteredSortingArrayOrderBinaryDocValues(BinaryDocValues binary, NumericDocValues counts, @Nullable BytesRef targetKey) {
+    private KeyFilteredSortingArrayOrderBinaryDocValues(BinaryDocValues binary, NumericDocValues counts, @Nullable BytesRef targetKey) {
         this.binary = binary;
         this.counts = counts;
         this.targetKey = targetKey;
@@ -53,6 +51,14 @@ public final class KeyFilteredSortingArrayOrderBinaryDocValues extends SortingBi
      */
     public static KeyFilteredSortingArrayOrderBinaryDocValues allKeys(BinaryDocValues binary, NumericDocValues counts) {
         return new KeyFilteredSortingArrayOrderBinaryDocValues(binary, counts, null);
+    }
+
+    /**
+     * Reads the values of one key, which is how a keyed sub-field of a flattened field reads its values. The key is copied, so later
+     * changes to {@code targetKey} do not change which slots match.
+     */
+    public static KeyFilteredSortingArrayOrderBinaryDocValues forKey(BinaryDocValues binary, NumericDocValues counts, BytesRef targetKey) {
+        return new KeyFilteredSortingArrayOrderBinaryDocValues(binary, counts, BytesRef.deepCopyOf(Objects.requireNonNull(targetKey)));
     }
 
     /**

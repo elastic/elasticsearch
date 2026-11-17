@@ -1501,7 +1501,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                 var binary = context.reader().getBinaryDocValues(delegate.getFieldName());
                 var counts = context.reader()
                     .getNumericDocValues(delegate.getFieldName() + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX);
-                var dv = new KeyFilteredSortingArrayOrderBinaryDocValues(binary, counts, new BytesRef(key));
+                var dv = KeyFilteredSortingArrayOrderBinaryDocValues.forKey(binary, counts, new BytesRef(key));
                 return new LeafFieldData() {
                     @Override
                     public long ramBytesUsed() {

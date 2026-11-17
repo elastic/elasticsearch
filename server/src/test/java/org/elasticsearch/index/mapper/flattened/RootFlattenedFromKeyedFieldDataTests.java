@@ -18,6 +18,7 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.TestUtil;
@@ -27,6 +28,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fielddata.KeyFilteredSortingArrayOrderBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
@@ -35,6 +37,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -225,6 +228,30 @@ public class RootFlattenedFromKeyedFieldDataTests extends ESTestCase {
                     assertTrue(values.advanceExact(0));
                     assertEquals(1, values.docValueCount());
                     assertEquals(new BytesRef(""), values.nextValue());
+                }
+            }
+        }
+    }
+
+    public void testForKeyIsNotChangedByLaterChangesToTheKey() throws IOException {
+        assumeTrue("only the array order layout is read by key", layout == Layout.ARRAY_ORDER_INLINE_NULL);
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = newRandomIndexWriter(dir, layout)) {
+                addArrayOrderDoc(writer, new Slot("k1", "one"), new Slot("k2", "two"));
+
+                try (IndexReader reader = openReader(writer)) {
+                    LeafReader leaf = reader.leaves().get(0).reader();
+                    byte[] key = "k1".getBytes(StandardCharsets.UTF_8);
+                    SortableBinaryDocValues values = KeyFilteredSortingArrayOrderBinaryDocValues.forKey(
+                        leaf.getBinaryDocValues(KEYED_FIELD),
+                        leaf.getNumericDocValues(KEYED_FIELD + ".counts"),
+                        new BytesRef(key)
+                    );
+                    key[1] = '2';
+
+                    assertTrue(values.advanceExact(0));
+                    assertEquals(1, values.docValueCount());
+                    assertEquals(new BytesRef("one"), values.nextValue());
                 }
             }
         }

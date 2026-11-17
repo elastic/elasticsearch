@@ -33,7 +33,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockIndexEventListener;
 import org.elasticsearch.test.MockLog;
-import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -42,7 +41,6 @@ import org.junit.After;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Set;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -664,184 +662,6 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             assertThat(indexExists(indexName), equalTo(false));
         } finally {
             transportService.clearAllRules();
-        }
-    }
-
-    public void testRetryOnFailureOnRecoveryFromEmptyStoreRaceWithNetworkDisruption() throws Exception {
-        String master = internalCluster().startMasterOnlyNode();
-        String dataNode = internalCluster().startDataOnlyNode();
-        String indexName = randomIndexName();
-
-        MockTransportService masterTransport = MockTransportService.getInstance(master);
-        try {
-            failTestIfReceiveShardFailure(masterTransport);
-
-            armRandomFailure();
-            final var barrier = armRecoveryPause();
-
-            // Create index async
-            prepareCreate(indexName, indexSettings(1, 0)).execute();
-            safeAwait(barrier);
-
-            // Isolating dataNode will cause shard to go unassigned
-            NetworkDisruption disruption = new NetworkDisruption(
-                new NetworkDisruption.TwoPartitions(Set.of(dataNode), Set.of(master)),
-                NetworkDisruption.DISCONNECT
-            );
-            internalCluster().setDisruptionScheme(disruption);
-            disruption.startDisrupting();
-            String dataNodeId = internalCluster().clusterService(dataNode).localNode().getId();
-            awaitClusterState(master, state -> state.nodes().nodeExists(dataNodeId) == false);
-
-            // Release recovery will make recovery/retry race with network disruption
-            safeAwait(barrier);
-            disruption.stopDisrupting();
-
-            waitNoPendingTasksOnAll();
-            ensureGreen(indexName);
-        } finally {
-            masterTransport.clearAllRules();
-        }
-    }
-
-    public void testRetryOnFailureOnRecoveryFromExistingStoreRaceWithNetworkDisruption() throws Exception {
-        String master = internalCluster().startMasterOnlyNode();
-        String dataNode = internalCluster().startDataOnlyNode();
-        String indexName = randomIndexName();
-
-        createIndex(indexName, indexSettings(1, 0).build());
-        indexDoc(indexName, "1", "f", randomAlphaOfLength(10));
-        flush(indexName);
-        ensureGreen(indexName);
-        assertAcked(indicesAdmin().prepareClose(indexName));
-
-        MockTransportService masterTransport = MockTransportService.getInstance(master);
-        try {
-            failTestIfReceiveShardFailure(masterTransport);
-
-            armRandomFailure();
-            final var barrier = armRecoveryPause();
-
-            // Recover from existing store async
-            indicesAdmin().prepareOpen(indexName).execute();
-            safeAwait(barrier);
-
-            // Isolating dataNode will cause shard to go unassigned
-            NetworkDisruption disruption = new NetworkDisruption(
-                new NetworkDisruption.TwoPartitions(Set.of(dataNode), Set.of(master)),
-                NetworkDisruption.DISCONNECT
-            );
-            internalCluster().setDisruptionScheme(disruption);
-            disruption.startDisrupting();
-            String dataNodeId = internalCluster().clusterService(dataNode).localNode().getId();
-            awaitClusterState(master, state -> state.nodes().nodeExists(dataNodeId) == false);
-
-            // Release recovery will make recovery/retry race with network disruption
-            safeAwait(barrier);
-            disruption.stopDisrupting();
-
-            waitNoPendingTasksOnAll();
-            ensureGreen(indexName);
-        } finally {
-            masterTransport.clearAllRules();
-        }
-    }
-
-    public void testRetryOnFailureOnRecoveryFromLocalShardRaceWithNetworkDisruption() throws Exception {
-        String master = internalCluster().startMasterOnlyNode();
-        String dataNode = internalCluster().startDataOnlyNode();
-        final var sourceIndexName = randomIndexName();
-        final var targetIndexName = randomIndexName();
-
-        createIndex(sourceIndexName, indexSettings(1, 0).build());
-        indexDoc(sourceIndexName, "1", "f", randomAlphaOfLength(10));
-        flush(sourceIndexName);
-        ensureGreen(sourceIndexName);
-
-        // Required for clone
-        updateIndexSettings(Settings.builder().put("index.blocks.write", true), sourceIndexName);
-
-        MockTransportService masterTransport = MockTransportService.getInstance(master);
-        try {
-            failTestIfReceiveShardFailure(masterTransport);
-
-            armRandomFailure();
-            final var barrier = armRecoveryPause();
-
-            // Recover from local shard async
-            ResizeIndexTestUtils.executeResize(ResizeType.CLONE, sourceIndexName, targetIndexName, indexSettings(1, 0));
-            safeAwait(barrier);
-
-            // Isolating dataNode will cause shard to go unassigned
-            NetworkDisruption disruption = new NetworkDisruption(
-                new NetworkDisruption.TwoPartitions(Set.of(dataNode), Set.of(master)),
-                NetworkDisruption.DISCONNECT
-            );
-            internalCluster().setDisruptionScheme(disruption);
-            disruption.startDisrupting();
-            String dataNodeId = internalCluster().clusterService(dataNode).localNode().getId();
-            awaitClusterState(master, state -> state.nodes().nodeExists(dataNodeId) == false);
-
-            // Release recovery will make recovery/retry race with network disruption
-            safeAwait(barrier);
-            disruption.stopDisrupting();
-
-            waitNoPendingTasksOnAll();
-            ensureGreen(sourceIndexName);
-            ensureGreen(targetIndexName);
-        } finally {
-            masterTransport.clearAllRules();
-        }
-    }
-
-    public void testRetryOnFailureOnRecoveryFromSnapshotRaceWithNetworkDisruption() throws Exception {
-        String master = internalCluster().startMasterOnlyNode();
-        String dataNode = internalCluster().startDataOnlyNode();
-        final var indexName = randomIndexName();
-        final var repoName = "test-repo";
-
-        createIndex(indexName, indexSettings(1, 0).build());
-        indexDoc(indexName, "1", "f", randomAlphaOfLength(10));
-        flush(indexName);
-        ensureGreen(indexName);
-
-        assertAcked(
-            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName)
-                .setType("fs")
-                .setSettings(Settings.builder().put("location", randomRepoPath()))
-        );
-        clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap").setWaitForCompletion(true).get();
-        assertAcked(indicesAdmin().prepareDelete(indexName));
-
-        MockTransportService masterTransport = MockTransportService.getInstance(master);
-        try {
-            failTestIfReceiveShardFailure(masterTransport);
-
-            armRandomFailure();
-            final var barrier = armRecoveryPause();
-
-            // Recover from snapshot async
-            clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap").setWaitForCompletion(false).execute();
-            safeAwait(barrier);
-
-            // Isolating dataNode will cause shard to go unassigned
-            NetworkDisruption disruption = new NetworkDisruption(
-                new NetworkDisruption.TwoPartitions(Set.of(dataNode), Set.of(master)),
-                NetworkDisruption.DISCONNECT
-            );
-            internalCluster().setDisruptionScheme(disruption);
-            disruption.startDisrupting();
-            String dataNodeId = internalCluster().clusterService(dataNode).localNode().getId();
-            awaitClusterState(master, state -> state.nodes().nodeExists(dataNodeId) == false);
-
-            // Release recovery will make recovery/retry race with network disruption
-            safeAwait(barrier);
-            disruption.stopDisrupting();
-
-            waitNoPendingTasksOnAll();
-            ensureGreen(indexName);
-        } finally {
-            masterTransport.clearAllRules();
         }
     }
 

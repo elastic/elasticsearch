@@ -22,6 +22,7 @@ import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.example.ExampleParquetWriter;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
+import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 import org.apache.parquet.internal.column.columnindex.OffsetIndex;
 import org.apache.parquet.io.ColumnIOFactory;
 import org.apache.parquet.io.OutputFile;
@@ -40,6 +41,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -899,6 +901,36 @@ public class CompositeAssemblyTests extends ESTestCase {
             }
         }
         return out.toByteArray();
+    }
+
+    /**
+     * The deferred-extraction route refuses too, and it fails differently from the baseline iterator.
+     * It resolves its columns through {@code resolveColumnInfo}, which re-derives the type from the schema
+     * without the switch, so a composite lands in the null slot that the route reads as "absent or
+     * unsupported" and constant-null-fills. Not wrong values -- a silent column of nulls, which is worse
+     * than no answer because nothing in the response says the column was not read.
+     */
+    public void testDeferredExtractionRefusesComposites() throws IOException {
+        byte[] file = writeFile();
+        StorageObject storageObject = createStorageObject(file);
+        BlockFactory blockFactory = newBlockFactory();
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory).withCompositeAssemblyForTests(true);
+        ParquetMetadata footer;
+        try (
+            ParquetFileReader fileReader = ParquetFileReader.open(
+                new ParquetStorageObjectAdapter(storageObject, FooterByteCache.fromSettings(Settings.EMPTY), blockFactory.breaker()),
+                PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build()
+            )
+        ) {
+            footer = fileReader.getFooter();
+        }
+        ParquetColumnExtractor extractor = new ParquetColumnExtractor(storageObject, reader, footer, ErrorPolicy.PERMISSIVE);
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> extractor.extract(new String[] { "id", "items" }, null, new long[] { 0, 1, 2 }, blockFactory)
+        );
+        assertThat(e.getMessage(), containsString("composite assembly is only implemented in the optimized iterator"));
+        assertThat(e.getMessage(), containsString("items"));
     }
 
     private static Map<String, DataType> typesByName(SourceMetadata metadata) {

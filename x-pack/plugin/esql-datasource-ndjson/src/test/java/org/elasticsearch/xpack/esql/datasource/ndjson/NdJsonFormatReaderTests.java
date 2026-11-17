@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.datasources.DrainSimulatingStorageObject;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -704,6 +705,72 @@ public class NdJsonFormatReaderTests extends ESTestCase {
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         outBreaker[0] = breaker;
         return BlockFactory.builder(bigArrays).breaker(breaker).build();
+    }
+
+    /**
+     * Which byte a message may quote is decided from {@code context.recordAligned()}, and the two arms have to be
+     * pinned together because the decision is one condition over two inputs. A record-aligned chunk's start byte is
+     * on the same axis as the records it counts, so the message quotes it. An unaligned later split's is not — it is
+     * a boundary in the compressed file — so the byte is withheld and the clause says only that the ordinal was
+     * counted inside a split.
+     * <p>
+     * The condition previously read {@code chunkMode}, which {@code read()} demotes to false when the object has no
+     * last-modified time; that is about whether the stats cache can participate and says nothing about the byte
+     * axis, so it suppressed a correct byte on an aligned chunk of an object served without one. Keyed as it is now,
+     * the aligned arm below keeps its byte whatever the object's metadata says.
+     */
+    public void testOnlyAnUnalignedLaterSplitWithholdsTheByte() throws IOException {
+        byte[] bytes = "{\"v\":1}\n{\"v\":\"nope\"}\n".getBytes(StandardCharsets.UTF_8);
+        List<Attribute> schema = List.of(NdJsonSchemaInferrer.attribute("v", DataType.LONG, true));
+
+        String unaligned = warningsFromSplit(bytes, schema, false).toString();
+        assertThat("an unaligned later split must say the ordinal is split-relative", unaligned, containsString("counted within a split"));
+        assertThat("a byte on the compressed axis must not be printed", unaligned, not(containsString("counted from byte")));
+
+        String aligned = warningsFromSplit(bytes, schema, true).toString();
+        assertThat("a record-aligned chunk's byte is on the records' own axis", aligned, containsString("counted from byte [9999]"));
+        assertThat(aligned, not(containsString("counted within a split")));
+
+        // An object served without a Last-Modified header is the case that made the old keying wrong: read() demotes
+        // chunkMode for it, so a condition reading chunkMode suppressed a byte that was never in doubt.
+        String undated = warningsFromSplit(new UndatedBytesObject(bytes), schema, true).toString();
+        assertThat("no mtime is about the stats cache, not about the byte axis", undated, containsString("counted from byte [9999]"));
+    }
+
+    /** An object the store serves with no Last-Modified, which {@code read()} treats as unable to join the stats cache. */
+    private static final class UndatedBytesObject extends BytesObject {
+        UndatedBytesObject(byte[] bytes) {
+            super(bytes);
+        }
+
+        @Override
+        public Instant lastModified() {
+            return null;
+        }
+    }
+
+    private List<String> warningsFromSplit(byte[] bytes, List<Attribute> schema, boolean recordAligned) throws IOException {
+        return warningsFromSplit(new BytesObject(bytes), schema, recordAligned);
+    }
+
+    private List<String> warningsFromSplit(StorageObject object, List<Attribute> schema, boolean recordAligned) throws IOException {
+        List<String> warnings = new ArrayList<>();
+        FormatReadContext context = FormatReadContext.builder()
+            .batchSize(100)
+            .errorPolicy(ErrorPolicy.LENIENT)
+            .firstSplit(false)
+            .lastSplit(true)
+            .recordAligned(recordAligned)
+            .splitStartByte(9999L)
+            .readSchema(schema)
+            .informationalWarningSink(warnings::add)
+            .build();
+        try (CloseableIterator<Page> pages = new NdJsonFormatReader(null, blockFactory).read(object, context)) {
+            while (pages.hasNext()) {
+                pages.next().releaseBlocks();
+            }
+        }
+        return warnings;
     }
 
     // -- helpers --

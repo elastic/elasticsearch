@@ -12213,10 +12213,11 @@ public class CsvFormatReaderTests extends ESTestCase {
      * On a block-aligned split of a splittable compressed object the reader is handed {@code recordAligned=false}:
      * the split offset is a boundary in the COMPRESSED file while the ordinal counts decompressed records, and this
      * reader additionally discards a leading partial record the previous split already reported. A byte printed
-     * there would send the reader of the message to the wrong place without their being able to tell, so the clause
-     * is withheld. The object and the ordinal still appear.
+     * there would send the reader of the message to the wrong place without their being able to tell, so the byte
+     * is withheld. The clause still has to say that the ordinal was counted inside a split, because the wording
+     * left over otherwise is the wording of a read from byte zero, whose ordinal IS the file's.
      */
-    public void testABlockAlignedSplitNamesNoByte() throws IOException {
+    public void testABlockAlignedSplitWithholdsTheByteAndSaysSo() throws IOException {
         List<Attribute> schema = splitSchema();
         FormatReadContext ctx = FormatReadContext.builder()
             .batchSize(10)
@@ -12234,7 +12235,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             createStorageObject("partial,fragment\nbad_id,Carol\n4,Dan\n"),
             ctx
         );
-        assertThat(detail, equalTo("row [1] of [test.csv]: cannot read [bad_id] as [long]"));
+        assertThat(detail, equalTo("row [1] of [test.csv] counted within a split: cannot read [bad_id] as [long]"));
         assertThat("a byte on the wrong axis must not be printed", detail, not(containsString("counted from byte")));
     }
 

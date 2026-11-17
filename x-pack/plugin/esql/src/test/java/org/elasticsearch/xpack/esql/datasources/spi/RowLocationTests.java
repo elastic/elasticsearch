@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.nio.charset.StandardCharsets;
+
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -46,13 +48,86 @@ public class RowLocationTests extends ESTestCase {
     }
 
     /**
-     * A reader that cannot vouch for a file-global byte passes {@link RowLocation#BYTE_UNKNOWN} and the clause is
-     * dropped rather than guessed, because the reader of a wrong byte has no way to tell it is wrong.
+     * A reader that cannot vouch for a file-global byte passes {@link RowLocation#BYTE_UNKNOWN}, and the byte is
+     * withheld rather than guessed, because the reader of a wrong byte has no way to tell it is wrong. The clause
+     * still has to say that the ordinal was counted inside a split: dropping it altogether would render the same
+     * text as a read from byte zero, which is the file's own ordinal, so the message would go back to claiming a
+     * file position it does not have.
      */
-    public void testAnUnknownByteIsWithheldRatherThanPrinted() {
-        assertThat(RowLocation.of(5, "v.csv", RowLocation.BYTE_UNKNOWN), equalTo("row [5] of [v.csv]"));
-        assertThat(RowLocation.of(5, "v.csv", RowLocation.BYTE_UNKNOWN, "id"), equalTo("row [5] of [v.csv], column [id]"));
-        assertThat(RowLocation.of(5, "v.csv", -42L), equalTo("row [5] of [v.csv]"));
+    public void testAnUnknownByteStillSaysTheOrdinalIsCountedInASplit() {
+        assertThat(RowLocation.of(5, "v.csv", RowLocation.BYTE_UNKNOWN), equalTo("row [5] of [v.csv] counted within a split"));
+        assertThat(
+            RowLocation.of(5, "v.csv", RowLocation.BYTE_UNKNOWN, "id"),
+            equalTo("row [5] of [v.csv] counted within a split, column [id]")
+        );
+        assertThat(RowLocation.of(5, "v.csv", -42L), equalTo("row [5] of [v.csv] counted within a split"));
+        assertThat(
+            "an unknown byte must not read as a read from the start of the file",
+            RowLocation.of(5, "v.csv", RowLocation.BYTE_UNKNOWN),
+            not(equalTo(RowLocation.of(5, "v.csv", 0L)))
+        );
+    }
+
+    /**
+     * The readers hand this whole clause to {@code logger.warn} as well as to the client warning, so an object name
+     * is the one piece of store-supplied text in a node log line. An S3 key may hold a newline, and the console and
+     * legacy log layouts write a message as it stands, so an unescaped one would let a key counterfeit a log line.
+     */
+    public void testAControlCharacterInAnObjectNameCannotForgeALogLine() {
+        String clause = RowLocation.of(3, "a\n[2026-11-17T00:00:00,000][WARN ][o.e.n.Node] forged.csv", 0L);
+        assertThat("no raw newline may survive into a log line", clause, not(containsString("\n")));
+        assertThat("no raw carriage return either", clause, not(containsString("\r")));
+        assertThat("the character is named rather than dropped", clause, containsString("000A"));
+        assertThat("the rest of the name is untouched", clause, containsString("forged.csv"));
+        assertThat(RowLocation.of(3, "a\u0000b.csv", 0L), equalTo("row [3] of [a\\u0000b.csv]"));
+    }
+
+    /**
+     * Escaping expands a control character into six, so it has to run before the cap — capping first would let a
+     * name made of control characters grow past the bound afterwards, which is the bound the response header needs.
+     */
+    public void testEscapingCannotPushTheNamePastTheCap() {
+        String clause = RowLocation.of(1, "\n".repeat(20) + ".csv", 0L);
+        assertThat(clause.length(), lessThanOrEqualTo("row [1] of []".length() + RowLocation.MAX_OBJECT_NAME_CHARS));
+        assertThat(clause, not(containsString("\n")));
+    }
+
+    /**
+     * Either cut falls on an arbitrary UTF-16 index and so can land between the halves of a surrogate pair. The
+     * property that matters is downstream: the clause travels as UTF-8 on both channels, and an unpaired surrogate
+     * encodes to no UTF-8 sequence, so a clause carrying one does not survive the trip unchanged.
+     */
+    public void testNeitherCutLeavesAnUnpairedSurrogate() {
+        String grin = "\uD83D\uDE00";
+        // The head cut keeps [0, 30), so a pair at 29-30 would be halved by it.
+        assertSurvivesUtf8(RowLocation.of(1, "a".repeat(29) + grin + "b".repeat(40), 0L));
+        // The tail cut keeps the last 31 characters, so a pair at 40-41 of a 72-character name would be halved.
+        assertSurvivesUtf8(RowLocation.of(1, "a".repeat(40) + grin + "b".repeat(30), 0L));
+        // A pair wholly inside a kept end must come through as the character it is.
+        assertThat(RowLocation.of(1, grin + "x".repeat(300) + grin + ".csv", 0L), containsString(grin));
+    }
+
+    private void assertSurvivesUtf8(String clause) {
+        assertThat(clause.length(), lessThanOrEqualTo("row [1] of []".length() + RowLocation.MAX_OBJECT_NAME_CHARS));
+        assertThat(
+            "an unpaired surrogate does not survive UTF-8, got: " + clause,
+            new String(clause.getBytes(StandardCharsets.UTF_8), StandardCharsets.UTF_8),
+            equalTo(clause)
+        );
+    }
+
+    /**
+     * A reader reduces the name once, where it assigns its message-location field, so the summary warning and the
+     * details under it carry the same token; {@link RowLocation#of} reduces it again. The two passes must agree,
+     * or a long or control-bearing name would render one way in the summary and another in the detail, which reads
+     * as two different objects.
+     */
+    public void testReducingTheNameTwiceChangesNothing() {
+        for (String name : new String[] { "v.csv", "p".repeat(300) + ".csv", "a\nb.csv", "\n".repeat(20) + ".csv" }) {
+            String once = RowLocation.displayObjectName(name);
+            assertThat(RowLocation.displayObjectName(once), equalTo(once));
+            assertThat(RowLocation.of(1, once, 0L), equalTo(RowLocation.of(1, name, 0L)));
+        }
     }
 
     /**

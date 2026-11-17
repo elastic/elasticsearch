@@ -544,7 +544,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             safeAwait(barrier);
             final var deleted = indicesAdmin().prepareDelete(indexName).execute();
 
-            // Release will make recovery/retry race with index deletion
+            // Release will make recovery failure race with index deletion
             safeAwait(barrier);
 
             assertAcked(deleted);
@@ -577,7 +577,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             safeAwait(barrier);
             final var deleted = indicesAdmin().prepareDelete(indexName).execute();
 
-            // Release recovery will make recovery/retry race with index deletion
+            // Release will make recovery failure race with index deletion
             safeAwait(barrier);
 
             assertAcked(deleted);
@@ -613,7 +613,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             safeAwait(barrier);
             final var deleted = indicesAdmin().prepareDelete(targetIndexName).execute();
 
-            // Release recovery will make recovery/retry race with index deletion
+            // Release will make recovery failure race with index deletion
             safeAwait(barrier);
 
             assertAcked(deleted);
@@ -654,7 +654,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             safeAwait(barrier);
             final var deleted = indicesAdmin().prepareDelete(indexName).execute();
 
-            // Release recovery will make recovery/retry race with index deletion
+            // Release will make recovery failure race with index deletion
             safeAwait(barrier);
 
             assertAcked(deleted);

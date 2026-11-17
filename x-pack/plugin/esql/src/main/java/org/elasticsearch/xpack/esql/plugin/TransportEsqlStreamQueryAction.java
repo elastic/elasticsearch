@@ -21,6 +21,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.activity.QueryInterceptor;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
@@ -228,8 +229,9 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         EsqlExecutionInfo executionInfo,
         PageStreamPublisher publisher,
         AtomicReference<Result> resultRef,
-        ActionListener<ActionResponse.Empty> listener
+        ActionListener<ActionResponse.Empty> streamListener
     ) {
+        ActionListener<ActionResponse.Empty> listener = computeService.coordinate(task, streamListener);
         EsqlFlags flags = computeService.createFlags();
         String sessionId = getOrCreateSessionID(task);
         AtomicBoolean streamStarted = new AtomicBoolean(false);
@@ -250,6 +252,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                 Configuration configuration,
                 FoldContext foldCtx,
                 PlanTimeProfile planTimeProfile,
+                ByteSizeValue maxResultSize,
                 ActionListener<Result> resultListener
             ) {
                 if (QuerySettings.UNMAPPED_FIELDS.get(configuration.resolvedSettings()).loadsAllUnmappedFields()) {
@@ -265,6 +268,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                         foldCtx,
                         executionInfo,
                         planTimeProfile,
+                        maxResultSize,
                         resultListener.map(r -> {
                             completedWork.accumulate(r.completionInfo());
                             return r;
@@ -304,6 +308,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                             foldCtx,
                             executionInfo,
                             planTimeProfile,
+                            maxResultSize,
                             resultListener
                         );
                     } catch (Exception e) {

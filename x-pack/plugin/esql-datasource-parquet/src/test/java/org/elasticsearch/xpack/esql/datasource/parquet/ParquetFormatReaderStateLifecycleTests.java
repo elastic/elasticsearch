@@ -89,6 +89,7 @@ public class ParquetFormatReaderStateLifecycleTests extends ESTestCase {
         Map.entry("withDeclaredProvenanceBinding", WitherLifecycle.CREATES_COPY),
         Map.entry("withHeaderBindingByProvenance", WitherLifecycle.IDENTITY_NO_COPY),
         Map.entry("withReadConfig", WitherLifecycle.IDENTITY_NO_COPY),
+        Map.entry("withBlockFactory", WitherLifecycle.IDENTITY_NO_COPY),
         Map.entry("withSchemaSampleShare", WitherLifecycle.IDENTITY_NO_COPY)
     );
 
@@ -227,6 +228,8 @@ public class ParquetFormatReaderStateLifecycleTests extends ESTestCase {
             case "withDeclaredProvenanceBinding" -> new Object[] { true };
             case "withHeaderBindingByProvenance" -> new Object[] { false };
             case "withReadConfig" -> new Object[] { "" };
+            case "withBlockFactory" -> new Object[] {
+                BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build() };
             case "withSchemaSampleShare" -> new Object[] { 8 };
             default -> throw new AssertionError("update sampleArgsFor() for new wither: " + wither);
         };

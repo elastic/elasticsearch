@@ -404,7 +404,7 @@ public final class MinLongGroupingAggregatorFunction implements GroupingAggregat
   }
 
   @Override
-  public boolean supportPartitioning() {
+  public boolean supportPartitioning(AggregatorMode mode) {
     return true;
   }
 

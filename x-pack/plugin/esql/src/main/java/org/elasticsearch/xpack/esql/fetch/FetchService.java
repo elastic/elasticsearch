@@ -394,7 +394,9 @@ public final class FetchService {
                     null,
                     new PlanTimeProfile(),
                     0L,
-                    false
+                    false,
+                    null,
+                    null
                 );
             }
             return DriverCompletionInfo.excludingProfiles(List.of(driver), 0L, false);

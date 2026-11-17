@@ -145,6 +145,7 @@ import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rank.feature.RankFeatureShardRequest;
 import org.elasticsearch.search.rank.feature.RankFeatureShardResult;
 import org.elasticsearch.search.suggest.SuggestBuilder;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
@@ -469,8 +470,8 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
 
             // The cancelled fetch must fail the scroll rather than complete it.
             final var e = expectThrows(SearchPhaseExecutionException.class, () -> scrollFuture.actionGet(10, TimeUnit.SECONDS));
-            assertEquals(1, e.shardFailures().length);
-            assertNotNull(ExceptionsHelper.unwrap(e.shardFailures()[0].getCause(), TaskCancelledException.class));
+            assertEquals(1, e.shardFailures().size());
+            assertNotNull(ExceptionsHelper.unwrap(e.shardFailures().getFirst().getCause(), TaskCancelledException.class));
         } finally {
             ParkedScrollQueryBuilder.release.set(true);
             opened.decRef();
@@ -496,7 +497,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                 SearchPhaseExecutionException.class,
                 () -> client().prepareSearchScroll(opened.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).get()
             );
-            assertNotNull(ExceptionsHelper.unwrap(e.shardFailures()[0].getCause(), TaskCancelledException.class));
+            assertNotNull(ExceptionsHelper.unwrap(e.shardFailures().getFirst().getCause(), TaskCancelledException.class));
         } finally {
             client().prepareClearScroll().addScrollId(opened.getScrollId()).get();
             opened.decRef();
@@ -960,6 +961,19 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             }
             service.freeReaderContext(queryResult.getContextId());
         }
+    }
+
+    /**
+     * A part left open by its owner is closed when the owner's task is removed, so the node stops tracking the query.
+     */
+    public void testRemovedTaskClosesItsQueryParts() {
+        SearchService service = getInstanceFromNode(SearchService.class);
+        TaskManager taskManager = getInstanceFromNode(TransportService.class).getTaskManager();
+        Task task = taskManager.register("transport", "test", new SearchRequest());
+        service.queryScheduler().part(new TaskId("coordinator", randomNonNegativeLong()), task.getId());
+        assertThat(service.queryScheduler().queries(), equalTo(1));
+        taskManager.unregister(task);
+        assertThat(service.queryScheduler().queries(), equalTo(0));
     }
 
     public void testRankFeaturePhaseUsingClient() {

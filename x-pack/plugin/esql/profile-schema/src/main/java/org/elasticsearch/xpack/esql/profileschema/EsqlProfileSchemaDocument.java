@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.profileschema;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.DriverSleeps;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.compute.operator.PlanProfile;
 import org.elasticsearch.compute.operator.ProfileSchema;
 import org.elasticsearch.xpack.esql.action.EsqlQueryProfile;
@@ -128,13 +129,16 @@ public final class EsqlProfileSchemaDocument {
         }
         Map<String, Object> status = new LinkedHashMap<>();
         status.put("anyOf", statusAlternatives);
-        Map<String, Object> withStatusProperties = new LinkedHashMap<>();
-        withStatusProperties.put("operator", ProfileSchema.string());
+        // Every property OperatorStatus declares other than its status, so a field added there reaches the published schema.
+        // The status is the one property described here, because its type is the union of all operator statuses.
+        Map<String, Object> withoutStatusProperties = new LinkedHashMap<>(properties(copy(OperatorStatus.PROFILE_SCHEMA.schema())));
+        withoutStatusProperties.remove("status");
+        Map<String, Object> withStatusProperties = new LinkedHashMap<>(withoutStatusProperties);
         withStatusProperties.put("status", status);
         return Map.of(
             "anyOf",
             List.of(
-                strictObject(Map.of("operator", ProfileSchema.string()), List.of("operator")),
+                strictObject(withoutStatusProperties, List.of("operator")),
                 strictObject(withStatusProperties, List.of("operator", "status"))
             )
         );

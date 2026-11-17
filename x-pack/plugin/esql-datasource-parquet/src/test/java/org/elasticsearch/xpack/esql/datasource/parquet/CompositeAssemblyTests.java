@@ -17,6 +17,9 @@ import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.example.data.Group;
 import org.apache.parquet.example.data.simple.SimpleGroupFactory;
 import org.apache.parquet.example.data.simple.convert.GroupRecordConverter;
+import org.apache.parquet.filter2.compat.FilterCompat;
+import org.apache.parquet.filter2.predicate.FilterApi;
+import org.apache.parquet.filter2.predicate.FilterPredicate;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.example.ExampleParquetWriter;
@@ -43,6 +46,10 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
@@ -54,6 +61,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -68,9 +76,11 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.PrimitiveIterator;
 import java.util.Set;
+import java.util.function.LongPredicate;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 
 /**
@@ -980,6 +990,140 @@ public class CompositeAssemblyTests extends ESTestCase {
             }
         }
         assertEquals("every row must be read exactly once", ROWS, seen);
+    }
+
+    /**
+     * The same read under a pushed predicate, which is where a composite can silently drift out of step
+     * with the rest of the row.
+     * <p>
+     * Two filtering layers are crossed, and a composite is read differently from every other column on
+     * both. The row-group prune turns the predicate into row ranges, so the store exposes selected row
+     * indexes and parquet-mr builds a synchronizing column reader -- correlation survives that without
+     * anything here arranging it. The record-level layer then re-evaluates the predicate on decoded values
+     * and can drop a whole batch, and on that path every other column is skipped through its own reader
+     * while a composite has none: it has to be advanced by reading and discarding, or it stays behind and
+     * every later batch in the row group pairs its values with the wrong rows.
+     * <p>
+     * Three predicates, chosen so batches are dropped rather than merely narrowed: a tail, a head, and a
+     * band in the middle. Rows are matched to the oracle by their own {@code id}, so a drift of even one
+     * row is a mismatch rather than an off-by-one nobody notices.
+     */
+    public void testFilteredReadMatchesOracle() throws IOException {
+        byte[] file = writeFile();
+        assertFilteredReadMatchesOracle(file, FilterApi.gtEq(FilterApi.longColumn("id"), 4000L), id -> id >= 4000);
+        assertFilteredReadMatchesOracle(file, FilterApi.lt(FilterApi.longColumn("id"), 500L), id -> id < 500);
+        assertFilteredReadMatchesOracle(
+            file,
+            FilterApi.and(FilterApi.gtEq(FilterApi.longColumn("id"), 1200L), FilterApi.lt(FilterApi.longColumn("id"), 1800L)),
+            id -> id >= 1200 && id < 1800
+        );
+    }
+
+    private void assertFilteredReadMatchesOracle(byte[] file, FilterPredicate predicate, LongPredicate keeps) throws IOException {
+        ParquetFormatReader reader = new ParquetFormatReader(newBlockFactory()).withCompositeAssemblyForTests(true)
+            .withPushedFilter(FilterCompat.get(predicate));
+        List<Long> seenIds = new ArrayList<>();
+        try (
+            CloseableIterator<Page> pages = reader.read(
+                createStorageObject(file),
+                FormatReadContext.builder().batchSize(64).projectedColumns(List.of("id", "items", "attrs", "tags")).build()
+            )
+        ) {
+            while (pages.hasNext()) {
+                Page page = pages.next();
+                try {
+                    LongBlock ids = (LongBlock) page.getBlock(0);
+                    BytesRefBlock items = (BytesRefBlock) page.getBlock(1);
+                    BytesRefBlock attrs = (BytesRefBlock) page.getBlock(2);
+                    BytesRefBlock tags = (BytesRefBlock) page.getBlock(3);
+                    for (int pos = 0; pos < page.getPositionCount(); pos++) {
+                        long id = ids.getLong(ids.getFirstValueIndex(pos));
+                        int row = (int) id;
+                        assertEquals("items at row " + row, expectedItemsJson(row), textAt(items, pos));
+                        assertEquals("attrs at row " + row, expectedAttrsJson(row), textAt(attrs, pos));
+                        assertEquals("tags at row " + row, expectedTagsValues(row), multivalueAt(tags, pos));
+                        seenIds.add(id);
+                    }
+                } finally {
+                    Releasables.close(page::releaseBlocks);
+                }
+            }
+        }
+        // A pushed predicate PRUNES pages; it does not filter rows. The reader returns a superset and the
+        // query layer above it applies the predicate, so the contract to assert is that no matching row is
+        // missing, that the ids arrive in order, and that fewer than all rows were read -- which is what
+        // makes this a filtered read rather than the unfiltered one wearing a predicate.
+        for (int i = 1; i < seenIds.size(); i++) {
+            assertThat("ids must arrive in file order", seenIds.get(i), greaterThan(seenIds.get(i - 1)));
+        }
+        Set<Long> seen = new LinkedHashSet<>(seenIds);
+        long matching = 0;
+        for (long id = 0; id < ROWS; id++) {
+            if (keeps.test(id)) {
+                matching++;
+                assertTrue("row " + id + " matches the predicate and must be read", seen.contains(id));
+            }
+        }
+        assertThat("the prune must drop something, or this tests the unfiltered path", seenIds.size(), lessThan(ROWS));
+        assertThat("every matching row is present", (long) seenIds.size(), greaterThanOrEqualTo(matching));
+    }
+
+    /**
+     * The one path where a composite has to be advanced by hand: a batch the row-level predicate drops
+     * entirely. An ES|QL pushed expression, unlike a parquet-mr predicate, is re-evaluated inside the
+     * iterator on decoded values, so whole batches can come out with no survivors. On that path every
+     * other column is skipped through its own reader; a composite has none, and if it is not advanced it
+     * stays behind for the rest of the row group and each later batch pairs its values with the wrong
+     * rows -- silently, since nothing downstream can tell a mispaired struct from a real one.
+     * <p>
+     * The predicate keeps a tail of the file so that early batches are dropped whole and later ones are
+     * kept, which is the order that exposes the drift. Each surviving row is matched to the oracle by its
+     * own {@code id}.
+     */
+    public void testPredicateDroppedBatchesKeepCompositesAligned() throws IOException {
+        byte[] file = writeFile();
+        Expression tail = new GreaterThanOrEqual(
+            Source.EMPTY,
+            new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG),
+            new Literal(Source.EMPTY, 4000L, DataType.LONG),
+            null
+        );
+        ParquetFormatReader reader = new ParquetFormatReader(newBlockFactory()).withCompositeAssemblyForTests(true)
+            .withPushedFilter(new ParquetPushedExpressions(List.of(tail)));
+        List<Long> seenIds = new ArrayList<>();
+        try (
+            CloseableIterator<Page> pages = reader.read(
+                createStorageObject(file),
+                FormatReadContext.builder().batchSize(64).projectedColumns(List.of("id", "items", "attrs", "tags")).build()
+            )
+        ) {
+            while (pages.hasNext()) {
+                Page page = pages.next();
+                try {
+                    LongBlock ids = (LongBlock) page.getBlock(0);
+                    BytesRefBlock items = (BytesRefBlock) page.getBlock(1);
+                    BytesRefBlock attrs = (BytesRefBlock) page.getBlock(2);
+                    BytesRefBlock tags = (BytesRefBlock) page.getBlock(3);
+                    for (int pos = 0; pos < page.getPositionCount(); pos++) {
+                        int row = (int) ids.getLong(ids.getFirstValueIndex(pos));
+                        assertEquals("items at row " + row, expectedItemsJson(row), textAt(items, pos));
+                        assertEquals("attrs at row " + row, expectedAttrsJson(row), textAt(attrs, pos));
+                        assertEquals("tags at row " + row, expectedTagsValues(row), multivalueAt(tags, pos));
+                        seenIds.add((long) row);
+                    }
+                } finally {
+                    Releasables.close(page::releaseBlocks);
+                }
+            }
+        }
+        for (int i = 1; i < seenIds.size(); i++) {
+            assertThat("ids must arrive in file order", seenIds.get(i), greaterThan(seenIds.get(i - 1)));
+        }
+        Set<Long> seen = new LinkedHashSet<>(seenIds);
+        for (long id = 4000; id < ROWS; id++) {
+            assertTrue("row " + id + " matches the predicate and must be read", seen.contains(id));
+        }
+        assertThat("batches must be dropped, or no composite needs advancing", seenIds.size(), lessThan(ROWS));
     }
 
     /** The tag values written for row {@code i}, which arrive as a multivalue keyword rather than as text. */

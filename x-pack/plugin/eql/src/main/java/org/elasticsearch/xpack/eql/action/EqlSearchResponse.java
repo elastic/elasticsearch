@@ -124,7 +124,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         this.asyncExecutionId = asyncExecutionId;
         this.isRunning = isRunning;
         this.isPartial = isPartial;
-        this.shardFailures = shardFailures.toArray(ShardSearchFailure.EMPTY_ARRAY);
+        this.shardFailures = shardFailures == null ? ShardSearchFailure.EMPTY_ARRAY : shardFailures.toArray(ShardSearchFailure.EMPTY_ARRAY);
     }
 
     public EqlSearchResponse(StreamInput in) throws IOException {

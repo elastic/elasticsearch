@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWitho
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataFilter;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
@@ -60,6 +61,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryCom
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinarySet;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -104,6 +106,18 @@ public record TranslationContext(
         this(cmd, analyzer, null, open(), null);
     }
 
+    /**
+     * The translation of a child whose result drops the metric name, as most Prometheus functions and operators do: every
+     * packing the enclosing translation requires leaves {@code __name__} out, and a {@code __name__} it requires by name reads
+     * as absent. Only a source storing the metric name as a dimension holds one to drop.
+     */
+    public TranslationContext withoutMetricName() {
+        if (cmd.storesMetricName() == false) {
+            return this;
+        }
+        return withRequired(TranslationSchema.subtract(required, List.of(LabelMatcher.NAME)));
+    }
+
     /** Translate an independent child without changing the enclosing branch's timing or aggregation state. */
     public TranslationContext withRequired(TranslationSchema childRequired) {
         return new TranslationContext(cmd, analyzer, stepBucketAlias, childRequired, time);
@@ -122,6 +136,14 @@ public record TranslationContext(
 
     public Configuration configuration() {
         return analyzer.configuration();
+    }
+
+    /**
+     * Whether the translation may read and rewrite labels in a {@code _timeseries} with the label container functions: only
+     * when every node knows them.
+     */
+    public boolean containerFunctions() {
+        return PromqlCommand.containerFunctions(analyzer.minimumVersion());
     }
 
     public Attribute stepAttr() {
@@ -153,8 +175,8 @@ public record TranslationContext(
 
         if (branches.size() == 1) {
             IntermediateResult intermediateResult = translateIntermediate(cmd.promqlPlan(), cmd.stepId(), cmd.valueId());
-            Attribute declared = find(cmd.output(), mapOpen());
-            LogicalPlan plan = emitTimeSeriesAlias(intermediateResult, declared != null ? declared.id() : new NameId());
+            // A fresh id: the command projection binds the declared _timeseries to it by name.
+            LogicalPlan plan = emitTimeSeriesAlias(intermediateResult, new NameId());
             return doTranslateFinal(plan, intermediateResult.kind().constant);
         }
         // Compile every branch as its own module (own step/value ids, own shifted evaluation timestamp), then link.
@@ -173,16 +195,26 @@ public record TranslationContext(
     /**
      * A finished table exposes its packing under the canonical {@code _timeseries} name. Packings travel under
      * their derived names so nodes can tell them apart; the one surviving at a root is whatever the enclosing
-     * regroups left, and the command declares it as {@code _timeseries}.
+     * regroups left, and the command declares it as {@code _timeseries}. With the label container functions it is
+     * the canonical label container, so a packing loaded from the source and one a translation rewrote read alike.
      */
     private LogicalPlan emitTimeSeriesAlias(IntermediateResult table, NameId id) {
         Set<String> skip = table.schema().finestSkip();
-        if (skip == null || skip.isEmpty()) {
+        if (skip == null || (skip.isEmpty() && containerFunctions() == false)) {
             return table.plan();
         }
         Attribute packed = table.packed(skip);
         assert packed != null : "invariant: packing " + skip + " must be carried by the finished table";
-        return new Eval(cmd.source(), table.plan(), List.of(new Alias(cmd.source(), MetadataAttribute.TIMESERIES, packed, id)));
+        Expression value = containerFunctions() ? canonical(packed) : packed;
+        return new Eval(cmd.source(), table.plan(), List.of(new Alias(cmd.source(), MetadataAttribute.TIMESERIES, value, id)));
+    }
+
+    /**
+     * The canonical label container of a packing: labels named as PromQL names them and sorted, so equal label sets compare
+     * equal whether the source held them nested, prefixed or in another order.
+     */
+    public static Expression canonical(Expression packing) {
+        return new TimeSeriesMetadataFilter(packing.source(), packing, List.of(), true);
     }
 
     /**

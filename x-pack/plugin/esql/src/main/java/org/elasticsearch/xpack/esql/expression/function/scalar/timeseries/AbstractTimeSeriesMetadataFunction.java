@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.timeseries;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -32,6 +33,14 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * keyword {@code _timeseries} JSON object of a series' dimensions, which reads as the label container it holds.
  */
 public abstract class AbstractTimeSeriesMetadataFunction extends EsqlScalarFunction {
+    /**
+     * Nodes that know the label container functions. A plan reaches a node only when it knows every function in it, so a
+     * translation emits these functions only when every node does.
+     */
+    public static final TransportVersion ESQL_TIMESERIES_METADATA_FUNCTIONS = TransportVersion.fromName(
+        "esql_timeseries_metadata_functions"
+    );
+
     protected AbstractTimeSeriesMetadataFunction(Source source, List<Expression> arguments) {
         super(source, arguments);
     }

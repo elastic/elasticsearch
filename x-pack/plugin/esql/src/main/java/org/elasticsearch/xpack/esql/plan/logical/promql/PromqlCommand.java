@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.promql;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.TimestampBoundsAware;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.AbstractTimeSeriesMetadataFunction;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
@@ -400,7 +402,12 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
         );
     }
 
-    public void verify(Failures failures, int maxBranches, String limitSource) {
+    /** Whether a translation may use the label container functions: only when every node, as of {@code minimumVersion}, knows them. */
+    public static boolean containerFunctions(TransportVersion minimumVersion) {
+        return minimumVersion.supports(AbstractTimeSeriesMetadataFunction.ESQL_TIMESERIES_METADATA_FUNCTIONS);
+    }
+
+    public void verify(Failures failures, int maxBranches, String limitSource, boolean containerFunctions) {
         LogicalPlan p = promqlPlan();
         boolean hasStep = step.value() != null;
         boolean hasRangeAndBuckets = start.value() != null && end.value() != null && buckets.value() != null;
@@ -955,12 +962,14 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
         }
         Set<String> left = metricNames(op.left());
         Set<String> right = metricNames(op.right());
-        return left.isEmpty() == false
-            && right.isEmpty() == false
-            && left.equals(right) == false
-            && child().output()
-                .stream()
-                .anyMatch(a -> a instanceof FieldAttribute f && f.isDimension() && LabelMatcher.NAME.equals(PromqlLabels.labelName(f)));
+        return left.isEmpty() == false && right.isEmpty() == false && left.equals(right) == false && storesMetricName();
+    }
+
+    /** Whether the source stores the metric name as a {@code __name__} dimension, as Prometheus remote write does. */
+    public boolean storesMetricName() {
+        return child().output()
+            .stream()
+            .anyMatch(a -> a instanceof FieldAttribute f && f.isDimension() && LabelMatcher.NAME.equals(PromqlLabels.labelName(f)));
     }
 
     private static Set<String> metricNames(LogicalPlan plan) {

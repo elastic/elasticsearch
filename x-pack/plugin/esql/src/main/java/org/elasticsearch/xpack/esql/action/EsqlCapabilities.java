@@ -2809,6 +2809,14 @@ public class EsqlCapabilities {
         FIX_PROMQL_OFFSET_PRECEDENCE(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
+         * PromQL shapes the translation admits by reading labels through references bound after it, rather than from
+         * concrete label columns: the {@code and} and {@code unless} set operators, vector matching between operands whose
+         * labels stay in the label container, unmatched comparisons nested under aggregations, {@code label_replace}
+         * or reductions, and a filter comparison with a computed scalar on the left. Gates test coverage of those shapes.
+         */
+        PROMQL_LABEL_REFERENCES(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * Support for the {@code TS_COLLAPSE} pipe command, which collapses PromQL results
          * into one multi-valued row per series.
          */
@@ -4271,6 +4279,46 @@ public class EsqlCapabilities {
         PROMQL_LABEL_FUNCTIONS_V2(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
+         * PromQL {@code label_join} whose result is empty, such as a join of no labels, removes the destination label as in
+         * Prometheus, rather than setting it to the empty string. Comes with translating PromQL over the label container.
+         */
+        FIX_PROMQL_LABEL_JOIN_EMPTY_REMOVES_LABEL(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
+         * PromQL value transforms, range functions other than {@code first_over_time}/{@code last_over_time}, and arithmetic
+         * drop a {@code __name__} stored as a label, as Prometheus does.
+         */
+        FIX_PROMQL_DROP_STORED_METRIC_NAME(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
+         * PromQL groups by a non-dimension label under {@code by(...)} also when an inner {@code without(...)} carries it, as it
+         * does directly over the source.
+         */
+        FIX_PROMQL_CARRIED_FIELD_LABELS(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
+         * PromQL filter comparisons against a scalar keep the vector's value whichever side the scalar is on, and a scalar
+         * computed from the source, such as {@code scalar(sum(x))}, may be the right-hand side.
+         */
+        FIX_PROMQL_SCALAR_COMPARISON(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
+         * PromQL arithmetic/comparison binaries join independent operand pipelines when they cannot share one aggregation:
+         * different {@code offset}s, nested across-series next to another operand, aggregated x raw, and {@code scalar()} x
+         * labeled (step-broadcast). Opaque {@code topk}/{@code bottomk}/{@code limitk}/{@code limit_ratio} join over a typed
+         * label container; a keyword one still rejects them. Gates csv-spec coverage of those shapes.
+         */
+        PROMQL_BINARY_INDEPENDENT_JOIN(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
+         * PromQL vector matching no longer needs both operands to name their labels: {@code on(...)} and {@code ignoring(...)}
+         * read the listed labels out of an opaque operand's label container, and default matching keys an opaque side by its
+         * label container without {@code __name__} and a side without one by the empty signature, as Prometheus signatures do.
+         * Gates csv-spec coverage of those shapes.
+         */
+        PROMQL_BINARY_OPAQUE_SIGNATURE_MATCH(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * Support for the PromQL {@code sort} and {@code sort_desc} functions, which order an instant vector by sample value.
          */
         PROMQL_SORT(PROMQL_COMMAND_V0.isEnabled()),
@@ -4280,6 +4328,36 @@ public class EsqlCapabilities {
          * vector by label values in natural order.
          */
         PROMQL_SORT_BY_LABEL(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
+         * PromQL {@code sort} and {@code sort_desc} below the top level. They pass their input through, and the result keeps
+         * their order through steps that pass the values through unchanged.
+         */
+        PROMQL_SORT_BELOW_TOP_LEVEL(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
+         * PromQL {@code topk}, {@code bottomk}, {@code limitk} and {@code limit_ratio} with {@code without(...)}: they partition
+         * by every label of a series but the listed ones and the metric name.
+         */
+        PROMQL_REDUCTION_WITHOUT(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
+         * PromQL {@code without(...)} over another {@code without(...)}: each level leaves out its own labels from what the level
+         * below kept.
+         */
+        PROMQL_NESTED_WITHOUT(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
+         * PromQL {@code label_replace} and {@code label_join} overwriting a label of a {@code by(...)} aggregation they are
+         * applied over. Two series left with one label set fail the query, as in Prometheus.
+         */
+        PROMQL_LABEL_FUNCTIONS_OVERWRITE(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
+         * PromQL {@code or} with {@code on(...)}/{@code ignoring(...)} keeps every left series and the right series no left
+         * series matches on the listed labels.
+         */
+        PROMQL_SET_OPERATOR_MATCHING,
 
         /**
          * Fix PromQL {@code count_over_time} and {@code present_over_time} over a series without a sample in the window,

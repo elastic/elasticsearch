@@ -308,6 +308,8 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
 
     /** Composes a binary operator as an expression over the operands' shared aggregate. */
     private IntermediateResult translateAggregate(TranslationContext context) {
+        // Arithmetic and a bool comparison drop the metric name; so do both operands, folding into one frame.
+        context = dropMetricName ? context.withoutMetricName() : context;
         IntermediateResult left = context.translate(left());
         Expression leftExpr = new ToDouble(left.value().source(), left.value());
         if (this instanceof VectorBinaryComparison comp && comp.filterMode()) {

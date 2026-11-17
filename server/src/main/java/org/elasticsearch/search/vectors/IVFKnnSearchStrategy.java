@@ -20,15 +20,33 @@ public class IVFKnnSearchStrategy extends KnnSearchStrategy {
     private final int k;
     private final SetOnce<AbstractMaxScoreKnnCollector> collector = new SetOnce<>();
     private final SharedMinCompetitiveScore sharedScore;
+    private final SharedQueryTransforms sharedQueryTransforms;
 
     /**
      * @param sharedScore minimum competitive score shared across leaves, or {@code null} when there is nothing to share
+     * @param sharedQueryTransforms transformations of the query vector shared across leaves, or {@code null} when there is
+     *                              nothing to share. Only pass it to a search with the query's own vector: a search with
+     *                              another vector, such as one preconditioned for its segment, would be handed the
+     *                              transformations of the query's vector.
      */
-    public IVFKnnSearchStrategy(float visitRatio, int numCands, int k, @Nullable SharedMinCompetitiveScore sharedScore) {
+    public IVFKnnSearchStrategy(
+        float visitRatio,
+        int numCands,
+        int k,
+        @Nullable SharedMinCompetitiveScore sharedScore,
+        @Nullable SharedQueryTransforms sharedQueryTransforms
+    ) {
         this.visitRatio = visitRatio;
         this.numCands = numCands;
         this.k = k;
         this.sharedScore = sharedScore;
+        this.sharedQueryTransforms = sharedQueryTransforms;
+    }
+
+    /** Returns the transformations of the query vector shared across the leaves of the query, or {@code null}. */
+    @Nullable
+    public SharedQueryTransforms getSharedQueryTransforms() {
+        return sharedQueryTransforms;
     }
 
     void setCollector(AbstractMaxScoreKnnCollector collector) {

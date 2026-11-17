@@ -20,8 +20,13 @@ public class DiversifiedIVFKnnCollectorManager extends AbstractIVFKnnVectorQuery
     private final int k;
     private final BitSetProducer parentsFilter;
 
-    DiversifiedIVFKnnCollectorManager(int k, SharedMinCompetitiveScore sharedScore, BitSetProducer parentsFilter) {
-        super(k, sharedScore);
+    DiversifiedIVFKnnCollectorManager(
+        int k,
+        SharedMinCompetitiveScore sharedScore,
+        SharedQueryTransforms sharedQueryTransforms,
+        BitSetProducer parentsFilter
+    ) {
+        super(k, sharedScore, sharedQueryTransforms);
         this.k = k;
         this.parentsFilter = parentsFilter;
     }

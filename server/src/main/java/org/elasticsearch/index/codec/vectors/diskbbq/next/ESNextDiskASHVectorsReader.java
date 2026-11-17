@@ -35,6 +35,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
 import org.elasticsearch.index.codec.vectors.diskbbq.PrefetchingCentroidIterator;
 import org.elasticsearch.lucene.store.MemorySegmentAccessInputAccess;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
+import org.elasticsearch.search.vectors.SharedQueryTransforms;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -266,6 +267,8 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
                 yield widened;
             }
         };
+        // A widened byte query is a new array per segment, so there is nothing to share for it
+        SharedQueryTransforms sharedTransforms = queryTarget instanceof QueryTarget.FloatQuery fq ? fq.sharedTransforms() : null;
 
         var ashMatrix = getAshProjectionMatrix(fieldInfo);
         int dimension = fieldInfo.getVectorDimension();
@@ -314,7 +317,8 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
                 centroidReader,
                 values,
                 startDoc,
-                endDoc
+                endDoc,
+                sharedTransforms
             );
         }
         return AshPostingsVisitor.create(
@@ -325,7 +329,8 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
             needsScoring,
             entry.ashBitsPerDim(),
             queryBitsPerDim,
-            centroidReader
+            centroidReader,
+            sharedTransforms
         );
     }
 
@@ -413,7 +418,7 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
             fieldInfo,
             values,
             entry.postingListSlice(ivfClusters.clone()),
-            new QueryTarget.FloatQuery(query),
+            new QueryTarget.FloatQuery(query, null),
             null,
             entry.centroidSlice(ivfCentroids.clone()),
             acceptDocs

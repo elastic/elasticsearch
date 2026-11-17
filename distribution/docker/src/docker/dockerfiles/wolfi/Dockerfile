@@ -71,10 +71,11 @@ COPY ${config_dir}/log4j2.properties config/log4j2.docker.properties
 #  8. Make some directories writable. `bin` must be writable because
 #     plugins can install their own CLI utilities.
 #  9. Make some files writable
-# 10. Move the paths that are copied in layers of their own out of the way, keeping their paths, into a
+# 10. Replace the identical jars that many modules and plugins bundle with hard links, so that each one is
+#     stored only once in the image layer. This relies on the permission reset above, since `ln -f` keys on
+#     content only and the linked paths take the mode and owner of the first file
+# 11. Move the paths that are copied in layers of their own out of the way, keeping their paths, into a
 #     directory per layer
-# Before that, replace the identical jars that many modules and plugins bundle with hard links, so that each one
-# is stored only once in the image layer.
 RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elasticsearch-env && \\
     mkdir data && \\
     mv config/log4j2.properties config/log4j2.file.properties && \\

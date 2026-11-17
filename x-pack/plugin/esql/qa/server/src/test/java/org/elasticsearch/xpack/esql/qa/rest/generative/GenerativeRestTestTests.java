@@ -10,8 +10,11 @@ package org.elasticsearch.xpack.esql.qa.rest.generative;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.generator.Column;
+import org.elasticsearch.xpack.esql.generator.GenerativeFeature;
+import org.elasticsearch.xpack.esql.generator.QueryExecuted;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * Tests the predicates that classify known generative-test failures as allowed failures,
@@ -539,5 +542,292 @@ public class GenerativeRestTestTests extends ESTestCase {
 
     private static String unknownColumn(String query, String mention, String column) {
         return "line 1:" + (query.lastIndexOf(mention) + 1) + ": Unknown column [" + column + "]";
+    }
+
+    public void testEqlUnconvertibleFieldTypeIsAllowedUnderTheEqlFeature() {
+        assertTrue(allowsEqlFieldTypeError(Set.of(GenerativeFeature.EQL), "cartesian_point"));
+        assertTrue(allowsEqlFieldTypeError(Set.of(GenerativeFeature.EQL), "date_nanos"));
+    }
+
+    public void testEqlConvertibleFieldTypeIsNotAllowed() {
+        assertFalse(allowsEqlFieldTypeError(Set.of(GenerativeFeature.EQL), "keyword"));
+        assertFalse(allowsEqlFieldTypeError(Set.of(GenerativeFeature.EQL), "datetime"));
+    }
+
+    public void testEqlUnconvertibleFieldTypeIsNotAllowedWithoutTheEqlFeature() {
+        assertFalse(allowsEqlFieldTypeError(Set.of(), "cartesian_point"));
+    }
+
+    public void testLookupJoinAfterBareEqlSourceIsAllowed() {
+        String query = "SET unmapped_fields=\"nullify\";EQL cloned_sample_data \"any where true\" METADATA _id"
+            + " | rename message as message | lookup join message_types_lookup on message";
+        assertTrue(GenerativeRestTest.isLookupJoinAfterEqlSourceBug(unknownIndex(query, "message_types_lookup"), query));
+    }
+
+    public void testLookupJoinAfterEqlOnlySubqueriesIsAllowed() {
+        String query =
+            "FROM (EQL sample_data \"any where true\"), (EQL sample_data \"sample by client_ip [any where true] [any where true]\")"
+                + " | rename client_ip as message | lookup join message_types_lookup on message";
+        assertTrue(GenerativeRestTest.isLookupJoinAfterEqlSourceBug(unknownIndex(query, "message_types_lookup"), query));
+    }
+
+    public void testLookupJoinAfterALoneEqlSubqueryIsAllowed() {
+        String query =
+            "FROM (EQL sample_data \"any where true\") | rename message as message | lookup join message_types_lookup on message";
+        assertTrue(GenerativeRestTest.isLookupJoinAfterEqlSourceBug(unknownIndex(query, "message_types_lookup"), query));
+    }
+
+    public void testLookupJoinInAForkBranchAfterEqlIsAllowed() {
+        String query = "EQL sample_data \"any where true\" | FORK (where true) (where true | rename message as message"
+            + " | lookup join message_types_lookup on message)";
+        assertTrue(GenerativeRestTest.isLookupJoinAfterEqlSourceBug(unknownIndex(query, "message_types_lookup"), query));
+    }
+
+    public void testCoordinatorLookupJoinAfterEqlIsNotAllowed() {
+        String query = "EQL sample_data \"any where true\" | rename message as message"
+            + " | lookup join _coordinator:message_types_lookup on message";
+        assertFalse(GenerativeRestTest.isLookupJoinAfterEqlSourceBug(unknownIndex(query, "message_types_lookup"), query));
+    }
+
+    public void testLookupJoinAfterEqlNextToAnIndexIsNotAllowed() {
+        String query = "FROM sample_data, (EQL sample_data \"any where true\")"
+            + " | rename message as message | lookup join message_types_lookup on message";
+        assertFalse(GenerativeRestTest.isLookupJoinAfterEqlSourceBug(unknownIndex(query, "message_types_lookup"), query));
+    }
+
+    public void testLookupJoinAfterFromIsNotAllowed() {
+        String query = "FROM sample_data | rename message as message | lookup join message_types_lookup on message";
+        assertFalse(GenerativeRestTest.isLookupJoinAfterEqlSourceBug(unknownIndex(query, "message_types_lookup"), query));
+    }
+
+    public void testUnknownIndexThatIsNotTheJoinedLookupIsNotAllowed() {
+        String query = "EQL sample_data \"any where true\" | rename message as message | lookup join message_types_lookup on message";
+        assertFalse(GenerativeRestTest.isLookupJoinAfterEqlSourceBug(unknownIndex(query, "sample_data"), query));
+    }
+
+    public void testLookupJoinAfterEqlWithAnotherProblemIsNotAllowed() {
+        String query = "EQL sample_data \"any where true\" | rename message as message | lookup join message_types_lookup on message";
+        String error = "Found 2 problems\n" + unknownIndex(query, "message_types_lookup") + "\nline 1:1: Unknown column [message]";
+        assertFalse(GenerativeRestTest.isLookupJoinAfterEqlSourceBug(error, query));
+    }
+
+    public void testLookupJoinAfterEqlWithAnotherErrorIsNotAllowed() {
+        String query = "EQL sample_data \"any where true\" | rename message as message | lookup join message_types_lookup on message";
+        assertFalse(GenerativeRestTest.isLookupJoinAfterEqlSourceBug("line 1:1: Unknown column [message]", query));
+    }
+
+    public void testRemoteEnrichAfterBareEqlSourceIsAllowed() {
+        String query = "EQL sample_data \"any where true\" | enrich _remote:languages_policy on message";
+        assertTrue(GenerativeRestTest.isRemoteEnrichAfterEqlSourceBug(unresolvablePolicy(query, "languages_policy"), query));
+    }
+
+    public void testRemoteEnrichAfterALoneEqlSubqueryIsAllowed() {
+        String query = "FROM (EQL sample_data \"any where true\") | enrich _remote:languages_policy on message";
+        assertTrue(GenerativeRestTest.isRemoteEnrichAfterEqlSourceBug(unresolvablePolicy(query, "languages_policy"), query));
+    }
+
+    public void testRemoteEnrichAndLookupJoinAfterEqlAreAllowedTogether() {
+        String query = "EQL sample_data \"any where true\" | enrich _remote:languages_policy on message"
+            + " | rename message as message | lookup join message_types_lookup on message";
+        String error = "Found 2 problems\n"
+            + "line 1:"
+            + (query.indexOf("languages_policy") + 1)
+            + ": enrich policy [languages_policy] cannot be resolved since remote"
+            + " clusters are unavailable\n"
+            + unknownIndex(query, "message_types_lookup").substring("Found 1 problem\n".length());
+        assertTrue(GenerativeRestTest.isRemoteEnrichAfterEqlSourceBug(error, query));
+        assertTrue(GenerativeRestTest.isLookupJoinAfterEqlSourceBug(error, query));
+    }
+
+    public void testRemoteEnrichAfterFromIsNotAllowed() {
+        String query = "FROM sample_data | enrich _remote:languages_policy on message";
+        assertFalse(GenerativeRestTest.isRemoteEnrichAfterEqlSourceBug(unresolvablePolicy(query, "languages_policy"), query));
+    }
+
+    public void testUnresolvablePolicyWithoutRemoteModeIsNotAllowed() {
+        String query = "EQL sample_data \"any where true\" | enrich languages_policy on message";
+        assertFalse(GenerativeRestTest.isRemoteEnrichAfterEqlSourceBug(unresolvablePolicy(query, "languages_policy"), query));
+    }
+
+    public void testUnresolvableRemotePolicyIsNotTheLookupJoinBug() {
+        String query = "EQL sample_data \"any where true\" | enrich _remote:languages_policy on message";
+        assertFalse(GenerativeRestTest.isLookupJoinAfterEqlSourceBug(unresolvablePolicy(query, "languages_policy"), query));
+    }
+
+    public void testRemoteEnrichAfterEqlWithAnotherProblemIsNotAllowed() {
+        String query = "EQL sample_data \"any where true\" | enrich _remote:languages_policy on message";
+        String error = unresolvablePolicy(query, "languages_policy") + "\nline 1:1: Unknown column [message]";
+        assertFalse(GenerativeRestTest.isRemoteEnrichAfterEqlSourceBug(error, query));
+    }
+
+    public void testTooManyIdsForAnEqlSequenceWithoutSizeIsAllowed() {
+        String query = "SET unmapped_fields=\"nullify\";FROM many_numbers, (EQL many_numbers \"sequence by sv [any where sv > 12]"
+            + " [any where true]\" WITH {\"timestamp_field\": \"@timestamp\"}) | fillnull DEFAULT ON *";
+        assertTrue(GenerativeRestTest.isEqlTruncationCapSizeBug(TOO_MANY_IDS, query));
+    }
+
+    public void testTooManyIdsForAnEqlSampleWithoutSizeIsAllowed() {
+        String query = "EQL many_numbers \"sample by sv [any where true] [any where true]\" METADATA _id | where sv > 1";
+        assertTrue(GenerativeRestTest.isEqlTruncationCapSizeBug(TOO_MANY_IDS, query));
+    }
+
+    public void testTooManyIdsWithAnExplicitSizeIsNotAllowed() {
+        String query = "EQL many_numbers \"sequence [any where true] [any where true]\" WITH {\"size\": 20, \"fetch_size\": 100}"
+            + " | where sv > 1";
+        assertFalse(GenerativeRestTest.isEqlTruncationCapSizeBug(TOO_MANY_IDS, query));
+    }
+
+    public void testTooManyIdsForAnEqlSequenceWithOnlyAFetchSizeIsAllowed() {
+        String query = "EQL many_numbers \"sequence [any where true] [any where true]\" WITH {\"fetch_size\": 100} | where sv > 1";
+        assertTrue(GenerativeRestTest.isEqlTruncationCapSizeBug(TOO_MANY_IDS, query));
+    }
+
+    public void testTooManyIdsWithOneUnsizedEqlBranchIsAllowed() {
+        String query = "FROM (EQL many_numbers \"sequence [any where true] [any where true]\" WITH {\"size\": 5}),"
+            + " (EQL many_numbers \"sample by sv [any where sv == \\\"1\\\"] [any where true]\") | where sv > 1";
+        assertTrue(GenerativeRestTest.isEqlTruncationCapSizeBug(TOO_MANY_IDS, query));
+    }
+
+    public void testTooManyIdsWithEveryEqlBranchSizedIsNotAllowed() {
+        String query = "FROM (EQL many_numbers \"sequence [any where true] [any where true]\" WITH {\"size\": 5}),"
+            + " (EQL many_numbers \"sample by sv [any where true] [any where true]\" WITH {\"size\": 7}) | where sv > 1";
+        assertFalse(GenerativeRestTest.isEqlTruncationCapSizeBug(TOO_MANY_IDS, query));
+    }
+
+    public void testTooManyIdsWithAPushedLimitIsNotAllowed() {
+        String query = "EQL many_numbers \"sequence [any where true] [any where true]\" | limit 50";
+        assertFalse(GenerativeRestTest.isEqlTruncationCapSizeBug(TOO_MANY_IDS, query));
+    }
+
+    public void testTooManyIdsWithAnEqlHeadPipeIsNotAllowed() {
+        String query = "EQL many_numbers \"sequence [any where true] [any where true] | head 5\" | where sv > 1";
+        assertFalse(GenerativeRestTest.isEqlTruncationCapSizeBug(TOO_MANY_IDS, query));
+    }
+
+    public void testUnresolvableRemotePolicyThatIsNotInTheQueryIsNotAllowed() {
+        String query = "EQL sample_data \"any where true\" | enrich _remote:languages_policy on message";
+        assertFalse(GenerativeRestTest.isRemoteEnrichAfterEqlSourceBug(unresolvablePolicy(query, "message"), query));
+    }
+
+    public void testTooManyIdsForAnEqlEventQueryIsNotAllowed() {
+        String query = "EQL many_numbers \"any where true\" WITH {\"fetch_size\": 100} | where sv > 1";
+        assertFalse(GenerativeRestTest.isEqlTruncationCapSizeBug(TOO_MANY_IDS, query));
+    }
+
+    public void testOtherErrorsForAnEqlSequenceWithoutSizeAreNotAllowed() {
+        String query = "EQL many_numbers \"sequence [any where true] [any where true]\" | where sv > 1";
+        assertFalse(GenerativeRestTest.isEqlTruncationCapSizeBug("failed to create query: For input string: \"x\"", query));
+    }
+
+    public void testRemoteEnrichPolicyAsUnknownColumnUnderNullifyIsAllowed() {
+        String query = "SET unmapped_fields=\"nullify\";EQL mv_expand_mapped \"sample [\\\"c\\\" where id == \\\"m2\\\"] by id"
+            + " [\\\"c\\\" where startsWith(tags, \\\"\\\")] by id\" WITH {\"event_category_field\": \"tags\", \"max_samples_per_key\": 5}"
+            + " | enrich _remote:languages_policy on id";
+        String error = "{\"error\":{\"root_cause\":[{\"type\":\"verification_exception\",\"reason\":\"Found 1 problem\\nline 1:"
+            + (query.lastIndexOf("languages_policy") + 1)
+            + ": Unknown column [languages_policy]\"}]}}";
+        assertTrue(GenerativeRestTest.isEnrichPolicyAsUnknownColumnBug(error, query));
+        assertFalse(GenerativeRestTest.isRemoteEnrichAfterEqlSourceBug(error, query));
+    }
+
+    public void testInexistentPolicyAsUnknownColumnUnderLoadAllIsAllowed() {
+        String query = "SET unmapped_fields=\"LOAD_ALL\";FROM partial_mapping_sample_data | EVAL lc = language_code::integer"
+            + " | ENRICH foo ON lc | SORT @timestamp | LIMIT 3";
+        assertTrue(GenerativeRestTest.isEnrichPolicyAsUnknownColumnBug(unknownColumn(query, "foo", "foo"), query));
+    }
+
+    public void testInexistentPolicyAsUnknownColumnUnderLoadAfterApproximationIsAllowed() {
+        String query = "SET approximation=true;SET unmapped_fields=\"load\";FROM sample_data | ENRICH foo ON message";
+        assertTrue(GenerativeRestTest.isEnrichPolicyAsUnknownColumnBug(unknownColumn(query, "foo", "foo"), query));
+    }
+
+    public void testExistingLocalPolicyAsUnknownColumnIsNotAllowed() {
+        String query = "SET unmapped_fields=\"nullify\";FROM sample_data | ENRICH languages_policy ON message";
+        String error = unknownColumn(query, "languages_policy", "languages_policy");
+        assertFalse(GenerativeRestTest.isEnrichPolicyAsUnknownColumnBug(error, query));
+    }
+
+    public void testExistingLocalPolicyAsUnknownColumnAfterEqlIsNotAllowed() {
+        String query =
+            "SET unmapped_fields=\"nullify\";EQL sample_data \"any where true\" | ENRICH _coordinator:languages_policy ON message";
+        String error = unknownColumn(query, "languages_policy", "languages_policy");
+        assertFalse(GenerativeRestTest.isEnrichPolicyAsUnknownColumnBug(error, query));
+    }
+
+    public void testPolicyAsUnknownColumnUnderDefaultUnmappedFieldsIsNotAllowed() {
+        String query = "SET unmapped_fields=\"default\";FROM sample_data | ENRICH foo ON message";
+        assertFalse(GenerativeRestTest.isEnrichPolicyAsUnknownColumnBug(unknownColumn(query, "foo", "foo"), query));
+    }
+
+    public void testLookupJoinAfterFromUnderUnmappedFieldsIsNotAllowed() {
+        String query = "SET unmapped_fields=\"nullify\";FROM sample_data | rename message as message"
+            + " | lookup join message_types_lookup on message";
+        assertFalse(GenerativeRestTest.isLookupJoinAfterEqlSourceBug(unknownIndex(query, "message_types_lookup"), query));
+    }
+
+    public void testRemoteEnrichAfterFromUnderUnmappedFieldsIsNotAllowed() {
+        String query = "SET unmapped_fields=\"nullify\";FROM sample_data | enrich _remote:languages_policy on message";
+        assertFalse(GenerativeRestTest.isRemoteEnrichAfterEqlSourceBug(unresolvablePolicy(query, "languages_policy"), query));
+        String error = unknownColumn(query, "languages_policy", "languages_policy");
+        assertFalse(GenerativeRestTest.isEnrichPolicyAsUnknownColumnBug(error, query));
+    }
+
+    public void testPolicyAsUnknownColumnAndLookupJoinAfterEqlAreAllowedTogether() {
+        String query = "SET unmapped_fields=\"nullify\";EQL sample_data \"any where true\" | enrich _remote:languages_policy on message"
+            + " | rename message as message | lookup join message_types_lookup on message";
+        String error = "Found 2 problems\n"
+            + unknownColumn(query, "languages_policy", "languages_policy")
+            + "\n"
+            + unknownIndex(query, "message_types_lookup").substring("Found 1 problem\n".length());
+        assertTrue(GenerativeRestTest.isEnrichPolicyAsUnknownColumnBug(error, query));
+        assertTrue(GenerativeRestTest.isLookupJoinAfterEqlSourceBug(error, query));
+    }
+
+    public void testPolicyAsUnknownColumnWithoutUnmappedFieldsIsNotAllowed() {
+        String query = "FROM partial_mapping_sample_data | ENRICH foo ON message";
+        assertFalse(GenerativeRestTest.isEnrichPolicyAsUnknownColumnBug(unknownColumn(query, "foo", "foo"), query));
+    }
+
+    public void testUnknownColumnThatIsNotAPolicyIsNotTheEnrichPolicyBug() {
+        String query = "SET unmapped_fields=\"nullify\";FROM sample_data | ENRICH languages_policy ON message | KEEP language_name";
+        assertFalse(GenerativeRestTest.isEnrichPolicyAsUnknownColumnBug(unknownColumn(query, "language_name", "language_name"), query));
+    }
+
+    public void testPolicyAsUnknownColumnWithAnotherProblemIsNotAllowed() {
+        String query = "SET unmapped_fields=\"load\";FROM sample_data | ENRICH foo ON message";
+        String error = unknownColumn(query, "foo", "foo") + "\nline 1:1: Unknown column [message]";
+        assertFalse(GenerativeRestTest.isEnrichPolicyAsUnknownColumnBug(error, query));
+    }
+
+    private static final String TOO_MANY_IDS = "\"type\" : \"query_shard_exception\", \"reason\" : \"failed to create query: Too many ids"
+        + " specified, allowed max result window is [10000]\", \"index\" : \"many_numbers\"";
+
+    private static String unresolvablePolicy(String query, String policy) {
+        return "Found 1 problem\nline 1:"
+            + (query.lastIndexOf(policy) + 1)
+            + ": enrich policy ["
+            + policy
+            + "] cannot be resolved since remote clusters are unavailable";
+    }
+
+    private static String unknownIndex(String query, String index) {
+        return "Found 1 problem\nline 1:" + (query.lastIndexOf(index) + 1) + ": Unknown index [" + index + "]";
+    }
+
+    private static boolean allowsEqlFieldTypeError(Set<GenerativeFeature> features, String type) {
+        GenerativeRestTest runner = new GenerativeRestTest() {
+            @Override
+            protected boolean supportsSourceFieldMapping() {
+                throw new AssertionError("no cluster is started for these tests");
+            }
+
+            @Override
+            protected Set<GenerativeFeature> enabledFeatures() {
+                return features;
+            }
+        };
+        String query = "EQL k8s \"any where true\" | KEEP event_location";
+        String error = "Found 1 problem\nline 1:33: EQL command does not yet support [" + type + "] fields";
+        return runner.isAllowedFailure(new QueryExecuted(query, 0, null, null, new RuntimeException(error)), List.of(), List.of());
     }
 }

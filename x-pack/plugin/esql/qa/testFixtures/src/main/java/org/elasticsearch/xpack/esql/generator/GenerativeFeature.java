@@ -47,6 +47,8 @@ public enum GenerativeFeature {
      */
     PROMQL,
 
+    EQL,
+
     /**
      * Generate {@code FROM <dataset>} queries against external parquet datasets registered via
      * {@code PUT /_query/dataset/} using an in-process S3 fixture.

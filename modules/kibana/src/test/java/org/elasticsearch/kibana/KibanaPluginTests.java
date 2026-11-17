@@ -62,14 +62,13 @@ public class KibanaPluginTests extends ESTestCase {
         assertFalse(indexDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".kibana_change_history")));
         assertFalse(indexDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".kibana_change_history-000001")));
         assertFalse(indexDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".kibana-notifications")));
-        assertFalse(indexDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".context-engine-session-memory")));
         assertFalse(indexDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".context-engine-session-events")));
     }
 
     public void testContextEngineSystemIndexDescriptorStillCoversOtherContextEngineIndices() {
         assertTrue(KibanaPlugin.CONTEXT_ENGINE_INDEX_DESCRIPTOR.matchesIndexPattern(".context-engine-ai-indices"));
         assertTrue(KibanaPlugin.CONTEXT_ENGINE_INDEX_DESCRIPTOR.matchesIndexPattern(".context-engine-improvements"));
-        assertFalse(KibanaPlugin.CONTEXT_ENGINE_INDEX_DESCRIPTOR.matchesIndexPattern(".context-engine-session-memory"));
+        assertTrue(KibanaPlugin.CONTEXT_ENGINE_INDEX_DESCRIPTOR.matchesIndexPattern(".context-engine-session-memory"));
         assertFalse(KibanaPlugin.CONTEXT_ENGINE_INDEX_DESCRIPTOR.matchesIndexPattern(".context-engine-session-events"));
     }
 

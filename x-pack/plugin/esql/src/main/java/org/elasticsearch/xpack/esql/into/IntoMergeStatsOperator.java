@@ -28,7 +28,7 @@ public final class IntoMergeStatsOperator implements Operator {
 
         @Override
         public String describe() {
-            return "IntoStatsMergeOperator";
+            return "IntoMergeStatsOperator";
         }
     }
 

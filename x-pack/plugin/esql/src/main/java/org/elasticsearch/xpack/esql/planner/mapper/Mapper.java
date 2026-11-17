@@ -235,7 +235,7 @@ public class Mapper {
             return new TsInfoExec(tsInfo.source(), mappedChild, tsInfo.output(), tsInfo.output(), TsInfoExec.Mode.FINAL, tsInfo.limit());
         }
 
-        // Into: two-phase WRITE (data nodes or coordinator) then SUM (coordinator).
+        // Into: two-phase WRITE (data nodes or coordinator) then MERGE_STATS (coordinator).
         if (unary instanceof Into into) {
             PhysicalPlan write = mappedChild instanceof FragmentExec
                 ? addExchangeForFragment(into, mappedChild)

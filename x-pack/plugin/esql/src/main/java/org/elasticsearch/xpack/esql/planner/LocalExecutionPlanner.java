@@ -185,9 +185,9 @@ import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.embedding.EmbeddingOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
 import org.elasticsearch.xpack.esql.inference.textembedding.TextEmbeddingOperator;
+import org.elasticsearch.xpack.esql.into.IntoMergeStatsOperator;
 import org.elasticsearch.xpack.esql.into.IntoOperator;
 import org.elasticsearch.xpack.esql.into.IntoPageWriter;
-import org.elasticsearch.xpack.esql.into.IntoStatsMergeOperator;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -998,7 +998,7 @@ public class LocalExecutionPlanner {
                     outputLayout
                 );
             }
-            case MERGE_STATS -> source.with(new IntoStatsMergeOperator.Factory(), outputLayout);
+            case MERGE_STATS -> source.with(new IntoMergeStatsOperator.Factory(), outputLayout);
         };
     }
 

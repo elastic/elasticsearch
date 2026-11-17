@@ -1,4 +1,4 @@
-IntoExec[SUM,dst]
+IntoExec[MERGE_STATS,dst]
 \_ExchangeExec[[total{r}#0, created{r}#1],false]
   \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
 Project[[total{r}#0, created{r}#1]]

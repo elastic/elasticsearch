@@ -571,7 +571,17 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         var inheritedProjection = train(quantizer, vectors, centroidGetter);
         assertEquals(Math.min(dim * trainingFactor, vectors.length), inheritedProjection.matrix().trainingSampleSize());
         assertEquals("a trained matrix gets a random UUID", 4, inheritedProjection.matrix().id().version());
-        AshProjectionMatrix inheritedMatrix = inheritedProjection.matrix();
+        // an inherited sample size no sample in this test has, so that keeping it rather than the merged one would show
+        int mergedSampleSize = Math.min(dim * trainingFactor, vectors.length);
+        int inheritedSampleSize = mergedSampleSize + 1;
+        AshProjectionMatrix inheritedMatrix = new AshProjectionMatrix(
+            inheritedProjection.wT(),
+            dim,
+            rank,
+            true,
+            UUID.randomUUID(),
+            inheritedSampleSize
+        );
         float[] inherited = inheritedMatrix.wT();
         float[] inheritedCopy = inherited.clone();
 
@@ -580,7 +590,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         assertArrayEquals("the inherited matrix is owned by the caller and must not be modified", inheritedCopy, inherited, 0f);
         assertTrue(refined.learned());
         assertNotEquals("a refined matrix is a new matrix", inheritedMatrix.id(), refined.matrix().id());
-        assertEquals("refit to the merged sample", Math.min(dim * trainingFactor, vectors.length), refined.matrix().trainingSampleSize());
+        assertEquals("refit to the merged sample", mergedSampleSize, refined.matrix().trainingSampleSize());
         assertOrthonormalRows(refined.wT(), rank, dim, 1e-3f);
         assertThat(capturedEnergy(planted, rank, refined.wT(), rank, dim), greaterThan(rank * 0.99f));
     }
@@ -849,18 +859,62 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
             42L,
             executor()
         );
-        AshProjectionMatrix inherited = train(quantizer, vectors, i -> zero).matrix();
+        // an inherited sample size other than the merged sample's, so that recording the merged one instead would show
+        int inheritedSampleSize = vectors.length + 1;
+        AshProjectionMatrix inherited = new AshProjectionMatrix(
+            train(quantizer, vectors, i -> zero).wT(),
+            dim,
+            quantizer.nDims(dim),
+            true,
+            UUID.randomUUID(),
+            inheritedSampleSize
+        );
         float[] inheritedCopy = inherited.wT().clone();
 
-        var warm = quantizer.trainWarmStart(ord -> zero, 100, dim, ord -> zero, inherited, 2);
+        var warm = quantizer.trainWarmStart(ord -> zero, vectors.length, dim, ord -> zero, inherited, 2);
 
         assertArrayEquals(inheritedCopy, warm.wT(), 0f);
         assertTrue(warm.learned());
-        assertEquals("the inherited matrix, unchanged, keeps its id", inherited.id(), warm.matrix().id());
-        assertEquals("and the sample it was learned from", inherited.trainingSampleSize(), warm.matrix().trainingSampleSize());
+        assertSame("the inherited matrix, unchanged, keeps its id and sample size", inherited, warm.matrix());
+        assertEquals(inheritedSampleSize, warm.matrix().trainingSampleSize());
         for (float v : warm.wT()) {
             assertTrue(Float.isFinite(v));
         }
+    }
+
+    public void testWarmStartWithTooFewVectorsReturnsTheInheritedMatrix() throws IOException {
+        // fewer vectors than twice the projected dimensions cannot refine the inherited matrix, which is returned as-is
+        int dim = 32;
+        AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
+            0.5f,
+            Integer.MAX_VALUE,
+            2,
+            AsymmetricHashingQuantizer.Method.LEARNED,
+            0,
+            10,
+            42L,
+            executor()
+        );
+        int nDims = quantizer.nDims(dim);
+        int count = randomIntBetween(1, 2 * nDims - 1);
+        // an inherited sample size other than the merged count, so that recording the merged one instead would show
+        int inheritedSampleSize = 2 * nDims + count;
+        AshProjectionMatrix inherited = new AshProjectionMatrix(
+            AshUtils.randomGaussians(random(), nDims * dim),
+            dim,
+            nDims,
+            true,
+            UUID.randomUUID(),
+            inheritedSampleSize
+        );
+
+        var warm = quantizer.trainWarmStart(ord -> { throw new AssertionError("must not read vectors"); }, count, dim, ord -> {
+            throw new AssertionError("must not read centroids");
+        }, inherited, 2);
+
+        assertTrue(warm.learned());
+        assertSame("the inherited matrix, unchanged, keeps its id and sample size", inherited, warm.matrix());
+        assertEquals(inheritedSampleSize, warm.matrix().trainingSampleSize());
     }
 
     public void testWarmStartWithoutDimensionalityReductionSkipsRefinement() throws IOException {

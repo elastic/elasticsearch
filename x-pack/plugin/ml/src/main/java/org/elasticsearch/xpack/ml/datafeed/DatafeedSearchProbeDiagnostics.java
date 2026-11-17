@@ -63,7 +63,7 @@ final class DatafeedSearchProbeDiagnostics {
     }
 
     private static String findShardSecurityFailure(SearchResponse response) {
-        for (ShardSearchFailure failure : response.getShardFailures()) {
+        for (ShardSearchFailure failure : response.shardFailuresList()) {
             if (isSecurityFailure(failure)) {
                 String index = failure.index();
                 if (index != null) {

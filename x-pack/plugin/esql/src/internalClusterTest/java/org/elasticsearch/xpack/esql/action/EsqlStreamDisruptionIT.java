@@ -81,14 +81,15 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
 /**
  * Integration tests for the ES|QL streaming API under network disruption.
  * Tests the fault-before-first-page case (non-200 HTTP status and a single NDJSON error line) and
- * the fault-after-first-page case (HTTP 200, at least one values line, and an error as the last
+ * the fault-after-first-page case (HTTP 200, at least one row line, and an error as the last
  * NDJSON line). The response is only sent once the first page arrives, so a 200 response never ends
- * in an error with no values lines.
+ * in an error with no row lines.
  *
  * {@code numClientNodes = 1} gives a stable shard-free node to pin the REST client to and
  * ensures every compute request is a genuine inter-node transport hop. Real Netty HTTP is
@@ -361,6 +362,23 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /**
+     * A request body whose query produces pages of at most {@code pageSize} rows. With the default page size a small result
+     * fits in a handful of pages, so the query can finish before a mid-stream disruption lands. A small page size keeps the
+     * engine producing pages (and exchange fetches in flight) while the client is paused, so the disruption hits a running
+     * query. Callers must check {@link #canUseQueryPragmas()}.
+     */
+    private static String streamBody(String query, int pageSize) {
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            builder.startObject().field("query", query);
+            builder.startObject("pragma").field("page_size", pageSize).endObject();
+            builder.field("accept_pragma_risks", true);
+            return Strings.toString(builder.endObject());
+        } catch (IOException e) {
+            throw new AssertionError("failed to build stream request body", e);
+        }
+    }
+
     private static String describe(StreamOutcome outcome) {
         return Strings.format(
             "httpStatus=%s, lines=%d, terminal=%s, error=%s, transportFailure=%s",
@@ -373,7 +391,7 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testHappyPathOverRealHttp() throws Exception {
-        StreamOutcome outcome = stream(streamBody("FROM " + STREAM_INDEX + " | LIMIT 100"), null, "batch_size=5");
+        StreamOutcome outcome = stream(streamBody("FROM " + STREAM_INDEX + " | LIMIT 100"), null);
         assertServerFullyCleanedUp();
         assertStreamInvariants(outcome, false, 100);
         assertThat("happy path must produce a footer", outcome.terminal(), equalTo(Terminal.FOOTER));
@@ -381,7 +399,7 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
 
     public void testFaultBeforeStreamStartYieldsHttpError() throws Exception {
         failActionOnAllNodes(TransportFieldCapabilitiesAction.ACTION_NODE_NAME, "injected field-caps failure for pre-stream test");
-        StreamOutcome outcome = stream(streamBody("FROM " + STREAM_INDEX + " | LIMIT 100"), null, "batch_size=5");
+        StreamOutcome outcome = stream(streamBody("FROM " + STREAM_INDEX + " | LIMIT 100"), null);
         assertServerFullyCleanedUp();
         assertStreamInvariants(outcome, false, 100);
         assertNotEquals("field-caps fault before stream start must produce a non-200 HTTP status", 200, (int) outcome.httpStatus());
@@ -390,12 +408,7 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
 
     private void assertFaultBeforeFirstPageYieldsHttpError(String action) throws Exception {
         AtomicLong faultHits = failActionOnAllNodes(action, "injected failure before the first page");
-        StreamOutcome outcome = stream(
-            streamBody("FROM " + STREAM_INDEX + " | LIMIT 1000"),
-            null,
-            "batch_size=5",
-            "allow_partial_results=false"
-        );
+        StreamOutcome outcome = stream(streamBody("FROM " + STREAM_INDEX + " | LIMIT 1000"), null, "allow_partial_results=false");
         assertThat("injected fault on [" + action + "] was never invoked; " + describe(outcome), faultHits.get(), greaterThan(0L));
         assertServerFullyCleanedUp();
         assertStreamInvariants(outcome, false, 1000);
@@ -413,6 +426,7 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testExchangeFaultAfterFirstPageYieldsErrorAsLastLine() throws Exception {
+        assumeTrue("requires query pragmas for page_size", canUseQueryPragmas());
         AtomicLong faultHits = new AtomicLong();
         AtomicBoolean firstFetchPassed = new AtomicBoolean();
         AtomicBoolean failing = new AtomicBoolean();
@@ -435,7 +449,7 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
                     channel.sendResponse(new RuntimeException("injected failure after the first page"));
                 });
         }
-        StreamOutcome outcome = streamPausingAt(1, streamBody("FROM " + STREAM_INDEX + " | LIMIT 1000"), true, () -> {
+        StreamOutcome outcome = streamPausingAt(1, streamBody("FROM " + STREAM_INDEX + " | LIMIT 1000", 5), true, () -> {
             List<TransportChannel> toFail;
             synchronized (held) {
                 failing.set(true);
@@ -446,11 +460,11 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
                 faultHits.incrementAndGet();
                 channel.sendResponse(new RuntimeException("injected failure after the first page"));
             }
-        }, "batch_size=5", "allow_partial_results=false");
+        }, "allow_partial_results=false");
         assertServerFullyCleanedUp();
         assertStreamInvariants(outcome, false, 1000);
         assertThat(outcome.httpStatus(), equalTo(200));
-        assertThat("line 1 must be a values line", outcome.lines().get(1), hasKey("values"));
+        assertThat("line 1 must be a row", outcome.lines().get(1), instanceOf(List.class));
         assertThat("the exchange fault must be hit after the first page", faultHits.get(), greaterThan(0L));
         assertThat("an exchange fault after the first page must end with an error line", outcome.terminal(), equalTo(Terminal.ERROR));
         assertNotEquals("error type must not be remote_transport_exception", "remote_transport_exception", outcome.errorType());
@@ -463,7 +477,6 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
             outcome = stream(
                 streamBody("FROM " + STREAM_INDEX + " | STATS c = COUNT_DISTINCT(value) BY tag"),
                 null,
-                "batch_size=5",
                 "allow_partial_results=false"
             );
         } finally {
@@ -484,7 +497,7 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
         String query = "FROM "
             + FAIL_INDEX
             + " | INLINE STATS m = MAX(TO_INTEGER(CONCAT(\"a\", TO_STRING(x)))) | KEEP fail_me, m | LIMIT 100";
-        StreamOutcome outcome = stream(streamBody(query), null, "batch_size=5", "allow_partial_results=false");
+        StreamOutcome outcome = stream(streamBody(query), null, "allow_partial_results=false");
         assertServerFullyCleanedUp();
         assertThat(describe(outcome), outcome.terminal(), equalTo(Terminal.ERROR));
 
@@ -508,7 +521,7 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
             STREAM_INDEX,
             limit
         );
-        StreamOutcome outcome = stream(body, null, "batch_size=5", "allow_partial_results=" + allowPartial);
+        StreamOutcome outcome = stream(body, null, "allow_partial_results=" + allowPartial);
         assertServerFullyCleanedUp();
         assertStreamInvariants(outcome, allowPartial, limit);
         if (allowPartial) {
@@ -572,7 +585,7 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
                 refCount = ((Number) rows.get(0).get(0)).longValue();
                 assertThat("COUNT over all-failing shards must be 0", refCount, equalTo(0L));
             }
-            StreamOutcome outcome = stream(streamBody(query), null, "batch_size=5", "allow_partial_results=true");
+            StreamOutcome outcome = stream(streamBody(query), null, "allow_partial_results=true");
             assertServerFullyCleanedUp();
             assertStreamInvariants(outcome, true, 1);
             assertThat("HTTP status must be 200", outcome.httpStatus(), equalTo(200));
@@ -592,7 +605,7 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
         } else {
             expectThrows(Exception.class, () -> run(request).close());
 
-            StreamOutcome outcome = stream(streamBody(query), null, "batch_size=5", "allow_partial_results=false");
+            StreamOutcome outcome = stream(streamBody(query), null, "allow_partial_results=false");
             assertServerFullyCleanedUp();
             assertStreamInvariants(outcome, false, 1);
             assertThat(
@@ -612,24 +625,25 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testNodeRestartMidStream() throws Exception {
+        assumeTrue("requires query pragmas for page_size", canUseQueryPragmas());
         StreamOutcome outcome = streamPausingAt(
             1,
-            streamBody("FROM " + STREAM_INDEX + " | LIMIT 1000"),
+            streamBody("FROM " + STREAM_INDEX + " | LIMIT 1000", 2),
             true,
-            () -> internalCluster().restartRandomDataNode(),
-            "batch_size=2"
+            () -> internalCluster().restartRandomDataNode()
         );
         assertServerFullyCleanedUp();
         assertStreamInvariants(outcome, false, 1000);
     }
 
     public void testClientAbortsMidStream() throws Exception {
+        assumeTrue("requires query pragmas for page_size", canUseQueryPragmas());
         int abortAfterLines = between(2, 6);
-        StreamOutcome outcome = stream(streamBody("FROM " + STREAM_INDEX + " | LIMIT 1000"), (lineIndex, line, control) -> {
+        StreamOutcome outcome = stream(streamBody("FROM " + STREAM_INDEX + " | LIMIT 1000", 2), (lineIndex, line, control) -> {
             if (lineIndex == abortAfterLines - 1) {
                 control.abort();
             }
-        }, "batch_size=2");
+        });
         assertServerFullyCleanedUp();
         assertThat("status must be 200 — abort is a client decision after stream started", outcome.httpStatus(), equalTo(200));
         assertThat("no terminal line expected after abort", outcome.terminal(), equalTo(Terminal.NONE));
@@ -638,16 +652,16 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testSlowConsumerUnderNetworkDelay() throws Exception {
+        assumeTrue("requires query pragmas for page_size", canUseQueryPragmas());
         ServiceDisruptionScheme delay = installDisruption(
             NetworkDisruption.NetworkDelay.random(random(), TimeValue.timeValueMillis(2000), TimeValue.timeValueMillis(5000))
         );
 
         StreamOutcome outcome = streamPausingAt(
             1,
-            streamBody("FROM " + STREAM_INDEX + " | EVAL pad = REPEAT(\"x\", 2048) | LIMIT 1000"),
+            streamBody("FROM " + STREAM_INDEX + " | EVAL pad = REPEAT(\"x\", 2048) | LIMIT 1000", 2),
             true,
-            delay::startDisrupting,
-            "batch_size=2"
+            delay::startDisrupting
         );
 
         assertServerFullyCleanedUp();
@@ -656,6 +670,7 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testRandomDisruptionDuringStream() throws Exception {
+        assumeTrue("requires query pragmas for page_size", canUseQueryPragmas());
         boolean allowPartial = randomBoolean();
         int pageSize = between(1, 8);
         int limit = randomBoolean() ? between(100, 1000) : streamDocCount + between(1, 100);
@@ -667,16 +682,15 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
             limit,
             faultAtLine
         );
-        String body = streamBody("FROM " + STREAM_INDEX + " | LIMIT " + limit);
+        String body = streamBody("FROM " + STREAM_INDEX + " | LIMIT " + limit, pageSize);
         String partialParam = "allow_partial_results=" + allowPartial;
-        String batchParam = "batch_size=" + pageSize;
 
         ServiceDisruptionScheme scheme = addRandomDisruptionScheme();
 
         if (faultAtLine == 0) {
             logger.info("--> pre-stream disruption [{}]", scheme);
             scheme.startDisrupting();
-            StreamOutcome outcome = stream(body, null, partialParam, batchParam);
+            StreamOutcome outcome = stream(body, null, partialParam);
             assertServerFullyCleanedUp();
             assertStreamInvariants(outcome, allowPartial, limit);
             assertStreamDeliveredCompleteRows(outcome, limit);
@@ -685,7 +699,7 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
             StreamOutcome outcome = streamPausingAt(gateLineIndex, body, false, () -> {
                 logger.info("--> post-stream disruption [{}] at line {}", scheme, faultAtLine);
                 scheme.startDisrupting();
-            }, partialParam, batchParam);
+            }, partialParam);
             assertServerFullyCleanedUp();
             assertStreamInvariants(outcome, allowPartial, limit);
             assertStreamDeliveredCompleteRows(outcome, limit);
@@ -789,7 +803,7 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
             new EsqlStreamQueryRequest(source, ActionListener.wrap(resultStream -> {
                 nullColumnsRef.set(resultStream.nullColumns());
                 resultStream.publisher().subscribe(subscriber);
-            }, subscriber.failure::set), true, randomIntBetween(1, 10))
+            }, subscriber.failure::set), true)
         );
         future.actionGet(TimeValue.timeValueSeconds(60));
         subscriber.rethrowIfFailed();

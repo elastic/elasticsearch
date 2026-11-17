@@ -150,11 +150,11 @@ import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.CancelledChildRequestListener;
+import org.elasticsearch.tasks.RemovedTaskListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -184,6 +184,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
+import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.search.SearchRequestAttributesExtractor.TIME_RANGE_FILTER_FROM_ATTRIBUTE;
@@ -438,7 +439,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private static final StackTraceElement[] EMPTY_STACK_TRACE_ARRAY = new StackTraceElement[0];
 
     private final ThreadPool threadPool;
-    private final QueryScheduler queryScheduler = new QueryScheduler(System::nanoTime);
+    private final QueryScheduler queryScheduler;
 
     private final ClusterService clusterService;
 
@@ -493,8 +494,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private final AtomicInteger openScrollContexts = new AtomicInteger();
     private final String sessionId;
 
-    private final Tracer tracer;
-
     private final TaskManager taskManager;
 
     private final Executor freeContextExecutor;
@@ -506,6 +505,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private final Map<OpeningRequest, Set<ShardSearchContextId>> contextsByOpeningRequest = ConcurrentCollections.newConcurrentMap();
 
     private final CancelledChildRequestListener freeOnCancelledRequest = this::freeReaderContextsOpenedBy;
+    private final RemovedTaskListener closeQueryParts;
 
     private record OpeningRequest(TaskId parentTaskId, long requestId) {}
 
@@ -518,7 +518,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         FetchPhase fetchPhase,
         CircuitBreakerService circuitBreakerService,
         ExecutorSelector executorSelector,
-        Tracer tracer,
         OnlinePrewarmingService onlinePrewarmingService,
         TaskManager taskManager
     ) {
@@ -532,9 +531,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.bigArrays = bigArrays;
         this.fetchPhase = fetchPhase;
         this.circuitBreaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
+        this.queryScheduler = new QueryScheduler(System::nanoTime, circuitBreaker);
+        // a query is tracked on this node at most until the tasks that run it here are removed
+        this.closeQueryParts = queryScheduler.removedTaskListener();
         this.multiBucketConsumerService = new MultiBucketConsumerService(clusterService, settings, circuitBreaker);
         this.executorSelector = executorSelector;
-        this.tracer = tracer;
         this.taskManager = taskManager;
         this.freeContextExecutor = buildFreeContextExecutor(threadPool, settings);
         this.onlinePrewarmingService = onlinePrewarmingService;
@@ -869,11 +870,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     @Override
     protected void doStart() {
         taskManager.registerCancelledChildRequestListener(freeOnCancelledRequest);
+        taskManager.registerRemovedTaskListener(closeQueryParts);
     }
 
     @Override
     protected void doStop() {
         taskManager.unregisterCancelledChildRequestListener(freeOnCancelledRequest);
+        taskManager.unregisterRemovedTaskListener(closeQueryParts);
         for (final ReaderContext context : activeReaders.values()) {
             freeReaderContext(context.id(), "search service stopping");
         }
@@ -982,8 +985,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private DfsSearchResult executeDfsPhase(ShardSearchRequest request, SearchShardTask task) throws IOException {
         final Supplier<DirectoryMetrics> metricsDelta = directoryMetricsDelta();
         ReaderContext readerContext = createOrGetReaderContext(request, task);
-        try (@SuppressWarnings("unused") // withScope call is necessary to instrument search execution
-        Releasable scope = tracer.withScope(task);
+        try (
             Releasable ignored = readerContext.markAsUsed(getKeepAlive(request));
             SearchContext context = createContext(readerContext, request, task, ResultsType.DFS, false)
         ) {
@@ -1290,11 +1292,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private SearchPhaseResult executeQueryPhase(ShardSearchRequest request, CancellableTask task, ReaderContext readerContext)
         throws Exception {
         final Supplier<DirectoryMetrics> metricsDelta = directoryMetricsDelta();
-        try (
-            Releasable scope = tracer.withScope(task);
-            SearchContext context = createContext(readerContext, request, task, ResultsType.QUERY, true)
-        ) {
-            tracer.startTrace("executeQueryPhase", Map.of());
+        try (SearchContext context = createContext(readerContext, request, task, ResultsType.QUERY, true)) {
             final long afterQueryTime;
             final long beforeQueryTime = System.nanoTime();
             var opsListener = context.indexShard().getSearchOperationListener();
@@ -1311,7 +1309,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 if (opsListener != null) {
                     opsListener.onFailedQueryPhase(context);
                 }
-                tracer.stopTrace(task);
             }
             if (request.numberOfShards() == 1 && (request.source() == null || request.source().rankBuilder() == null)) {
                 // we already have query results, but we can run fetch at the same time
@@ -1414,7 +1411,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private QueryFetchSearchResult executeFetchPhase(ReaderContext reader, SearchContext context, long afterQueryTime) {
         var opsListener = context.indexShard().getSearchOperationListener();
-        try (Releasable scope = tracer.withScope(context.getTask());) {
+        try {
             opsListener.onPreFetchPhase(context);
             fetchPhase.execute(context, shortcutDocIdsToLoad(context), null);
             if (reader.singleSession()) {
@@ -2141,17 +2138,25 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         boolean includeAggregations
     ) throws IOException {
         checkCancelled(task);
-        final DefaultSearchContext context = createSearchContext(readerContext, request, defaultSearchTimeout, resultsType);
-        resultsType.addResultsObject(context);
-
-        // Release the memory used for query construction once the search context is closed.
+        // the context charges the query's breaker and keeps the query tracked until it closes
+        QueryScheduler.QueryPart part = queryPart(task);
+        final DefaultSearchContext context;
+        try {
+            context = createSearchContext(readerContext, request, defaultSearchTimeout, resultsType, part.breaker());
+        } catch (Exception e) {
+            part.close();
+            throw e;
+        }
+        // Release the memory used for query construction once the search context is closed, before its part.
         context.addReleasable(context.getSearchExecutionContext()::releaseQueryConstructionMemory);
+        context.addReleasable(part);
+        resultsType.addResultsObject(context);
 
         try {
             if (request.scroll() != null) {
                 context.scrollContext().scroll = request.scroll();
             }
-            parseSource(context, request.source(), includeAggregations);
+            parseSource(context, request.source(), includeAggregations, part.bigArrays(bigArrays));
 
             // if the from and size are still not set, default them
             if (context.from() == -1) {
@@ -2186,16 +2191,33 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public SearchContext createSearchContext(ShardSearchRequest request, TimeValue timeout) throws IOException {
-        final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
-        final IndexShard indexShard = indexService.getShard(request.shardId().getId());
-        final Engine.SearcherSupplier reader = indexShard.acquireExternalSearcherSupplier(request.getSplitShardCountSummary());
-        final ShardSearchContextId id = new ShardSearchContextId(sessionId, idGenerator.incrementAndGet(), reader.getSearcherId());
-        try (ReaderContext readerContext = new ReaderContext(id, indexService, indexShard, reader, -1L, true, 0L)) {
-            // Use ResultsType.QUERY so that the created search context can execute queries correctly.
-            DefaultSearchContext searchContext = createSearchContext(readerContext, request, timeout, ResultsType.QUERY);
-            searchContext.addReleasable(readerContext.markAsUsed(0L));
-            searchContext.addReleasable(searchContext.getSearchExecutionContext()::releaseQueryConstructionMemory);
-            return searchContext;
+        return createSearchContext(request, timeout, null);
+    }
+
+    /**
+     * Like {@link #createSearchContext(ShardSearchRequest, TimeValue)}, but the context charges the breaker of
+     * {@code part} if given. The context closes {@code part}, also when it fails to open.
+     */
+    public SearchContext createSearchContext(ShardSearchRequest request, TimeValue timeout, @Nullable QueryScheduler.QueryPart part)
+        throws IOException {
+        try {
+            final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
+            final IndexShard indexShard = indexService.getShard(request.shardId().getId());
+            final Engine.SearcherSupplier reader = indexShard.acquireExternalSearcherSupplier(request.getSplitShardCountSummary());
+            final ShardSearchContextId id = new ShardSearchContextId(sessionId, idGenerator.incrementAndGet(), reader.getSearcherId());
+            try (ReaderContext readerContext = new ReaderContext(id, indexService, indexShard, reader, -1L, true, 0L)) {
+                // Use ResultsType.QUERY so that the created search context can execute queries correctly.
+                DefaultSearchContext searchContext = createSearchContext(readerContext, request, timeout, ResultsType.QUERY, breaker(part));
+                searchContext.addReleasable(readerContext.markAsUsed(0L));
+                searchContext.addReleasable(searchContext.getSearchExecutionContext()::releaseQueryConstructionMemory);
+                if (part != null) {
+                    searchContext.addReleasable(part);
+                }
+                return searchContext;
+            }
+        } catch (Exception e) {
+            Releasables.close(part);
+            throw e;
         }
     }
 
@@ -2208,18 +2230,44 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      */
     public SearchContext createSearchContext(ReaderContext readerContext, ShardSearchRequest request, TimeValue timeout)
         throws IOException {
-        // pin the reader before the search context acquires a searcher, so a concurrent free cannot close it in between
-        final Releasable pin = readerContext.markAsUsed(-1L);
+        return createSearchContext(readerContext, request, timeout, null);
+    }
+
+    /**
+     * Like {@link #createSearchContext(ReaderContext, ShardSearchRequest, TimeValue)}, but the context charges the
+     * breaker of {@code part} if given. The context closes {@code part}, also when it fails to open.
+     */
+    public SearchContext createSearchContext(
+        ReaderContext readerContext,
+        ShardSearchRequest request,
+        TimeValue timeout,
+        @Nullable QueryScheduler.QueryPart part
+    ) throws IOException {
         final DefaultSearchContext searchContext;
+        // pin the reader before the search context acquires a searcher, so a concurrent free cannot close it in between
+        final Releasable pin;
         try {
-            searchContext = createSearchContext(readerContext, request, timeout, ResultsType.QUERY);
+            pin = readerContext.markAsUsed(-1L);
         } catch (Exception e) {
-            pin.close();
+            Releasables.close(part);
+            throw e;
+        }
+        try {
+            searchContext = createSearchContext(readerContext, request, timeout, ResultsType.QUERY, breaker(part));
+        } catch (Exception e) {
+            Releasables.close(pin, part);
             throw e;
         }
         searchContext.addReleasable(pin);
         searchContext.addReleasable(searchContext.getSearchExecutionContext()::releaseQueryConstructionMemory);
+        if (part != null) {
+            searchContext.addReleasable(part);
+        }
         return searchContext;
+    }
+
+    private CircuitBreaker breaker(@Nullable QueryScheduler.QueryPart part) {
+        return part == null ? circuitBreaker : part.breaker();
     }
 
     @SuppressWarnings("unchecked")
@@ -2227,7 +2275,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ReaderContext reader,
         ShardSearchRequest request,
         TimeValue timeout,
-        ResultsType resultsType
+        ResultsType resultsType,
+        CircuitBreaker breaker
     ) throws IOException {
         boolean success = false;
         DefaultSearchContext searchContext = null;
@@ -2250,7 +2299,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 enableQueryPhaseParallelCollection,
                 minimumDocsPerSlice,
                 memoryAccountingBufferSize,
-                circuitBreaker,
+                breaker,
                 this::directoryMetricsDelta
             );
             // we clone the query shard context here just for rewriting otherwise we
@@ -2503,7 +2552,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     @SuppressForbidden(reason = "TODO: replace with manual depth tracking before the overflow occurs")
-    private void parseSource(DefaultSearchContext context, SearchSourceBuilder source, boolean includeAggregations) throws IOException {
+    private void parseSource(DefaultSearchContext context, SearchSourceBuilder source, boolean includeAggregations, BigArrays bigArrays)
+        throws IOException {
         // nothing to parse...
         if (source == null) {
             return;
@@ -2702,7 +2752,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         if (CollectionUtils.isEmpty(source.searchAfter()) == false) {
             String collapseField = source.collapse() != null ? source.collapse().getField() : null;
-            FieldDoc fieldDoc = SearchAfterBuilder.buildFieldDoc(context.sort(), source.searchAfter(), collapseField);
+            FieldDoc fieldDoc = SearchAfterBuilder.buildFieldDoc(
+                context.sort(),
+                source.searchAfter(),
+                collapseField,
+                field -> searchExecutionContext.isFieldMapped(field) == false
+            );
             context.searchAfter(fieldDoc);
         }
 
@@ -3252,10 +3307,18 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     /**
-     * Charges the time of tasks equally to those of {@code shardIds} still on this node when a task completes.
+     * Charges the time of tasks equally to those of {@code shardIds} on this node.
      */
     public TaskLoadAttribution.Target searchLoad(List<ShardId> shardIds) {
         return indicesService.searchLoad(shardIds);
+    }
+
+    /**
+     * Charges the time of tasks to those of {@code shardIds} on this node by how much their {@code total} grew since the previous
+     * task, see {@link IndicesService#searchLoad(List, ToLongFunction)}.
+     */
+    public TaskLoadAttribution.Target searchLoad(List<ShardId> shardIds, ToLongFunction<ShardId> total) {
+        return indicesService.searchLoad(shardIds, total);
     }
 
     /**
@@ -3287,6 +3350,28 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 );
             }
         };
+    }
+
+    /**
+     * Opens a part of the query that {@code task} runs for. It closes at the latest when {@code task} is removed.
+     */
+    public QueryScheduler.QueryPart queryPart(Task task) {
+        return queryScheduler.part(queryId(task), task.getId());
+    }
+
+    /**
+     * Opens a part of the query {@code queryId}. It closes at the latest when {@code owner} is removed.
+     */
+    public QueryScheduler.QueryPart queryPart(TaskId queryId, Task owner) {
+        return queryScheduler.part(queryId, owner.getId());
+    }
+
+    /**
+     * Opens the coordination part of the query that {@code task} coordinates. It closes at the latest when {@code task}
+     * is removed.
+     */
+    public QueryScheduler.QueryPart coordinate(Task task) {
+        return queryScheduler.part(new TaskId(clusterService.localNode().getId(), task.getId()), task.getId());
     }
 
     /**

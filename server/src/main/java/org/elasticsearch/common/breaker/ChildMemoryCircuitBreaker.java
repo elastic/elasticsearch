@@ -70,6 +70,12 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     /** Per-phase retained query memory charged by {@link org.elasticsearch.index.query.AbstractQueryBuilder#toQuery}. */
     public static final String CATEGORY_QUERY = "query";
 
+    /**
+     * Analyzed query text a query parser buffers while it builds the query (label is {@code query_tokens:<field>}), see
+     * {@link org.elasticsearch.index.search.QueryTokenCacheAccountingFilter}.
+     */
+    public static final String CATEGORY_QUERY_TOKENS = "query_tokens";
+
     /** Fetch-phase retained memory. */
     public static final String CATEGORY_FETCH = "fetch";
 
@@ -99,6 +105,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
 
     private static final Set<String> KNOWN_CATEGORIES = Set.of(
         CATEGORY_QUERY,
+        CATEGORY_QUERY_TOKENS,
         CATEGORY_FETCH,
         CATEGORY_WILDCARD,
         CATEGORY_REGEXP,
@@ -362,6 +369,15 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
 
     void recordHeldDelta(long bytes, String label) {
         this.memoryHeldMeter.add(bytes, heldAttributes(label));
+    }
+
+    /**
+     * Moves the bytes in the held gauge only. The used bytes do not change, not even briefly.
+     */
+    @Override
+    public void moveHeld(long bytes, String fromLabel, String toLabel) {
+        recordHeldDelta(bytes, toLabel);
+        recordHeldDelta(-bytes, fromLabel);
     }
 
     private void adjustUsedBytes(long bytes) {

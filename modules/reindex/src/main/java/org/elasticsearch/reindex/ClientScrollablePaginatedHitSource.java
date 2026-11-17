@@ -157,16 +157,12 @@ public class ClientScrollablePaginatedHitSource extends ScrollablePaginatedHitSo
     }
 
     private static Response wrapSearchResponse(SearchResponse response) {
-        List<PaginatedSearchFailure> failures;
-        if (response.getShardFailures() == null) {
-            failures = emptyList();
-        } else {
-            failures = new ArrayList<>(response.getShardFailures().length);
-            for (ShardSearchFailure failure : response.getShardFailures()) {
-                String nodeId = failure.shard() == null ? null : failure.shard().getNodeId();
-                failures.add(new PaginatedSearchFailure(failure.getCause(), failure.index(), failure.shardId(), nodeId));
-            }
+        List<PaginatedSearchFailure> failures = new ArrayList<>(response.shardFailuresList().size());
+        for (ShardSearchFailure failure : response.shardFailuresList()) {
+            String nodeId = failure.shard() == null ? null : failure.shard().getNodeId();
+            failures.add(new PaginatedSearchFailure(failure.getCause(), failure.index(), failure.shardId(), nodeId));
         }
+
         List<Hit> hits;
         if (response.getHits().getHits() == null || response.getHits().getHits().length == 0) {
             hits = emptyList();

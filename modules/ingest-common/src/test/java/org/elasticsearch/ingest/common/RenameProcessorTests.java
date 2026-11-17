@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.hamcrest.Matchers.equalTo;
@@ -293,6 +294,48 @@ public class RenameProcessorTests extends ESTestCase {
         e = expectThrows(IllegalArgumentException.class, () -> arrayProcessor.execute(arrayDocument));
         assertThat(e.getMessage(), equalTo("path [a..b] is not valid"));
         assertThat(arrayDocument.getFieldValue("list", List.class), equalTo(List.of("item1", "item2", "item3")));
+    }
+
+    /**
+     * The field and the target field are templates, which are rendered as often as they have to be and no more: once each for every
+     * document (however many times the processor looks at them), and the target not at all if there is nothing to rename.
+     */
+    public void testTemplatedFieldsAreRenderedOncePerExecute() throws Exception {
+        AtomicInteger fieldRenders = new AtomicInteger();
+        AtomicInteger targetRenders = new AtomicInteger();
+        TemplateScript.Factory field = countingTemplate("source", fieldRenders);
+        TemplateScript.Factory target = countingTemplate("target", targetRenders);
+
+        for (boolean overrideEnabled : new boolean[] { true, false }) {
+            // something to rename
+            IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+            ingestDocument.setFieldValue("source", "value");
+            fieldRenders.set(0);
+            targetRenders.set(0);
+            new RenameProcessor("tag", null, field, target, false, overrideEnabled).execute(ingestDocument);
+            assertThat(ingestDocument.getSource(), equalTo(Map.of("target", "value")));
+            assertThat("override " + overrideEnabled, fieldRenders.get(), equalTo(1));
+            assertThat("override " + overrideEnabled, targetRenders.get(), equalTo(1));
+
+            // nothing to rename
+            ingestDocument = TestIngestDocument.emptyIngestDocument();
+            fieldRenders.set(0);
+            targetRenders.set(0);
+            new RenameProcessor("tag", null, field, target, true, overrideEnabled).execute(ingestDocument);
+            assertThat(ingestDocument.getSource(), equalTo(Map.of()));
+            assertThat("override " + overrideEnabled, fieldRenders.get(), equalTo(1));
+            assertThat("override " + overrideEnabled, targetRenders.get(), equalTo(0));
+        }
+    }
+
+    private static TemplateScript.Factory countingTemplate(String rendersAs, AtomicInteger renders) {
+        return params -> new TemplateScript(params) {
+            @Override
+            public String execute() {
+                renders.incrementAndGet();
+                return rendersAs;
+            }
+        };
     }
 
     private RenameProcessor createRenameProcessor(String field, String targetField, boolean ignoreMissing, boolean overrideEnabled) {

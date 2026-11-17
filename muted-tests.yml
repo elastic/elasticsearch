@@ -643,3 +643,7 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testTranslogStressRecoveryTest
   issue: https://github.com/elastic/elasticsearch/issues/166061
+- class: org.elasticsearch.ingest.attachment.heappressure.AttachmentTextCopiesHeapPressureIT
+  issue: https://github.com/elastic/incident-management/issues/3577
+- class: org.elasticsearch.ingest.attachment.heappressure.AttachmentOversizedTextHeapPressureIT
+  issue: https://github.com/elastic/incident-management/issues/3577

@@ -29,7 +29,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
-import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
@@ -88,7 +87,6 @@ public class IncrementalBulkServiceTests extends ESTestCase {
         );
         when(taskManager.register(anyString(), anyString(), any())).thenReturn(task);
         when(taskManager.getNodeId()).thenReturn("test-node");
-        when(taskManager.tracer()).thenReturn(Tracer.NOOP);
 
         Settings.Builder settings = Settings.builder();
         if (requestTimeout != null) {

@@ -169,7 +169,7 @@ public class InternalExecutePolicyAction extends ActionType<Response> {
                 }
             });
 
-            try (var ignored = taskManager.tracer().storeSpanInThreadContext(task)) {
+            try (var ignored = task.getSpan().storeInThreadContext()) {
                 ActionListener<ExecuteEnrichPolicyStatus> listener;
                 if (request.isWaitForCompletion()) {
                     listener = actionListener.delegateFailureAndWrap((l, result) -> l.onResponse(new Response(result)));

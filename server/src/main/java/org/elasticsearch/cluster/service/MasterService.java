@@ -420,7 +420,7 @@ public class MasterService extends AbstractLifecycleComponent {
                 }
             });
 
-            try (var ignored = taskManager.tracer().storeSpanInThreadContext(task)) {
+            try (var ignored = task.getSpan().storeInThreadContext()) {
                 ActionListener.run(
                     new DelegatingActionListener<Void, Void>(
                         ActionListener.runAfter(listener, () -> taskManager.unregister(task)).delegateResponse((l, e) -> {

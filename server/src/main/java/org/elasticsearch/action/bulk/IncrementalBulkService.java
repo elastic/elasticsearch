@@ -261,7 +261,7 @@ public class IncrementalBulkService {
                     return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
                 }
             });
-            try (var ignored = taskManager.tracer().storeSpanInThreadContext(bulkSessionTask)) {
+            try (var ignored = bulkSessionTask.getSpan().storeInThreadContext()) {
                 createNewBulkRequest(EMPTY_STATE);
             } catch (Exception e) {
                 // The caller never receives this Handler, so nothing would be left to release the reservations.

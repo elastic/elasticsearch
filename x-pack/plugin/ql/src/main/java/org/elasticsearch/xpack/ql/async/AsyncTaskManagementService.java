@@ -194,7 +194,7 @@ public class AsyncTaskManagementService<
         String nodeId = clusterService.localNode().getId();
         @SuppressWarnings("unchecked")
         T searchTask = (T) taskManager.register("transport", action + "[a]", new AsyncRequestWrapper(request, nodeId, resolvedKeepAlive));
-        try (var ignored = taskManager.tracer().storeSpanInThreadContext(searchTask)) {
+        try (var ignored = searchTask.getSpan().storeInThreadContext()) {
             boolean operationStarted = false;
             try {
                 operation.execute(

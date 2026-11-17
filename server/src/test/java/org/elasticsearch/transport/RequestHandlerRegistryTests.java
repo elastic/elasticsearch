@@ -13,29 +13,26 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.telemetry.tracing.Traceable;
+import org.elasticsearch.telemetry.tracing.Span;
+import org.elasticsearch.telemetry.tracing.SpanBuilder;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.Answers;
 
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.withSettings;
 
 public class RequestHandlerRegistryTests extends ESTestCase {
-
-    /** The key under which the tracer leaves the id of the span that is current in the thread context. */
-    private static final String CURRENT_SPAN_ID = "test.current_span_id";
 
     private ThreadPool threadPool;
     private TaskManager taskManager;
@@ -54,25 +51,24 @@ public class RequestHandlerRegistryTests extends ESTestCase {
     }
 
     public void testHandlerIsRunWithTheSpanOfTheTaskInTheThreadContext() throws Exception {
-        final AtomicReference<String> seenByTheHandler = new AtomicReference<>();
-        final AtomicReference<Task> taskOfTheHandler = new AtomicReference<>();
-
         registry((request, channel, task) -> {
-            taskOfTheHandler.set(task);
-            seenByTheHandler.set(threadPool.getThreadContext().getTransient(CURRENT_SPAN_ID));
+            assertTrue(threadPool.getThreadContext().getTransient("span_is_present"));
             channel.sendResponse(new TestResponse("response"));
         }).processMessageReceived(new TestRequest("request"), channel());
 
-        assertThat(taskOfTheHandler.get(), notNullValue());
-        assertThat(seenByTheHandler.get(), equalTo(taskOfTheHandler.get().getSpanId()));
+        assertThat(threadPool.getThreadContext().getTransient("span_is_present"), nullValue());
     }
 
     private Tracer tracerThatStoresTheSpanId() {
         final Tracer mockTracer = mock(Tracer.class);
-        when(mockTracer.storeSpanInThreadContext(any())).thenAnswer(invocation -> {
+        final SpanBuilder mockSpanBuilder = mock(SpanBuilder.class, withSettings().defaultAnswer(Answers.RETURNS_SELF));
+        final Span mockSpan = mock(Span.class, withSettings().defaultAnswer(Answers.RETURNS_SELF));
+        when(mockTracer.spanBuilder(any())).thenReturn(mockSpanBuilder);
+        when(mockSpanBuilder.startSpan()).thenReturn(mockSpan);
+        when(mockSpan.storeInThreadContext()).thenAnswer(invocation -> {
             final ThreadContext threadContext = threadPool.getThreadContext();
             final ThreadContext.StoredContext restore = threadContext.newStoredContextPreservingResponseHeaders();
-            threadContext.putTransientAllowOverwrite(CURRENT_SPAN_ID, ((Traceable) invocation.getArgument(0)).getSpanId());
+            threadContext.putTransientAllowOverwrite("span_is_present", true);
             return restore;
         });
         return mockTracer;

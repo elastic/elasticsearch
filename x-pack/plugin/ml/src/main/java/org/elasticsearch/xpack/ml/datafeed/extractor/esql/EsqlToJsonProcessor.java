@@ -31,7 +31,7 @@ class EsqlToJsonProcessor implements Releasable {
         this.outputStream = Objects.requireNonNull(outputStream);
         this.isDateColumn = new boolean[columns.size()];
         for (int i = 0; i < columns.size(); i++) {
-            isDateColumn[i] = EsqlDatafeedColumnValues.isDateColumnType(columns.get(i).outputType());
+            isDateColumn[i] = EsqlColumnTypes.isDate(columns.get(i).outputType());
         }
         this.jsonBuilder = new XContentBuilder(JsonXContent.jsonXContent, outputStream);
     }
@@ -46,8 +46,8 @@ class EsqlToJsonProcessor implements Releasable {
             columnIndex++;
         }
         jsonBuilder.endObject();
+        // No newline: preview turns the "} {" root separator into "},{" to build a JSON array.
         jsonBuilder.flush();
-        outputStream.write('\n');
         writtenDocumentCount++;
     }
 

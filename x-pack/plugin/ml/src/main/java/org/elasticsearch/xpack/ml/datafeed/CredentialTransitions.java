@@ -142,7 +142,8 @@ public final class CredentialTransitions {
         Client client,
         NamedXContentRegistry xContentRegistry,
         DatafeedConfigProvider datafeedConfigProvider,
-        CrossProjectModeDecider crossProjectModeDecider
+        CrossProjectModeDecider crossProjectModeDecider,
+        EsqlDatafeedQueryValidator esqlQueryValidator
     ) {
         this.auditor = auditor;
         this.apiKeyServiceSupplier = apiKeyServiceSupplier;
@@ -151,7 +152,7 @@ public final class CredentialTransitions {
         this.xContentRegistry = xContentRegistry;
         this.datafeedConfigProvider = datafeedConfigProvider;
         this.crossProjectModeDecider = crossProjectModeDecider;
-        this.esqlQueryValidator = new EsqlDatafeedQueryValidator();
+        this.esqlQueryValidator = esqlQueryValidator;
     }
 
     public static Intent decideForUpdate(TransitionContext ctx) {

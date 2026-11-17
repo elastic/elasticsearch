@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.chunked;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
-import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDataExtractor;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDatafeedQuery;
 
 import java.util.Optional;
 import java.util.OptionalLong;
@@ -18,18 +18,18 @@ final class ChunkedDataExtractorEsqlSizing {
 
     /**
      * Burst headroom when sizing an initial ES|QL chunk: target {@link #DEFAULT_ESQL_CHUNK_DOCS} rows per chunk, which is
-     * {@link EsqlDataExtractor#INJECTED_ROW_LIMIT} divided by this factor.
+     * {@link EsqlDatafeedQuery#INJECTED_ROW_LIMIT} divided by this factor.
      */
     static final long CHUNK_HEADROOM_FACTOR = 2L;
 
     /**
      * Target rows per initial ES|QL chunk when chunk span is auto. ES|QL has no scroll; oversized chunks truncate at
-     * {@link EsqlDataExtractor#INJECTED_ROW_LIMIT}.
+     * {@link EsqlDatafeedQuery#INJECTED_ROW_LIMIT}.
      */
-    static final long DEFAULT_ESQL_CHUNK_DOCS = EsqlDataExtractor.INJECTED_ROW_LIMIT / CHUNK_HEADROOM_FACTOR;
+    static final long DEFAULT_ESQL_CHUNK_DOCS = EsqlDatafeedQuery.INJECTED_ROW_LIMIT / CHUNK_HEADROOM_FACTOR;
 
     /**
-     * Maximum ES|QL shrink retries per chunk after a result hits {@link EsqlDataExtractor#INJECTED_ROW_LIMIT}; the interval shrinks by
+     * Maximum ES|QL shrink retries per chunk after a result hits {@link EsqlDatafeedQuery#INJECTED_ROW_LIMIT}; the interval shrinks by
      * at least {@link #CHUNK_HEADROOM_FACTOR} except where the one-grouping-interval floor applies.
      */
     static final int MAX_ESQL_SHRINK_ATTEMPTS = 6;
@@ -51,7 +51,7 @@ final class ChunkedDataExtractorEsqlSizing {
     }
 
     boolean isTruncated(long rowCount) {
-        return injectsEsqlRowLimit && rowCount >= EsqlDataExtractor.INJECTED_ROW_LIMIT;
+        return injectsEsqlRowLimit && rowCount >= EsqlDatafeedQuery.INJECTED_ROW_LIMIT;
     }
 
     /** Returns the shrunk end to retry the chunk with, or empty after recording {@code interval} as incomplete. */

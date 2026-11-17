@@ -13,7 +13,7 @@ import java.util.Map;
 
 record EsqlDataExtractorContext(
     String jobId,
-    String esqlQuery,
+    EsqlDatafeedQuery query,
     String sourceTimeField,
     String emittedTimeField,
     long groupingIntervalMillis,

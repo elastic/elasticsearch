@@ -53,6 +53,7 @@ import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.SettingsIndexingMemoryLimits;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.engine.MergeMetrics;
@@ -541,6 +542,7 @@ public class SecurityTests extends ESTestCase {
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             MergeMetrics.NOOP,
+            new SettingsIndexingMemoryLimits(settings),
             StoreMetrics.NOOP_HOLDER
         );
         security.onIndexModule(indexModule);

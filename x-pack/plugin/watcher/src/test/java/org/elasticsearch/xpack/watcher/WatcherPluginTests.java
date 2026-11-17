@@ -12,6 +12,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SettingsIndexingMemoryLimits;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.engine.MergeMetrics;
@@ -81,6 +82,7 @@ public class WatcherPluginTests extends ESTestCase {
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             MergeMetrics.NOOP,
+            new SettingsIndexingMemoryLimits(settings),
             StoreMetrics.NOOP_HOLDER
         );
         // this will trip an assertion if the watcher indexing operation listener is null (which it is) but we try to add it

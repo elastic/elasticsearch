@@ -137,7 +137,10 @@ import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
+import org.elasticsearch.index.IndexingMemoryLimits;
+import org.elasticsearch.index.IndexingMemoryLimitsFactory;
 import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.index.SettingsIndexingMemoryLimits;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.mapper.DefaultRootObjectMapperNamespaceValidator;
@@ -980,7 +983,13 @@ class NodeConstruction {
             JvmInfo.jvmInfo().getMem().getHeapMax()
         );
 
+        final IndexingMemoryLimits indexingMemoryLimits = pluginsService.loadSingletonServiceProvider(
+            IndexingMemoryLimitsFactory.class,
+            () -> SettingsIndexingMemoryLimits::new
+        ).create(settings);
+
         IndicesService indicesService = new IndicesServiceBuilder().settings(settings)
+            .indexingMemoryLimits(indexingMemoryLimits)
             .pluginsService(pluginsService)
             .nodeEnvironment(nodeEnvironment)
             .xContentRegistry(xContentRegistry)
@@ -1060,7 +1069,7 @@ class NodeConstruction {
             dataStreamLifecycleSettings
         );
 
-        final IndexingPressure indexingLimits = new IndexingPressure(settings);
+        final IndexingPressure indexingLimits = new IndexingPressure(settings, indexingMemoryLimits);
 
         final var linkedProjectConfigService = pluginsService.loadSingletonServiceProvider(
             LinkedProjectConfigService.Provider.class,

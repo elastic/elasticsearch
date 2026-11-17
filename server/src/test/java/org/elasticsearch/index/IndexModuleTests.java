@@ -275,6 +275,7 @@ public class IndexModuleTests extends ESTestCase {
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             MergeMetrics.NOOP,
+            new SettingsIndexingMemoryLimits(Settings.EMPTY),
             StoreMetrics.NOOP_HOLDER
         );
         module.setReaderWrapper(s -> new Wrapper());
@@ -307,6 +308,7 @@ public class IndexModuleTests extends ESTestCase {
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             MergeMetrics.NOOP,
+            new SettingsIndexingMemoryLimits(Settings.EMPTY),
             StoreMetrics.NOOP_HOLDER
         );
 
@@ -337,6 +339,7 @@ public class IndexModuleTests extends ESTestCase {
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             MergeMetrics.NOOP,
+            new SettingsIndexingMemoryLimits(Settings.EMPTY),
             StoreMetrics.NOOP_HOLDER
         );
 
@@ -720,6 +723,7 @@ public class IndexModuleTests extends ESTestCase {
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             MergeMetrics.NOOP,
+            new SettingsIndexingMemoryLimits(Settings.EMPTY),
             StoreMetrics.NOOP_HOLDER
         );
 
@@ -750,6 +754,7 @@ public class IndexModuleTests extends ESTestCase {
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             MergeMetrics.NOOP,
+            new SettingsIndexingMemoryLimits(Settings.EMPTY),
             StoreMetrics.NOOP_HOLDER
         );
 
@@ -894,6 +899,7 @@ public class IndexModuleTests extends ESTestCase {
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             MergeMetrics.NOOP,
+            new SettingsIndexingMemoryLimits(Settings.EMPTY),
             StoreMetrics.NOOP_HOLDER
         );
     }

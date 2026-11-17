@@ -43,6 +43,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.SettingsIndexingMemoryLimits;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
@@ -464,6 +465,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             .mapperService(mapperService)
             .engineResetLock(new EngineResetLock())
             .mergeMetrics(MergeMetrics.NOOP)
+            .indexingMemoryLimits(new SettingsIndexingMemoryLimits(Settings.EMPTY))
             .indexDeletionPolicyWrapper(Function.identity())
             .build();
     }
@@ -647,6 +649,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             .primaryTermSupplier(primaryTermSupplier)
             .engineResetLock(new EngineResetLock())
             .mergeMetrics(MergeMetrics.NOOP)
+            .indexingMemoryLimits(new SettingsIndexingMemoryLimits(Settings.EMPTY))
             .indexDeletionPolicyWrapper(Function.identity())
             .build();
         ClusterSettings clusterSettings = new ClusterSettings(
@@ -774,6 +777,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             .primaryTermSupplier(directory.getCurrentCommit()::primaryTerm)
             .engineResetLock(new EngineResetLock())
             .mergeMetrics(MergeMetrics.NOOP)
+            .indexingMemoryLimits(new SettingsIndexingMemoryLimits(Settings.EMPTY))
             .indexDeletionPolicyWrapper(Function.identity())
             .build();
     }

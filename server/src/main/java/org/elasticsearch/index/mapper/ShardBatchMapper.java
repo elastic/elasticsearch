@@ -539,6 +539,7 @@ public final class ShardBatchMapper {
             chunkStart,
             chunkEnd,
             chunkSource,
+            shard.indexSettings().getMode(),
             origin,
             shard.getOperationPrimaryTerm(),
             shard.getRelativeTimeInNanos(),

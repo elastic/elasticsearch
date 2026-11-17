@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
@@ -33,6 +34,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 
@@ -88,7 +90,7 @@ public class StNPoints extends SpatialUnaryDocValuesFunction implements AnyNullI
         if (spatialDocValues) {
             return new StNPointsFromPointDocValuesEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
         } else {
-            return new StNPointsFromWKBEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
+            return new StNPointsFromWKBEvaluator.Factory(source(), toEvaluator.apply(spatialField()), context -> new BytesRef());
         }
     }
 
@@ -118,8 +120,12 @@ public class StNPoints extends SpatialUnaryDocValuesFunction implements AnyNullI
     }
 
     @Evaluator(extraName = "FromWKB", warnExceptions = { IllegalArgumentException.class })
-    static void fromWellKnownBinary(IntBlock.Builder results, @Position int p, BytesRefBlock wkbBlock) {
-        BytesRef scratch = new BytesRef();
+    static void fromWellKnownBinary(
+        IntBlock.Builder results,
+        @Position int p,
+        BytesRefBlock wkbBlock,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) BytesRef scratch
+    ) {
         int firstValueIndex = wkbBlock.getFirstValueIndex(p);
         int valueCount = wkbBlock.getValueCount(p);
         int totalPoints = 0;

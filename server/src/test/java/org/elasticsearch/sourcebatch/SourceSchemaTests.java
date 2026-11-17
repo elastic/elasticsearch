@@ -181,6 +181,54 @@ public class SourceSchemaTests extends ESTestCase {
         assertEquals(3, schema.nonLeafCount());
     }
 
+    private record Pair(int first, int second) {}
+
+    private static final SourceSchema.SubSchemaFactory<Pair> PAIR = (schema, parentIdx, name) -> {
+        int obj = schema.appendNonLeaf(name, parentIdx);
+        return new Pair(schema.appendLeaf("first", obj), schema.appendLeaf("second", obj));
+    };
+
+    /** A sub-schema registers its fields once and is then served from the cache. */
+    public void testSubSchemaIsCached() {
+        SourceSchema schema = new SourceSchema();
+        Pair pair = schema.getSubSchema(0, "pair", PAIR);
+        assertEquals("pair.first", schema.getFullPath(pair.first()));
+        assertEquals("pair.second", schema.getFullPath(pair.second()));
+        assertSame(pair, schema.getSubSchema(0, "pair", PAIR));
+        assertEquals(2, schema.leafCount());
+    }
+
+    /** The parent, the name and the factory each identify a sub-schema. */
+    public void testSubSchemaKey() {
+        SourceSchema schema = new SourceSchema();
+        int parent = schema.appendNonLeaf("parent", 0);
+        Pair root = schema.getSubSchema(0, "pair", PAIR);
+        Pair nested = schema.getSubSchema(parent, "pair", PAIR);
+        Pair other = schema.getSubSchema(0, "other", PAIR);
+        assertEquals("parent.pair.first", schema.getFullPath(nested.first()));
+        assertEquals("other.first", schema.getFullPath(other.first()));
+        assertEquals(6, schema.leafCount());
+
+        // Factories are compared by identity, so an equivalent factory registers nothing new but has its own handle.
+        SourceSchema.SubSchemaFactory<Pair> equivalent = (s, parentIdx, name) -> PAIR.create(s, parentIdx, name);
+        Pair fromEquivalent = schema.getSubSchema(0, "pair", equivalent);
+        assertNotSame(root, fromEquivalent);
+        assertEquals(root, fromEquivalent);
+        assertEquals(6, schema.leafCount());
+    }
+
+    /** A factory may build on another sub-schema. */
+    public void testNestedSubSchema() {
+        SourceSchema.SubSchemaFactory<Pair> outer = (schema, parentIdx, name) -> {
+            int obj = schema.appendNonLeaf(name, parentIdx);
+            return schema.getSubSchema(obj, "inner", PAIR);
+        };
+        SourceSchema schema = new SourceSchema();
+        Pair pair = schema.getSubSchema(0, "outer", outer);
+        assertEquals("outer.inner.first", schema.getFullPath(pair.first()));
+        assertSame(pair, schema.getSubSchema(0, "outer", outer));
+    }
+
     /** Callers only predict indices at or after the start of the schema; a negative one is a bug, caught by an assertion. */
     public void testNegativePredictionIsRejected() {
         SourceSchema schema = new SourceSchema();

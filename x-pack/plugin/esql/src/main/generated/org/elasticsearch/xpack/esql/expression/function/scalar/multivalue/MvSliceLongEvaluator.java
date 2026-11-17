@@ -69,7 +69,7 @@ public final class MvSliceLongEvaluator implements ExpressionEvaluator {
 
   public LongBlock eval(int positionCount, LongBlock fieldBlock, IntBlock startBlock,
       IntBlock endBlock) {
-    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
         if (!fieldBlock.isNull(p)) {

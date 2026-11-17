@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -18,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -184,14 +184,14 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
         assertThat(rLike.pattern().pattern(), equalTo("f.o"));
     }
 
-    /** The RLIKE fallback parses without Lucene's own operators, which are literals in PromQL (RE2). */
+    /** The RLIKE fallback keeps the regex in RE2 syntax, where Lucene's own operators are literals. */
     public void testLabelSelectorRegexLuceneOnlyOperatorsAreLiterals() {
         var plan = planPromql("PROMQL index=k8s step=1m avg(network.bytes_in{pod!~\"(a<1-3>|~b&c)\"})");
         var not = collectInnermostSelectorFilter(plan, Not.class);
         var rLike = as(not.field(), RLike.class);
         assertThat(as(rLike.field(), FieldAttribute.class).name(), equalTo("pod"));
         assertThat(rLike.pattern().pattern(), equalTo("(a<1-3>|~b&c)"));
-        assertThat(rLike.pattern().syntaxFlags(), equalTo(RegExp.NONE));
+        assertThat(rLike.pattern().syntax(), equalTo(RLikePattern.Syntax.RE2));
     }
 
     public void testLabelSelectors() {

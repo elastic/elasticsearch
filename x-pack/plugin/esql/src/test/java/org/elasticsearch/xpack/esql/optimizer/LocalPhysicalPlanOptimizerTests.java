@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TemporalityAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
@@ -66,6 +67,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
@@ -134,6 +136,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 import static org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase.randomVector;
 import static org.elasticsearch.compute.aggregation.AggregatorMode.FINAL;
@@ -1271,6 +1274,35 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var mustNot = ((BoolQueryBuilder) inner).mustNot();
         assertThat(mustNot, hasSize(1));
         assertThat(mustNot.get(0), instanceOf(ExpressionQueryBuilder.class));
+    }
+
+    /**
+     * A PromQL label regex is RE2, which a regexp query would read as Lucene syntax, so it travels as the expression and
+     * builds its automaton on the shard.
+     */
+    public void testPromqlLabelRegexPushesAsExpression() {
+        assumeTrue("requires PROMQL command", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
+        var plan = plannerOptimizerTimeSeries.plan(
+            "PROMQL index=k8s step=1h result=(sum(rate(network.total_bytes_in{pod=~\"(?i)a.*b\"}[1h])))"
+        );
+        var queries = expressionQueries(plan.collect(EsQueryExec.class).getFirst().query());
+        assertThat(queries, hasSize(1));
+        assertThat(queries.getFirst().fieldName(), equalTo("pod"));
+        var rLike = as(queries.getFirst().getExpression(), RLike.class);
+        assertThat(rLike.pattern().pattern(), equalTo("(?i)a.*b"));
+        assertThat(rLike.pattern().syntax(), equalTo(RLikePattern.Syntax.RE2));
+    }
+
+    private static List<ExpressionQueryBuilder> expressionQueries(QueryBuilder query) {
+        return switch (query) {
+            case ExpressionQueryBuilder expression -> List.of(expression);
+            case SingleValueQuery.Builder singleValue -> expressionQueries(singleValue.next());
+            case BoolQueryBuilder bool -> Stream.of(bool.must(), bool.filter(), bool.should(), bool.mustNot())
+                .flatMap(List::stream)
+                .flatMap(clause -> expressionQueries(clause).stream())
+                .toList();
+            case null, default -> List.of();
+        };
     }
 
     /** Without values none of them is pushed. */

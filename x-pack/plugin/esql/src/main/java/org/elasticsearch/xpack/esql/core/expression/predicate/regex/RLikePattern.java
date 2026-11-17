@@ -21,49 +21,53 @@ import java.util.Objects;
 
 public class RLikePattern extends AbstractStringPattern implements Writeable {
 
-    /** The {@link RegExp} syntax flags {@code RLIKE} parses its pattern with. */
-    public static final int DEFAULT_SYNTAX_FLAGS = RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT;
-
-    static final TransportVersion ESQL_RLIKE_SYNTAX_FLAGS = TransportVersion.fromName("esql_rlike_syntax_flags");
-
-    private final String regexpPattern;
-    private final int syntaxFlags;
-
-    public RLikePattern(String regexpPattern) {
-        this(regexpPattern, DEFAULT_SYNTAX_FLAGS);
+    /**
+     * The regular expression dialect a pattern is written in.
+     */
+    public enum Syntax {
+        /** Lucene's {@link RegExp} syntax, which {@code RLIKE} takes. */
+        LUCENE,
+        /** RE2 syntax, which PromQL label matchers take; see {@link Re2RegExp}. */
+        RE2
     }
 
-    /**
-     * A pattern parsed with other {@link RegExp} syntax flags than {@code RLIKE}'s, for a caller with its own regex
-     * dialect: PromQL passes {@link RegExp#NONE} so that Lucene-only operators read as the literals RE2 takes them for.
-     */
-    public RLikePattern(String regexpPattern, int syntaxFlags) {
+    static final TransportVersion ESQL_RLIKE_RE2_SYNTAX = TransportVersion.fromName("esql_rlike_re2_syntax");
+
+    private final String regexpPattern;
+    private final Syntax syntax;
+
+    public RLikePattern(String regexpPattern) {
+        this(regexpPattern, Syntax.LUCENE);
+    }
+
+    public RLikePattern(String regexpPattern, Syntax syntax) {
         this.regexpPattern = regexpPattern;
-        this.syntaxFlags = syntaxFlags;
+        this.syntax = syntax;
     }
 
     public RLikePattern(StreamInput in) throws IOException {
-        this(in.readString(), in.getTransportVersion().supports(ESQL_RLIKE_SYNTAX_FLAGS) ? in.readVInt() : DEFAULT_SYNTAX_FLAGS);
+        this(in.readString(), in.getTransportVersion().supports(ESQL_RLIKE_RE2_SYNTAX) ? in.readEnum(Syntax.class) : Syntax.LUCENE);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(regexpPattern);
-        if (out.getTransportVersion().supports(ESQL_RLIKE_SYNTAX_FLAGS)) {
-            out.writeVInt(syntaxFlags);
-        } else if (syntaxFlags != DEFAULT_SYNTAX_FLAGS) {
-            // an older node would parse the pattern with the default flags and match other values
-            throw new UnsupportedOperationException("version does not support regex syntax flags");
+        if (out.getTransportVersion().supports(ESQL_RLIKE_RE2_SYNTAX)) {
+            out.writeEnum(syntax);
+        } else if (syntax != Syntax.LUCENE) {
+            // an older node would read the pattern as Lucene syntax and match other values
+            throw new UnsupportedOperationException("version does not support RE2 regex syntax");
         }
     }
 
     @Override
     protected Automaton doCreateAutomaton(boolean ignoreCase) {
-        int matchFlags = ignoreCase ? RegExp.CASE_INSENSITIVE : 0;
-        return Operations.determinize(
-            new RegExp(regexpPattern, syntaxFlags, matchFlags).toAutomaton(),
-            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
-        );
+        Automaton automaton = switch (syntax) {
+            case LUCENE -> new RegExp(regexpPattern, RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT, ignoreCase ? RegExp.CASE_INSENSITIVE : 0)
+                .toAutomaton();
+            case RE2 -> new Re2RegExp(regexpPattern, ignoreCase).toAutomaton();
+        };
+        return Operations.determinize(automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
     }
 
     @Override
@@ -76,21 +80,20 @@ public class RLikePattern extends AbstractStringPattern implements Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RLikePattern that = (RLikePattern) o;
-        return Objects.equals(regexpPattern, that.regexpPattern) && syntaxFlags == that.syntaxFlags;
+        return Objects.equals(regexpPattern, that.regexpPattern) && syntax == that.syntax;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(regexpPattern, syntaxFlags);
+        return Objects.hash(regexpPattern, syntax);
     }
 
     public String pattern() {
         return regexpPattern;
     }
 
-    /** The {@link RegExp} syntax flags the pattern is parsed with. */
-    public int syntaxFlags() {
-        return syntaxFlags;
+    public Syntax syntax() {
+        return syntax;
     }
 
     private static final String REGEX_METACHARACTERS = ".*+?()[]{}|^$\\";

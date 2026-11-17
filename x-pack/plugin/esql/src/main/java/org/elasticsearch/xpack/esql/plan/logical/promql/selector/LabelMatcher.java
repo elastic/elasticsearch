@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.plan.logical.promql.selector;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
-import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.lucene.util.automaton.MinimizationOperations;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
@@ -151,12 +150,10 @@ public class LabelMatcher implements NodeStringRenderable {
 
     /**
      * A PromQL regex as an {@link RLikePattern}, used for both the matcher's automaton and the {@code RLIKE} filter so
-     * the two agree on what it matches. PromQL regexes use RE2 syntax, where {@code # & < @ ~} are literals; parsing
-     * with {@link RegExp#NONE} turns off the Lucene operators they would otherwise be (empty language, intersection,
-     * interval, any string, complement). That is as close to RE2 as Lucene gets today.
+     * the two agree on what it matches. PromQL regexes use RE2 syntax, which Lucene's regexp syntax doesn't cover.
      */
     public static RLikePattern regex(String regex) {
-        return new RLikePattern(regex, RegExp.NONE);
+        return new RLikePattern(regex, RLikePattern.Syntax.RE2);
     }
 
     private static Automaton regexAutomaton(String regex) {

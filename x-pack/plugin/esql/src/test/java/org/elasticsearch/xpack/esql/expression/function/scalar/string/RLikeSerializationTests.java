@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
-import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -38,6 +37,6 @@ public class RLikeSerializationTests extends AbstractExpressionSerializationTest
     }
 
     private static RLikePattern randomPattern() {
-        return new RLikePattern(randomAlphaOfLength(4), randomFrom(RLikePattern.DEFAULT_SYNTAX_FLAGS, RegExp.NONE));
+        return new RLikePattern(randomAlphaOfLength(4), randomFrom(RLikePattern.Syntax.values()));
     }
 }

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.plan.logical.promql.selector;
 import org.apache.lucene.tests.util.automaton.AutomatonTestUtil;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
-import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
@@ -198,17 +197,27 @@ public class LabelMatcherTests extends ESTestCase {
         assertFalse(Operations.run(matcher.automaton(), "]&"));
     }
 
-    /** The {@code RLIKE} filter gets the regex as written, parsed without Lucene's own operators like the automaton. */
+    /** RE2 syntax that Lucene's regexp syntax lacks or reads otherwise. */
+    public void testRegexRe2Syntax() {
+        LabelMatcher matcher = new LabelMatcher("label", "(?i)(?:prod|stag)-\\d+", Matcher.REG);
+        assertTrue(Operations.run(matcher.automaton(), "PROD-12"));
+        assertFalse(Operations.run(matcher.automaton(), "prod-"));
+
+        matcher = new LabelMatcher("label", "\"a\"\\n", Matcher.REG);
+        assertThat(AutomatonUtils.matchesExact(matcher.automaton()), equalTo("\"a\"\n"));
+    }
+
+    /** The {@code RLIKE} filter gets the regex as written, in RE2 syntax like the automaton. */
     public void testRegexPattern() {
-        RLikePattern pattern = LabelMatcher.regex("(a<1-3>|~b&c)");
-        assertThat(pattern.pattern(), equalTo("(a<1-3>|~b&c)"));
-        assertThat(pattern.syntaxFlags(), equalTo(RegExp.NONE));
-        Automaton expected = new LabelMatcher("label", "(a<1-3>|~b&c)", Matcher.REG).automaton();
+        RLikePattern pattern = LabelMatcher.regex("(?i)(a<1-3>|~b&c)");
+        assertThat(pattern.pattern(), equalTo("(?i)(a<1-3>|~b&c)"));
+        assertThat(pattern.syntax(), equalTo(RLikePattern.Syntax.RE2));
+        Automaton expected = new LabelMatcher("label", "(?i)(a<1-3>|~b&c)", Matcher.REG).automaton();
         assertTrue(AutomatonTestUtil.sameLanguage(expected, pattern.createAutomaton(false)));
     }
 
     public void testInvalidRegex() {
-        for (String regex : List.of("(", "[a", "\\")) {
+        for (String regex : List.of("(", "[a", "\\", "a**", "(?=a)")) {
             LabelMatcher matcher = new LabelMatcher("label", regex, Matcher.REG);
             InvalidArgumentException e = expectThrows(InvalidArgumentException.class, matcher::automaton);
             assertThat(e.getMessage(), startsWith("Invalid regular expression [" + regex + "]"));

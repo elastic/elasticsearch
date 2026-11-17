@@ -134,7 +134,7 @@ public final class EscfColumnBuilder implements Releasable {
      * The memory this column holds until it is finished or closed: heap and recycled pages.
      */
     public long ramBytesUsed() {
-        return finished || current == null ? 0 : current.ramBytesUsed(recycler.pageSize());
+        return finished || current == null ? 0 : current.ramBytesUsed();
     }
 
     private boolean canHint() {
@@ -945,8 +945,8 @@ public final class EscfColumnBuilder implements Releasable {
 
         void discard();
 
-        /** The memory held, with recycled pages of {@code pageSize} bytes. */
-        long ramBytesUsed(int pageSize);
+        /** The memory held, recycled pages included. */
+        long ramBytesUsed();
     }
 
     private abstract static class BaseBuilder implements TypedBuilder {
@@ -1049,8 +1049,8 @@ public final class EscfColumnBuilder implements Releasable {
      */
     private static final class FixedNumericBuilder extends BaseBuilder {
         @Override
-        public long ramBytesUsed(int pageSize) {
-            return pagesBytes(data, pageSize) + (lexicalForms == null ? 0 : lexicalForms.ramBytesUsed(pageSize)) + validityBytes();
+        public long ramBytesUsed() {
+            return allocatedBytes(data) + (lexicalForms == null ? 0 : lexicalForms.ramBytesUsed()) + validityBytes();
         }
 
         private final byte kind;
@@ -1215,7 +1215,7 @@ public final class EscfColumnBuilder implements Releasable {
     /** BOOL: a value bitset (bit set = true). */
     private static final class BoolBuilder extends BaseBuilder {
         @Override
-        public long ramBytesUsed(int pageSize) {
+        public long ramBytesUsed() {
             return (values == null ? 0 : values.ramBytesUsed()) + validityBytes();
         }
 
@@ -1279,8 +1279,8 @@ public final class EscfColumnBuilder implements Releasable {
     /** STRING / BINARY: raw bytes plus an offset vector. */
     private static final class VarBuilder extends BaseBuilder {
         @Override
-        public long ramBytesUsed(int pageSize) {
-            return pagesBytes(data, pageSize) + arrayBytes(offsets) + validityBytes();
+        public long ramBytesUsed() {
+            return allocatedBytes(data) + arrayBytes(offsets) + validityBytes();
         }
 
         private final byte kind;
@@ -1422,8 +1422,8 @@ public final class EscfColumnBuilder implements Releasable {
      */
     private static final class ArrayBuilder extends BaseBuilder {
         @Override
-        public long ramBytesUsed(int pageSize) {
-            return (consumed ? 0 : pagesBytes(childData, pageSize)) + arrayBytes(childOffsets) + arrayBytes(rowOffsets) + validityBytes();
+        public long ramBytesUsed() {
+            return (consumed ? 0 : allocatedBytes(childData)) + arrayBytes(childOffsets) + arrayBytes(rowOffsets) + validityBytes();
         }
 
         private byte childKind;
@@ -1631,9 +1631,8 @@ public final class EscfColumnBuilder implements Releasable {
     /** UNION: a per-document {@link SourceValueType} vector, an offset vector, and a dense value buffer. */
     private static final class UnionBuilder extends BaseBuilder {
         @Override
-        public long ramBytesUsed(int pageSize) {
-            return pagesBytes(data, pageSize) + arrayBytes(offsets) + (typeVec == null ? 0 : RamUsageEstimator.sizeOf(typeVec))
-                + validityBytes();
+        public long ramBytesUsed() {
+            return allocatedBytes(data) + arrayBytes(offsets) + (typeVec == null ? 0 : RamUsageEstimator.sizeOf(typeVec)) + validityBytes();
         }
 
         private final RecyclerBytesStreamOutput data;
@@ -1804,14 +1803,8 @@ public final class EscfColumnBuilder implements Releasable {
         }
     }
 
-    /**
-     * The pages a stream holds. It starts with one and grows a page at a time.
-     */
-    private static long pagesBytes(RecyclerBytesStreamOutput out, int pageSize) {
-        if (out == null) {
-            return 0;
-        }
-        return Math.max(1, (out.position() + pageSize - 1) / pageSize) * pageSize;
+    private static long allocatedBytes(RecyclerBytesStreamOutput out) {
+        return out == null ? 0 : out.allocatedBytes();
     }
 
     private static long arrayBytes(int[] array) {

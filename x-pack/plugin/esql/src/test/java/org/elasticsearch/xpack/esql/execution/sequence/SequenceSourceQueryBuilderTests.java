@@ -12,6 +12,8 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -56,7 +58,10 @@ public class SequenceSourceQueryBuilderTests extends AbstractWireSerializingTest
         return new NamedWriteableRegistry(
             List.of(
                 SequenceSourceQueryBuilder.ENTRY,
-                new NamedWriteableRegistry.Entry(QueryBuilder.class, TermQueryBuilder.NAME, TermQueryBuilder::new)
+                new NamedWriteableRegistry.Entry(QueryBuilder.class, TermQueryBuilder.NAME, TermQueryBuilder::new),
+                new NamedWriteableRegistry.Entry(QueryBuilder.class, BoolQueryBuilder.NAME, BoolQueryBuilder::new),
+                new NamedWriteableRegistry.Entry(QueryBuilder.class, MatchAllQueryBuilder.NAME, MatchAllQueryBuilder::new),
+                new NamedWriteableRegistry.Entry(QueryBuilder.class, MatchNoneQueryBuilder.NAME, MatchNoneQueryBuilder::new)
             )
         );
     }
@@ -111,6 +116,51 @@ public class SequenceSourceQueryBuilderTests extends AbstractWireSerializingTest
         assertEquals("scoped", rewritten.queryName());
         assertThat(rewritten.toString(), containsString("resolved"));
         verify(delegate).rewrite(context);
+    }
+
+    /** Existing standard query-builder wire types retain both the opaque predicate and user query metadata. */
+    public void testKeyEnvelopeSurvivesExistingWireAndCoordinatorRewrite() throws Exception {
+        var base = new BoolQueryBuilder().filter(new MatchNoneQueryBuilder()).queryName("ordinary-base");
+        var predicate = new BoolQueryBuilder().minimumShouldMatch(1)
+            .should(new BoolQueryBuilder().filter(new TermQueryBuilder("key", "waiting")));
+        var original = new SequenceSourceQueryBuilder(SequenceSourceQueryBuilder.withKeyFilter(base, predicate), List.of("sequence-a"))
+            .boost(2)
+            .queryName("ordinary-scope");
+        var copy = copyInstance(original);
+        assertEquals(original, copy);
+        var context = new QueryRewriteContext(XContentParserConfiguration.EMPTY, null, () -> 0L);
+        QueryBuilder rewritten = copy.rewrite(context);
+        assertTrue(rewritten instanceof SequenceSourceQueryBuilder);
+        assertThat(rewritten.toString(), containsString("waiting"));
+        assertThat(rewritten.toString(), containsString("ordinary-base"));
+        assertEquals("ordinary-scope", rewritten.queryName());
+        assertEquals(2, rewritten.boost(), 0);
+        assertEquals(rewritten, copyInstance((SequenceSourceQueryBuilder) rewritten));
+    }
+
+    /** A user-named base inside the compiler envelope must remain ordinary input rather than a nested compiler tag. */
+    public void testUserBaseNameDoesNotBecomeEnvelopeOnCoordinator() throws Exception {
+        var base = new TermQueryBuilder("phase", "A").queryName("__esql_sequence_waiting_keys_v1");
+        var guard = new SequenceSourceQueryBuilder(
+            SequenceSourceQueryBuilder.withKeyFilter(base, new MatchAllQueryBuilder()),
+            List.of("sequence-a")
+        );
+        var context = new QueryRewriteContext(XContentParserConfiguration.EMPTY, null, () -> 0L);
+        assertSame(guard, guard.rewrite(context));
+        assertEquals(guard, copyInstance(guard));
+    }
+
+    /** A malformed compiler-owned root must fail closed instead of weakening its source query. */
+    public void testMalformedKeyEnvelopeIsRefused() {
+        var guard = new SequenceSourceQueryBuilder(
+            new TermQueryBuilder("key", "value").queryName("__esql_sequence_waiting_keys_v1"),
+            List.of("sequence-a")
+        );
+        var context = new QueryRewriteContext(XContentParserConfiguration.EMPTY, null, () -> 0L);
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> guard.rewrite(context)).getMessage(),
+            containsString("Invalid compiler-owned SEQUENCE key-filter envelope")
+        );
     }
 
     public void testRejectUnsupportedPeer() throws Exception {

@@ -33,6 +33,8 @@ public final class SequenceSourceTypes {
         DataType.VERSION,
         DataType.SOURCE,
         DataType.FLATTENED,
+        DataType.GEO_POINT,
+        DataType.CARTESIAN_POINT,
         DataType.UNSUPPORTED
     );
 

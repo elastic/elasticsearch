@@ -15,7 +15,10 @@ import org.elasticsearch.xpack.esql.action.AbstractSequenceIntegTestCase;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
@@ -33,17 +36,22 @@ public class SequenceExternalNullifyIT extends AbstractSequenceIntegTestCase {
     @Before
     public void createEvents() {
         for (String index : List.of(A, B)) {
-            assertAcked(
-                indicesAdmin().prepareCreate(index)
-                    .setSettings(indexSettings(1, 0))
-                    .setMapping("@timestamp", "type=date_nanos", "key", "type=keyword", "label", "type=keyword")
+            Map<String, Object> fields = new HashMap<>(
+                Map.of("@timestamp", Map.of("type", "date_nanos"), "key", Map.of("type", "keyword"), "label", Map.of("type", "keyword"))
             );
+            if (index.equals(B)) {
+                fields.put("later_only", Map.of("type", "keyword"));
+            }
+            assertAcked(indicesAdmin().prepareCreate(index).setSettings(indexSettings(1, 0)).setMapping(Map.of("properties", fields)));
         }
         ensureGreen(A, B);
         assertFalse(
             client().prepareBulk()
                 .add(prepareIndex(A).setId("A").setSource("@timestamp", "2026-01-01T00:00:00Z", "key", "k", "label", "left"))
-                .add(prepareIndex(B).setId("B").setSource("@timestamp", "2026-01-01T00:00:01Z", "key", "k", "label", "right"))
+                .add(
+                    prepareIndex(B).setId("B")
+                        .setSource("@timestamp", "2026-01-01T00:00:01Z", "key", "k", "label", "right", "later_only", "own-stage")
+                )
                 .get()
                 .hasFailures()
         );
@@ -97,6 +105,44 @@ public class SequenceExternalNullifyIT extends AbstractSequenceIntegTestCase {
         Probe ordinary = probe(NULLIFY + "FROM " + A + " | RENAME label AS renamed | EVAL observed=renamed | KEEP observed | LIMIT 10");
         assertFalse(ordinary.verificationFailure());
         assertEquals(List.of(List.of("left")), ordinary.rows());
+    }
+
+    /** A field that exists only later must nullify in the selected earlier member, without borrowing the later value. */
+    public void testUnmappedMemberDoesNotBindLaterStageValue() {
+        String sequence = NULLIFY + "SEQUENCE BY key WITHIN 10s PRIMARY 2 (FROM " + A + "),(FROM " + B + ")";
+        Probe result = probe(sequence + " | EVAL observed=MEMBER(1,later_only) | KEEP observed,later_only | LIMIT 10");
+        assertFalse(result.verificationFailure());
+        assertEquals(List.of(Arrays.asList(null, "own-stage")), result.rows());
+        assertCondition("", "later_only", " IS NULL");
+        for (String condition : List.of(" IS NOT NULL", " == \"own-stage\"")) {
+            Probe rejected = probe(
+                NULLIFY
+                    + "SEQUENCE BY key WITHIN 10s PRIMARY 2 (FROM "
+                    + A
+                    + "),(FROM "
+                    + B
+                    + " | WHERE MEMBER(1,later_only)"
+                    + condition
+                    + ") | KEEP key | LIMIT 10"
+            );
+            assertFalse(rejected.verificationFailure());
+            assertEquals(List.of(), rejected.rows());
+        }
+    }
+
+    /** The successful value control asserts both stages explicitly instead of only comparing two query results. */
+    public void testRenamedMemberAndPrimaryValuesStayDistinct() {
+        Probe result = probe(
+            NULLIFY
+                + "SEQUENCE BY key WITHIN 10s PRIMARY 2 (FROM "
+                + A
+                + " | RENAME label AS renamed),(FROM "
+                + B
+                + " | WHERE MEMBER(1,renamed)==\"left\" AND label==\"right\")"
+                + " | EVAL observed=MEMBER(1,renamed) | KEEP observed,label | LIMIT 10"
+        );
+        assertFalse(result.verificationFailure());
+        assertEquals(List.of(List.of("left", "right")), result.rows());
     }
 
     private void assertAfter(String commands, String field) {

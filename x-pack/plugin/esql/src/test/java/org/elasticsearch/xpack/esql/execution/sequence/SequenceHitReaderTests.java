@@ -20,6 +20,8 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.MockBlockFactory;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchShardTarget;
@@ -36,6 +38,7 @@ import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.math.BigInteger;
+import java.nio.ByteOrder;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -462,6 +465,30 @@ public class SequenceHitReaderTests extends ESTestCase {
         assertMapped(DataType.BOOLEAN, List.of(true, false), List.of(true, false));
         assertMappedFailure(DataType.BOOLEAN, "true");
         assertMappedFailure(DataType.BOOLEAN, 1L);
+    }
+
+    /** Point blocks retain the mapper's WKB, precision, duplicates, and list order without textual decoding. */
+    public void testNativePointCellsKeepWkbAndRequestTheirFrozenFamily() {
+        BytesRef first = new BytesRef(WellKnownBinary.toWKB(new Point(12.123456789123, -4.987654321987), ByteOrder.LITTLE_ENDIAN));
+        BytesRef second = new BytesRef(WellKnownBinary.toWKB(new Point(-3.987654321987, 8.123456789123), ByteOrder.LITTLE_ENDIAN));
+        for (DataType type : List.of(DataType.GEO_POINT, DataType.CARTESIAN_POINT)) {
+            assertMapped(type, List.of(first), first);
+            assertMapped(type, List.of(second, first, second), List.of(second, first, second));
+            assertMapped(type, List.of(), null);
+            assertMappedFailure(type, 1L);
+            assertMappedFailure(type, "POINT (1 2)");
+            var reader = new SequenceHitReader(List.of(field("value", type)), EsqlTestUtils.TEST_CFG);
+            for (SearchSourceBuilder request : List.of(
+                reader.fields(new SearchSourceBuilder()),
+                reader.identityFields(new SearchSourceBuilder())
+            )) {
+                var projection = (SequenceDocValuesSearchExt) request.ext().getFirst();
+                assertEquals(
+                    type == DataType.GEO_POINT ? SequenceHitReader.GEO_POINT_FORMAT : SequenceHitReader.CARTESIAN_POINT_FORMAT,
+                    projection.fields().stream().filter(field -> field.field.equals("value")).findFirst().orElseThrow().format
+                );
+            }
+        }
     }
 
     private static void assertMapped(DataType type, List<Object> values, Object expected) {

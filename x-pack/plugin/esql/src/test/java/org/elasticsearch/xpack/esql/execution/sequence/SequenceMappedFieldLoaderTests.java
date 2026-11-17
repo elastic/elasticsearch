@@ -43,6 +43,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
+import org.elasticsearch.xpack.spatial.index.mapper.PointFieldMapper;
 import org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapper;
 
 import java.io.IOException;
@@ -52,6 +53,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.hamcrest.Matchers.containsString;
 
 /** Real mapped loaders exercise cached reader accounting, backwards document reads and failed row-stride builders. */
 public class SequenceMappedFieldLoaderTests extends ESTestCase {
@@ -165,6 +168,35 @@ public class SequenceMappedFieldLoaderTests extends ESTestCase {
             null
         );
         assertEquals("2026-03-17T12:34:56.789Z", date.format(1_773_750_896_789L));
+    }
+
+    /** A point-family tag must match the live mapper before WKB can cross into the frozen consumer schema. */
+    public void testPointFormatsValidateLiveFamilyAndNeverReachMapperDateFormatting() {
+        var geo = new GeoPointFieldMapper.GeoPointFieldType("target");
+        var cartesian = new PointFieldMapper.PointFieldType("target");
+        for (String format : List.of(SequenceHitReader.GEO_POINT_FORMAT, SequenceHitReader.CARTESIAN_POINT_FORMAT)) {
+            assertNull(SequenceDocValuesFetchSubPhase.valueFormatter("missing", null, format));
+            var live = format.equals(SequenceHitReader.GEO_POINT_FORMAT) ? geo : cartesian;
+            var formatter = SequenceDocValuesFetchSubPhase.valueFormatter("alias", live, format);
+            BytesRef bytes = new BytesRef(new byte[] { 1, 1, 0, 0, 0 });
+            assertSame(bytes, formatter.format(bytes));
+            assertNull(formatter.format(null));
+            assertThat(expectThrows(IllegalArgumentException.class, () -> formatter.format(1L)).getMessage(), containsString("native WKB"));
+            expectThrows(IllegalArgumentException.class, () -> formatter.format("POINT (1 2)"));
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> SequenceDocValuesFetchSubPhase.valueFormatter("alias", new KeywordFieldMapper.KeywordFieldType("target"), format)
+            );
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> SequenceDocValuesFetchSubPhase.valueFormatter("alias", live == geo ? cartesian : geo, format)
+            );
+        }
+        for (var live : List.of(geo, cartesian)) {
+            for (String format : new String[] { null, SequenceHitReader.INTEGRAL_FORMAT, SequenceHitReader.TEMPORAL_FORMAT }) {
+                expectThrows(IllegalArgumentException.class, () -> SequenceDocValuesFetchSubPhase.valueFormatter("alias", live, format));
+            }
+        }
     }
 
     public void testLiveIpFormatterProducesSemanticTextAndUtf8FieldsRemainNative() {

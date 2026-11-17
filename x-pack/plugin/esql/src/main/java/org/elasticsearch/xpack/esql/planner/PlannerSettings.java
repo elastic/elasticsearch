@@ -82,7 +82,7 @@ public class PlannerSettings {
         Setting.Property.Dynamic
     );
 
-    /** Source-owned SEQUENCE state, buffers and pages are bounded independently of other pipeline operators. */
+    /** Each execution of the SEQUENCE command has its own budget for source state, buffers and pages. */
     public static final Setting<ByteSizeValue> SEQUENCE_MAX_MEMORY = Setting.memorySizeSetting(
         "esql.sequence.max_memory",
         settings -> ByteSizeValue.ofBytes(

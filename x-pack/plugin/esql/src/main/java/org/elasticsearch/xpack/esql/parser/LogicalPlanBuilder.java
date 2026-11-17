@@ -685,7 +685,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                     && command.renameCommand() == null
                     && command.mvExpandCommand() == null
                     && command.dissectCommand() == null
-                    && command.grokCommand() == null) {
+                    && command.grokCommand() == null
+                    && command.uriPartsCommand() == null) {
                     throw new ParsingException(
                         source(command),
                         "[{}] is not supported inside a SEQUENCE stage{}",

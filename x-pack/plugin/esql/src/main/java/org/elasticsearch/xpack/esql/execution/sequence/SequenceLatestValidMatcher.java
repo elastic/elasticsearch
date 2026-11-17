@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.TreeSet;
 import java.util.function.BooleanSupplier;
+import java.util.function.Predicate;
 
 /**
  * Row-native latest-valid pairing. Rings retain rows, never partial chains; backward search borrows one pointer
@@ -652,6 +653,20 @@ final class SequenceLatestValidMatcher implements SequencePairing {
     @Override
     public SequenceOrdinal latestUnusedStart() {
         return possibleMatch() ? unusedStarts.last().ordinal : null;
+    }
+
+    /** Used markers cannot contribute keys; the source monitor keeps these borrowed identities alive during the visit. */
+    @Override
+    public boolean visitUnusedStartKeys(Predicate<BytesRef> visitor) {
+        if (unusedStarts != null) {
+            for (Row row : unusedStarts) {
+                checkCancelled();
+                if (visitor.test(row.state.key) == false) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     @Override

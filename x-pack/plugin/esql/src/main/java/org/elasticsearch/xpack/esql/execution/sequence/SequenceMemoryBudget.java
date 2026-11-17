@@ -19,7 +19,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 
 /**
- * Always-active admission limit for the estimates owned by one SEQUENCE source. Explicit state and source-created
+ * Always-active admission limit for the estimates owned by one execution of the SEQUENCE command. Explicit state and source-created
  * blocks/buffers use scoped request breakers; ordinary child pages join the budget when the source accepts them.
  * Borrowed evaluator scratch and downstream ownership remain outside this source limit. Distinct foreign block
  * wrappers sharing storage can be charged conservatively; this is not an exact measure of whole-query heap.
@@ -145,6 +145,13 @@ final class SequenceMemoryBudget {
                 long nextScope = Math.addExact(bytes, delta);
                 long nextTotal = Math.addExact(currentBytes, delta);
                 if (nextScope < 0 || nextTotal < 0) {
+                    try {
+                        // Physical ownership is still valid even when this scope's admission ledger is damaged.
+                        operation.run();
+                    } finally {
+                        // Other scopes keep their admissions; remaining cleanup bypasses only the failed ledger.
+                        detach();
+                    }
                     throw new IllegalStateException("SEQUENCE release exceeds live admissions");
                 }
                 if (delta > 0 && compensation == false) {

@@ -10,7 +10,8 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
@@ -27,11 +28,14 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunctio
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
@@ -40,7 +44,7 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
  * expansion: its execution must carry the original timestamp and PIT ordinal separately from user-visible columns.
  * It does not introduce an output limit or sort into the candidate stream.
  */
-public final class SequenceStage extends UnaryPlan implements PostAnalysisVerificationAware, PostOptimizationVerificationAware {
+public final class SequenceStage extends UnaryPlan implements PostAnalysisPlanVerificationAware, PostOptimizationVerificationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
         "SequenceStage",
@@ -134,34 +138,58 @@ public final class SequenceStage extends UnaryPlan implements PostAnalysisVerifi
         return true;
     }
 
-    @Override
+    /** Direct callers retain the default-off stage checks without request pragmas. */
     public void postAnalysisVerification(Failures failures) {
+        postAnalysisVerification(failures, false);
+    }
+
+    /** Direct plan checkers retain the default-off behavior. */
+    @Override
+    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
+        return stageChecker(false);
+    }
+
+    /** Apply a request opt-in only to this stage, preserving its complete source and key validation. */
+    @Override
+    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification(
+        AnalysisRegistry analysisRegistry,
+        QueryPragmas pragmas,
+        EsqlFlags flags
+    ) {
+        return stageChecker(pragmas.sequenceUriParts());
+    }
+
+    private BiConsumer<LogicalPlan, Failures> stageChecker(boolean uriParts) {
+        return (lp, failures) -> {
+            if (lp == this) {
+                postAnalysisVerification(failures, uriParts);
+            }
+        };
+    }
+
+    private void postAnalysisVerification(Failures failures, boolean uriParts) {
         for (Attribute key : keys) {
             if (supportsKeyType(key.dataType()) == false) {
                 failures.add(fail(key, "SEQUENCE BY column [{}] has unsupported type [{}]", key.name(), key.dataType()));
             }
         }
-        verifyEventPlan(child(), failures);
+        verifyEventPlan(child(), failures, uriParts);
     }
 
     /** Alias folding can expose an indexed search only after the analyzed stage was accepted. */
     @Override
     public void postOptimizationVerification(Failures failures) {
-        List<EsRelation> sources = SequenceStageProjection.eventSources(this);
-        child().forEachDown(Filter.class, filter -> {
-            if (sources.stream().anyMatch(source -> source == filter.child())
-                && filter.child().output().stream().anyMatch(MetadataAttribute::isScoreAttribute)
-                && Predicates.splitAnd(filter.condition())
-                    .stream()
-                    .anyMatch(predicate -> SequenceStageProjection.isExactSourceSearchPredicate(filter, predicate))) {
-                failures.add(
-                    fail(
-                        filter,
-                        "Indexed full-text search in a SEQUENCE stage does not support METADATA [_score]; remove that metadata request"
-                    )
-                );
-            }
-        });
+        verifySearchTree(child(), failures);
+    }
+
+    /** Optimization may expose indexed aliases; membership-subquery sources keep their ordinary independent rules. */
+    private static void verifySearchTree(LogicalPlan plan, Failures failures) {
+        if (plan instanceof AbstractSubqueryJoin join) {
+            verifySearchTree(join.left(), failures);
+            return;
+        }
+        verifySourceSearchPlacement(plan, failures);
+        plan.children().forEach(child -> verifySearchTree(child, failures));
     }
 
     /** Scalar correlation types; multivalued positions require an explicit stage MV_EXPAND at runtime. */
@@ -170,6 +198,10 @@ public final class SequenceStage extends UnaryPlan implements PostAnalysisVerifi
     }
 
     private static void verifyEventPlan(LogicalPlan plan, Failures failures) {
+        verifyEventPlan(plan, failures, false);
+    }
+
+    private static void verifyEventPlan(LogicalPlan plan, Failures failures, boolean uriParts) {
         if (plan.source().viewName() != null || plan instanceof BranchPlan view && view.viewBranchKeys().isEmpty() == false) {
             // Request filters on views apply to their computed output. The native reader currently scopes its
             // request filter to raw source events, so admitting a view could silently discard valid events.
@@ -178,34 +210,10 @@ public final class SequenceStage extends UnaryPlan implements PostAnalysisVerifi
         }
         // Membership subqueries are predicates on the left event stream. Their right side may legitimately aggregate.
         if (plan instanceof AbstractSubqueryJoin join) {
-            verifyEventPlan(join.left(), failures);
+            verifyEventPlan(join.left(), failures, uriParts);
             return;
         }
-        List<Expression> sourceSearches = plan instanceof Filter filter
-            ? Predicates.splitAnd(filter.condition())
-                .stream()
-                .filter(predicate -> SequenceStageProjection.isExactSourceSearchPredicate(filter, predicate))
-                .toList()
-            : List.of();
-        if (sourceSearches.isEmpty() == false
-            && plan instanceof Filter filter
-            && filter.child().output().stream().anyMatch(MetadataAttribute::isScoreAttribute)) {
-            failures.add(
-                fail(plan, "Indexed full-text search in a SEQUENCE stage does not support METADATA [_score]; remove that metadata request")
-            );
-        }
-        plan.forEachExpression(FullTextFunction.class, function -> {
-            if (function.isRuntimeSearch() == false && sourceSearches.stream().noneMatch(predicate -> predicate == function)) {
-                failures.add(
-                    fail(
-                        function,
-                        "Indexed search function [{}] in a SEQUENCE stage requires an exact top-level AND term in a WHERE directly after FROM; "
-                            + "OR or NOT outside the search string is not supported",
-                        function.functionName()
-                    )
-                );
-            }
-        });
+        verifySourceSearchPlacement(plan, failures);
         if (plan instanceof EsRelation relation) {
             if (relation.originalIndices().keySet().stream().anyMatch(alias -> alias.isEmpty() == false)) {
                 failures.add(fail(relation, "Cross-cluster sources are not supported inside a SEQUENCE stage"));
@@ -247,12 +255,41 @@ public final class SequenceStage extends UnaryPlan implements PostAnalysisVerifi
             || plan instanceof MvExpand
             || plan instanceof Dissect
             || plan instanceof Grok
+            || (uriParts && plan instanceof UriParts)
             || plan instanceof Subquery
             || plan instanceof UnionAll) {
-            plan.children().forEach(child -> verifyEventPlan(child, failures));
+            plan.children().forEach(child -> verifyEventPlan(child, failures, uriParts));
         } else {
             failures.add(fail(plan, "[{}] is not supported inside a SEQUENCE stage", plan.nodeName()));
         }
+    }
+
+    private static void verifySourceSearchPlacement(LogicalPlan plan, Failures failures) {
+        List<Expression> sourceSearches = plan instanceof Filter filter
+            ? Predicates.splitAnd(filter.condition())
+                .stream()
+                .filter(predicate -> SequenceStageProjection.isExactSourceSearchPredicate(filter, predicate))
+                .toList()
+            : List.of();
+        if (sourceSearches.isEmpty() == false
+            && plan instanceof Filter filter
+            && filter.child().output().stream().anyMatch(MetadataAttribute::isScoreAttribute)) {
+            failures.add(
+                fail(plan, "Indexed full-text search in a SEQUENCE stage does not support METADATA [_score]; remove that metadata request")
+            );
+        }
+        plan.forEachExpression(FullTextFunction.class, function -> {
+            if (function.isRuntimeSearch() == false && sourceSearches.stream().noneMatch(predicate -> predicate == function)) {
+                failures.add(
+                    fail(
+                        function,
+                        "Indexed search function [{}] in a SEQUENCE stage requires an exact top-level AND term in a WHERE directly after FROM; "
+                            + "OR or NOT outside the search string is not supported",
+                        function.functionName()
+                    )
+                );
+            }
+        });
     }
 
     private static boolean isSourceTimestamp(Expression expression, LogicalPlan plan) {

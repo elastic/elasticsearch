@@ -11,7 +11,9 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
+import org.elasticsearch.xpack.esql.capabilities.PostOptimizationPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -39,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
@@ -51,6 +54,8 @@ public final class Sequence extends LogicalPlan
     implements
         ExecutesOn.Coordinator,
         PostAnalysisVerificationAware,
+        PostAnalysisPlanVerificationAware,
+        PostOptimizationPlanVerificationAware,
         PostOptimizationVerificationAware.CoordinatorOnly,
         TelemetryAware {
     public static final TransportVersion ESQL_SEQUENCE = TransportVersion.fromName("esql_sequence_repeatable_input");
@@ -339,10 +344,22 @@ public final class Sequence extends LogicalPlan
             : new Sequence(source(), children(), maxSpanNanos, inputs, stages, columns, schemaResolved);
     }
 
-    private static Attribute reference(Attribute source, int stage, String name, Map<SourceBinding, Attribute> previous) {
+    private Attribute reference(Attribute source, int stage, String name, Map<SourceBinding, Attribute> previous) {
         Attribute existing = previous.get(new SourceBinding(stage, source.id()));
         NameId id = existing == null ? null : existing.id();
-        return SequenceSchema.reference(source, source.source(), name, id, false);
+        return SequenceSchema.reference(source, source.source(), name, id, false, children().get(stage));
+    }
+
+    /** Check full-text use before optimization can discard the mapped producer behind a materialized output. */
+    @Override
+    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
+        return (plan, failures) -> SequenceSchema.verifyFullText(this, plan, failures);
+    }
+
+    /** Alias rewrites must retain the same materialized-column analyzer restriction. */
+    @Override
+    public BiConsumer<LogicalPlan, Failures> postOptimizationPlanVerification() {
+        return (plan, failures) -> SequenceSchema.verifyFullText(this, plan, failures);
     }
 
     @Override
@@ -462,7 +479,8 @@ public final class Sequence extends LogicalPlan
                             failures.add(
                                 fail(
                                     stage,
-                                    "SEQUENCE stage [{}] cannot read source column [{}] of type [{}]",
+                                    "SEQUENCE stage [{}] cannot read source column [{}] of type [{}]; "
+                                        + "DROP the unused column inside the stage or use final KEEP to select the required columns",
                                     index + 1,
                                     attribute.name(),
                                     attribute.dataType().typeName()

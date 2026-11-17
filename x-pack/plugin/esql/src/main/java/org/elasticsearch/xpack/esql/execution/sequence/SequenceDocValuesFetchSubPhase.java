@@ -118,6 +118,30 @@ public final class SequenceDocValuesFetchSubPhase implements FetchSubPhase {
                 "SEQUENCE field [" + name + "] has unsupported live mapped type [" + fieldType.typeName() + "]"
             );
         }
+        DataType requestedPoint = SequenceHitReader.GEO_POINT_FORMAT.equals(format) ? DataType.GEO_POINT
+            : SequenceHitReader.CARTESIAN_POINT_FORMAT.equals(format) ? DataType.CARTESIAN_POINT
+            : null;
+        if (requestedPoint != null || type == DataType.GEO_POINT || type == DataType.CARTESIAN_POINT) {
+            if (requestedPoint != type) {
+                throw new IllegalArgumentException(
+                    "SEQUENCE field ["
+                        + name
+                        + "] has live mapped type ["
+                        + fieldType.typeName()
+                        + "] incompatible with point format ["
+                        + format
+                        + "]"
+                );
+            }
+            return value -> {
+                if (value != null && (value instanceof BytesRef) == false) {
+                    throw new IllegalArgumentException(
+                        "SEQUENCE field [" + name + "] requires native WKB point bytes; encoded point doc values are not supported"
+                    );
+                }
+                return value;
+            };
+        }
         boolean temporal = type == DataType.DATETIME || type == DataType.DATE_NANOS;
         if (name.equals("@timestamp") && format == null) {
             if (temporal == false) {

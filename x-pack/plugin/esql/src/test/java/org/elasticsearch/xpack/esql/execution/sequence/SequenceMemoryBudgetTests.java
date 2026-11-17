@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -25,6 +26,7 @@ import java.util.HashSet;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 
 /** Real request breakers and pooled-allocation APIs exercise admission, compensation and ownership transfer. */
 public class SequenceMemoryBudgetTests extends ESTestCase {
@@ -146,6 +148,68 @@ public class SequenceMemoryBudgetTests extends ESTestCase {
         }
         assertEquals(0, budget.currentBytes());
         assertEquals(0, request.getUsed());
+    }
+
+    /** A damaged source ledger must not prevent physical refunds or permit a duplicate foreign-page admission refund. */
+    public void testOverReleaseRefundsRealBlocksAndClosesEachOwnerOnce() throws Exception {
+        CircuitBreaker request = breaker("1mb");
+        BlockFactory parent = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(request).build();
+        SequenceMemoryBudget budget = new SequenceMemoryBudget(10_000);
+        var first = budget.newScope();
+        var second = budget.newScope();
+        request.addEstimateBytesAndMaybeBreak(777, "unrelated");
+        Block firstBlock = first.blockFactory(parent).newConstantIntBlockWith(1, 1);
+        Block secondBlock = second.blockFactory(parent).newConstantIntBlockWith(2, 1);
+        var firstOwner = Releasables.releaseOnce(firstBlock);
+        var secondOwner = Releasables.releaseOnce(secondBlock);
+        long foreignBytes;
+        try {
+            try (Page foreign = new Page(parent.newConstantIntBlockWith(3, 1))) {
+                foreignBytes = budget.foreignBytes(foreign);
+                assertTrue(foreignBytes > 0);
+                budget.admitForeign(foreignBytes);
+                try {
+                    var scopeBytes = first.getClass().getDeclaredField("bytes");
+                    scopeBytes.setAccessible(true);
+                    var totalBytes = SequenceMemoryBudget.class.getDeclaredField("currentBytes");
+                    totalBytes.setAccessible(true);
+                    // Inject only an admission-ledger deficit. Both real blocks retain their full request reservations.
+                    scopeBytes.setLong(first, scopeBytes.getLong(first) - 1);
+                    totalBytes.setLong(budget, totalBytes.getLong(budget) - 1);
+                    AssertionError failure = expectThrows(AssertionError.class, () -> {
+                        try {
+                            firstOwner.close();
+                        } finally {
+                            secondOwner.close();
+                        }
+                    });
+                    // IntVectorBlock wraps the physical-vector close failure; the original invariant is its cause.
+                    assertThat(failure.getCause(), instanceOf(IllegalStateException.class));
+                    assertThat(failure.getCause().getMessage(), containsString("SEQUENCE release exceeds live admissions"));
+                    assertEquals(foreignBytes, budget.currentBytes());
+                    long physicalReservation = request.getUsed();
+                    assertTrue(physicalReservation > 777);
+                    budget.releaseForeign(foreignBytes);
+                    assertEquals(0, budget.currentBytes());
+                    // Foreign accounting is a source ledger: its real Page still owns the physical request charge.
+                    assertEquals(physicalReservation, request.getUsed());
+                    Releasables.close(firstOwner, secondOwner);
+                } finally {
+                    Releasables.close(firstOwner, secondOwner);
+                }
+            }
+            assertEquals(777, request.getUsed());
+            long beforeSecondRelease = request.getUsed();
+            // Invoke the existing budget API again directly, with no release-once wrapper around accounting.
+            IllegalStateException duplicate = expectThrows(IllegalStateException.class, () -> budget.releaseForeign(foreignBytes));
+            assertThat(duplicate.getMessage(), containsString("SEQUENCE foreign-page release exceeds live admissions"));
+            assertEquals(0, budget.currentBytes());
+            assertEquals(0, beforeSecondRelease - request.getUsed());
+            assertEquals(777, request.getUsed());
+        } finally {
+            Releasables.close(firstOwner, secondOwner);
+            request.addWithoutBreaking(-777);
+        }
     }
 
     /** A dynamic update changes future queries while each existing query retains its captured cap. */

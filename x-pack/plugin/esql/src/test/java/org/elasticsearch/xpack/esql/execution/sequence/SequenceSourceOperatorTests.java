@@ -179,6 +179,46 @@ public class SequenceSourceOperatorTests extends ESTestCase {
         }
     }
 
+    /** Repeated production close must not refund a damaged budget twice or borrow an unrelated reservation. */
+    public void testBudgetOverReleaseAndRepeatedSourceClosePreserveUnrelatedReservation() throws Exception {
+        try (var harness = new Harness(true, true)) {
+            SequenceMemoryBudget memory = sourceBudget(harness.source);
+            assertTrue(memory.currentBytes() > 0);
+            harness.breaker.addEstimateBytesAndMaybeBreak(777, "unrelated");
+            try {
+                var breakerField = SequenceSourceOperator.class.getDeclaredField("breaker");
+                breakerField.setAccessible(true);
+                CircuitBreaker scoped = (CircuitBreaker) breakerField.get(harness.source);
+                var scopeField = scoped.getClass().getDeclaredField("scope");
+                scopeField.setAccessible(true);
+                Object scope = scopeField.get(scoped);
+                var scopeBytes = scope.getClass().getDeclaredField("bytes");
+                scopeBytes.setAccessible(true);
+                var totalBytes = SequenceMemoryBudget.class.getDeclaredField("currentBytes");
+                totalBytes.setAccessible(true);
+                assertTrue(scopeBytes.getLong(scope) > 0);
+                // Damage only admission counts. The real source still owns its full request-breaker reservation.
+                scopeBytes.setLong(scope, scopeBytes.getLong(scope) - 1);
+                totalBytes.setLong(memory, totalBytes.getLong(memory) - 1);
+                IllegalStateException failure = expectThrows(IllegalStateException.class, harness.source::close);
+                assertThat(failure.getMessage(), containsString("SEQUENCE release exceeds live admissions"));
+                assertEquals(0, memory.currentBytes());
+                assertEquals(777, harness.breaker.getUsed());
+                long beforeSecondClose = harness.breaker.getUsed();
+                // Call the production owner's close method directly; no release-once wrapper intercepts this call.
+                harness.source.close();
+                assertEquals(0, beforeSecondClose - harness.breaker.getUsed());
+                assertEquals(777, harness.breaker.getUsed());
+                assertEquals(0, memory.currentBytes());
+            } finally {
+                harness.source.close();
+                harness.breaker.addWithoutBreaking(-777);
+            }
+            harness.finishDriver();
+            harness.assertFinished();
+        }
+    }
+
     /** A secondary condition close failure cannot strand scoped admissions or replace a real admission failure. */
     public void testBudgetPreservesPrimaryFailureWhenCleanupThrows() {
         try (var harness = new Harness(true, true)) {

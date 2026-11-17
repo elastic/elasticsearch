@@ -21,19 +21,21 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.containsString;
 
 /** Checks source type errors precede snapshot execution while ordinary membership queries keep their full type support. */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1)
 public class SequenceSourceTypeBoundaryIT extends AbstractSequenceIntegTestCase {
-    public void testRetainedSpatialFieldFailsVerificationWhilePrunedFieldWorks() {
+    public void testRetainedPointFieldMatchesOrdinaryAndCanBePruned() {
         createEvents();
-        var error = expectThrows(VerificationException.class, () -> run("""
+        try (var ordinary = run("from sequence-spatial | where phase==\"A\" | keep key, location | limit 1"); var sequence = run("""
             sequence by key within 30s PRIMARY 1
             (from sequence-spatial | where phase=="A"), (from sequence-spatial | where phase=="B")
             | keep key, location | limit 1
-            """));
-        assertThat(error.getMessage(), containsString("SEQUENCE stage [1] cannot read source column [location] of type [geo_point]"));
+            """)) {
+            assertEquals(getValuesList(ordinary), getValuesList(sequence));
+        }
         for (String source : List.of("from sequence-spatial", "from (from sequence-spatial), (from sequence-spatial)")) {
             try (var result = run(Strings.format("""
                 sequence by key within 30s PRIMARY 1
@@ -45,15 +47,16 @@ public class SequenceSourceTypeBoundaryIT extends AbstractSequenceIntegTestCase 
         }
     }
 
-    public void testSpatialStagePredicateFailsVerification() {
+    public void testPointStagePredicateKeepsRequiredInputAfterOutputPruning() {
         createEvents();
-        var error = expectThrows(VerificationException.class, () -> run("""
+        try (var result = run("""
             sequence by key within 30s PRIMARY 1
             (from sequence-spatial | where phase=="A" AND ST_X(location)>0 | keep key),
             (from sequence-spatial | where phase=="B" | keep key)
             | keep key | limit 1
-            """));
-        assertThat(error.getMessage(), containsString("cannot read source column [location] of type [geo_point]"));
+            """)) {
+            assertValues(result.values(), List.of(List.of("shared")));
+        }
     }
 
     public void testSpatialMembershipSubqueryUsesOrdinaryExecution() {

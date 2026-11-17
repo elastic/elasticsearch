@@ -352,8 +352,8 @@ public class SequenceMappedFieldsIT extends AbstractSequenceIntegTestCase {
         }
     }
 
-    /** Hidden event time uses the stage read without a separate repeatability refusal. */
-    public void testNondeterministicRuntimeTimestampIsAcceptedWhenPruned() {
+    /** Source time still requires indexed values when the output projection hides the timestamp. */
+    public void testNondeterministicRuntimeTimestampIsRefusedWhenOutputPruned() {
         FailingRuntimeFieldPlugin.EXECUTIONS.set(0);
         createIndex(
             "sequence-runtime-time",
@@ -361,14 +361,17 @@ public class SequenceMappedFieldsIT extends AbstractSequenceIntegTestCase {
             Settings.EMPTY
         );
         indexPair("sequence-runtime-time", Map.of());
-        try (var response = run("""
-            SEQUENCE BY key WITHIN 30s PRIMARY 1
-            (FROM sequence-runtime-time | WHERE phase=="A"), (FROM sequence-runtime-time | WHERE phase=="B")
-            | KEEP key | LIMIT 1
-            """)) {
-            assertValues(response.values(), List.of(List.of("shared")));
-        }
-        assertTrue(FailingRuntimeFieldPlugin.EXECUTIONS.get() > 0);
+        Exception failure = expectThrows(Exception.class, () -> {
+            try (var response = run("""
+                SEQUENCE BY key WITHIN 30s PRIMARY 1
+                (FROM sequence-runtime-time | WHERE phase=="A"), (FROM sequence-runtime-time | WHERE phase=="B")
+                | KEEP key | LIMIT 1
+                """)) {
+                getValuesList(response);
+            }
+        });
+        assertThat(ExceptionsHelper.stackTrace(failure), containsString("SEQUENCE does not support a runtime [@timestamp]"));
+        assertEquals(0, FailingRuntimeFieldPlugin.EXECUTIONS.get());
     }
 
     /** Output demands are loaded with source hits even when the query cannot complete a match. */

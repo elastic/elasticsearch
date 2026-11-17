@@ -26,6 +26,7 @@ import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.CountingStreamOutput;
@@ -52,6 +53,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.logging.LogManager;
@@ -1065,82 +1067,144 @@ public final class SequenceSourceOperator extends SourceOperator {
         }
     }
 
-    private void search(int stage, int branch, SearchSourceBuilder source, Consumer<SearchResponse> consume) {
-        source.query(
-            new SequenceSourceQueryBuilder(
-                source.query(),
-                List.copyOf(cursor(stage, branch).input.source(branch).concreteQualifiedIndices())
-            )
-        );
-        candidateSearchRequests++;
-        source.pointInTimeBuilder(new PointInTimeBuilder(pit).setKeepAlive(keepAlive));
-        begin();
-        ActionListener<SearchResponse> listener = ActionListener.notifyOnce(ActionListener.wrap(response -> {
-            profiler.addRowsFetched(stage, response.getHits().getHits().length);
-            synchronized (this) {
-                if (response.pointInTimeId() != null) {
-                    pit = response.pointInTimeId();
-                }
+    /**
+     * A filtered reader may reach EOF only after every start reader has finished and its final stage completion
+     * has been applied. Include buffered future starts as well as matcher-owned unused starts, so this set can only
+     * shrink after publication. Partial visitation, resource limits and uncertain raw identities keep ordinary reads.
+     */
+    private SequenceKeyFilter waitingKeyFilter(int stage, int branch) {
+        if (stage == 0 || factory.configuration.pragmas().sequenceKeyFilter() == false || pending || completion != null) {
+            return null;
+        }
+        var preference = factory.configuration.pragmas().fieldExtractPreference();
+        if (preference != MappedFieldType.FieldExtractPreference.NONE && preference != MappedFieldType.FieldExtractPreference.DOC_VALUES) {
+            return null;
+        }
+        for (Cursor cursor : cursors) {
+            if (cursor.stage == 0 && cursor.exhausted == false) {
+                return null;
             }
-            long admitted;
-            try {
-                long bytes = 256;
-                for (SearchHit hit : response.getHits().getHits()) {
-                    bytes = Math.addExact(bytes, SequenceHitReader.retainedBytes(hit));
-                }
-                admitted = bytes;
-                breaker.addEstimateBytesAndMaybeBreak(admitted, BREAKER_LABEL);
-                response.incRef();
-            } catch (Exception e) {
-                failed(e);
-                return;
+        }
+        SequenceKeyFilter owner = null;
+        boolean transferred = false;
+        try {
+            Cursor target = cursor(stage, branch);
+            owner = SequenceKeyFilter.create(target.keys, target.input.source(branch).output(), breaker, context::checkForEarlyTermination);
+            if (owner == null || matcher.visitUnusedStartKeys(owner::add) == false) {
+                return null;
             }
-            Runnable release = () -> {
-                try {
-                    response.decRef();
-                } finally {
-                    breaker.addWithoutBreaking(-admitted);
-                }
-            };
-            complete(() -> {
-                try {
-                    executionInfo.onSearch(response);
-                    candidateRowsFetched += response.getHits().getHits().length;
-                    candidateSearchTookMillis += response.getTook().millis();
-                    if (response.isTimedOut() || response.getFailedShards() != 0) {
-                        throw new IllegalStateException("SEQUENCE requires a complete search response");
+            for (Cursor cursor : cursors) {
+                if (cursor.stage == 0) {
+                    for (int row = cursor.offset; row < cursor.rows.size(); row++) {
+                        context.checkForEarlyTermination();
+                        if (owner.add(cursor.rows.get(row).key.bytes()) == false) {
+                            return null;
+                        }
                     }
-                    consume.accept(response);
-                } finally {
-                    release.run();
                 }
-            }, release);
-        }, e -> failed(e)));
-        try (var ignored = factory.requestContext.get()) {
-            // Can-match removes shards and renumbers shardRequestIndex, changing _shard_doc's high bits. Keep all PIT
-            // shards in the same order, with stage membership expressed in the query rather than request indices.
-            var request = new SearchRequest(factory.configuration.absoluteStartedTimeInMillis()).source(source)
-                .allowPartialSearchResults(false);
-            request.setPointInTimeAuthorization(
-                pitAuthorizationIndices,
-                new OriginalIndices(cursor(stage, branch).authorizationExpressions.toArray(String[]::new), IndexResolver.DEFAULT_OPTIONS),
-                new SequenceSourceQueryBuilder(
-                    scope(stage, branch).query(),
-                    List.copyOf(cursor(stage, branch).input.source(branch).concreteQualifiedIndices())
-                )
-            );
-            request.setPreFilterShardSize(Integer.MAX_VALUE);
-            long started = profiler.start();
-            ActionListener<SearchResponse> timed = ActionListener.notifyOnce(
-                ActionListener.runBefore(listener, () -> profiler.finish(SequenceRuntimeProfiler.Phase.SEARCH_WAIT, started))
-            );
-            try {
-                factory.client.search(request, timed);
-            } catch (Exception e) {
-                timed.onFailure(e);
             }
-        } catch (Exception e) {
-            listener.onFailure(e);
+            if (owner.predicate() == null) {
+                return null;
+            }
+            transferred = true;
+            return owner;
+        } catch (CircuitBreakingException optionalLimit) {
+            return null;
+        } finally {
+            if (transferred == false) {
+                Releasables.close(owner);
+            }
+        }
+    }
+
+    private void search(int stage, int branch, SearchSourceBuilder source, Consumer<SearchResponse> consume) {
+        var readIndices = cursor(stage, branch).input.source(branch)
+            .concreteQualifiedIndices()
+            .stream()
+            .filter(scope(stage, branch).indexNames()::contains)
+            .toList();
+        SequenceKeyFilter keyFilter = waitingKeyFilter(stage, branch);
+        boolean transferred = false;
+        try {
+            QueryBuilder query = keyFilter == null
+                ? source.query()
+                : SequenceSourceQueryBuilder.withKeyFilter(source.query(), keyFilter.predicate());
+            source.query(new SequenceSourceQueryBuilder(query, readIndices));
+            candidateSearchRequests++;
+            source.pointInTimeBuilder(new PointInTimeBuilder(pit).setKeepAlive(keepAlive));
+            begin();
+            ActionListener<SearchResponse> listener = ActionListener.notifyOnce(ActionListener.runAfter(ActionListener.wrap(response -> {
+                profiler.addRowsFetched(stage, response.getHits().getHits().length);
+                synchronized (this) {
+                    if (response.pointInTimeId() != null) {
+                        pit = response.pointInTimeId();
+                    }
+                }
+                long admitted;
+                try {
+                    long bytes = 256;
+                    for (SearchHit hit : response.getHits().getHits()) {
+                        bytes = Math.addExact(bytes, SequenceHitReader.retainedBytes(hit));
+                    }
+                    admitted = bytes;
+                    breaker.addEstimateBytesAndMaybeBreak(admitted, BREAKER_LABEL);
+                    response.incRef();
+                } catch (Exception e) {
+                    failed(e);
+                    return;
+                }
+                Runnable release = () -> {
+                    try {
+                        response.decRef();
+                    } finally {
+                        breaker.addWithoutBreaking(-admitted);
+                    }
+                };
+                complete(() -> {
+                    try {
+                        executionInfo.onSearch(response);
+                        candidateRowsFetched += response.getHits().getHits().length;
+                        candidateSearchTookMillis += response.getTook().millis();
+                        if (response.isTimedOut() || response.getFailedShards() != 0) {
+                            throw new IllegalStateException("SEQUENCE requires a complete search response");
+                        }
+                        consume.accept(response);
+                    } finally {
+                        release.run();
+                    }
+                }, release);
+            }, e -> failed(e)), () -> Releasables.close(keyFilter)));
+            transferred = true;
+            try (var ignored = factory.requestContext.get()) {
+                // Can-match removes shards and renumbers shardRequestIndex, changing _shard_doc's high bits. Keep all PIT
+                // shards in the same order, with stage membership expressed in the query rather than request indices.
+                var request = new SearchRequest(factory.configuration.absoluteStartedTimeInMillis()).source(source)
+                    .allowPartialSearchResults(false);
+                request.setPointInTimeAuthorization(
+                    pitAuthorizationIndices,
+                    new OriginalIndices(
+                        cursor(stage, branch).authorizationExpressions.toArray(String[]::new),
+                        IndexResolver.DEFAULT_OPTIONS
+                    ),
+                    new SequenceSourceQueryBuilder(scope(stage, branch).query(), readIndices)
+                );
+                request.setPreFilterShardSize(Integer.MAX_VALUE);
+                long started = profiler.start();
+                ActionListener<SearchResponse> timed = ActionListener.notifyOnce(
+                    ActionListener.runBefore(listener, () -> profiler.finish(SequenceRuntimeProfiler.Phase.SEARCH_WAIT, started))
+                );
+                try {
+                    factory.client.search(request, timed);
+                } catch (Exception e) {
+                    timed.onFailure(e);
+                }
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
+        } finally {
+            if (transferred == false) {
+                Releasables.close(keyFilter);
+            }
         }
     }
 

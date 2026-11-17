@@ -869,9 +869,7 @@ public class SequenceAnalyzerTests extends ESTestCase {
 
     public void testRequiredRawSourceTypesAreRejectedAfterOptimization() {
         for (DataType type : List.of(
-            DataType.GEO_POINT,
             DataType.GEO_SHAPE,
-            DataType.CARTESIAN_POINT,
             DataType.CARTESIAN_SHAPE,
             DataType.DENSE_VECTOR,
             DataType.TSID_DATA_TYPE,
@@ -892,9 +890,21 @@ public class SequenceAnalyzerTests extends ESTestCase {
         }
     }
 
+    public void testRawPointOutputsAreAcceptedAfterOptimization() {
+        for (DataType type : List.of(DataType.GEO_POINT, DataType.CARTESIAN_POINT)) {
+            var mapping = new HashMap<>(mapping());
+            mapping.put("location", new EsField("location", type, Map.of(), true, NONE));
+            var analyzed = configured().addIndex(index("spatial", mapping)).statement("""
+                sequence by host.id WITHIN 30s PRIMARY 1 (from spatial), (from b)
+                | keep host.id, location | limit 3
+                """);
+            assertEquals(List.of("host.id", "location"), optimizer().optimize(analyzed).output().stream().map(Attribute::name).toList());
+        }
+    }
+
     public void testUnusedUnsupportedReaderFieldsCanBePruned() {
         var mapping = new HashMap<>(mapping());
-        mapping.put("location", new EsField("location", DataType.GEO_POINT, Map.of(), true, NONE));
+        mapping.put("location", new EsField("location", DataType.GEO_SHAPE, Map.of(), true, NONE));
         for (String stage : List.of(
             "from spatial",
             "from spatial | eval unused=TO_STRING(location)",
@@ -944,24 +954,23 @@ public class SequenceAnalyzerTests extends ESTestCase {
         return mapping;
     }
 
-    public void testUnsupportedReaderFieldsUsedByStagePredicatesAndKeysAreRejected() {
-        var mapping = new HashMap<>(mapping());
-        mapping.put("location", new EsField("location", DataType.GEO_POINT, Map.of(), true, NONE));
-        for (String query : List.of("""
-            sequence by host.id WITHIN 30s PRIMARY 1
-            (from spatial | where ST_X(location)>0 | keep host.id), (from b | keep host.id)
-            | keep host.id | limit 3
-            """, """
-            sequence by normalized WITHIN 30s PRIMARY 1
-            (from spatial | eval normalized=TO_STRING(location) | keep normalized),
-            (from b | eval normalized=label | keep normalized)
-            | stats count(*) | limit 3
-            """)) {
-            var analyzed = configured().addIndex(index("spatial", mapping)).statement(query);
-            assertThat(
-                expectThrows(VerificationException.class, () -> optimizer().optimize(analyzed)).getMessage(),
-                containsString("cannot read source column [location] of type [geo_point]")
-            );
+    public void testPointFieldsUsedByStagePredicatesAndDerivedKeysAreAccepted() {
+        for (DataType type : List.of(DataType.GEO_POINT, DataType.CARTESIAN_POINT)) {
+            var mapping = new HashMap<>(mapping());
+            mapping.put("location", new EsField("location", type, Map.of(), true, NONE));
+            for (String query : List.of("""
+                sequence by host.id WITHIN 30s PRIMARY 1
+                (from spatial | where ST_X(location)>0 | keep host.id), (from b | keep host.id)
+                | keep host.id | limit 3
+                """, """
+                sequence by normalized WITHIN 30s PRIMARY 1
+                (from spatial | eval normalized=TO_STRING(location) | keep normalized),
+                (from b | eval normalized=label | keep normalized)
+                | stats count(*) | limit 3
+                """)) {
+                var analyzed = configured().addIndex(index("spatial", mapping)).statement(query);
+                assertEquals(1, optimizer().optimize(analyzed).output().size());
+            }
         }
     }
 

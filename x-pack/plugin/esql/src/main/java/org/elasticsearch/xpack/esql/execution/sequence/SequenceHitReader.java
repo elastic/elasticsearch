@@ -45,6 +45,9 @@ import java.util.List;
 final class SequenceHitReader {
     static final String TEMPORAL_FORMAT = "strict_date_optional_time_nanos";
     static final String INTEGRAL_FORMAT = "0";
+    // Internal producer-family tags are consumed by the sequence fetch subphase, never by mapper formatters.
+    static final String GEO_POINT_FORMAT = "sequence_geo_point_wkb";
+    static final String CARTESIAN_POINT_FORMAT = "sequence_cartesian_point_wkb";
     private final List<Attribute> attributes;
     private final Configuration configuration;
 
@@ -145,6 +148,8 @@ final class SequenceHitReader {
                 } else if (attribute instanceof FieldAttribute field && attribute.dataType() != DataType.UNSUPPORTED) {
                     String format = switch (attribute.dataType()) {
                         case DATETIME, DATE_NANOS -> TEMPORAL_FORMAT;
+                        case GEO_POINT -> GEO_POINT_FORMAT;
+                        case CARTESIAN_POINT -> CARTESIAN_POINT_FORMAT;
                         case INTEGER, COUNTER_INTEGER, LONG, COUNTER_LONG, UNSIGNED_LONG -> INTEGRAL_FORMAT;
                         case NULL, BOOLEAN, DOUBLE, COUNTER_DOUBLE, KEYWORD, TEXT, IP, VERSION, SOURCE, FLATTENED, UNSUPPORTED -> null;
                         default -> throw new IllegalArgumentException("unexpected SEQUENCE mapped type [" + attribute.dataType() + "]");
@@ -235,7 +240,14 @@ final class SequenceHitReader {
             throw new IllegalArgumentException("SEQUENCE mapped temporal values require a formatted date instant");
         }
         return switch (type) {
-            // The fetch processor admits native bytes only from live UTF8 field families. IP/version bytes are
+            // The fetch processor validates the frozen/live point family before exporting native WKB bytes.
+            case GEO_POINT, CARTESIAN_POINT -> {
+                if ((value instanceof BytesRef) == false) {
+                    throw new IllegalArgumentException("SEQUENCE mapped [" + type.typeName() + "] values require native WKB point bytes");
+                }
+                yield value;
+            }
+            // The fetch processor admits textual bytes only from live UTF8 field families. IP/version bytes are
             // decoded there using the live mapper, then encoded here using the frozen consumer type.
             case KEYWORD, TEXT, FLATTENED -> {
                 if ((value instanceof BytesRef) == false) {
@@ -336,7 +348,7 @@ final class SequenceHitReader {
             case INTEGER, COUNTER_INTEGER -> ElementType.INT;
             case LONG, COUNTER_LONG, UNSIGNED_LONG, DATETIME, DATE_NANOS -> ElementType.LONG;
             case DOUBLE, COUNTER_DOUBLE -> ElementType.DOUBLE;
-            case KEYWORD, TEXT, IP, VERSION, SOURCE, FLATTENED, UNSUPPORTED -> ElementType.BYTES_REF;
+            case KEYWORD, TEXT, IP, VERSION, SOURCE, FLATTENED, UNSUPPORTED, GEO_POINT, CARTESIAN_POINT -> ElementType.BYTES_REF;
             default -> throw new IllegalArgumentException("unsupported SEQUENCE source field type [" + type.typeName() + "]");
         };
     }

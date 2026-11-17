@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.execution.sequence;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -75,6 +76,7 @@ import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.containsString;
 
 /** Actual native requests qualify physical PIT pruning independently of live mapped selection and logical authorization. */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2)
@@ -96,8 +98,8 @@ public class SequencePitNarrowingIT extends AbstractSequenceIntegTestCase {
         );
     }
 
-    /** A non-deterministic timestamp dependency is accepted while crossed physical scopes stay empty. */
-    public void testCrossedScopesAcceptNondeterministicTimestampAndRemainEmpty() throws Exception {
+    /** Crossed physical scopes exclude a runtime timestamp before source-specific validation. */
+    public void testCrossedScopesExcludeNondeterministicTimestampAndRemainEmpty() throws Exception {
         crossedScopePolicy(false);
     }
 
@@ -283,8 +285,8 @@ public class SequencePitNarrowingIT extends AbstractSequenceIntegTestCase {
         }
     }
 
-    /** A timestamp mapping changed after PIT open can make a previously out-of-range source eligible. */
-    public void testRequestTimeFilterKeepsRuntimeTimestampChangeAfterPitOpen() throws Exception {
+    /** A timestamp made runtime after PIT open must fail the read rather than change the eligible event population. */
+    public void testRequestTimeFilterRefusesRuntimeTimestampChangeAfterPitOpen() throws Exception {
         coordinator = Arrays.stream(internalCluster().getNodeNames()).sorted().findFirst().orElseThrow();
         createIndex(FIRST, "date", Map.of("marker", Map.of("type", "keyword")));
         createIndex(SECOND, "date", Map.of("only_b", Map.of("type", "long")));
@@ -299,7 +301,7 @@ public class SequencePitNarrowingIT extends AbstractSequenceIntegTestCase {
                 .lt(BASE.plusSeconds(12).toString())
         );
         try (var gate = new Gate(TransportSearchAction.NAME)) {
-            assertEquals(List.of(Arrays.asList("shared", "A", "B", null, 7L)), runGated(query, gate, List.of(() -> {
+            Exception failure = expectThrows(Exception.class, () -> runGated(query, gate, List.of(() -> {
                 Opened opened = gate.opened.get();
                 assertNotNull("the native PIT open must complete before the first candidate search", opened);
                 logger.info("SEQUENCE G7 PIT open total={} skipped={}", opened.total(), opened.skipped());
@@ -331,6 +333,7 @@ public class SequencePitNarrowingIT extends AbstractSequenceIntegTestCase {
                         )
                 );
             })));
+            assertThat(ExceptionsHelper.stackTrace(failure), containsString("SEQUENCE does not support a runtime [@timestamp]"));
             assertEquals("the baseline scoped-index hint must skip neither populated shard", 0, gate.opened.get().skipped());
             assertEquals(Set.of(FIRST, SECOND), decodedIndices(gate));
             String expectedFilter = Strings.toString(query.filter());

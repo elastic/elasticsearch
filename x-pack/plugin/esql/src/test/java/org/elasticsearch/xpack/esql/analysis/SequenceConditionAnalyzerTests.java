@@ -308,11 +308,34 @@ public class SequenceConditionAnalyzerTests extends ESTestCase {
     }
 
     public void testConditionOnlySourceTypesAreVerifiedAfterPruning() {
+        var unsupported = analyzer().minimumTransportVersion(TransportVersion.current());
+        Map<String, EsField> fields = Map.of(
+            "@timestamp",
+            DateEsField.dateEsField("@timestamp", Map.of(), true, NONE),
+            "key",
+            new EsField("key", DataType.KEYWORD, Map.of(), true, NONE),
+            "flag",
+            new EsField("flag", DataType.BOOLEAN, Map.of(), true, NONE),
+            "shape",
+            new EsField("shape", DataType.GEO_SHAPE, Map.of(), true, NONE)
+        );
+        for (String name : List.of("a", "b")) {
+            unsupported.addIndex(new EsIndex(name, fields, Map.of(name, new IndexProperties(IndexMode.STANDARD, 0)), Map.of(), Map.of()));
+        }
         for (String stages : List.of(
             "(FROM a | KEEP key,shape),(FROM b | WHERE MEMBER(1,shape) IS NULL)",
             "(FROM a | KEEP key,flag),(FROM b | WHERE MEMBER(1,flag) OR shape IS NULL | DROP shape)"
         )) {
-            LogicalPlan plan = configured().statement("SEQUENCE BY key WITHIN 30s PRIMARY 2 " + stages + " | KEEP key | LIMIT 10");
+            String query = "SEQUENCE BY key WITHIN 30s PRIMARY 2 " + stages + " | KEEP key | LIMIT 10";
+            Sequence point = optimizer().optimize(configured().statement(query)).collect(Sequence.class).getFirst();
+            assertEquals(List.of("key"), point.output().stream().map(Attribute::name).toList());
+            assertTrue(
+                point.collect(SequenceCondition.class)
+                    .stream()
+                    .flatMap(condition -> condition.activeInputs().stream())
+                    .anyMatch(input -> input.source().name().equals("shape") && input.source().dataType() == DataType.GEO_POINT)
+            );
+            LogicalPlan plan = unsupported.statement(query);
             assertThat(
                 expectThrows(VerificationException.class, () -> optimizer().optimize(plan)).getMessage(),
                 containsString("cannot read source column [shape]")

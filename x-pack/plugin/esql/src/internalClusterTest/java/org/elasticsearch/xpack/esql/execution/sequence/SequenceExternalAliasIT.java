@@ -111,6 +111,67 @@ public class SequenceExternalAliasIT extends AbstractSequenceIntegTestCase {
         }
     }
 
+    /** Alias folding must enforce the same OR/NOT placement restriction as the direct mapped-field spelling. */
+    public void testIndexedAliasesUnderOrAndNotAreRefused() {
+        createEvents();
+        for (boolean alias : List.of(false, true)) {
+            String field = alias ? "searched" : "label";
+            for (String predicate : List.of("MATCH(" + field + ",\"start\") OR label==\"other\"", "NOT MATCH(" + field + ",\"absent\")")) {
+                String stage = "FROM "
+                    + INDEX
+                    + (alias ? " | EVAL searched=label" : "")
+                    + " | WHERE phase==\"A\" AND ("
+                    + predicate
+                    + ") | KEEP key,label";
+                try (var ordinary = run(stage + " | LIMIT 10")) {
+                    assertEquals(List.of(List.of("k", "start")), getValuesList(ordinary));
+                }
+                Exception failure = expectThrows(Exception.class, () -> {
+                    try (
+                        var response = run(
+                            "SEQUENCE BY key WITHIN 10s PRIMARY 1 ("
+                                + stage
+                                + "),(FROM "
+                                + INDEX
+                                + " | WHERE phase==\"B\" | KEEP key) | KEEP key,label | LIMIT 10"
+                        )
+                    ) {
+                        getValuesList(response);
+                    }
+                });
+                Throwable cause = ExceptionsHelper.unwrapCause(failure);
+                assertThat(cause, instanceOf(VerificationException.class));
+                assertThat(cause.getMessage(), containsString("exact top-level AND term"));
+                assertThat(cause.getMessage(), containsString("OR or NOT outside the search string"));
+            }
+        }
+    }
+
+    /** A real computation retains ordinary runtime boolean search semantics after the placement check. */
+    public void testComputedRuntimeSearchUnderOrAndNotRemainsAccepted() {
+        createEvents();
+        for (String predicate : List.of("MATCH(searched,\"START\") OR searched==\"OTHER\"", "NOT MATCH(searched,\"ABSENT\")")) {
+            String stage = "FROM "
+                + INDEX
+                + " | WHERE phase==\"A\" | EVAL searched=TO_UPPER(label) | WHERE "
+                + predicate
+                + " | KEEP key,label";
+            try (
+                var ordinary = run(stage + " | LIMIT 10");
+                var sequence = run(
+                    "SEQUENCE BY key WITHIN 10s PRIMARY 1 ("
+                        + stage
+                        + "),(FROM "
+                        + INDEX
+                        + " | WHERE phase==\"B\" | KEEP key) | KEEP key,label | LIMIT 10"
+                )
+            ) {
+                assertEquals(List.of(List.of("k", "start")), getValuesList(ordinary));
+                assertEquals(List.of(List.of("k", "start")), getValuesList(sequence));
+            }
+        }
+    }
+
     private void createEvents() {
         assertAcked(
             indicesAdmin().prepareCreate(INDEX)

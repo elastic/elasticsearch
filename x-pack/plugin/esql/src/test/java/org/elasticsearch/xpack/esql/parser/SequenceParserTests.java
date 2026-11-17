@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.Sequence;
 import org.elasticsearch.xpack.esql.plan.logical.SequenceMatchOutput;
 import org.elasticsearch.xpack.esql.plan.logical.SequenceStage;
+import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -137,6 +138,22 @@ public class SequenceParserTests extends ESTestCase {
 
     public void testDuplicateGlobalKeysAreRejected() {
         error("sequence by host.id, host.id WITHIN 1s primary 2 (from a), (from b)", "Duplicate SEQUENCE BY");
+    }
+
+    /** URI syntax must reach pragma-aware analysis instead of being rejected by the stage parser. */
+    public void testUriPartsStageSyntaxReachesAnalysis() {
+        var plan = parser.createStatement("""
+            SEQUENCE BY id WITHIN 30s PRIMARY 1
+            (FROM a | URI_PARTS parsed = url),
+            (FROM b | EVAL alias = url | URI_PARTS other = alias | DROP alias, url)
+            | KEEP id, parsed.domain | LIMIT 10
+            """).plan();
+        Sequence sequence = plan.collect(Sequence.class).getFirst();
+        assertEquals(2, sequence.children().size());
+        assertEquals(2, sequence.collect(UriParts.class).size());
+        for (var stage : sequence.children()) {
+            assertEquals(1, stage.collect(UriParts.class).size());
+        }
     }
 
     public void testStageMustPreserveEvents() {

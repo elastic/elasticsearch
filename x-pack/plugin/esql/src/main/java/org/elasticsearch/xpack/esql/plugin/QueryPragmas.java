@@ -264,6 +264,12 @@ public final class QueryPragmas implements Writeable {
      */
     private static final Setting<Integer> SEQUENCE_MAX_CANDIDATES = Setting.intSetting("sequence_max_candidates", 8, 1, 1024);
 
+    /** Hidden opt-in for qualifying the existing URI_PARTS operator inside a native SEQUENCE stage. */
+    private static final Setting<Boolean> SEQUENCE_URI_PARTS = Setting.boolSetting("sequence_uri_parts", false);
+
+    /** Hidden experimental source pruning; ordinary candidate reads remain the default. */
+    private static final Setting<Boolean> SEQUENCE_KEY_FILTER = Setting.boolSetting("sequence_key_filter", false);
+
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
 
     public static final List<String> VALID_PRAGMA_NAMES = Stream.of(
@@ -293,6 +299,8 @@ public final class QueryPragmas implements Writeable {
         MAX_RECORD_SIZE,
         FORCE_DOC_SEQUENCE,
         SEQUENCE_MAX_CANDIDATES,
+        SEQUENCE_URI_PARTS,
+        SEQUENCE_KEY_FILTER,
         PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS,
         PlannerSettings.AGG_PARTITIONING_COUNT_THRESHOLD,
         SINGLE_NODE_OPTIMIZATIONS
@@ -328,6 +336,16 @@ public final class QueryPragmas implements Writeable {
     /** Absence lets SEQUENCE choose its stage-dependent default; explicit overrides must be positive. */
     public OptionalInt sequenceMaxCandidates() {
         return SEQUENCE_MAX_CANDIDATES.exists(settings) ? OptionalInt.of(SEQUENCE_MAX_CANDIDATES.get(settings)) : OptionalInt.empty();
+    }
+
+    /** Whether this request may use the ordinary URI_PARTS execution path inside a SEQUENCE stage. */
+    public boolean sequenceUriParts() {
+        return SEQUENCE_URI_PARTS.get(settings);
+    }
+
+    /** Enables bounded waiting-key pruning only when the request explicitly opts in. */
+    public boolean sequenceKeyFilter() {
+        return SEQUENCE_KEY_FILTER.get(settings);
     }
 
     public int exchangeBufferSize() {

@@ -41,7 +41,7 @@
         "content": {
           "type": "text",
           "fields": {
-            "semantic": {
+            "semantic_text": {
               "type": "semantic_text"
             }
           }

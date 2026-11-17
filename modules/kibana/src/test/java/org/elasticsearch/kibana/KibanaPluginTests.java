@@ -96,7 +96,7 @@ public class KibanaPluginTests extends ESTestCase {
                 "raw"
             )
         );
-        assertThat(asMap(asMap(properties.get("content")).get("fields")), hasEntry("semantic", Map.of("type", "semantic_text")));
+        assertThat(asMap(asMap(properties.get("content")).get("fields")), hasEntry("semantic_text", Map.of("type", "semantic_text")));
         assertThat(properties, hasEntry("raw", Map.of("type", "object", "enabled", false)));
     }
 
@@ -110,7 +110,7 @@ public class KibanaPluginTests extends ESTestCase {
             properties.keySet(),
             containsInAnyOrder("@timestamp", "id", "space", "ai_index_id", "session_id", "user_id", "content", "attributes", "deleted_at")
         );
-        assertThat(asMap(asMap(properties.get("content")).get("fields")), hasEntry("semantic", Map.of("type", "semantic_text")));
+        assertThat(asMap(asMap(properties.get("content")).get("fields")), hasEntry("semantic_text", Map.of("type", "semantic_text")));
     }
 
     public void testWorkflowsSystemIndexDescriptorCoversOtherWorkflowsIndices() {

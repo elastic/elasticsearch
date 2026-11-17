@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -394,16 +395,61 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
         return new QueryPhaseResultConsumer.MergeResult(List.of(), null, reducedAggs, 0L);
     }
 
+    /**
+     * The docs each shard matched weigh the merge, until a shard runs with hit counting disabled, as later shards of a sorted
+     * search do once enough hits are counted: from then on every consumed shard counts as one result.
+     */
+    public void testDocsMatchedAreUnknownOnceAShardDoesNotCountHits() {
+        SearchRequest searchRequest = new SearchRequest("index");
+        searchRequest.source(new SearchSourceBuilder().aggregation(new SumAggregationBuilder("test")));
+        int shards = between(2, 5);
+        try (
+            QueryPhaseResultConsumer consumer = new QueryPhaseResultConsumer(
+                searchRequest,
+                executor,
+                newLimitedBreaker(ByteSizeValue.ofMb(64)),
+                searchPhaseController,
+                () -> false,
+                SearchProgressListener.NOOP,
+                shards + 1,
+                e -> {
+                    throw new AssertionError("unexpected partial merge failure", e);
+                }
+            )
+        ) {
+            consumer.mergeLoad((nanos, cpuNanos, finishNanos) -> {});
+            long[] counts = new long[shards];
+            for (int i = 0; i < shards; i++) {
+                counts[i] = randomLongBetween(0, 1000);
+                QuerySearchResult result = queryResultWithAggs(i, new TotalHits(counts[i], TotalHits.Relation.EQUAL_TO));
+                consumer.consumeResult(result, () -> {});
+                result.decRef();
+            }
+            for (int i = 0; i < shards; i++) {
+                assertThat(consumer.docsMatched(new ShardId("index", "uuid", i)), equalTo(counts[i]));
+            }
+
+            QuerySearchResult uncounted = queryResultWithAggs(shards, Lucene.TOTAL_HITS_GREATER_OR_EQUAL_TO_ZERO);
+            consumer.consumeResult(uncounted, () -> {});
+            uncounted.decRef();
+            for (int i = 0; i <= shards; i++) {
+                assertThat(consumer.docsMatched(new ShardId("index", "uuid", i)), equalTo(1L));
+            }
+            assertThat("not consumed yet", consumer.docsMatched(new ShardId("index", "uuid", shards + 1)), equalTo(0L));
+        }
+    }
+
     private static QuerySearchResult queryResultWithAggs(int shardIndex) {
+        return queryResultWithAggs(shardIndex, new TotalHits(0, TotalHits.Relation.EQUAL_TO));
+    }
+
+    private static QuerySearchResult queryResultWithAggs(int shardIndex, TotalHits totalHits) {
         QuerySearchResult result = new QuerySearchResult(
             new ShardSearchContextId("", shardIndex),
             new SearchShardTarget("node", new ShardId("index", "uuid", shardIndex), null),
             null
         );
-        result.topDocs(
-            new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
-            new DocValueFormat[0]
-        );
+        result.topDocs(new TopDocsAndMaxScore(new TopDocs(totalHits, new ScoreDoc[0]), Float.NaN), new DocValueFormat[0]);
         result.aggregations(InternalAggregations.from(List.of(new Sum("test", 1.0D, DocValueFormat.RAW, Map.of()))));
         result.setShardIndex(shardIndex);
         return result;
@@ -728,7 +774,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
                 numShards,
                 0,
                 0,
-                null,
+                List.of(),
                 SearchResponse.Clusters.EMPTY,
                 null,
                 null,
@@ -738,6 +784,117 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
                 assertNotNull(response.getAggregations());
             } finally {
                 response.decRef();
+            }
+        }
+
+        for (SearchHits shardHits : shardHitsToTrack) {
+            assertFalse(shardHits.hasReferences());
+        }
+    }
+
+    /**
+     * A fetch-phase abort can skip response construction after query reduction has handed off its top_hits.
+     * Search failure must still release the hits created by both partial and final reductions.
+     */
+    public void testTopHitsReleasedWhenFetchPhaseFailsBeforeBuildingResponse() throws Exception {
+        final String aggName = "th";
+        SearchPhaseController productionLikeController = new SearchPhaseController((t, agg) -> new AggregationReduceContext.Builder() {
+            @Override
+            public AggregationReduceContext forPartialReduction(@Nullable Collection<SearchHits> topHitsToRelease) {
+                return new AggregationReduceContext.ForPartial(BigArrays.NON_RECYCLING_INSTANCE, null, t, agg, b -> {}, topHitsToRelease);
+            }
+
+            @Override
+            public AggregationReduceContext forFinalReduction(@Nullable Collection<SearchHits> topHitsToRelease) {
+                return new AggregationReduceContext.ForFinal(BigArrays.NON_RECYCLING_INSTANCE, null, t, agg, b -> {}, topHitsToRelease);
+            }
+        });
+
+        int numShards = 3;
+        SearchRequest request = new SearchRequest("index");
+        request.source(new SearchSourceBuilder().aggregation(new TopHitsAggregationBuilder(aggName).size(1)).size(0));
+        request.setBatchedReduceSize(2);
+
+        List<SearchHits> shardHitsToTrack = new ArrayList<>();
+        CountDownLatch latch = new CountDownLatch(numShards);
+        try (
+            SearchPhaseResults<SearchPhaseResult> consumer = productionLikeController.newSearchPhaseResults(
+                executor,
+                NoopCircuitBreaker.INSTANCE,
+                () -> false,
+                SearchProgressListener.NOOP,
+                request,
+                numShards,
+                e -> {
+                    throw new AssertionError("unexpected partial merge failure", e);
+                }
+            )
+        ) {
+            for (int i = 0; i < numShards; i++) {
+                SearchShardTarget searchShardTarget = new SearchShardTarget("node", new ShardId("index", "uuid", i), null);
+                QuerySearchResult querySearchResult = new QuerySearchResult(new ShardSearchContextId("", i), searchShardTarget, null);
+                try {
+                    SearchHit hit = new SearchHit(0, "id-" + i);
+                    hit.sourceRef(Source.fromMap(Map.of("f", "v"), XContentType.JSON).internalSourceRef());
+                    hit.score(1.0f);
+                    SearchHits searchHits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
+                    assertTrue(searchHits.isPooled());
+                    shardHitsToTrack.add(searchHits);
+
+                    TopDocsAndMaxScore topDocsAndMaxScore = new TopDocsAndMaxScore(
+                        new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(0, 1.0f) }),
+                        1.0f
+                    );
+                    InternalTopHits internalTopHits = new InternalTopHits(aggName, 0, 1, topDocsAndMaxScore, searchHits, null);
+                    querySearchResult.topDocs(
+                        new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
+                        new DocValueFormat[0]
+                    );
+                    querySearchResult.aggregations(InternalAggregations.from(Collections.singletonList(internalTopHits)));
+                    querySearchResult.setShardIndex(i);
+                    querySearchResult.size(0);
+                    consumer.consumeResult(querySearchResult, latch::countDown);
+                } finally {
+                    querySearchResult.decRef();
+                }
+            }
+            assertTrue(latch.await(10, TimeUnit.SECONDS));
+
+            SearchPhaseController.ReducedQueryPhase reduce = consumer.reduce();
+            assertNotNull(reduce.aggregations());
+            InternalTopHits reducedTopHits = reduce.aggregations().get(aggName);
+            assertNotNull(reducedTopHits);
+            assertThat(reducedTopHits.getHits().getHits().length, equalTo(1));
+
+            // A failed fetch can terminate the search before buildResponse is called.
+            List<SearchHits> ownedHits = List.copyOf(reduce.topHitsToRelease());
+            assertFalse(ownedHits.isEmpty());
+            assertTrue(ownedHits.stream().allMatch(SearchHits::isPooled));
+            // The production transition skips this supplier on fatal shard failures. MockSearchPhaseContext
+            // normally always invokes it, so explicitly simulate the abort, as FetchSearchPhaseTests does.
+            MockSearchPhaseContext context = new MockSearchPhaseContext(numShards) {
+                @Override
+                public void executeNextPhase(String currentPhase, Supplier<SearchPhase> nextPhaseSupplier) {
+                    onPhaseFailure(currentPhase, "simulated fetch failure", new RuntimeException("simulated fetch failure"));
+                }
+            };
+            context.addReleasable(consumer);
+            try {
+                new FetchSearchPhase(consumer, null, context, reduce).run();
+                assertNotNull(context.phaseFailure.get());
+                assertNull(context.searchResponse.get());
+                assertTrue(((QueryPhaseResultConsumer) consumer).isClosed());
+                for (SearchHits hits : ownedHits) {
+                    assertFalse("top_hits must be released when fetch fails before building a response", hits.hasReferences());
+                }
+            } finally {
+                // Release any leaked references so the failing assertion does not also trigger leak-tracker failures.
+                for (SearchHits hits : ownedHits) {
+                    if (hits.hasReferences()) {
+                        hits.decRef();
+                    }
+                }
+                context.results.close();
             }
         }
 

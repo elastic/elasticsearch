@@ -27,6 +27,10 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DriverProfileTests extends AbstractWireSerializingTestCase<DriverProfile> {
+    public void testOperatorWithoutStatusOmitsStatusFields() {
+        assertEquals("{\"operator\":\"test\"}", Strings.toString(new OperatorStatus("test", null)));
+    }
+
     public void testToXContent() {
         DriverProfile status = new DriverProfile(
             "test",
@@ -53,6 +57,7 @@ public class DriverProfileTests extends AbstractWireSerializingTestCase<DriverPr
               "description" : "test",
               "cluster_name" : "elasticsearch",
               "node_name" : "node-1",
+              "kind" : "test",
               "start" : "1973-11-29T09:27:00.000Z",
               "start_millis" : 123413220000,
               "stop" : "1973-11-29T09:27:23.214Z",

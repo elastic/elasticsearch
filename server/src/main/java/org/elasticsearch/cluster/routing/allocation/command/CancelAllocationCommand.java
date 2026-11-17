@@ -209,7 +209,12 @@ public class CancelAllocationCommand implements AllocationCommand {
                 );
             }
         }
-        routingNodes.failShard(shardRouting, new UnassignedInfo(UnassignedInfo.Reason.REROUTE_CANCELLED, null), allocation.changes());
+        routingNodes.failShard(
+            shardRouting,
+            new UnassignedInfo(UnassignedInfo.Reason.REROUTE_CANCELLED, null),
+            allocation.changes(),
+            allocation.metadata()
+        );
         // TODO: We don't have to remove a cancelled shard from in-sync set once we have a strict resync implementation.
         allocation.removeAllocationId(shardRouting);
         return new RerouteExplanation(

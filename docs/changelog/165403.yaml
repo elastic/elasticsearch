@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 164430
+pr: 165403
+summary: Tolerate bottom sort formatting failures on data nodes
+type: bug

@@ -102,14 +102,15 @@ public final class S3FixtureUtils {
     public static void addBlobToFixture(S3HttpHandler handler, String key, byte[] content, Instant lastModified) {
         String fullPath = "/" + BUCKET + "/" + key;
         handler.blobs().put(fullPath, new BlobEntry(new BytesArray(content), "STANDARD", lastModified));
-        logRequest("PUT_OBJECT", fullPath, content.length);
+        // A fixture-side upload is not an HTTP request, so it carries no Authorization header.
+        logRequest("PUT_OBJECT", fullPath, content.length, false);
     }
 
     /**
      * Log an S3 request.
      */
-    private static void logRequest(String requestType, String path, long contentLength) {
-        requestLogs.add(new S3RequestLog(requestType, path, contentLength, System.currentTimeMillis()));
+    private static void logRequest(String requestType, String path, long contentLength, boolean signed) {
+        requestLogs.add(new S3RequestLog(requestType, path, contentLength, System.currentTimeMillis(), signed));
     }
 
     /**
@@ -247,12 +248,14 @@ public final class S3FixtureUtils {
         private final String path;
         private final long contentLength;
         private final long timestamp;
+        private final boolean signed;
 
-        public S3RequestLog(String requestType, String path, long contentLength, long timestamp) {
+        public S3RequestLog(String requestType, String path, long contentLength, long timestamp, boolean signed) {
             this.requestType = requestType;
             this.path = path;
             this.contentLength = contentLength;
             this.timestamp = timestamp;
+            this.signed = signed;
         }
 
         public String getRequestType() {
@@ -265,6 +268,15 @@ public final class S3FixtureUtils {
 
         public long getTimestamp() {
             return timestamp;
+        }
+
+        /**
+         * Whether the request carried an {@code Authorization} header. The fixture serves an unsigned request as well, so
+         * a test that must prove the client used its configured credentials, rather than merely not the wrong ones,
+         * asserts this on the requests it caused.
+         */
+        public boolean isSigned() {
+            return signed;
         }
 
         @Override
@@ -388,8 +400,9 @@ public final class S3FixtureUtils {
             String query = exchange.getRequestURI().getQuery();
 
             String requestType = classifyRequest(method, path, query);
+            String authHeader = exchange.getRequestHeaders().getFirst("Authorization");
 
-            logRequest(requestType, path, 0);
+            logRequest(requestType, path, 0, authHeader != null);
 
             try {
                 // Allow unauthenticated access when no Authorization header is present.
@@ -397,7 +410,7 @@ public final class S3FixtureUtils {
                 // while still verifying S3 auth when credentials are sent (e.g. from the AWS SDK).
                 // NOTE: This means S3 auth bugs that cause missing Authorization headers will NOT
                 // be caught by this fixture -- only requests that send incorrect credentials are rejected.
-                String authHeader = exchange.getRequestHeaders().getFirst("Authorization");
+                // A test that needs to catch them asserts S3RequestLog#isSigned on the requests it caused.
                 if (authPredicate == null
                     || authHeader == null
                     || fixture.aws.AwsCredentialsUtils.checkAuthorization(authPredicate, exchange)) {

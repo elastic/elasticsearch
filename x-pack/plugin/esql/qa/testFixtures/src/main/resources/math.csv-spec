@@ -895,6 +895,23 @@ ROW v = "2025-02-02T01:00:00.543123456Z"::DATE_NANOS
 2025-02-02T01:00:00.543123456Z | 2025-02-01T00:00:00.000000000Z | 2025-04-01T00:00:00.000000000Z | 2025-02-01T00:00:00.000000000Z
 ;
 
+roundToSinglePointPushdownLoadsFieldWithMissingValues
+required_capability: fix_nulls_filtered_with_query_and_tags_pushdown
+
+// With a single rounding point, ROUND_TO is pushed down as an exists query for the point, plus a query for the documents without a value.
+// The aggregation loads languages.long right above the source, so a page holds the documents of a single query. The page of the null
+// bucket holds exactly the documents without a languages.long, which must not be read as if the first query had filtered them out.
+FROM employees
+| EVAL bucket = ROUND_TO(languages.long, 3)
+| STATS c = COUNT(*), min_languages = MIN(languages.long), max_languages = MAX(languages.long) BY bucket
+| SORT bucket
+;
+
+c:long | min_languages:long | max_languages:long | bucket:long
+    90 | 1                  | 5                  | 3
+    10 | null               | null               | null
+;
+
 roundToBirthWindow
 required_capability: round_to
 // tag::round_to[]

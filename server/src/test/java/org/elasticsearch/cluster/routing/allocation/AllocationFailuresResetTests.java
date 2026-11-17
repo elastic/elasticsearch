@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -89,7 +90,7 @@ public class AllocationFailuresResetTests extends ESTestCase {
             new RecoverySource.EmptyStoreRecoverySource(),
             unassignedInfo,
             ShardRouting.Role.DEFAULT,
-            ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED
+            RecoveryPriority.UNASSIGNED_UNEXPECTED
         );
 
         var routingTable = new RoutingTable.Builder().add(

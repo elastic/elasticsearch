@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
 
 import java.util.EnumSet;
@@ -86,6 +87,39 @@ public class SubstituteRoundToGoldenTests extends GoldenTestCase {
             runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION), STATS, queryAndName.name());
         }
     }
+
+    public void testDateTruncTransformToQueryAndTagsWithKeyCount() {
+        for (var aggregates : keyCountAggregates) {
+            String query = LoggerMessageFormat.format(null, """
+                from all_types
+                | eval x = date_trunc(1 day, date)
+                | stats {} by x
+                """, aggregates.query());
+            runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION), STATS, aggregates.name());
+        }
+    }
+
+    private static final List<QueryAndName> keyCountAggregates = List.of(
+        new QueryAndName("c = count(*), k = count(x)", "count_first"),
+        new QueryAndName("k = count(x), c = count(*)", "key_count_first")
+    );
+
+    // Only an unfiltered count of the grouping key can be derived from the bucket count.
+    public void testDateTruncTransformToQueryAndTagsWithOtherCountNotPushed() {
+        for (var aggregates : otherCountAggregates) {
+            String query = LoggerMessageFormat.format(null, """
+                from all_types
+                | eval x = date_trunc(1 day, date)
+                | stats {} by x
+                """, aggregates.query());
+            runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION), STATS, aggregates.name());
+        }
+    }
+
+    private static final List<QueryAndName> otherCountAggregates = List.of(
+        new QueryAndName("c = count(*), k = count(long)", "count_other_field"),
+        new QueryAndName("c = count(*), k = count(x) where long > 10", "filtered_key_count")
+    );
 
     // https://github.com/elastic/elasticsearch/issues/146479
     // When the grouping key is dropped and COUNT(*) is the only agg, CombineProjections removes
@@ -301,14 +335,25 @@ public class SubstituteRoundToGoldenTests extends GoldenTestCase {
         }
     }
 
-    private static final EsqlTestUtils.TestSearchStatsWithMinMax STATS = new EsqlTestUtils.TestSearchStatsWithMinMax(
-        Map.of("date", dateTimeToLong("2023-10-20T12:15:03.360Z")),
-        Map.of("date", dateTimeToLong("2023-10-23T13:55:01.543Z"))
-    );
+    /**
+     * The date is single valued, as dates mostly are, so its buckets are told apart with the simplest queries.
+     */
+    private static class SingleValuedDateStats extends EsqlTestUtils.TestSearchStatsWithMinMax {
+        SingleValuedDateStats(boolean supportsBlockLoaderConfig) {
+            super(
+                Map.of("date", dateTimeToLong("2023-10-20T12:15:03.360Z")),
+                Map.of("date", dateTimeToLong("2023-10-23T13:55:01.543Z")),
+                supportsBlockLoaderConfig
+            );
+        }
 
-    private static final EsqlTestUtils.TestSearchStatsWithMinMax STATS_NO_BLOCK_LOADER = new EsqlTestUtils.TestSearchStatsWithMinMax(
-        Map.of("date", dateTimeToLong("2023-10-20T12:15:03.360Z")),
-        Map.of("date", dateTimeToLong("2023-10-23T13:55:01.543Z")),
-        false
-    );
+        @Override
+        public boolean isSingleValue(FieldAttribute.FieldName field) {
+            return true;
+        }
+    }
+
+    private static final EsqlTestUtils.TestSearchStatsWithMinMax STATS = new SingleValuedDateStats(true);
+
+    private static final EsqlTestUtils.TestSearchStatsWithMinMax STATS_NO_BLOCK_LOADER = new SingleValuedDateStats(false);
 }

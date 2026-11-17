@@ -113,11 +113,6 @@ public abstract sealed class Float32VectorScorerSupplier implements RandomVector
 
     /**
      * Scores {@code numNodes} candidates in bulk, writing normalized results into {@code scores}.
-     *
-     * <p>Uses the plain (non-{@code @Critical}) binding whenever {@code query} is native -- the common
-     * merge/HNSW-build case. See {@link SimdVecLibrary#dotProductF32BulkSparseOffHeap} for why. Falls
-     * back to the {@code @Critical} binding only when {@code query} is heap-backed (the
-     * {@link IndexInputUtils} last-resort heap-copy case).
      */
     abstract float bulkScoreFromSegment(MemorySegment addresses, MemorySegment query, float[] scores, int numNodes);
 
@@ -170,11 +165,7 @@ public abstract sealed class Float32VectorScorerSupplier implements RandomVector
         @Override
         protected float bulkScoreFromSegment(MemorySegment addresses, MemorySegment query, float[] scores, int numNodes) {
             MemorySegment segment = scoresScratch.apply(numNodes * Float.BYTES);
-            if (query.isNative()) {
-                DISTANCE_FUNCS.squareDistanceF32BulkSparseOffHeap(addresses, query, dims, numNodes, segment);
-            } else {
-                DISTANCE_FUNCS.squareDistanceF32BulkSparse(addresses, query, dims, numNodes, segment);
-            }
+            DISTANCE_FUNCS.squareDistanceF32BulkSparse(addresses, query, dims, numNodes, segment);
             return readScores(segment, scores, numNodes, VectorUtil::normalizeDistanceToUnitInterval);
         }
 
@@ -198,11 +189,7 @@ public abstract sealed class Float32VectorScorerSupplier implements RandomVector
         @Override
         protected float bulkScoreFromSegment(MemorySegment addresses, MemorySegment query, float[] scores, int numNodes) {
             MemorySegment segment = scoresScratch.apply(numNodes * Float.BYTES);
-            if (query.isNative()) {
-                DISTANCE_FUNCS.dotProductF32BulkSparseOffHeap(addresses, query, dims, numNodes, segment);
-            } else {
-                DISTANCE_FUNCS.dotProductF32BulkSparse(addresses, query, dims, numNodes, segment);
-            }
+            DISTANCE_FUNCS.dotProductF32BulkSparse(addresses, query, dims, numNodes, segment);
             return readScores(segment, scores, numNodes, VectorUtil::normalizeToUnitInterval);
         }
 
@@ -226,11 +213,7 @@ public abstract sealed class Float32VectorScorerSupplier implements RandomVector
         @Override
         protected float bulkScoreFromSegment(MemorySegment addresses, MemorySegment query, float[] scores, int numNodes) {
             MemorySegment segment = scoresScratch.apply(numNodes * Float.BYTES);
-            if (query.isNative()) {
-                DISTANCE_FUNCS.dotProductF32BulkSparseOffHeap(addresses, query, dims, numNodes, segment);
-            } else {
-                DISTANCE_FUNCS.dotProductF32BulkSparse(addresses, query, dims, numNodes, segment);
-            }
+            DISTANCE_FUNCS.dotProductF32BulkSparse(addresses, query, dims, numNodes, segment);
             return readScores(segment, scores, numNodes, VectorUtil::scaleMaxInnerProductScore);
         }
 

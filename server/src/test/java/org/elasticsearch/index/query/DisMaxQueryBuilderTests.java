@@ -14,7 +14,6 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.test.AbstractQueryTestCase;
@@ -48,7 +47,7 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
         disMaxQueryBuilder.add(queryBuilder);
         int innerQueries = randomIntBetween(0, 2);
         for (int i = 0; i < innerQueries; i++) {
-            disMaxQueryBuilder.add(randomBoolean() ? queryBuilder : new MatchAllQueryBuilder());
+            disMaxQueryBuilder.add(randomBoolean() ? queryBuilder : createInnerQuery());
         }
         return disMaxQueryBuilder;
     }
@@ -149,53 +148,5 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
         QueryBuilder rewrittenAgain = rewritten.rewrite(createSearchExecutionContext());
         assertEquals(rewrittenAgain, expected);
         assertEquals(Rewriteable.rewrite(dismax, createSearchExecutionContext()), expected);
-    }
-
-    public void testToQueryChargesEntireTreeOnceMatchingVisitorTotal() throws IOException {
-        CircuitBreaker cb = createCircuitBreakerService();
-        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), cb);
-        try {
-            long before = cb.getUsed();
-            Query query = new DisMaxQueryBuilder().add(new TermQueryBuilder(KEYWORD_FIELD_NAME, "value"))
-                .add(new TermQueryBuilder(TEXT_FIELD_NAME, "other"))
-                .toQuery(context);
-            long delta = cb.getUsed() - before;
-
-            assertTrue("a dis_max query must contribute strictly positive bytes to the breaker", delta > 0);
-            assertEquals(
-                "dis_max must charge the breaker exactly once with the estimate of the query tree it produced",
-                estimateBytesOf(query),
-                delta
-            );
-            assertEquals(delta, context.getQueryConstructionMemoryUsed());
-        } finally {
-            context.releaseQueryConstructionMemory();
-        }
-    }
-
-    public void testNestedDisMaxDoesNotCompoundTheCharge() throws IOException {
-        CircuitBreaker cb = createCircuitBreakerService();
-        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), cb);
-        try {
-            long before = cb.getUsed();
-            Query query = new DisMaxQueryBuilder().add(new DisMaxQueryBuilder().add(new TermQueryBuilder(KEYWORD_FIELD_NAME, "value")))
-                .toQuery(context);
-            long delta = cb.getUsed() - before;
-
-            assertTrue("a nested dis_max query must contribute strictly positive bytes to the breaker", delta > 0);
-            assertEquals("each dis_max nesting level must not re-charge the clauses below it", estimateBytesOf(query), delta);
-        } finally {
-            context.releaseQueryConstructionMemory();
-        }
-    }
-
-    /**
-     * Walks the final Lucene query with a fresh visitor to obtain the estimate the breaker is expected to
-     * have been charged, independently of how the builders accumulated it while constructing the query.
-     */
-    private static long estimateBytesOf(Query query) {
-        MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(Integer.MAX_VALUE);
-        query.visit(visitor);
-        return visitor.getEstimatedBytes();
     }
 }

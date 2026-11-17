@@ -129,6 +129,7 @@ public class AshPostingsListWriter {
         final int effectiveTrainingFactor = useMergeTrainingFactor ? ashConfig.trainingFactor() : ashConfig.flushTrainingFactor();
         AsymmetricHashingQuantizer ashQuantizer = new AsymmetricHashingQuantizer(
             ashConfig.projectedDimsFraction(),
+            ashConfig.maxProjectedDims(),
             ashConfig.bitsPerDim(),
             AsymmetricHashingQuantizer.Method.LEARNED,
             ashConfig.trainingIterations(),
@@ -147,6 +148,8 @@ public class AshPostingsListWriter {
         CheckedIntFunction<float[], IOException> centroidGetter = i -> centroidSupplier.centroid(assignments[i]);
         final AsymmetricHashingQuantizer.TrainedProjection trained;
         if (pretrainedWT != null) {
+            // Callers only pass a matrix of the expected shape (ESNextDiskASHVectorsWriter#selectInheritedProjectionMatrix
+            // skips any other), so a mismatch here is a bug rather than input to recover from
             if (pretrainedWT.length != originalDim * nDims) {
                 throw new IllegalArgumentException(
                     "inherited projection matrix has length ["
@@ -234,9 +237,6 @@ public class AshPostingsListWriter {
         final byte[] blockCodesBuf = new byte[BULK_SIZE * packedCodeBytes];
         final byte[] blockCorrectionsBuf = new byte[BULK_SIZE * AshPostingsVisitor.CORRECTION_BYTES];
         final boolean isEuclidean = similarityFunction == VectorSimilarityFunction.EUCLIDEAN;
-        // Encodes a whole block in one matrix multiply, so W is read once per block rather than once
-        // per vector. Created here and reused for every posting list, since W does not change.
-        final AsymmetricHashingQuantizer.BlockEncoder encoder = ashQuantizer.newBlockEncoder(w, originalDim, ENCODE_SIZE);
         final float[] blockVecCentroidSqDists = new float[ENCODE_SIZE];
         DocIdsWriter idsWriter = new DocIdsWriter();
 
@@ -250,7 +250,9 @@ public class AshPostingsListWriter {
             offHeapValues.updateReadAdvice(DataAccessHint.RANDOM);
         }
 
-        try {
+        // Encodes a whole block in one matrix multiply, so W is read once per block rather than once
+        // per vector. Created here and reused for every posting list, since W does not change.
+        try (AsymmetricHashingQuantizer.BlockEncoder encoder = ashQuantizer.newBlockEncoder(w, originalDim, ENCODE_SIZE)) {
             for (int c = 0; c < nClusters; c++) {
                 float[] centroid = centroidSupplier.centroid(c);
                 // Precompute centroid projection + norm once per posting list

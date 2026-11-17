@@ -11,6 +11,8 @@ package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.grok.MatcherWatchdog;
+import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
@@ -18,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -32,7 +35,7 @@ public class GrokProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         GrokProcessor processor = factory.create(null, processorTag, null, config, null);
         assertThat(processor.getTag(), equalTo(processorTag));
-        assertThat(processor.getMatchField(), equalTo("_field"));
+        assertThat(processor.getMatchField(), hasToString("_field"));
         assertThat(processor.getGrok(), notNullValue());
         assertThat(processor.isIgnoreMissing(), is(false));
     }
@@ -47,7 +50,7 @@ public class GrokProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         GrokProcessor processor = factory.create(null, processorTag, null, config, null);
         assertThat(processor.getTag(), equalTo(processorTag));
-        assertThat(processor.getMatchField(), equalTo("_field"));
+        assertThat(processor.getMatchField(), hasToString("_field"));
         assertThat(processor.getGrok(), notNullValue());
         assertThat(processor.isIgnoreMissing(), is(true));
     }
@@ -94,7 +97,7 @@ public class GrokProcessorFactoryTests extends ESTestCase {
         config.put("patterns", List.of("%{MY_PATTERN:name}!"));
         config.put("pattern_definitions", Map.of("MY_PATTERN", "foo"));
         GrokProcessor processor = factory.create(null, null, null, config, null);
-        assertThat(processor.getMatchField(), equalTo("_field"));
+        assertThat(processor.getMatchField(), hasToString("_field"));
         assertThat(processor.getGrok(), notNullValue());
         assertThat(processor.getGrok().match("foo!"), equalTo(true));
     }
@@ -139,5 +142,27 @@ public class GrokProcessorFactoryTests extends ESTestCase {
             () -> factory.create(null, null, null, config, null)
         );
         assertThat(e.getMessage(), equalTo("[ecs_compatibility] unsupported mode '" + invalidEcsMode + "'"));
+    }
+
+    /**
+     * Pipelines are stored, so a malformed path in one has to be accepted when the processor is created, with the failure only coming
+     * when a document is run through it. This goes through the factory, as creating a processor from a stored pipeline does.
+     */
+    public void testCreateWithMalformedField() throws Exception {
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "a..b");
+        config.put("patterns", List.of("(?<foo>\\w+)"));
+        GrokProcessor processor = new GrokProcessor.Factory(MatcherWatchdog.noop()).create(
+            null,
+            randomAlphaOfLength(10),
+            null,
+            config,
+            null
+        );
+        assertThat(processor.getMatchField(), hasToString("a..b"));
+
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+        assertThat(e.getMessage(), equalTo("path [a..b] is not valid"));
     }
 }

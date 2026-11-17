@@ -4,3 +4,11 @@
 
 Converts an input value into text.
 
+Use `TO_TEXT` to search a computed value as full text with `MATCH`. String functions such as
+`CONCAT` return `keyword`, which `MATCH` matches exactly, while `text` is analyzed. To learn more,
+refer to [runtime search](/reference/query-languages/esql/esql-runtime-search.md).
+
+{applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga`
+`MATCH_PHRASE` can search the resulting column too, and the `analyzer` option declares how its
+values are analyzed when searched.
+

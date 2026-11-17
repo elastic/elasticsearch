@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -440,7 +441,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
                         shardBuilder.addShard(
                             shardRouting.moveToUnassigned(
                                 new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, "test"),
-                                ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED
+                                RecoveryPriority.UNASSIGNED_UNEXPECTED
                             )
                         );
                     } else {

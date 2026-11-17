@@ -26,6 +26,7 @@ import org.elasticsearch.action.admin.cluster.configuration.TransportClearVoting
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.RefCountingRunnable;
@@ -99,6 +100,7 @@ import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.scheduling.QueryScheduler;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -484,6 +486,12 @@ public final class InternalTestCluster extends TestCluster {
         // and fails shards when a master abdicates, which breaks many tests.
         builder.put(NoMasterBlockService.NO_MASTER_BLOCK_SETTING.getKey(), randomFrom(random, "write", "metadata_write"));
         builder.put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), false);
+        // Drawn here rather than in the per-node settings so that all nodes agree.
+        // Turning the kill switch off covers the non-batch path for indices that opt into batch
+        // indexing by default, such as columnar ones.
+        if (random.nextBoolean()) {
+            builder.put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), false);
+        }
         defaultSettings = builder.build();
     }
 
@@ -2205,10 +2213,19 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     /**
-     * Blocks until {@code vacatingNode} holds no shards of {@code index} (the node has been vacated for that index).
+     * Blocks until {@code vacatingNode} has applied a cluster state in which no shard of {@code index} is assigned to it, and additionally
+     * has finished closing the shards. This method observes the cluster state applied by the vacating node itself.
      */
     public void awaitNodeVacated(String index, String vacatingNode) {
-        awaitNodesInclude(index, nodes -> nodes.contains(vacatingNode) == false);
+        safeAwait(
+            ClusterServiceUtils.addTemporaryStateListener(
+                clusterService(vacatingNode),
+                clusterState -> nodesInclude(clusterState, index).contains(vacatingNode) == false
+            )
+        );
+        final var shardsClosed = new CountDownLatch(1);
+        getInstance(IndicesClusterStateService.class, vacatingNode).onClusterStateShardsClosed(shardsClosed::countDown);
+        safeAwait(shardsClosed);
     }
 
     /**
@@ -2623,6 +2640,12 @@ public final class InternalTestCluster extends TestCluster {
                     });
                 } catch (Exception e) {
                     throw new AssertionError("Exception during check for request breaker reset to 0", e);
+                }
+                try {
+                    QueryScheduler queryScheduler = getInstanceFromNode(SearchService.class, nodeAndClient.node).queryScheduler();
+                    assertBusy(() -> assertThat("Queries still tracked on node: " + name, queryScheduler.queries(), equalTo(0)));
+                } catch (Exception e) {
+                    throw new AssertionError("Exception during check for queries no longer tracked", e);
                 }
 
                 NodeService nodeService = getInstanceFromNode(NodeService.class, nodeAndClient.node);

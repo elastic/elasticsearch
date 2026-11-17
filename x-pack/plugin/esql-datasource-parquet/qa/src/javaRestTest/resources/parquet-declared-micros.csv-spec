@@ -1,0 +1,135 @@
+// A Parquet TIMESTAMP(MICROS) column renders date_nanos. Declared `date`, it scales straight to millis, so the
+// readable range is `date`'s own rather than date_nanos' 1677-09-21 .. 2262-04-11.
+//
+// {{micros_timestamp}} carries ts over seven rows: 1500-01-01 and the year 3000, outside that window; half a
+// millisecond after 1500-01-01 and one microsecond before the epoch, which separate flooring from truncation; the
+// epoch; a 2024 instant with sub-millisecond digits; and a null.
+
+// The whole microsecond domain, read as the declared type.
+declaredDateOverMicrosTimestampReadsOutsideTheNanosecondDomain
+required_capability: dataset_in_from_command
+required_capability: parquet_declared_date_reads_micros_in_one_step
+dataset: micros_declared: "{{micros_timestamp}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "integer"}, "ts": {"type": "date"}}}}
+
+FROM micros_declared
+| SORT id
+| KEEP id, ts
+;
+
+id:integer | ts:date
+1          | 1500-01-01T00:00:00.000Z
+2          | 1500-01-01T00:00:00.000Z
+3          | 1969-12-31T23:59:59.999Z
+4          | 1970-01-01T00:00:00.000Z
+5          | 2024-01-01T00:00:00.123Z
+6          | 3000-01-01T00:00:00.000Z
+7          | null
+;
+
+// The exact millisecond each row floors to, so one number per row says which arithmetic ran. We floor; clickhouse
+// local truncates toward zero, so rows 2 and 3 land 1ms off it (-14831769600000 and -1 here, ...599999 and 0 there).
+// We floor because the pushdown relation is derived from decoded == floorDiv(raw, d).
+declaredDateOverMicrosTimestampFloorsTowardsNegativeInfinity
+required_capability: dataset_in_from_command
+required_capability: parquet_declared_date_reads_micros_in_one_step
+dataset: micros_declared_millis: "{{micros_timestamp}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "integer"}, "ts": {"type": "date"}}}}
+
+FROM micros_declared_millis
+| SORT id
+| EVAL millis = TO_LONG(ts)
+| KEEP id, millis
+;
+
+id:integer | millis:long
+1          | -14831769600000
+2          | -14831769600000
+3          | -1
+4          | 0
+5          | 1704067200123
+6          | 32503680000000
+7          | null
+;
+
+// Sorting on id and keeping four more columns makes this query eligible for deferred extraction, which decodes the
+// pair in its own loop.
+declaredDateOverMicrosTimestampAgreesOnTheDeferredPath
+required_capability: dataset_in_from_command
+required_capability: parquet_declared_date_reads_micros_in_one_step
+dataset: micros_declared_deferred: "{{micros_timestamp}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "integer"}, "ts": {"type": "date"}, "note": {"type": "keyword"}, "qty": {"type": "integer"}, "ratio": {"type": "double"}}}}
+
+FROM micros_declared_deferred
+| SORT id
+| LIMIT 3
+| KEEP id, ts, note, qty, ratio
+;
+
+id:integer | ts:date                  | note:keyword                             | qty:integer | ratio:double
+1          | 1500-01-01T00:00:00.000Z | fifteen hundred                          | 10          | 1.5
+2          | 1500-01-01T00:00:00.000Z | half a millisecond after fifteen hundred  | 20          | 2.5
+3          | 1969-12-31T23:59:59.999Z | one microsecond before the epoch         | 30          | 3.5
+;
+
+// A LIST of microsecond elements declared `date` takes the same fused one-step decode, in the list decode loop
+// rather than the flat one. Asserting every element rather than MV_MAX, and as the exact millisecond: a scale
+// applied to one element and not the others, or the old two-step route nulling the out-of-window ones, both pass
+// an aggregate assertion. Row 1 pairs an element below the nanosecond floor with one just below the epoch, which
+// is also where flooring and truncation differ.
+declaredDateOverAMicrosTimestampListDecodesEveryElementInOneStep
+required_capability: dataset_in_from_command
+required_capability: parquet_declared_date_reads_micros_in_one_step
+dataset: micros_declared_list: "{{micros_timestamp}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "integer"}, "tslist": {"type": "date"}}}}
+
+FROM micros_declared_list
+| SORT id
+| EVAL elements = TO_LONG(tslist)
+| KEEP id, elements
+;
+
+id:integer | elements:long
+1          | [-14831769600000, -1]
+2          | 32503680000000
+3          | 0
+4          | 1704067200123
+5          | -14831769600000
+6          | [32503680000000, -14831769600000]
+7          | null
+;
+
+// A filter over the newly readable range, which the scan-and-sort cases above do not exercise: the predicate is
+// translated into raw space through decoded == floorDiv(raw, 1000), so it reads the instants the decode now carries.
+// Both bounds here are centuries from every row, so this case cannot tell a flooring bound from a truncating one --
+// the next case does that. The fixture is one row group, so it pins the filtered answer rather than any pruning.
+declaredDateOverMicrosTimestampFiltersAcrossTheNanosecondDomain
+required_capability: dataset_in_from_command
+required_capability: parquet_declared_date_reads_micros_in_one_step
+dataset: micros_declared_filtered: "{{micros_timestamp}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "integer"}, "ts": {"type": "date"}}}}
+
+FROM micros_declared_filtered
+| WHERE ts < "1600-01-01T00:00:00.000Z" OR ts > "2500-01-01T00:00:00.000Z"
+| SORT id
+| KEEP id, ts
+;
+
+id:integer | ts:date
+1          | 1500-01-01T00:00:00.000Z
+2          | 1500-01-01T00:00:00.000Z
+6          | 3000-01-01T00:00:00.000Z
+;
+
+// The pre-epoch boundary on its own: a bound one microsecond above row 3's value keeps row 3 and drops row 4.
+declaredDateOverMicrosTimestampFiltersOnThePreEpochBoundary
+required_capability: dataset_in_from_command
+required_capability: parquet_declared_date_reads_micros_in_one_step
+dataset: micros_declared_boundary: "{{micros_timestamp}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "integer"}, "ts": {"type": "date"}}}}
+
+FROM micros_declared_boundary
+| WHERE ts < "1970-01-01T00:00:00.000Z"
+| SORT id
+| KEEP id, ts
+;
+
+id:integer | ts:date
+1          | 1500-01-01T00:00:00.000Z
+2          | 1500-01-01T00:00:00.000Z
+3          | 1969-12-31T23:59:59.999Z
+;

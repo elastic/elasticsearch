@@ -70,6 +70,7 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
@@ -155,6 +156,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -1420,6 +1422,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
         final var hollowNodeSettings = randomHollowIndexNodeSettings();
         var indexNodesSettingsBuilder = Settings.builder()
             .put(hollowNodeSettings)
+            .put(StatelessPrimaryRelocationSourceService.TRANSFER_HOLLOW_COMMIT_METADATA_SETTING.getKey(), true)
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
             .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), regionSize)
@@ -1507,10 +1510,10 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
         ensureGreen(indexName);
 
         var cacheService = internalCluster().getInstance(StatelessPlugin.SharedBlobCacheServiceSupplier.class, indexNode2).get();
-        // In case of hollow being disabled, we expect to have created one BCC which fits in one region, and thus we expect one cache write.
-        // In case of hollow being enabled, we expect to have 2 BCCs, due to one more being created due to the hollow flush, and only the
-        // 2nd hollow BCC to be read.
-        assertThat(cacheService.getStats().writeCount(), equalTo(1L));
+        // A hollow relocation carries the hollow commit in its handoff, only a non-hollow recovery reads the first region.
+        final boolean hollowEnabled = STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.get(hollowNodeSettings);
+        assertThat(findIndexShard(resolveIndex(indexName), 0).getEngineOrNull() instanceof HollowIndexEngine, equalTo(hollowEnabled));
+        assertThat(cacheService.getStats().writeCount(), equalTo(hollowEnabled ? 0L : 1L));
         // Region 0 prewarming races with the BCC header read to fill region 0, and only the read records a miss.
         assertThat(cacheService.getStats().missCount(), lessThanOrEqualTo(1L));
         assertThat(cacheService.getStats().numberOfRegions(), greaterThan(1));
@@ -1518,10 +1521,20 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
 
     // test that during relocation of a hollow shard, we do not end up bringing region-0 of a blob back to cache after it has been evicted
     public void testQueuedRegion0WarmingDoesNotRefillCacheOfRelocatedHollowShard() throws Exception {
+        // a source that does not transfer the hollow commit metadata makes the target warm region-0 of the hollow commit blob
+        relocateHollowShardWithDeferredRegion0Prewarm(false);
+    }
+
+    public void testHollowRelocationWithTransferredMetadataDoesNotScheduleRegion0Warming() throws Exception {
+        relocateHollowShardWithDeferredRegion0Prewarm(true);
+    }
+
+    private void relocateHollowShardWithDeferredRegion0Prewarm(boolean transferHollowCommitMetadata) throws Exception {
         startMasterOnlyNode();
         final var indexNodesSettings = Settings.builder()
             .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), true)
             .put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.ZERO) // shard becomes immediately hollowable if there's no indexing
+            .put(StatelessPrimaryRelocationSourceService.TRANSFER_HOLLOW_COMMIT_METADATA_SETTING.getKey(), true)
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(4L))
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(256L))
             .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(256L))
@@ -1549,6 +1562,28 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
         );
         ensureStableCluster(3);
 
+        if (transferHollowCommitMetadata == false && randomBoolean()) {
+            updateClusterSettings(
+                Settings.builder().put(StatelessPrimaryRelocationSourceService.TRANSFER_HOLLOW_COMMIT_METADATA_SETTING.getKey(), false)
+            );
+        } else if (transferHollowCommitMetadata == false) {
+            // sends the handoff as a source on a transport version that predates the transfer of hollow commit metadata would
+            final var versionWithoutMetadata = TransportVersionUtils.getPreviousVersion(
+                TransportStatelessPrimaryRelocationHandoffAction.HOLLOW_SHARD_RECOVERY_STATE
+            );
+            MockTransportService.getInstance(indexNodeA).addSendBehavior((connection, requestId, action, request, options) -> {
+                if (TransportStatelessPrimaryRelocationHandoffAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME.equals(action)) {
+                    request = copyWriteable(
+                        (TransportStatelessPrimaryRelocationHandoffAction.Request) request,
+                        writableRegistry(),
+                        TransportStatelessPrimaryRelocationHandoffAction.Request::new,
+                        versionWithoutMetadata
+                    );
+                }
+                connection.sendRequest(requestId, action, request, options);
+            });
+        }
+
         // defer region-0 prewarming on the target node so it does not occur during relocation
         final var targetPlugin = findPlugin(indexNodeB, StatelessTestPlugin.class);
         targetPlugin.deferRegion0Prewarm.set(true);
@@ -1573,9 +1608,14 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
             equalTo(0L)
         );
 
+        final var deferredPrewarm = targetPlugin.deferredRegion0Prewarm.getAndSet(null);
+        if (transferHollowCommitMetadata) {
+            assertThat("the target opens the hollow engine from the transferred metadata", deferredPrewarm, nullValue());
+            return;
+        }
+
         // now run the region-0 prewarming: if we didn't have the `RECOVERING` check in `Region0Warmer.isCancelled`
         // this would fetch region 0 again even though it was evicted
-        final var deferredPrewarm = targetPlugin.deferredRegion0Prewarm.getAndSet(null);
         assertThat("expected the recovery to schedule region-0 prewarming", deferredPrewarm, notNullValue());
         final var prewarmFuture = new PlainActionFuture<Void>();
         deferredPrewarm.accept(prewarmFuture);

@@ -76,6 +76,7 @@ import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.FLOAT;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT32;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT64;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT96;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
@@ -512,6 +513,25 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
         .as(LogicalTypeAnnotation.stringType())
         .named("num_str")
         .named("dictionary_conversion_test");
+
+    /**
+     * A strict conversion failure on the sparse path, after the chunks have been joined and closed. That
+     * boundary is where the coercion could leak the joined block or lose its exception, and neither shows
+     * up on a read that succeeds. Strings declared {@code long} fail for every row, at four scattered
+     * positions, so the failure happens once the whole batch has decoded.
+     */
+    public void testStrictConversionFailureAfterTheJoinReleasesEverything() throws IOException {
+        byte[] data = sparseFile();
+        CountingBreaker breaker = new CountingBreaker();
+        BlockFactory counting = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
+        // opt_str holds "s_<row>", which no row parses as a long, and a null warnings sink is strict.
+        Exception e = expectThrows(
+            Exception.class,
+            () -> declaredRead(data, "opt_str", DataType.KEYWORD, DataType.LONG, new int[] { 1, 5, 11, 15 }, counting)
+        );
+        assertThat(e.getMessage(), containsString("s_1"));
+        assertEquals("the joined block and every chunk must be released on the failure path", 0L, breaker.used());
+    }
 
     private byte[] sparseFile() throws IOException {
         return writeTestFile(

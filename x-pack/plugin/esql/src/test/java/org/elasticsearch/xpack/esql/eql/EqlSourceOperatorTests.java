@@ -14,7 +14,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -586,7 +585,7 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
         Source source = new Source(1, 0, "eqlq");
         Hits hits = new Hits(List.of(fieldEvent("a")), null, new TotalHits(1, TotalHits.Relation.EQUAL_TO));
         // isPartial=true: the delegate returned partial results because the enclosing ES|QL query allowed them.
-        EqlSearchResponse response = new EqlSearchResponse(hits, 1, false, null, false, true, new ShardSearchFailure[0]);
+        EqlSearchResponse response = new EqlSearchResponse(hits, 1, false, null, false, true, List.of());
 
         SourceOperator operator = operator(
             client,
@@ -781,12 +780,12 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
 
     private static EqlSearchResponse eventResponse(List<Event> events) {
         Hits hits = new Hits(events, null, new TotalHits(events.size(), TotalHits.Relation.EQUAL_TO));
-        return new EqlSearchResponse(hits, 1, false, new ShardSearchFailure[0]);
+        return new EqlSearchResponse(hits, 1, false, List.of());
     }
 
     private static EqlSearchResponse sequenceResponse(List<Sequence> sequences) {
         Hits hits = new Hits(null, sequences, new TotalHits(sequences.size(), TotalHits.Relation.EQUAL_TO));
-        return new EqlSearchResponse(hits, 1, false, new ShardSearchFailure[0]);
+        return new EqlSearchResponse(hits, 1, false, List.of());
     }
 
     private static List<Attribute> concat(List<Attribute> head, Attribute tail) {

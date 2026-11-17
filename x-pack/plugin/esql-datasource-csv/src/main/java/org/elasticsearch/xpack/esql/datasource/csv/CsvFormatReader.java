@@ -2691,6 +2691,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
             cacheable ? stream : null,
             pinnedMtimeMillis,
             chunkMode,
+            // From context.recordAligned() rather than chunkMode: chunkMode is demoted to false above when the
+            // object has no last-modified time, which is about cache participation and says nothing about the
+            // byte axis. Reading the demoted value suppressed a correct byte on a record-aligned chunk of an
+            // object served without Last-Modified.
+            (context.recordAligned() || context.splitStartByte() == 0L) ? context.splitStartByte() : RowLocation.BYTE_UNKNOWN,
             context.readCounters() instanceof CsvReaderCounters c ? c : null,
             useDirectBlockPlain,
             useDirectBlockQuoted,
@@ -4496,6 +4501,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             CountingInputStream byteCounter,
             long pinnedMtimeMillis,
             boolean chunkMode,
+            long messageStartByte,
             CsvReaderCounters counters,
             boolean directBlockPlain,
             boolean directBlockQuoted,
@@ -4534,7 +4540,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             this.directBlockQuoted = directBlockQuoted;
             this.maxFieldChars = options.maxFieldSize() > 0 ? options.maxFieldSize() : Integer.MAX_VALUE;
             this.splitStartByte = splitStartByte;
-            this.messageStartByte = (chunkMode || splitStartByte == 0L) ? splitStartByte : RowLocation.BYTE_UNKNOWN;
+            this.messageStartByte = messageStartByte;
             this.statsStripeSize = statsStripeSize;
             this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
             this.statsFileFinal = statsFileFinal;

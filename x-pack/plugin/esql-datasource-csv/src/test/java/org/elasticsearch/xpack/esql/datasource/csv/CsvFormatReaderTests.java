@@ -6978,7 +6978,20 @@ public class CsvFormatReaderTests extends ESTestCase {
         return createStorageObject(bytes, "test.csv");
     }
 
+    /**
+     * An object whose {@code lastModified()} is null, as an HTTP source served without a {@code Last-Modified}
+     * header gives. That absence demotes the reader's cache-participation flag, which must not be read as a
+     * statement about the byte axis.
+     */
+    private StorageObject createUndatedStorageObject(String csvContent) {
+        return createStorageObject(csvContent.getBytes(StandardCharsets.UTF_8), "test.csv", false);
+    }
+
     private StorageObject createStorageObject(byte[] bytes, String objectName) {
+        return createStorageObject(bytes, objectName, true);
+    }
+
+    private StorageObject createStorageObject(byte[] bytes, String objectName, boolean dated) {
         return new StorageObject() {
             @Override
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
@@ -7005,7 +7018,7 @@ public class CsvFormatReaderTests extends ESTestCase {
 
             @Override
             public Instant lastModified() throws IOException {
-                return Instant.now();
+                return dated ? Instant.now() : null;
             }
 
             @Override
@@ -12223,6 +12236,25 @@ public class CsvFormatReaderTests extends ESTestCase {
         );
         assertThat(detail, equalTo("row [1] of [test.csv]: cannot read [bad_id] as [long]"));
         assertThat("a byte on the wrong axis must not be printed", detail, not(containsString("counted from byte")));
+    }
+
+    /**
+     * The byte clause must survive an object with no last-modified time. {@code chunkMode} starts as
+     * {@code context.recordAligned()} and is then demoted to false when the mtime is absent, because the stats
+     * cache cannot participate without one — which says nothing about whether the split's start byte is on the
+     * right axis. Reading the demoted flag suppressed a correct byte on every record-aligned chunk of an object
+     * served without {@code Last-Modified}, and since both chunks then rendered the same text the warning
+     * deduplication dropped one of them.
+     */
+    public void testARecordAlignedSplitKeepsItsByteWithoutAnMtime() throws IOException {
+        List<Attribute> schema = splitSchema();
+        long cut = 35L;
+        String detail = soleDetailWarning(
+            new CsvFormatReader(blockFactory).withSchema(schema),
+            createUndatedStorageObject("bad_id,Carol\n4,Dan\n"),
+            laterSplitContext(schema, cut, new ErrorPolicy(100, true))
+        );
+        assertThat(detail, equalTo("row [1] of [test.csv] counted from byte [" + cut + "]: cannot read [bad_id] as [long]"));
     }
 
     private static List<Attribute> splitSchema() {

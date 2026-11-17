@@ -771,6 +771,9 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             cacheable ? ignoredSchema -> computeConfigFingerprint() : null,
             readConfig,
             chunkMode,
+            // From context.recordAligned(), not chunkMode: the latter is demoted above when the object has no
+            // last-modified time, which is about cache participation and not about the byte axis.
+            context.recordAligned() == false && context.splitStartByte() != 0L,
             context.readCounters() instanceof NdJsonReaderCounters c ? c : null,
             context.splitStartByte(),
             context.maxRecordBytes(),

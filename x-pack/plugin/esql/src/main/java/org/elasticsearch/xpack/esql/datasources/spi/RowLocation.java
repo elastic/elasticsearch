@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 /**
  * The "where" clause a text reader's per-row message carries: which object, and which row of it.
  * <p>
- * A row-shaped reader is constructed per split, counts the records it accepts from zero, and so measures
+ * A row-shaped reader is constructed per split, counts from zero the records it begins to read, and so measures
  * distance into its own input rather than into the file. For the split that starts at byte zero the two are
  * the same thing and the ordinal is the file's; for every later split it is not, and a bare {@code row [N]}
  * then sends the reader of the message to a row that is well formed. The number cannot be made file-global
@@ -76,11 +76,12 @@ public final class RowLocation {
      * @param objectName     the object as messages name it, already reduced to its displayable part
      * @param readStartByte  file-global byte offset of the first byte this reader was given; for compressed
      *                       input it is an offset into the decompressed stream, which is the axis the
-     *                       reader's own records sit on. Every current dispatch path passes a decompressed
-     *                       offset; a splittable compressed macro-split (bzip2, indexed zstd) would pass a
-     *                       COMPRESSED one and has to translate it before it reaches here, or this clause
-     *                       names a position on neither axis. {@code CsvFormatReader} carries the same
-     *                       invariant for {@code _rowPosition}, at the dispatch it would have to change.
+     *                       reader's own records sit on. A splittable compressed macro-split (bzip2, indexed
+     *                       zstd) has a split offset on the COMPRESSED axis, and both readers pass
+     *                       {@link #BYTE_UNKNOWN} for those rather than translating, so no caller reaches here
+     *                       with a cross-axis value. {@code CsvFormatReader} carries the matching invariant for
+     *                       {@code _rowPosition}, which is unaffected because the operator factory
+     *                       null-splices that slot for a compressed-offset split.
      */
     public static String of(long row, String objectName, long readStartByte) {
         StringBuilder where = new StringBuilder("row [").append(row).append(']');

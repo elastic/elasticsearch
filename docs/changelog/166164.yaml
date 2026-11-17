@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166164
+summary: "ESQL:DS: Keep LIKE* filters on `union_by_name` cast"
+type: bug

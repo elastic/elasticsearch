@@ -25,12 +25,21 @@ import java.util.Arrays;
 final class DoubleBlockBuilder extends AbstractBlockBuilder implements DoubleBlock.Builder {
 
     private double[] values;
+    private final boolean enablePooling;
+    private long extraPooledBytes;
 
-    DoubleBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
+    DoubleBlockBuilder(int estimatedSize, BlockFactory blockFactory, boolean enablePooling) {
         super(blockFactory);
+        this.enablePooling = enablePooling;
         int initialSize = Math.max(estimatedSize, 2);
-        adjustBreaker(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) initialSize * elementSize());
-        values = new double[initialSize];
+        if (enablePooling) {
+            values = blockFactory.acquireDoubles(initialSize);
+            estimatedBytes = LocalArrayPool.usedBytesForDoubles(values.length);
+            extraPooledBytes = LocalArrayPool.usedBytesForDoubles(values.length - initialSize);
+        } else {
+            adjustBreaker(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) initialSize * elementSize());
+            values = new double[initialSize];
+        }
     }
 
     @Override
@@ -56,6 +65,7 @@ final class DoubleBlockBuilder extends AbstractBlockBuilder implements DoubleBlo
     @Override
     protected void growValuesArray(int newSize) {
         values = Arrays.copyOf(values, newSize);
+        extraPooledBytes = 0;
     }
 
     @Override
@@ -163,6 +173,11 @@ final class DoubleBlockBuilder extends AbstractBlockBuilder implements DoubleBlo
         return this;
     }
 
+    @Override
+    public long estimatedBytes() {
+        return isReleased() ? 0 : estimatedBytes - extraPooledBytes;
+    }
+
     private DoubleBlock buildBigArraysBlock() {
         /*
          * Keep ownership of the BigArray until adjustBreaker succeeds. If it throws after
@@ -216,6 +231,9 @@ final class DoubleBlockBuilder extends AbstractBlockBuilder implements DoubleBlo
                     mvOrdering,
                     estimatedBytes
                 );
+            }
+            if (enablePooling) {
+                theBlock.enablePooling();
             }
             built();
             return theBlock;

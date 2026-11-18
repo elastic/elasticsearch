@@ -37,13 +37,18 @@ import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.service.CreateUserManagedServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenRequest;
+import org.elasticsearch.xpack.core.security.action.service.DeleteUserManagedServiceAccountAction;
+import org.elasticsearch.xpack.core.security.action.service.DeleteUserManagedServiceAccountRequest;
 import org.elasticsearch.xpack.core.security.action.service.DeleteUserManagedServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountAction;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsAction;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsRequest;
 import org.elasticsearch.xpack.core.security.action.service.PutUserManagedServiceAccountAction;
 import org.elasticsearch.xpack.core.security.action.service.PutUserManagedServiceAccountRequest;
 import org.elasticsearch.xpack.core.security.action.service.QueryServiceAccountAction;
 import org.elasticsearch.xpack.core.security.action.service.ServiceAccountReadRequest;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
@@ -978,10 +983,9 @@ public final class ConfigurableClusterPrivileges {
     }
 
     /**
-     * Delegates the creation and replacement of user-managed service accounts, and the creation and deletion of their
-     * tokens, without handing out {@code manage_security}. The grant names the accounts its holder may write, as
-     * wildcard-aware patterns over the {@code namespace/service-name} principal, and the roles they may give those
-     * accounts, as patterns of the same kind
+     * Delegates the administration of user-managed service accounts and their tokens without handing out
+     * {@code manage_security}. The grant names the accounts its holder may write, as wildcard-aware patterns over the
+     * {@code namespace/service-name} principal, and the roles they may give those accounts, as patterns of the same kind
      * over role names. An administrator approves the role patterns once; the holder can then write the named accounts
      * freely but never give one a role the patterns do not match. The holder's own privileges are never consulted.
      * <p>
@@ -997,7 +1001,11 @@ public final class ConfigurableClusterPrivileges {
      * boundary. An account that someone else gave roles beyond the grant, an administrator or the holder of another grant
      * with overlapping names, is one whose tokens this holder can create too, so names should cover accounts that belong
      * to the holder alone. The holder may delete the tokens of the same accounts, so that what they create they can also
-     * revoke.
+     * revoke, and list their token names, which deleting a token requires. Listing is shared with built-in accounts under
+     * one action, so it refuses the built-in namespace whatever the names cover.
+     * <p>
+     * The holder may delete the accounts the grant names, whatever roles they hold, by the same ownership reasoning: a
+     * write already replaces such an account wholesale.
      * <p>
      * The holder may also get and query the accounts the grant names. Those requests select accounts rather than
      * naming them, so this grants them only once authorization has restricted them to the covered accounts through
@@ -1039,6 +1047,13 @@ public final class ConfigurableClusterPrivileges {
                     return namePredicate.test(
                         new ServiceAccountId(tokenRequest.getNamespace(), tokenRequest.getServiceName()).asPrincipal()
                     );
+                } else if (request instanceof final DeleteUserManagedServiceAccountRequest deleteRequest) {
+                    return namePredicate.test(deleteRequest.getAccountId().asPrincipal());
+                } else if (request instanceof final GetServiceAccountCredentialsRequest credentialsRequest) {
+                    return ServiceAccountSettings.BUILTIN_NAMESPACE.equals(credentialsRequest.getNamespace()) == false
+                        && namePredicate.test(
+                            new ServiceAccountId(credentialsRequest.getNamespace(), credentialsRequest.getServiceName()).asPrincipal()
+                        );
                 } else if (request instanceof final ServiceAccountReadRequest readRequest) {
                     return readRequest.getAuthorizedAccounts() != null;
                 }
@@ -1157,8 +1172,10 @@ public final class ConfigurableClusterPrivileges {
                 this,
                 Set.of(
                     PutUserManagedServiceAccountAction.NAME,
+                    DeleteUserManagedServiceAccountAction.NAME,
                     CreateUserManagedServiceAccountTokenAction.NAME,
                     DeleteUserManagedServiceAccountTokenAction.NAME,
+                    GetServiceAccountCredentialsAction.NAME,
                     GetServiceAccountAction.NAME,
                     QueryServiceAccountAction.NAME
                 ),

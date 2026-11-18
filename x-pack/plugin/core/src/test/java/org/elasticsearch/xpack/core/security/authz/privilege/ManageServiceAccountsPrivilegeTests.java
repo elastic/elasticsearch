@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -34,6 +35,8 @@ import org.elasticsearch.xpack.core.security.action.service.DeleteUserManagedSer
 import org.elasticsearch.xpack.core.security.action.service.DeleteUserManagedServiceAccountRequest;
 import org.elasticsearch.xpack.core.security.action.service.DeleteUserManagedServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountAction;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsAction;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsRequest;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountRequest;
 import org.elasticsearch.xpack.core.security.action.service.PutUserManagedServiceAccountAction;
 import org.elasticsearch.xpack.core.security.action.service.PutUserManagedServiceAccountRequest;
@@ -266,12 +269,46 @@ public class ManageServiceAccountsPrivilegeTests extends ESTestCase {
         assertThat(permission.check(DeleteServiceAccountTokenAction.NAME, deleteToken, authentication()), is(false));
     }
 
+    /**
+     * Accounts are deleted by name alone, forced or not: the request carries no roles, and a write could already
+     * replace the account wholesale.
+     */
+    public void testAccountsAreDeletedForTheNamedAccounts() {
+        final ClusterPermission permission = permissionFor(
+            new ManageServiceAccountsPrivilege(Set.of("apps/*", "batch/nightly"), Set.of(randomFrom("r1", "*")))
+        );
+        assertThat(checkDeleteAccount(permission, "apps", "payroll"), is(true));
+        assertThat(checkDeleteAccount(permission, "batch", "nightly"), is(true));
+        assertThat(checkDeleteAccount(permission, "batch", "hourly"), is(false));
+        assertThat(checkDeleteAccount(permission, "apps-other", "payroll"), is(false));
+    }
+
+    public void testCredentialsAreReadForTheNamedAccounts() {
+        final ClusterPermission permission = permissionFor(
+            new ManageServiceAccountsPrivilege(Set.of("apps/*", "batch/nightly"), Set.of(randomFrom("r1", "*")))
+        );
+        assertThat(checkCredentials(permission, "apps", "payroll"), is(true));
+        assertThat(checkCredentials(permission, "batch", "nightly"), is(true));
+        assertThat(checkCredentials(permission, "batch", "hourly"), is(false));
+        assertThat(checkCredentials(permission, "apps-other", "payroll"), is(false));
+    }
+
+    /**
+     * Built-in and user-managed accounts share the credentials action, so the request itself must keep built-in
+     * accounts out, however broad the names.
+     */
+    public void testBuiltInAccountCredentialsAreNotCovered() {
+        final ClusterPermission permission = permissionFor(
+            new ManageServiceAccountsPrivilege(Set.of(randomFrom("*", "elastic/*", "elastic/fleet-server")), Set.of("r1"))
+        );
+        assertThat(checkCredentials(permission, "elastic", "fleet-server"), is(false));
+    }
+
     public void testGrantsNoOtherServiceAccountAction() {
         final ClusterPermission permission = permissionFor(new ManageServiceAccountsPrivilege(Set.of("*"), Set.of("r1")));
-        final TransportRequest delete = new DeleteUserManagedServiceAccountRequest("apps", "payroll");
-        assertThat(permission.check(DeleteUserManagedServiceAccountAction.NAME, delete, authentication()), is(false));
         final TransportRequest put = new PutUserManagedServiceAccountRequest("apps", "payroll", List.of("r1"), true, null);
-        assertThat(permission.check("cluster:admin/xpack/security/user_managed_service_account/delete", put, authentication()), is(false));
+        assertThat(permission.check("cluster:admin/xpack/security/user_managed_service_account/other", put, authentication()), is(false));
+        assertThat(permission.check("cluster:admin/xpack/security/service_account/other", put, authentication()), is(false));
     }
 
     /**
@@ -353,6 +390,21 @@ public class ManageServiceAccountsPrivilegeTests extends ESTestCase {
     private static boolean checkDeleteToken(ClusterPermission permission, String namespace, String serviceName) {
         final DeleteServiceAccountTokenRequest request = new DeleteServiceAccountTokenRequest(namespace, serviceName, "token");
         return permission.check(DeleteUserManagedServiceAccountTokenAction.NAME, request, authentication());
+    }
+
+    private static boolean checkDeleteAccount(ClusterPermission permission, String namespace, String serviceName) {
+        final DeleteUserManagedServiceAccountRequest request = new DeleteUserManagedServiceAccountRequest(
+            namespace,
+            serviceName,
+            randomFrom(WriteRequest.RefreshPolicy.values()),
+            randomBoolean()
+        );
+        return permission.check(DeleteUserManagedServiceAccountAction.NAME, request, authentication());
+    }
+
+    private static boolean checkCredentials(ClusterPermission permission, String namespace, String serviceName) {
+        final GetServiceAccountCredentialsRequest request = new GetServiceAccountCredentialsRequest(namespace, serviceName);
+        return permission.check(GetServiceAccountCredentialsAction.NAME, request, authentication());
     }
 
     static ManageServiceAccountsPrivilege buildPrivileges() {

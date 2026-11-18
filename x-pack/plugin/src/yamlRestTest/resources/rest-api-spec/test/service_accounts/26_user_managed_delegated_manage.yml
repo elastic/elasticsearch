@@ -340,12 +340,56 @@ teardown:
   - is_true: created
 
 ---
-"Test the privilege grants no account deletes or credential reads":
+"Test a delegate lists token names and deletes the named accounts":
+  # The account and its token come from an administrator: listing is how the delegate learns a name it never saw.
+  - do:
+      security.put_user_managed_service_account:
+        namespace: apps
+        service: delegated_worker
+        body: >
+          {
+            "roles": ["delegated_unlisted"]
+          }
+  - match: { created: true }
+
+  - do:
+      security.create_service_token:
+        namespace: apps
+        service: delegated_worker
+        name: delegated-token
+  - is_true: created
+
   - do:
       headers:
         Authorization: "Basic c2FfZGVsZWdhdGU6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # sa_delegate
-      security.put_user_managed_service_account:
+      security.get_service_credentials:
         namespace: apps
+        service: delegated_worker
+  - match: { "service_account": "apps/delegated_worker" }
+  - match: { "count": 1 }
+  - match: { "tokens": { "delegated-token": {} } }
+
+  - do:
+      headers:
+        Authorization: "Basic c2FfZGVsZWdhdGU6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # sa_delegate
+      security.delete_service_token:
+        namespace: apps
+        service: delegated_worker
+        name: delegated-token
+  - match: { found: true }
+
+  # Deleting goes by name, whatever roles the account holds.
+  - do:
+      headers:
+        Authorization: "Basic c2FfZGVsZWdhdGU6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # sa_delegate
+      security.delete_user_managed_service_account:
+        namespace: apps
+        service: delegated_worker
+  - match: { found: true }
+
+  - do:
+      security.put_user_managed_service_account:
+        namespace: batch
         service: delegated_worker
         body: >
           {
@@ -357,17 +401,51 @@ teardown:
       catch: forbidden
       headers:
         Authorization: "Basic c2FfZGVsZWdhdGU6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # sa_delegate
-      security.delete_user_managed_service_account:
-        namespace: apps
+      security.get_service_credentials:
+        namespace: batch
         service: delegated_worker
 
   - do:
       catch: forbidden
       headers:
         Authorization: "Basic c2FfZGVsZWdhdGU6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # sa_delegate
-      security.get_service_credentials:
-        namespace: apps
+      security.delete_user_managed_service_account:
+        namespace: batch
         service: delegated_worker
+
+---
+"Test a delegate never lists built-in account tokens":
+  - do:
+      security.put_role:
+        name: "service_account_pattern_delegate"
+        body: >
+          {
+            "global": {
+              "service_account": {
+                "manage": {
+                  "names": ["*"],
+                  "roles": ["delegated_ingest_reader"]
+                }
+              }
+            }
+          }
+
+  - do:
+      security.put_user:
+        username: "sa_pattern_delegate"
+        body: >
+          {
+            "password": "x-pack-test-password",
+            "roles": ["service_account_pattern_delegate"]
+          }
+
+  - do:
+      catch: forbidden
+      headers:
+        Authorization: "Basic c2FfcGF0dGVybl9kZWxlZ2F0ZTp4LXBhY2stdGVzdC1wYXNzd29yZA==" # sa_pattern_delegate
+      security.get_service_credentials:
+        namespace: elastic
+        service: fleet-server
 
 ---
 "Test a delegate reads only the named accounts":

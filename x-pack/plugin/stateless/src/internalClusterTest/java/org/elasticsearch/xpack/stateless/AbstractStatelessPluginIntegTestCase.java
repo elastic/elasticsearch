@@ -95,6 +95,7 @@ import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessElectionS
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
+import org.elasticsearch.xpack.stateless.commits.MergeBlob;
 import org.elasticsearch.xpack.stateless.commits.MergeBlobInjector;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
@@ -305,8 +306,7 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
             }
             final String message = event.getMessage().getFormattedMessage();
             final Throwable thrown = event.getThrown();
-            if (message.contains(BatchedCompoundCommit.MERGE_BLOB_PREFIX)
-                || (thrown != null && ExceptionsHelper.stackTrace(thrown).contains(BatchedCompoundCommit.MERGE_BLOB_PREFIX))) {
+            if (message.contains(MergeBlob.PREFIX) || (thrown != null && ExceptionsHelper.stackTrace(thrown).contains(MergeBlob.PREFIX))) {
                 seen.add("[" + event.getLoggerName() + "] " + message + (thrown != null ? " (" + thrown + ")" : ""));
             }
         }
@@ -1267,7 +1267,7 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
         return blobContainer.listBlobs(operationPurpose)
             .keySet()
             .stream()
-            .filter(blob -> BatchedCompoundCommit.startsWithMergeBlobPrefix(blob) == false)
+            .filter(BatchedCompoundCommit::startsWithBlobPrefix)
             .collect(Collectors.toSet());
     }
 

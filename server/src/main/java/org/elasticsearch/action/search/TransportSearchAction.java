@@ -1024,7 +1024,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         searchResponse.getSuccessfulShards(),
                         searchResponse.getSkippedShards(),
                         timeProvider.buildTookInMillis(),
-                        searchResponse.shardFailuresList(),
+                        searchResponse.getShardFailures(),
                         clusters,
                         searchResponse.pointInTimeId(),
                         null,
@@ -1811,7 +1811,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 .setSuccessfulShards(searchResponse.getSuccessfulShards())
                 .setSkippedShards(searchResponse.getSkippedShards())
                 .setFailedShards(searchResponse.getFailedShards())
-                .setFailures(searchResponse.shardFailuresList())
+                .setFailures(searchResponse.getShardFailures())
                 .setTook(searchResponse.getTook())
                 .setTimedOut(searchResponse.isTimedOut())
                 .build();
@@ -2912,9 +2912,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 );
                 SearchResponseMetrics.ResponseCountTotalStatus responseCountTotalStatus =
                     SearchResponseMetrics.ResponseCountTotalStatus.SUCCESS;
-                if (searchResponse.shardFailuresList().isEmpty() == false) {
+                if (searchResponse.getShardFailures().isEmpty() == false) {
                     // Deduplicate failures by exception message and index
-                    List<ShardOperationFailedException> groupedFailures = ExceptionsHelper.groupBy(searchResponse.shardFailuresList());
+                    List<ShardOperationFailedException> groupedFailures = ExceptionsHelper.groupBy(searchResponse.getShardFailures());
                     for (ShardOperationFailedException f : groupedFailures) {
                         boolean causeHas500Status = false;
                         if (f.getCause() != null) {

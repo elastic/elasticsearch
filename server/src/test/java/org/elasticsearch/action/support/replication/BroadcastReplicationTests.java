@@ -351,7 +351,7 @@ public class BroadcastReplicationTests extends ESTestCase {
         assertThat(response.getFailedShards(), equalTo(failed));
         assertThat(response.getUnavailableShards(), equalTo(unavailable));
         for (int i = 0; i < failed; i++) {
-            assertThat(response.getShardFailures()[0].getCause().getCause(), instanceOf(exceptionClass));
+            assertThat(response.getShardFailures().getFirst().getCause().getCause(), instanceOf(exceptionClass));
         }
     }
 

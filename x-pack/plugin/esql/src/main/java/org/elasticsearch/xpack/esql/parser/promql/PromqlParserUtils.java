@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.parser.promql;
 
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.xpack.esql.core.tree.Location;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 
@@ -226,53 +225,6 @@ public class PromqlParserUtils {
         }
 
         return String.valueOf(Character.toChars(code));
-    }
-
-    /**
-     * Adjusts the location of the source by the line and column offsets.
-     * @see #adjustLocation(Location, int, int)
-     */
-    public static Source adjustSource(Source source, int startLine, int startColumn) {
-        return new Source(adjustLocation(source.source(), startLine, startColumn), source.text());
-    }
-
-    /**
-     * Adjusts the location by the line and column offsets.
-     * The PromQL query inside the PROMQL command is parsed separately,
-     * so its line and column numbers need to be adjusted to match their
-     * position inside the full ES|QL query.
-     */
-    public static Location adjustLocation(Location location, int startLine, int startColumn) {
-        int lineNumber = location.getLineNumber();
-        int columnNumber = location.getColumnNumber();
-        return new Location(adjustLine(lineNumber, startLine), adjustColumn(lineNumber, columnNumber, startColumn));
-    }
-
-    /**
-     * Adjusts the line and column numbers of the given {@code ParsingException}
-     * by the provided offsets.
-     * The PromQL query inside the PROMQL command is parsed separately,
-     * so its line and column numbers need to be adjusted to match their
-     * position inside the full ES|QL query.
-     */
-    public static ParsingException adjustParsingException(ParsingException pe, int promqlStartLine, int promqlStartColumn) {
-        ParsingException adjusted = new ParsingException(
-            pe.getErrorMessage(),
-            pe.getCause() instanceof Exception ? (Exception) pe.getCause() : null,
-            adjustLine(pe.getLineNumber(), promqlStartLine),
-            adjustColumn(pe.getLineNumber(), pe.getColumnNumber(), promqlStartColumn)
-        );
-        adjusted.setStackTrace(pe.getStackTrace());
-        return adjusted;
-    }
-
-    private static int adjustLine(int lineNumber, int startLine) {
-        return lineNumber + startLine - 1;
-    }
-
-    private static int adjustColumn(int lineNumber, int columnNumber, int startColumn) {
-        // the column offset only applies to the first line of the PROMQL command
-        return lineNumber == 1 ? columnNumber + startColumn - 1 : columnNumber;
     }
 
     /*

@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.esql.analysis.LetResolver;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
+import org.elasticsearch.xpack.esql.analysis.rules.ViewUtils;
 import org.elasticsearch.xpack.esql.anonymizer.PlanAnonymizer;
 import org.elasticsearch.xpack.esql.approximation.ApproximationDriver;
 import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
@@ -139,7 +140,6 @@ import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
-import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
@@ -157,7 +157,6 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
-import org.elasticsearch.xpack.esql.plan.physical.IntoExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
@@ -320,9 +319,6 @@ public class EsqlSession {
      * transport threads.
      */
     private volatile ExplainContext explainContext;
-    // Destination index name when the query ends with INTO; null for all other queries.
-    @Nullable
-    private volatile String intoDestination;
     private final ProjectMetadata projectMetadata;
 
     /**
@@ -551,11 +547,6 @@ public class EsqlSession {
             // EXPLAIN command itself here.
             planTelemetry.command(explain);
         }
-        if (parsedPlan instanceof Into into) {
-            intoDestination = into.destination();
-            planTelemetry.command(into);
-            parsedPlan = into.child();
-        }
         parsingProfile.stop();
 
         // Resolve all query settings up front, immediately after parse, so every downstream phase only reads
@@ -697,6 +688,7 @@ public class EsqlSession {
             request.profile(),
             request.tables(),
             System.nanoTime(),
+            // TODO: force allowPartialResults=false for INTO once FROM is supported so shard failures do not write partial data
             request.allowPartialResults(),
             analyzerSettings.timeseriesResultTruncationMaxSize(),
             analyzerSettings.timeseriesResultTruncationDefaultSize(),
@@ -1216,11 +1208,6 @@ public class EsqlSession {
         planRunner.run(PlanRunner.Role.OUTPUT, resultPlan, configuration, foldContext, planTimeProfile, null, listener);
     }
 
-    private PhysicalPlan withInto(PhysicalPlan physicalPlan) {
-        String destination = intoDestination;
-        return destination == null ? physicalPlan : new IntoExec(physicalPlan.source(), physicalPlan, destination);
-    }
-
     private void executeSubPlans(
         LogicalPlan optimizedPlan,
         Configuration configuration,
@@ -1275,7 +1262,7 @@ public class EsqlSession {
             // into ExternalSourceCacheService before delivering Result.
             runner.run(
                 PlanRunner.Role.OUTPUT,
-                withInto(physicalPlan),
+                physicalPlan,
                 configuration,
                 foldContext,
                 planTimeProfile,
@@ -1709,7 +1696,7 @@ public class EsqlSession {
                         }
                         runner.run(
                             PlanRunner.Role.OUTPUT,
-                            withInto(newPhysicalPlan),
+                            newPhysicalPlan,
                             configuration,
                             foldContext,
                             planTimeProfile,
@@ -2186,6 +2173,20 @@ public class EsqlSession {
         return new PreAnalysisResult(fieldNames, parentPaths, result.nestedScope(), result.wildcardJoinIndices());
     }
 
+    /**
+     * Whether the caller's own query contains {@code PROMQL}, outside every view body. A view with {@code PROMQL} in its body
+     * resolves with {@code NULLIFY} in its own settings, which keeps its body a view branch, so it is skipped here.
+     */
+    private static boolean callerScopeHasPromql(LogicalPlan plan) {
+        Holder<Boolean> found = new Holder<>(false);
+        ViewUtils.forEachOutsideViews(plan, p -> {
+            if (p instanceof PromqlCommand) {
+                found.set(true);
+            }
+        });
+        return found.get();
+    }
+
     private void resolveIndicesAndAnalyze(
         LogicalPlan parsed,
         UnmappedResolution unmappedResolution,
@@ -2207,8 +2208,11 @@ public class EsqlSession {
         // solution would be to just not track the unmapped indices at all, but that requires a more structural change.
         boolean trackedUnmappedFieldIndices = unmappedResolution.loadsUnmappedFields();
         boolean exemplars = QuerySettings.EXEMPLARS.get(configuration.resolvedSettings()).enabled();
-        // Exemplar columns missing from the exemplar data streams' mappings are nullified rather than failing the query
-        boolean nullify = exemplars || parsed.collectFirstChildren(p -> p instanceof PromqlCommand).isEmpty() == false;
+        // Exemplar columns missing from the exemplar data streams' mappings are nullified rather than failing the query.
+        // PROMQL treats a missing label or metric as absent, so the caller's own PROMQL nullifies too. A PROMQL inside a
+        // view does not count here: the view's own settings nullify its body (ViewQuerySettings#from), and must not
+        // change how the caller's query resolves.
+        boolean nullify = exemplars || callerScopeHasPromql(parsed);
         SubscribableListener.<PreAnalysisResult>newForked(
             l -> preAnalyzeMainIndices(
                 preAnalysis,
@@ -3610,8 +3614,9 @@ public class EsqlSession {
             );
         }
         plan.setAnalyzed();
-        // TODO: when intoDestination != null, validate its mapping in projectMetadata (including column/field type
-        // mismatches against plan.output()) after authorizing write privileges during pre-analysis.
+        // TODO: when the plan contains an INTO node, validate the destination's mapping in projectMetadata
+        // (including column/field type mismatches against the INTO child's output) after authorizing write privileges
+        // during pre-analysis.
         List<IndexResolution> semanticSources = new ArrayList<>(indexResolutions);
         semanticSources.addAll(r.lookupIndices().values());
         Map<NameId, FieldSemantics> semantics = ColumnSemantics.collect(plan, semanticSources);

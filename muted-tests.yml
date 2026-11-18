@@ -673,3 +673,8 @@ tests:
   - :x-pack:plugin:esql:test
   method: testLazyFieldsAreVolatileOrSafe
   issue: https://github.com/elastic/elasticsearch/issues/166479
+- class: org.elasticsearch.xpack.esql.tree.PlanFieldSafePublicationTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testLazyFieldsArePublishedOnce
+  issue: https://github.com/elastic/elasticsearch/issues/166481

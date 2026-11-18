@@ -827,7 +827,7 @@ public final class DeclaredTypeCoercions {
         if (value instanceof BigDecimal bigDecimal) {
             bd = bigDecimal;
         } else {
-            if (isPlainNumberText(value.toString()) == false) {
+            if (value.toString().isBlank() == false && isPlainNumberText(value.toString()) == false) {
                 throw new InvalidArgumentException("Cannot parse number [{}]", value);
             }
             try {

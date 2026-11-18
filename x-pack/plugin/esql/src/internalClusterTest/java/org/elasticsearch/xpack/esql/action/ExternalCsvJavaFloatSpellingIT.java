@@ -89,7 +89,7 @@ public class ExternalCsvJavaFloatSpellingIT extends AbstractExternalDataSourceIT
         }
     }
 
-    /** An otherwise-whole-number column holding one suffixed code loses both its type and that code. */
+    /** An otherwise-whole-number column holding one suffixed code falls back to keyword and keeps every value as written. */
     public void testWholeNumberColumnMeetingTypeSuffixKeepsItsValues() throws Exception {
         String dataset = register("intmix", "v,qty\n10,1\n20,2\n10D,3\n");
 

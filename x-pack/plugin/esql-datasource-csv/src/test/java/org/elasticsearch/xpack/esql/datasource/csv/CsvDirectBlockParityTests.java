@@ -330,10 +330,14 @@ public class CsvDirectBlockParityTests extends ESTestCase {
         assertEquals(List.of(row(1.5), row(0.5), row(5.0)), rows);
     }
 
-    /** Java's type suffixes and hexadecimal floats are not numbers in a data file, on either path. */
-    public void testDoubleRefusesJavaOnlySpellings() {
-        for (String text : List.of("1.5d", "2.5f", "3D", "4F", "0x1.8p1")) {
-            expectThrows(ExternalClientException.class, () -> read(false, Map.of(), "d:double\n" + text + "\n"));
+    /** Java's type suffixes, hexadecimal floats and non-ASCII digits are not numbers in a data file, on either path. */
+    public void testDoubleRefusesJavaOnlySpellings() throws IOException {
+        CsvFormatReader base = baseReader(false);
+        for (String text : List.of("1.5d", "2.5f", "3D", "4F", "0x1.8p1", "١٢٣")) {
+            for (boolean directBlock : List.of(false, true)) {
+                String message = captureFailFastMessage(base.withDirectBlockEnabled(directBlock), null, "d:double\n" + text + "\n");
+                assertTrue("direct_block=" + directBlock + " [" + text + "]: " + message, message.contains("as [double]"));
+            }
         }
     }
 

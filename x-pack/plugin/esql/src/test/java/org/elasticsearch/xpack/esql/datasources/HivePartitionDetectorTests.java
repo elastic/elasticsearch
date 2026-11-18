@@ -387,10 +387,18 @@ public class HivePartitionDetectorTests extends ESTestCase {
 
     public void testCastValueRefusesJavaOnlyNumberSpellings() {
         for (DataType type : List.of(DataType.INTEGER, DataType.LONG, DataType.UNSIGNED_LONG)) {
-            expectThrows(RuntimeException.class, () -> HivePartitionDetector.castValue("١٢٣", type));
+            expectThrows(NumberFormatException.class, () -> HivePartitionDetector.castValue("١٢٣", type));
         }
+        expectThrows(NumberFormatException.class, () -> HivePartitionDetector.castValue("١٢٣", DataType.DOUBLE));
         expectThrows(NumberFormatException.class, () -> HivePartitionDetector.castValue("10D", DataType.DOUBLE));
         expectThrows(NumberFormatException.class, () -> HivePartitionDetector.castValue("0x1p3", DataType.DOUBLE));
+    }
+
+    public void testInferTypeKeepsJavaOnlyNumberSpellingsAsKeyword() {
+        for (String text : List.of("10D", "14f", "0x1p3", "١٢٣")) {
+            assertEquals(text, DataType.KEYWORD, HivePartitionDetector.inferType(List.of(text)));
+            assertEquals(text, DataType.KEYWORD, HivePartitionDetector.inferType(List.of("1", text)));
+        }
     }
 
     public void testCastValueDouble() {

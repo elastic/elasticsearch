@@ -1268,11 +1268,6 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
         }
     }
 
-    /**
-     * The reported incident: a column of empty strings declared {@code double} failed with a bare
-     * {@code NumberFormatException: empty String} naming neither the column nor the type. The retained
-     * message now leads with the column and declared type while still carrying the raw detail.
-     */
     public void testIsPlainNumberText() {
         for (String plain : List.of("1", "-1", "+1.5", ".5", "5.", "1e5", "-4.5E-2", "NaN", "Infinity", "-Infinity", " 7 ")) {
             assertTrue(plain, DeclaredTypeCoercions.isPlainNumberText(plain));
@@ -1290,6 +1285,11 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
         }
     }
 
+    /**
+     * The reported incident: a column of empty strings declared {@code double} failed with a bare
+     * {@code NumberFormatException: empty String} naming neither the column nor the type. The retained
+     * message now leads with the column and declared type while still carrying the raw detail.
+     */
     public void testStrictCoercionFailureOnEmptyStringNamesColumn() {
         try (Block src = bytesBlock("")) {
             InvalidArgumentException e = expectThrows(

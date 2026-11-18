@@ -6538,6 +6538,28 @@ public class AnalyzerTests extends AnalyzerTestCase {
             );
     }
 
+    /**
+     * An invalid option isn't about the field's types, so it stays an error even when no type of the union converts.
+     */
+    public void testInvalidOptionOnUnionWhereNoTypeConvertsFails() {
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("value", "long")),
+                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("value", "boolean"))
+            ),
+            List.of()
+        );
+        analyzer().minimumTransportVersion(TransportVersion.current())
+            .addIndex(mergedResolution("foo,bar", caps))
+            .error("FROM foo, bar | EVAL x = TO_IP(value, {\"leading_zeros\": \"abcdef\"})", containsString("abcdef"));
+    }
+
+    public void testInvalidOptionOnDateAndDateNanosUnionFails() {
+        analyzer().minimumTransportVersion(TransportVersion.current())
+            .addIndex(indexWithDateDateNanosUnionType())
+            .error("FROM index* | EVAL x = TO_IP(date_and_date_nanos, {\"leading_zeros\": \"abcdef\"})", containsString("abcdef"));
+    }
+
     private static void assertNullLiteral(Expression expression, DataType type) {
         Literal literal = as(expression, Literal.class);
         assertNull(literal.value());

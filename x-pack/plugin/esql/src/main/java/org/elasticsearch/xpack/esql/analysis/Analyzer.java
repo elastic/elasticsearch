@@ -4467,6 +4467,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     return createIfDoesNotAlreadyExist(fa, resolvedField, unionFieldAttributes);
                 }
                 if (lenient) {
+                    Expression invalid = invalidOtherArguments(convert);
+                    if (invalid != null) {
+                        return invalid;
+                    }
                     // No type converts, so the cast is null in every index.
                     warnLenientDroppedTypes(context, fa.name(), tcf, supportedTypes, convertExpression);
                     return new Literal(convertExpression.source(), null, convertExpression.dataType());
@@ -4502,14 +4506,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                                 unsupportedExplicitCastMessage(unionTypeEsField, supportedTypes, fa.name(), convertExpression.sourceText())
                             );
                         }
-                        warnLenientDroppedUnionTypes(context, fa.name(), unionTypeEsField, supportedTypes, convertExpression);
                         if (anyMapped == false && unmappedKeywordSupported == false) {
+                            Expression invalid = invalidOtherArguments(convert);
+                            if (invalid != null) {
+                                return invalid;
+                            }
                             // No type converts, so the cast is null in every index.
+                            warnLenientDroppedUnionTypes(context, fa.name(), unionTypeEsField, supportedTypes, convertExpression);
                             if (unmappedExprForSupport != null) {
                                 warnLenientDroppedSourceKeyword(context, fa.name(), convertExpression);
                             }
                             return new Literal(convertExpression.source(), null, convertExpression.dataType());
                         }
+                        warnLenientDroppedUnionTypes(context, fa.name(), unionTypeEsField, supportedTypes, convertExpression);
                         castField = unionTypeEsField.retainingSupportedSourceTypes(supportedTypes);
                     }
 
@@ -5660,23 +5669,25 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 inputType = type.typeName();
             }
-            return otherArgumentsResolve(convert) ? inputType : null;
+            return invalidOtherArguments(convert) == null ? inputType : null;
         }
 
-        /**
-         * Whether the cast's other arguments, like the options of {@code TO_IP(x, {...})}, are valid: errors in those aren't about the
-         * input's type, so they stay errors.
-         */
-        private static boolean otherArgumentsResolve(ConvertFunction convert) {
-            Expression cast = (Expression) convert;
-            if (cast.children().size() == 1) {
-                return true;
-            }
-            DataType accepted = convert.supportedTypes().iterator().next();
-            List<Expression> children = new ArrayList<>(cast.children());
-            children.set(children.indexOf(convert.field()), new Literal(cast.source(), null, accepted));
-            return cast.replaceChildren(children).resolved();
+    }
+
+    /**
+     * The conversion with an accepted input, if its other arguments, like the options of {@code TO_IP(x, {...})}, are invalid, or
+     * {@code null} otherwise. Errors in those aren't about the input's type, so they stay errors instead of a {@code null} result.
+     */
+    private static Expression invalidOtherArguments(ConvertFunction convert) {
+        Expression cast = (Expression) convert;
+        if (cast.children().size() == 1) {
+            return null;
         }
+        DataType accepted = convert.supportedTypes().iterator().next();
+        List<Expression> children = new ArrayList<>(cast.children());
+        children.set(children.indexOf(convert.field()), new Literal(cast.source(), null, accepted));
+        Expression withAcceptedInput = cast.replaceChildren(children);
+        return withAcceptedInput.resolved() ? null : withAcceptedInput;
     }
 
     private static class ResolveUnionTypesInUnionAll extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {

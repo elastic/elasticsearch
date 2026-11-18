@@ -656,6 +656,23 @@ setup:
   - match: { values.1: [5, null] }
 
 ---
+"invalid option on a union where no type converts still errors":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [lenient_impossible_casts]
+      reason: "Invalid options stay errors"
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM lenient_long,lenient_bool | EVAL x = TO_IP(f, {"leading_zeros": "abcdef"}) | KEEP x'
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: "abcdef" }
+
+---
 "impossible cast after STATS returns null":
   - requires:
       capabilities:

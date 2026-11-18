@@ -2547,6 +2547,46 @@ public class CsvFormatReaderTests extends ESTestCase {
         );
     }
 
+    /**
+     * Padding keeps its rows without spending the error budget, so a ragged file reaches the width check on every row
+     * long after the warning cap is gone. Past the cap the notice is no longer composed — but that is the FORMATTING
+     * alone: every row is still padded and still returned, and the client still gets the summary, the twenty details
+     * and the one overflow line it would have got. This pins that split, so a guard that ever reaches the padding
+     * itself, rather than the message about it, fails here.
+     */
+    public void testPaddingOutlivesTheWarningCapItStopsFormattingFor() throws IOException {
+        int rows = SkipWarnings.MAX_ADDED_WARNINGS + 5;
+        StringBuilder csv = new StringBuilder("id:long,name:keyword,score:double\n");
+        for (int i = 1; i <= rows; i++) {
+            csv.append(i).append(",name").append(i).append('\n');
+        }
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("pad_short_rows", true));
+
+        try (CloseableIterator<Page> iterator = reader.read(createStorageObject(csv.toString()), null, rows)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals("every short row is kept, cap or no cap", rows, page.getPositionCount());
+            for (int i = 0; i < rows; i++) {
+                assertTrue("row " + i + " must be padded", page.getBlock(2).isNull(i));
+            }
+        }
+
+        List<String> warnings = drainWarnings();
+        assertEquals(
+            "details stop at the cap, got: " + warnings,
+            SkipWarnings.MAX_ADDED_WARNINGS,
+            warnings.stream().filter(w -> w.contains("read as null")).count()
+        );
+        assertTrue(
+            "the summary must still go out, got: " + warnings,
+            warnings.stream().anyMatch(w -> w.contains("reading those fields as null"))
+        );
+        assertTrue(
+            "the client must be told details were dropped, got: " + warnings,
+            warnings.stream().anyMatch(w -> w.contains("further warnings suppressed"))
+        );
+    }
+
     // --- Whitespace trimming ---
 
     public void testWhitespacePreservedByDefault() throws IOException {
@@ -8942,6 +8982,28 @@ public class CsvFormatReaderTests extends ESTestCase {
         );
         assertThat(whole.getMessage(), containsString("missing trailing fields: [1] columns, the header has [2]"));
         assertThat("nothing cut the file's first byte", whole.getMessage(), not(containsString("multiline_fields")));
+
+        // The same cut split, with a full-width row ahead of the short one. The cut can only have landed inside the
+        // value this split OPENS with, so by the time a record of the file's own width has parsed, the split is on a
+        // real record boundary and the short row after it is a short row -- which is most short rows of most splits.
+        Exception past = expectThrows(
+            Exception.class,
+            () -> drainAllPages(
+                reader.read(
+                    new TrackingStorageObject("1,alice\nxxxx\n"),
+                    FormatReadContext.builder()
+                        .firstSplit(false)
+                        .recordAligned(true)
+                        .splitStartByte(4096)
+                        .readSchema(schema)
+                        .fileHeaderColumns(List.of("a", "b"))
+                        .batchSize(10)
+                        .build()
+                )
+            )
+        );
+        assertThat(past.getMessage(), containsString("missing trailing fields: [1] columns, the header has [2]"));
+        assertThat("a full-width row puts the split past any cut", past.getMessage(), not(containsString("multiline_fields")));
     }
 
     /**

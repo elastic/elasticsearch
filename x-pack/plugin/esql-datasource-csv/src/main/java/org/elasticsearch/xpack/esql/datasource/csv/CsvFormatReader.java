@@ -4397,6 +4397,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * states, see {@link #fileStatedRowWidth}.
          */
         private boolean rowWidthLimitIsFileStated;
+        /**
+         * Whether this split has reached a record of the width its file states, which puts it past anything the cut
+         * at its start could have landed inside -- see {@link #cutQuotedValueClause()}, the only reader of this.
+         * A quoted value cut by this split's start can only be in the records BEFORE that, so a short row after one
+         * is a short row and nothing else.
+         */
+        private boolean pastCutTail;
         /** The binding's widest row, or {@link HeaderBinding#NO_FILE_WIDTH}; resolves {@link #rowWidthLimit}. Unused when no binding. */
         private final int bindingMaxRowWidth;
         /**
@@ -5506,12 +5513,16 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * {@link CsvLogicalRecordReader#failOnLineSpan()} -- but a split that BEGINS inside the value reaches its own
          * first record first, and nothing in that record distinguishes the two, so the message names both.
          *
-         * <p>Empty unless this split could be holding one: its start has to be a quote-blind cut, which is a quoting
-         * dialect read under {@link #newlineSplitting()} from somewhere other than the file's first byte. An escaping
-         * dialect is excluded with it, no record of one spanning a raw newline.
+         * <p>Empty unless this split could STILL be holding one. Its start has to be a quote-blind cut, which is a
+         * quoting dialect read under {@link #newlineSplitting()} from somewhere other than the file's first byte --
+         * an escaping dialect is excluded with it, no record of one spanning a raw newline. And the cut can only
+         * have landed inside the value whose tail this split opens with, so once a record of the file's own width
+         * has parsed ({@link #pastCutTail}) the split is standing on a real record boundary and every short row
+         * after it is just that. Most splits of a large file start after byte 0, so without the second half the
+         * clause would reach row 500 of a well-formed split and send its reader somewhere there is nothing to find.
          */
         private String cutQuotedValueClause() {
-            return newlineSplitting() && options.quoting() && splitStartByte > 0
+            return pastCutTail == false && newlineSplitting() && options.quoting() && splitStartByte > 0
                 ? "; or a quoted value spans several lines while [multiline_fields] is not [true] and this split begins "
                     + "inside one, in which case set [multiline_fields] to [true]"
                 : "";
@@ -6696,12 +6707,22 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         RowFault.SHORT_ROW
                     );
                 }
-                pendingPadNotice = "row ["
-                    + totalRowCount
-                    + "]: "
-                    + MISSING_TRAILING_FIELDS
-                    + ", read as null: "
-                    + rowWidthClause(actualFields, rowWidthFloor, true);
+                // Composed only while the collector would still deliver it. Padding keeps its rows without spending
+                // the error budget, so unlike a skip this runs on every short row of the file however many there
+                // are, long after the warning cap is gone -- and every one of those notices would be built to be
+                // dropped. It is the formatting that is skipped, not the padding, which is unconditional.
+                if (padWarnings.acceptsDetail()) {
+                    pendingPadNotice = "row ["
+                        + totalRowCount
+                        + "]: "
+                        + MISSING_TRAILING_FIELDS
+                        + ", read as null: "
+                        + rowWidthClause(actualFields, rowWidthFloor, true);
+                }
+            } else {
+                // A record of the width the file states: this split is on a real record boundary, so whatever cut
+                // its start is behind it and no later short row can be a quoted value's tail. See cutQuotedValueClause.
+                pastCutTail = true;
             }
             return null;
         }

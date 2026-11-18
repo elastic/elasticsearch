@@ -460,12 +460,10 @@ public class SharedBlobCacheWarmingService {
     private volatile int warmByteRangePerFileConcurrency;
     private final SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService;
 
-    /**
-     * Shards whose search recovery is currently blocked waiting for offline warming (see {@link #searchRecoveryWarmingListener}). Offline
-     * warming only honours a direct recovery cancellation for these shards: once the recovery has resumed (warming completed, timed out
-     * or failed) it may no longer notice a cancellation, so a late one must not leave the shard that goes on to start with a colder cache.
-     * Held in the service rather than passed down so as not to change the signatures of the many {@code warmCache} overrides.
-     */
+    /// Shards whose search recovery is currently blocked waiting for offline warming (see [#searchRecoveryWarmingListener]). Offline
+    /// warming only honours a direct recovery cancellation for these shards: once the recovery has resumed (warming completed, timed out
+    /// or failed) it may no longer notice a cancellation, so a late one must not leave the shard that goes on to start with a colder cache.
+    /// Held in the service rather than passed down so as not to change the signatures of the many `warmCache` overrides.
     // package-private for tests
     final Set<IndexShard> shardsAwaitingRecoveryWarming = ConcurrentCollections.newConcurrentSet();
 

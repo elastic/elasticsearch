@@ -1249,11 +1249,6 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
         }
     }
 
-    /**
-     * A direct recovery cancellation does not close the store, so offline warming tasks that have not yet started must notice it
-     * themselves and skip their reads, but only while the recovery is waiting on the warming. Once the recovery has resumed it may no
-     * longer check for cancellation, so a late request must not leave the shard that goes on to start with a colder cache.
-     */
     public void testOfflineWarmingTasksSkippedOnCancellationOnlyWhileRecoveryAwaitsWarming() throws Exception {
         final long primaryTerm = randomLongBetween(1, 10);
         final boolean recoveryAwaitingWarming = randomBoolean();

@@ -673,8 +673,6 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
         assertWaitOutcome(measurements.getFirst(), SearchRecoveryWaitOutcome.WARMING_COMPLETE);
     }
 
-    /// The shard must be registered as awaiting recovery warming for as long as the recovery waits on it (so that offline warming
-    /// honours a direct recovery cancellation), and deregistered however the wait ends: warming completing, failing or timing out.
     public void testSearchRecoveryWarmingListenerRegistersShardOnlyWhileRecoveryAwaitsWarming() {
         try (var threadPool = new CapturingScheduleThreadPool(getTestName())) {
             var service = newWarmingService(threadPool);

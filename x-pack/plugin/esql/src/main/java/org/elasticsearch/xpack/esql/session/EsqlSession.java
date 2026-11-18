@@ -1779,7 +1779,11 @@ public class EsqlSession {
         List<Attribute> schema = result.schema();
 
         Block[] blocks = SessionUtils.fromPages(schema, pages, blockFactory);
-        return new LocalRelation(planSource, schema, LocalSupplier.of(blocks.length == 0 ? new Page(0) : new Page(blocks)));
+        Page page = blocks.length == 0 ? new Page(0) : new Page(blocks);
+        // Plans sent to this node's data-node handler are not serialized, so concurrently planned branches can share
+        // this page, and building a hash join table from it changes its ref counts.
+        page.allowPassingToDifferentDriver();
+        return new LocalRelation(planSource, schema, LocalSupplier.of(page));
     }
 
     /**

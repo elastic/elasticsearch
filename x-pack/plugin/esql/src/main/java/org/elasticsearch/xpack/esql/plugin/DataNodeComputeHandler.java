@@ -1339,11 +1339,15 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         );
                         if (fetchContexts != null) {
                             // a registered context that the fetch phase can find again after the response
-                            context = fetchContexts.open(shardRequest);
+                            context = fetchContexts.open(shardRequest, searchService.queryPart(request.queryId(), parentTask));
                         } else {
                             // TODO: `searchService.createSearchContext` allows opening search contexts without limits,
                             // we need to limit the number of active search contexts here or in SearchService
-                            context = searchService.createSearchContext(shardRequest, SearchService.NO_TIMEOUT);
+                            context = searchService.createSearchContext(
+                                shardRequest,
+                                SearchService.NO_TIMEOUT,
+                                searchService.queryPart(request.queryId(), parentTask)
+                            );
                         }
                         // The slices the plan reads, for the field mappers that build its queries.
                         context.getSearchExecutionContext().setSliceSelection(slices);

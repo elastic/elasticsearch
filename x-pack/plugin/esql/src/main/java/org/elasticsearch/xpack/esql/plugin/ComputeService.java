@@ -219,6 +219,7 @@ public class ComputeService {
     private final SearchService searchService;
     private final BigArrays bigArrays;
     private final BlockFactory blockFactory;
+    private final TransportRequestOptions planRequestOptions;
 
     private final TransportService transportService;
     private final DriverTaskRunner driverRunner;
@@ -266,6 +267,7 @@ public class ComputeService {
         this.exchangeService = transportActionServices.exchangeService();
         this.bigArrays = bigArrays.withCircuitBreaking();
         this.blockFactory = blockFactory;
+        this.planRequestOptions = TransportRequestOptions.of(null, TransportRequestOptions.Type.REG, blockFactory.breaker());
         this.searchExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
         this.computeExecutor = computeExecutor;
         this.threadPool = threadPool;
@@ -320,15 +322,18 @@ public class ComputeService {
      * copy is charged to the request breaker and a trip fails the request instead of running the node out of memory.
      */
     TransportRequestOptions planRequestOptions() {
-        return TransportRequestOptions.of(null, TransportRequestOptions.Type.REG, blockFactory.breaker());
+        return planRequestOptions;
     }
 
     /**
      * Wraps the listener of a plan request whose target already holds the exchange that {@code remoteSink} reads from. When the
      * request fails before it is sent, for example because serializing it trips the breaker, nothing runs on the target to finish
-     * that exchange, and once the failure cancels the request's task the coordinator can no longer tell the target to finish it.
-     * So the exchange is finished through {@code remoteSink} before the failure propagates, rather than left on the target until
-     * its inactive-sink reaper removes it.
+     * that exchange. So the exchange is finished through {@code remoteSink} before the failure propagates, rather than left on the
+     * target until its inactive-sink reaper removes it.
+     * <p>
+     * Waiting for the close follows the order {@link ExchangeSourceHandler} uses when a fetch fails: the target has finished the
+     * exchange before the failure can cancel any task. It does not hold up the caller, which also adds {@code remoteSink} to an
+     * exchange source and waits for that source to stop reading it, and that too takes an answer from the same target.
      */
     static <T> ActionListener<T> finishRemoteSinkIfNotSent(RemoteSink remoteSink, ActionListener<T> listener) {
         return listener.delegateResponse((l, e) -> {
@@ -2118,8 +2123,12 @@ public class ComputeService {
             : context.load();
         assert context.description().equals(REDUCE_DESCRIPTION) == false || computeLoad != null : "node reduce without a load target";
         Executor parallelWorkers = searchService.queryScheduler().executor(context.queryId(), computeExecutor, List.of());
+        // the compute allocates through the query's breaker until it completes
+        QueryScheduler.QueryPart computePart = searchService.queryScheduler().part(context.queryId(), task.getId());
 
         try {
+            BigArrays queryBigArrays = computePart.bigArrays(bigArrays);
+            BlockFactory queryBlockFactory = blockFactory.newQueryFactory(computePart.breaker(), queryBigArrays);
             var workerThreadPool = transportService.getThreadPool();
             int esqlWorkerPoolSize = workerThreadPool.info(EsqlPlugin.computePool()).getMax();
 
@@ -2135,12 +2144,13 @@ public class ComputeService {
             // snapshots cannot disagree on anything that is read.
             ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(clusterService.state());
             DatasetConfigResolver datasetConfigResolver = DatasetConfigResolver.forProduction(projectMetadata);
+            var externalCompute = new LocalExecutionPlanner.ExternalComputeContext(context.queryId(), computeLoad, null);
             LocalExecutionPlanner planner = new LocalExecutionPlanner(
                 context.sessionId(),
                 context.clusterAlias(),
                 task,
-                bigArrays,
-                blockFactory,
+                queryBigArrays,
+                queryBlockFactory,
                 clusterService.getSettings(),
                 context.configuration(),
                 context.exchangeSourceSupplier(),
@@ -2160,7 +2170,8 @@ public class ComputeService {
                 esqlWorkerPoolSize,
                 grokMatcherWatchdog.get(),
                 clusterService.state().getMinTransportVersion(),
-                eqlDelegateClient
+                eqlDelegateClient,
+                externalCompute
             );
 
             LOGGER.debug("Received physical plan for {}:\n{}", context.description(), plan);
@@ -2321,9 +2332,12 @@ public class ComputeService {
                         hookExecInfo.removeStopHook(hook);
                     }
                 }
-                Releasables.close(drivers);
+                try (computePart) {
+                    Releasables.close(drivers);
+                }
             }));
         } catch (Exception e) {
+            computePart.close();
             if (context.description().equals(DATA_DESCRIPTION)) {
                 Releasables.close(context.searchContexts().iterable());
             }
@@ -2522,6 +2536,14 @@ public class ComputeService {
 
     String newChildSession(String session) {
         return session + "/" + childSessionIdGenerator.incrementAndGet();
+    }
+
+    /**
+     * Keeps the query that {@code coordinatorTask} coordinates tracked on this node until {@code listener} completes.
+     * The computes of the coordinator share its memory. The part closes at the latest when the task is removed.
+     */
+    <T> ActionListener<T> coordinate(Task coordinatorTask, ActionListener<T> listener) {
+        return ActionListener.releaseAfter(listener, searchService.coordinate(coordinatorTask));
     }
 
     /**

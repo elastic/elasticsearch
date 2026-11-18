@@ -404,7 +404,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         );
     }
 
-    private void innerExecute(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
+    private void innerExecute(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> queryListener) {
+        ActionListener<EsqlQueryResponse> listener = computeService.coordinate(task, queryListener);
         if (request.allowPartialResults() == null) {
             request.allowPartialResults(defaultAllowPartialResults);
         }

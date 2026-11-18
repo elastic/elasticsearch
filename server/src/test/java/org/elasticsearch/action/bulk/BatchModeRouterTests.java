@@ -1080,7 +1080,8 @@ public class BatchModeRouterTests extends ESTestCase {
     /**
      * With several batches, only the router of a TSDB data stream resolves timestamps, from the rows of its own
      * items. The batch of a plain index in the same bulk has overlapping row indices and no {@code @timestamp}
-     * column, and its items must neither reach the other router nor get a timestamp.
+     * column, and its items must neither reach the other router nor get a timestamp. Items are matched to routers by
+     * the batch their row is in, not by the name they target, which can be date math.
      */
     public void testPreResolveTimestampsWithSeveralBatches() throws IOException {
         IndexMetadata backing = tsdbBackingIndex(1, 1, GEN_1_START, GEN_1_END);
@@ -1110,7 +1111,10 @@ public class BatchModeRouterTests extends ESTestCase {
         BulkRequest bulkRequest = new BulkRequest();
         for (int row = 0; row < 3; row++) {
             if (row < 2) {
-                IndexRequest request = new IndexRequest(DATA_STREAM).opType(DocWriteRequest.OpType.CREATE);
+                // The second item names its data stream with date math, which is not a name in the indices lookup.
+                IndexRequest request = new IndexRequest(row == 0 ? DATA_STREAM : "<" + DATA_STREAM + "-{now/d}>").opType(
+                    DocWriteRequest.OpType.CREATE
+                );
                 request.indexSource().setSourceRow(tsdbBatch, row, XContentType.JSON);
                 tsdbRequests.add(request);
                 bulkRequest.add(request);

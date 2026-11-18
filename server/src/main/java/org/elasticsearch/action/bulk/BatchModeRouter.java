@@ -132,6 +132,12 @@ final class BatchModeRouter implements Releasable {
         return new BatchModeRouter(new BulkBatchEncoders(recycler), recycler);
     }
 
+    /** The batch this router routes the rows of; {@code null} in x-content mode. */
+    @Nullable
+    EscfBatch source() {
+        return source;
+    }
+
     /**
      * Whether {@link #preResolveTimestamps} has anything to do for this router: its batch is for a TSDB data stream,
      * the only kind of target that selects the backing index of each document by its timestamp.

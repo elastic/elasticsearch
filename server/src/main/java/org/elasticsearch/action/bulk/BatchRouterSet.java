@@ -26,6 +26,7 @@ import org.elasticsearch.sourcebatch.SourceBatch;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -159,37 +160,40 @@ final class BatchRouterSet implements Releasable {
      * Resolves {@code @timestamp} from the ESCF columns of each router that needs it and caches it on its items'
      * {@link IndexRequest}s. Must be called before {@link #route}.
      *
-     * <p>With several routers the rows of their batches overlap, so the requests are first sorted out by batch key,
-     * in one pass over the bulk and only when some router needs timestamps.
+     * <p>With several routers the rows of their batches overlap, so the requests are first sorted out by the batch
+     * their row is in, in one pass over the bulk and only when some router needs timestamps. This does not go through
+     * the names the items target, which {@link #route} resolves, as dates in them for one.
      */
     void preResolveTimestamps(ProjectMetadata project, List<DocWriteRequest<?>> requests) {
         if (sole != null) {
             sole.preResolveTimestamps(project, requests);
             return;
         }
-        Map<String, List<DocWriteRequest<?>>> requestsByKey = null;
+        Map<SourceBatch, List<DocWriteRequest<?>>> requestsByBatch = null;
         for (BatchModeRouter router : routers.values()) {
             if (router.resolvesTimestamps(project)) {
-                if (requestsByKey == null) {
-                    requestsByKey = new HashMap<>();
+                if (requestsByBatch == null) {
+                    requestsByBatch = new IdentityHashMap<>();
                 }
-                requestsByKey.put(router.key, new ArrayList<>());
+                requestsByBatch.put(router.source(), new ArrayList<>());
             }
         }
-        if (requestsByKey == null) {
+        if (requestsByBatch == null) {
             return;
         }
         for (DocWriteRequest<?> request : requests) {
             if (request instanceof IndexRequest indexRequest && indexRequest.indexSource().hasSourceRow()) {
-                IndexAbstraction abstraction = project.getIndicesLookup().get(indexRequest.index());
-                List<DocWriteRequest<?>> routerRequests = abstraction == null ? null : requestsByKey.get(abstraction.getName());
+                List<DocWriteRequest<?>> routerRequests = requestsByBatch.get(indexRequest.indexSource().sourceBatch());
                 if (routerRequests != null) {
                     routerRequests.add(request);
                 }
             }
         }
-        for (Map.Entry<String, List<DocWriteRequest<?>>> entry : requestsByKey.entrySet()) {
-            routers.get(entry.getKey()).preResolveTimestamps(project, entry.getValue());
+        for (BatchModeRouter router : routers.values()) {
+            List<DocWriteRequest<?>> routerRequests = requestsByBatch.get(router.source());
+            if (routerRequests != null) {
+                router.preResolveTimestamps(project, routerRequests);
+            }
         }
     }
 

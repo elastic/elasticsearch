@@ -90,7 +90,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
     private final String valueColumnName;
     private final NameId valueId;
     private final NameId stepId;
-    private List<Attribute> output;
+    private volatile List<Attribute> output;
 
     // Range query constructor
     public PromqlCommand(
@@ -324,14 +324,17 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
 
     @Override
     public List<Attribute> output() {
-        if (output == null) {
+        List<Attribute> result = output;
+        if (result == null) {
+            // Fill a local and publish it once: this field is shared by every thread that holds the plan.
             List<Attribute> additionalOutput = promqlPlan.output();
-            output = new ArrayList<>(additionalOutput.size() + 2);
-            output.add(valueAttribute());
-            output.add(stepAttribute());
-            output.addAll(additionalOutput);
+            result = new ArrayList<>(additionalOutput.size() + 2);
+            result.add(valueAttribute());
+            result.add(stepAttribute());
+            result.addAll(additionalOutput);
+            output = result;
         }
-        return output;
+        return result;
     }
 
     @Override

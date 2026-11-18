@@ -44,7 +44,7 @@ public class Lookup extends UnaryPlan implements SurrogateLogicalPlan, Telemetry
     // initialized during the analysis phase for output and validation
     // afterward, it is converted into a Join (BinaryPlan) hence why here it is not a child
     private final LocalRelation localRelation;
-    private List<Attribute> lazyOutput;
+    private volatile List<Attribute> lazyOutput;
 
     public Lookup(
         Source source,

@@ -1445,6 +1445,11 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
+            // Offline warming only happens on the internal replicated-files path, and the suite randomises it, so force it on. The
+            // warming ratio defaults to zero, which would leave nothing for the byte-range warmer to warm.
+            .put(STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true)
+            .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), true)
+            .put(DefaultWarmingRatioProviderFactory.SEARCH_RECOVERY_WARMING_RATIO_SETTING.getKey(), 1.0d)
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
             .build();
         startIndexNode(nodeSettings);
@@ -1466,7 +1471,10 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
 
         setReplicaCount(1, indexName);
         safeAwait(warmCacheReturnedLatch);
-        assertThat("expect at least one warming task to have been enqueued", capturedTasks.size(), greaterThan(0));
+        assertTrue(
+            "expect at least one offline byte-range warming task to have been enqueued, got " + capturedTasks,
+            capturedTasks.stream().anyMatch(task -> task instanceof SharedBlobCacheWarmingService.AbstractWarmer.WarmBlobByteRangeTask)
+        );
 
         final var shardId = new ShardId(resolveIndex(indexName), 0);
         final var searchShard = findSearchShard(indexName);

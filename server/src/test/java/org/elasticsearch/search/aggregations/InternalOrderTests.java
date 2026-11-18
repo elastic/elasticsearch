@@ -8,19 +8,29 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.FilterStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalOrder.CompoundOrder;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
+import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
+import org.elasticsearch.search.aggregations.metrics.InternalAvg;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
+
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 
 public class InternalOrderTests extends AbstractXContentSerializingTestCase<BucketOrder> {
 
@@ -131,6 +141,40 @@ public class InternalOrderTests extends AbstractXContentSerializingTestCase<Buck
             StreamInput dedupe = new DeduplicatorStreamInput(output.bytes().streamInput(), testInstance);
             assertSame(testInstance, instanceReader().read(dedupe));
         }
+    }
+
+    /**
+     * Buckets whose ordering sub-aggregation has no value (an {@code avg} over zero documents) sort after
+     * all buckets that have a value, in both ascending and descending order.
+     */
+    public void testAggregationComparatorSortsEmptyValuesLast() {
+        for (boolean asc : new boolean[] { true, false }) {
+            List<StringTerms.Bucket> buckets = new ArrayList<>(
+                List.of(
+                    avgBucket("low", 1, 1),
+                    avgBucket("empty_1", 0, 0),
+                    avgBucket("high", 30, 1),
+                    avgBucket("empty_2", 0, 0),
+                    avgBucket("mid", 20, 2)
+                )
+            );
+            Collections.shuffle(buckets, random());
+            Comparator<MultiBucketsAggregation.Bucket> comparator = BucketOrder.aggregation("avg", asc).comparator();
+            buckets.sort(comparator);
+            List<String> keys = buckets.stream().map(StringTerms.Bucket::getKeyAsString).toList();
+            if (asc) {
+                assertThat(keys.subList(0, 3), contains("low", "mid", "high"));
+            } else {
+                assertThat(keys.subList(0, 3), contains("high", "mid", "low"));
+            }
+            assertThat(keys.subList(3, 5), containsInAnyOrder("empty_1", "empty_2"));
+            assertEquals(0, comparator.compare(buckets.get(3), buckets.get(4)));
+        }
+    }
+
+    private static StringTerms.Bucket avgBucket(String key, double sum, long count) {
+        InternalAggregations aggs = InternalAggregations.from(new InternalAvg("avg", sum, count, DocValueFormat.RAW, null));
+        return new StringTerms.Bucket(new BytesRef(key), randomLongBetween(1, 100), aggs, false, 0, DocValueFormat.RAW);
     }
 
     private static class DeduplicatorStreamInput extends FilterStreamInput implements DelayableWriteable.Deduplicator {

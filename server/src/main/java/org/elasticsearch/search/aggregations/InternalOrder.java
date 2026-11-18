@@ -77,6 +77,12 @@ public abstract class InternalOrder extends BucketOrder {
             return (lhs, rhs) -> {
                 final SortValue l = path.resolveValue(lhs.getAggregations());
                 final SortValue r = path.resolveValue(rhs.getAggregations());
+                // Empty values (missing or NaN) sort last in both directions, like Comparators#compareDiscardNaN on the shards.
+                final boolean lEmpty = l.isEmpty();
+                final boolean rEmpty = r.isEmpty();
+                if (lEmpty || rEmpty) {
+                    return lEmpty == rEmpty ? 0 : (lEmpty ? 1 : -1);
+                }
                 int compareResult = l.compareTo(r);
                 return order == SortOrder.ASC ? compareResult : -compareResult;
             };

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.nested;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -34,17 +33,14 @@ import java.util.Set;
 final class NestedChildSourceBlockLoader implements BlockLoader {
     private final FallbackSyntheticSourceBlockLoader fallback;
     private final Set<String> fields;
-    private final boolean textScalars;
 
     /**
      * @param fields the paths in the child's object that hold the field's values: the field's own, and those of the fields that
      *               {@code copy_to} it
-     * @param textScalars whether a number or a boolean is read as the text it is written as, as the field's loader reads it
      */
-    NestedChildSourceBlockLoader(FallbackSyntheticSourceBlockLoader fallback, Set<String> fields, boolean textScalars) {
+    NestedChildSourceBlockLoader(FallbackSyntheticSourceBlockLoader fallback, Set<String> fields) {
         this.fallback = fallback;
         this.fields = Set.copyOf(fields);
-        this.textScalars = textScalars;
     }
 
     @Override
@@ -159,8 +155,7 @@ final class NestedChildSourceBlockLoader implements BlockLoader {
         /**
          * Adds the values of a field in {@link #fields}, which the parser is on, as the field's own loader adds those it keeps whole: for a
          * field that reads one value at a time, the reader parses a string, a null and any structure, and a number, a boolean or a
-         * binary value is converted from the type the source holds it in, a {@code keyword} that holds a number or a boolean
-         * included.
+         * binary value is converted from the type the source holds it in.
          */
         private void parseValue(XContentParser parser, List<T> values) throws IOException {
             if (reader instanceof FallbackSyntheticSourceBlockLoader.SingleValueReader<?> == false) {
@@ -175,14 +170,8 @@ final class NestedChildSourceBlockLoader implements BlockLoader {
                     }
                 }
                 case VALUE_STRING -> reader.parse(parser, values);
-                case VALUE_NUMBER -> reader.convertValue(
-                    textScalars ? new BytesRef(String.valueOf(parser.numberValue())) : parser.numberValue(),
-                    values
-                );
-                case VALUE_BOOLEAN -> reader.convertValue(
-                    textScalars ? new BytesRef(String.valueOf(parser.booleanValue())) : parser.booleanValue(),
-                    values
-                );
+                case VALUE_NUMBER -> reader.convertValue(parser.numberValue(), values);
+                case VALUE_BOOLEAN -> reader.convertValue(parser.booleanValue(), values);
                 case VALUE_EMBEDDED_OBJECT -> reader.convertValue(parser.binaryValue(), values);
                 default -> reader.parse(parser, values);
             }

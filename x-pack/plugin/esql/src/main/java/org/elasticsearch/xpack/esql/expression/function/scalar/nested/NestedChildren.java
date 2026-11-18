@@ -26,7 +26,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.AbstractScriptFieldType;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.FallbackSyntheticSourceBlockLoader;
-import org.elasticsearch.index.mapper.KeywordScriptFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
@@ -130,15 +129,11 @@ public final class NestedChildren implements Releasable {
                 );
                 BitSetProducer parents = shards.get(shard).parents();
                 if (loader instanceof FallbackSyntheticSourceBlockLoader fallback) {
-                    // The child's own _ignored_source misses the values the nested object or an object above it keeps whole, and
-                    // those of a runtime field, so they are read from the _source. It holds them under the paths of the field,
-                    // not of an alias to it, and under those of the fields that copy to it.
+                    // The child's own _ignored_source misses the values the nested object or an object above it keeps whole, so
+                    // they are read from the _source. It holds them under the paths of the field, not of an alias to it, and
+                    // under those of the fields that copy to it.
                     Set<String> sourcePaths = context.executionContext().sourcePath(fieldType.name());
-                    loader = new NestedChildSourceBlockLoader(
-                        fallback,
-                        sourcePaths.isEmpty() ? Set.of(fieldType.name()) : sourcePaths,
-                        fieldType instanceof KeywordScriptFieldType
-                    );
+                    loader = new NestedChildSourceBlockLoader(fallback, sourcePaths.isEmpty() ? Set.of(fieldType.name()) : sourcePaths);
                 }
                 if (fieldType instanceof AbstractScriptFieldType && parents != null) {
                     // This shard maps the name as a runtime field, which runs on the parent rather than on the child

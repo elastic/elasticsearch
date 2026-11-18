@@ -223,6 +223,69 @@ public class NestedChildLoadersTests extends ComputeTestCase {
         assertThat(rows, equalTo(List.of(row(0, 7L))));
     }
 
+    public void testRuntimeDateWithAFormatReadsTheSameFromStoredAndSyntheticSource() throws IOException {
+        for (String calc : List.of("5", "\"5\"", "[5, 6]")) {
+            List<List<Object>> stored = runtimeCalc(
+                Settings.EMPTY,
+                runtimeMapping("date", "\"format\": \"epoch_second\""),
+                calc,
+                DataType.DATETIME
+            );
+            List<List<Object>> synthetic = runtimeCalc(
+                SYNTHETIC,
+                runtimeMapping("date", "\"format\": \"epoch_second\""),
+                calc,
+                DataType.DATETIME
+            );
+            assertThat(calc, synthetic, equalTo(stored));
+        }
+        assertThat(
+            runtimeCalc(SYNTHETIC, runtimeMapping("date", "\"format\": \"epoch_second\""), "5", DataType.DATETIME),
+            equalTo(List.of(row(0, 1L, 5000L)))
+        );
+    }
+
+    public void testRuntimeDateWithTheDefaultFormatReadsTheSameFromStoredAndSyntheticSource() throws IOException {
+        for (String calc : List.of("\"2020-07-22T16:09:41.355Z\"", "1595434181355", "\"not a date\"")) {
+            List<List<Object>> stored = runtimeCalc(Settings.EMPTY, runtimeMapping("date", ""), calc, DataType.DATETIME);
+            List<List<Object>> synthetic = runtimeCalc(SYNTHETIC, runtimeMapping("date", ""), calc, DataType.DATETIME);
+            assertThat(calc, synthetic, equalTo(stored));
+        }
+    }
+
+    public void testRuntimeKeywordOfAnObjectAndAStringReadsTheSameFromStoredAndSyntheticSource() throws IOException {
+        List<String> documents = List.of("""
+            {"items": [{"qty": 1, "calc": {"raw": "v"}}, {"qty": 2, "calc": "ok"}]}""");
+        List<List<Object>> stored = readChildren(
+            Settings.EMPTY,
+            runtimeMapping("keyword", ""),
+            documents,
+            List.of("qty", "calc"),
+            List.of(DataType.LONG, DataType.KEYWORD)
+        );
+        closeIndexForNextRun();
+        List<List<Object>> synthetic = readChildren(
+            SYNTHETIC,
+            runtimeMapping("keyword", ""),
+            documents,
+            List.of("qty", "calc"),
+            List.of(DataType.LONG, DataType.KEYWORD)
+        );
+        assertThat(synthetic, equalTo(stored));
+    }
+
+    private List<List<Object>> runtimeCalc(Settings settings, String mapping, String calc, DataType type) throws IOException {
+        List<List<Object>> rows = readChildren(
+            settings,
+            mapping,
+            List.of("{\"items\": [{\"qty\": 1, \"calc\": " + calc + "}]}"),
+            List.of("qty", "calc"),
+            List.of(DataType.LONG, type)
+        );
+        closeIndexForNextRun();
+        return rows;
+    }
+
     private List<List<Object>> runtimeKeyword(Settings settings, String calc) throws IOException {
         List<List<Object>> rows = readChildren(
             settings,
@@ -400,10 +463,14 @@ public class NestedChildLoadersTests extends ComputeTestCase {
     }
 
     private static String runtimeMapping(String type) {
+        return runtimeMapping(type, "");
+    }
+
+    private static String runtimeMapping(String type, String options) {
         return Strings.format("""
             {
               "_doc": {
-                "runtime": { "items.calc": { "type": "%s" } },
+                "runtime": { "items.calc": { "type": "%s"%s } },
                 "properties": {
                   "items": {
                     "type": "nested",
@@ -413,7 +480,7 @@ public class NestedChildLoadersTests extends ComputeTestCase {
                 }
               }
             }
-            """, type);
+            """, type, options.isEmpty() ? "" : ", " + options);
     }
 
     private static String keptWholeMapping() {

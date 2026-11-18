@@ -152,6 +152,9 @@ doc_values false is still honoured for geo_point outside columnar modes:
 ---
 
 doc_values false is ignored for _routing in columnar:
+  - requires:
+      cluster_features: ["mapper.columnar.routing_doc_values_no_op"]
+      reason: "doc_values must be a no-op for _routing in strictly columnar mode"
   - do:
       warnings:
         - "The [doc_values] parameter of field [_routing] is ignored in columnar index modes, because doc values are always enabled. Remove the parameter."

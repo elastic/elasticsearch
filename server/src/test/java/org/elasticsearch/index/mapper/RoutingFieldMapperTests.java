@@ -31,6 +31,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.SliceSelection;
@@ -169,13 +170,18 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
     }
 
     public void testDocValuesFalseIsHonoredInColumnarBeforeNoOpVersion() throws Exception {
-        var mapperService = createMapperService(
-            IndexVersionUtils.getPreviousVersion(IndexVersions.DOC_VALUES_NO_OP_IN_COLUMNAR_ALL_MAPPERS),
-            Settings.builder().put("index.mode", "columnar").build(),
-            topMapping(b -> b.startObject("_routing").field("doc_values", false).endObject())
-        );
-        RoutingFieldMapper mapper = (RoutingFieldMapper) mapperService.documentMapper().mappers().getMapper("_routing");
-        assertFalse(mapper.docValues());
+        for (IndexVersion version : List.of(
+            IndexVersionUtils.getPreviousVersion(IndexVersions.ROUTING_DOC_VALUES_NO_OP_IN_COLUMNAR),
+            IndexVersions.DOC_VALUES_NO_OP_IN_COLUMNAR_ALL_MAPPERS
+        )) {
+            var mapperService = createMapperService(
+                version,
+                Settings.builder().put("index.mode", "columnar").build(),
+                topMapping(b -> b.startObject("_routing").field("doc_values", false).endObject())
+            );
+            RoutingFieldMapper mapper = (RoutingFieldMapper) mapperService.documentMapper().mappers().getMapper("_routing");
+            assertFalse("version " + version, mapper.docValues());
+        }
     }
 
     public void testDocValuesRoutingStoresAsSortedDocValues() throws Exception {

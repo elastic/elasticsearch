@@ -247,6 +247,12 @@ public final class StripeStatsStaging implements StripeStatsSink {
     /**
      * The shared list equal to {@code schema}, or {@code schema} itself when this read has not seen an equal one.
      * <p>
+     * {@code SchemaInterner} already interns attribute lists by equality and charges the breaker for what it
+     * keeps, and this deliberately does not reuse it: that interner lives for a resolve and is reached only from
+     * {@code ExternalSourceResolver} and {@code SchemaReconciliation}, while these lists are produced per parse
+     * chunk on a reader thread and must die with the read. One slot per staging area is what bounds this one -
+     * it holds a single list, not a map, so it cannot outgrow the read that owns it.
+     * <p>
      * Synchronized because the only caller builds its span OUTSIDE the critical section below, on whichever
      * parser thread closed the chunk. Equality is what makes the substitution invisible: a clone keeps the
      * attribute's {@code id()}, so the per-chunk lists of one read compare equal element-wise, and only names are

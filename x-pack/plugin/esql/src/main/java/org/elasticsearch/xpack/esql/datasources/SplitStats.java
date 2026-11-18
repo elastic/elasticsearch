@@ -857,7 +857,9 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
      * no row count, matching
      * {@link #of(Map)}'s refusal of a map without one.
      * <p>
-     * Carries every statistic {@link SourceStatistics} can express, which is every one that reaches the fold.
+     * Carries every statistic that reaches the fold, which is a subset of what {@link SourceStatistics} can
+     * express: {@code readableUnitCount} and a column's {@code distinctCount} are declared there and read by
+     * nothing on this route.
      * It cannot carry a servability marker, because that type has no channel for one — and neither can the
      * flat-map route, since {@code DeserializedColumnStatistics} does not read a marker and
      * {@code embedStatistics} cannot write one. So a marker is unavailable on either route rather than lost on

@@ -57,9 +57,11 @@ final class StagedStripeRecord extends AbstractMap<String, Object> {
      * count them without consulting the statistics. The read configuration and the count licence are written
      * only when they are set, so {@code size} adds those separately.
      * <p>
-     * A key added to {@code flatten} unconditionally belongs here too. One left out only costs a build on a
-     * membership test; one added here that {@code flatten} does not always write would make {@code containsKey}
-     * claim a key the entries do not carry, and {@code size} over-count the entries a stream then writes. Both
+     * A key added to {@code flatten} unconditionally belongs here too, and leaving one out is as dangerous as
+     * adding one that does not belong. {@code size} starts from this set's own size, so a key {@code flatten}
+     * always writes but this set omits makes the length prefix one SHORT and the reader stops an entry early;
+     * one added here that {@code flatten} does not always write makes {@code containsKey} claim a key the
+     * entries do not carry, and {@code size} over-count the entries a stream then writes. Both
      * are held against the built map, and by separate tests, because a swap keeps this set the same size and so
      * passes every count: {@code StripeStatsStagingTests#testTheSizeAgreesWithTheBuiltMap} holds the count, and
      * {@code #testMembershipAgreesWithTheBuiltMap} holds membership key by key over the whole vocabulary.

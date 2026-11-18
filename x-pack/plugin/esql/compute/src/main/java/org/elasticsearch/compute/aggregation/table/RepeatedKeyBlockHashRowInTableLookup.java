@@ -46,11 +46,8 @@ final class RepeatedKeyBlockHashRowInTableLookup extends RowInTableLookup {
             groups.add(new BlockHash.GroupSpec(k, key.elementType()));
         }
 
-        PackedValuesBlockHash builtHash = BlockHash.buildPackedValuesBlockHash(
-            groups,
-            blockFactory,
-            (int) BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE.getBytes()
-        );
+        // The emit batch size counts ordinals, not bytes, and the hash keeps a buffer of that many ints while the table lives.
+        PackedValuesBlockHash builtHash = BlockHash.buildPackedValuesBlockHash(groups, blockFactory, 4096);
         IntArray offsets = null;
         IntArray rows = null;
         boolean success = false;
@@ -97,54 +94,9 @@ final class RepeatedKeyBlockHashRowInTableLookup extends RowInTableLookup {
 
     @Override
     public ReleasableIterator<IntBlock> lookup(Page page, BlockFactory blockFactory, ByteSizeValue targetBlockSize, Warnings warnings) {
-        return new Results(lookupGroups(page, blockFactory, targetBlockSize, warnings), blockFactory, targetBlockSize.getBytes());
-    }
-
-    private ReleasableIterator<IntBlock> lookupGroups(
-        Page page,
-        BlockFactory blockFactory,
-        ByteSizeValue targetBlockSize,
-        Warnings warnings
-    ) {
-        Block[] sanitized = null;
-        try {
-            for (int k = 0; k < page.getBlockCount(); k++) {
-                Block key = page.getBlock(k);
-                if (key.doesHaveMultivaluedFields() == false) {
-                    continue;
-                }
-                if (sanitized == null) {
-                    sanitized = new Block[page.getBlockCount()];
-                    warnings.registerException(IllegalArgumentException.class, "LOOKUP JOIN encountered multi-value");
-                }
-                // A null component can't match a build key, so replacing just this component is enough.
-                try (Block.Builder builder = key.elementType().newBlockBuilder(page.getPositionCount(), blockFactory)) {
-                    for (int p = 0; p < page.getPositionCount(); p++) {
-                        if (key.getValueCount(p) > 1) {
-                            builder.appendNull();
-                        } else {
-                            builder.copyFrom(key, p, p + 1);
-                        }
-                    }
-                    sanitized[k] = builder.build();
-                }
-            }
-            if (sanitized == null) {
-                return hash.lookup(page, blockFactory, targetBlockSize);
-            }
-            for (int k = 0; k < sanitized.length; k++) {
-                if (sanitized[k] == null) {
-                    Block key = page.getBlock(k);
-                    key.incRef();
-                    sanitized[k] = key;
-                }
-            }
-            return hash.lookup(new Page(sanitized), blockFactory, targetBlockSize);
-        } finally {
-            if (sanitized != null) {
-                Releasables.closeExpectNoException(sanitized);
-            }
-        }
+        // A multivalued key can't match, so the hash returns a miss for it rather than looking up its values.
+        warnOnMultivaluedKeys(page, warnings);
+        return new Results(hash.lookup(page, blockFactory, targetBlockSize, true), blockFactory, targetBlockSize.getBytes());
     }
 
     @Override
@@ -181,11 +133,16 @@ final class RepeatedKeyBlockHashRowInTableLookup extends RowInTableLookup {
                 groupIds = groups.next();
                 position = 0;
             }
-            try (IntBlock.Builder result = blockFactory.newIntBlockBuilder(groupIds.getPositionCount() - position)) {
-                int startPosition = position;
-                // A single probe row's matches stay together even if they exceed the target.
-                while (position < groupIds.getPositionCount() && (position == startPosition || result.estimatedBytes() < targetBytes)) {
-                    appendMatches(result, position++);
+            int start = position;
+            long valueCount = 0;
+            // Size the block for the rows whose matches fit in the target. A single probe row's matches stay together even if
+            // they exceed it.
+            do {
+                valueCount += matchCount(position++);
+            } while (position < groupIds.getPositionCount() && valueCount * Integer.BYTES < targetBytes);
+            try (IntBlock.Builder result = blockFactory.newIntBlockBuilder(Math.toIntExact(valueCount))) {
+                for (int p = start; p < position; p++) {
+                    appendMatches(result, p);
                 }
                 if (position == groupIds.getPositionCount()) {
                     groupIds.close();
@@ -193,6 +150,17 @@ final class RepeatedKeyBlockHashRowInTableLookup extends RowInTableLookup {
                 }
                 return result.build();
             }
+        }
+
+        /**
+         * The number of values {@link #appendMatches} appends for probe row {@code p}, counting a miss as one.
+         */
+        private int matchCount(int p) {
+            if (groupIds.isNull(p)) {
+                return 1;
+            }
+            int group = groupIds.getInt(groupIds.getFirstValueIndex(p));
+            return rowOffsets.get(group + 1) - rowOffsets.get(group);
         }
 
         private void appendMatches(IntBlock.Builder result, int p) {

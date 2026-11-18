@@ -7,12 +7,15 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.TrackingCircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.table.RowInTableLookup;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.LongBlock;
@@ -23,6 +26,7 @@ import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.TestWarningsSource;
 import org.elasticsearch.compute.test.operator.blocksource.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.test.operator.blocksource.TupleLongLongBlockSourceOperator;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -38,6 +42,7 @@ import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -254,6 +259,98 @@ public class RowInTableLookupOperatorTests extends OperatorTestCase {
     }
 
     /**
+     * A multivalued probe key misses, even when its values repeat, and the lookup doesn't copy the rest of the key
+     * column to null it out. Lives here rather than in {@code RowInTableLookupTests} for {@link #trackingBlockFactory},
+     * which also charges the {@link BigArrays} that hold a copied column's bytes.
+     */
+    public void testRepeatedLookupMissesMultivaluedProbeKeysWithoutCopyingThem() {
+        int positions = 128;
+        BytesRef large = new BytesRef("x".repeat(4096));
+        BlockFactory blockFactory = blockFactory();
+        TrackingCircuitBreaker probeBreaker = new TrackingCircuitBreaker();
+        BlockFactory probeFactory = trackingBlockFactory(probeBreaker);
+        try (
+            BytesRefBlock key = bytes(blockFactory, "a", "b", "a");
+            RowInTableLookup lookup = RowInTableLookup.build(blockFactory, new Block[] { key }, true);
+            BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(positions)
+        ) {
+            builder.beginPositionEntry().appendBytesRef(new BytesRef("a")).appendBytesRef(new BytesRef("a")).endPositionEntry();
+            builder.appendBytesRef(new BytesRef("a"));
+            for (int p = 2; p < positions; p++) {
+                builder.appendBytesRef(large);
+            }
+            try (
+                Page probe = new Page(builder.build());
+                ReleasableIterator<IntBlock> blocks = lookup.lookup(probe, probeFactory, ByteSizeValue.ofKb(8));
+                IntBlock matches = blocks.next()
+            ) {
+                assertFalse(blocks.hasNext());
+                assertThat(matches.getPositionCount(), equalTo(positions));
+                assertNull(toJavaObject(matches, 0));
+                assertThat(toJavaObject(matches, 1), equalTo(List.of(0, 2)));
+                for (int p = 2; p < positions; p++) {
+                    assertNull(toJavaObject(matches, p));
+                }
+            }
+        }
+        assertThat(probeBreaker.getUsed(), equalTo(0L));
+        // Copying the key column would reserve more than 500kb.
+        assertThat(probeBreaker.peak(), lessThan(ByteSizeValue.ofKb(64).getBytes()));
+    }
+
+    /**
+     * A small repeated-key table doesn't hold a hash batch buffer sized from a byte budget.
+     */
+    public void testSmallRepeatedTableRetainsLittle() {
+        BlockFactory blockFactory = blockFactory();
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+        try (
+            IntBlock key = blockFactory.newConstantIntBlockWith(7, 2);
+            RowInTableLookup lookup = RowInTableLookup.build(trackingBlockFactory(breaker), new Block[] { key }, true)
+        ) {
+            // A buffer of DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE ints would retain over 2mb.
+            assertThat(breaker.getUsed(), lessThan(ByteSizeValue.ofKb(64).getBytes()));
+        }
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * An empty build still warns on a multivalued probe key, like a non-empty repeated-key table does.
+     */
+    public void testEmptyRepeatedTableWarnsOnMultivaluedKeys() {
+        BlockFactory blockFactory = blockFactory();
+        DriverContext context = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        try (LongBlock key = blockFactory.newLongArrayVector(new long[0], 0).asBlock()) {
+            var factory = new RowInTableLookupOperator.Factory(
+                new RowInTableLookupOperator.Key[] { new RowInTableLookupOperator.Key("foo", key) },
+                new int[] { 0 },
+                true,
+                new TestWarningsSource("join")
+            );
+            try (Operator operator = factory.get(context)) {
+                try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(2)) {
+                    builder.appendLong(7);
+                    builder.beginPositionEntry().appendLong(7).appendLong(9).endPositionEntry();
+                    operator.addInput(new Page(builder.build()));
+                }
+                try (Page output = operator.getOutput()) {
+                    IntBlock matches = output.getBlock(1);
+                    assertTrue(matches.isNull(0));
+                    assertTrue(matches.isNull(1));
+                }
+            }
+        }
+        context.finish();
+        assertThat(
+            context.warnings(),
+            contains(
+                "Line 1:1: evaluation of [join] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value"
+            )
+        );
+    }
+
+    /**
      * The driver that built the table can finish, closing its local breaker, while another driver still uses the
      * table. A closed local breaker keeps up to its maximum over-reservation of the bytes released to it, so the
      * table must be charged to the parent. These local breakers never pass released bytes on, which makes a wrong
@@ -352,6 +449,15 @@ public class RowInTableLookupOperatorTests extends OperatorTestCase {
     private void lookupOneRow(Operator operator) {
         operator.addInput(keysPage(1));
         operator.getOutput().releaseBlocks();
+    }
+
+    private static BytesRefBlock bytes(BlockFactory blockFactory, String... values) {
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(values.length)) {
+            for (String value : values) {
+                builder.appendBytesRef(new BytesRef(value));
+            }
+            return builder.build();
+        }
     }
 
     /**

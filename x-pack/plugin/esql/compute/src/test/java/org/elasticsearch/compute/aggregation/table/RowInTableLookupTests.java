@@ -24,14 +24,17 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CyclicBarrier;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class RowInTableLookupTests extends ESTestCase {
@@ -171,6 +174,35 @@ public class RowInTableLookupTests extends ESTestCase {
             }
             assertFalse(blocks.hasNext());
         }
+    }
+
+    /**
+     * Fills each result block up to the target, rather than reserving room for every remaining probe row and splitting early.
+     */
+    public void testRepeatedLookupFillsResultsToTarget() {
+        int probeRows = 4096;
+        ByteSizeValue target = ByteSizeValue.ofKb(8);
+        // Every probe row matches both build rows.
+        int rowsPerBlock = Math.toIntExact(target.getBytes() / (2 * Integer.BYTES));
+        List<Integer> blockSizes = new ArrayList<>();
+        try (
+            IntBlock key = blockFactory.newConstantIntBlockWith(7, 2);
+            RowInTableLookup lookup = RowInTableLookup.build(blockFactory, new Block[] { key }, true);
+            Page probe = new Page(blockFactory.newConstantIntBlockWith(7, probeRows));
+            ReleasableIterator<IntBlock> blocks = lookup.lookup(probe, blockFactory, target)
+        ) {
+            while (blocks.hasNext()) {
+                try (IntBlock matches = blocks.next()) {
+                    for (int p = 0; p < matches.getPositionCount(); p++) {
+                        assertThat(toJavaObject(matches, p), equalTo(List.of(0, 1)));
+                    }
+                    blockSizes.add(matches.getPositionCount());
+                }
+            }
+        }
+        assertThat(blockSizes.getFirst(), equalTo(rowsPerBlock));
+        assertThat(blockSizes, everyItem(lessThanOrEqualTo(rowsPerBlock)));
+        assertThat(blockSizes.stream().mapToInt(Integer::intValue).sum(), equalTo(probeRows));
     }
 
     public void testRepeatedLookupRejectsNullBuildKeys() {

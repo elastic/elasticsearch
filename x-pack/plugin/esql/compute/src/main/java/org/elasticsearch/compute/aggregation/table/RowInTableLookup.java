@@ -46,6 +46,18 @@ public abstract sealed class RowInTableLookup implements Releasable permits Empt
         return lookup(page, blockFactory, targetBlockSize);
     }
 
+    /**
+     * Warns once for a probe page with a multivalued key, which can't match a single-valued build key.
+     */
+    static void warnOnMultivaluedKeys(Page page, Warnings warnings) {
+        for (int k = 0; k < page.getBlockCount(); k++) {
+            if (page.getBlock(k).doesHaveMultivaluedFields()) {
+                warnings.registerException(IllegalArgumentException.class, "LOOKUP JOIN encountered multi-value");
+                return;
+            }
+        }
+    }
+
     @Override
     public abstract String toString();
 
@@ -55,6 +67,10 @@ public abstract sealed class RowInTableLookup implements Releasable permits Empt
 
     /**
      * Allow repeated build keys for callers that need every match, without relaxing the unique-key contract for other callers.
+     * <p>
+     *     Repeated-key builds require every key component to be non-null. A caller that filters out rows with null keys must
+     *     filter the matching build-side values the same way, because the returned offsets index the rows in {@code keys}.
+     * </p>
      */
     public static RowInTableLookup build(BlockFactory blockFactory, Block[] keys, boolean repeatedKeys) {
         if (keys.length < 1) {

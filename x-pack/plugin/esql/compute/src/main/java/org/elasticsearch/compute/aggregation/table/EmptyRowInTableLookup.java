@@ -11,6 +11,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.ReleasableIterator;
 
 /**
@@ -20,6 +21,15 @@ public final class EmptyRowInTableLookup extends RowInTableLookup {
     @Override
     public ReleasableIterator<IntBlock> lookup(Page page, BlockFactory blockFactory, ByteSizeValue targetBlockSize) {
         return ReleasableIterator.single((IntBlock) blockFactory.newConstantNullBlock(page.getPositionCount()));
+    }
+
+    /**
+     * Warns on multivalued keys like a non-empty repeated-key table does, so an empty build doesn't hide the warning.
+     */
+    @Override
+    public ReleasableIterator<IntBlock> lookup(Page page, BlockFactory blockFactory, ByteSizeValue targetBlockSize, Warnings warnings) {
+        warnOnMultivaluedKeys(page, warnings);
+        return lookup(page, blockFactory, targetBlockSize);
     }
 
     @Override

@@ -10,6 +10,8 @@
 package org.elasticsearch.search;
 
 import org.apache.lucene.search.Explanation;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.Text;
@@ -158,5 +160,20 @@ public class SearchHitRamUsageEstimatorTests extends ESTestCase {
         many.matchedQueries(names);
 
         assertThat(many.ramBytesUsed(), greaterThan(few.ramBytesUsed()));
+    }
+
+    public void testSortValuesAreCounted() {
+        // Long enough that the BytesRef's own bytes are well past the 256 bytes sizeOfObject would bill it at instead.
+        String value = randomAlphaOfLength(1000);
+        SearchHit plain = SearchHit.unpooled(1);
+        SearchHit sorted = SearchHit.unpooled(1);
+        // A keyword sort keeps the raw BytesRef and the String it formats to.
+        BytesRef raw = new BytesRef(value.getBytes(StandardCharsets.UTF_8));
+        sorted.sortValues(new Object[] { raw }, new DocValueFormat[] { DocValueFormat.RAW });
+
+        long delta = sorted.ramBytesUsed() - plain.ramBytesUsed();
+        // The BytesRef's bytes, plus the String, which RamUsageEstimator.sizeOf bills at two bytes a char.
+        assertThat(delta, greaterThanOrEqualTo(3L * value.length()));
+        assertThat(delta, lessThanOrEqualTo(3L * value.length() + RamUsageEstimator.UNKNOWN_DEFAULT_RAM_BYTES_USED));
     }
 }

@@ -49,7 +49,26 @@ public final class RamUsageEstimates {
     /** Shallow instance size of an empty {@link TreeMap}. */
     public static final long TREE_MAP_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TreeMap.class);
 
+    private static final ClassValue<Long> SHALLOW_INSTANCE_SIZES = new ClassValue<>() {
+        @Override
+        protected Long computeValue(Class<?> type) {
+            return RamUsageEstimator.shallowSizeOfInstance(type);
+        }
+    };
+
     private RamUsageEstimates() {}
+
+    /**
+     * Like {@link RamUsageEstimator#shallowSizeOf(Object)}, but sizes each non-array class once instead of walking its fields by
+     * reflection on every call.
+     */
+    public static long shallowSizeOf(Object o) {
+        if (o == null) {
+            return 0;
+        }
+        Class<?> type = o.getClass();
+        return type.isArray() ? RamUsageEstimator.shallowSizeOf(o) : SHALLOW_INSTANCE_SIZES.get(type);
+    }
 
     /**
      * Returns {@link RamUsageEstimator#shallowSizeOf(Object)} after asserting that every non-static instance field on {@code o}'s class

@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
@@ -108,5 +109,15 @@ public class RamUsageEstimatesTests extends ESTestCase {
         assertThat(RamUsageEstimates.LINKED_HASH_MAP_SHALLOW_SIZE, equalTo(RamUsageEstimator.shallowSizeOfInstance(LinkedHashMap.class)));
         assertThat(RamUsageEstimates.ARRAY_LIST_SHALLOW_SIZE, equalTo(RamUsageEstimator.shallowSizeOfInstance(ArrayList.class)));
         assertThat(RamUsageEstimates.TREE_MAP_SHALLOW_SIZE, equalTo(RamUsageEstimator.shallowSizeOfInstance(TreeMap.class)));
+    }
+
+    public void testShallowSizeOfMatchesRamUsageEstimator() {
+        assertThat(RamUsageEstimates.shallowSizeOf(null), is(0L));
+        for (Object o : new Object[] { new HashMap<>(), new ArrayList<>(), 1L, 1.0d, "abc", new Object[3], new long[5], List.of(1, 2) }) {
+            // Twice, so the second call is served from the cache.
+            for (int i = 0; i < 2; i++) {
+                assertThat(RamUsageEstimates.shallowSizeOf(o), equalTo(RamUsageEstimator.shallowSizeOf(o)));
+            }
+        }
     }
 }

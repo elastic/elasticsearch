@@ -50,14 +50,16 @@ import java.util.concurrent.atomic.AtomicReference;
  * See the {@code Matcher} and {@code Pattern} classes for the public API, and the <a
  * href='package.html'>package-level documentation</a> for an overview of how to use this API.
  */
-class RE2 {
+// ES: public for Re2RegExp, which builds Lucene automata from the parse
+public class RE2 {
 
   // (In the Go implementation this structure is just called "Regexp".)
 
   //// Parser flags.
 
   // Fold case during matching (case-insensitive).
-  static final int FOLD_CASE = 0x01;
+  // ES: public for Re2RegExp, which builds Lucene automata from the parse
+  public static final int FOLD_CASE = 0x01;
 
   // Treat pattern as a literal string instead of a regexp.
   static final int LITERAL = 0x02;
@@ -66,7 +68,8 @@ class RE2 {
   static final int CLASS_NL = 0x04;
 
   // Allow '.' to match newline.
-  static final int DOT_NL = 0x08;
+  // ES: public for Re2RegExp, which builds Lucene automata from the parse
+  public static final int DOT_NL = 0x08;
 
   // Treat ^ and $ as only matching at beginning and end of text, not
   // around embedded newlines.  (Perl's default).
@@ -98,7 +101,8 @@ class RE2 {
   static final int MATCH_NL = CLASS_NL | DOT_NL;
 
   // As close to Perl as possible.
-  static final int PERL = CLASS_NL | ONE_LINE | PERL_X | UNICODE_GROUPS;
+  // ES: public for Re2RegExp, which builds Lucene automata from the parse
+  public static final int PERL = CLASS_NL | ONE_LINE | PERL_X | UNICODE_GROUPS;
 
   // POSIX syntax.
   static final int POSIX = 0;

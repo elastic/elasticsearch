@@ -5,11 +5,13 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2;
+package org.elasticsearch.xpack.esql.core.expression.predicate.regex;
 
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Pattern;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.PatternSyntaxException;
 
 import java.util.ArrayList;
 import java.util.List;

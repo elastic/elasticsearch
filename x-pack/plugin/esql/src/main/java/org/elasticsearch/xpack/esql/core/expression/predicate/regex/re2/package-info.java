@@ -40,7 +40,7 @@
 
 /**
  * RE2 regular expressions, the syntax of PromQL: as Lucene automata for label matchers, see {@link
- * org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Re2RegExp}, and as a matcher with capture groups
+ * org.elasticsearch.xpack.esql.core.expression.predicate.regex.Re2RegExp}, and as a matcher with capture groups
  * for {@code label_replace}, see {@link org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Pattern}.
  * <p>
  * It is a fork of <a href="https://github.com/google/re2j/tree/re2j-1.8/java/com/google/re2j">RE2/J 1.8</a>, under
@@ -49,7 +49,7 @@
  * The fork changes RE2/J so that it parses as Go 1.26's {@code regexp/syntax} does, which Prometheus 3.13 is
  * built with; the changes are marked {@code ES:}.
  * <ul>
- *     <li>Unicode classes and case folding come from the JDK ({@code Unicode}), not RE2/J's tables of Unicode 6.0,
+ *     <li>Unicode classes and case folding come from the JDK ({@code Re2UnicodeTables}), not RE2/J's tables of Unicode 6.0,
  *     and {@code \p} names are looked up as Go 1.26 does, with {@code Any}, {@code ASCII}, {@code Assigned},
  *     {@code Cn}, {@code LC}, the long category aliases, and case, space, underscore and hyphen ignored.</li>
  *     <li>A <code>&#123;</code> that starts no repeat count is a literal that a repetition may follow, as in <code>&#123;*</code>.</li>

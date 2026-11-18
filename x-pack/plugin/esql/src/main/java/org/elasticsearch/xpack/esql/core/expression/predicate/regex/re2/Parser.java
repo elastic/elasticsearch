@@ -20,6 +20,8 @@
 
 package org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2;
 
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.Re2UnicodeTables;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
@@ -29,7 +31,8 @@ import java.util.Map;
  *
  * The only public entry point is {@link #parse(String pattern, int flags)}.
  */
-class Parser {
+// ES: public for Re2RegExp, which builds Lucene automata from the parse
+public class Parser {
 
   // Unexpected error
   private static final String ERR_INTERNAL_ERROR = "regexp/syntax: internal error";
@@ -834,7 +837,8 @@ class Parser {
   /**
    * Parse regular expression pattern {@code pattern} with mode flags {@code flags}.
    */
-  static Regexp parse(String pattern, int flags) throws PatternSyntaxException {
+  // ES: public for Re2RegExp, which builds Lucene automata from the parse
+  public static Regexp parse(String pattern, int flags) throws PatternSyntaxException {
     return new Parser(pattern, flags).parseInternal();
   }
 
@@ -1568,7 +1572,7 @@ class Parser {
 
   // RangeTables are represented as int[][], a list of triples (start, end,
   // stride).
-  // ES: unicodeTable() is Unicode.table()
+  // ES: unicodeTable() is Re2UnicodeTables.table()
 
   // parseUnicodeClass() parses a leading Unicode character class like \p{Han}
   // from the beginning of t.  If one is present, it appends the characters to
@@ -1620,8 +1624,8 @@ class Parser {
       name = name.substring(1);
     }
 
-    // ES: the tables come from the JDK and are named as in Go 1.26, see Unicode
-    Unicode.Table table = Unicode.table(name);
+    // ES: the tables come from the JDK and are named as in Go 1.26, see Re2UnicodeTables
+    Re2UnicodeTables.Table table = Re2UnicodeTables.table(name);
     if (table == null) {
       throw new PatternSyntaxException(ERR_INVALID_CHAR_RANGE, t.from(startPos));
     }

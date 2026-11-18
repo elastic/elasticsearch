@@ -25,9 +25,11 @@ import java.util.Map;
  * corresponds to {@code syntax.regexp} in the Go implementation; Go's {@code regexp} is called
  * {@code RE2} in Java.
  */
-class Regexp {
+// ES: public for Re2RegExp, which builds Lucene automata from the parse
+public class Regexp {
 
-  enum Op {
+  // ES: public for Re2RegExp, which builds Lucene automata from the parse
+  public enum Op {
     NO_MATCH, // Matches no strings.
     EMPTY_MATCH, // Matches empty string.
     LITERAL, // Matches runes[] sequence
@@ -59,12 +61,13 @@ class Regexp {
 
   static final Regexp[] EMPTY_SUBS = {};
 
-  Op op; // operator
-  int flags; // bitmap of parse flags
-  Regexp[] subs; // subexpressions, if any.  Never null.
+  // ES: public for Re2RegExp, which builds Lucene automata from the parse
+  public Op op; // operator
+  public int flags; // bitmap of parse flags
+  public Regexp[] subs; // subexpressions, if any.  Never null.
   // subs[0] is used as the freelist.
-  int[] runes; // matched runes, for LITERAL, CHAR_CLASS
-  int min, max; // min, max for REPEAT
+  public int[] runes; // matched runes, for LITERAL, CHAR_CLASS
+  public int min, max; // min, max for REPEAT
   int cap; // capturing index, for CAPTURE
   String name; // capturing name, for CAPTURE
   Map<String, Integer> namedGroups = Collections.emptyMap(); // map of group name -> capturing index

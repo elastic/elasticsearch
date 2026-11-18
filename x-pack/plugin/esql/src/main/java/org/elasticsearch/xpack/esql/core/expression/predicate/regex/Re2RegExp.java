@@ -5,13 +5,16 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2;
+package org.elasticsearch.xpack.esql.core.expression.predicate.regex;
 
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.apache.lucene.util.automaton.Transition;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Parser;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.RE2;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Regexp;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -25,7 +28,7 @@ import java.util.Map;
  * A regular expression in RE2 syntax, compiled to a Lucene {@link Automaton} that accepts the strings it matches whole.
  * <p>
  * RE2 is the syntax of Go's {@code regexp} package, and so of PromQL label matchers. Lucene's {@link RegExp} has a
- * grammar of its own, so the expression is parsed by the fork of RE2/J's parser in this package, with the
+ * grammar of its own, so the expression is parsed by the fork of RE2/J's parser in the {@code re2} package, with the
  * {@code Perl} and {@code DotNL} flags Prometheus parses label matchers with, and its tree is built into an automaton
  * with Lucene's {@link Operations}.
  */
@@ -68,16 +71,12 @@ public final class Re2RegExp {
                 case LITERAL -> {
                     List<Automaton> runes = new ArrayList<>(re.runes.length);
                     for (int rune : re.runes) {
-                        runes.add(
-                            (re.flags & RE2.FOLD_CASE) != 0
-                                ? chars(new CharClass().appendFoldedRange(rune, rune).cleanClass().toArray())
-                                : Automata.makeChar(rune)
-                        );
+                        runes.add((re.flags & RE2.FOLD_CASE) != 0 ? Automata.makeCharSet(orbit(rune)) : Automata.makeChar(rune));
                     }
                     yield Operations.concatenate(runes);
                 }
                 case CHAR_CLASS -> chars(re.runes);
-                case ANY_CHAR_NOT_NL -> chars(new int[] { 0, '\n' - 1, '\n' + 1, Unicode.MAX_RUNE });
+                case ANY_CHAR_NOT_NL -> chars(new int[] { 0, '\n' - 1, '\n' + 1, Character.MAX_CODE_POINT });
                 case ANY_CHAR -> Automata.makeAnyChar();
                 case BEGIN_LINE, END_LINE, BEGIN_TEXT, END_TEXT, WORD_BOUNDARY, NO_WORD_BOUNDARY -> {
                     hasAssertions = true;
@@ -94,6 +93,17 @@ public final class Re2RegExp {
                 case ALTERNATE -> Operations.union(Arrays.stream(re.subs).map(this::build).toList());
                 case LEFT_PAREN, VERTICAL_BAR -> throw new IllegalStateException("[" + re.op + "] is only used while parsing");
             };
+        }
+
+        /** {@code rune} and the code points it folds to. */
+        private static int[] orbit(int rune) {
+            List<Integer> orbit = new ArrayList<>();
+            int r = rune;
+            do {
+                orbit.add(r);
+                r = Re2UnicodeTables.simpleFold(r);
+            } while (r != rune);
+            return orbit.stream().mapToInt(Integer::intValue).toArray();
         }
 
         /** Any one code point in {@code ranges}, {@code [lo, hi]} pairs. */
@@ -137,10 +147,10 @@ public final class Re2RegExp {
             {},
             { '\n', '\n' },
             { '0', '9', 'A', 'Z', '_', '_', 'a', 'z' },
-            { 0, '\n' - 1, '\n' + 1, '0' - 1, '9' + 1, 'A' - 1, 'Z' + 1, '_' - 1, '_' + 1, 'a' - 1, 'z' + 1, Unicode.MAX_RUNE } };
+            { 0, '\n' - 1, '\n' + 1, '0' - 1, '9' + 1, 'A' - 1, 'Z' + 1, '_' - 1, '_' + 1, 'a' - 1, 'z' + 1, Character.MAX_CODE_POINT } };
 
         static int marker(Regexp.Op kind) {
-            return Unicode.MAX_RUNE + 1 + KINDS.indexOf(kind);
+            return Character.MAX_CODE_POINT + 1 + KINDS.indexOf(kind);
         }
 
         static Automaton resolve(Automaton automaton) {
@@ -234,7 +244,7 @@ public final class Re2RegExp {
                     }
                     for (int i = automaton.initTransition(from, t); i > 0; i--) {
                         automaton.getNextTransition(t);
-                        if (t.min > Unicode.MAX_RUNE) {
+                        if (t.min > Character.MAX_CODE_POINT) {
                             pending.add(t.dest);
                         } else {
                             builder.addTransition(state, t.dest, t.min, t.max);

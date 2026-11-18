@@ -239,6 +239,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     // Visible for tests
     final ConcurrentMap<ShardAllocationKey, PendingAllocationState> pendingAllocationStates = ConcurrentCollections.newConcurrentMap();
 
+    /// Whether this shard has any pending allocation state (a recovery attempt in flight, awaiting local
+    /// retry, or a reported failure). Used by tests outside this package, which cannot see
+    /// [pendingAllocationStates] or the package-private [ShardAllocationKey].
+    public boolean hasPendingAllocationState(ShardId shardId) {
+        return pendingAllocationStates.keySet().stream().anyMatch(key -> key.shardId().equals(shardId));
+    }
+
     private final RepositoriesService repositoriesService;
 
     private final FailedShardHandler failedShardHandler = new FailedShardHandler();

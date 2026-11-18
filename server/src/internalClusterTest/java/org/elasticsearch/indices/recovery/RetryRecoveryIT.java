@@ -27,6 +27,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.plugins.Plugin;
@@ -259,10 +260,18 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             internalCluster().getInstance(IndicesService.class, node)
                 .indexServiceSafe(resolveIndex(indexName))
                 .removeShard(0, "test", internalCluster().getInstance(ThreadPool.class, node).generic(), closed);
-            // Recovery must ABORT on CLOSED shard
+
+            // Recovery must ABORT on CLOSED shard, without retrying
+            ShardId shardId = new ShardId(resolveIndex(indexName), 0);
+            final var indicesClusterStateService = internalCluster().getInstance(IndicesClusterStateService.class, node);
             MockLog.awaitLogger(() -> {
                 safeAwait(barrier);
                 safeGet(closed);
+                try {
+                    assertBusy(() -> assertFalse(indicesClusterStateService.hasPendingAllocationState(shardId)));
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
             },
                 IndicesClusterStateService.class,
                 new MockLog.SeenEventExpectation(
@@ -270,10 +279,14 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                     IndicesClusterStateService.class.getCanonicalName(),
                     Level.TRACE,
                     "recovery aborted"
+                ),
+                new MockLog.UnseenEventExpectation(
+                    "no retry after abort",
+                    IndicesClusterStateService.class.getCanonicalName(),
+                    Level.WARN,
+                    "*retrying * recovery locally after failure*"
                 )
             );
-
-            assertThat(recoveryCounter.get(), equalTo(1));
             assertThat(
                 clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, indexName).get().getStatus(),
                 equalTo(ClusterHealthStatus.YELLOW)
@@ -310,10 +323,18 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             internalCluster().getInstance(IndicesService.class, node)
                 .indexServiceSafe(resolveIndex(indexName))
                 .removeShard(0, "test", internalCluster().getInstance(ThreadPool.class, node).generic(), closed);
-            // Recovery must ABORT on CLOSED shard
+
+            // Recovery must ABORT on CLOSED shard, without retrying
+            ShardId shardId = new ShardId(resolveIndex(indexName), 0);
+            final var indicesClusterStateService = internalCluster().getInstance(IndicesClusterStateService.class, node);
             MockLog.awaitLogger(() -> {
                 safeAwait(barrier);
                 safeGet(closed);
+                try {
+                    assertBusy(() -> assertFalse(indicesClusterStateService.hasPendingAllocationState(shardId)));
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
             },
                 IndicesClusterStateService.class,
                 new MockLog.SeenEventExpectation(
@@ -321,10 +342,14 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                     IndicesClusterStateService.class.getCanonicalName(),
                     Level.TRACE,
                     "recovery aborted"
+                ),
+                new MockLog.UnseenEventExpectation(
+                    "no retry after abort",
+                    IndicesClusterStateService.class.getCanonicalName(),
+                    Level.WARN,
+                    "*retrying * recovery locally after failure*"
                 )
             );
-
-            assertThat(recoveryCounter.get(), equalTo(1));
             // EXISTING_STORE inactive primaries are RED (see ClusterShardHealth#getInactivePrimaryHealth)
             assertThat(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, indexName).get().getStatus(), equalTo(ClusterHealthStatus.RED));
         } finally {
@@ -363,10 +388,18 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             internalCluster().getInstance(IndicesService.class, node)
                 .indexServiceSafe(resolveIndex(targetIndexName))
                 .removeShard(0, "test", internalCluster().getInstance(ThreadPool.class, node).generic(), closed);
-            // Recovery must ABORT on CLOSED shard
+
+            // Recovery must ABORT on CLOSED shard, without retrying
+            ShardId shardId = new ShardId(resolveIndex(targetIndexName), 0);
+            final var indicesClusterStateService = internalCluster().getInstance(IndicesClusterStateService.class, node);
             MockLog.awaitLogger(() -> {
                 safeAwait(barrier);
                 safeGet(closed);
+                try {
+                    assertBusy(() -> assertFalse(indicesClusterStateService.hasPendingAllocationState(shardId)));
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
             },
                 IndicesClusterStateService.class,
                 new MockLog.SeenEventExpectation(
@@ -374,10 +407,14 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                     IndicesClusterStateService.class.getCanonicalName(),
                     Level.TRACE,
                     "recovery aborted"
+                ),
+                new MockLog.UnseenEventExpectation(
+                    "no retry after abort",
+                    IndicesClusterStateService.class.getCanonicalName(),
+                    Level.WARN,
+                    "*retrying * recovery locally after failure*"
                 )
             );
-
-            assertThat(recoveryCounter.get(), equalTo(1));
             assertThat(
                 clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, targetIndexName).get().getStatus(),
                 equalTo(ClusterHealthStatus.YELLOW)
@@ -424,10 +461,18 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             internalCluster().getInstance(IndicesService.class, node)
                 .indexServiceSafe(resolveIndex(indexName))
                 .removeShard(0, "test", internalCluster().getInstance(ThreadPool.class, node).generic(), closed);
-            // Recovery must ABORT on CLOSED shard
+
+            // Recovery must ABORT on CLOSED shard, without retrying
+            ShardId shardId = new ShardId(resolveIndex(indexName), 0);
+            final var indicesClusterStateService = internalCluster().getInstance(IndicesClusterStateService.class, node);
             MockLog.awaitLogger(() -> {
                 safeAwait(barrier);
                 safeGet(closed);
+                try {
+                    assertBusy(() -> assertFalse(indicesClusterStateService.hasPendingAllocationState(shardId)));
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
             },
                 IndicesClusterStateService.class,
                 new MockLog.SeenEventExpectation(
@@ -435,10 +480,14 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                     IndicesClusterStateService.class.getCanonicalName(),
                     Level.TRACE,
                     "recovery aborted"
+                ),
+                new MockLog.UnseenEventExpectation(
+                    "no retry after abort",
+                    IndicesClusterStateService.class.getCanonicalName(),
+                    Level.WARN,
+                    "*retrying * recovery locally after failure*"
                 )
             );
-
-            assertThat(recoveryCounter.get(), equalTo(1));
             assertThat(
                 clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, indexName).get().getStatus(),
                 equalTo(ClusterHealthStatus.YELLOW)

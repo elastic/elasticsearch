@@ -106,6 +106,13 @@ public abstract class NativeLibraryPathExtension {
      * its own JVM, the task passes the list down to the forks through {@code -jvmArgsAppend}, which reaches every
      * fork, also the ones of benchmarks that set their own JVM options with {@code @Fork(jvmArgs = ...)}
      * (see {@link NativeLibraryPathArgumentProvider#getForJmhForks}).
+     *
+     * <p>Use {@link #configure} instead, unless a benchmark of the task replaces the JVM options of its fork:
+     * forks inherit the JVM options of the task, including the list. {@code -jvmArgsAppend} has two costs. JMH
+     * splits a single {@code -jvmArgsAppend} at spaces, so a path containing spaces breaks it, unless the task
+     * passes another {@code -jvmArgsAppend} (which makes JMH take each value as it is). And it changes how JMH
+     * treats a {@code -jvmArgsAppend} of the user: with ours next to it, JMH no longer splits the user's one, so
+     * {@code -jvmArgsAppend "-Xms1g -Xmx1g"} reaches the fork as a single, invalid, argument.
      */
     public void configureForJmh(JavaExec task, Configuration runtimeClasspath) {
         configure(task, runtimeClasspath);

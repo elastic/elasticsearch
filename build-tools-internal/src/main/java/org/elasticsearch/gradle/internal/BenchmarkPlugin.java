@@ -136,11 +136,12 @@ public class BenchmarkPlugin implements Plugin<Project> {
             task.getMainClass().set("org.openjdk.jmh.Main");
             task.setClasspath(benchmark.getRuntimeClasspath());
             task.getJavaLauncher().set(launcher);
-            // The benchmarks run in JVMs forked by JMH, so the native library path must also reach those.
-            nativeLibraryPath.configureForJmh(
-                task,
-                project.getConfigurations().getByName(benchmark.getRuntimeClasspathConfigurationName())
-            );
+            // The benchmarks run in JVMs forked by JMH, which inherit the JVM options of the task's JVM, so the native
+            // library path must be a JVM option, not a program argument. (It would be passed to the forks as a
+            // program argument, -jvmArgsAppend, only for benchmarks that replace the JVM options of their fork with
+            // @Fork(jvmArgs = ...). Doing it for every benchmark would change how JMH treats a -jvmArgsAppend of the
+            // user, and would break on checkout paths containing spaces. See NativeLibraryPathExtension#configureForJmh.)
+            nativeLibraryPath.configure(task, project.getConfigurations().getByName(benchmark.getRuntimeClasspathConfigurationName()));
         });
     }
 

@@ -148,7 +148,10 @@ tasks.named("run").configure {
   dependsOn "copyExpression", "copyPainless", configurations.nativeLib
   systemProperty 'plugins.dir', "${buildDir}/plugins"
   systemProperty 'tests.index', "${buildDir}/index"
-  // The native library path must also reach JVM that JMH forks, so we use a special configureForJmh helper here
+  // Six benchmarks replace the JVM options of their fork with @Fork(jvmArgs = ...), so they do not inherit the
+  // ones of this task: the native library path must also reach the forks in -jvmArgsAppend, as it did before.
+  // On JDK 21 and later this task passes another -jvmArgsAppend (see below), which also stops JMH from splitting
+  // our value at spaces; this was the case before, too.
   nativeLibraryPath.configureForJmh(it, configurations.runtimeClasspath)
   // Arrow's MemoryUtil reflects into java.nio.Buffer.address during static init; the parquet
   // format reader transitively triggers this via BlockFactory.arrowAllocator(). Mirrors the

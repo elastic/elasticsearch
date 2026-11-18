@@ -60,7 +60,7 @@ final class BatchModeRouter implements Releasable {
      */
     private record IndexTarget(Index index, IndexRouting routing, int shardCount, int partitionBase) {}
 
-    /** The name of the index abstraction the items holding the rows of this router's batch target; null in x-content mode. */
+    /** The name of the index abstraction targeted by the items whose rows are in this router's batch; null in x-content mode. */
     @Nullable
     final String indexAbstractionName;
     @Nullable

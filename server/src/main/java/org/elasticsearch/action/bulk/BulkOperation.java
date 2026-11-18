@@ -943,12 +943,12 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     }
 
     /**
-     * Per-item failure handler passed to {@link BatchModeRouter#buildGrouping} for the columnar routing
+     * Per-item failure handler passed to {@link BatchRouterSet#buildGrouping} for the columnar routing
      * path. Mirrors the {@code catch (IllegalArgumentException | ...)} block in
      * {@link #groupRequestsByShards}: marks the item failed and discards it from the working request
-     * list. All items in the deferred batch receive the same exception because the columnar routing
-     * trio ({@link org.elasticsearch.cluster.routing.IndexRouting#indexShard}) does not expose which
-     * row caused the failure.
+     * list. All items of a batch whose rows could not be routed receive the same exception because the
+     * columnar routing trio ({@link org.elasticsearch.cluster.routing.IndexRouting#indexShard}) does not
+     * expose which row caused the failure; the items of the other batches of the bulk are not affected.
      */
     private void onBatchRoutingFailure(BulkItemRequest item, Exception e) {
         DocWriteRequest<?> request = item.request();

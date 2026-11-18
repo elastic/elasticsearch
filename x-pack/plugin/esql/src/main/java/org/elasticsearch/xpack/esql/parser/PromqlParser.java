@@ -25,7 +25,6 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlAstBuilder;
-import org.elasticsearch.xpack.esql.parser.promql.PromqlParserUtils;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.BitSet;
@@ -71,9 +70,9 @@ public class PromqlParser {
 
     /**
      * Parses a PromQL expression that starts at {@code startLine} (1-based) and {@code startColumn} (0-based)
-     * of an enclosing query, such as the inner query of a PROMQL source command. Every location, including the
-     * one of a thrown {@link ParsingException}, is reported in the coordinates of the enclosing query.
-     * A standalone expression starts at line 1, column 0.
+     * of an enclosing query, such as the inner query of a PROMQL source command. The lexer starts at that
+     * position, so every location, including the one of a thrown {@link ParsingException}, is in the
+     * coordinates of the enclosing query. A standalone expression starts at line 1, column 0.
      */
     public LogicalPlan createStatement(String query, Literal start, Literal end, int startLine, int startColumn, QueryParams params) {
         return createStatement(query, start, end, startLine, startColumn, params, null);
@@ -123,7 +122,7 @@ public class PromqlParser {
         if (query.length() > MAX_LENGTH) {
             throw new ParsingException("PromQL statement is too large [{} characters > {}]", query.length(), MAX_LENGTH);
         }
-        CommonTokenStream tokenStream = createTokenStream(query);
+        CommonTokenStream tokenStream = createTokenStream(query, startLine, startColumn);
         // Check nesting depth and operator count on the token stream BEFORE invoking ANTLR's
         // recursive-descent parser, mirroring EsqlParser. Without this, a long chain of binary
         // operators exhausts the heap while building the parse tree, before any post-parse guard runs.
@@ -138,7 +137,7 @@ public class PromqlParser {
             }
             // Lexer error during fill() - rebuild the token stream from scratch so the
             // parser runs lazily and reports the same error as without this pre-scan.
-            tokenStream = createTokenStream(query);
+            tokenStream = createTokenStream(query, startLine, startColumn);
         }
         try {
             PromqlBaseParser parser = new PromqlBaseParser(tokenStream);
@@ -159,18 +158,12 @@ public class PromqlParser {
                 }
             }
 
-            ParserRuleContext tree;
-            try {
-                tree = parseFunction.apply(parser);
-            } catch (ParsingException pe) {
-                // syntax errors carry positions within the PromQL query, unlike the builder below
-                throw PromqlParserUtils.adjustParsingException(pe, startLine, startColumn);
-            }
+            ParserRuleContext tree = parseFunction.apply(parser);
 
             if (log.isTraceEnabled()) {
                 log.trace("Parse tree: {}", tree.toStringTree());
             }
-            return visitor.apply(new PromqlAstBuilder(start, end, startLine, startColumn, params, viewName), tree);
+            return visitor.apply(new PromqlAstBuilder(start, end, params, viewName), tree);
         } catch (StackOverflowError e) { // TODO: unsafe - replace with manual depth tracking
             throw new ParsingException(
                 "PromQL statement is too large, causing stack overflow when generating the parsing tree: [{}]",
@@ -181,8 +174,11 @@ public class PromqlParser {
         }
     }
 
-    private static CommonTokenStream createTokenStream(String query) {
+    private static CommonTokenStream createTokenStream(String query, int startLine, int startColumn) {
         PromqlBaseLexer lexer = new PromqlBaseLexer(CharStreams.fromString(query));
+        // start where the query sits in the enclosing one, so every token reports its position there
+        lexer.setLine(startLine);
+        lexer.setCharPositionInLine(startColumn);
         lexer.removeErrorListeners();
         lexer.addErrorListener(ERROR_LISTENER);
         return new CommonTokenStream(lexer);
@@ -254,7 +250,8 @@ public class PromqlParser {
 
     private static int countBinaryOperators(String query) {
         try {
-            CommonTokenStream tokenStream = createTokenStream(query);
+            // positions are irrelevant when only counting operators
+            CommonTokenStream tokenStream = createTokenStream(query, 1, 0);
             tokenStream.fill();
             return countBinaryOperators(tokenStream.getTokens());
         } catch (RuntimeException e) {

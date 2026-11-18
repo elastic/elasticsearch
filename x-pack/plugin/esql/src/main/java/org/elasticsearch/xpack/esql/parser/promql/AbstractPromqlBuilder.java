@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParserBaseVisitor;
 
 class AbstractPromqlBuilder extends PromqlBaseParserBaseVisitor<Object> {
-    private final int startLine, startColumn;
     /**
      * The view whose definition this PromQL text belongs to, or {@code null} for the caller's query. Every {@link Source} is
      * tagged with it, as {@code ExpressionBuilder} does for ES|QL, so a data node reads its text from the view's query.
@@ -26,9 +25,7 @@ class AbstractPromqlBuilder extends PromqlBaseParserBaseVisitor<Object> {
     @Nullable
     private final String viewName;
 
-    AbstractPromqlBuilder(int startLine, int startColumn, @Nullable String viewName) {
-        this.startLine = startLine;
-        this.startColumn = startColumn;
+    AbstractPromqlBuilder(@Nullable String viewName) {
         this.viewName = viewName;
     }
 
@@ -79,8 +76,7 @@ class AbstractPromqlBuilder extends PromqlBaseParserBaseVisitor<Object> {
     }
 
     private Source adjust(Source source) {
-        Source adjusted = PromqlParserUtils.adjustSource(source, startLine, startColumn);
-        return viewName == null ? adjusted : adjusted.withViewName(viewName);
+        return viewName == null ? source : source.withViewName(viewName);
     }
 
 }

@@ -28,6 +28,7 @@ import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.scheduling.QueryScheduler;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -219,8 +220,9 @@ public class MockSearchService extends SearchService {
     }
 
     @Override
-    public SearchContext createSearchContext(ShardSearchRequest request, TimeValue timeout) throws IOException {
-        SearchContext searchContext = super.createSearchContext(request, timeout);
+    public SearchContext createSearchContext(ShardSearchRequest request, TimeValue timeout, QueryScheduler.QueryPart part)
+        throws IOException {
+        SearchContext searchContext = super.createSearchContext(request, timeout, part);
         try {
             onCreateSearchContext.accept(searchContext);
         } catch (Exception e) {
@@ -232,9 +234,13 @@ public class MockSearchService extends SearchService {
     }
 
     @Override
-    public SearchContext createSearchContext(ReaderContext readerContext, ShardSearchRequest request, TimeValue timeout)
-        throws IOException {
-        SearchContext searchContext = super.createSearchContext(readerContext, request, timeout);
+    public SearchContext createSearchContext(
+        ReaderContext readerContext,
+        ShardSearchRequest request,
+        TimeValue timeout,
+        QueryScheduler.QueryPart part
+    ) throws IOException {
+        SearchContext searchContext = super.createSearchContext(readerContext, request, timeout, part);
         try {
             onCreateSearchContext.accept(searchContext);
         } catch (Exception e) {

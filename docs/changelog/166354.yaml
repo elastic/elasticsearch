@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166354
+summary: Reuse `CsvMapper` on `withBlockFactory` copies
+type: enhancement

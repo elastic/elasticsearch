@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.esql.analysis.LetResolver;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
+import org.elasticsearch.xpack.esql.analysis.rules.ViewUtils;
 import org.elasticsearch.xpack.esql.anonymizer.PlanAnonymizer;
 import org.elasticsearch.xpack.esql.approximation.ApproximationDriver;
 import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
@@ -127,6 +128,7 @@ import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
+import org.elasticsearch.xpack.esql.plan.PlanJsonLog;
 import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
@@ -138,22 +140,24 @@ import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
-import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
-import org.elasticsearch.xpack.esql.plan.physical.IntoExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
@@ -179,6 +183,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -212,6 +217,11 @@ import static org.elasticsearch.xpack.esql.session.SessionUtils.checkPagesBelowS
 public class EsqlSession {
 
     private static final Logger LOGGER = LogManager.getLogger(EsqlSession.class);
+
+    /**
+     * Phase label for the final main plan of a query that ran subplans first. Subplan phases are labelled {@code subplan-N}.
+     */
+    private static final String MAIN_PHASE = "main";
 
     /**
      * Interface for running the underlying plan.
@@ -258,7 +268,7 @@ public class EsqlSession {
      */
     private final Map<NameId, FieldSemantics> columnSemantics = new HashMap<>();
     /** Unit of every analyzed column whose unit is known, reported as {@code _meta.unit}. */
-    private final Map<NameId, String> columnUnits = new HashMap<>();
+    private final Map<NameId, List<String>> columnUnits = new HashMap<>();
     /**
      * Output of the analyzed plan. Optimization keeps the output schema but may replace attributes, so result
      * columns are matched to their semantics by position rather than by id.
@@ -310,9 +320,6 @@ public class EsqlSession {
      * transport threads.
      */
     private volatile ExplainContext explainContext;
-    // Destination index name when the query ends with INTO; null for all other queries.
-    @Nullable
-    private volatile String intoDestination;
     private final ProjectMetadata projectMetadata;
 
     /**
@@ -330,6 +337,8 @@ public class EsqlSession {
     private static final class ExplainContext {
         /** Parsed inner query string, captured before view resolution. */
         final String parsedPlanString;
+        /** JSON for {@link #parsedPlanString}. */
+        final String parsedPlanJson;
         /**
          * Coordinator-level plans of the subplans actually executed by
          * {@link EsqlSession#executeSubPlan} (INLINE STATS, IN subqueries, subquery joins,
@@ -347,13 +356,26 @@ public class EsqlSession {
          * {@link EsqlSession#createExplainListener} callback.
          */
         volatile String coordinatorPhysicalPlanString;
+        /** JSON for {@link #coordinatorPhysicalPlanString}. */
+        volatile String coordinatorPhysicalPlanJson;
 
-        ExplainContext(String parsedPlanString) {
+        ExplainContext(String parsedPlanString, String parsedPlanJson) {
             this.parsedPlanString = parsedPlanString;
+            this.parsedPlanJson = parsedPlanJson;
         }
     }
 
-    private record ExplainSubPlan(String logicalPlan, String physicalPlan) {}
+    private record ExplainSubPlan(String logicalPlan, String physicalPlan, String logicalPlanJson, String physicalPlanJson) {}
+
+    private static List<Object> explainRow(String cluster, String node, String role, String type, String plan, String planJson) {
+        // Arrays.asList permits a null planJson when a remote node did not send one.
+        return Arrays.asList(cluster, node, role, type, plan, planJson);
+    }
+
+    /** A row for a plan of this node, which is in the local cluster. */
+    private List<Object> localExplainRow(String role, String type, String plan, String planJson) {
+        return explainRow("", localNodeName, role, type, plan, planJson);
+    }
 
     /**
      * Snapshot of the planning stages this session has completed so far. Read once by the failure-
@@ -491,6 +513,13 @@ public class EsqlSession {
         // Wrap the outer listener so any failure — parse, view-resolution, analyze, optimize, map,
         // execute — funnels through one place that emits the anonymized log on INTERNAL_SERVER_ERROR.
         listener = wrapForAnonymizedFailureLog(listener);
+        // Planning CPU is frozen at the end of planning. A query that fails before it gets there would report none, although it
+        // spent some, so it is frozen on any failure too. Freezing is idempotent: a query that fails while it executes keeps the total
+        // that planning froze.
+        listener = listener.delegateResponse((l, e) -> {
+            executionInfo.queryProfile().planningCpuNanos(planningCpu.finish());
+            l.onFailure(e);
+        });
         TimeSpanMarker parsingProfile = executionInfo.queryProfile().parsing();
         parsingProfile.start();
         int maxCommandCount = request.pragmas().maxCommandCount(flags.maxCommandCount());
@@ -514,15 +543,10 @@ public class EsqlSession {
         planSnapshot = planSnapshot.withParsed(parsedPlan);
         if (parsedPlan instanceof Explain explain) {
             parsedPlan = explain.query();
-            explainContext = new ExplainContext(parsedPlan.toString());
+            explainContext = new ExplainContext(parsedPlan.toString(), PlanJsonLog.toJsonOrNull(parsedPlan));
             // The traversal-based command telemetry only sees the unwrapped query, so count the
             // EXPLAIN command itself here.
             planTelemetry.command(explain);
-        }
-        if (parsedPlan instanceof Into into) {
-            intoDestination = into.destination();
-            planTelemetry.command(into);
-            parsedPlan = into.child();
         }
         parsingProfile.stop();
 
@@ -665,6 +689,7 @@ public class EsqlSession {
             request.profile(),
             request.tables(),
             System.nanoTime(),
+            // TODO: force allowPartialResults=false for INTO once FROM is supported so shard failures do not write partial data
             request.allowPartialResults(),
             analyzerSettings.timeseriesResultTruncationMaxSize(),
             analyzerSettings.timeseriesResultTruncationDefaultSize(),
@@ -783,6 +808,12 @@ public class EsqlSession {
                     // Capture the analyzed plan for failure-path logging: schema-resolved,
                     // PROMQL→TS conversion done, but surrogate rewrites haven't fired yet.
                     planSnapshot = planSnapshot.withAnalyzed(plan);
+                    try {
+                        NestedExpand.rejectUntilSupported(plan);
+                    } catch (Exception e) {
+                        listener.onFailure(e);
+                        return;
+                    }
                     // Flag external-source usage on the execution info so the coordinator emits external-source-scoped
                     // operational metrics and query metering for any query whose analyzed plan references one, even if
                     // nothing ends up being scanned.
@@ -1013,9 +1044,9 @@ public class EsqlSession {
             if (semantics != null) {
                 columnMetadata.put("field", semantics.toColumnMetadata());
             }
-            String unit = columnUnits.get(analyzedId);
-            if (unit != null) {
-                columnMetadata.put("unit", unit);
+            List<String> units = columnUnits.get(analyzedId);
+            if (units != null) {
+                columnMetadata.put("unit", FieldSemantics.singleOrList(units));
             }
             if (columnMetadata.isEmpty() == false) {
                 metadata.put(attribute.id(), columnMetadata);
@@ -1060,7 +1091,9 @@ public class EsqlSession {
         explainContext.subPlans.add(
             new ExplainSubPlan(
                 subPlan.toString(Node.NodeStringFormat.LIMITED, NodeStringMapper.IDENTITY),
-                physicalSubPlan.toString(Node.NodeStringFormat.LIMITED, NodeStringMapper.IDENTITY)
+                physicalSubPlan.toString(Node.NodeStringFormat.LIMITED, NodeStringMapper.IDENTITY),
+                PlanJsonLog.toJsonOrNull(subPlan),
+                PlanJsonLog.toJsonOrNull(physicalSubPlan)
             )
         );
     }
@@ -1078,6 +1111,7 @@ public class EsqlSession {
      */
     private void recordExplainCoordinatorPlan(PhysicalPlan physicalPlan) {
         explainContext.coordinatorPhysicalPlanString = physicalPlan.toString(Node.NodeStringFormat.LIMITED, NodeStringMapper.IDENTITY);
+        explainContext.coordinatorPhysicalPlanJson = PlanJsonLog.toJsonOrNull(physicalPlan);
     }
 
     /**
@@ -1096,26 +1130,25 @@ public class EsqlSession {
         // subPlans) are read via this inside the callback, which fires only after all writes
         // complete (sequential callback chain).
         String optimizedLogicalPlanString = optimizedPlan.toString(Node.NodeStringFormat.LIMITED, NodeStringMapper.IDENTITY);
+        String optimizedLogicalPlanJson = PlanJsonLog.toJsonOrNull(optimizedPlan);
 
         return delegate.delegateFailureAndWrap((next, result) -> {
             List<List<Object>> values = new ArrayList<>();
-            String localCluster = "";
 
             // Add coordinator plans (captured before/during execution)
-            values.add(List.of(localCluster, localNodeName, "coordinator", "parsedPlan", explainContext.parsedPlanString));
-            values.add(List.of(localCluster, localNodeName, "coordinator", "optimizedLogicalPlan", optimizedLogicalPlanString));
+            values.add(localExplainRow("coordinator", "parsedPlan", explainContext.parsedPlanString, explainContext.parsedPlanJson));
+            values.add(localExplainRow("coordinator", "optimizedLogicalPlan", optimizedLogicalPlanString, optimizedLogicalPlanJson));
             // All success paths call recordExplainCoordinatorPlan before this callback fires.
             // The assert catches any new path that forgets to do so (fails loudly in tests).
             assert explainContext.coordinatorPhysicalPlanString != null
                 : "EXPLAIN: coordinatorPhysicalPlanString must be set by recordExplainCoordinatorPlan on all success paths";
             if (explainContext.coordinatorPhysicalPlanString != null) {
                 values.add(
-                    List.of(
-                        localCluster,
-                        localNodeName,
+                    localExplainRow(
                         "coordinator",
                         "optimizedPhysicalPlan",
-                        explainContext.coordinatorPhysicalPlanString
+                        explainContext.coordinatorPhysicalPlanString,
+                        explainContext.coordinatorPhysicalPlanJson
                     )
                 );
             } else {
@@ -1126,8 +1159,8 @@ public class EsqlSession {
             // by executeSubPlan as execution progresses)
             int subPlanIndex = 0;
             for (ExplainSubPlan subPlan : explainContext.subPlans) {
-                values.add(List.of(localCluster, localNodeName, "subplan-" + subPlanIndex, "logicalPlan", subPlan.logicalPlan()));
-                values.add(List.of(localCluster, localNodeName, "subplan-" + subPlanIndex, "physicalPlan", subPlan.physicalPlan()));
+                values.add(localExplainRow("subplan-" + subPlanIndex, "logicalPlan", subPlan.logicalPlan(), subPlan.logicalPlanJson()));
+                values.add(localExplainRow("subplan-" + subPlanIndex, "physicalPlan", subPlan.physicalPlan(), subPlan.physicalPlanJson()));
                 subPlanIndex++;
             }
 
@@ -1144,15 +1177,17 @@ public class EsqlSession {
                     String logicalPlanTree = planProfile.logicalPlanTree() != null ? planProfile.logicalPlanTree() : "";
                     String description = planProfile.description();
 
+                    String planJson = planProfile.planJson();
+                    String logicalPlanJson = planProfile.logicalPlanJson();
                     if (ComputeService.DATA_DESCRIPTION.equals(description)) {
                         if (logicalPlanTree.isEmpty() == false) {
-                            values.add(List.of(cluster, node, "data", "optimizedLocalLogicalPlan", logicalPlanTree));
+                            values.add(explainRow(cluster, node, "data", "optimizedLocalLogicalPlan", logicalPlanTree, logicalPlanJson));
                         }
-                        values.add(List.of(cluster, node, "data", "localPhysicalPlan", planTree));
+                        values.add(explainRow(cluster, node, "data", "localPhysicalPlan", planTree, planJson));
                     } else if (ComputeService.REDUCE_DESCRIPTION.equals(description)) {
-                        values.add(List.of(cluster, node, "node_reduce", "physicalPlan", planTree));
+                        values.add(explainRow(cluster, node, "node_reduce", "physicalPlan", planTree, planJson));
                     } else if (description != null && description.endsWith("final")) {
-                        values.add(List.of(cluster, node, "final", "physicalPlan", planTree));
+                        values.add(explainRow(cluster, node, "final", "physicalPlan", planTree, planJson));
                     }
                 }
             }
@@ -1180,11 +1215,6 @@ public class EsqlSession {
         planRunner.run(PlanRunner.Role.OUTPUT, resultPlan, configuration, foldContext, planTimeProfile, null, listener);
     }
 
-    private PhysicalPlan withInto(PhysicalPlan physicalPlan) {
-        String destination = intoDestination;
-        return destination == null ? physicalPlan : new IntoExec(physicalPlan.source(), physicalPlan, destination);
-    }
-
     private void executeSubPlans(
         LogicalPlan optimizedPlan,
         Configuration configuration,
@@ -1206,9 +1236,11 @@ public class EsqlSession {
             // every executed plan (each subplan and the final main plan) so the single reconcile at the end strips
             // their polluting stat deltas regardless of which plan read a file pinned. Each plan's pins are collected
             // only after that plan's run succeeds, so the first discovery does not hold per-file PinnedColumns.
+            DriverCompletionInfo.Accumulator completionInfoAccumulator = new DriverCompletionInfo.Accumulator();
             executeSubPlan(
-                new DriverCompletionInfo.Accumulator(),
+                completionInfoAccumulator,
                 new HashMap<>(),
+                0,
                 subPlan,
                 configuration,
                 foldContext,
@@ -1220,10 +1252,15 @@ public class EsqlSession {
                 physicalPlanOptimizer,
                 planTimeProfile,
                 // Ensure we don't have subplan flag stuck in there on failure
-                ActionListener.runAfter(listener, executionInfo::finishSubPlans)
+                ActionListener.runAfter(listener.delegateResponse((l, e) -> {
+                    // The sub-plans that completed before the failure did work that only the accumulator holds, and that the failed
+                    // query would lose: a failure carries no completion info. The compute that failed reports its own.
+                    executionInfo.addFailedWork(completionInfoAccumulator.finish());
+                    l.onFailure(e);
+                }), executionInfo::finishSubPlans)
             );
         } else {
-            PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request, physicalPlanOptimizer, planTimeProfile);
+            PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, null, request, physicalPlanOptimizer, planTimeProfile);
             if (explainContext != null) {
                 recordExplainCoordinatorPlan(physicalPlan);
             }
@@ -1232,7 +1269,7 @@ public class EsqlSession {
             // into ExternalSourceCacheService before delivering Result.
             runner.run(
                 PlanRunner.Role.OUTPUT,
-                withInto(physicalPlan),
+                physicalPlan,
                 configuration,
                 foldContext,
                 planTimeProfile,
@@ -1422,8 +1459,25 @@ public class EsqlSession {
         Runnable cleanup,
         boolean isSubqueryJoinSubPlan,
         boolean isApproximationCalibration,
+        String kind,
+        Source origin,
         @Nullable ByteSizeValue maxResultSize
     ) {};
+
+    /**
+     * Names the kind of subplan a join needs, for the phase lines of {@link PlanJsonLog}.
+     * The subquery join subclass tells whether it came from {@code IN}, {@code NOT IN}, or an {@code IN} under {@code OR}.
+     */
+    private static String subPlanKind(LogicalPlan join) {
+        return switch (join) {
+            case SemiJoin ignored -> "semi_join";
+            case AntiJoin ignored -> "anti_join";
+            case MarkJoin ignored -> "mark_join";
+            case HashJoin ignored -> "hash_join";
+            case InlineJoin ignored -> "inline_join";
+            default -> throw new IllegalStateException("unexpected subplan join [" + join.nodeName() + "]");
+        };
+    }
 
     private SubPlanAndCallback firstSubPlan(
         LogicalPlan mainPlan,
@@ -1457,7 +1511,14 @@ public class EsqlSession {
                         blockFactory,
                         localRelationPage
                     );
-                }, () -> releaseLocalRelationBlocks(localRelationPage), true, false, plannerSettings.intermediateLocalRelationMaxSize());
+                },
+                    () -> releaseLocalRelationBlocks(localRelationPage),
+                    true,
+                    false,
+                    subPlanKind(firstJoin),
+                    firstJoin.source(),
+                    plannerSettings.intermediateLocalRelationMaxSize()
+                );
             }
         } else if (firstJoin instanceof HashJoin) {
             HashJoin.LogicalPlanTuple subPlans = HashJoin.firstSubPlan(mainPlan, subPlansResults);
@@ -1468,7 +1529,14 @@ public class EsqlSession {
                     localRelationPage.set(resultWrapper.supplier().get());
                     subPlansResults.add(resultWrapper);
                     return HashJoin.newMainPlan(mainPlan, subPlans, resultWrapper);
-                }, () -> releaseLocalRelationBlocks(localRelationPage), true, false, plannerSettings.intermediateLocalRelationMaxSize());
+                },
+                    () -> releaseLocalRelationBlocks(localRelationPage),
+                    true,
+                    false,
+                    subPlanKind(firstJoin),
+                    firstJoin.source(),
+                    plannerSettings.intermediateLocalRelationMaxSize()
+                );
             }
         } else if (firstJoin instanceof InlineJoin) {
             InlineJoin.LogicalPlanTuple subPlans = InlineJoin.firstSubPlan(mainPlan, subPlansResults);
@@ -1479,7 +1547,14 @@ public class EsqlSession {
                     localRelationPage.set(resultWrapper.supplier().get());
                     subPlansResults.add(resultWrapper);
                     return InlineJoin.newMainPlan(mainPlan, subPlans, resultWrapper);
-                }, () -> releaseLocalRelationBlocks(localRelationPage), false, false, plannerSettings.intermediateLocalRelationMaxSize());
+                },
+                    () -> releaseLocalRelationBlocks(localRelationPage),
+                    false,
+                    false,
+                    subPlanKind(firstJoin),
+                    firstJoin.source(),
+                    plannerSettings.intermediateLocalRelationMaxSize()
+                );
             }
         }
 
@@ -1496,6 +1571,8 @@ public class EsqlSession {
                     () -> {},
                     false,
                     true,
+                    "approximation",
+                    subPlan.source(),
                     null
                 );
             }
@@ -1545,6 +1622,7 @@ public class EsqlSession {
     private void executeSubPlan(
         DriverCompletionInfo.Accumulator completionInfoAccumulator,
         Map<String, PinnedColumns> pinnedReads,
+        int subPlanIndex,
         SubPlanAndCallback subPlan,
         Configuration configuration,
         FoldContext foldContext,
@@ -1558,8 +1636,12 @@ public class EsqlSession {
         ActionListener<Result> listener
     ) {
         LOGGER.debug("Executing subplan:\n{}", subPlan.subPlan);
+        // Same numbering as the subplan rows of EXPLAIN, so log and EXPLAIN phases can be matched up
+        String phase = "subplan-" + subPlanIndex;
+        PlanJsonLog.phase(phase, subPlan.kind(), subPlan.origin());
+        PlanJsonLog.debug(PlanJsonLog.Stage.LOGICAL, phase, subPlan.subPlan);
         // Create a physical plan out of the logical sub-plan
-        var physicalSubPlan = logicalPlanToPhysicalPlan(subPlan.subPlan, request, physicalPlanOptimizer, planTimeProfile);
+        var physicalSubPlan = logicalPlanToPhysicalPlan(subPlan.subPlan, phase, request, physicalPlanOptimizer, planTimeProfile);
         // An IN subquery may not have a pipeline breaker inside it, and mapper does not receive the SemiJoin node because only the right
         // hand side plans are sent to mapper. Ensure there is an ExchangeExec on top of it, so that the intermediate results can be sent
         // back to the coordinator
@@ -1586,7 +1668,9 @@ public class EsqlSession {
                 DriverCompletionInfo subPlanCompletionInfo = subPlan.isApproximationCalibration()
                     ? result.completionInfo().withoutApproximationApplied()
                     : result.completionInfo();
-                completionInfoAccumulator.accumulate(subPlanCompletionInfo);
+                // Label the drivers and plans with the phase, because the query ran in several and PROFILE would otherwise list them
+                // together, told apart only by their order.
+                completionInfoAccumulator.accumulate(subPlanCompletionInfo.withPhase(phase, subPlan.kind()));
                 try {
                     var releasingNext = ActionListener.runAfter(next, subPlan.cleanup);
                     LogicalPlan newMainPlan = subPlan.newMainPlan.apply(result);
@@ -1602,7 +1686,15 @@ public class EsqlSession {
 
                     if (newSubPlan == null) {
                         executionInfo.finishSubPlans();
-                        var newPhysicalPlan = logicalPlanToPhysicalPlan(newMainPlan, request, physicalPlanOptimizer, planTimeProfile);
+                        PlanJsonLog.phase(MAIN_PHASE, "main", null);
+                        PlanJsonLog.debug(PlanJsonLog.Stage.LOGICAL, MAIN_PHASE, newMainPlan);
+                        var newPhysicalPlan = logicalPlanToPhysicalPlan(
+                            newMainPlan,
+                            MAIN_PHASE,
+                            request,
+                            physicalPlanOptimizer,
+                            planTimeProfile
+                        );
                         if (explainContext != null) {
                             // Capture the post-substitution physical plan — the one that actually runs. For
                             // InlineJoin and similar the plan is only meaningful after all subplans have resolved
@@ -1611,13 +1703,13 @@ public class EsqlSession {
                         }
                         runner.run(
                             PlanRunner.Role.OUTPUT,
-                            withInto(newPhysicalPlan),
+                            newPhysicalPlan,
                             configuration,
                             foldContext,
                             planTimeProfile,
                             null,
                             releasingNext.delegateFailureAndWrap((finalListener, finalResult) -> {
-                                completionInfoAccumulator.accumulate(finalResult.completionInfo());
+                                completionInfoAccumulator.accumulate(finalResult.completionInfo().withPhase(MAIN_PHASE, "main"));
                                 DriverCompletionInfo merged = completionInfoAccumulator.finish();
                                 collectPinnedReads(newMainPlan, pinnedReads);
                                 reconcileCapturedSourceStats(merged, pinnedReads);
@@ -1631,6 +1723,7 @@ public class EsqlSession {
                         executeSubPlan(
                             completionInfoAccumulator,
                             pinnedReads,
+                            subPlanIndex + 1,
                             newSubPlan,
                             configuration,
                             foldContext,
@@ -1680,7 +1773,11 @@ public class EsqlSession {
         List<Attribute> schema = result.schema();
 
         Block[] blocks = SessionUtils.fromPages(schema, pages, blockFactory);
-        return new LocalRelation(planSource, schema, LocalSupplier.of(blocks.length == 0 ? new Page(0) : new Page(blocks)));
+        Page page = blocks.length == 0 ? new Page(0) : new Page(blocks);
+        // Plans sent to this node's data-node handler are not serialized, so concurrently planned branches can share
+        // this page, and building a hash join table from it changes its ref counts.
+        page.allowPassingToDifferentDriver();
+        return new LocalRelation(planSource, schema, LocalSupplier.of(page));
     }
 
     /**
@@ -2069,14 +2166,32 @@ public class EsqlSession {
         if (filterAppliesToViewOutput == false || IndexResolver.ALL_FIELDS.equals(result.fieldNames())) {
             return result;
         }
+        return addFilterFieldNames(result, requestFilter, configuration);
+    }
+
+    static PreAnalysisResult addFilterFieldNames(PreAnalysisResult result, QueryBuilder requestFilter, Configuration configuration) {
         var referenced = QueryDslFieldNameExtractor.extract(requestFilter, configuration);
         if (referenced.requiresAllFields()) {
-            return new PreAnalysisResult(IndexResolver.ALL_FIELDS, result.wildcardJoinIndices());
+            return new PreAnalysisResult(IndexResolver.ALL_FIELDS, Set.of(), result.nestedScope(), result.wildcardJoinIndices());
         }
         Set<String> fieldNames = new HashSet<>(result.fieldNames());
         fieldNames.addAll(referenced.fieldNames());
         Set<String> parentPaths = FieldNameUtils.onlyParentPaths(result.parentPaths(), new HashSet<>(referenced.fieldNames()));
-        return new PreAnalysisResult(fieldNames, parentPaths, result.wildcardJoinIndices());
+        return new PreAnalysisResult(fieldNames, parentPaths, result.nestedScope(), result.wildcardJoinIndices());
+    }
+
+    /**
+     * Whether the caller's own query contains {@code PROMQL}, outside every view body. A view with {@code PROMQL} in its body
+     * resolves with {@code NULLIFY} in its own settings, which keeps its body a view branch, so it is skipped here.
+     */
+    private static boolean callerScopeHasPromql(LogicalPlan plan) {
+        Holder<Boolean> found = new Holder<>(false);
+        ViewUtils.forEachOutsideViews(plan, p -> {
+            if (p instanceof PromqlCommand) {
+                found.set(true);
+            }
+        });
+        return found.get();
     }
 
     private void resolveIndicesAndAnalyze(
@@ -2100,8 +2215,11 @@ public class EsqlSession {
         // solution would be to just not track the unmapped indices at all, but that requires a more structural change.
         boolean trackedUnmappedFieldIndices = unmappedResolution.loadsUnmappedFields();
         boolean exemplars = QuerySettings.EXEMPLARS.get(configuration.resolvedSettings()).enabled();
-        // Exemplar columns missing from the exemplar data streams' mappings are nullified rather than failing the query
-        boolean nullify = exemplars || parsed.collectFirstChildren(p -> p instanceof PromqlCommand).isEmpty() == false;
+        // Exemplar columns missing from the exemplar data streams' mappings are nullified rather than failing the query.
+        // PROMQL treats a missing label or metric as absent, so the caller's own PROMQL nullifies too. A PROMQL inside a
+        // view does not count here: the view's own settings nullify its body (ViewQuerySettings#from), and must not
+        // change how the caller's query resolves.
+        boolean nullify = exemplars || callerScopeHasPromql(parsed);
         SubscribableListener.<PreAnalysisResult>newForked(
             l -> preAnalyzeMainIndices(
                 preAnalysis,
@@ -2977,6 +3095,7 @@ public class EsqlSession {
                 result.fieldNames,
                 createQueryFilter(indexMode, requestFilter),
                 includeAllDimensions(indexMode, preAnalysis),
+                result.nestedScope(),
                 // TODO: In case of subqueries, the different main index resolutions don't know about each other's minimum version.
                 // This is bad because `FROM (FROM remote1:*) (FROM remote2:*)` can have different minimum versions
                 // while resolving each subquery's main index pattern. We'll determine the correct overall minimum transport version
@@ -3005,6 +3124,7 @@ public class EsqlSession {
                             result.fieldNames,
                             requestFilter,
                             false,
+                            result.nestedScope(),
                             indexResolution.minimumVersion(),
                             preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
                             preAnalysis.useDenseVectorWhenNotSupported(),
@@ -3110,6 +3230,7 @@ public class EsqlSession {
             result.fieldNames,
             createQueryFilter(IndexMode.STANDARD, requestFilter),
             false /* not time-series — shadows are always STANDARD */,
+            result.nestedScope(),
             result.minimumTransportVersion(),
             preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
             preAnalysis.useDenseVectorWhenNotSupported(),
@@ -3151,6 +3272,7 @@ public class EsqlSession {
             result.fieldNames,
             createQueryFilter(indexMode, requestFilter),
             includeAllDimensions(indexMode, preAnalysis),
+            result.nestedScope(),
             // TODO: Same problem with subqueries as preAnalyzeMainIndices, see above.
             result.minimumTransportVersion(),
             preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
@@ -3176,6 +3298,7 @@ public class EsqlSession {
                         result.fieldNames,
                         requestFilter,
                         false,
+                        result.nestedScope(),
                         indexResolution.minimumVersion(),
                         preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
                         preAnalysis.useDenseVectorWhenNotSupported(),
@@ -3349,6 +3472,7 @@ public class EsqlSession {
             );
             analysisProfile.stop();
             LOGGER.debug("Analyzed plan ({}):\n{}", description, plan);
+            PlanJsonLog.debug(PlanJsonLog.Stage.ANALYZED, plan);
             // Analysis succeeded on the first attempt. For unmapped_fields=nullify/load we intentionally do NOT re-resolve without the
             // request filter to recover a field that is mapped only in a filter-pruned index: once the filter prunes an index we keep it
             // gone. Resurrecting it would drop real data from surviving indices and turn working queries into errors. The retry
@@ -3436,6 +3560,7 @@ public class EsqlSession {
 
     private PhysicalPlan logicalPlanToPhysicalPlan(
         LogicalPlan optimizedPlan,
+        @Nullable String phase,
         EsqlQueryRequest request,
         PhysicalPlanOptimizer physicalPlanOptimizer,
         PlanTimeProfile planTimeProfile
@@ -3443,7 +3568,7 @@ public class EsqlSession {
         // Capture the optimized plan before mapping so a failure in physical planning still
         // surfaces it in the failure log.
         planSnapshot = planSnapshot.withOptimized(optimizedPlan);
-        PhysicalPlan physicalPlan = optimizedPhysicalPlan(optimizedPlan, physicalPlanOptimizer, planTimeProfile);
+        PhysicalPlan physicalPlan = optimizedPhysicalPlan(optimizedPlan, phase, physicalPlanOptimizer, planTimeProfile);
         physicalPlan = PlannerUtils.integrateEsFilterIntoFragment(
             physicalPlan,
             request.filter(),
@@ -3496,8 +3621,9 @@ public class EsqlSession {
             );
         }
         plan.setAnalyzed();
-        // TODO: when intoDestination != null, validate its mapping in projectMetadata (including column/field type
-        // mismatches against plan.output()) after authorizing write privileges during pre-analysis.
+        // TODO: when the plan contains an INTO node, validate the destination's mapping in projectMetadata
+        // (including column/field type mismatches against the INTO child's output) after authorizing write privileges
+        // during pre-analysis.
         List<IndexResolution> semanticSources = new ArrayList<>(indexResolutions);
         semanticSources.addAll(r.lookupIndices().values());
         Map<NameId, FieldSemantics> semantics = ColumnSemantics.collect(plan, semanticSources);
@@ -3516,6 +3642,7 @@ public class EsqlSession {
             planTimeProfile.addLogicalOptimizationPlanTime(System.nanoTime() - start);
         }
         LOGGER.debug("Optimized logicalPlan plan:\n{}", plan);
+        PlanJsonLog.debug(PlanJsonLog.Stage.OPTIMIZED_LOGICAL, plan);
         return plan;
     }
 
@@ -3537,29 +3664,32 @@ public class EsqlSession {
         );
     }
 
-    private PhysicalPlan physicalPlan(Versioned<LogicalPlan> optimizedPlan) {
+    private PhysicalPlan physicalPlan(Versioned<LogicalPlan> optimizedPlan, @Nullable String phase) {
         LogicalPlan logicalPlan = optimizedPlan.inner();
         if (logicalPlan.optimized() == false) {
             throw new IllegalStateException("Expected optimized plan");
         }
         PhysicalPlan plan = mapper.map(optimizedPlan);
         LOGGER.debug("Physical plan:\n{}", plan);
+        PlanJsonLog.debug(PlanJsonLog.Stage.PHYSICAL, phase, plan);
         return plan;
     }
 
     private PhysicalPlan optimizedPhysicalPlan(
         LogicalPlan optimizedPlan,
+        @Nullable String phase,
         PhysicalPlanOptimizer physicalPlanOptimizer,
         PlanTimeProfile planTimeProfile
     ) {
         long start = planTimeProfile == null ? 0L : System.nanoTime();
         var plan = physicalPlanOptimizer.optimize(
-            physicalPlan(new Versioned<>(optimizedPlan, physicalPlanOptimizer.context().minimumVersion()))
+            physicalPlan(new Versioned<>(optimizedPlan, physicalPlanOptimizer.context().minimumVersion()), phase)
         );
         if (planTimeProfile != null) {
             planTimeProfile.addPhysicalOptimizationPlanTime(System.nanoTime() - start);
         }
         LOGGER.debug("Optimized physical plan:\n{}", plan);
+        PlanJsonLog.debug(PlanJsonLog.Stage.OPTIMIZED_PHYSICAL, phase, plan);
         return plan;
     }
 
@@ -3580,6 +3710,8 @@ public class EsqlSession {
         Set<String> fieldNames,
         // the names in fieldNames that field caps is asked for only to find the flattened fields above the names the query uses
         Set<String> parentPaths,
+        // whether the query reads nested fields (NESTED_EXPAND), so the resolution of its main source asks field caps for them
+        boolean nestedScope,
         Set<String> wildcardJoinIndices,
         Map<IndexPattern, IndexResolution> indexResolution,
         // the exemplar data streams of the time series relations, resolved for SET exemplars=true; null when there are none
@@ -3599,13 +3731,14 @@ public class EsqlSession {
     ) {
 
         public PreAnalysisResult(Set<String> fieldNames, Set<String> wildcardJoinIndices) {
-            this(fieldNames, Set.of(), wildcardJoinIndices);
+            this(fieldNames, Set.of(), false, wildcardJoinIndices);
         }
 
-        public PreAnalysisResult(Set<String> fieldNames, Set<String> parentPaths, Set<String> wildcardJoinIndices) {
+        public PreAnalysisResult(Set<String> fieldNames, Set<String> parentPaths, boolean nestedScope, Set<String> wildcardJoinIndices) {
             this(
                 fieldNames,
                 parentPaths,
+                nestedScope,
                 wildcardJoinIndices,
                 new HashMap<>(),
                 null,
@@ -3639,6 +3772,7 @@ public class EsqlSession {
             return new PreAnalysisResult(
                 fieldNames,
                 parentPaths,
+                nestedScope,
                 wildcardJoinIndices,
                 indexResolution,
                 exemplarsResolution,
@@ -3657,6 +3791,7 @@ public class EsqlSession {
             return new PreAnalysisResult(
                 fieldNames,
                 parentPaths,
+                nestedScope,
                 wildcardJoinIndices,
                 indexResolution,
                 exemplarsResolution,
@@ -3675,6 +3810,7 @@ public class EsqlSession {
             return new PreAnalysisResult(
                 fieldNames,
                 parentPaths,
+                nestedScope,
                 wildcardJoinIndices,
                 indexResolution,
                 exemplarsResolution,
@@ -3693,6 +3829,7 @@ public class EsqlSession {
             return new PreAnalysisResult(
                 fieldNames,
                 parentPaths,
+                nestedScope,
                 wildcardJoinIndices,
                 indexResolution,
                 exemplarsResolution,
@@ -3717,6 +3854,7 @@ public class EsqlSession {
             return new PreAnalysisResult(
                 fieldNames,
                 parentPaths,
+                nestedScope,
                 wildcardJoinIndices,
                 indexResolution,
                 exemplarsResolution,
@@ -3735,6 +3873,7 @@ public class EsqlSession {
             return new PreAnalysisResult(
                 fieldNames,
                 parentPaths,
+                nestedScope,
                 wildcardJoinIndices,
                 indexResolution,
                 exemplarsResolution,

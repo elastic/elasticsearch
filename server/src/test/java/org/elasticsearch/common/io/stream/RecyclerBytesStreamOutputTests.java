@@ -87,6 +87,26 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         out.close();
     }
 
+    public void testAllocatedBytes() throws Exception {
+        int pageSize = recycler.pageSize();
+        RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
+        // a stream starts with a page
+        assertEquals(pageSize, out.allocatedBytes());
+        int length = between(0, 4 * pageSize);
+        out.writeBytes(randomByteArrayOfLength(length));
+        long pages = Math.max(1, (length + pageSize - 1) / pageSize);
+        assertEquals(pages * pageSize, out.allocatedBytes());
+        // the pages stay allocated when the stream seeks back
+        out.seek(between(0, length));
+        assertEquals(pages * pageSize, out.allocatedBytes());
+        if (randomBoolean()) {
+            out.close();
+        } else {
+            out.moveToBytesReference().close();
+        }
+        assertEquals(0, out.allocatedBytes());
+    }
+
     public void testSingleByte() throws Exception {
         RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
         assertEquals(0, out.size());

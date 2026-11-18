@@ -102,7 +102,7 @@ public final class StringColumnWriter {
      * @param outputs                   values to its data, per-document tables to its addressing, per-block
      *                                  and per-chunk tables to its navigation
      * @param skipIndex                 where a dictionary column without escapes writes the ordinal bounds of
-     *                                  its intervals
+     *                                  its intervals, and a plain column the bounds of its chunks
      */
     public static StringColumnMetadata write(
         int maxDoc,
@@ -224,61 +224,83 @@ public final class StringColumnWriter {
         long nulls = 0;
         long valueAddress = 0;
         final StringColumnValues values = cursors.get();
-        if (values.streamsValues() && values.mayBeSorted() == false) {
-            // No value is held whole: the length marks a null, the cursor marks repeats, and the bytes are copied a
-            // piece at a time.
-            sorted = false;
-            for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
-                slots.startDocument(valueAddress);
-                for (int i = 0, count = values.valueCount(); i < count; i++) {
-                    values.nextValue();
-                    final int length = values.valueLength();
-                    if (length < 0) {
-                        nulls++;
-                        stream.addNull();
-                    } else {
-                        stream.transfer(length, values.repeatsPrevious(), values);
+        final PlainSkipKind.Writer bounds = options.enablePlainSkipIndex() && skipIndex != null
+            ? PlainSkipKind.forWriting().newWriter(directory, context, outputs.data().getName(), numValues)
+            : null;
+        final StringColumnMetadata.Plain.Skipper skipper;
+        boolean finished = false;
+        try {
+            if (values.streamsValues() && values.mayBeSorted() == false && bounds == null) {
+                // No value is held whole: the length marks a null, the cursor marks repeats, and the bytes are copied a
+                // piece at a time.
+                sorted = false;
+                for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                    slots.startDocument(valueAddress);
+                    for (int i = 0, count = values.valueCount(); i < count; i++) {
+                        values.nextValue();
+                        final int length = values.valueLength();
+                        if (length < 0) {
+                            nulls++;
+                            stream.addNull();
+                        } else {
+                            stream.transfer(length, values.repeatsPrevious(), values);
+                        }
+                        valueAddress++;
                     }
-                    valueAddress++;
                 }
-            }
-        } else {
-            // Whether the values arrive in term order, which lets a search bisect them instead of comparing
-            // every one. Free to know here: the values are already in hand, and the comparison is one memcmp.
-            // The first value out of order settles it, and the rest are written without being compared: what
-            // the comparison decides cannot be restored, and the value it would compare against is not kept.
-            final BytesRefBuilder previous = new BytesRefBuilder();
-            boolean hasPrevious = false;
-            for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
-                slots.startDocument(valueAddress);
-                for (int i = 0, count = values.valueCount(); i < count; i++) {
-                    values.nextValue();
-                    final BytesRef value = values.value();
-                    if (value == null) {
-                        // A null takes an address like any other and stores no bytes; its length is what tells it
-                        // from an empty string. It has no place in term order either, so a column holding one is
-                        // not one a search can bisect.
-                        sorted = false;
-                        nulls++;
-                        stream.addNull();
-                    } else {
-                        if (sorted) {
-                            if (hasPrevious && previous.get().compareTo(value) > 0) {
-                                sorted = false;
-                            } else {
-                                previous.copyBytes(value);
-                                hasPrevious = true;
+            } else {
+                // Whether the values arrive in term order, which lets a search bisect them instead of comparing
+                // every one. Free to know here: the values are already in hand, and the comparison is one memcmp.
+                // The first value out of order settles it, and the rest are written without being compared: what
+                // the comparison decides cannot be restored, and the value it would compare against is not kept.
+                final BytesRefBuilder previous = new BytesRefBuilder();
+                boolean hasPrevious = false;
+                for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                    slots.startDocument(valueAddress);
+                    for (int i = 0, count = values.valueCount(); i < count; i++) {
+                        values.nextValue();
+                        final BytesRef value = values.value();
+                        if (value == null) {
+                            // A null takes an address like any other and stores no bytes; its length is what tells it
+                            // from an empty string. It has no place in term order either, so a column holding one is
+                            // not one a search can bisect.
+                            sorted = false;
+                            nulls++;
+                            stream.addNull();
+                            if (bounds != null) {
+                                bounds.add(valueAddress, doc, stream.ownerChunk(), null, false);
+                            }
+                        } else {
+                            if (bounds == null && sorted) {
+                                if (hasPrevious && previous.get().compareTo(value) > 0) {
+                                    sorted = false;
+                                } else {
+                                    previous.copyBytes(value);
+                                    hasPrevious = true;
+                                }
+                            }
+                            final boolean repeat = stream.add(value);
+                            if (bounds != null) {
+                                bounds.add(valueAddress, doc, stream.ownerChunk(), value, repeat);
                             }
                         }
-                        stream.add(value);
+                        valueAddress++;
                     }
-                    valueAddress++;
                 }
             }
+            if (bounds != null) {
+                sorted &= bounds.ascending();
+            }
+            written = stream.finish();
+            valuesWorthNaming = dictionaryPolicy.enabled() == false || stream.runs() * StringColumnReader.MIN_PAGE_REPEAT <= numValues;
+            addressing = slots.finish(valueAddress);
+            skipper = bounds == null ? null : bounds.finish(skipIndex);
+            finished = true;
+        } finally {
+            if (finished == false) {
+                IOUtils.closeWhileHandlingException(bounds);
+            }
         }
-        written = stream.finish();
-        valuesWorthNaming = dictionaryPolicy.enabled() == false || stream.runs() * StringColumnReader.MIN_PAGE_REPEAT <= numValues;
-        addressing = slots.finish(valueAddress);
         // Checked rather than asserted: these are on the wire, and a reader, or the next merge, would trust them.
         if (nulls != numNullSlots) {
             throw new IllegalStateException("wrote " + nulls + " null slots, counted " + numNullSlots);
@@ -310,7 +332,7 @@ public final class StringColumnWriter {
                 written,
                 sorted,
                 valuesWorthNaming
-            ),
+            ).withSkipper(skipper),
             vocabulary,
             summaryPolicy,
             numValues - numNullSlots,

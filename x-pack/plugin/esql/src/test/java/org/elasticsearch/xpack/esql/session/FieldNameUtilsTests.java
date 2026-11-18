@@ -29,10 +29,10 @@ import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ViewSubquery;
 
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -4836,7 +4836,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             List.of(new UnresolvedAttribute(Source.EMPTY, "a"))
         );
         LinkedHashMap<String, LogicalPlan> branches = new LinkedHashMap<>();
-        branches.put("v", new NamedSubquery(Source.EMPTY, viewBody, "v"));
+        branches.put("v", new ViewSubquery(Source.EMPTY, viewBody, "v"));
         branches.put("v#shadow", new ViewShadowRelation(Source.EMPTY, "v", LinkedIndexPattern.Kind.OPTIONAL, "v"));
         BranchPlan plan = new BranchPlan(Source.EMPTY, branches, Map.of("v", BranchIdentity.view("v")), List.of());
         assertThat(FieldNameUtils.resolveFieldNames(plan, false, includePrefixFields).fieldNames(), equalTo(ALL_FIELDS));

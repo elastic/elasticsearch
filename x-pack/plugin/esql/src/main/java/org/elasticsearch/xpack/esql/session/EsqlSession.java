@@ -269,7 +269,7 @@ public class EsqlSession {
      */
     private final Map<NameId, FieldSemantics> columnSemantics = new HashMap<>();
     /** Unit of every analyzed column whose unit is known, reported as {@code _meta.unit}. */
-    private final Map<NameId, String> columnUnits = new HashMap<>();
+    private final Map<NameId, List<String>> columnUnits = new HashMap<>();
     /**
      * Output of the analyzed plan. Optimization keeps the output schema but may replace attributes, so result
      * columns are matched to their semantics by position rather than by id.
@@ -517,6 +517,13 @@ public class EsqlSession {
         // Wrap the outer listener so any failure — parse, view-resolution, analyze, optimize, map,
         // execute — funnels through one place that emits the anonymized log on INTERNAL_SERVER_ERROR.
         listener = wrapForAnonymizedFailureLog(listener);
+        // Planning CPU is frozen at the end of planning. A query that fails before it gets there would report none, although it
+        // spent some, so it is frozen on any failure too. Freezing is idempotent: a query that fails while it executes keeps the total
+        // that planning froze.
+        listener = listener.delegateResponse((l, e) -> {
+            executionInfo.queryProfile().planningCpuNanos(planningCpu.finish());
+            l.onFailure(e);
+        });
         TimeSpanMarker parsingProfile = executionInfo.queryProfile().parsing();
         parsingProfile.start();
         int maxCommandCount = request.pragmas().maxCommandCount(flags.maxCommandCount());
@@ -1039,9 +1046,9 @@ public class EsqlSession {
             if (semantics != null) {
                 columnMetadata.put("field", semantics.toColumnMetadata());
             }
-            String unit = columnUnits.get(analyzedId);
-            if (unit != null) {
-                columnMetadata.put("unit", unit);
+            List<String> units = columnUnits.get(analyzedId);
+            if (units != null) {
+                columnMetadata.put("unit", FieldSemantics.singleOrList(units));
             }
             if (columnMetadata.isEmpty() == false) {
                 metadata.put(attribute.id(), columnMetadata);
@@ -1236,8 +1243,9 @@ public class EsqlSession {
             // every executed plan (each subplan and the final main plan) so the single reconcile at the end strips
             // their polluting stat deltas regardless of which plan read a file pinned. Each plan's pins are collected
             // only after that plan's run succeeds, so the first discovery does not hold per-file PinnedColumns.
+            DriverCompletionInfo.Accumulator completionInfoAccumulator = new DriverCompletionInfo.Accumulator();
             executeSubPlan(
-                new DriverCompletionInfo.Accumulator(),
+                completionInfoAccumulator,
                 new HashMap<>(),
                 0,
                 subPlan,
@@ -1251,7 +1259,12 @@ public class EsqlSession {
                 physicalPlanOptimizer,
                 planTimeProfile,
                 // Ensure we don't have subplan flag stuck in there on failure
-                ActionListener.runAfter(listener, executionInfo::finishSubPlans)
+                ActionListener.runAfter(listener.delegateResponse((l, e) -> {
+                    // The sub-plans that completed before the failure did work that only the accumulator holds, and that the failed
+                    // query would lose: a failure carries no completion info. The compute that failed reports its own.
+                    executionInfo.addFailedWork(completionInfoAccumulator.finish());
+                    l.onFailure(e);
+                }), executionInfo::finishSubPlans)
             );
         } else {
             PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, null, request, physicalPlanOptimizer, planTimeProfile);
@@ -1767,7 +1780,11 @@ public class EsqlSession {
         List<Attribute> schema = result.schema();
 
         Block[] blocks = SessionUtils.fromPages(schema, pages, blockFactory);
-        return new LocalRelation(planSource, schema, LocalSupplier.of(blocks.length == 0 ? new Page(0) : new Page(blocks)));
+        Page page = blocks.length == 0 ? new Page(0) : new Page(blocks);
+        // Plans sent to this node's data-node handler are not serialized, so concurrently planned branches can share
+        // this page, and building a hash join table from it changes its ref counts.
+        page.allowPassingToDifferentDriver();
+        return new LocalRelation(planSource, schema, LocalSupplier.of(page));
     }
 
     /**

@@ -30,6 +30,7 @@ import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -116,13 +117,14 @@ public class CrossClusterEqlCommandEnrichAndLookupJoinIT extends AbstractEnrichB
                 "EVAL ip = \"192.168.1.3\" | ENRICH _remote:hosts_local ON ip WITH host_os = os"
             )) {
                 String query = eqlSource + " | " + enrich;
-                var error = expectThrows(VerificationException.class, () -> runQuery(query, randomBoolean()).close());
-                assertThat(
-                    query,
-                    error.getMessage(),
-                    containsString("ENRICH with remote policy can't be executed after [" + eqlSource + "]")
+                expectThrows(
+                    VerificationException.class,
+                    allOf(
+                        containsString("ENRICH with remote policy can't be executed after [" + eqlSource + "]"),
+                        containsString(EQL_REMOTE_ENRICH_REASON)
+                    ),
+                    () -> runQuery(query, randomBoolean()).close()
                 );
-                assertThat(query, error.getMessage(), containsString(EQL_REMOTE_ENRICH_REASON));
             }
         }
     }
@@ -140,9 +142,14 @@ public class CrossClusterEqlCommandEnrichAndLookupJoinIT extends AbstractEnrichB
             remote.execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, policyName))
                 .actionGet();
             String query = REMOTE_EQL_SOURCE + " | ENRICH _remote:" + policyName + " ON os";
-            var error = expectThrows(VerificationException.class, () -> runQuery(query, randomBoolean()).close());
-            assertThat(error.getMessage(), containsString("ENRICH with remote policy can't be executed after [" + REMOTE_EQL_SOURCE + "]"));
-            assertThat(error.getMessage(), containsString(EQL_REMOTE_ENRICH_REASON));
+            expectThrows(
+                VerificationException.class,
+                allOf(
+                    containsString("ENRICH with remote policy can't be executed after [" + REMOTE_EQL_SOURCE + "]"),
+                    containsString(EQL_REMOTE_ENRICH_REASON)
+                ),
+                () -> runQuery(query, randomBoolean()).close()
+            );
         } finally {
             remote.execute(DeleteEnrichPolicyAction.INSTANCE, new DeleteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, policyName))
                 .actionGet();
@@ -151,7 +158,10 @@ public class CrossClusterEqlCommandEnrichAndLookupJoinIT extends AbstractEnrichB
 
     public void testLookupJoinThenRemoteEnrichAfterRemoteEqlIsRejected() {
         String query = REMOTE_EQL_SOURCE + " | LOOKUP JOIN os_lookup ON os | ENRICH _remote:vendors ON os";
-        var error = expectThrows(VerificationException.class, () -> runQuery(query, randomBoolean()).close());
-        assertThat(error.getMessage(), containsString("can't be executed after [" + REMOTE_EQL_SOURCE + "]"));
+        expectThrows(
+            VerificationException.class,
+            containsString("can't be executed after [" + REMOTE_EQL_SOURCE + "]"),
+            () -> runQuery(query, randomBoolean()).close()
+        );
     }
 }

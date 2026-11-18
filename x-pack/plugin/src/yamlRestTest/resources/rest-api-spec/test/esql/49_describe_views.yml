@@ -139,6 +139,63 @@ setup:
   - match: { values.0: [ "latency", "latency", "mapped", [ "ms", "s" ], [ "Latency, in seconds", "Request latency" ] ] }
 
 ---
+"Branches that read the same field merge its units as indices do":
+  - requires:
+      test_runner_features: [allowed_warnings_regex, capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ column_metadata_listed_units ]
+      reason: "listed units"
+  - do:
+      indices.create:
+        index: test_semantics_millis
+        body:
+          mappings:
+            properties:
+              latency:
+                type: double
+                meta:
+                  unit: millis
+  - do:
+      indices.create:
+        index: test_semantics_no_unit
+        body:
+          mappings:
+            properties:
+              latency:
+                type: double
+  - do:
+      esql.put_view:
+        name: latencies_in_millis
+        body:
+          query: 'FROM test_semantics_millis | RENAME latency AS lat'
+  - do:
+      esql.put_view:
+        name: latencies_without_unit
+        body:
+          query: 'FROM test_semantics_no_unit | RENAME latency AS lat'
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM latencies, latencies_in_millis | KEEP lat | DESCRIBE | KEEP name, unit'
+
+  - match: { values.0: [ "lat", [ "millis", "ms" ] ] }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM latencies, latencies_without_unit | KEEP lat | DESCRIBE | KEEP name, unit'
+
+  - match: { values.0: [ "lat", "ms" ] }
+
+---
 "Computed units that disagree across branches are listed":
   - requires:
       test_runner_features: [allowed_warnings_regex, capabilities]

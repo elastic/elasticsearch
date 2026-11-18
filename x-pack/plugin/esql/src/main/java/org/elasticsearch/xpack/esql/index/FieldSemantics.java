@@ -31,7 +31,8 @@ import java.util.TreeSet;
  * @param role         how the field is meant to be used, see {@link Role}
  * @param metricType   {@code counter}, {@code gauge} or {@code histogram} when the mapping declares {@code time_series_metric}
  * @param units        every {@code meta.unit} of the field; more than one when the indices disagree
- * @param descriptions every {@code meta.description} of the field; more than one when the indices disagree
+ * @param descriptions every {@code meta.description} of the field; more than one when the indices disagree.
+ *                     Units and descriptions are collected independently and are not aligned by position.
  */
 public record FieldSemantics(
     String field,

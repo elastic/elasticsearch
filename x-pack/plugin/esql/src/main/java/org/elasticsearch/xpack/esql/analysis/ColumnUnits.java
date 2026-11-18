@@ -74,7 +74,8 @@ public final class ColumnUnits {
 
     /**
      * A merged column has the unit of its branches when they agree, and lists every unit when they do not.
-     * It has none when a branch that has the column does not know its unit.
+     * It has none when a branch that has the column does not know its unit. A column whose branches read the same
+     * field already has the units of the merged field, as when the indices of one pattern are merged.
      */
     private static void mergeUnits(
         Attribute column,
@@ -83,6 +84,9 @@ public final class ColumnUnits {
         Map<NameId, Unit> units,
         Map<NameId, SortedSet<String>> listed
     ) {
+        if (fields.containsKey(column.id())) {
+            return;
+        }
         Unit agreed = null;
         boolean agree = true;
         SortedSet<String> all = new TreeSet<>();

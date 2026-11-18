@@ -564,19 +564,13 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
             }
             Page page = iter.tryAdvance();
             if (page == null) {
-                if (iter.waitForReady().isDone() == false) {
-                    continue;
-                }
-                page = iter.tryAdvance();
-                if (page == null) {
-                    if (iter.waitForReady().isDone() == false) {
-                        continue;
-                    }
+                if (iter.waitForReady().isDone() && iter.isExhausted()) {
                     if (rows.get(idx) != EXPECTED_ROWS) {
                         throw new AssertionError(label + " iterator " + idx + " ended after " + rows.get(idx) + " rows");
                     }
                     return;
                 }
+                continue;
             }
             rows.addAndGet(idx, page.getPositionCount());
             peakBreaker.accumulateAndGet(breaker.getUsed(), Math::max);
@@ -603,16 +597,10 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
             }
             Page page = iter.tryAdvance();
             if (page == null) {
-                if (iter.waitForReady().isDone() == false) {
-                    continue;
-                }
-                page = iter.tryAdvance();
-                if (page == null) {
-                    if (iter.waitForReady().isDone() == false) {
-                        continue;
-                    }
+                if (iter.waitForReady().isDone() && iter.isExhausted()) {
                     return new DrainResult(rows, idSum);
                 }
+                continue;
             }
             rows += page.getPositionCount();
             if (sumId) {
@@ -639,16 +627,10 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
             }
             Page page = iter.tryAdvance();
             if (page == null) {
-                if (iter.waitForReady().isDone() == false) {
-                    continue;
-                }
-                page = iter.tryAdvance();
-                if (page == null) {
-                    if (iter.waitForReady().isDone() == false) {
-                        continue;
-                    }
+                if (iter.waitForReady().isDone() && iter.isExhausted()) {
                     throw new AssertionError("expected at least one page");
                 }
+                continue;
             }
             page.releaseBlocks();
             return;

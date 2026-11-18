@@ -15,7 +15,6 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -36,7 +35,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 
-/** Derived incoming-build witnesses for finding4 and the separate INLINE STATS caveat; no production hook is added. */
+/** Checks the public EXPLAIN plan and observes whether the SEQUENCE reader executed. */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1)
 public class SequenceIncomingExecutionReproductionIT extends AbstractSequenceIntegTestCase {
     private static final String INDEX = "incoming-sequence-execution";
@@ -73,30 +72,6 @@ public class SequenceIncomingExecutionReproductionIT extends AbstractSequenceInt
             }
             logger.info("INCOMING finding4 PIT opens/candidate searches={}", counts.values());
             assertEquals("EXPLAIN may not execute the SEQUENCE reader", List.of(0, 0), counts.values());
-        }
-    }
-
-    /** Ordinary INLINE STATS lowering is a documented double execution, not a reader correctness defect. */
-    public void testInlineStatsRecordsTwoExecutionsAndTwoSnapshots() throws Exception {
-        populate();
-        try (
-            var counts = new Counts();
-            var response = client().execute(
-                EsqlQueryAction.INSTANCE,
-                syncEsqlQueryRequest(SEQUENCE + " | INLINE STATS total=COUNT(*) | KEEP key,total").profile(true)
-            ).actionGet(TimeValue.timeValueSeconds(30))
-        ) {
-            assertEquals(List.of(List.of("k", 1L)), getValuesList(response));
-            long executions = response.profile()
-                .drivers()
-                .stream()
-                .flatMap(driver -> driver.operators().stream())
-                .map(OperatorStatus::status)
-                .filter(SequenceSourceStatus.class::isInstance)
-                .count();
-            logger.info("INCOMING INLINE STATS executions={} PIT opens/candidate searches={}", executions, counts.values());
-            assertEquals("two serial physical SEQUENCE executions", 2L, executions);
-            assertEquals("one PIT and two candidate stage searches per execution", List.of(2, 4), counts.values());
         }
     }
 

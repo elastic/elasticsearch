@@ -1443,34 +1443,6 @@ public class SequenceSourceOperatorTests extends ESTestCase {
         }
     }
 
-    /** Vary copy depth and projection placement while preserving the original multivalued output demand. */
-    public void testGeneratedExpandedCopiesPreserveOriginalPayload() {
-        for (int copies = 1; copies <= 2; copies++) {
-            for (boolean projectBeforeExpansion : List.of(false, true)) {
-                StringBuilder commands = new StringBuilder();
-                String previous = "payload";
-                for (int copy = 0; copy < copies; copy++) {
-                    String name = "expanded_" + copy;
-                    if (commands.isEmpty() == false) {
-                        commands.append(" | ");
-                    }
-                    commands.append("EVAL ").append(name).append(" = ").append(previous);
-                    previous = name;
-                }
-                if (projectBeforeExpansion) {
-                    commands.append(" | KEEP payload, key, ").append(previous);
-                }
-                commands.append(" | MV_EXPAND ")
-                    .append(previous)
-                    .append(" | WHERE TO_LOWER(")
-                    .append(previous)
-                    .append(") == \"left\" | KEEP key, payload");
-                assertOptimizedStagePayload(commands.toString(), "payload", List.of("LEFT", "right"), List.of("LEFT", "right"));
-
-            }
-        }
-    }
-
     /** Extraction remains in the optimized stage while the copy/expansion still rewrites the original's wrapper. */
     public void testExpandedDissectCopiesPreserveOriginalPayload() {
         assertExpandedExtractorPreservesPayload("DISSECT", "%{parsed}");

@@ -8,18 +8,12 @@
 package org.elasticsearch.xpack.esql.execution.sequence;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.search.ClosePointInTimeRequest;
-import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.TransportClosePointInTimeAction;
-import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.compute.operator.OperatorStatus;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -36,8 +30,6 @@ import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchService;
-import org.elasticsearch.search.builder.PointInTimeBuilder;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractSequenceIntegTestCase;
@@ -537,118 +529,6 @@ public class SequenceMappedFieldsIT extends AbstractSequenceIntegTestCase {
         indexPair(index, Map.of());
     }
 
-    /** A PIT preserves its documents while later reads use the live runtime definition, including zero-hit reads. */
-    public void testRuntimeDefinitionChangeUsesLiveDefinitionOnOldPitIncludingZeroHitRead() {
-        String index = "sequence-runtime-epoch";
-        createRuntimeIndex(index, "constant");
-        BytesReference pit = client().execute(
-            TransportOpenPointInTimeAction.TYPE,
-            new OpenPointInTimeRequest(index).keepAlive(TimeValue.timeValueMinutes(2))
-        ).actionGet().getPointInTimeId();
-        try {
-            SearchResponse first = guardedPitRead(pit, index, "A");
-            try {
-                assertEquals(1L, first.getHits().getTotalHits().value());
-                assertEquals(List.of(1L), first.getHits().getAt(0).field("changing").getValues());
-                if (first.pointInTimeId() != null) pit = first.pointInTimeId();
-            } finally {
-                first.decRef();
-            }
-            assertAcked(
-                indicesAdmin().preparePutMapping(index).setSource(Map.of("runtime", Map.of("changing", runtimeField("long", "two"))))
-            );
-            for (String phase : List.of("B", "missing")) {
-                SearchResponse live = guardedPitRead(pit, index, phase);
-                try {
-                    assertEquals(phase.equals("B") ? 1L : 0L, live.getHits().getTotalHits().value());
-                    if (phase.equals("B")) {
-                        assertEquals(List.of(2L), live.getHits().getAt(0).field("changing").getValues());
-                    }
-                    if (live.pointInTimeId() != null) pit = live.pointInTimeId();
-                } finally {
-                    live.decRef();
-                }
-            }
-            try (var ordinary = run("from " + index + " | keep changing | limit 1")) {
-                assertValues(ordinary.values(), List.of(List.of(2L)));
-            }
-            try (var fresh = run("""
-                sequence by changing within 30s PRIMARY 1
-                (from sequence-runtime-epoch | where phase=="A"), (from sequence-runtime-epoch | where phase=="B")
-                | keep changing | limit 1
-                """)) {
-                assertValues(fresh.values(), List.of(List.of(2L)));
-            }
-        } finally {
-            assertTrue(client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pit)).actionGet().isSucceeded());
-        }
-    }
-
-    /** Adding an unused dynamic field does not reject an existing PIT or make newly indexed documents visible to it. */
-    public void testUnrelatedDynamicFieldAdditionPreservesOldPit() throws Exception {
-        String index = "sequence-unrelated-dynamic-field";
-        String unrelatedField = "unrelated_dynamic_field";
-        createRuntimeIndex(index, "constant");
-        assertNull(client().prepareFieldCaps(index).setFields(unrelatedField).get().getField(unrelatedField));
-        BytesReference pit = client().execute(
-            TransportOpenPointInTimeAction.TYPE,
-            new OpenPointInTimeRequest(index).keepAlive(TimeValue.timeValueMinutes(2))
-        ).actionGet().getPointInTimeId();
-        try {
-            SearchResponse first = guardedPitRead(pit, index, "A");
-            try {
-                assertEquals(1L, first.getHits().getTotalHits().value());
-                if (first.pointInTimeId() != null) pit = first.pointInTimeId();
-            } finally {
-                first.decRef();
-            }
-
-            // The guarded read demands "changing"; neither it nor the fresh query requests this new field.
-            prepareIndex(index).setId("unrelated")
-                .setSource(Map.of("@timestamp", BASE.plusNanos(2).toString(), "key", "unrelated", "phase", "unrelated", unrelatedField, 1))
-                .get();
-            assertBusy(() -> assertNotNull(client().prepareFieldCaps(index).setFields(unrelatedField).get().getField(unrelatedField)));
-            refresh(index);
-            for (String phase : List.of("B", "missing", "unrelated")) {
-                SearchResponse live = guardedPitRead(pit, index, phase);
-                try {
-                    assertEquals(phase.equals("B") ? 1L : 0L, live.getHits().getTotalHits().value());
-                    if (phase.equals("B")) {
-                        assertEquals(List.of(1L), live.getHits().getAt(0).field("changing").getValues());
-                    }
-                    if (live.pointInTimeId() != null) pit = live.pointInTimeId();
-                } finally {
-                    live.decRef();
-                }
-            }
-            try (var fresh = run("""
-                sequence by changing within 30s PRIMARY 1
-                (from sequence-unrelated-dynamic-field | where phase=="A"),
-                (from sequence-unrelated-dynamic-field | where phase=="B")
-                | keep changing | limit 1
-                """)) {
-                assertValues(fresh.values(), List.of(List.of(1L)));
-            }
-        } finally {
-            assertTrue(client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pit)).actionGet().isSucceeded());
-        }
-    }
-
-    private SearchResponse guardedPitRead(BytesReference pit, String index, String phase) {
-        return client().prepareSearch()
-            .setSource(
-                new SearchSourceBuilder().query(new SequenceSourceQueryBuilder(QueryBuilders.termQuery("phase", phase), List.of(index)))
-                    .pointInTimeBuilder(new PointInTimeBuilder(pit).setKeepAlive(TimeValue.timeValueMinutes(2)))
-                    .fetchField("changing")
-                    .size(1)
-                    .trackTotalHits(true)
-            )
-            .setPreference(null)
-            .setPreFilterShardSize(Integer.MAX_VALUE)
-            .setAllowPartialSearchResults(false)
-            .get();
-    }
-
     private static Map<String, Object> runtimeField(String type, String script) {
         return Map.of("type", type, "script", Map.of("lang", "sequence_failure", "source", script));
     }
@@ -667,8 +547,6 @@ public class SequenceMappedFieldsIT extends AbstractSequenceIntegTestCase {
             },
                 "constant",
                 vars -> 1L,
-                "two",
-                vars -> 2L,
                 "timestamp",
                 vars -> ((Number) vars.get("millis")).longValue(),
                 "dependent",

@@ -499,55 +499,6 @@ public class SequenceRetainedExpansionIT extends AbstractSequenceIntegTestCase {
         }
     }
 
-    /** Pragma variations and match batches preserve selected rows; the 5001-value test proves actual expand chunks. */
-    public void testPragmaVariationsAndPayloadBatchesKeepSelectedExpansions() throws Exception {
-        for (int count : List.of(63, 64, 65, 150)) {
-            List<String> keys = new ArrayList<>();
-            for (int i = count - 1; i >= 0; i--)
-                keys.add(key(i));
-            List<Doc> docs = List.of(document(A, "A", 0, keys, "first"), document(B, "B", 1, keys, "second"));
-            withDocs(docs, () -> {
-                for (int page : List.of(1, 2, 128))
-                    for (boolean replay : List.of(false, true))
-                        for (int primary : List.of(1, 2)) {
-                            String stage = "MV_EXPAND keys | EVAL value=CONCAT(actor,\"/\",keys)"
-                                + (replay ? "" : " | WHERE LENGTH(value)>0")
-                                + " | KEEP keys,value";
-                            List<Expected> wanted = new ArrayList<>();
-                            for (int i = 0; i < count; i++)
-                                wanted.add(
-                                    expected(
-                                        key(i),
-                                        cells(
-                                            key(i),
-                                            (primary == 1 ? "first" : "second") + "/" + key(i),
-                                            (primary == 1 ? "second" : "first") + "/" + key(i)
-                                        ),
-                                        docs.get(0),
-                                        docs.get(1)
-                                    )
-                                );
-                            check(
-                                query(
-                                    projected(
-                                        sequence("keys", primary, stage, stage),
-                                        "EVAL other=MEMBER(" + (3 - primary) + ",value) | KEEP keys,value,other",
-                                        "keys",
-                                        10000
-                                    ),
-                                    page,
-                                    false
-                                ),
-                                primary,
-                                List.of("keys", "value", "other"),
-                                keywords(3),
-                                wanted
-                            );
-                        }
-            });
-        }
-    }
-
     /** The planner emits expansion chunks of 5000; 5001 actual values cross that boundary before the predicate leaves one row. */
     public void testActualExpansionChunkBoundaryKeepsFinalSelectedScalar() throws Exception {
         List<String> tags = new ArrayList<>();

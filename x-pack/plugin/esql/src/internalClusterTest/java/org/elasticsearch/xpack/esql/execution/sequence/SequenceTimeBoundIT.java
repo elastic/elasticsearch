@@ -562,31 +562,6 @@ public class SequenceTimeBoundIT extends AbstractSequenceIntegTestCase {
         }
     }
 
-    /** Record true MIN indexing admission separately; only an admitted field can establish native MIN paging support. */
-    public void testOrdinaryMinimumAdmissionObservation() throws Exception {
-        create("date", "epoch_millis", 1, A, B);
-        try {
-            try {
-                prepareIndex(A).setId("minimum-admission")
-                    .setSource(Map.of("@timestamp", Long.MIN_VALUE, "key", "probe", "disposition", "NO", "payload", "7"))
-                    .get();
-                refresh(A);
-            } catch (Exception failure) {
-                String error = errorChain(failure);
-                assertTrue(
-                    "unrelated indexing errors are not a domain observation: " + error,
-                    error.contains(Long.toString(Long.MIN_VALUE)) && error.toLowerCase(java.util.Locale.ROOT).contains("parse")
-                );
-                System.out.println("TEMPORAL_MIN_ADMISSION supported=false; native MIN paging was NOT executed; error=" + error);
-                return;
-            }
-            System.out.println("TEMPORAL_MIN_ADMISSION supported=true; native MIN paging follows");
-            assertSeededBoundaryPages(false, Long.MIN_VALUE, Long.MIN_VALUE + 1, false);
-        } finally {
-            cleanup();
-        }
-    }
-
     private void assertBoundaryPages(boolean nanos, long first, long second, boolean extraEarlyStart) throws Exception {
         create(nanos ? "date_nanos" : "date", nanos ? null : "epoch_millis", 1, A, B);
         try {

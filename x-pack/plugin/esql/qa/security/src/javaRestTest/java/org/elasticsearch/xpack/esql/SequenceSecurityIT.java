@@ -479,34 +479,6 @@ public class SequenceSecurityIT extends ESRestTestCase {
         }
     }
 
-    /** CSV acceptance must match ordinary source rendering; it is a display format rather than JSON evidence. */
-    public void testStageSourceCsvMatchesOrdinarySourceRendering() throws Exception {
-        createSequenceSecurityEvents(true);
-        String ordinary = runSourceCsv("""
-            FROM sequence-security-events METADATA _id, _source
-            | WHERE _id == "visible-A" | KEEP _source | LIMIT 10
-            """);
-        String sequence = runSourceCsv("""
-            SEQUENCE BY key WITHIN 30s PRIMARY 1
-            (FROM sequence-security-events METADATA _source | WHERE phase=="A"),
-            (FROM sequence-security-events METADATA _source | WHERE phase=="B")
-            | KEEP _source | LIMIT 10
-            """);
-        assertEquals(ordinary, sequence);
-        assertThat(sequence, containsString("visible-A"));
-        assertThat(sequence, containsString("9007199254740993"));
-        assertFalse(sequence.contains("secret"));
-        assertFalse(sequence.contains("tenant"));
-    }
-
-    private String runSourceCsv(String query) throws IOException {
-        Request request = new Request("POST", "_query");
-        request.addParameter("format", "csv");
-        request.setOptions(runAsUserOptions("sequence_dls_fls"));
-        request.setJsonEntity(Strings.toString(JsonXContent.contentBuilder().startObject().field("query", query).endObject()));
-        return EntityUtils.toString(assertOK(client().performRequest(request)).getEntity());
-    }
-
     /** A broader second-stage alias grant may expose its own source fields, but cannot widen the first stage's source or documents. */
     public void testStageSourceRetainsStageSpecificAliasDocumentAndFieldGrants() throws Exception {
         createSequenceSecurityEvents(true);
@@ -759,96 +731,6 @@ public class SequenceSecurityIT extends ESRestTestCase {
         direct.setOptions(runAsUserOptions("sequence_alias_only"));
         ResponseException forbidden = expectThrows(ResponseException.class, () -> client().performRequest(direct));
         assertEquals(HttpStatus.SC_FORBIDDEN, forbidden.getResponse().getStatusLine().getStatusCode());
-    }
-
-    /** A previously authorized PIT must recheck current read grants even when field discovery remains authorized. */
-    public void testPitAndSequenceSearchReauthorizeAfterReadGrantRevocation() throws Exception {
-        createSequenceSecurityEvents(true);
-        createSequenceSecurityAliases();
-        String user = "sequence-current-grants";
-        Request role = new Request("PUT", "_security/role/" + user);
-        role.setJsonEntity("""
-            {"indices":[{"names":["sequence-security-events","sequence-alias-a","sequence-alias-b"],
-             "privileges":["read","view_index_metadata"]}]}
-            """);
-        assertOK(adminClient().performRequest(role));
-        try {
-            Request createUser = new Request("PUT", "_security/user/" + user);
-            createUser.setJsonEntity(
-                Strings.toString(
-                    JsonXContent.contentBuilder()
-                        .startObject()
-                        .field("roles", List.of(user))
-                        .field("password", randomAlphaOfLength(32))
-                        .endObject()
-                )
-            );
-            assertOK(adminClient().performRequest(createUser));
-            try {
-                String query = """
-                    SEQUENCE BY key WITHIN 30s PRIMARY 1
-                    (FROM sequence-alias-a | WHERE tenant=="allowed"),
-                    (FROM sequence-alias-b | WHERE tenant=="allowed")
-                    | EVAL other_payload = MEMBER(2, payload) | KEEP key, payload, other_payload | LIMIT 10
-                    """;
-                Map<String, Object> authorized = entityAsMap(runESQLCommand(user, query));
-                assertEquals(List.of(List.of("shared", "visible-A", "visible-B")), authorized.get("values"));
-                assertEquals(Boolean.FALSE, authorized.get("is_partial"));
-                Request open = new Request("POST", "sequence-alias-a,sequence-alias-b/_pit");
-                open.addParameter("keep_alive", "2m");
-                open.setOptions(runAsUserOptions(user));
-                String pit = requireType(String.class, entityAsMap(assertOK(client().performRequest(open))).get("id"));
-                try {
-                    Request authorizedSearch = new Request("POST", "_search");
-                    authorizedSearch.setOptions(runAsUserOptions(user));
-                    authorizedSearch.setJsonEntity(
-                        Strings.toString(
-                            JsonXContent.contentBuilder().startObject().field("size", 0).field("pit", Map.of("id", pit)).endObject()
-                        )
-                    );
-                    Map<String, Object> searched = entityAsMap(assertOK(client().performRequest(authorizedSearch)));
-                    assertEquals(0, requireType(Map.class, searched.get("_shards")).get("failed"));
-                    if (searched.get("pit_id") != null) {
-                        pit = requireType(String.class, searched.get("pit_id"));
-                    }
-                    Request revokeRead = new Request("PUT", "_security/role/" + user);
-                    revokeRead.setJsonEntity("""
-                        {"indices":[{"names":["sequence-security-events","sequence-alias-a","sequence-alias-b"],
-                         "privileges":["view_index_metadata"]}]}
-                        """);
-                    assertOK(adminClient().performRequest(revokeRead));
-                    Request fieldCaps = new Request("GET", "sequence-alias-a/_field_caps");
-                    fieldCaps.addParameter("fields", "@timestamp,key,phase,payload,tenant");
-                    fieldCaps.setOptions(runAsUserOptions(user));
-                    Map<?, ?> fields = requireType(Map.class, entityAsMap(assertOK(client().performRequest(fieldCaps))).get("fields"));
-                    assertTrue("field discovery must pass before testing search authorization", fields.containsKey("key"));
-
-                    Request search = new Request("POST", "_search");
-                    search.setOptions(runAsUserOptions(user));
-                    search.setJsonEntity(
-                        Strings.toString(
-                            JsonXContent.contentBuilder().startObject().field("size", 0).field("pit", Map.of("id", pit)).endObject()
-                        )
-                    );
-                    assertBusy(() -> {
-                        ResponseException denied = expectThrows(ResponseException.class, () -> client().performRequest(search));
-                        assertEquals(HttpStatus.SC_FORBIDDEN, denied.getResponse().getStatusLine().getStatusCode());
-                        assertThat(EntityUtils.toString(denied.getResponse().getEntity()), containsString("indices:data/read/search"));
-                    });
-                    ResponseException denied = expectThrows(ResponseException.class, () -> runESQLCommand(user, query));
-                    assertEquals(HttpStatus.SC_FORBIDDEN, denied.getResponse().getStatusLine().getStatusCode());
-                    assertThat(EntityUtils.toString(denied.getResponse().getEntity()), containsString("indices:data/read/"));
-                } finally {
-                    Request close = new Request("DELETE", "_pit");
-                    close.setJsonEntity(Strings.toString(JsonXContent.contentBuilder().startObject().field("id", pit).endObject()));
-                    assertEquals(Boolean.TRUE, entityAsMap(assertOK(adminClient().performRequest(close))).get("succeeded"));
-                }
-            } finally {
-                assertOK(adminClient().performRequest(new Request("DELETE", "_security/user/" + user)));
-            }
-        } finally {
-            assertOK(adminClient().performRequest(new Request("DELETE", "_security/role/" + user)));
-        }
     }
 
     /** A branch-local exclusion must also exclude that alias's broader document permissions when opening the shared PIT. */

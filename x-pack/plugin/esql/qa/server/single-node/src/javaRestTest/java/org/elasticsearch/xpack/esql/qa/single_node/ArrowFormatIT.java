@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.qa.single_node;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.arrow.memory.RootAllocator;
+import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.VarBinaryVector;
@@ -366,6 +367,91 @@ public class ArrowFormatIT extends ESRestTestCase {
             assertFalse(histogram.isNull(2));
             assertEquals(List.of(), values.getObject(2));
             assertEquals(List.of(), counts.getObject(2));
+        }
+    }
+
+    /** Indexed exponential histograms preserve bucket pairs, summary values, zero thresholds, and empty values. */
+    public void testExponentialHistogram() throws Exception {
+        Request request = new Request("PUT", "/arrow-exponential-histogram-test");
+        request.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "value": { "type": "integer" },
+                  "histogram": { "type": "exponential_histogram" }
+                }
+              }
+            }
+            """);
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+
+        request = new Request("POST", "/_bulk?index=arrow-exponential-histogram-test&refresh=true");
+        request.setJsonEntity(
+            """
+                {"index": {"_id": "1"}}
+                {"value": 1, "histogram": {"scale": 2, "sum": 18.0, "min": -1.1, "max": 2.0, "zero": {"count": 3, "threshold": 0.5}, "positive": {"indices": [1, 3], "counts": [5, 7]}, "negative": {"indices": [-1], "counts": [2]}}}
+                {"index": {"_id": "2"}}
+                {"value": 2}
+                {"index": {"_id": "3"}}
+                {"value": 3, "histogram": {"scale": 1, "zero": {"threshold": 1.25}}}
+                """
+        );
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+
+        try (VectorSchemaRoot root = esql("""
+            {
+                "query": "FROM arrow-exponential-histogram-test | SORT value | LIMIT 100 | KEEP histogram"
+            }""")) {
+            assertEquals(3, root.getRowCount());
+            StructVector histogram = (StructVector) root.getVector("histogram");
+            Field field = histogram.getField();
+            assertEquals(Types.MinorType.STRUCT.getType(), field.getType());
+            assertTrue(field.isNullable());
+            assertEquals("exponential_histogram", field.getMetadata().get("elastic:type"));
+            assertEquals(
+                List.of("scale", "sum", "min", "max", "zero", "positive", "negative"),
+                field.getChildren().stream().map(Field::getName).toList()
+            );
+            for (Field child : field.getChildren()) {
+                assertEquals(child.getName(), List.of("sum", "min", "max").contains(child.getName()), child.isNullable());
+            }
+
+            IntVector scale = (IntVector) histogram.getChild("scale");
+            Float8Vector sum = (Float8Vector) histogram.getChild("sum");
+            Float8Vector min = (Float8Vector) histogram.getChild("min");
+            Float8Vector max = (Float8Vector) histogram.getChild("max");
+            StructVector zero = (StructVector) histogram.getChild("zero");
+            StructVector positive = (StructVector) histogram.getChild("positive");
+            StructVector negative = (StructVector) histogram.getChild("negative");
+            assertEquals(List.of("count", "threshold"), zero.getField().getChildren().stream().map(Field::getName).toList());
+            assertEquals(List.of("indices", "counts"), positive.getField().getChildren().stream().map(Field::getName).toList());
+            assertEquals(List.of("indices", "counts"), negative.getField().getChildren().stream().map(Field::getName).toList());
+
+            assertFalse(histogram.isNull(0));
+            assertEquals(2, scale.get(0));
+            assertEquals(18.0, sum.get(0), 0.0);
+            assertEquals(-1.1, min.get(0), 0.0);
+            assertEquals(2.0, max.get(0), 0.0);
+            assertEquals(3L, ((BigIntVector) zero.getChild("count")).get(0));
+            assertEquals(0.5, ((Float8Vector) zero.getChild("threshold")).get(0), 0.0);
+            assertEquals(List.of(1L, 3L), ((ListVector) positive.getChild("indices")).getObject(0));
+            assertEquals(List.of(5L, 7L), ((ListVector) positive.getChild("counts")).getObject(0));
+            assertEquals(List.of(-1L), ((ListVector) negative.getChild("indices")).getObject(0));
+            assertEquals(List.of(2L), ((ListVector) negative.getChild("counts")).getObject(0));
+
+            assertTrue(histogram.isNull(1));
+            assertTrue(sum.isNull(1));
+            assertTrue(min.isNull(1));
+            assertTrue(max.isNull(1));
+            assertFalse(histogram.isNull(2));
+            assertEquals(1, scale.get(2));
+            assertTrue(sum.isNull(2));
+            assertTrue(min.isNull(2));
+            assertTrue(max.isNull(2));
+            assertEquals(0L, ((BigIntVector) zero.getChild("count")).get(2));
+            assertEquals(1.25, ((Float8Vector) zero.getChild("threshold")).get(2), 0.0);
+            assertEquals(List.of(), ((ListVector) positive.getChild("indices")).getObject(2));
+            assertEquals(List.of(), ((ListVector) negative.getChild("counts")).getObject(2));
         }
     }
 

@@ -1334,7 +1334,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     enrichFields
                 );
             } else {
-                String error = context.enrichResolution().getError(plan.source());
+                // A policy failure would hide that a remote ENRICH after an EQL source is rejected wherever the policy lives.
+                String error = plan.mode() == Enrich.Mode.REMOTE ? Enrich.remoteEnrichAfterEqlError(plan.child()) : null;
+                if (error == null) {
+                    error = context.enrichResolution().getError(plan.source());
+                }
                 var policyNameExp = new UnresolvedAttribute(plan.policyName().source(), policyName, error);
                 return new Enrich(plan.source(), plan.child(), plan.mode(), policyNameExp, plan.matchField(), null, Map.of(), List.of());
             }

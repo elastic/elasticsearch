@@ -50,6 +50,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -157,6 +158,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
@@ -3026,6 +3028,115 @@ public class CompositeRolesStoreTests extends ESTestCase {
         var cached3 = Iterators.toList(compositeRolesStore.cachedRoles().iterator());
         assertThat(cached3, hasSize(1));
         assertThat(cached3.getFirst(), is(cached2.getFirst()));
+    }
+
+    /**
+     * Each selective invalidation must remove exactly the matching entries from the role cache and the negative-lookup cache,
+     * across projects, and leave every other entry cached.
+     */
+    public void testSelectiveInvalidationRemovesOnlyMatchingEntries() {
+        final FileRolesStore fileRolesStore = mock(FileRolesStore.class);
+        doCallRealMethod().when(fileRolesStore).accept(anySet(), anyActionListener());
+        when(fileRolesStore.roleDescriptors(anySet())).thenAnswer(invocation -> {
+            final Set<String> names = invocation.getArgument(0);
+            return names.stream()
+                .filter(name -> name.startsWith("role-"))
+                .map(name -> new RoleDescriptor(name, null, null, null))
+                .collect(Collectors.toSet());
+        });
+        // the default mock fails every lookup, which prevents roles with an unknown name from being cached
+        final NativeRolesStore nativeRolesStore = mock(NativeRolesStore.class);
+        doCallRealMethod().when(nativeRolesStore).accept(anySet(), anyActionListener());
+        doAnswer((invocationOnMock) -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<RoleRetrievalResult> callback = (ActionListener<RoleRetrievalResult>) invocationOnMock.getArguments()[1];
+            callback.onResponse(RoleRetrievalResult.success(Collections.emptySet()));
+            return null;
+        }).when(nativeRolesStore).getRoleDescriptors(isASet(), anyActionListener());
+
+        final ProjectId project1 = randomUniqueProjectId();
+        final ProjectId project2 = randomUniqueProjectId();
+        final AtomicReference<ProjectId> currentProject = new AtomicReference<>();
+        final ProjectResolver projectResolver = TestProjectResolvers.singleProject(currentProject::get);
+        final List<Set<String>> roleNameSets = List.of(
+            Set.of("role-a"),
+            Set.of("role-b"),
+            Set.of("role-a", "role-c"),
+            Set.of("role-b", "missing")
+        );
+        final Set<Tuple<ProjectId, Set<String>>> allKeys = new HashSet<>();
+        for (ProjectId projectId : List.of(project1, project2)) {
+            for (Set<String> names : roleNameSets) {
+                allKeys.add(new Tuple<>(projectId, names));
+            }
+        }
+
+        final Supplier<CompositeRolesStore> populatedStore = () -> {
+            final CompositeRolesStore store = buildCompositeRolesStore(
+                Settings.EMPTY,
+                null,
+                fileRolesStore,
+                nativeRolesStore,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                projectResolver
+            );
+            for (ProjectId projectId : List.of(project1, project2)) {
+                currentProject.set(projectId);
+                for (Set<String> names : roleNameSets) {
+                    getRoleForRoleNames(store, names.toArray(String[]::new));
+                }
+                assertTrue(store.isValueInNegativeLookupCache("missing", projectId));
+            }
+            assertThat(cachedRoleKeys(store), equalTo(allKeys));
+            currentProject.set(project1);
+            return store;
+        };
+
+        final CompositeRolesStore invalidatedRole = populatedStore.get();
+        invalidatedRole.invalidate("role-a");
+        assertThat(
+            cachedRoleKeys(invalidatedRole),
+            equalTo(remainingKeys(allKeys, key -> key.v1().equals(project1) && key.v2().contains("role-a")))
+        );
+
+        final CompositeRolesStore invalidatedClusterScopedRoles = populatedStore.get();
+        invalidatedClusterScopedRoles.invalidateClusterScopedRoles(Set.of("role-c", "missing"));
+        assertThat(
+            cachedRoleKeys(invalidatedClusterScopedRoles),
+            equalTo(remainingKeys(allKeys, key -> key.v2().contains("role-c") || key.v2().contains("missing")))
+        );
+        assertFalse(invalidatedClusterScopedRoles.isValueInNegativeLookupCache("missing", project1));
+        assertFalse(invalidatedClusterScopedRoles.isValueInNegativeLookupCache("missing", project2));
+
+        final CompositeRolesStore invalidatedProject = populatedStore.get();
+        invalidatedProject.invalidateProject(project2);
+        assertThat(cachedRoleKeys(invalidatedProject), equalTo(remainingKeys(allKeys, key -> key.v1().equals(project2))));
+        assertTrue(invalidatedProject.isValueInNegativeLookupCache("missing", project1));
+        assertFalse(invalidatedProject.isValueInNegativeLookupCache("missing", project2));
+    }
+
+    private static Set<Tuple<ProjectId, Set<String>>> cachedRoleKeys(CompositeRolesStore compositeRolesStore) {
+        final Set<Tuple<ProjectId, Set<String>>> keys = new HashSet<>();
+        for (var key : compositeRolesStore.cachedRoles()) {
+            keys.add(new Tuple<>(key.projectId(), key.value().getNames()));
+        }
+        return keys;
+    }
+
+    private static Set<Tuple<ProjectId, Set<String>>> remainingKeys(
+        Set<Tuple<ProjectId, Set<String>>> keys,
+        Predicate<Tuple<ProjectId, Set<String>>> invalidated
+    ) {
+        return keys.stream().filter(invalidated.negate()).collect(Collectors.toSet());
     }
 
     public void testCacheClearOnIndexOutOfDateChange() {

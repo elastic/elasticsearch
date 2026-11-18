@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.core.enrich.EnrichMetadata;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.enrich.EnrichPolicyTests.randomEnrichPolicy;
@@ -34,7 +35,22 @@ public class EnrichMetadataTests extends AbstractChunkedSerializingTestCase<Enri
 
     @Override
     protected EnrichMetadata mutateInstance(EnrichMetadata instance) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+        Map<String, EnrichPolicy> policies = new HashMap<>(instance.getPolicies());
+
+        switch (between(0, 2)) {
+            case 0 -> policies.put(
+                randomValueOtherThanMany(policies::containsKey, () -> randomAlphaOfLength(8)),
+                randomEnrichPolicy(randomFrom(XContentType.values()))
+            );
+            case 1 -> policies.remove(randomFrom(policies.keySet()));
+            case 2 -> {
+                String name = randomFrom(policies.keySet());
+                policies.put(name, randomValueOtherThan(policies.get(name), () -> randomEnrichPolicy(randomFrom(XContentType.values()))));
+            }
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+
+        return new EnrichMetadata(policies);
     }
 
     @Override

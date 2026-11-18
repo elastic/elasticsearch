@@ -212,9 +212,12 @@ public class ExternalWorkerFirstStateIT extends AbstractExternalDataSourceIT {
             try (var mockLog = MockLog.capture(READINESS_LOGGER)) {
                 mockLog.addExpectation(released(parked));
                 ParkFirstApplyPlugin.releaseApplier();
+                // Every node that held the worker logs this line, and the appender cannot tell which. The first
+                // line can be another node's while this coordinator still has the worker pending, so the ready set
+                // is what the following query and probe actually use.
+                assertBusy(() -> assertReleased(coordinator, parkedClusterService));
                 mockLog.awaitAllExpectationsMatched();
             }
-            assertReleased(coordinator, parkedClusterService);
             ensureStableCluster(4);
             try (var response = client(coordinator).execute(EsqlQueryAction.INSTANCE, request(dataset, true)).actionGet(TIMEOUT)) {
                 assertThat(getValuesList(response), equalTo(List.of(List.of(ROWS, ID_SUM))));

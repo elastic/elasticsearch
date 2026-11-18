@@ -84,7 +84,8 @@ unknown license content line 2
 
 
         when:
-        def runner = gradleRunner(":darwin-tar:check")
+        // run the task under test directly: under :check, checkModules fails in these fixtures and can stop the build first
+        def runner = gradleRunner(":darwin-tar:checkLicense")
         println "{runner.getClass()} = ${runner.getClass()}"
         def result = runner.buildAndFail()
         println "result.getClass() = ${result.getClass()}"
@@ -204,12 +205,38 @@ Copyright 2009-2024 Elasticsearch"""
         """
 
         when:
-        def result = gradleRunner(":darwin-tar:check").buildAndFail()
+        // run the task under test directly: under :check, checkModules fails in these fixtures and can stop the build first
+        def result = gradleRunner(":darwin-tar:checkMlCppNotice").buildAndFail()
         then:
         result.task(":darwin-tar:checkMlCppNotice").outcome == TaskOutcome.FAILED
         result.output.contains("> expected [./darwin-tar/build/tar-extracted/elasticsearch-" +
                         "${VersionProperties.getElasticsearch()}/modules/x-pack-ml/NOTICE.txt " +
                         "to contain [foo license] but it did not")
+    }
+
+    def "checkModules is stored in and reused from the configuration cache"() {
+        given:
+        buildFile << """
+            tasks.withType(AbstractArchiveTask).configureEach {
+                into("elasticsearch-${VersionProperties.getElasticsearch()}") {
+                    from 'SomeFile.txt'
+                }
+            }
+        """
+
+        when:
+        // checkModules fails in these fixtures because they have no lib directory; the cache entry is stored before
+        // any task runs, so the failure must come from the task itself and the second run must reuse the entry
+        def first = gradleRunner(":darwin-tar:checkModules").buildAndFail()
+        def second = gradleRunner(":darwin-tar:checkModules").buildAndFail()
+
+        then:
+        first.output.contains("Configuration cache entry stored.")
+        first.task(":darwin-tar:checkModules").outcome == TaskOutcome.FAILED
+        second.output.contains("Reusing configuration cache.")
+        second.task(":darwin-tar:checkModules").outcome == TaskOutcome.FAILED
+        second.output.contains("NoSuchFileException")
+        second.output.contains("tar-extracted/elasticsearch-${VersionProperties.getElasticsearch()}/lib")
     }
 
     void elasticLicense(File file = file("licenses/ELASTIC-LICENSE-2.0.txt")) {

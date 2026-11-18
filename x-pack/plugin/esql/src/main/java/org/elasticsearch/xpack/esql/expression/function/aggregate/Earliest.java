@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
+import org.elasticsearch.xpack.esql.expression.unit.UnitAware;
 
 import java.util.List;
 
@@ -32,7 +33,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 /**
  * An alias for {@link First} where the sort field (second parameter) is set to {@code @timestamp}. This is not a time series function.
  */
-public class Earliest extends AggregateFunction implements OnlySurrogateExpression, TimestampAware {
+public class Earliest extends AggregateFunction implements OnlySurrogateExpression, TimestampAware, UnitAware.PreservesUnit {
     public static final String NAME = "Earliest";
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Earliest.class).binary(Earliest::new).name("earliest");
 

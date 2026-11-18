@@ -21,6 +21,7 @@ import org.elasticsearch.action.admin.cluster.repositories.reservedstate.Reserve
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsTagsProvider;
 import org.elasticsearch.action.admin.cluster.stats.SearchTierStatsProvider;
 import org.elasticsearch.action.admin.indices.template.reservedstate.ReservedComposableIndexTemplateAction;
+import org.elasticsearch.action.bulk.EscfBulkService;
 import org.elasticsearch.action.bulk.FailureStoreMetrics;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService;
@@ -84,6 +85,8 @@ import org.elasticsearch.common.logging.DynamicContextDataProvider;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
 import org.elasticsearch.common.logging.activity.Log4jWriter;
+import org.elasticsearch.common.logging.activity.QuerySinkProvider;
+import org.elasticsearch.common.logging.activity.QuerySinkRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -93,6 +96,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
@@ -220,6 +224,7 @@ import org.elasticsearch.plugins.internal.ReloadAwarePlugin;
 import org.elasticsearch.plugins.internal.RestExtension;
 import org.elasticsearch.plugins.internal.RestoreLifecycleListener;
 import org.elasticsearch.plugins.internal.SettingsExtension;
+import org.elasticsearch.plugins.internal.ShardGenerationListener;
 import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.repositories.LocalPrimarySnapshotShardContextFactory;
 import org.elasticsearch.repositories.RepositoriesModule;
@@ -332,8 +337,9 @@ class NodeConstruction {
 
             Settings settings = constructor.createEnvironment(initialEnvironment, serviceProvider, pluginsLoader);
             constructor.loadLoggingDataProviders();
-            TelemetryProvider telemetryProvider = constructor.createTelemetryProvider();
-            ThreadPool threadPool = constructor.createThreadPool(settings, telemetryProvider.getMeterRegistry());
+            var threadContext = new ThreadContext(settings);
+            TelemetryProvider telemetryProvider = constructor.createTelemetryProvider(threadContext);
+            ThreadPool threadPool = constructor.createThreadPool(threadContext, settings, telemetryProvider.getMeterRegistry());
 
             final SettingsModule settingsModule;
             try (var ignored = threadPool.getThreadContext().newStoredContext()) {
@@ -544,17 +550,19 @@ class NodeConstruction {
         DynamicContextDataProvider.setDataProviders(pluginsService.loadServiceProviders(LoggingDataProvider.class));
     }
 
-    private TelemetryProvider createTelemetryProvider() {
+    private TelemetryProvider createTelemetryProvider(ThreadContext threadContext) {
         List<TelemetryLoggingFilterProvider> filterProviders = pluginsService.filterPlugins(TelemetryLoggingFilterProvider.class).toList();
         TelemetryLogResourceProvider logResourceProvider = getSinglePlugin(TelemetryLogResourceProvider.class).orElseGet(
             TelemetryLogResourceProvider.Default::new
         );
-        return getSinglePlugin(TelemetryPlugin.class).map(p -> p.getTelemetryProvider(environment, filterProviders, logResourceProvider))
-            .orElse(TelemetryProvider.NOOP);
+        return getSinglePlugin(TelemetryPlugin.class).map(
+            p -> p.getTelemetryProvider(threadContext, environment, filterProviders, logResourceProvider)
+        ).orElse(TelemetryProvider.NOOP);
     }
 
-    private ThreadPool createThreadPool(Settings settings, MeterRegistry meterRegistry) throws IOException {
+    private ThreadPool createThreadPool(ThreadContext threadContext, Settings settings, MeterRegistry meterRegistry) throws IOException {
         ThreadPool threadPool = new ThreadPool(
+            threadContext,
             settings,
             meterRegistry,
             pluginsService.loadSingletonServiceProvider(BuiltInExecutorBuilders.class, DefaultBuiltInExecutorBuilders::new),
@@ -822,6 +830,10 @@ class NodeConstruction {
         BigArrays bigArrays = serviceProvider.newBigArrays(pluginsService, pageCacheRecycler, circuitBreakerService);
 
         final RecoverySettings recoverySettings = new RecoverySettings(settings, settingsModule.getClusterSettings());
+        final ShardGenerationListener shardGenerationListener = pluginsService.loadSingletonServiceProvider(
+            ShardGenerationListener.class,
+            () -> ShardGenerationListener.NOOP
+        );
         RepositoriesModule repositoriesModule = new RepositoriesModule(
             environment,
             pluginsService.filterPlugins(RepositoryPlugin.class).toList(),
@@ -831,7 +843,8 @@ class NodeConstruction {
             bigArrays,
             xContentRegistry,
             recoverySettings,
-            telemetryProvider
+            telemetryProvider,
+            shardGenerationListener
         );
         RepositoriesService repositoriesService = repositoriesModule.getRepositoryService();
         SnapshotMetrics snapshotMetrics = repositoriesModule.getSnapshotMetrics();
@@ -1049,6 +1062,7 @@ class NodeConstruction {
         );
 
         final IndexingPressure indexingLimits = new IndexingPressure(settings);
+        final EscfBulkService escfBulkService = new EscfBulkService(indexingLimits, threadPool.generic(), bigArrays.bytesRefRecycler());
 
         final var linkedProjectConfigService = pluginsService.loadSingletonServiceProvider(
             LinkedProjectConfigService.Provider.class,
@@ -1380,7 +1394,6 @@ class NodeConstruction {
             searchModule.getFetchPhase(),
             circuitBreakerService,
             systemIndices.getExecutorSelector(),
-            telemetryProvider.getTracer(),
             onlinePrewarmingService,
             transportService.getTaskManager()
         );
@@ -1494,6 +1507,8 @@ class NodeConstruction {
             () -> Log4jWriter.PROVIDER
         );
 
+        QuerySinkRegistry querySinkRegistry = new QuerySinkRegistry(pluginsService.loadServiceProviders(QuerySinkProvider.class));
+
         ReshardingActionHelper reshardingActionHelper = new ReshardingActionHelper(clusterService, projectResolver, threadPool);
 
         modules.add(b -> {
@@ -1504,6 +1519,7 @@ class NodeConstruction {
             b.bind(UserAgentParserRegistry.class).toInstance(userAgentParserRegistry);
             b.bind(IpLocationService.class).toInstance(ipLocationService);
             b.bind(IndexingPressure.class).toInstance(indexingLimits);
+            b.bind(EscfBulkService.class).toInstance(escfBulkService);
             b.bind(IncrementalBulkService.class).toInstance(incrementalBulkService);
             b.bind(AggregationUsageService.class).toInstance(searchModule.getValuesSourceRegistry().getUsageService());
             b.bind(MetaStateService.class).toInstance(metaStateService);
@@ -1546,6 +1562,7 @@ class NodeConstruction {
             b.bind(ProjectRoutingResolver.class).toInstance(projectRoutingResolver);
             b.bind(ActionLoggingFieldsProvider.class).toInstance(loggingFieldsProvider);
             b.bind(ActivityLogWriterProvider.class).toInstance(logWriterProvider);
+            b.bind(QuerySinkRegistry.class).toInstance(querySinkRegistry);
             b.bind(DataStreamLifecycleErrorStore.class).toInstance(dlmErrorStore);
             b.bind(ReshardingActionHelper.class).toInstance(reshardingActionHelper);
         });

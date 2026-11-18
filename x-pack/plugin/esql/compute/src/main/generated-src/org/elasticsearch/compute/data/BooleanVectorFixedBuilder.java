@@ -18,6 +18,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 public final class BooleanVectorFixedBuilder implements BooleanVector.FixedBuilder {
     private final BlockFactory blockFactory;
     private final boolean[] values;
+    private final int size;
     private final long preAdjustedBytes;
     /**
      * The next value to write into. {@code -1} means the vector has already
@@ -31,6 +32,7 @@ public final class BooleanVectorFixedBuilder implements BooleanVector.FixedBuild
         preAdjustedBytes = ramBytesUsed(size);
         blockFactory.adjustBreaker(preAdjustedBytes);
         this.blockFactory = blockFactory;
+        this.size = size;
         this.values = new boolean[size];
     }
 
@@ -56,7 +58,7 @@ public final class BooleanVectorFixedBuilder implements BooleanVector.FixedBuild
 
     @Override
     public long estimatedBytes() {
-        return ramBytesUsed(values.length);
+        return ramBytesUsed(size);
     }
 
     @Override
@@ -64,13 +66,13 @@ public final class BooleanVectorFixedBuilder implements BooleanVector.FixedBuild
         if (closed) {
             throw new IllegalStateException("already closed");
         }
-        closed = true;
         BooleanVector vector;
-        if (values.length == 1) {
-            vector = blockFactory.newConstantBooleanBlockWith(values[0], 1, preAdjustedBytes).asVector();
+        if (size == 1) {
+            vector = blockFactory.newConstantBooleanVector(values[0], 1, preAdjustedBytes);
         } else {
-            vector = blockFactory.newBooleanArrayVector(values, values.length, preAdjustedBytes);
+            vector = blockFactory.newBooleanArrayVector(values, size, preAdjustedBytes);
         }
+        closed = true;
         assert vector.ramBytesUsed() == preAdjustedBytes : "fixed Builders should estimate the exact ram bytes used";
         return vector;
     }
@@ -84,6 +86,7 @@ public final class BooleanVectorFixedBuilder implements BooleanVector.FixedBuild
         }
     }
 
+    @Override
     public boolean isReleased() {
         return closed;
     }

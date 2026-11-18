@@ -314,7 +314,7 @@ public abstract class AbstractDelegatingCompoundBlock<T extends Block> extends A
     /**
      * Manages firstValueIndexes and positionCount for multi-value support.
      */
-    protected abstract static class AbstractCompositeBlockBuilder<T extends Block> implements Block.Builder {
+    public abstract static class AbstractCompositeBlockBuilder<T extends Block> implements Block.Builder {
         private int positionCount;
         private int[] firstValueIndexes;
         private int openPositionEntryStartValue = -1;
@@ -480,6 +480,10 @@ public abstract class AbstractDelegatingCompoundBlock<T extends Block> extends A
                 }
                 extraClose();
             }
+        }
+
+        public final boolean isReleased() {
+            return closed || built;
         }
 
         /**

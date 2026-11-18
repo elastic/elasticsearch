@@ -2315,7 +2315,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
     }
 
     /**
-     * Test score column is {@code MetadataAttribute} when a branch in nested UnionAll computes its own {@code _score}.
+     * Test score column is {@code ReferenceAttribute} when a branch in nested UnionAll computes its own {@code _score}.
      */
     public void testUnionAllMergesScoreAsReferenceWithNestedUnionAll() {
         for (String from : List.of(

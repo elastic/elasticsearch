@@ -1,0 +1,5 @@
+area: Profile
+issues: []
+pr: 166458
+summary: Keep shared status of failed profile lookups
+type: enhancement

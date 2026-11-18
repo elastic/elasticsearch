@@ -156,7 +156,12 @@ public abstract class BaseRestHandler implements RestHandler {
         }
     }
 
-    private boolean assertConsumesSupportedParams(@Nullable Set<String> supported, RestRequest request) {
+    /**
+     * Assertion-only method used to assert that all supported parameters have been consumed.
+     * <p>
+     * Override if a handler has specific parameter consumption behaviour that needs to be accounted for.
+     */
+    protected boolean assertConsumesSupportedParams(@Nullable Set<String> supported, RestRequest request) {
         if (supported != null) {
             Set<String> supportedAndCommon = new TreeSet<>(supported);
             supportedAndCommon.add("error_trace");

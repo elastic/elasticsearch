@@ -43,6 +43,13 @@ dependencies {
   runtimeOnly 'com.google.oauth-client:google-oauth-client:1.39.0'
   implementation 'com.google.api-client:google-api-client:2.7.2'
   implementation 'com.google.http-client:google-http-client:2.2.0'
+  implementation 'com.google.http-client:google-http-client-apache-v5:2.2.0'
+  implementation "org.apache.httpcomponents.client5:httpclient5:${versions.httpclient5}"
+  implementation "org.apache.httpcomponents.core5:httpcore5:${versions.httpcore5}"
+  // httpclient5 references the HTTP/2 version policy classes even for the classic (blocking) client
+  runtimeOnly "org.apache.httpcomponents.core5:httpcore5-h2:${versions.httpcore5}"
+  // httpclient5 logs through slf4j (slf4j-api is already a dependency of the Google SDK); route it into log4j like repository-s3
+  runtimeOnly "org.apache.logging.log4j:log4j-slf4j2-impl:${versions.log4j}"
   runtimeOnly 'com.google.http-client:google-http-client-gson:2.2.0'
   runtimeOnly 'com.google.http-client:google-http-client-appengine:2.2.0'
   runtimeOnly 'com.google.http-client:google-http-client-jackson2:2.2.0'
@@ -85,6 +92,8 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /jackson.*/, to: 'jackson'
   mapping from: /woodstox-core.*/, to: 'woodstox-core'
   mapping from: /stax2-api.*/, to: 'stax2-api'
+  mapping from: /httpcore5|httpcore5-h2/, to: 'httpclient5'
+  mapping from: /log4j.*/, to: 'log4j'
 }
 
 tasks.named("thirdPartyAudit").configure {
@@ -168,8 +177,18 @@ tasks.named("thirdPartyAudit").configure {
     'org.apache.http.protocol.HttpProcessor',
     'org.apache.http.protocol.HttpRequestExecutor',
 
-    // optional Conscrypt TLS provider referenced by gax
+    // optional Conscrypt TLS provider referenced by gax and httpclient5
     'org.conscrypt.Conscrypt',
+
+    // httpclient5 optional integrations not present at runtime.
+    'com.aayushatharva.brotli4j.decoder.DecoderJNI$Status',
+    'com.aayushatharva.brotli4j.decoder.DecoderJNI$Wrapper',
+    'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
+    'com.aayushatharva.brotli4j.encoder.EncoderJNI$Operation',
+    'com.aayushatharva.brotli4j.encoder.EncoderJNI$Wrapper',
+    'com.github.luben.zstd.ZstdDecompressCtx',
+    'com.github.luben.zstd.ZstdDirectBufferCompressingStream',
+    'org.apache.commons.compress.compressors.CompressorStreamFactory',
 
     // grpc/proto stuff
     'com.google.api.gax.grpc.GrpcCallContext',

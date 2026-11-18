@@ -11,9 +11,9 @@ package org.elasticsearch.repositories.gcs;
 
 import com.google.api.client.googleapis.GoogleUtils;
 import com.google.api.client.http.HttpRequestInitializer;
-import com.google.api.client.http.HttpTransport;
-import com.google.api.client.http.javanet.NetHttpTransport;
+import com.google.api.client.http.apache.v5.Apache5HttpTransport;
 import com.google.api.client.util.SecurityUtils;
+import com.google.api.client.util.SslUtils;
 import com.google.api.gax.retrying.ResultRetryAlgorithm;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.auth.oauth2.ServiceAccountCredentials;
@@ -22,6 +22,19 @@ import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.StorageOptions;
 import com.google.cloud.storage.StorageRetryStrategy;
 
+import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
+import org.apache.hc.client5.http.impl.routing.SystemDefaultRoutePlanner;
+import org.apache.hc.client5.http.ssl.DefaultClientTlsStrategy;
+import org.apache.hc.client5.http.ssl.HttpsSupport;
+import org.apache.hc.client5.http.ssl.TlsSocketStrategy;
+import org.apache.hc.core5.http.ConnectionClosedException;
+import org.apache.hc.core5.http.ConnectionRequestTimeoutException;
+import org.apache.hc.core5.http.HttpHost;
+import org.apache.hc.core5.http.NoHttpResponseException;
+import org.apache.hc.core5.http.io.SocketConfig;
+import org.apache.hc.core5.reactor.ssl.SSLBufferMode;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
@@ -38,6 +51,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
@@ -47,17 +61,21 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
+import java.net.InetSocketAddress;
 import java.net.Proxy;
+import java.net.ProxySelector;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.net.URL;
 import java.net.UnknownHostException;
+import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLException;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -148,50 +166,120 @@ public class GoogleCloudStorageService {
     private MeteredStorage createClient(GoogleCloudStorageClientSettings gcsClientSettings, GcsRepositoryStatsCollector statsCollector)
         throws IOException {
 
-        final NetHttpTransport.Builder builder = new NetHttpTransport.Builder();
-        // requires java.lang.RuntimePermission "setFactory"
-        // Pin the TLS trust certificates.
-        // We manually load the key store from jks instead of using GoogleUtils.getCertificateTrustStore() because that uses a .p12
-        // store format not compatible with FIPS mode.
-        final HttpTransport httpTransport;
+        final Apache5HttpTransport httpTransport;
         try {
-            final KeyStore certTrustStore = SecurityUtils.getJavaKeyStore();
-            try (InputStream keyStoreStream = GoogleUtils.class.getResourceAsStream("google.jks")) {
-                SecurityUtils.loadKeyStore(certTrustStore, keyStoreStream, "notasecret");
-            }
-            builder.trustCertificates(certTrustStore);
-            Proxy proxy = gcsClientSettings.getProxy();
-            if (proxy != null) {
-                builder.setProxy(proxy);
-                notifyProxyIsSet(proxy);
-            }
-            httpTransport = builder.build();
-        } catch (RuntimeException | IOException e) {
-            throw e;
-        } catch (Exception e) {
+            httpTransport = createHttpTransport(gcsClientSettings);
+        } catch (GeneralSecurityException e) {
             throw new RuntimeException(e);
         }
 
-        final HttpTransportOptions httpTransportOptions = new HttpTransportOptions(
-            HttpTransportOptions.newBuilder()
-                .setConnectTimeout(toTimeout(gcsClientSettings.getConnectTimeout()))
-                .setReadTimeout(toTimeout(gcsClientSettings.getReadTimeout()))
-                .setHttpTransportFactory(() -> httpTransport)
-        ) {
+        try {
+            final HttpTransportOptions httpTransportOptions = new HttpTransportOptions(
+                HttpTransportOptions.newBuilder()
+                    .setConnectTimeout(toTimeout(gcsClientSettings.getConnectTimeout()))
+                    .setReadTimeout(toTimeout(gcsClientSettings.getReadTimeout()))
+                    .setHttpTransportFactory(() -> httpTransport)
+            ) {
 
-            @Override
-            public HttpRequestInitializer getHttpRequestInitializer(ServiceOptions<?, ?> serviceOptions) {
-                HttpRequestInitializer requestInitializer = super.getHttpRequestInitializer(serviceOptions);
+                @Override
+                public HttpRequestInitializer getHttpRequestInitializer(ServiceOptions<?, ?> serviceOptions) {
+                    HttpRequestInitializer requestInitializer = super.getHttpRequestInitializer(serviceOptions);
 
-                return (httpRequest) -> {
-                    if (requestInitializer != null) requestInitializer.initialize(httpRequest);
-                    httpRequest.setResponseInterceptor(GcsRepositoryStatsCollector.METERING_INTERCEPTOR);
-                };
+                    return (httpRequest) -> {
+                        if (requestInitializer != null) requestInitializer.initialize(httpRequest);
+                        httpRequest.setResponseInterceptor(GcsRepositoryStatsCollector.METERING_INTERCEPTOR);
+                    };
+                }
+            };
+
+            final StorageOptions storageOptions = createStorageOptions(gcsClientSettings, httpTransportOptions);
+            return new MeteredStorage(storageOptions.getService(), statsCollector, httpTransport);
+        } catch (RuntimeException e) {
+            try {
+                httpTransport.shutdown();
+            } catch (IOException shutdownException) {
+                e.addSuppressed(shutdownException);
             }
-        };
+            throw e;
+        }
+    }
 
-        final StorageOptions storageOptions = createStorageOptions(gcsClientSettings, httpTransportOptions);
-        return new MeteredStorage(storageOptions.getService(), statsCollector);
+    /**
+     * Builds the Apache HttpClient based transport that carries every request of a client: storage requests, resumable upload
+     * sessions and access token refreshes. It is configured to behave like the JDK {@code HttpURLConnection} based transport it
+     * replaced where that matters to us (pinned Google trust store, {@code https.protocols}/{@code https.cipherSuites} system
+     * properties, explicit or JVM-wide proxies, no transparent redirects or retries) and additionally bounds the number of
+     * concurrent connections with {@link GoogleCloudStorageClientSettings#MAX_CONNECTIONS_SETTING}.
+     */
+    Apache5HttpTransport createHttpTransport(GoogleCloudStorageClientSettings gcsClientSettings) throws IOException,
+        GeneralSecurityException {
+        // Pin the TLS trust certificates.
+        // We manually load the key store from jks instead of using GoogleUtils.getCertificateTrustStore() because that uses a .p12
+        // store format not compatible with FIPS mode.
+        final KeyStore certTrustStore = SecurityUtils.getJavaKeyStore();
+        try (InputStream keyStoreStream = GoogleUtils.class.getResourceAsStream("google.jks")) {
+            SecurityUtils.loadKeyStore(certTrustStore, keyStoreStream, "notasecret");
+        }
+        // Same SSLContext construction as NetHttpTransport.Builder#trustCertificates
+        final SSLContext sslContext = SslUtils.initSslContext(
+            SslUtils.getTlsSslContext(),
+            certTrustStore,
+            SslUtils.getPkixTrustManagerFactory()
+        );
+        // HttpsURLConnection honours https.protocols and https.cipherSuites, keep doing so
+        final TlsSocketStrategy tlsSocketStrategy = new DefaultClientTlsStrategy(
+            sslContext,
+            HttpsSupport.getSystemProtocols(),
+            HttpsSupport.getSystemCipherSuits(),
+            SSLBufferMode.STATIC,
+            HttpsSupport.getDefaultHostnameVerifier()
+        );
+
+        final Proxy proxy = gcsClientSettings.getProxy();
+        final SocketConfig.Builder socketConfig = SocketConfig.custom();
+        if (proxy != null && proxy.type() == Proxy.Type.SOCKS) {
+            // SOCKS proxies are a socket level concern for HttpClient, there is no route planner for them
+            socketConfig.setSocksProxyAddress(proxy.address());
+        }
+
+        final int maxConnections = gcsClientSettings.getMaxConnections();
+        final PoolingHttpClientConnectionManager connectionManager = PoolingHttpClientConnectionManagerBuilder.create()
+            .setTlsSocketStrategy(tlsSocketStrategy)
+            .setDefaultSocketConfig(socketConfig.build())
+            // all requests of a client go to the same host, so the per-route limit is the effective one
+            .setMaxConnTotal(maxConnections)
+            .setMaxConnPerRoute(maxConnections)
+            .build();
+
+        final HttpClientBuilder httpClientBuilder = HttpClientBuilder.create()
+            .setConnectionManager(connectionManager)
+            // the Google SDK follows redirects itself
+            .disableRedirectHandling()
+            // retries are driven by the Google SDK retry strategy and by RetryingInputStream, never by HttpClient
+            .disableAutomaticRetries()
+            // the Google SDK requests and decodes gzip itself; HttpClient's transparent decoding would strip the Content-Length header
+            // that both the SDK and GoogleCloudStorageRetryingInputStream rely on
+            .disableContentCompression()
+            .disableCookieManagement()
+            // closing a partially read response discards the connection instead of draining the body on the closing thread
+            .addExecInterceptorFirst(DiscardConnectionOnEarlyCloseExec.NAME, new DiscardConnectionOnEarlyCloseExec());
+        if (proxy == null) {
+            // like URL#openConnection(), consult the JVM-wide proxy configuration (http.proxyHost, https.proxyHost, http.nonProxyHosts)
+            httpClientBuilder.setRoutePlanner(new SystemDefaultRoutePlanner(ProxySelector.getDefault()));
+        } else {
+            if (proxy.type() == Proxy.Type.HTTP) {
+                httpClientBuilder.setProxy(toHttpHost(proxy));
+            }
+            notifyProxyIsSet(proxy);
+        }
+        return new Apache5HttpTransport(httpClientBuilder.build());
+    }
+
+    private static HttpHost toHttpHost(Proxy proxy) {
+        final InetSocketAddress address = (InetSocketAddress) proxy.address();
+        return address.getAddress() == null
+            ? new HttpHost("http", address.getHostString(), address.getPort())
+            : new HttpHost("http", address.getAddress(), address.getHostString(), address.getPort());
     }
 
     StorageOptions createStorageOptions(
@@ -244,15 +332,18 @@ public class GoogleCloudStorageService {
                 logger.warn("failed to load Application Default Credentials", e);
             }
         } else {
-            ServiceAccountCredentials serviceAccountCredentials = gcsClientSettings.getCredential();
+            // Rebuild the service account credentials so that access token refreshes go through the client's transport
+            // (trust store, proxy, connection pool) rather than through the SDK default transport.
+            final ServiceAccountCredentials.Builder credentialsBuilder = gcsClientSettings.getCredential()
+                .toBuilder()
+                .setHttpTransportFactory(httpTransportOptions.getHttpTransportFactory());
             // override token server URI
             final URI tokenServerUri = gcsClientSettings.getTokenUri();
             if (Strings.hasLength(tokenServerUri.toString())) {
-                // Rebuild the service account credentials in order to use a custom Token url.
-                // This is mostly used for testing purpose.
-                serviceAccountCredentials = serviceAccountCredentials.toBuilder().setTokenServerUri(tokenServerUri).build();
+                // Use a custom Token url. This is mostly used for testing purpose.
+                credentialsBuilder.setTokenServerUri(tokenServerUri);
             }
-            storageOptionsBuilder.setCredentials(serviceAccountCredentials);
+            storageOptionsBuilder.setCredentials(credentialsBuilder.build());
         }
         return storageOptionsBuilder.build();
     }
@@ -274,9 +365,36 @@ public class GoogleCloudStorageService {
                 if (ExceptionsHelper.unwrap(prevThrowable, SocketTimeoutException.class) != null) {
                     return true;
                 }
+                if (isRetryableHttpClientException(prevThrowable)) {
+                    return true;
+                }
                 return delegate.shouldRetry(prevThrowable, prevResponse);
             }
         );
+    }
+
+    /**
+     * Whether the throwable (or one of its causes) is a transport failure reported by Apache HttpClient that the Google SDK does
+     * not classify as retryable because it is neither a {@link SocketException} nor a {@link SocketTimeoutException}. The JDK
+     * {@code HttpURLConnection} transport reported the same failures as retryable exception types:
+     * <ul>
+     * <li>{@link NoHttpResponseException}: the (pooled) connection was closed by the server before the response started, typically a
+     * keep-alive connection that went stale. {@code HttpURLConnection} either retried this transparently or threw a
+     * {@code SocketException}.</li>
+     * <li>{@link ConnectionClosedException}: the connection was closed in the middle of a response, for example a body shorter than
+     * its {@code Content-Length}. {@code HttpURLConnection} threw {@code IOException("Premature EOF")} which the SDK translates to a
+     * retryable {@code connectionClosedPrematurely} error.</li>
+     * <li>{@link ConnectionRequestTimeoutException}: no pooled connection became available within the connect timeout. This has no
+     * {@code HttpURLConnection} equivalent since it did not limit the number of connections. It is a transient congestion condition
+     * like a connect timeout, which is retried.</li>
+     * </ul>
+     * Connect timeouts ({@code ConnectTimeoutException}) and connection refusals ({@code HttpHostConnectException}) extend
+     * {@link SocketTimeoutException} and {@link SocketException} respectively and are already classified correctly by the SDK.
+     */
+    static boolean isRetryableHttpClientException(Throwable throwable) {
+        return ExceptionsHelper.unwrap(throwable, NoHttpResponseException.class) != null
+            || ExceptionsHelper.unwrap(throwable, ConnectionClosedException.class) != null
+            || ExceptionsHelper.unwrap(throwable, ConnectionRequestTimeoutException.class) != null;
     }
 
     /**
@@ -536,10 +654,14 @@ public class GoogleCloudStorageService {
         }
 
         synchronized void closeRepositoryClients(String repositoryName) {
+            final MeteredStorage removed = clientCache.get(repositoryName);
             clientCache = clientCache.entrySet()
                 .stream()
                 .filter(entry -> entry.getKey().equals(repositoryName) == false)
                 .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
+            // Release the pooled connections of the client, the repository is closed. Clients dropped on settings reload are
+            // deliberately not closed since callers may still be using them; their connection pools are reclaimed by GC.
+            IOUtils.closeWhileHandlingException(removed);
         }
 
         // package private for tests

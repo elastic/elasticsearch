@@ -8,7 +8,6 @@
  */
 package org.elasticsearch.repositories.gcs;
 
-import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.services.storage.StorageScopes;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 
@@ -134,6 +133,19 @@ public class GoogleCloudStorageClientSettings {
         (key) -> Setting.intSetting(key, 5, 0, Setting.Property.NodeScope)
     );
 
+    /**
+     * The maximum number of concurrent HTTP connections a client opens to Google Cloud Storage (and to its proxy, if one is
+     * configured). Connections are pooled and reused across requests. A request that needs a connection while all of them are in use
+     * waits for one to be released for at most {@link #CONNECT_TIMEOUT_SETTING}.
+     * <p>
+     * Default to 50 to match the S3 and Azure repositories.
+     */
+    static final Setting.AffixSetting<Integer> MAX_CONNECTIONS_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "max_connections",
+        (key) -> Setting.intSetting(key, 50, 1, Setting.Property.NodeScope)
+    );
+
     /** The maximum number of megabytes to copy for each copy RPC call. */
     static final Setting.AffixSetting<Long> MEGABYTES_COPIED_PER_CHUNK_SETTING = Setting.affixKeySetting(
         PREFIX,
@@ -185,6 +197,9 @@ public class GoogleCloudStorageClientSettings {
 
     private final int maxRetries;
 
+    /** The maximum number of concurrent HTTP connections. */
+    private final int maxConnections;
+
     /** The maximum number of megabytes to copy for each copy RPC call. */
     private final long megabytesCopiedPerChunk;
 
@@ -204,6 +219,7 @@ public class GoogleCloudStorageClientSettings {
         final URI tokenUri,
         final Proxy proxy,
         final int maxRetries,
+        final int maxConnections,
         final long megabytesCopiedPerChunk,
         final boolean tenaciousRetriesEnabled,
         final OptionalInt resumableWriteBufferSize
@@ -217,6 +233,7 @@ public class GoogleCloudStorageClientSettings {
         this.tokenUri = tokenUri;
         this.proxy = proxy;
         this.maxRetries = maxRetries;
+        this.maxConnections = maxConnections;
         this.megabytesCopiedPerChunk = megabytesCopiedPerChunk;
         this.tenaciousRetriesEnabled = tenaciousRetriesEnabled;
         this.resumableWriteBufferSize = resumableWriteBufferSize;
@@ -259,6 +276,10 @@ public class GoogleCloudStorageClientSettings {
         return maxRetries;
     }
 
+    public int getMaxConnections() {
+        return maxConnections;
+    }
+
     public long getMegabytesCopiedPerChunk() {
         return megabytesCopiedPerChunk;
     }
@@ -284,6 +305,7 @@ public class GoogleCloudStorageClientSettings {
             && Objects.equals(tokenUri, that.tokenUri)
             && Objects.equals(proxy, that.proxy)
             && maxRetries == that.maxRetries
+            && maxConnections == that.maxConnections
             && megabytesCopiedPerChunk == that.megabytesCopiedPerChunk
             && tenaciousRetriesEnabled == that.tenaciousRetriesEnabled
             && Objects.equals(resumableWriteBufferSize, that.resumableWriteBufferSize);
@@ -301,6 +323,7 @@ public class GoogleCloudStorageClientSettings {
             tokenUri,
             proxy,
             maxRetries,
+            maxConnections,
             megabytesCopiedPerChunk,
             tenaciousRetriesEnabled,
             resumableWriteBufferSize
@@ -338,7 +361,7 @@ public class GoogleCloudStorageClientSettings {
             ? OptionalInt.of(Math.toIntExact(concreteResumableWriteBufferSizeSetting.get(settings).getBytes()))
             : OptionalInt.empty();
         return new GoogleCloudStorageClientSettings(
-            loadCredential(settings, clientName, proxy),
+            loadCredential(settings, clientName),
             getConfigValue(settings, clientName, ENDPOINT_SETTING),
             getConfigValue(settings, clientName, PROJECT_ID_SETTING),
             getConfigValue(settings, clientName, CONNECT_TIMEOUT_SETTING),
@@ -347,6 +370,7 @@ public class GoogleCloudStorageClientSettings {
             getConfigValue(settings, clientName, TOKEN_URI_SETTING),
             proxy,
             getConfigValue(settings, clientName, MAX_RETRIES_SETTING),
+            getConfigValue(settings, clientName, MAX_CONNECTIONS_SETTING),
             getConfigValue(settings, clientName, MEGABYTES_COPIED_PER_CHUNK_SETTING),
             getConfigValue(settings, clientName, GCS_TENACIOUS_RETRIES_ENABLED_SETTING),
             resumableWriteBufferSize
@@ -356,6 +380,10 @@ public class GoogleCloudStorageClientSettings {
     /**
      * Loads the service account file corresponding to a given client name. If no
      * file is defined for the client, a {@code null} credential is returned.
+     * <p>
+     * The returned credentials carry the SDK default HTTP transport. {@link GoogleCloudStorageService} replaces it with the
+     * client's own transport (trust store, proxy and connection pool) when it builds the storage client, so that access token
+     * refreshes share the same configuration as the storage requests.
      *
      * @param settings
      *            the {@link Settings}
@@ -365,7 +393,7 @@ public class GoogleCloudStorageClientSettings {
      * @return the {@link ServiceAccountCredentials} to use for the given client,
      *         {@code null} if no service account is defined.
      */
-    static ServiceAccountCredentials loadCredential(final Settings settings, final String clientName, @Nullable Proxy proxy) {
+    static ServiceAccountCredentials loadCredential(final Settings settings, final String clientName) {
         final var credentialsFileSetting = CREDENTIALS_FILE_SETTING.getConcreteSettingForNamespace(clientName);
         try {
             if (credentialsFileSetting.exists(settings) == false) {
@@ -375,8 +403,7 @@ public class GoogleCloudStorageClientSettings {
             }
             try (InputStream credStream = credentialsFileSetting.get(settings)) {
                 final Collection<String> scopes = Collections.singleton(StorageScopes.DEVSTORAGE_FULL_CONTROL);
-                NetHttpTransport netHttpTransport = new NetHttpTransport.Builder().setProxy(proxy).build();
-                final ServiceAccountCredentials credentials = ServiceAccountCredentials.fromStream(credStream, () -> netHttpTransport);
+                final ServiceAccountCredentials credentials = ServiceAccountCredentials.fromStream(credStream);
                 if (credentials.createScopedRequired()) {
                     return (ServiceAccountCredentials) credentials.createScoped(scopes);
                 }

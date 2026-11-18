@@ -68,6 +68,7 @@ import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomP
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.APPLICATION_NAME_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.CONNECT_TIMEOUT_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.GCS_TENACIOUS_RETRIES_ENABLED_SETTING;
+import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.MAX_CONNECTIONS_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.MAX_RETRIES_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.MEGABYTES_COPIED_PER_CHUNK_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.PROJECT_ID_SETTING;
@@ -311,6 +312,7 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
             new URI(getEndpointForServer(httpServer) + "/token"),
             null,
             MAX_RETRIES_SETTING.getDefault(Settings.EMPTY),
+            MAX_CONNECTIONS_SETTING.getDefault(Settings.EMPTY),
             MEGABYTES_COPIED_PER_CHUNK_SETTING.getDefault(Settings.EMPTY),
             GCS_TENACIOUS_RETRIES_ENABLED_SETTING.getDefault(Settings.EMPTY),
             OptionalInt.empty()

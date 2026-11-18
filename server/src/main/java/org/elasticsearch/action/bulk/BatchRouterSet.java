@@ -60,7 +60,7 @@ final class BatchRouterSet implements Releasable {
      * to the same index, as an alias and the index it points to. Non-null only together with {@link #routers}.
      */
     @Nullable
-    private final Map<Index, BatchModeRouter> routerByIndex;
+    private final Map<Index, BatchModeRouter> routersByIndex;
 
     /**
      * The router of each pre-built batch, found by the batch itself, which is what an item's row points to, and not by
@@ -73,7 +73,7 @@ final class BatchRouterSet implements Releasable {
         this.sole = sole;
         this.xContent = xContent;
         this.routers = null;
-        this.routerByIndex = null;
+        this.routersByIndex = null;
         this.routersByBatch = routersByBatch;
     }
 
@@ -81,7 +81,7 @@ final class BatchRouterSet implements Releasable {
         this.sole = null;
         this.xContent = false;
         this.routers = routers;
-        this.routerByIndex = new HashMap<>();
+        this.routersByIndex = new HashMap<>();
         this.routersByBatch = routersByBatch;
     }
 
@@ -254,8 +254,8 @@ final class BatchRouterSet implements Releasable {
                     + "]; the rows of an item must be in the batch registered under the name the item targets"
             );
         }
-        if (routerByIndex != null) {
-            BatchModeRouter owner = routerByIndex.putIfAbsent(concreteIndex, router);
+        if (routersByIndex != null) {
+            BatchModeRouter owner = routersByIndex.putIfAbsent(concreteIndex, router);
             if (owner != null && owner != router) {
                 throw new IllegalArgumentException(
                     "item targeting index ["

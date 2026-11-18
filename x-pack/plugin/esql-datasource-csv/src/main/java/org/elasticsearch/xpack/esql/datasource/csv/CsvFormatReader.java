@@ -564,9 +564,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * True when the pinned schema's provenance is {@code DECLARED} (set by {@code FileSourceFactory} from
      * {@link org.elasticsearch.xpack.esql.datasources.SchemaProvenance#DECLARED}), see
      * {@link org.elasticsearch.xpack.esql.datasources.spi.FormatReader#withDeclaredProvenanceBinding}. It decides only how
-     * a HEADERLESS file binds a pinned schema: a declared one by {@code col<N>} name, with no upper row-width limit (the
-     * columns it names are still the width every row must fill), an inferred one by position, bounded by the schema's
-     * width. A headered file binds by its own header whatever the provenance.
+     * a HEADERLESS file binds a pinned schema: a declared one by {@code col<N>} name, with no row-width bound either
+     * way -- such a file states no width, and the columns a mapping names are the positions to read rather than a
+     * count of the fields a row carries -- an inferred one by position, bounded from above by the schema's width. A
+     * headered file binds by its own header whatever the provenance.
      */
     private final boolean declaredProvenanceBinding;
     /**
@@ -5469,14 +5470,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
         /**
          * The width clause every width message carries: the row's own width, and the width it was measured against,
-         * named by where that width comes from. It is the file's {@code header} only when the file has one; a
-         * positional read's own width and the columns a declared headerless schema binds are both the {@code schema},
-         * which is what states the width where no header does.
+         * named by where that width comes from. It is the file's {@code header} wherever the file has one, including
+         * where an inferred schema binds that file positionally and so binds no names; it is the {@code schema} only
+         * for a headerless file, whose own width nothing states.
          */
         private String rowWidthClause(int actualFields, int expectedFields) {
-            // Discriminates on the binding, not on whether the two numbers happen to coincide: a schema that names as
-            // many columns as the file still bound the row by the FILE's width, and should say so.
-            boolean headered = schemaFieldIndex != null && bindingMaxRowWidth != HeaderBinding.NO_FILE_WIDTH;
+            // Discriminates on whether the FILE stated a width, not on whether names were bound: an inferred schema
+            // over a headered file binds positionally, and the width it is measured against is still the header's.
+            boolean headered = bindingMaxRowWidth != HeaderBinding.NO_FILE_WIDTH;
             return "[" + actualFields + "] columns, the " + (headered ? "header" : "schema") + " has [" + expectedFields + "]";
         }
 

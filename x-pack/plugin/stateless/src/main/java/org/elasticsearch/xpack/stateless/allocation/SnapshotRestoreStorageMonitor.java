@@ -18,12 +18,13 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -53,7 +54,7 @@ public class SnapshotRestoreStorageMonitor {
     private volatile TimeValue rerouteInterval;
     // Accessed only by onNewInfo callbacks. InternalClusterInfoService serializes these callbacks and
     // safely publishes their writes through the synchronized refresh handoff, even when the callback thread changes.
-    private Map<String, ClusterInfo.ReservedSpace> nodeReservations = Map.of();
+    private Map<String, Set<ShardId>> nodeReservedShards = Map.of();
     private long lastRerouteTimeMillis;
 
     public SnapshotRestoreStorageMonitor(
@@ -74,25 +75,25 @@ public class SnapshotRestoreStorageMonitor {
 
     public void onNewInfo(ClusterInfo info) {
         if (enabled == false) {
-            nodeReservations = Map.of();
+            nodeReservedShards = Map.of();
             return;
         }
         var state = clusterState.get();
         if (state.nodes().isLocalNodeElectedMaster() == false) {
-            nodeReservations = Map.of();
+            nodeReservedShards = Map.of();
             return;
         }
-        Map<String, ClusterInfo.ReservedSpace> nodeReservationsNow = new HashMap<>();
+        Map<String, Set<ShardId>> nodeReservedShardsNow = new HashMap<>();
         for (var node : state.nodes()) {
             if (node.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE)) {
                 var disk = info.getNodeMostAvailableDiskUsages().get(node.getId());
                 if (disk != null) {
-                    nodeReservationsNow.put(node.getId(), info.getReservedSpace(node.getId(), disk.path()));
+                    nodeReservedShardsNow.put(node.getId(), Set.copyOf(info.getReservedSpace(node.getId(), disk.path()).shardIds()));
                 }
             }
         }
-        boolean structuralChange = nodeReservationsNow.equals(nodeReservations) == false;
-        nodeReservations = Collections.unmodifiableMap(nodeReservationsNow);
+        boolean structuralChange = nodeReservedShardsNow.equals(nodeReservedShards) == false;
+        nodeReservedShards = Map.copyOf(nodeReservedShardsNow);
 
         boolean hasUnassignedSnapshotPrimary = state.getRoutingNodes()
             .unassigned()
@@ -106,7 +107,7 @@ public class SnapshotRestoreStorageMonitor {
         boolean intervalElapsed = (now - lastRerouteTimeMillis) >= rerouteInterval.millis();
         if (structuralChange) {
             reroute("snapshot restore storage updated", now);
-        } else if (intervalElapsed && nodeReservationsNow.isEmpty() == false) {
+        } else if (intervalElapsed && nodeReservedShardsNow.isEmpty() == false) {
             reroute("snapshot restore storage retry", now);
         }
     }

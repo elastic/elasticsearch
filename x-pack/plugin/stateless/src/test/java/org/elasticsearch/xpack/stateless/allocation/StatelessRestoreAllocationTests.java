@@ -256,7 +256,8 @@ public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
         assertTrue(primary(state, "index-0").initializing());
     }
 
-    public void testMonitorReroutesWhenStorageChangesWhileRestorePending() {
+    // Free-disk jitter must not bypass the interval (avoids thrashing); capacity opens up on the retry path.
+    public void testMonitorDoesNotRerouteImmediatelyOnFreeDiskChurn() {
         var state = new AtomicReference<>(restoreState(1));
         var sizes = new AtomicReference<>(sizes(state.get(), 50 * GB));
         var info = new AtomicReference<>(info(INDEXING_RESERVED));
@@ -293,7 +294,8 @@ public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
         assertEquals(2, reroutes.get());
     }
 
-    public void testMonitorReroutesImmediatelyOnReservedSpaceChange() {
+    // Membership changes are structural; reserved-total churn for the same shards is not (avoids thrashing).
+    public void testMonitorReroutesOnReservedShardMembershipNotTotalChurn() {
         var state = new AtomicReference<>(restoreState(1));
         var reroutes = new AtomicInteger();
         var clock = new AtomicLong(TimeValue.timeValueMinutes(10).millis());
@@ -313,11 +315,15 @@ public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
 
         clock.addAndGet(1); // well within interval
         var shardId = primary(state.get(), "index-0").shardId();
+        var disks = Map.of(NODE, new DiskUsage(NODE, NODE, PATH, TOTAL, 50 * GB));
         monitor.onNewInfo(
-            info(
-                Map.of(NODE, new DiskUsage(NODE, NODE, PATH, TOTAL, 50 * GB)),
-                Map.of(new ClusterInfo.NodeAndPath(NODE, PATH), new ClusterInfo.ReservedSpace(10 * GB, Set.of(shardId)))
-            )
+            info(disks, Map.of(new ClusterInfo.NodeAndPath(NODE, PATH), new ClusterInfo.ReservedSpace(10 * GB, Set.of(shardId))))
+        );
+        assertEquals(2, reroutes.get());
+
+        clock.addAndGet(1); // still within interval
+        monitor.onNewInfo(
+            info(disks, Map.of(new ClusterInfo.NodeAndPath(NODE, PATH), new ClusterInfo.ReservedSpace(3 * GB, Set.of(shardId))))
         );
         assertEquals(2, reroutes.get());
     }

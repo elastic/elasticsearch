@@ -36,8 +36,8 @@ public class GeoShapeHeapPressureIT extends SearchHeapPressureTestCase {
     private static final int DOCS = 500_000;
     /** Half the width of the octagon of each document, in degrees. */
     private static final double RADIUS = 0.005;
-    public static final int SMALL = 20;
-    public static final int LARGE = 4000;
+    private static final int SMALL = 20;
+    private static final int LARGE = 4000;
 
     @ClassRule
     public static ElasticsearchCluster cluster = heapConstrainedNode("256m").module("spatial")

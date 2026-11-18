@@ -277,6 +277,7 @@ public abstract class SearchHeapPressureTestCase extends HeapPressureTestCase {
      */
     protected void assertTripsOnlyWhenLarge(IntFunction<Request> request, int small, int large, String label) throws IOException {
         assertSucceeds(request.apply(small));
+        logger.info("Searching with {} items", large);
         assertCircuitBreaks(request.apply(large), label);
     }
 

@@ -29,6 +29,8 @@ import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.hamcrest.Matcher;
 
 import java.util.List;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -232,6 +234,46 @@ public class RowInTableLookupOperatorTests extends OperatorTestCase {
         ).close();
         assertThat(viaOperator.peak(), equalTo(direct.peak()));
         assertThat(viaOperator.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * Plans planned at the same time on one node can share a key block, and building may incRef and decRef it. Once
+     * the block is promoted with {@link Block#allowPassingToDifferentDriver}, concurrent builds keep its ref count
+     * balanced. A key with a null is not a vector, so it takes the direct encoder path that changes the ref count.
+     */
+    public void testConcurrentBuildsFromSharedKey() throws Exception {
+        LongBlock key;
+        try (LongBlock.Builder builder = blockFactory().newLongBlockBuilder(4)) {
+            key = builder.appendLong(1).appendLong(7).appendNull().appendLong(20).build();
+        }
+        assertNull(key.asVector());
+        key.allowPassingToDifferentDriver();
+        RowInTableLookupOperator.Key[] keys = new RowInTableLookupOperator.Key[] { new RowInTableLookupOperator.Key("foo", key) };
+        BlockFactory parent = blockFactory().parent();
+        int threads = between(2, 4);
+        CyclicBarrier barrier = new CyclicBarrier(threads);
+        Thread[] builders = new Thread[threads];
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        for (int t = 0; t < threads; t++) {
+            builders[t] = new Thread(() -> {
+                try {
+                    barrier.await();
+                    for (int i = 0; i < 100; i++) {
+                        RowInTableLookupOperator.buildLookup(parent, keys).close();
+                    }
+                } catch (Exception e) {
+                    failure.compareAndSet(null, e);
+                }
+            });
+            builders[t].start();
+        }
+        for (Thread builder : builders) {
+            builder.join();
+        }
+        assertNull(failure.get());
+        assertTrue(key.hasReferences());
+        key.close();
+        assertTrue(key.isReleased());
     }
 
     private Page keysPage(int positions) {

@@ -184,8 +184,9 @@ public class RowInTableLookupOperator extends AbstractPageMappingToIteratorOpera
 
     /**
      * Builds the table straight from the key blocks, which belong to the plan. Building may incRef and decRef them
-     * (see BatchEncoder.DirectEncoder), and those ref counts are not thread-safe. That is safe because
-     * {@link Factory#get} runs while the drivers are created, all on one thread and before any of them starts.
+     * (see BatchEncoder.DirectEncoder). Plans sent to this node's own data-node handler are not serialized, so
+     * concurrently planned plans can share these blocks. Whoever publishes a key page into a plan must call
+     * {@link Block#allowPassingToDifferentDriver} on it first so those ref counts are thread-safe.
      */
     static RowInTableLookup buildLookup(BlockFactory blockFactory, Key[] keys) {
         Block[] blocks = new Block[keys.length];

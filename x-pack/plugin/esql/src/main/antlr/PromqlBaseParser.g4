@@ -42,10 +42,6 @@ expression
 
 subqueryResolution
     : COLON (resolution=duration)?
-    | <assoc=right> TIME_VALUE_WITH_COLON op=CARET expression
-    | TIME_VALUE_WITH_COLON op=(ASTERISK | SLASH) expression
-    | TIME_VALUE_WITH_COLON op=(MINUS|PLUS) expression
-    | TIME_VALUE_WITH_COLON
     ;
 
 value
@@ -73,7 +69,7 @@ selector
     ;
 
 seriesMatcher
-    : identifier (LCB labels? RCB)?
+    : metricName (LCB labels? RCB)?
     | LCB labels RCB
     ;
 
@@ -90,13 +86,14 @@ labelList
     ;
 
 labelListItem
-    : identifier
+    : groupingLabel
     | STRING
     | NAMED_OR_POSITIONAL_DOUBLE_PARAMS
     ;
 
+// like the label list, a selector allows one trailing comma but requires a comma between matchers
 labels
-    :  label (COMMA label?)*
+    :  label (COMMA label)* COMMA?
     ;
 
 label
@@ -108,16 +105,42 @@ labelValue
     | NAMED_OR_POSITIONAL_PARAM
     ;
 
-// selectors accept NaN and Inf as label names, which the lexer reads as numbers; grouping lists do not
+// like Prometheus, a selector reads any word as a label name, NaN and Inf included
 labelName
     : identifier
     | STRING
-    | number
+    | INF_OR_NAN
     ;
 
 identifier
     : IDENTIFIER
     | nonReserved
+    ;
+
+// the keywords Prometheus also reads as metric names
+metricName
+    : IDENTIFIER
+    | AND
+    | BY
+    | OFFSET
+    | OR
+    | UNLESS
+    | WITHOUT
+    ;
+
+// the keywords Prometheus also reads as grouping labels: all but without
+groupingLabel
+    : IDENTIFIER
+    | AND
+    | BOOL
+    | BY
+    | GROUP_LEFT
+    | GROUP_RIGHT
+    | IGNORING
+    | OFFSET
+    | ON
+    | OR
+    | UNLESS
     ;
 
 evaluation
@@ -143,7 +166,7 @@ duration
     : expression
     ;
 at
-    : AT MINUS? timeValue
+    : AT (PLUS | MINUS)? timeValue
     | AT (AT_START | AT_END)
     ;
 
@@ -154,7 +177,7 @@ constant
     ;
 
 number
-    : DECIMAL_VALUE  #decimalLiteral
+    : (DECIMAL_VALUE | INF_OR_NAN)  #decimalLiteral
     | INTEGER_VALUE  #integerLiteral
     | HEXADECIMAL    #hexLiteral
     ;
@@ -164,8 +187,7 @@ string
     ;
 
 timeValue
-    : TIME_VALUE_WITH_COLON
-    | TIME_VALUE
+    : TIME_VALUE
     | number
     | NAMED_OR_POSITIONAL_PARAM
     ;

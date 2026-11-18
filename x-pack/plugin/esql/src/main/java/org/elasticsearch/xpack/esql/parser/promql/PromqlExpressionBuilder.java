@@ -107,11 +107,15 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
 
     @Override
     public String visitLabelListItem(LabelListItemContext ctx) {
-        if (ctx.identifier() != null) {
-            return visitIdentifier(ctx.identifier());
+        if (ctx.groupingLabel() != null) {
+            return ctx.groupingLabel().getText();
         }
         if (ctx.STRING() != null) {
-            return string(ctx.STRING());
+            String label = string(ctx.STRING());
+            if (label.isEmpty()) {
+                throw new ParsingException(source(ctx), "Invalid label name for grouping [{}]", label);
+            }
+            return label;
         }
 
         TerminalNode paramNode = ctx.NAMED_OR_POSITIONAL_DOUBLE_PARAMS();
@@ -145,9 +149,8 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
         if (ctx.STRING() != null) {
             return string(ctx.STRING());
         }
-        if (ctx.number() != null) {
-            Literal l = typedParsing(this, ctx.number(), Literal.class);
-            return String.valueOf(l.value());
+        if (ctx.INF_OR_NAN() != null) {
+            return ctx.INF_OR_NAN().getText();
         }
         throw new ParsingException(source(ctx), "Expected label name, got [{}]", source(ctx).text());
     }
@@ -327,25 +330,13 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
             }
             return Duration.ofSeconds(longValue);
         }
-        String timeString = null;
-        Source source;
-        var timeCtx = ctx.TIME_VALUE_WITH_COLON();
-        if (timeCtx != null) {
-            // drop leading :
-            timeString = timeCtx.getText().substring(1).trim();
-        } else {
-            timeCtx = ctx.TIME_VALUE();
-            timeString = timeCtx.getText();
-        }
-        source = source(timeCtx);
-
-        return parseTimeValue(source, timeString);
+        return parseTimeValue(source(ctx.TIME_VALUE()), ctx.TIME_VALUE().getText());
     }
 
     @Override
     public Literal visitDecimalLiteral(DecimalLiteralContext ctx) {
         Source source = source(ctx);
-        String text = ctx.getText();
+        String text = digits(ctx.getText());
 
         try {
             double value;
@@ -366,7 +357,7 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
     @Override
     public Literal visitIntegerLiteral(IntegerLiteralContext ctx) {
         Source source = source(ctx);
-        String text = ctx.getText();
+        String text = digits(ctx.getText());
 
         Number value;
 
@@ -389,7 +380,7 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
     @Override
     public Literal visitHexLiteral(HexLiteralContext ctx) {
         Source source = source(ctx);
-        String text = ctx.getText();
+        String text = digits(ctx.getText());
 
         DataType type = DataType.LONG;
         Object val;
@@ -459,6 +450,11 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
             );
         }
         return param.value().toString();
+    }
+
+    /** Drops the underscores that, like in Prometheus, may separate the digits of a number, as in 1_000. */
+    private static String digits(String number) {
+        return number.replace("_", "");
     }
 
     private static Duration parseTimeValue(Source source, String text) {

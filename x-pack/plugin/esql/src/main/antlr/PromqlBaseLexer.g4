@@ -66,8 +66,8 @@ BOOL: 'bool';
 // evaluation
 OFFSET  : 'offset';
 AT      : '@';
-AT_START: 'start()';
-AT_END  : 'end()';
+AT_START: 'start' WS_CHAR* '(' WS_CHAR* ')';
+AT_END  : 'end' WS_CHAR* '(' WS_CHAR* ')';
 
 // brackets
 LCB: '{';
@@ -80,41 +80,38 @@ RP : ')';
 COLON: ':';
 COMMA: ',';
 
+// a quoted string ends at its line; the parser validates each escape sequence
 STRING
-    : SQ  ( '\\' [abfnrtv\\'] | ~'\'' )* SQ
-    | DQ  ( '\\' [abfnrtv\\"] | ~'"'  )* DQ
+    : SQ  ( '\\' ~'\n' | ~['\\\n] )* SQ
+    | DQ  ( '\\' ~'\n' | ~["\\\n] )* DQ
     | '`'  ( ~'`' )* '`'
     ;
 
-fragment ESC_CHARS
-    : [abfnrtv\\]
-    ;
-
+// like Prometheus, a single underscore may separate digits, as in 1_000
 INTEGER_VALUE
-    : DIGIT+
+    : DIGITS
     ;
 
 DECIMAL_VALUE
-    : DIGIT+ DOT DIGIT*
-    | DOT DIGIT+
-    | DIGIT+ (DOT DIGIT*)? EXPONENT
-    | DOT DIGIT+ EXPONENT
-    | 'inf'
+    : DIGITS DOT DIGITS?
+    | DOT DIGITS
+    | DIGITS (DOT DIGITS?)? EXPONENT
+    | DOT DIGITS EXPONENT
+    ;
+
+// a number in expressions, but a name in label matchers, where Prometheus reads them as words
+INF_OR_NAN
+    : 'inf'
     | 'nan'
     ;
 
 HEXADECIMAL
-    : '0x'[0-9a-f]+
+    : '0x' '_'? HEX_DIGIT ('_'? HEX_DIGIT)*
     ;
 
 //
 // Special handling for time values to disambiguate from identifiers
 //
-
-// hack to allow colon as a time unit separator inside subquery duration to avoid the lexer picking it as an identifier
-TIME_VALUE_WITH_COLON
-    : COLON (DIGIT+ [a-z]+)+
-    ;
 
 // similar to the identifier but without a :
 TIME_VALUE
@@ -122,9 +119,11 @@ TIME_VALUE
     ;
 
 // NB: the parser needs to validates this token based on context
-// (metric vs label vs..) as it can include non-supported characters
+// (metric vs label vs..) as it can include non-supported characters.
+// A colon followed by a digit is a subquery step, as in [5m:1m], never the start of an identifier.
 IDENTIFIER
-    : [a-z_:][a-z0-9_:.]*
+    : [a-z_][a-z0-9_:.]*
+    | ':' [a-z_:][a-z0-9_:.]*
     ;
 
 NAMED_OR_POSITIONAL_DOUBLE_PARAMS
@@ -147,7 +146,7 @@ COMMENT
     ;
 
 WS
-    : [ \r\n\t]+ -> channel(HIDDEN)
+    : WS_CHAR+ -> channel(HIDDEN)
     ;
 
 // Catch-all for anything we can't recognize.
@@ -164,11 +163,23 @@ fragment DQ
     ;
 
 fragment EXPONENT
-    : 'e' [+-]? DIGIT+
+    : 'e' [+-]? DIGITS
+    ;
+
+fragment DIGITS
+    : DIGIT ('_'? DIGIT)*
     ;
 
 fragment DIGIT
     : [0-9]
+    ;
+
+fragment HEX_DIGIT
+    : [0-9a-f]
+    ;
+
+fragment WS_CHAR
+    : [ \r\n\t]
     ;
 
 fragment DOT

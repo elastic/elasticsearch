@@ -120,7 +120,8 @@ public class PromqlParserUtils {
         }
 
         String text = source.text();
-        boolean unescaped = text.startsWith("`");
+        char quote = text.charAt(0);
+        boolean unescaped = quote == '`';
 
         // remove leading/trailing chars
         text = text.substring(1, text.length() - 1);
@@ -161,11 +162,12 @@ public class PromqlParserUtils {
                     case '\\':
                         sb.append('\\');
                         break;
-                    case '\'':
-                        sb.append('\'');
-                        break;
-                    case '"':
-                        sb.append('"');
+                    // like Prometheus, only the quote that opened the string can be escaped
+                    case '\'', '"':
+                        if (chars[i] != quote) {
+                            throw new ParsingException(source, "Unknown escape sequence [\\{}]", chars[i]);
+                        }
+                        sb.append(chars[i]);
                         break;
                     case 'x':
                     case 'u':
@@ -210,6 +212,11 @@ public class PromqlParserUtils {
             code = Integer.parseInt(toParse, radix);
         } catch (NumberFormatException ex) {
             throw new ParsingException(source, "Invalid unicode character code [{}]", toParse);
+        }
+        // like Prometheus, an octal escape stops at 255 and a code point must not be a surrogate or beyond Unicode
+        int max = radix == 8 ? 0xFF : Character.MAX_CODE_POINT;
+        if (code > max || (code >= Character.MIN_SURROGATE && code <= Character.MAX_SURROGATE)) {
+            throw new ParsingException(source, "Escape sequence [{}] is an invalid Unicode code point", toParse);
         }
 
         // For \x escapes (2-digit hex), validate UTF-8 compliance

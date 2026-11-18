@@ -653,6 +653,10 @@ public class PromqlParserTests extends ESTestCase {
         // @ end()
         promql = parse("PROMQL index=test step=5m start=\"2026-01-01T00:00:00Z\" end=\"2026-01-01T01:00:00Z\" foo @ END()");
         assertThat(as(promql.promqlPlan(), InstantSelector.class).evaluation().at().value(), equalTo(promql.end().value()));
+
+        // like Prometheus, whitespace may separate the parentheses
+        promql = parse("PROMQL index=test step=5m start=\"2026-01-01T00:00:00Z\" end=\"2026-01-01T01:00:00Z\" foo @ start ( )");
+        assertThat(as(promql.promqlPlan(), InstantSelector.class).evaluation().at().value(), equalTo(promql.start().value()));
     }
 
     /**
@@ -763,6 +767,36 @@ public class PromqlParserTests extends ESTestCase {
 
         promql = parse("PROMQL index=test step=5m Inf");
         assertThat(as(promql.promqlPlan(), LiteralSelector.class).literal().value(), equalTo(Double.POSITIVE_INFINITY));
+    }
+
+    /** Like Prometheus, a single underscore may separate the digits of a number. */
+    public void testNumbersWithUnderscores() {
+        assertThat(as(parse("PROMQL index=test step=5m 1_000").promqlPlan(), LiteralSelector.class).literal().value(), equalTo(1000));
+        assertThat(as(parse("PROMQL index=test step=5m 0x_1F").promqlPlan(), LiteralSelector.class).literal().value(), equalTo(31));
+        assertThat(as(parse("PROMQL index=test step=5m 1_0.5").promqlPlan(), LiteralSelector.class).literal().value(), equalTo(10.5));
+    }
+
+    /** A selector reads NaN and Inf as label names and keeps their text, while an expression reads them as numbers. */
+    public void testInfAndNanAsLabelNames() {
+        var promql = parse("PROMQL index=test step=5m foo{Inf=\"x\", nan=\"y\"}");
+        List<LabelMatcher> matchers = as(promql.promqlPlan(), InstantSelector.class).labelMatchers().matchers();
+        assertThat(matchers.stream().map(LabelMatcher::name).toList(), equalTo(List.of("__name__", "Inf", "nan")));
+    }
+
+    /** Like Prometheus, a subquery step can be a number of seconds. */
+    public void testSubqueryStepInSeconds() {
+        Subquery subquery = parse("PROMQL index=test step=5m foo[5m:1.5]").promqlPlan().collect(Subquery.class).getFirst();
+        assertThat(subquery.resolution().value(), equalTo(Duration.ofMillis(1500)));
+    }
+
+    /** Like Prometheus, a quoted string ends at its line, while a raw string may span lines. */
+    public void testQuotedStringsEndAtTheirLine() {
+        PromqlParser parser = new PromqlParser();
+        for (String quote : List.of("\"", "'")) {
+            expectThrows(ParsingException.class, () -> parser.createStatement("foo{a=" + quote + "b\nc" + quote + "}"));
+        }
+        List<LabelMatcher> matchers = as(parser.createStatement("foo{a=`b\nc`}"), InstantSelector.class).labelMatchers().matchers();
+        assertThat(matchers.getLast().getFirstValue(), equalTo("b\nc"));
     }
 
     public void testMatchSameLabelMultipleTimesSuccess() {

@@ -146,6 +146,38 @@ foo{__name__="bar" lol};
 foo{"a"=};
 |unexpected "}" in label matching, expected string;
 
+foo{a="b",,c="d"};
+|unexpected "," in label matching, expected identifier or "}";
+foo{1="a"};
+|unexpected character inside braces: '1';
+bool;
+|unexpected <bool>;
+on;
+|unexpected <on>;
+ignoring;
+|unexpected <ignoring>;
+group_left;
+|unexpected <group_left>;
+group_right;
+|unexpected <group_right>;
+'\"';
+|unknown escape sequence U+0022 '"';
+"\'";
+|unknown escape sequence U+0027 ''';
+"\ud800";
+|escape sequence is an invalid Unicode code point;
+"\777";
+|escape sequence is an invalid Unicode code point;
+"\U00110000";
+|escape sequence is an invalid Unicode code point;
+'a\';
+|unterminated quoted string;
+1__0;
+|bad number or duration syntax: "1__";
+1_;
+|bad number or duration syntax: "1_";
+foo[5m:0s];
+|duration must be greater than 0;
 //
 // range selector
 //
@@ -234,6 +266,12 @@ topk(some_metric,);
 rate(some_metric[5m]) @ 1234;
 |1:1: parse error: @ modifier must be preceded by an instant vector selector or range vector selector or a subquery;
 
+sum by (without) (foo);
+|unexpected <without> in grouping opts, expected label;
+foo * on(without) bar;
+|unexpected <without> in grouping opts, expected label;
+sum by ("") (foo);
+|invalid label name for grouping: "";
 //
 // functions
 //

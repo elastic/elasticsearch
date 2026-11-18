@@ -13,8 +13,10 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.esql.QueryMetricsListener;
 import org.elasticsearch.xpack.esql.action.AbstractExternalDataSourceIT;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
+import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -32,6 +34,8 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
 
 /**
  * A query over an external source that fails while data nodes read it is metered with what the data nodes did. They tell the
@@ -48,6 +52,9 @@ public class ExternalFailedQueryMeteringIT extends AbstractExternalDataSourceIT 
     private static final int ROWS_PER_FILE = 20_000;
     /** Every file has a malformed row after this many rows, so a scan fails whichever data node reads it, after it read some rows. */
     private static final int MALFORMED_ROW = 15_000;
+    /** A file big enough to take many reads, whose second column has a malformed value near the start: a sub-plan reads the first. */
+    private static final int SUBPLAN_ROWS = 400_000;
+    private static final int SUBPLAN_MALFORMED_ROW = 50;
 
     @Override
     protected Collection<Class<? extends Plugin>> formatPlugins() {
@@ -78,22 +85,12 @@ public class ExternalFailedQueryMeteringIT extends AbstractExternalDataSourceIT 
 
     public void testWorkOfDataNodesIsMeteredWhenTheQueryFails() throws Exception {
         assumeFalse("Windows has bad timer resolution, metrics are not accurate", Constants.WINDOWS);
-        internalCluster().startMasterOnlyNode();
-        internalCluster().startDataOnlyNodes(2);
-        String coordinator = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
-        ensureStableCluster(4);
+        String coordinator = startClusterWithDataNodes();
 
         Path root = writeFilesWithMalformedRows();
         String dataset = registerDataset("remote_failing_ds", StoragePath.fileUri(root) + "/*.csv", Map.of("format", "csv"));
 
-        EsqlQueryRequest request = syncEsqlQueryRequest("FROM " + dataset + " | STATS s = SUM(id)");
-        request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.EXTERNAL_DISTRIBUTION.getKey(), "round_robin").build()));
-        request.acceptedPragmaRisks(true);
-        expectThrows(Exception.class, () -> {
-            try (var ignored = client(coordinator).execute(EsqlQueryAction.INSTANCE, request).actionGet(TIMEOUT)) {
-                // the scan must fail on a malformed row
-            }
-        });
+        expectThrows(Exception.class, () -> runOn(coordinator, "FROM " + dataset + " | STATS s = SUM(id)"));
 
         assertThat("the metering listener is called once", EsqlQueryMetricsCollectorIT.collectorCalls.get(), equalTo(1));
         assertThat(EsqlQueryMetricsCollectorIT.lastOutcome, equalTo(QueryMetricsListener.Outcome.FAILED));
@@ -105,6 +102,66 @@ public class ExternalFailedQueryMeteringIT extends AbstractExternalDataSourceIT 
             greaterThan(0L)
         );
         assertThat(metrics.get(QueryMetricsListener.DRIVER_NANOS), greaterThan(0L));
+    }
+
+    /**
+     * A sub-plan that completed before the query failed did work that only the session knows about, because a failure carries no
+     * completion info. The query below runs the sub-plan of {@code INLINE STATS}, which reads the first column, and then fails in the
+     * main plan on a malformed value in the second one, which the sub-plan never reads. It uses the result of the sub-plan, or the
+     * optimizer would drop it, and groups it: without a grouping the optimizer folds it into the main plan and there is no sub-plan.
+     * <p>
+     * The bytes read are what tells the work of the sub-plan from the one of the failed compute: the sub-plan reads the whole file, and
+     * the main plan fails near its start. So the usage is that of the sub-plan once, or {@code B}, plus a part of what the main plan
+     * would read, which is less than another {@code B}: a sub-plan that was lost leaves less than {@code B}, one that was counted
+     * twice leaves {@code 2B} or more. {@code B} is what the sub-plan alone reads, from a query that succeeds.
+     */
+    public void testWorkOfCompletedSubPlanIsMeteredOnceWhenTheQueryFails() throws Exception {
+        assumeFalse("Windows has bad timer resolution, metrics are not accurate", Constants.WINDOWS);
+        assumeTrue("requires INLINE STATS", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
+        String coordinator = startClusterWithDataNodes();
+
+        Path root = createTempDir().resolve("subplan_failing");
+        Files.createDirectories(root);
+        StringBuilder body = new StringBuilder("id:integer,n:integer\n");
+        for (int i = 0; i < SUBPLAN_ROWS; i++) {
+            body.append(i).append(',').append(i == SUBPLAN_MALFORMED_ROW ? "not_a_number" : Integer.toString(i)).append('\n');
+        }
+        Files.writeString(root.resolve("data.csv"), body.toString());
+        String dataset = registerDataset("subplan_failing_ds", StoragePath.fileUri(root) + "/*.csv", Map.of("format", "csv"));
+
+        // what the sub-plan reads on its own, from a query that succeeds: this also shows that it does not read the malformed column
+        runOn(coordinator, "FROM " + dataset + " | STATS m = MAX(id)").close();
+        assertThat(EsqlQueryMetricsCollectorIT.lastOutcome, equalTo(QueryMetricsListener.Outcome.SUCCESS));
+        long subPlanBytes = EsqlQueryMetricsCollectorIT.lastMetrics.get(QueryMetricsListener.BYTES_READ);
+        assertThat(subPlanBytes, greaterThan(0L));
+        resetCollectors();
+
+        expectThrows(
+            Exception.class,
+            () -> runOn(coordinator, "FROM " + dataset + " | INLINE STATS m = MAX(id) BY g = id % 10 | STATS s = SUM(n + m)")
+        );
+
+        assertThat("the metering listener is called once", EsqlQueryMetricsCollectorIT.collectorCalls.get(), equalTo(1));
+        assertThat(EsqlQueryMetricsCollectorIT.lastOutcome, equalTo(QueryMetricsListener.Outcome.FAILED));
+        long bytesRead = EsqlQueryMetricsCollectorIT.lastMetrics.get(QueryMetricsListener.BYTES_READ);
+        assertThat("the work of the sub-plan that completed is not lost", bytesRead, greaterThanOrEqualTo(subPlanBytes));
+        assertThat("the work of the sub-plan that completed is not counted twice", bytesRead, lessThan(2 * subPlanBytes));
+    }
+
+    private String startClusterWithDataNodes() {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNodes(2);
+        String coordinator = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        ensureStableCluster(4);
+        return coordinator;
+    }
+
+    /** Runs {@code query} on {@code node}, reading the external source remotely whichever data node gets the files. */
+    private EsqlQueryResponse runOn(String node, String query) {
+        EsqlQueryRequest request = syncEsqlQueryRequest(query);
+        request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.EXTERNAL_DISTRIBUTION.getKey(), "round_robin").build()));
+        request.acceptedPragmaRisks(true);
+        return client(node).execute(EsqlQueryAction.INSTANCE, request).actionGet(TIMEOUT);
     }
 
     /** CSV files whose header declares an integer column and which have a row that is not an integer. */

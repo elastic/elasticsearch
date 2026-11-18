@@ -15,6 +15,14 @@ The generator handles the following:
 
 [Bun](https://bun.sh/) is used to test and run the TypeScript. It's an alternative JavaScript runtime that natively handles TypeScript.
 
+### Merge queue suites
+
+Some suites rarely catch breakage caused by the pull request itself, so they are not part of the default pull request set: `bwc-snapshots`, `later-branch-bwc`, `rest-compatibility` and `eql-correctness`, and the packaging samples only run when a pull request touches packaging. They are meant to run in the merge queue instead, through [`.buildkite/pipelines/merge-queue.yml`](../../pipelines/merge-queue.yml). The merge queue runs everything a pull request with no labels runs, selected with the same rules against the queue entry's changes, plus those suites with the rules they had before they moved, so it covers what pull request CI covered before. Its steps are generated from the same pull request pipeline files (see [`../merge-queue/pipeline.ts`](../merge-queue/pipeline.ts)). The merge queue pipeline is not registered in Buildkite yet.
+
+Scripts written for pull requests get `MERGE_QUEUE_BASE_BRANCH` (the branch the entry merges into) and `MERGE_QUEUE_PULL_REQUEST` (the queued pull request's number) in a merge queue build, which has no pull request variables.
+
+To run them on a pull request, add the `test-merge-queue` label, or comment `run elasticsearch-ci/<name>` for a single suite.
+
 ### Pipelines Location
 
 Pipelines are in [`.buildkite/pipelines`](../../pipelines/pull-request). They are automatically picked up and given a name based on their filename.

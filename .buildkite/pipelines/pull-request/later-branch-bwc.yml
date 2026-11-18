@@ -2,6 +2,9 @@
 # snapshot built from the PR itself. Catches a change that is green on its own branch but breaks the
 # bwc tests of a later branch.
 config:
+  # Runs in the merge queue (see .buildkite/scripts/merge-queue/pipeline.ts). On a pull request it only runs with the
+  # test-merge-queue label or its "run elasticsearch-ci/<name>" comment.
+  allow-labels: test-merge-queue
   # main: nothing is ahead of it, so there is nothing to test.
   # 8.19: maintenance branch. It has three branches ahead of it and backports to this branch are
   # limited in scope making the problem of later-branch breakages exceedingly rare

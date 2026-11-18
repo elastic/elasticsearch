@@ -11,23 +11,26 @@
 
 set -euo pipefail
 
-if [[ -z "$BUILDKITE_PULL_REQUEST_BASE_BRANCH" ]]; then
-   echo "Not a pull request, skipping PR upgrade tests."
+# A merge queue build has no pull request variables; the queue passes the branch the entry merges into instead.
+BASE_BRANCH="${BUILDKITE_PULL_REQUEST_BASE_BRANCH:-${MERGE_QUEUE_BASE_BRANCH:-}}"
+
+if [[ -z "$BASE_BRANCH" ]]; then
+   echo "Not a pull request or merge queue build, skipping PR upgrade tests."
    exit 0
 fi
 
 # Identify the merge base of the current commit (branch) and the base branch of the pull request.
 # PR upgrade tests are run from the merge base to the current commit.
-git fetch origin $BUILDKITE_PULL_REQUEST_BASE_BRANCH
-BASE_COMMIT=$(git merge-base origin/$BUILDKITE_PULL_REQUEST_BASE_BRANCH $BUILDKITE_COMMIT)
+git fetch origin $BASE_BRANCH
+BASE_COMMIT=$(git merge-base origin/$BASE_BRANCH $BUILDKITE_COMMIT)
 
 VERSION=$(sed -n 's/^elasticsearch[[:space:]]*=[[:space:]]*\(.*\)/\1/p' build-tools-internal/version.properties)
 
-echo "Running PR upgrade tests from $BUILDKITE_PULL_REQUEST_BASE_BRANCH [$BASE_COMMIT] to $BUILDKITE_BRANCH [$BUILDKITE_COMMIT]."
+echo "Running PR upgrade tests from $BASE_BRANCH [$BASE_COMMIT] to $BUILDKITE_BRANCH [$BUILDKITE_COMMIT]."
 
 cat << EOF | buildkite-agent pipeline upload
 steps:
-    - group: "pr-upgrade $BUILDKITE_PULL_REQUEST_BASE_BRANCH -> $BUILDKITE_BRANCH"
+    - group: "pr-upgrade $BASE_BRANCH -> $BUILDKITE_BRANCH"
       steps:
         - label: "pr-upgrade-part-{{matrix.PART}}"
           command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints -Dtests.bwc.main.version=${VERSION}-SNAPSHOT -Dtests.bwc.refspec.main=${BASE_COMMIT} bcUpgradeTestPart{{matrix.PART}}

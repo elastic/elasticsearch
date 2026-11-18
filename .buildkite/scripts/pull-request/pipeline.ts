@@ -79,7 +79,7 @@ const changedFilesAnyIncludedCheck = (pipeline: EsPipeline, changedFiles: string
   return true;
 };
 
-const checkTargetBranch = (pipeline: EsPipeline, targetBranch: string | undefined) => {
+export const checkTargetBranch = (pipeline: EsPipeline, targetBranch: string | undefined) => {
   if (!targetBranch || !pipeline.config?.["skip-target-branches"]) {
     return true;
   }
@@ -87,9 +87,9 @@ const checkTargetBranch = (pipeline: EsPipeline, targetBranch: string | undefine
   return !getArray(pipeline.config["skip-target-branches"]).some((branch) => branch === targetBranch);
 };
 
-const triggerCommentCheck = (pipeline: EsPipeline): boolean => {
-  if (process.env["GITHUB_PR_TRIGGER_COMMENT"] && pipeline.config?.["trigger-phrase"]) {
-    return !!process.env["GITHUB_PR_TRIGGER_COMMENT"].match(pipeline.config["trigger-phrase"]);
+const triggerCommentCheck = (pipeline: EsPipeline, triggerComment: string | undefined): boolean => {
+  if (triggerComment && pipeline.config?.["trigger-phrase"]) {
+    return !!triggerComment.match(pipeline.config["trigger-phrase"]);
   }
   return false;
 };
@@ -97,7 +97,7 @@ const triggerCommentCheck = (pipeline: EsPipeline): boolean => {
 // There are so many BWC versions that we can't use the matrix feature in Buildkite, as it's limited to 20 elements per dimension
 // So we need to duplicate the steps instead
 // Recursively check for any steps that have a bwc_template attribute and expand them out into multiple steps, one for each BWC_VERSION
-const doBwcTransforms = (step: BuildkitePipeline | BuildkiteStep) => {
+export const doBwcTransforms = (step: BuildkitePipeline | BuildkiteStep) => {
   const stepsToExpand = (step.steps || []).filter((s) => s.bwc_template);
   step.steps = (step.steps || []).filter((s) => !s.bwc_template);
 
@@ -130,7 +130,7 @@ const injectRetryIntoSteps = (steps: BuildkiteStep[]) => {
 };
 
 // Inject retry blocks into a pipeline when auto-retry config is explicitly enabled
-const injectAutoRetry = (pipeline: EsPipeline) => {
+export const injectAutoRetry = (pipeline: EsPipeline) => {
   if (pipeline.config?.["auto-retry"] === false) {
     return;
   }
@@ -140,13 +140,118 @@ const injectAutoRetry = (pipeline: EsPipeline) => {
   }
 };
 
+export const readDefaults = (directory: string): EsPipelineConfig => {
+  const defaults: EsPipelineConfig = parse(readFileSync(`${directory}/.defaults.yml`, "utf-8"));
+  defaults.config = defaults.config || {};
+  return defaults;
+};
+
+// Reads one pipeline file, expands its placeholders and applies .defaults.yml.
+// Returns undefined when the pipeline has nothing to run for the target branch.
+export const loadPipeline = (
+  directory: string,
+  file: string,
+  defaults: EsPipelineConfig,
+  targetBranch: string | undefined,
+): EsPipeline | undefined => {
+  let yaml = readFileSync(`${directory}/${file}`, "utf-8");
+  if (yaml.includes("$SNAPSHOT_BWC_VERSIONS")) {
+    const snapshotBwcVersions = getIncludedSnapshotBwcVersions();
+    if (snapshotBwcVersions.length === 0) {
+      // No version has a known-good build yet, and buildkite rejects an empty matrix dimension.
+      return undefined;
+    }
+    yaml = yaml.replaceAll("$SNAPSHOT_BWC_VERSIONS", JSON.stringify(snapshotBwcVersions));
+  }
+
+  if (yaml.includes("$LATER_BRANCHES")) {
+    const laterBranches = getLaterBranches(targetBranch);
+    if (laterBranches.length === 0) {
+      // Nothing is ahead of this branch, so there is no later branch to run bwc tests from.
+      // Also guards against an empty matrix dimension, which buildkite rejects.
+      return undefined;
+    }
+    yaml = yaml.replaceAll("$LATER_BRANCHES", JSON.stringify(laterBranches));
+  }
+
+  const pipeline: EsPipeline = parse(yaml) || {};
+
+  pipeline.config = { ...defaults.config, ...(pipeline.config || {}) };
+  if (defaults.env) {
+    pipeline.env = { ...defaults.env, ...(pipeline.env || {}) };
+  }
+
+  // '.../build-benchmark.yml' => 'build-benchmark'
+  const name = basename(file).split(".", 2)[0];
+  pipeline.name = name;
+  pipeline.config["trigger-phrase"] = pipeline.config["trigger-phrase"] || `.*run\\W+elasticsearch-ci/${name}.*`;
+
+  return pipeline;
+};
+
+/**
+ * What a pipeline selection is for: the target branch, labels and trigger comment of a pull request build. The merge
+ * queue passes its own, so it selects pipelines with exactly the rules pull requests use.
+ */
+export interface PipelineSelection {
+  targetBranch: string | undefined;
+  labels: string[];
+  triggerComment: string | undefined;
+}
+
+/** The selection of the pull request this build is for, from the variables the pull request trigger sets. */
+export const pullRequestSelection = (): PipelineSelection => ({
+  targetBranch: process.env["GITHUB_PR_TARGET_BRANCH"],
+  labels: (process.env["GITHUB_PR_LABELS"] || "")
+    .split(",")
+    .map((x) => x.trim())
+    .filter((x) => x),
+  triggerComment: process.env["GITHUB_PR_TRIGGER_COMMENT"],
+});
+
+/** The files changed on this branch since it left the target branch. */
+export const changedFilesAgainst = (targetBranch: string | undefined): string[] => {
+  console.log("Doing git fetch and getting merge-base");
+  const mergeBase = execSync(`git fetch origin ${targetBranch}; git merge-base origin/${targetBranch} HEAD`, {
+    cwd: PROJECT_ROOT,
+  })
+    .toString()
+    .trim();
+
+  console.log(`Merge base: ${mergeBase}`);
+
+  const changedFiles = execSync(`git diff --name-only ${mergeBase}`, { cwd: PROJECT_ROOT })
+    .toString()
+    .trim()
+    .split("\n")
+    .map((x) => x.trim())
+    .filter((x) => x);
+
+  console.log("Changed files (first 50):");
+  console.log(changedFiles.slice(0, 50).join("\n"));
+  return changedFiles;
+};
+
+/** The rules a pipeline must pass to run for this selection and these changed files (trigger comments aside). */
+export const selectionFilters = (
+  changedFiles: string[],
+  { targetBranch, labels }: PipelineSelection,
+): ((pipeline: EsPipeline) => boolean)[] => [
+  (pipeline) => checkTargetBranch(pipeline, targetBranch),
+  (pipeline) => labelCheckAllow(pipeline, labels),
+  (pipeline) => labelCheckSkip(pipeline, labels),
+  (pipeline) => changedFilesExcludedCheck(pipeline, changedFiles),
+  (pipeline) => changedFilesIncludedCheck(pipeline, changedFiles),
+  (pipeline) => changedFilesAnyIncludedCheck(pipeline, changedFiles),
+];
+
 export const generatePipelines = (
   directory: string = `${PROJECT_ROOT}/.buildkite/pipelines/pull-request`,
   changedFiles: string[] = [],
+  selection: PipelineSelection = pullRequestSelection(),
 ) => {
-  let defaults: EsPipelineConfig = { config: {} };
-  defaults = parse(readFileSync(`${directory}/.defaults.yml`, "utf-8"));
-  defaults.config = defaults.config || {};
+  const { targetBranch, triggerComment } = selection;
+  const defaults = readDefaults(directory);
 
   let pipelines: EsPipeline[] = [];
   const files = readdirSync(directory);
@@ -155,86 +260,21 @@ export const generatePipelines = (
       continue;
     }
 
-    let yaml = readFileSync(`${directory}/${file}`, "utf-8");
-    if (yaml.includes("$SNAPSHOT_BWC_VERSIONS")) {
-      const snapshotBwcVersions = getIncludedSnapshotBwcVersions();
-      if (snapshotBwcVersions.length === 0) {
-        // No version has a known-good build yet, and buildkite rejects an empty matrix dimension.
-        continue;
-      }
-      yaml = yaml.replaceAll("$SNAPSHOT_BWC_VERSIONS", JSON.stringify(snapshotBwcVersions));
+    const pipeline = loadPipeline(directory, file, defaults, targetBranch);
+    if (pipeline) {
+      pipelines.push(pipeline);
     }
-
-    if (yaml.includes("$LATER_BRANCHES")) {
-      const laterBranches = getLaterBranches(process.env["GITHUB_PR_TARGET_BRANCH"]);
-      if (laterBranches.length === 0) {
-        // Nothing is ahead of this branch, so there is no later branch to run bwc tests from.
-        // Also guards against an empty matrix dimension, which buildkite rejects.
-        continue;
-      }
-      yaml = yaml.replaceAll("$LATER_BRANCHES", JSON.stringify(laterBranches));
-    }
-
-    const pipeline: EsPipeline = parse(yaml) || {};
-
-    pipeline.config = { ...defaults.config, ...(pipeline.config || {}) };
-    if (defaults.env) {
-      pipeline.env = { ...defaults.env, ...(pipeline.env || {}) };
-    }
-
-    // '.../build-benchmark.yml' => 'build-benchmark'
-    const name = basename(file).split(".", 2)[0];
-    pipeline.name = name;
-    pipeline.config["trigger-phrase"] = pipeline.config["trigger-phrase"] || `.*run\\W+elasticsearch-ci/${name}.*`;
-
-    pipelines.push(pipeline);
   }
-
-  const labels = (process.env["GITHUB_PR_LABELS"] || "")
-    .split(",")
-    .map((x) => x.trim())
-    .filter((x) => x);
 
   if (!changedFiles?.length) {
-    console.log("Doing git fetch and getting merge-base");
-    const mergeBase = execSync(
-      `git fetch origin ${process.env["GITHUB_PR_TARGET_BRANCH"]}; git merge-base origin/${process.env["GITHUB_PR_TARGET_BRANCH"]} HEAD`,
-      { cwd: PROJECT_ROOT },
-    )
-      .toString()
-      .trim();
-
-    console.log(`Merge base: ${mergeBase}`);
-
-    const changedFilesOutput = execSync(`git diff --name-only ${mergeBase}`, { cwd: PROJECT_ROOT }).toString().trim();
-
-    changedFiles = changedFilesOutput
-      .split("\n")
-      .map((x) => x.trim())
-      .filter((x) => x);
-
-    console.log("Changed files (first 50):");
-    console.log(changedFiles.slice(0, 50).join("\n"));
+    changedFiles = changedFilesAgainst(targetBranch);
   }
 
-  let filters: ((pipeline: EsPipeline) => boolean)[] = [
-    (pipeline) => checkTargetBranch(pipeline, process.env["GITHUB_PR_TARGET_BRANCH"]),
-    (pipeline) => labelCheckAllow(pipeline, labels),
-    (pipeline) => labelCheckSkip(pipeline, labels),
-    (pipeline) => changedFilesExcludedCheck(pipeline, changedFiles),
-    (pipeline) => changedFilesIncludedCheck(pipeline, changedFiles),
-    (pipeline) => changedFilesAnyIncludedCheck(pipeline, changedFiles),
-  ];
-
+  let filters = selectionFilters(changedFiles, selection);
   // When triggering via the "run elasticsearch-ci/step-name" comment, we ONLY want to run pipelines that match the trigger phrase, regardless of labels, etc
   // However, if we're using the overall CI trigger "[buildkite] test this [please]", we should use the regular filters above
-  if (
-    process.env["GITHUB_PR_TRIGGER_COMMENT"] &&
-    !process.env["GITHUB_PR_TRIGGER_COMMENT"].match(
-      /^\s*((@elastic(search)?machine|buildkite)\s*)?test\s+this(\s+please)?/i,
-    )
-  ) {
-    filters = [triggerCommentCheck];
+  if (triggerComment && !triggerComment.match(/^\s*((@elastic(search)?machine|buildkite)\s*)?test\s+this(\s+please)?/i)) {
+    filters = [(pipeline) => triggerCommentCheck(pipeline, triggerComment)];
   }
 
   for (const filter of filters) {

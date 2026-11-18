@@ -233,4 +233,87 @@ describe("generatePipelines", () => {
 
     expect(pipelines.map((p) => p.name)).not.toContain("bwc-snapshots");
   });
+
+  describe("real pull request pipelines", () => {
+    const PIPELINES_DIR = `${import.meta.dirname}/../../pipelines/pull-request`;
+    const MOVED_TO_MERGE_QUEUE = ["bwc-snapshots", "later-branch-bwc", "rest-compatibility", "eql-correctness"];
+    const PACKAGING_SAMPLES = ["packaging-tests-unix-sample", "packaging-tests-windows-sample"];
+
+    // 9.4 has later branches, so later-branch-bwc is not dropped for lack of them
+    const pipelineNames = (changedFiles: string[], labels = "", targetBranch = "9.4") => {
+      process.env["GITHUB_PR_TARGET_BRANCH"] = targetBranch;
+      process.env["GITHUB_PR_LABELS"] = labels;
+      return generatePipelines(PIPELINES_DIR, changedFiles).map((pipeline) => pipeline.name);
+    };
+
+    test("should not run the merge queue suites by default", () => {
+      const names = pipelineNames(["server/src/main/java/org/elasticsearch/Build.java"]);
+
+      expect(names.filter((name) => MOVED_TO_MERGE_QUEUE.includes(name!))).toEqual([]);
+      // pr-upgrade and the core parts stay on the gate
+      expect(names).toEqual(expect.arrayContaining(["part-1", "part-6", "pr-upgrade"]));
+    });
+
+    test("should run the merge queue suites with the test-merge-queue label", () => {
+      const names = pipelineNames(["server/src/main/java/org/elasticsearch/Build.java"], "test-merge-queue");
+
+      expect(names).toEqual(expect.arrayContaining(MOVED_TO_MERGE_QUEUE));
+    });
+
+    test("should still replace bwc-snapshots with full-bwc under test-full-bwc", () => {
+      const names = pipelineNames(["build.gradle"], "test-merge-queue,test-full-bwc");
+
+      expect(names).toContain("full-bwc");
+      expect(names).not.toContain("bwc-snapshots");
+    });
+
+    test.each([
+      ["run elasticsearch-ci/bwc", "bwc-snapshots"],
+      ["run elasticsearch-ci/later-branch-bwc", "later-branch-bwc"],
+      ["run elasticsearch-ci/rest-compatibility", "rest-compatibility"],
+      ["run elasticsearch-ci/eql-correctness", "eql-correctness"],
+      ["run elasticsearch-ci/packaging-tests-unix-sample", "packaging-tests-unix-sample"],
+    ])("should run a moved suite without the label when triggered by '%s'", (comment, name) => {
+      process.env["GITHUB_PR_TRIGGER_COMMENT"] = comment;
+
+      expect(pipelineNames(["build.gradle"])).toContain(name);
+    });
+
+    test("should not run the packaging samples for a change outside the packaging regions", () => {
+      const names = pipelineNames(["server/src/main/java/org/elasticsearch/Build.java", "build.gradle"]);
+
+      expect(names.filter((name) => PACKAGING_SAMPLES.includes(name!))).toEqual([]);
+    });
+
+    test.each([
+      "distribution/docker/src/docker/dockerfiles/default/Dockerfile",
+      "distribution/src/bin/elasticsearch-env",
+      "qa/packaging/src/test/java/org/elasticsearch/packaging/test/DockerTests.java",
+      ".ci/scripts/packaging-test.sh",
+      ".ci/scripts/packaging-test.ps1",
+      "build-tools-internal/version.properties",
+      "build-tools-internal/src/main/java/org/elasticsearch/gradle/internal/test/DistroTestPlugin.java",
+      "build-tools-internal/src/main/java/org/elasticsearch/gradle/internal/docker/DockerBuildTask.java",
+      "build-tools/src/main/java/org/elasticsearch/gradle/DistributionDownloadPlugin.java",
+      "x-pack/plugin/security/cli/src/main/java/org/elasticsearch/xpack/security/cli/AutoConfigureNode.java",
+    ])("should run the packaging samples when %s changes", (file) => {
+      const names = pipelineNames(["server/src/main/java/org/elasticsearch/Build.java", file]);
+
+      expect(names).toEqual(expect.arrayContaining(PACKAGING_SAMPLES));
+    });
+
+    test("should run the packaging samples for the FIPS packaging change in #161768", () => {
+      // A subset of the files changed by https://github.com/elastic/elasticsearch/pull/161768
+      const names = pipelineNames([
+        "build-tools-internal/src/main/java/org/elasticsearch/gradle/internal/test/DistroTestPlugin.java",
+        "distribution/build.gradle",
+        "distribution/src/fips/fips_java.security.overrides",
+        "libs/ssl-config/src/main/java/org/elasticsearch/common/ssl/KeyStoreUtil.java",
+        "qa/packaging/src/test/java/org/elasticsearch/packaging/test/ArchiveSecurityCliWithBcFipsTests.java",
+        "server/src/main/java/org/elasticsearch/common/settings/KeyStoreWrapper.java",
+      ]);
+
+      expect(names).toEqual(expect.arrayContaining(PACKAGING_SAMPLES));
+    });
+  });
 });

@@ -2,6 +2,5 @@ area: ILM
 issues:
  - 153993
 pr: 166302
-summary: "ILM `snapshot_action` should support setting `total_shards_per_node` to\
-  \ unbounded [#153993]"
+summary: "ILM `snapshot_action` now support setting `total_shards_per_node` to unbounded"
 type: bug

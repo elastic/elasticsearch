@@ -17,6 +17,7 @@
 
 package org.elasticsearch.common.network;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.XContentString;
@@ -75,6 +76,15 @@ public class InetAddresses {
             throw invalidIpStringLiteral(ipUtf8, offset, length);
         }
         return address;
+    }
+
+    /**
+     * Like {@link #encodeAsIpv6(byte[], int, int)}, but returns {@code null} instead of throwing for an invalid IP string literal,
+     * so callers that expect malformed input avoid the cost of building an exception for each bad value.
+     */
+    @Nullable
+    public static byte[] tryEncodeAsIpv6(byte[] ipUtf8, int offset, int length) {
+        return ipStringToBytes(ipUtf8, offset, length, true);
     }
 
     /**

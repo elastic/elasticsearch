@@ -41,7 +41,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.keepExistingUnsupportedAttributes;
-import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferenceAttributesPreservingIds;
 
 /**
  * When {@code SET unmapped_fields="LOAD_ALL"} is in effect, annotates
@@ -311,7 +310,10 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
             .filter(attr -> attr.name().equals(UnmappedFieldsAttribute.ATTRIBUTE_NAME) == false)
             .toList();
         List<Attribute> newOutput = CollectionUtils.combine(
-            keepExistingUnsupportedAttributes(toReferenceAttributesPreservingIds(withoutUnmapped, unionAll.output()), unionAll.output()),
+            keepExistingUnsupportedAttributes(
+                MergePlan.toReferenceAttributesPreservingIds(unionAll.children(), withoutUnmapped, unionAll.output()),
+                unionAll.output()
+            ),
             unmapped
         );
         return newOutput.equals(unionAll.output()) ? unionAll : unionAll.replaceSubPlansAndOutput(unionAll.children(), newOutput);

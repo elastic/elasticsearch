@@ -27,10 +27,11 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.ESQL_ORIGIN;
 
 /**
- * System index holding stored ES|QL results: one document per page, with the serialized page in binary doc values, and the
- * result's metadata as page {@code 0}. A result is routed by its id and the index is sorted by result and page, so it sits on
- * one shard, in order. Fields are single-valued doc values only, so that a bulk of pages is indexed as one columnar batch. The
- * index is never refreshed on a schedule.
+ * System index storing ES|QL streamed results.
+ * It contains a metadata document as well as one document per esql page in a binary doc values.
+ * A result is routed by its id and the index is sorted by result and page, so it sits on one shard, in order.
+ * Fields are single-valued doc values only, so that a bulk of pages is indexed as one columnar batch.
+ * The index is never refreshed on a schedule.
  */
 public final class EsqlStreamResultsIndexDescriptor {
 
@@ -68,13 +69,6 @@ public final class EsqlStreamResultsIndexDescriptor {
     static final int NUMBER_OF_SHARDS = 6;
 
     private EsqlStreamResultsIndexDescriptor() {}
-
-    /**
-     * The id of the document holding page {@code pageSeq} of the result stored under {@code streamId}.
-     */
-    public static String pageDocId(String streamId, int pageSeq) {
-        return streamId + "/" + pageSeq;
-    }
 
     static Settings settings() {
         return Settings.builder()

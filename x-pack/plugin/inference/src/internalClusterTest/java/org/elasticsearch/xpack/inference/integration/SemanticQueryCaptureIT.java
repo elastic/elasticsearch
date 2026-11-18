@@ -18,7 +18,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.InterceptedQueryBuilderWrapper;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.license.LicenseSettings;
@@ -28,6 +30,7 @@ import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.vectors.TextEmbeddingQueryVectorBuilder;
@@ -63,6 +66,8 @@ public class SemanticQueryCaptureIT extends ESIntegTestCase {
     private static final String INFERENCE_ID = "capture_endpoint";
     private static final String QUERY_TEXT = "query text";
 
+    private TaskType inferenceTaskType;
+
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
@@ -86,18 +91,26 @@ public class SemanticQueryCaptureIT extends ESIntegTestCase {
     @After
     public void cleanUp() {
         IntegrationTestUtils.deleteIndex(client(), INDEX_NAME);
-        IntegrationTestUtils.deleteInferenceEndpoint(client(), TaskType.TEXT_EMBEDDING, INFERENCE_ID);
+        IntegrationTestUtils.deleteInferenceEndpoint(client(), inferenceTaskType, INFERENCE_ID);
     }
 
-    public void testSemanticQueryCapturesDenseVectors() throws Exception {
+    public void testSemanticTextQueryCapturesDenseVectors() throws Exception {
+        inferenceTaskType = TaskType.TEXT_EMBEDDING;
+        assertCapturesInference(new SemanticQueryBuilder(FIELD_NAME, QUERY_TEXT));
+    }
+
+    public void testSemanticFieldCapturesDenseVectors() throws Exception {
+        inferenceTaskType = TaskType.EMBEDDING;
         assertCapturesInference(new SemanticQueryBuilder(FIELD_NAME, QUERY_TEXT));
     }
 
     public void testMatchQueryCapturesDenseVectors() throws Exception {
+        inferenceTaskType = TaskType.TEXT_EMBEDDING;
         assertCapturesInference(new MatchQueryBuilder(FIELD_NAME, QUERY_TEXT));
     }
 
     public void testKnnQueryVectorBuilderCapturesDenseVectors() throws Exception {
+        inferenceTaskType = TaskType.TEXT_EMBEDDING;
         var query = new KnnVectorQueryBuilder(
             VECTOR_FIELD_NAME,
             new TextEmbeddingQueryVectorBuilder(INFERENCE_ID, QUERY_TEXT),
@@ -113,7 +126,7 @@ public class SemanticQueryCaptureIT extends ESIntegTestCase {
     private void assertCapturesInference(QueryBuilder query) throws Exception {
         IntegrationTestUtils.createInferenceEndpoint(
             client(),
-            TaskType.TEXT_EMBEDDING,
+            inferenceTaskType,
             INFERENCE_ID,
             Map.of("model", "my_model", "dimensions", 16, "similarity", "cosine", "api_key", "my_api_key")
         );
@@ -125,7 +138,11 @@ public class SemanticQueryCaptureIT extends ESIntegTestCase {
             );
             client().prepareIndex(INDEX_NAME).setId("1").setSource(Map.of(VECTOR_FIELD_NAME, Collections.nCopies(16, 1.0f))).get();
         } else {
-            try (var mapping = IntegrationTestUtils.generateSemanticTextMapping(Map.of(FIELD_NAME, INFERENCE_ID))) {
+            try (
+                var mapping = inferenceTaskType == TaskType.EMBEDDING
+                    ? IntegrationTestUtils.generateSemanticMapping(Map.of(FIELD_NAME, INFERENCE_ID))
+                    : IntegrationTestUtils.generateSemanticTextMapping(Map.of(FIELD_NAME, INFERENCE_ID))
+            ) {
                 assertAcked(prepareCreate(INDEX_NAME).setMapping(mapping));
             }
             // Populate the embedding mapping using ingest inference before observing query-time inference.
@@ -135,18 +152,32 @@ public class SemanticQueryCaptureIT extends ESIntegTestCase {
         ensureGreen(INDEX_NAME);
         clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).get();
 
-        var expectedResults = client().execute(
-            InferenceAction.INSTANCE,
-            new InferenceAction.Request(
-                TaskType.TEXT_EMBEDDING,
-                INFERENCE_ID,
-                List.of(QUERY_TEXT),
-                Map.of(),
-                InputType.INTERNAL_SEARCH,
-                TEST_REQUEST_TIMEOUT,
-                false
-            )
-        ).actionGet(TEST_REQUEST_TIMEOUT).getResults().transformToCoordinationFormat();
+        InferenceAction.Response inferenceResponse;
+        if (inferenceTaskType == TaskType.EMBEDDING) {
+            inferenceResponse = client().execute(
+                EmbeddingAction.INSTANCE,
+                new EmbeddingAction.Request(
+                    INFERENCE_ID,
+                    inferenceTaskType,
+                    new EmbeddingRequest(List.of(new InferenceStringGroup(QUERY_TEXT)), InputType.INTERNAL_SEARCH, Map.of()),
+                    TEST_REQUEST_TIMEOUT
+                )
+            ).actionGet(TEST_REQUEST_TIMEOUT);
+        } else {
+            inferenceResponse = client().execute(
+                InferenceAction.INSTANCE,
+                new InferenceAction.Request(
+                    inferenceTaskType,
+                    INFERENCE_ID,
+                    List.of(QUERY_TEXT),
+                    Map.of(),
+                    InputType.INTERNAL_SEARCH,
+                    TEST_REQUEST_TIMEOUT,
+                    false
+                )
+            ).actionGet(TEST_REQUEST_TIMEOUT);
+        }
+        var expectedResults = inferenceResponse.getResults().transformToCoordinationFormat();
         assertThat(expectedResults, hasSize(1));
         InferenceResults expected = expectedResults.getFirst();
         assertThat(expected, instanceOf(MlDenseEmbeddingResults.class));

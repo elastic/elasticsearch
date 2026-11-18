@@ -118,6 +118,34 @@ events:long | sequences:long
 4           | 2
 ;
 
+eventQueryAppliesRequestFilter
+required_capability: eql_command
+required_capability: eql_command_request_filter
+request_time_filter: 2026-07-22T10:00:01.000Z,2026-07-22T10:00:03.000Z
+
+EQL eql_test "process where true" WITH {"event_category_field": "category"}
+| KEEP name, pid
+;
+
+name:keyword   | pid:long
+powershell.exe | 200
+;
+
+sequenceQueryAppliesRequestFilterBeforeMatching
+required_capability: eql_command
+required_capability: eql_command_request_filter
+request_time_filter: 2026-07-22T10:00:01.000Z,2026-07-22T10:00:03.000Z
+
+EQL eql_test "sequence by pid [process where true] [network where true]" WITH {"event_category_field": "category"}
+| KEEP join_keys, _sequence_stage
+| SORT join_keys, _sequence_stage
+;
+
+join_keys:keyword | _sequence_stage:integer
+200               | 0
+200               | 1
+;
+
 eventQueryMetadataIndexColumn
 required_capability: eql_command
 required_capability: eql_command_metadata

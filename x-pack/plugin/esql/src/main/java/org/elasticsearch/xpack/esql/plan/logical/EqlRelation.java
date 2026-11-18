@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -103,6 +104,8 @@ public class EqlRelation extends LeafPlan implements ExecutesOn.Coordinator {
      */
     @Nullable
     private final FieldCapabilitiesResponse preResolvedFieldCaps;
+    @Nullable
+    private final QueryBuilder requestFilter;
 
     public EqlRelation(
         Source source,
@@ -113,7 +116,7 @@ public class EqlRelation extends LeafPlan implements ExecutesOn.Coordinator {
         boolean hasExplicitLimit,
         List<Attribute> output
     ) {
-        this(source, indexPattern, query, options, mode, hasExplicitLimit, output, null, null);
+        this(source, indexPattern, query, options, mode, hasExplicitLimit, output, null, null, null);
     }
 
     public EqlRelation(
@@ -125,7 +128,8 @@ public class EqlRelation extends LeafPlan implements ExecutesOn.Coordinator {
         boolean hasExplicitLimit,
         List<Attribute> output,
         Integer pushedLimit,
-        @Nullable FieldCapabilitiesResponse preResolvedFieldCaps
+        @Nullable FieldCapabilitiesResponse preResolvedFieldCaps,
+        @Nullable QueryBuilder requestFilter
     ) {
         super(source);
         this.indexPattern = indexPattern;
@@ -136,11 +140,38 @@ public class EqlRelation extends LeafPlan implements ExecutesOn.Coordinator {
         this.output = output;
         this.pushedLimit = pushedLimit;
         this.preResolvedFieldCaps = preResolvedFieldCaps;
+        this.requestFilter = requestFilter;
     }
 
     /** Returns a copy with the row {@code LIMIT} folded into the request size (see {@link #pushedLimit}). */
     public EqlRelation withPushedLimit(int pushedLimit) {
-        return new EqlRelation(source(), indexPattern, query, options, mode, hasExplicitLimit, output, pushedLimit, preResolvedFieldCaps);
+        return new EqlRelation(
+            source(),
+            indexPattern,
+            query,
+            options,
+            mode,
+            hasExplicitLimit,
+            output,
+            pushedLimit,
+            preResolvedFieldCaps,
+            requestFilter
+        );
+    }
+
+    public EqlRelation withRequestFilter(QueryBuilder newRequestFilter) {
+        return new EqlRelation(
+            source(),
+            indexPattern,
+            query,
+            options,
+            mode,
+            hasExplicitLimit,
+            output,
+            pushedLimit,
+            preResolvedFieldCaps,
+            newRequestFilter
+        );
     }
 
     /**
@@ -157,7 +188,8 @@ public class EqlRelation extends LeafPlan implements ExecutesOn.Coordinator {
             hasExplicitLimit,
             newOutput,
             pushedLimit,
-            preResolvedFieldCaps
+            preResolvedFieldCaps,
+            requestFilter
         );
     }
 
@@ -185,7 +217,8 @@ public class EqlRelation extends LeafPlan implements ExecutesOn.Coordinator {
             hasExplicitLimit,
             output,
             pushedLimit,
-            preResolvedFieldCaps
+            preResolvedFieldCaps,
+            requestFilter
         );
     }
 
@@ -200,6 +233,11 @@ public class EqlRelation extends LeafPlan implements ExecutesOn.Coordinator {
     @Nullable
     public FieldCapabilitiesResponse preResolvedFieldCaps() {
         return preResolvedFieldCaps;
+    }
+
+    @Nullable
+    public QueryBuilder requestFilter() {
+        return requestFilter;
     }
 
     public String query() {
@@ -230,7 +268,7 @@ public class EqlRelation extends LeafPlan implements ExecutesOn.Coordinator {
 
     @Override
     public int hashCode() {
-        return Objects.hash(indexPattern, query, options, mode, hasExplicitLimit, output, pushedLimit);
+        return Objects.hash(indexPattern, query, options, mode, hasExplicitLimit, output, pushedLimit, requestFilter);
     }
 
     @Override
@@ -248,7 +286,8 @@ public class EqlRelation extends LeafPlan implements ExecutesOn.Coordinator {
             && mode == other.mode
             && hasExplicitLimit == other.hasExplicitLimit
             && Objects.equals(output, other.output)
-            && Objects.equals(pushedLimit, other.pushedLimit);
+            && Objects.equals(pushedLimit, other.pushedLimit)
+            && Objects.equals(requestFilter, other.requestFilter);
     }
 
     @Override

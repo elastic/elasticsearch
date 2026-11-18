@@ -251,11 +251,21 @@ EQL my_remote:logs-endpoint "process where process.name == \"regsvr32.exe\""
 * **Compute derived columns after the command, not inside it.** The EQL predicate matches against the index
   mapping; there is no way to define an {{esql}}-computed field for use inside it. Compute derived columns
   *after* the command with [`EVAL`](/reference/query-languages/esql/commands/eval.md).
-* **The request `filter` is rejected.** A query that combines an enclosing {{esql}} request `filter` with an
-  EQL source is rejected rather than silently ignoring the filter, because it is not yet bridged into the EQL
-  source. Any filter is rejected, even one {{esql}} could apply in full, and also when the EQL command is reached
-  through a subquery or a view: there is no partial mode that applies some filter clauses and skips the rest.
-  Narrow the events with the EQL predicate itself, or filter the rows with a downstream `WHERE`.
+* **The request `filter` narrows the EQL search, not the columns.** An enclosing {{esql}} request `filter` is
+  passed to the EQL search, which applies it to every search it runs, as `_eql/search` does with its `filter`.
+  The index pattern is resolved without the filter, so a field mapped only in indices the filter excludes is
+  still a column, `null` on every row. Each EQL search resolves relative dates such as `now-15m` itself, so the
+  EQL searches of one query (one per `FORK` branch, for example) can resolve them slightly apart.
+* **A view applies the request `filter` to its output.** When the EQL command is in the body of a view,
+  {{esql}} does not pass the filter to the EQL search. A `LIMIT` then no longer reaches the command, so
+  the EQL search returns up to the result-truncation limit of events (by default the most recent ones) before
+  the filter applies, and a time range that excludes them can return fewer rows than expected, or none. A
+  `sequence` or `sample` view can return partial matches, keeping the events that pass the filter and dropping
+  the rest.
+* **With older nodes, the request `filter` goes to an EQL search inside a view.** During a rolling
+  upgrade, or when a remote cluster in a cross-cluster search runs an earlier version, a node can be too old
+  to filter a view's output. No view then applies the filter to its output: it is passed to the EQL search
+  instead, as it is to the view's other sources.
 * **A view is not a valid EQL target.** The leading pattern must be indices, data streams or aliases. A
   view whose *body* is an EQL command is supported and read with `FROM <view>`, but a view name in the
   leading pattern is not expanded.

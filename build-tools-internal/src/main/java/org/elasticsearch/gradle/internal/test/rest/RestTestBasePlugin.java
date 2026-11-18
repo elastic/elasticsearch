@@ -11,8 +11,6 @@ package org.elasticsearch.gradle.internal.test.rest;
 
 import groovy.lang.Closure;
 
-import org.elasticsearch.gradle.Architecture;
-import org.elasticsearch.gradle.DistributionDownloadPlugin;
 import org.elasticsearch.gradle.ElasticsearchDistribution;
 import org.elasticsearch.gradle.ElasticsearchDistributionType;
 import org.elasticsearch.gradle.Version;
@@ -22,14 +20,11 @@ import org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin;
 import org.elasticsearch.gradle.internal.InternalDistributionDownloadPlugin;
 import org.elasticsearch.gradle.internal.test.ClusterFeaturesMetadataPlugin;
 import org.elasticsearch.gradle.internal.test.ErrorReportingTestListener;
-import org.elasticsearch.gradle.plugin.BasePluginBuildPlugin;
-import org.elasticsearch.gradle.plugin.PluginBuildPlugin;
-import org.elasticsearch.gradle.plugin.PluginPropertiesExtension;
+import org.elasticsearch.gradle.internal.test.TestClusterArtifacts;
 import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
 import org.elasticsearch.gradle.transform.UnzipTransform;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Action;
-import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
@@ -38,7 +33,6 @@ import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.artifacts.DependencySet;
 import org.gradle.api.artifacts.ProjectDependency;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
-import org.gradle.api.attributes.Attribute;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
@@ -54,12 +48,7 @@ import org.gradle.jvm.toolchain.JavaToolchainService;
 import org.gradle.jvm.toolchain.JavaToolchainSpec;
 import org.gradle.jvm.toolchain.JvmVendorSpec;
 
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import javax.inject.Inject;
 
@@ -83,7 +72,6 @@ public class RestTestBasePlugin implements Plugin<Project> {
     private static final String MODULES_CONFIGURATION = "clusterModules";
     private static final String PLUGINS_CONFIGURATION = "clusterPlugins";
     private static final String EXTRACTED_PLUGINS_CONFIGURATION = "extractedPlugins";
-    private static final Attribute<String> CONFIGURATION_ATTRIBUTE = Attribute.of("test-cluster-artifacts", String.class);
     private static final String FEATURES_METADATA_CONFIGURATION = "featuresMetadataDeps";
     private static final String DEFAULT_DISTRO_FEATURES_METADATA_CONFIGURATION = "defaultDistrofeaturesMetadataDeps";
     private static final String TESTS_FEATURES_METADATA_PATH = "tests.features.metadata.path";
@@ -336,20 +324,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
         ElasticsearchDistributionType type,
         boolean detachedVersion
     ) {
-        NamedDomainObjectContainer<ElasticsearchDistribution> distributions = DistributionDownloadPlugin.getContainer(project);
-        ElasticsearchDistribution maybeDistro = distributions.findByName(name);
-        if (maybeDistro == null) {
-            return distributions.create(name, distro -> {
-                distro.setVersion(version);
-                distro.setDetachedVersion(detachedVersion);
-                distro.setArchitecture(Architecture.current());
-                if (type != null) {
-                    distro.setType(type);
-                }
-            });
-        } else {
-            return maybeDistro;
-        }
+        return TestClusterArtifacts.createDistribution(project, name, version, type, detachedVersion);
     }
 
     private FileTree getDistributionFiles(ElasticsearchDistribution distribution, Action<PatternFilterable> patternFilter) {
@@ -380,75 +355,16 @@ public class RestTestBasePlugin implements Plugin<Project> {
             .withNormalizer(ClasspathNormalizer.class);
     }
 
-    private Optional<String> findModulePath(Project project, String pluginName) {
-        return project.getRootProject()
-            .getAllprojects()
-            .stream()
-            .filter(p -> GradleUtils.isModuleProject(p.getPath()))
-            .filter(p -> p.getPlugins().hasPlugin(PluginBuildPlugin.class))
-            .filter(p -> p.getExtensions().getByType(PluginPropertiesExtension.class).getName().equals(pluginName))
-            .findFirst()
-            .map(Project::getPath);
-    }
-
     private Configuration createPluginConfiguration(Project project, String name, boolean useExploded, boolean isExtended) {
-        return project.getConfigurations().create(name, c -> {
-            c.attributes(a -> a.attribute(CONFIGURATION_ATTRIBUTE, name));
-            if (useExploded) {
-                c.attributes(a -> a.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE));
-            } else {
-                c.attributes(a -> a.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.ZIP_TYPE));
-            }
-            if (isExtended == false) {
-                c.withDependencies(dependencies -> {
-                    // Add dependencies of any modules
-                    Collection<Dependency> additionalDependencies = new LinkedHashSet<>();
-                    for (Iterator<Dependency> iterator = dependencies.iterator(); iterator.hasNext();) {
-                        Dependency dependency = iterator.next();
-                        // this logic of relying on other projects metadata should probably live in a build service
-                        if (dependency instanceof ProjectDependency projectDependency) {
-                            Project dependencyProject = project.project(projectDependency.getPath());
-                            List<String> extendedPlugins = dependencyProject.getExtensions()
-                                .getByType(PluginPropertiesExtension.class)
-                                .getExtendedPlugins();
-
-                            // Replace project dependency with explicit dependency on exploded configuration to workaround variant bug
-                            if (projectDependency.getTargetConfiguration() == null) {
-                                iterator.remove();
-                                additionalDependencies.add(
-                                    useExploded
-                                        ? getExplodedBundleDependency(project, projectDependency.getPath())
-                                        : getBundleZipTaskDependency(project, projectDependency.getPath())
-                                );
-                            }
-
-                            for (String extendedPlugin : extendedPlugins) {
-                                findModulePath(project, extendedPlugin).ifPresent(
-                                    modulePath -> additionalDependencies.add(
-                                        useExploded
-                                            ? getExplodedBundleDependency(project, modulePath)
-                                            : getBundleZipTaskDependency(project, modulePath)
-                                    )
-                                );
-                            }
-                        }
-                    }
-
-                    dependencies.addAll(additionalDependencies);
-                });
-            }
-        });
+        return TestClusterArtifacts.createPluginConfiguration(project, name, useExploded, isExtended);
     }
 
     private Dependency getExplodedBundleDependency(Project project, String projectPath) {
-        return project.getDependencies()
-            .project(Map.of("path", projectPath, "configuration", BasePluginBuildPlugin.EXPLODED_BUNDLE_CONFIG));
+        return TestClusterArtifacts.getExplodedBundleDependency(project, projectPath);
     }
 
     private Dependency getBundleZipTaskDependency(Project project, String projectPath) {
-        Project dependencyProject = project.findProject(projectPath);
-        return project.getDependencies()
-            .create(project.files(dependencyProject.getTasks().named(BasePluginBuildPlugin.BUNDLE_PLUGIN_TASK_NAME)));
+        return TestClusterArtifacts.getBundleZipTaskDependency(project, projectPath);
     }
 
     private void configureArtifactTransforms(Project project) {

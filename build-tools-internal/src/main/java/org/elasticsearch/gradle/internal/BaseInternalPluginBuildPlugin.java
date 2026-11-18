@@ -14,6 +14,7 @@ import groovy.lang.Closure;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.elasticsearch.gradle.internal.precommit.JarHellPrecommitPlugin;
+import org.elasticsearch.gradle.internal.run.InternalRunPlugin;
 import org.elasticsearch.gradle.internal.test.ClusterFeaturesMetadataPlugin;
 import org.elasticsearch.gradle.internal.transport.TransportVersionReferencesPlugin;
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin;
@@ -36,6 +37,8 @@ public class BaseInternalPluginBuildPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
+        // Register the test-clusters based run task before the plugin build plugin would register its legacy one
+        InternalRunPlugin.registerPluginRunTask(project);
         project.getPluginManager().apply(PluginBuildPlugin.class);
         project.getPluginManager().apply(JarHellPrecommitPlugin.class);
         project.getPluginManager().apply(ElasticsearchJavaPlugin.class);

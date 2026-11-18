@@ -22,8 +22,8 @@ dependencies {
 
 addQaCheckDependencies(project)
 
-testClusters.configureEach {
-  testDistribution = 'default'
+tasks.named('run').configure {
+  distribution = 'default'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
   keystore 'bootstrap.password', 'x-pack-test-password'

@@ -59,6 +59,7 @@ class ProjectPathUsageArchUnitSpec extends AbstractArchUnitSpec {
         "org.elasticsearch.gradle.internal.precommit.JarHellPrecommitPlugin",
         "org.elasticsearch.gradle.internal.precommit.LoggerUsagePrecommitPlugin",
         "org.elasticsearch.gradle.internal.precommit.ThirdPartyAuditPrecommitPlugin",
+        "org.elasticsearch.gradle.internal.run.InternalRunPlugin",
         "org.elasticsearch.gradle.internal.test.ClusterFeaturesMetadataPlugin",
         "org.elasticsearch.gradle.internal.test.DistroTestPlugin",
         "org.elasticsearch.gradle.internal.test.StandaloneTestPlugin",

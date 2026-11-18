@@ -1,0 +1,21 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+// Command line entrypoint for starting a local Elasticsearch cluster with the test-clusters library outside of a test,
+// used by the `run` Gradle tasks. Deliberately kept separate from :test:test-clusters so test authors don't depend on it.
+apply plugin: 'elasticsearch.java'
+
+dependencies {
+  implementation project(':test:test-clusters')
+  implementation "org.apache.logging.log4j:log4j-api:${versions.log4j}"
+  runtimeOnly "org.apache.logging.log4j:log4j-core:${versions.log4j}"
+
+  testImplementation "junit:junit:${versions.junit4}"
+  testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
+}

@@ -21,10 +21,18 @@ public class DefaultLocalClusterFactory extends AbstractLocalClusterFactory<Loca
         this.distributionResolver = distributionResolver;
     }
 
+    /**
+     * See {@link AbstractLocalClusterFactory#AbstractLocalClusterFactory(DistributionResolver, Path, boolean)}.
+     */
+    public DefaultLocalClusterFactory(DistributionResolver distributionResolver, Path baseWorkingDir, boolean preserveData) {
+        super(distributionResolver, baseWorkingDir, preserveData);
+        this.distributionResolver = distributionResolver;
+    }
+
     protected DefaultLocalClusterHandle createHandle(Path baseWorkingDir, LocalClusterSpec spec) {
         return new DefaultLocalClusterHandle(
             spec.getName(),
-            spec.getNodes().stream().map(s -> new Node(baseWorkingDir, distributionResolver, s)).toList()
+            spec.getNodes().stream().map(s -> new Node(baseWorkingDir, distributionResolver, s, null, isPreserveData())).toList()
         );
     }
 }

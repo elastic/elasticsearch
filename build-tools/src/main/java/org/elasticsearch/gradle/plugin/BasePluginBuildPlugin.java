@@ -79,21 +79,24 @@ public class BasePluginBuildPlugin implements Plugin<Project> {
         final var bundleTask = createBundleTasks(project, extension);
         project.getConfigurations().getByName("default").extendsFrom(project.getConfigurations().getByName("runtimeClasspath"));
 
-        // allow running ES with this plugin in the foreground of a build
-        var testClusters = testClusters(project, TestClustersPlugin.EXTENSION_NAME);
-        var runCluster = testClusters.register("runTask", c -> {
-            // TODO: use explodedPlugin here for modules
-            if (GradleUtils.isModuleProject(project.getPath())) {
-                c.module(bundleTask.flatMap((Transformer<Provider<RegularFile>, Zip>) zip -> zip.getArchiveFile()));
-            } else {
-                c.plugin(bundleTask.flatMap((Transformer<Provider<RegularFile>, Zip>) zip -> zip.getArchiveFile()));
-            }
-        });
+        // allow running ES with this plugin in the foreground of a build, unless a run task has already been provided (internal
+        // builds register their own, based on the test-clusters library)
+        if (project.getTasks().getNames().contains("run") == false) {
+            var testClusters = testClusters(project, TestClustersPlugin.EXTENSION_NAME);
+            var runCluster = testClusters.register("runTask", c -> {
+                // TODO: use explodedPlugin here for modules
+                if (GradleUtils.isModuleProject(project.getPath())) {
+                    c.module(bundleTask.flatMap((Transformer<Provider<RegularFile>, Zip>) zip -> zip.getArchiveFile()));
+                } else {
+                    c.plugin(bundleTask.flatMap((Transformer<Provider<RegularFile>, Zip>) zip -> zip.getArchiveFile()));
+                }
+            });
 
-        project.getTasks().register("run", RunTask.class, r -> {
-            r.useCluster(runCluster);
-            r.dependsOn(project.getTasks().named(BUNDLE_PLUGIN_TASK_NAME));
-        });
+            project.getTasks().register("run", RunTask.class, r -> {
+                r.useCluster(runCluster);
+                r.dependsOn(project.getTasks().named(BUNDLE_PLUGIN_TASK_NAME));
+            });
+        }
     }
 
     @SuppressWarnings("unchecked")

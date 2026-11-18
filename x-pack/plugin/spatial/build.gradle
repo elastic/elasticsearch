@@ -28,9 +28,9 @@ dependencies {
   testImplementation project(path: ':modules:aggregations')
 }
 
-testClusters.configureEach {
+tasks.named('run').configure {
   setting 'xpack.license.self_generated.type', 'trial'
-  testDistribution = 'DEFAULT'
+  distribution = 'DEFAULT'
   setting 'xpack.security.enabled', 'false'
 }
 

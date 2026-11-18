@@ -14,6 +14,7 @@ import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilitiesBuilder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.NestedScopeField;
 
@@ -68,25 +69,65 @@ public class IndexResolverNestedScopeTests extends ESTestCase {
         assertThat(withoutScope.get("x").getDataType(), equalTo(withScope.get("x").getDataType()));
     }
 
+    public void testNestedLeafFollowsTheFlattenedKillSwitchLikeAnOrdinaryField() {
+        FieldCapabilitiesIndexResponse index = index(
+            "ne",
+            field("attrs", "flattened"),
+            field("items", "nested"),
+            field("items.attrs", "flattened")
+        );
+        Map<String, EsField> mapping = resolve(true, TransportVersion.current(), false, index);
+        assertThat(mapping.get("attrs").getDataType(), equalTo(DataType.UNSUPPORTED));
+        assertThat(nestedLeaf(mapping, "items", "attrs").getDataType(), equalTo(DataType.UNSUPPORTED));
+        Map<String, EsField> enabled = resolve(true, TransportVersion.current(), true, index);
+        assertThat(enabled.get("attrs").getDataType(), equalTo(DataType.FLATTENED));
+        assertThat(nestedLeaf(enabled, "items", "attrs").getDataType(), equalTo(DataType.FLATTENED));
+    }
+
+    public void testNestedLeafFollowsTheMinimumTransportVersionLikeAnOrdinaryField() {
+        FieldCapabilitiesIndexResponse index = index(
+            "ne",
+            field("span", "date_range"),
+            field("items", "nested"),
+            field("items.span", "date_range")
+        );
+        Map<String, EsField> mapping = resolve(true, TransportVersion.minimumCompatible(), true, index);
+        assertThat(mapping.get("span").getDataType(), equalTo(DataType.UNSUPPORTED));
+        assertThat(nestedLeaf(mapping, "items", "span").getDataType(), equalTo(DataType.UNSUPPORTED));
+    }
+
+    private static EsField nestedLeaf(Map<String, EsField> mapping, String collection, String name) {
+        return mapping.get(NestedScopeField.NAMESPACE).getProperties().get(collection).getProperties().get(name);
+    }
+
     private static FieldCapabilitiesIndexResponse nestedIndex(String name) {
         return index(name, field("id", "keyword"), field("items", "nested"), field("items.sku", "keyword"), field("items.qty", "long"));
     }
 
     private static Map<String, EsField> resolve(boolean nestedScope, FieldCapabilitiesIndexResponse... indices) {
+        return resolve(nestedScope, TransportVersion.current(), true, indices);
+    }
+
+    private static Map<String, EsField> resolve(
+        boolean nestedScope,
+        TransportVersion minTransportVersion,
+        boolean flattenedDataTypeEnabled,
+        FieldCapabilitiesIndexResponse... indices
+    ) {
         FieldCapabilitiesResponse caps = FieldCapabilitiesResponse.builder().withIndexResponses(List.of(indices)).build();
         return IndexResolver.mergedMappings(
             "*",
             false,
             new IndexResolver.FieldsInfo(
                 caps,
-                TransportVersion.current(),
+                minTransportVersion,
                 false,
                 false,
                 false,
                 false,
                 false,
                 false,
-                true,
+                flattenedDataTypeEnabled,
                 null,
                 nestedScope
             ),

@@ -700,7 +700,9 @@ public class IndexResolver {
             fields.put(name, field);
         }
 
-        EsField nestedNamespace = fieldsInfo.nestedScope() ? NestedScopeField.namespace(indexResponses) : null;
+        EsField nestedNamespace = fieldsInfo.nestedScope()
+            ? NestedScopeField.namespace(indexResponses, fc -> resolvedType(fc, fieldsInfo))
+            : null;
         if (nestedNamespace != null) {
             if (rootFields.containsKey(NestedScopeField.NAMESPACE)) {
                 throw new VerificationException("field [{}] conflicts with the nested scope", NestedScopeField.NAMESPACE);
@@ -849,6 +851,12 @@ public class IndexResolver {
         };
     }
 
+    /** The type one index's capabilities give a field: its mapped type, or {@link DataType#UNSUPPORTED} when the nodes cannot use it. */
+    private static DataType resolvedType(IndexFieldCapabilities fc, FieldsInfo fieldsInfo) {
+        DataType type = EsqlDataTypeRegistry.INSTANCE.fromEs(fc.type(), fc.metricType());
+        return isTypeSupported(type, fieldsInfo) ? type : UNSUPPORTED;
+    }
+
     private static EsField createField(
         FieldsInfo fieldsInfo,
         String name,
@@ -860,10 +868,7 @@ public class IndexResolver {
     ) {
         IndexFieldCapabilities first = fcs.get(0);
         List<IndexFieldCapabilities> rest = fcs.subList(1, fcs.size());
-        DataType type = EsqlDataTypeRegistry.INSTANCE.fromEs(first.type(), first.metricType());
-        if (isTypeSupported(type, fieldsInfo) == false) {
-            type = UNSUPPORTED;
-        }
+        DataType type = resolvedType(first, fieldsInfo);
         boolean aggregatable = first.isAggregatable();
         boolean isPassthrough = Boolean.TRUE.equals(first.isPassthrough());
         boolean isStaticallySingleValued = first.isStaticallySingleValued();

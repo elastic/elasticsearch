@@ -188,7 +188,7 @@ public class NumericPipelineSelectorTests extends ESTestCase {
             }
             try (IndexOutput meta = dir.createOutput("num.cnm", IOContext.DEFAULT)) {
                 ColumnarCodecUtil.writeHeader(meta, "ColumNARMeta", FormatVersion.CURRENT, segmentId, "");
-                written.writeTo(meta);
+                written.writeTo(meta, FormatVersion.CURRENT);
                 ColumnarCodecUtil.writeFooter(meta);
             }
             final NumericColumnMetadata read = readNumericMeta(dir, "num.cnm", segmentId, values.length);

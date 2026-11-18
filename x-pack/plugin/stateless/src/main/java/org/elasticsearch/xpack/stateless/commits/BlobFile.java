@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless.commits;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
@@ -36,8 +37,29 @@ public record BlobFile(String blobName, PrimaryTermAndGeneration termAndGenerati
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        // WARNING: the blob name must stay the first thing written, as is. Blob#readFrom reads it first to find the type of the blob from
+        // its prefix, and this is also the wire format that nodes of previous versions read: changing it would need a transport version.
+        // BlobTests checks that every implementation of Blob does it.
         out.writeString(blobName);
         termAndGeneration.writeTo(out);
+    }
+
+    /// Reads the term and generation of a blob file whose name was already read by [Blob#readFrom(StreamInput, Class)], and checks that
+    /// they are consistent with the name.
+    ///
+    /// @throws IOException if the blob name is not well-formed, or if the term/generation does not match the name
+    static BlobFile readFrom(String blobName, StreamInput in) throws IOException {
+        final var termAndGeneration = new PrimaryTermAndGeneration(in);
+        final BlobFile blobFile;
+        try {
+            blobFile = new BlobFile(blobName, termAndGeneration.primaryTerm());
+        } catch (IllegalArgumentException e) {
+            throw new IOException("malformed blob name [" + blobName + ']', e);
+        }
+        if (blobFile.termAndGeneration().equals(termAndGeneration) == false) {
+            throw new IOException("term/generation mismatch: " + termAndGeneration + " vs " + blobName);
+        }
+        return blobFile;
     }
 
     public long primaryTerm() {

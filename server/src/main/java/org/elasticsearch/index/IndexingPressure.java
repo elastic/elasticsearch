@@ -412,6 +412,52 @@ public class IndexingPressure implements IndexingPressureMonitor {
         }
 
         /**
+         * Bytes this reservation currently holds.
+         */
+        public long currentBytes() {
+            return currentOperationsSize;
+        }
+
+        /**
+         * Adds bytes to this reservation.
+         * The node's coordinating total may pass its limit, because the bytes are already in memory and the reservation has to match them.
+         * Refuses when this reservation's own new size would pass the coordinating limit, and leaves the reservation unchanged when it
+         * refuses.
+         *
+         * @param bytes additional bytes to hold
+         * @throws EsRejectedExecutionException when this reservation's own size would exceed the coordinating limit
+         */
+        public void raise(long bytes) {
+            assert closed.get() == false;
+            assert bytes >= 0 : bytes;
+            if (bytes == 0) {
+                return;
+            }
+            long newSize = currentOperationsSize + bytes;
+            // The check is this reservation alone. The node total is allowed to pass the limit so one admitted page can grow to its real
+            // size while other work is still in flight.
+            if (forceExecution == false && newSize > coordinatingLimit) {
+                coordinatingRejections.getAndIncrement();
+                throw new EsRejectedExecutionException(
+                    "rejected execution of coordinating operation ["
+                        + "coordinating_operation_bytes="
+                        + newSize
+                        + ", "
+                        + "max_coordinating_bytes="
+                        + coordinatingLimit
+                        + "]",
+                    false
+                );
+            }
+            currentOperationsSize = newSize;
+            logger.trace(() -> Strings.format("raising coordinating reservation by [%d] bytes to [%d]", bytes, newSize));
+            currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(bytes);
+            currentCoordinatingBytes.getAndAdd(bytes);
+            totalCombinedCoordinatingAndPrimaryBytes.getAndAdd(bytes);
+            totalCoordinatingBytes.getAndAdd(bytes);
+        }
+
+        /**
          * Reduces the tracked byte count for this coordinating operation without closing it.
          * Use this to lower a reservation once the actual size is known to be smaller than the initially reserved amount.
          */
@@ -707,6 +753,13 @@ public class IndexingPressure implements IndexingPressureMonitor {
             totalIngestExpansionBytes.get(),
             ingestExpansionRejections.get()
         );
+    }
+
+    /**
+     * The coordinating byte limit. A reservation whose own size is above this is rejected.
+     */
+    public long getCoordinatingLimitInBytes() {
+        return coordinatingLimit;
     }
 
     @Override

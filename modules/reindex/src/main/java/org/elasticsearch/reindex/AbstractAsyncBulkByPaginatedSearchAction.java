@@ -57,11 +57,13 @@ import org.elasticsearch.script.Metadata;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchContextMissingException;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -93,8 +95,9 @@ import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
  * Abstract base for paginating across a search and executing bulk actions on all results. All package private methods are package private
  * so their tests can use them. Most methods run in the listener thread pool because they are meant to be fast and don't expect to block.
  * <p>
- * Each admitted bulk holds one coordinating indexing pressure charge until the cleanup that already runs when that bulk finishes. Retries
- * of an admitted bulk keep that same reservation. A batch that cannot take a charge holds nothing, backs off, and retries the same bulk.
+ * Before each search the worker reserves one coordinating indexing pressure charge for the page it is about to hold. A page that does not
+ * fit waits, with no hits held, until the reservation succeeds or the task is cancelled. When the bulk is built that same charge becomes
+ * the bulk's real size and stays with the page until the page is released, including while a rejected bulk is retried.
  */
 public abstract class AbstractAsyncBulkByPaginatedSearchAction<
     Request extends AbstractBulkByPaginatedSearchRequest<Request>,
@@ -183,11 +186,23 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
     private final IndexingPressure indexingPressure;
 
     /**
-     * Set for the bulk {@link #prepareBulkRequest} is sending. That method's cleanup closes it. Null for a direct
-     * {@link #sendBulkRequest} call, which then releases any charge it takes.
+     * The estimate reserved for the search that is in flight. Moved onto the page when that search returns, and closed here when the
+     * search fails before a page exists. One worker holds this or the page charge, not both.
      */
-    @Nullable
-    private AtomicReference<Releasable> coordinatingChargeForAttempt;
+    private final AtomicReference<IndexingPressure.Coordinating> inFlightCharge = new AtomicReference<>();
+
+    /**
+     * The one delayed reservation attempt waiting for coordinating budget. Cancelled when the task is cancelled.
+     */
+    private final AtomicReference<ReservationRetry> reservationRetry = new AtomicReference<>();
+
+    private final AtomicBoolean listeningForCancellation = new AtomicBoolean();
+
+    /**
+     * Bytes reserved per document before the page exists. An estimate above the coordinating limit is rejected on an empty node, so the
+     * reservation is capped at that limit.
+     */
+    private static final int ESTIMATED_HIT_BYTES = 64 * 1024;
 
     protected CircuitBreaker getCircuitBreaker() {
         return circuitBreaker;
@@ -614,10 +629,10 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
                 WorkerResumeInfo workerResumeInfo = resumeInfo.getWorker().get();
                 startTimeEpochMillis.set(workerResumeInfo.startTimeEpochMillis());
                 worker.restoreState(workerResumeInfo.status());
-                paginatedHitSource.resume(workerResumeInfo);
+                reservePageThen(() -> paginatedHitSource.resume(workerResumeInfo));
             } else {
                 startTimeEpochMillis.set(System.currentTimeMillis());
-                paginatedHitSource.start();
+                reservePageThen(() -> paginatedHitSource.start());
             }
         } catch (Exception e) {
             finishHim(e);
@@ -625,7 +640,11 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
     }
 
     void onPaginatedSearchResponse(PaginatedHitSource.AsyncResponse asyncResponse) {
-        onPaginatedSearchResponse(new PaginatedSearchConsumableHitsResponse(asyncResponse));
+        // The search listener can run before start or done returns, so the charge has to be on the page before any of this response is
+        // read. The previous page's charge is already closed. This worker holds one reservation.
+        PaginatedSearchConsumableHitsResponse page = new PaginatedSearchConsumableHitsResponse(asyncResponse);
+        page.attachCoordinatingCharge(inFlightCharge.getAndSet(null));
+        onPaginatedSearchResponse(page);
     }
 
     void onPaginatedSearchResponse(PaginatedSearchConsumableHitsResponse asyncResponse) {
@@ -689,9 +708,9 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
      * delay has been slept. Uses the generic thread pool because reindex is rare enough not to need its own thread pool and because the
      * thread may be blocked by the user script.
      * <p>
-     * Each attempt to send a non-empty bulk takes its coordinating indexing pressure charge when that attempt runs. The update is a counter
-     * increment, so it does not block. An admitted charge stays open until the cleanup that already wraps the bulk listener. A batch that
-     * cannot take a charge holds nothing and backs off to retry the same bulk.
+     * The coordinating charge was taken before this page was searched. This method resizes it to the bulk just built. A page whose own size
+     * is above the coordinating limit fails the task. The charge stays on the page across bulk retries and across {@code max_docs} sub
+     * bulks, and the cleanup that already wraps the bulk listener releases it when the page has nothing left.
      */
     void prepareBulkRequest(long thisBatchStartTimeNS, PaginatedSearchConsumableHitsResponse asyncResponse) {
         logger.debug("[{}]: preparing bulk request", task.getId());
@@ -745,78 +764,74 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         // is released (via cleanup) when the bulk listener completes or if we return early for any reason.
         final AtomicLong reservedBytes = new AtomicLong(0);
         final Releasable releaseBatchHits = Releasables.releaseOnce(() -> releaseHits(hits));
-        // Filled when an attempt is admitted. Closed with the hit page, including after the bulk has been retried.
-        final AtomicReference<Releasable> coordinatingCharge = new AtomicReference<>();
-        final Releasable cleanup = Releasables.wrap(releaseBatchHits, () -> {
+        final Releasable releaseBreakerAndBody = Releasables.releaseOnce(Releasables.wrap(releaseBatchHits, () -> {
             long r = reservedBytes.getAndSet(0);
             if (r > 0) circuitBreaker.addWithoutBreaking(-r);
             asyncResponse.response().closeBodyReleasable();
-            Releasables.close(coordinatingCharge.getAndSet(null));
-        });
+        }));
         boolean cleanupHandedOff = false;
+        boolean continuing = false;
         try {
             final BulkRequest request;
             try {
                 request = buildBulk(hits, reservedBytes);
             } catch (CircuitBreakingException e) {
+                // releaseBatchHits is once, so the finally block does not release the same hit again.
+                releaseBatchHits.close();
+                asyncResponse.releaseRemainingHits();
                 finishHim(e);
                 return;
             }
             if (request.requests().isEmpty()) {
                 /*
                  * If we noop-ed the entire batch then just skip to the next batch or the BulkRequest would fail validation.
+                 * The page charge has to be gone before notifyDone reserves the next search.
                  */
+                releaseBatchHits.close();
+                asyncResponse.releaseChargeWhenNothingRemains();
                 notifyDone(thisBatchStartTimeNS, asyncResponse, 0);
+                continuing = true;
+                return;
+            }
+            try {
+                resizePageCharge(asyncResponse, request);
+            } catch (EsRejectedExecutionException e) {
+                // The page is already in memory and it cannot be admitted. Drop it and fail. Do not send, and do not retry.
+                releaseBatchHits.close();
+                asyncResponse.releaseRemainingHits();
+                finishHim(e);
                 return;
             }
             request.timeout(mainRequest.getTimeout());
             request.waitForActiveShards(mainRequest.getWaitForActiveShards());
-            coordinatingChargeForAttempt = coordinatingCharge;
+            if (asyncResponse.holdsCoordinatingCharge()) {
+                // doExecute skips its own coordinating charge when the bulk says this page already holds one.
+                // A partial retry copies the flag and does not change the number held here.
+                request.indexingPressureAccounted(true);
+            }
+            // The listener releases this before onBulkResponse, so a page with nothing left drops its charge before the next search.
+            final Releasable cleanup = Releasables.releaseOnce(
+                Releasables.wrap(releaseBreakerAndBody, asyncResponse::releaseChargeWhenNothingRemains)
+            );
             sendBulkRequest(request, cleanup, () -> notifyDone(thisBatchStartTimeNS, asyncResponse, request.requests().size()));
             cleanupHandedOff = true;
         } finally {
-            coordinatingChargeForAttempt = null;
             if (cleanupHandedOff == false) {
-                cleanup.close();
+                releaseBreakerAndBody.close();
+                // A path that notified the next batch left the charge with whatever hits that batch still holds.
+                // Every other exit drops the page, including an exception from building the bulk.
+                if (continuing == false) {
+                    asyncResponse.releaseRemainingHits();
+                }
             }
         }
     }
 
     /**
-     * Reserves one coordinating indexing pressure charge for a non-empty bulk. The caller marks the bulk accounted once it keeps the
-     * reservation, so another attempt does not reserve those bytes again. The reservation keeps this byte count until it is closed,
-     * including after a partial retry shrinks the bulk.
-     *
-     * @param pressure the node's coordinating budget
-     * @param request the bulk about to be sent
-     * @return the reservation, closed by the same cleanup that releases the hit page
-     * @throws EsRejectedExecutionException when the coordinating budget cannot hold the bulk
+     * Send a bulk request, handling retries. Releases {@code releaseOnCompletion} on cancellation, terminal finish, and before the bulk
+     * listener completes, on success or failure.
      */
-    private Releasable reserveCoordinatingIndexingPressure(IndexingPressure pressure, BulkRequest request) {
-        // Same bytes doExecute would charge, taken once for the life of this bulk. forceExecution stays false, so a system index
-        // reindex is rejected when the node is full.
-        final long bytes = request.ramBytesUsed() + threadPool.getThreadContext().estimatedRequestContextBytes();
-        return pressure.markCoordinatingOperationStarted(request.numberOfActions(), bytes, false);
-    }
-
-    /**
-     * Send a bulk request, handling retries. Releases {@code releaseBatchHits} on cancellation, terminal finish, and before the bulk
-     * listener completes (success or failure) so hits and any admitted coordinating charge are never leaked.
-     */
-    void sendBulkRequest(BulkRequest request, Releasable releaseBatchHits, Runnable onSuccess) {
-        final AtomicReference<Releasable> coordinatingCharge;
-        final Releasable cleanup;
-        final boolean releaseUnlessHandedOff;
-        if (coordinatingChargeForAttempt != null) {
-            // prepareBulkRequest already closes this reference from the releasable it passed in.
-            coordinatingCharge = coordinatingChargeForAttempt;
-            cleanup = releaseBatchHits;
-            releaseUnlessHandedOff = false;
-        } else {
-            coordinatingCharge = new AtomicReference<>();
-            cleanup = Releasables.wrap(releaseBatchHits, () -> Releasables.close(coordinatingCharge.getAndSet(null)));
-            releaseUnlessHandedOff = true;
-        }
+    void sendBulkRequest(BulkRequest request, Releasable releaseOnCompletion, Runnable onSuccess) {
         final int requestSize = request.requests().size();
         boolean handedOff = false;
         try {
@@ -830,28 +845,28 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
             }
             if (task.isCancelled()) {
                 logger.debug("[{}]: finishing early because the task was cancelled", task.getId());
-                cleanup.close();
+                releaseOnCompletion.close();
                 finishHim(null);
                 handedOff = true;
                 return;
             }
             if (requestFinishing.get()) {
-                cleanup.close();
+                releaseOnCompletion.close();
                 handedOff = true;
                 return;
             }
             bulkRetry.withBackoff(
-                (bulkRequest, listener) -> sendBulkUnlessCancelled(bulkRequest, listener, coordinatingCharge),
+                this::sendBulkUnlessCancelled,
                 request,
-                ActionListener.releaseBefore(cleanup, ActionListener.wrap(response -> {
+                ActionListener.releaseBefore(releaseOnCompletion, ActionListener.wrap(response -> {
                     logger.debug("[{}]: completed [{}] entry bulk request", task.getId(), requestSize);
                     onBulkResponse(response, onSuccess);
                 }, this::finishHim))
             );
             handedOff = true;
         } finally {
-            if (releaseUnlessHandedOff && handedOff == false) {
-                cleanup.close();
+            if (handedOff == false) {
+                releaseOnCompletion.close();
             }
         }
     }
@@ -860,41 +875,17 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
      * Sends one bulk attempt. When the task has been cancelled since the previous attempt, sends nothing and completes the listener so the
      * task can finish cancelled. {@link Retry} calls this for the first send and for every attempt it has scheduled.
      * <p>
-     * A batch that is not yet admitted tries for one coordinating charge. If the budget cannot hold it, the attempt fails with that
-     * rejection and no charge is kept, so {@link Retry} backs off and runs this same bulk again.
+     * The page already holds the coordinating charge, so this send does not take another one.
      *
      * @param bulkRequest the bulk for this attempt
      * @param listener completed when the attempt finishes
-     * @param coordinatingCharge where an admitted reservation is stored until the bulk's cleanup runs
      */
-    private void sendBulkUnlessCancelled(
-        BulkRequest bulkRequest,
-        ActionListener<BulkResponse> listener,
-        AtomicReference<Releasable> coordinatingCharge
-    ) {
+    private void sendBulkUnlessCancelled(BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
         if (task.isCancelled()) {
             logger.debug("[{}]: not sending bulk because the task was cancelled", task.getId());
             // A non-429 failure would fail the task. Cancellation finishes with the cancel reason, so this attempt reports nothing.
             listener.onResponse(new BulkResponse(new BulkItemResponse[0], 0L));
             return;
-        }
-        final IndexingPressure pressure = indexingPressure;
-        if (pressure != null && bulkRequest.indexingPressureAccounted() == false) {
-            final Releasable reservation;
-            try {
-                reservation = reserveCoordinatingIndexingPressure(pressure, bulkRequest);
-            } catch (EsRejectedExecutionException e) {
-                // The scroll or point-in-time has already moved, so this same page is retried. Nothing is held while it waits.
-                listener.onFailure(e);
-                return;
-            }
-            // releaseOnce because IndexingPressure asserts if its reservation is closed twice.
-            final Releasable once = Releasables.releaseOnce(reservation);
-            if (coordinatingCharge.compareAndSet(null, once) == false) {
-                // This bulk already holds its charge. Drop the extra reservation and still skip the node's own charge.
-                once.close();
-            }
-            bulkRequest.indexingPressureAccounted(true);
         }
         bulkClient.bulk(bulkRequest, listener);
     }
@@ -1041,7 +1032,9 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         }
 
         int totalBatchSize = totalBatchSizeInSinglePaginatedSearchResponse.getAndSet(0);
-        asyncResponse.done(worker.throttleWaitTime(thisBatchStartTimeNS, System.nanoTime(), totalBatchSize));
+        // The previous page released its charge before this method reserved another. One worker, one reservation.
+        TimeValue extraKeepAlive = worker.throttleWaitTime(thisBatchStartTimeNS, System.nanoTime(), totalBatchSize);
+        reservePageThen(() -> asyncResponse.done(extraKeepAlive));
     }
 
     /**
@@ -1169,6 +1162,12 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         );
         final Exception resolvedFailure = maybeWrapCatastrophicFailure(pitPagination, pastKeepaliveDeadline, failure);
         requestFinishing.set(true);
+        // A search that failed before a page existed still holds its estimate. A page that exists closes its own charge below.
+        ReservationRetry scheduledReservation = reservationRetry.getAndSet(null);
+        if (scheduledReservation != null) {
+            scheduledReservation.cancel();
+        }
+        Releasables.close(inFlightCharge.getAndSet(null));
         // Atomically claim the current response. If prepareBulkRequest already claimed it (null), this is a no-op.
         // If we win the CAS, we release any hits that were not yet consumed (i.e. from consumedOffset to end).
         // This covers: prepareBulkRequest hasn't run yet (consumedOffset == 0) and the maxDocs partial-batch case.
@@ -1230,6 +1229,197 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
      */
     void setCurrentPaginatedSearchResponseForTests(PaginatedSearchConsumableHitsResponse response) {
         currentPaginatedSearchResponse.set(response);
+    }
+
+    /**
+     * Reserves the page estimate, then runs {@code search}.
+     * When the estimate does not fit, schedules one retry and leaves the task running with no page held. The retry does not consume
+     * {@code max_retries}. Any other failure fails the task. The wait is scheduled on the generic pool, so this method does not block.
+     */
+    private void reservePageThen(Runnable search) {
+        if (task.isCancelled()) {
+            finishIfStillRunning(null);
+            return;
+        }
+        if (requestFinishing.get()) {
+            return;
+        }
+        final IndexingPressure pressure = indexingPressure;
+        if (pressure != null) {
+            final IndexingPressure.Coordinating charge;
+            try {
+                // forceExecution stays false, so a full coordinating budget rejects the estimate instead of borrowing past it.
+                // The operation count is the page we asked for. The bytes are resized to the bulk once it exists.
+                charge = pressure.markCoordinatingOperationStarted(pageDocCount(), estimatedPageBytes(pressure), false);
+            } catch (EsRejectedExecutionException e) {
+                logger.debug("[{}]: waiting to reserve the next page [{}]", task.getId(), e.getMessage());
+                scheduleReservationRetry(search);
+                return;
+            } catch (Exception e) {
+                finishIfStillRunning(e);
+                return;
+            }
+            if (inFlightCharge.compareAndSet(null, charge) == false) {
+                charge.close();
+                finishIfStillRunning(new IllegalStateException("task [" + task.getId() + "] already holds a coordinating charge"));
+                return;
+            }
+            if (task.isCancelled() || requestFinishing.get()) {
+                Releasables.close(inFlightCharge.getAndSet(null));
+                finishIfStillRunning(null);
+                return;
+            }
+        }
+        if (requestFinishing.get() || task.isCancelled()) {
+            Releasables.close(inFlightCharge.getAndSet(null));
+            finishIfStillRunning(null);
+            return;
+        }
+        try {
+            search.run();
+        } catch (Exception e) {
+            if (requestFinishing.get() == false) {
+                Releasables.close(inFlightCharge.getAndSet(null));
+                finishHim(e);
+            }
+        }
+    }
+
+    /**
+     * Schedules another attempt to reserve the next page. One attempt is outstanding per worker. The delay is the request's initial retry
+     * backoff, and the attempt is cancelled when the task is cancelled.
+     */
+    private void scheduleReservationRetry(Runnable search) {
+        if (task.isCancelled()) {
+            finishIfStillRunning(null);
+            return;
+        }
+        if (listeningForCancellation.compareAndSet(false, true)) {
+            task.addListener(this::onReservationRetryCancelled);
+        }
+        // Published before scheduling, so cancellation can see the attempt even when the scheduler runs it immediately.
+        ReservationRetry retry = new ReservationRetry();
+        if (reservationRetry.compareAndSet(null, retry) == false) {
+            return;
+        }
+        final Scheduler.ScheduledCancellable scheduled;
+        try {
+            // Generic, not the scheduler thread. The retry reserves and then searches, and a search listener can run inline.
+            scheduled = threadPool.schedule(
+                () -> runReservationRetry(retry, search),
+                mainRequest.getRetryBackoffInitialTime(),
+                threadPool.generic()
+            );
+        } catch (Exception e) {
+            reservationRetry.compareAndSet(retry, null);
+            finishIfStillRunning(e);
+            return;
+        }
+        // True when cancellation won before this attempt was attached, and the runnable will not start.
+        if (retry.attach(scheduled)) {
+            reservationRetry.compareAndSet(retry, null);
+            finishIfStillRunning(null);
+            return;
+        }
+        if (task.isCancelled() || requestFinishing.get()) {
+            onReservationRetryCancelled();
+        }
+    }
+
+    private void onReservationRetryCancelled() {
+        ReservationRetry scheduled = reservationRetry.getAndSet(null);
+        // cancel returns true only when the attempt will not run. That attempt is the one that has to finish the task.
+        if (scheduled != null && scheduled.cancel()) {
+            finishIfStillRunning(null);
+        }
+    }
+
+    private void runReservationRetry(ReservationRetry retry, Runnable search) {
+        // Drop only this attempt. A newer one, published if the scheduler ran us before attach returned, has to stay.
+        reservationRetry.compareAndSet(retry, null);
+        if (requestFinishing.get()) {
+            return;
+        }
+        reservePageThen(search);
+    }
+
+    /**
+     * One scheduled reservation attempt. Published before the scheduler runs it, so cancel still finds it when the delay is zero.
+     */
+    private static final class ReservationRetry {
+        private final AtomicBoolean cancelled = new AtomicBoolean();
+        @Nullable
+        private volatile Scheduler.ScheduledCancellable scheduled;
+
+        /**
+         * @return true when this attempt will not run
+         */
+        boolean cancel() {
+            if (cancelled.compareAndSet(false, true) == false) {
+                return false;
+            }
+            Scheduler.ScheduledCancellable current = scheduled;
+            // Not attached yet. attach cancels the future and reports whether that stopped the run.
+            if (current == null) {
+                return false;
+            }
+            return current.cancel();
+        }
+
+        /**
+         * @return true when this attempt was already cancelled and the scheduled run will not start
+         */
+        boolean attach(Scheduler.ScheduledCancellable scheduledRun) {
+            this.scheduled = scheduledRun;
+            if (cancelled.get() == false) {
+                return false;
+            }
+            return scheduledRun.cancel();
+        }
+    }
+
+    private void finishIfStillRunning(@Nullable Exception failure) {
+        if (requestFinishing.get() == false) {
+            finishHim(failure);
+        }
+    }
+
+    /**
+     * Documents the next search can return. An unset size uses the search default, which is what the search will actually fetch.
+     */
+    private int pageDocCount() {
+        SearchSourceBuilder source = mainRequest.getSearchRequest().source();
+        if (source == null || source.size() < 0) {
+            return SearchService.DEFAULT_SIZE;
+        }
+        return source.size();
+    }
+
+    private long estimatedPageBytes(IndexingPressure pressure) {
+        long raw = (long) pageDocCount() * ESTIMATED_HIT_BYTES + threadPool.getThreadContext().estimatedRequestContextBytes();
+        // A reservation larger than the limit is rejected even when the node is empty, so the estimate stops at the limit.
+        return min(raw, pressure.getCoordinatingLimitInBytes());
+    }
+
+    /**
+     * Sets the page's coordinating charge to this bulk's real size.
+     * A {@code max_docs} sub bulk replaces the number with that sub bulk's own size. A partial retry never calls this, so a smaller retry
+     * leaves the page's number unchanged.
+     *
+     * @throws EsRejectedExecutionException when the bulk's own size is above the coordinating limit. The charge is left unchanged.
+     */
+    private void resizePageCharge(PaginatedSearchConsumableHitsResponse page, BulkRequest request) {
+        IndexingPressure.Coordinating charge = page.coordinatingCharge();
+        if (charge == null) {
+            return;
+        }
+        long realBytes = request.ramBytesUsed() + threadPool.getThreadContext().estimatedRequestContextBytes();
+        long reserved = charge.currentBytes();
+        if (realBytes > reserved) {
+            charge.raise(realBytes - reserved);
+        } else if (realBytes < reserved) {
+            charge.reduceBytes(reserved - realBytes);
+        }
     }
 
     private static void releaseHits(List<? extends PaginatedHitSource.Hit> hits) {
@@ -1469,7 +1659,9 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
     }
 
     /**
-     * Apply a {@link Script} to a {@link RequestWrapper}
+     * Applies a script to a request built from one search hit.
+     * Once the script has replaced the source, the hit is released. The request holds the new source, so the hit's bytes are no longer
+     * needed. A request with no script keeps the hit until the page is released, because the bulk shares that source.
      */
     public abstract static class ScriptApplier<T extends Metadata>
         implements
@@ -1509,6 +1701,9 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
             T metadata = ctxMap.getMetadata();
 
             request.setSource(ctxMap.getSource());
+            // The request now holds the source the script produced, so the hit's bytes are no longer needed.
+            // Shared source, the path with no script, keeps the hit until the page is released.
+            doc.release();
 
             updateRequest(request, metadata);
 
@@ -1545,6 +1740,10 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         }
     }
 
+    /**
+     * One page of search hits and the coordinating charge for that page.
+     * The charge is closed once, when the page is dropped or when the caller has consumed every hit and releases the page.
+     */
     static class PaginatedSearchConsumableHitsResponse {
         private final PaginatedHitSource.AsyncResponse asyncResponse;
         private final List<? extends PaginatedHitSource.Hit> hits;
@@ -1557,11 +1756,56 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
          */
         private volatile int consumedOffset = 0;
         private final Releasable releaseRemainingHitsOnce;
+        private final AtomicReference<IndexingPressure.Coordinating> coordinatingCharge = new AtomicReference<>();
+        private final Releasable closeChargeOnce;
 
         PaginatedSearchConsumableHitsResponse(PaginatedHitSource.AsyncResponse asyncResponse) {
             this.asyncResponse = asyncResponse;
             this.hits = asyncResponse.response().getHits();
             this.releaseRemainingHitsOnce = Releasables.releaseOnce(this::doReleaseRemainingHits);
+            this.closeChargeOnce = Releasables.releaseOnce(this::closeCoordinatingCharge);
+        }
+
+        /**
+         * Takes the charge reserved for this page. Called before the page is read, including when the search listener runs inline.
+         * A second charge is closed so it cannot leak.
+         */
+        void attachCoordinatingCharge(@Nullable IndexingPressure.Coordinating charge) {
+            if (charge == null) {
+                return;
+            }
+            if (coordinatingCharge.compareAndSet(null, charge) == false) {
+                charge.close();
+            }
+        }
+
+        /**
+         * The live coordinating charge for this page, or null when this page has none.
+         */
+        @Nullable
+        IndexingPressure.Coordinating coordinatingCharge() {
+            return coordinatingCharge.get();
+        }
+
+        /**
+         * Whether this page still holds a coordinating charge.
+         */
+        boolean holdsCoordinatingCharge() {
+            return coordinatingCharge.get() != null;
+        }
+
+        /**
+         * Closes the coordinating charge once every hit on this page has been consumed.
+         * A page that still has hits keeps the charge for the next sub bulk.
+         */
+        void releaseChargeWhenNothingRemains() {
+            if (hasRemainingHits() == false) {
+                closeChargeOnce.close();
+            }
+        }
+
+        private void closeCoordinatingCharge() {
+            Releasables.close(coordinatingCharge.getAndSet(null));
         }
 
         PaginatedHitSource.Response response() {
@@ -1610,6 +1854,8 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
             for (; consumedOffset < hits.size(); consumedOffset++) {
                 hits.get(consumedOffset).release();
             }
+            // Dropping the page drops its charge, including when the page held no hits.
+            closeChargeOnce.close();
             asyncResponse.response().closeBodyReleasable();
         }
 

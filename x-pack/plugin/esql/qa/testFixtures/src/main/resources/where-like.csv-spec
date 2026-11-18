@@ -1932,3 +1932,115 @@ emp_no:integer | first_name:keyword | starts_eb:boolean | c:long
 10002          | Bezalel            | false             | 88
 10003          | Parto              | false             | 88
 ;
+
+
+rlikeRe2CaseInsensitiveFlag
+required_capability: regex_syntax_setting
+
+SET regex_syntax="re2"\;
+FROM employees
+| WHERE first_name RLIKE "(?i)geor.*"
+| KEEP emp_no, first_name
+| SORT emp_no
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10055          | Georgy
+;
+
+
+rlikeLuceneByDefault
+required_capability: regex_syntax_setting
+
+FROM employees
+| WHERE first_name RLIKE "(?i)geor.*"
+| KEEP emp_no, first_name
+| SORT emp_no
+;
+
+emp_no:integer | first_name:keyword
+;
+
+
+rlikeRe2UnicodeClass
+required_capability: regex_syntax_setting
+
+SET regex_syntax="re2"\;
+FROM employees
+| WHERE first_name RLIKE "\\p{Lu}\\p{Ll}{2}"
+| KEEP emp_no, first_name
+| SORT emp_no
+;
+
+emp_no:integer | first_name:keyword
+10041          | Uri
+10061          | Tse
+10064          | Udi
+10075          | Gao
+;
+
+
+rlikeRe2Not
+required_capability: regex_syntax_setting
+
+SET regex_syntax="re2"\;
+FROM employees
+| WHERE first_name NOT RLIKE "(?i)[a-s].*"
+| KEEP emp_no, first_name
+| SORT emp_no
+;
+
+emp_no:integer | first_name:keyword
+10007          | Tzvetan
+10026          | Yongqiao
+10040          | Weiyi
+10041          | Uri
+10043          | Yishay
+10047          | Zvonko
+10050          | Yinghua
+10061          | Tse
+10064          | Udi
+10081          | Zhongwei
+10083          | Vishv
+10084          | Tuval
+10087          | Xinglin
+10092          | Valdiodio
+10099          | Valter
+;
+
+
+rlikeRe2List
+required_capability: regex_syntax_setting
+
+SET regex_syntax="re2"\;
+FROM employees
+| WHERE first_name RLIKE ("(?i)geor.*", "(?:Ber|Bez)\\w+")
+| KEEP emp_no, first_name
+| SORT emp_no
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10002          | Bezalel
+10014          | Berni
+10055          | Georgy
+10058          | Berhard
+;
+
+
+rlikeRe2ConstantExpression
+required_capability: regex_syntax_setting
+required_capability: like_rlike_constant_expression
+
+SET regex_syntax="re2"\;
+FROM employees
+| WHERE first_name RLIKE CONCAT("(?i)", "geor.*")
+| KEEP emp_no, first_name
+| SORT emp_no
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10055          | Georgy
+;

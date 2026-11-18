@@ -18,7 +18,9 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.Re2Pattern;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexSyntax;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -177,10 +179,20 @@ public class DeferredRegexExpression extends Expression implements PostOptimizat
      * Shared by the parse-time literal fast path and {@code ReplaceDeferredRegex}.
      */
     public static RegexMatch<?> buildRegexMatch(Source source, Expression field, Variant variant, String patternStr) {
+        return buildRegexMatch(source, field, variant, patternStr, RegexSyntax.LUCENE);
+    }
+
+    /**
+     * As {@link #buildRegexMatch(Source, Expression, Variant, String)}, reading an {@code RLIKE} pattern in {@code syntax}.
+     */
+    public static RegexMatch<?> buildRegexMatch(Source source, Expression field, Variant variant, String patternStr, RegexSyntax syntax) {
         try {
             return switch (variant) {
                 case LIKE -> new WildcardLike(source, field, new WildcardPattern(patternStr));
-                case RLIKE -> new RLike(source, field, new RLikePattern(patternStr));
+                case RLIKE -> switch (syntax) {
+                    case LUCENE -> new RLike(source, field, new RLikePattern(patternStr));
+                    case RE2 -> new Re2Like(source, field, new Re2Pattern(patternStr));
+                };
             };
         } catch (InvalidArgumentException e) {
             throw new ParsingException(source, "Invalid pattern for {} [{}]: [{}]", variant.name(), patternStr, e.getMessage());

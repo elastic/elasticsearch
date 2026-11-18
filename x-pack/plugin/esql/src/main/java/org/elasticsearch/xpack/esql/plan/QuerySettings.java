@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexSyntax;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -325,6 +326,18 @@ public final class QuerySettings {
         .streamFormat((out, value) -> value.writeTo(out), ExemplarsSettings::new)
         .build();
 
+    @Param(
+        name = "regex_syntax",
+        type = { "keyword" },
+        description = "The syntax `RLIKE` reads its regular expressions in: `lucene`, the default, or `re2`, the syntax of Go's"
+            + " and so Prometheus' regular expressions. `MV_RLIKE`, `REPLACE` and `GROK` keep their own syntax."
+    )
+    public static final QuerySettingDef<RegexSyntax> REGEX_SYNTAX = QuerySettingDef.string("regex_syntax", QuerySettings::parseRegexSyntax)
+        .withDefault(RegexSyntax.LUCENE)
+        .withSnapshotOnly()
+        .withTelemetryLabels(Arrays.stream(RegexSyntax.values()).map(RegexSyntax::settingValue).toList(), RegexSyntax::settingValue)
+        .build();
+
     /**
      * The canonical, explicitly-enumerated set of all query settings. This is the single source of truth — the
      * request parser, the resolver, and telemetry all iterate this list. Add a new setting's constant here when
@@ -337,6 +350,7 @@ public final class QuerySettings {
         WILDCARDS_MATCH_DATASETS,
         WILDCARDS_MATCH_VIEWS,
         PROJECT_ROUTING,
+        REGEX_SYNTAX,
         TIME_ZONE,
         TIME_SERIES_REDUCE_PER_INDEX,
         UNMAPPED_FIELDS
@@ -393,6 +407,19 @@ public final class QuerySettings {
             return ZoneId.of(tz).normalized();
         } catch (Exception e) {
             throw new IllegalArgumentException("Invalid time zone [" + tz + "]");
+        }
+    }
+
+    private static RegexSyntax parseRegexSyntax(String value) {
+        try {
+            return RegexSyntax.valueOf(value.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException(
+                "Invalid regex_syntax ["
+                    + value
+                    + "], must be one of "
+                    + Arrays.stream(RegexSyntax.values()).map(RegexSyntax::settingValue).toList()
+            );
         }
     }
 

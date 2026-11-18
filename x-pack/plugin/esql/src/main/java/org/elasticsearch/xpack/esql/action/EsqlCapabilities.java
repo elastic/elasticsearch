@@ -1437,6 +1437,11 @@ public class EsqlCapabilities {
         EXEMPLARS_SETTING_DEVELOPMENT_V8(Build.current().isSnapshot()),
 
         /**
+         * Support for the {@code regex_syntax} query setting, which reads {@code RLIKE} patterns in RE2 syntax.
+         */
+        REGEX_SYNTAX_SETTING(Build.current().isSnapshot()),
+
+        /**
          * Are the {@code documents_found} and {@code values_loaded} fields available
          * in the response and profile?
          */

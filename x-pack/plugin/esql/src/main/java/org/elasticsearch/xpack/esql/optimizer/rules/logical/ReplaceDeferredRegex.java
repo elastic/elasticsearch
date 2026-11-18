@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.DeferredRegexExpression;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 
 /**
  * Converts {@link DeferredRegexExpression} nodes into concrete {@code WildcardLike} or
@@ -47,7 +48,13 @@ public final class ReplaceDeferredRegex extends OptimizerRules.OptimizerExpressi
             return expr;
         }
         String patternStr = BytesRefs.toString(val);
-        RegexMatch<?> regex = DeferredRegexExpression.buildRegexMatch(expr.source(), expr.field(), expr.variant(), patternStr);
+        RegexMatch<?> regex = DeferredRegexExpression.buildRegexMatch(
+            expr.source(),
+            expr.field(),
+            expr.variant(),
+            patternStr,
+            QuerySettings.REGEX_SYNTAX.get(ctx.configuration().resolvedSettings())
+        );
         return ReplaceRegexMatch.replace(regex, ctx);
     }
 }

@@ -31,6 +31,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -256,14 +257,14 @@ public final class UnmappedFields {
     ) throws IOException {
         try (
             XContentParser parser = XContentHelper.createParserNotCompressed(XContentParserConfiguration.EMPTY, source, sourceType);
-            XContentBuilder out = walk.filter == null ? null : XContentFactory.jsonBuilder();
             HeldValues heldValues = HeldValues.ofValues(breaker, allowance);
-            HeldValues writtenJson = HeldValues.ofWrittenJson(breaker, jsonAllowance)
+            HeldValues writtenJson = HeldValues.ofWrittenJson(breaker, jsonAllowance);
+            XContentBuilder out = walk.filter == null ? null : XContentFactory.jsonBuilder(new ChargingByteArrayOutputStream(writtenJson))
         ) {
             if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
                 throw new IllegalStateException("expected an object but was [" + parser.currentToken() + "]");
             }
-            Extraction extraction = new Extraction(parser, out, walk, heldValues, writtenJson);
+            Extraction extraction = new Extraction(parser, out, walk, heldValues);
             if (holdAll && out != null) {
                 extraction.held = new LinkedHashMap<>();
             }
@@ -347,7 +348,6 @@ public final class UnmappedFields {
         private final Walk walk;
         private final HeldValues heldValues;
         /** Charges the JSON written to {@link #out}, before it is written. */
-        private final HeldValues writtenJson;
         /** The values found of each name of the walk. */
         private Map<String, NamedValues> named = Map.of();
         /**
@@ -364,12 +364,11 @@ public final class UnmappedFields {
         private Map<String, Object> held;
         private boolean wrote;
 
-        Extraction(XContentParser parser, @Nullable XContentBuilder out, Walk walk, HeldValues heldValues, HeldValues writtenJson) {
+        Extraction(XContentParser parser, @Nullable XContentBuilder out, Walk walk, HeldValues heldValues) {
             this.parser = parser;
             this.out = out;
             this.walk = walk;
             this.heldValues = heldValues;
-            this.writtenJson = writtenJson;
             this.spelling = walk.names.isEmpty() ? null : new int[8];
         }
 
@@ -529,7 +528,6 @@ public final class UnmappedFields {
                         if (written) {
                             if (held == null) {
                                 field(path);
-                                writtenJson.add(JSON_GROWTH_FACTOR * scalarJsonBytes());
                                 out.copyCurrentStructure(parser);
                             } else {
                                 hold(path, value);
@@ -569,7 +567,6 @@ public final class UnmappedFields {
         void writeHeld() throws IOException {
             for (Map.Entry<String, Object> field : held.entrySet()) {
                 field(field.getKey());
-                writtenJson.add(JSON_GROWTH_FACTOR * jsonBytes(field.getValue()));
                 out.value(field.getValue());
             }
         }
@@ -583,19 +580,7 @@ public final class UnmappedFields {
                 out.startObject();
                 wrote = true;
             }
-            writtenJson.add(JSON_GROWTH_FACTOR * (utf8Length(path) + KEY_PUNCTUATION_BYTES));
             out.field(path);
-        }
-
-        /** The bytes that the scalar the parser is positioned on takes as JSON, counting a character of a string as one byte. */
-        private long scalarJsonBytes() throws IOException {
-            return switch (parser.currentToken()) {
-                case VALUE_STRING -> parser.textLength() + VALUE_PUNCTUATION_BYTES;
-                case VALUE_EMBEDDED_OBJECT -> base64Length(parser.binaryValue().length) + VALUE_PUNCTUATION_BYTES;
-                case VALUE_NUMBER -> NUMBER_JSON_BYTES;
-                case VALUE_BOOLEAN -> BOOLEAN_JSON_BYTES;
-                default -> throw new IllegalStateException("unexpected token [" + parser.currentToken() + "]");
-            };
         }
     }
 
@@ -665,6 +650,62 @@ public final class UnmappedFields {
     private static final class Values extends ArrayList<Object> {}
 
     /**
+     * The buffer of the JSON that a walk writes. It charges the capacity of its array to the breaker, before the array grows, so that
+     * a document whose JSON is far larger than its {@code _source} trips the breaker instead of the heap. What it charges is what is
+     * written, whatever the format of {@code _source} and the escaping and encoding of what it holds.
+     * <p>
+     * A {@link ByteArrayOutputStream} grows by copying into a new array, so the old array and the new one are alive together: the
+     * capacity of the new one is charged before the copy, and the old one is given back after it.
+     */
+    private static final class ChargingByteArrayOutputStream extends ByteArrayOutputStream {
+        private final HeldValues charge;
+
+        ChargingByteArrayOutputStream(HeldValues charge) {
+            this.charge = charge;
+            charge.add(buf.length);
+        }
+
+        @Override
+        public synchronized void write(int b) {
+            long previous = buf.length;
+            long grown = chargeGrowth(1);
+            super.write(b);
+            settle(previous, grown);
+        }
+
+        @Override
+        public synchronized void write(byte[] bytes, int offset, int length) {
+            long previous = buf.length;
+            long grown = chargeGrowth(length);
+            super.write(bytes, offset, length);
+            settle(previous, grown);
+        }
+
+        /**
+         * Charges the capacity that the array grows to when {@code length} more bytes are written, as {@link ByteArrayOutputStream} grows
+         * it: by what is needed, or by its length if that is more.
+         *
+         * @return what was charged, {@code 0} if the array does not grow
+         */
+        private long chargeGrowth(int length) {
+            long needed = (long) count + length;
+            if (needed <= buf.length) {
+                return 0;
+            }
+            long grown = buf.length + Math.max(needed - buf.length, buf.length);
+            charge.add(grown);
+            return grown;
+        }
+
+        /** Gives back the old array, and what was charged beyond the capacity the array has now. */
+        private void settle(long previous, long grown) {
+            if (grown > 0) {
+                charge.release(previous + grown - buf.length);
+            }
+        }
+    }
+
+    /**
      * Charges the values that a walk holds to a circuit breaker as it holds them, and gives them back when the walk ends.
      * <p>
      * A walk holds the values of an array until the array ends, and the values of a name until the document is read, as an object
@@ -672,8 +713,9 @@ public final class UnmappedFields {
      * about 50. What a walk reserves up front, a multiple of the size of {@code _source}, is too little for a document with many short
      * values, and a walk that reserves nothing, the one for the values of a name, is not covered at all.
      * <p>
-     * The same accounting charges the JSON that a walk writes, before it is written, in {@link #ofWrittenJson}: it takes the number of
-     * leaves times the length of their paths, which a long key above many leaves makes far more than the size of {@code _source}.
+     * The same accounting charges the buffer that the JSON of a walk is written to, in {@link #ofWrittenJson}, through a
+     * {@link ChargingByteArrayOutputStream}: the JSON takes the number of leaves times the length of their paths, which a long key above
+     * many leaves makes far more than the size of {@code _source}.
      * <p>
      * The {@code allowance} is how much of the reservation stands for held values. What is held up to it is paid for already, so only
      * what is held beyond it is charged. The charge is made in steps of {@link #STEP} bytes, so that holding a value usually costs no
@@ -702,8 +744,7 @@ public final class UnmappedFields {
         }
 
         /**
-         * Charges the JSON that a walk builds, beyond the {@code allowance} that its reservation stands for, before it is written so
-         * that the breaker trips before the buffer grows.
+         * Charges the buffer of the JSON that a walk builds, beyond the {@code allowance} that its reservation stands for.
          */
         static HeldValues ofWrittenJson(CircuitBreaker breaker, long allowance) {
             return new HeldValues(breaker, allowance, WRITTEN_JSON_LABEL);
@@ -715,6 +756,16 @@ public final class UnmappedFields {
             if (uncharged >= STEP) {
                 breaker.addEstimateBytesAndMaybeBreak(uncharged, label);
                 charged += uncharged;
+            }
+        }
+
+        /** Gives back {@code bytes} that were added and are no longer held, releasing what was charged for them. */
+        void release(long bytes) {
+            held -= bytes;
+            long excess = charged - Math.max(0, held - allowance);
+            if (excess > 0) {
+                breaker.addWithoutBreaking(-excess);
+                charged -= excess;
             }
         }
 
@@ -764,48 +815,6 @@ public final class UnmappedFields {
 
     private static long aligned(long bytes) {
         return (bytes + 7) & ~7L;
-    }
-
-    /**
-     * How many times the bytes written to the JSON of a walk are charged: the buffer is a {@link java.io.ByteArrayOutputStream}, which
-     * grows by copying into an array of twice its length, so the old array and the new one are alive together and the peak is about
-     * three times what has been written.
-     */
-    private static final long JSON_GROWTH_FACTOR = 3;
-    /** The quotes and colon of a key, and the comma that precedes it. */
-    private static final long KEY_PUNCTUATION_BYTES = 4;
-    /** The quotes of a string value. */
-    private static final long VALUE_PUNCTUATION_BYTES = 2;
-    private static final long NUMBER_JSON_BYTES = 24;
-    private static final long BOOLEAN_JSON_BYTES = 5;
-
-    private static long utf8Length(String text) {
-        return UnicodeUtil.calcUTF16toUTF8Length(text, 0, text.length());
-    }
-
-    private static long base64Length(int bytes) {
-        return 4L * ((bytes + 2L) / 3);
-    }
-
-    /** The bytes that a held value, or the list of the values of a field, takes as JSON. */
-    private static long jsonBytes(Object value) {
-        if (value instanceof Values values) {
-            long bytes = 2;
-            for (Object element : values) {
-                bytes += jsonBytes(element) + 1;
-            }
-            return bytes;
-        }
-        if (value instanceof String string) {
-            return utf8Length(string) + VALUE_PUNCTUATION_BYTES;
-        }
-        if (value instanceof byte[] bytes) {
-            return base64Length(bytes.length) + VALUE_PUNCTUATION_BYTES;
-        }
-        if (value instanceof Boolean) {
-            return BOOLEAN_JSON_BYTES;
-        }
-        return NUMBER_JSON_BYTES;
     }
 
     /**

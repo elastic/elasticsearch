@@ -979,8 +979,9 @@ public final class ConfigurableClusterPrivileges {
 
     /**
      * Delegates the creation and replacement of user-managed service accounts, and the creation and deletion of their
-     * tokens, without handing out {@code manage_security}. The grant names the accounts its holder may write, as wildcard-aware patterns over the
-     * {@code namespace/service-name} principal, and the roles they may give those accounts, as patterns of the same kind
+     * tokens, without handing out {@code manage_security}. The grant names the accounts its holder may write, as
+     * wildcard-aware patterns over the {@code namespace/service-name} principal, and the roles they may give those
+     * accounts, as patterns of the same kind
      * over role names. An administrator approves the role patterns once; the holder can then write the named accounts
      * freely but never give one a role the patterns do not match. The holder's own privileges are never consulted.
      * <p>

@@ -145,11 +145,15 @@ class CertificateTool extends MultiCommand {
     }
 
     CertificateTool() {
+        this(CliKeyStoreFormat.forRuntime());
+    }
+
+    CertificateTool(CliKeyStoreFormat keyStoreFormat) {
         super(DESCRIPTION);
-        subcommands.put("csr", new SigningRequestCommand());
-        subcommands.put("cert", new GenerateCertificateCommand());
-        subcommands.put("ca", new CertificateAuthorityCommand());
-        subcommands.put("http", new HttpCertificateCommand());
+        subcommands.put("csr", new SigningRequestCommand(keyStoreFormat));
+        subcommands.put("cert", new GenerateCertificateCommand(keyStoreFormat));
+        subcommands.put("ca", new CertificateAuthorityCommand(keyStoreFormat));
+        subcommands.put("http", new HttpCertificateCommand(keyStoreFormat));
     }
 
     @Override
@@ -217,8 +221,11 @@ class CertificateTool extends MultiCommand {
 
         OptionSpec<String> inputFileSpec;
 
-        CertificateCommand(String description) {
+        final CliKeyStoreFormat keyStoreFormat;
+
+        CertificateCommand(String description, CliKeyStoreFormat keyStoreFormat) {
             super(description);
+            this.keyStoreFormat = keyStoreFormat;
             outputPathSpec = parser.accepts("out", "path to the output file that should be produced").withRequiredArg();
             outputPasswordSpec = parser.accepts("pass", "password for generated private keys").withOptionalArg();
             keysizeSpec = parser.accepts("keysize", "size in bits of RSA keys").withRequiredArg().ofType(Integer.class);
@@ -389,7 +396,7 @@ class CertificateTool extends MultiCommand {
                 passwordOption,
                 terminal,
                 false,
-                password -> CliKeyStoreFormat.forRuntime().readKeyPairs(path, password, a -> password)
+                password -> keyStoreFormat.readKeyPairs(path, password, a -> password)
             );
 
             if (keys.size() != 1) {
@@ -573,7 +580,7 @@ class CertificateTool extends MultiCommand {
             return caDirName;
         }
 
-        static void writeKeyStore(
+        void writeKeyStore(
             String fileName,
             OutputStream output,
             String alias,
@@ -582,7 +589,7 @@ class CertificateTool extends MultiCommand {
             char[] password,
             Terminal terminal
         ) throws Exception {
-            final KeyStore keyStore = CliKeyStoreFormat.forRuntime().newKeyStore();
+            final KeyStore keyStore = keyStoreFormat.newKeyStore();
             withPassword(fileName, password, terminal, true, keyStorePassword -> {
                 if (isAscii(keyStorePassword)) {
                     keyStore.setKeyEntry(alias, pair.key, keyStorePassword, new Certificate[] { pair.cert });
@@ -643,7 +650,11 @@ class CertificateTool extends MultiCommand {
     static class SigningRequestCommand extends CertificateCommand {
 
         SigningRequestCommand() {
-            super("generate certificate signing requests");
+            this(CliKeyStoreFormat.forRuntime());
+        }
+
+        SigningRequestCommand(CliKeyStoreFormat keyStoreFormat) {
+            super("generate certificate signing requests", keyStoreFormat);
             acceptInstanceDetails();
             acceptInputFile();
         }
@@ -744,7 +755,11 @@ class CertificateTool extends MultiCommand {
         OptionSpec<Void> selfSigned;
 
         GenerateCertificateCommand() {
-            super("generate X.509 certificates and keys");
+            this(CliKeyStoreFormat.forRuntime());
+        }
+
+        GenerateCertificateCommand(CliKeyStoreFormat keyStoreFormat) {
+            super("generate X.509 certificates and keys", keyStoreFormat);
             acceptCertificateGenerationOptions();
             acceptInstanceDetails();
             acceptsCertificateAuthority();
@@ -969,7 +984,11 @@ class CertificateTool extends MultiCommand {
     static class CertificateAuthorityCommand extends CertificateCommand {
 
         CertificateAuthorityCommand() {
-            super("generate a new local certificate authority");
+            this(CliKeyStoreFormat.forRuntime());
+        }
+
+        CertificateAuthorityCommand(CliKeyStoreFormat keyStoreFormat) {
+            super("generate a new local certificate authority", keyStoreFormat);
             acceptCertificateGenerationOptions();
             acceptsCertificateAuthorityName();
             acceptCertificateAuthorityKeyUsage();

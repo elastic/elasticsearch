@@ -149,14 +149,24 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         .withRequiredArg();
     private final boolean inReconfigureMode;
     private final BiFunction<Environment, String, CommandLineHttpClient> clientFunction;
+    private final CliKeyStoreFormat keyStoreFormat;
 
     public AutoConfigureNode(boolean reconfigure, BiFunction<Environment, String, CommandLineHttpClient> clientFunction) {
+        this(reconfigure, clientFunction, CliKeyStoreFormat.forRuntime());
+    }
+
+    AutoConfigureNode(
+        boolean reconfigure,
+        BiFunction<Environment, String, CommandLineHttpClient> clientFunction,
+        CliKeyStoreFormat keyStoreFormat
+    ) {
         super("Generates all the necessary security configuration for a node in a secured cluster");
         // This "cli utility" is invoked from the node startup script, where it is passed all the
         // node startup options unfiltered. It cannot consume most of them, but it does need to inspect the `-E` ones.
         parser.allowsUnrecognizedOptions();
         this.inReconfigureMode = reconfigure;
         this.clientFunction = clientFunction;
+        this.keyStoreFormat = keyStoreFormat;
     }
 
     public AutoConfigureNode(boolean reconfigure) {
@@ -541,7 +551,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                 );
             }
             try (SecureString transportKeystorePassword = newKeystorePassword()) {
-                KeyStore transportKeystore = CliKeyStoreFormat.forRuntime().newKeyStore();
+                KeyStore transportKeystore = keyStoreFormat.newKeyStore();
                 // the PKCS12 keystore and the contained private key use the same password
                 transportKeystore.setKeyEntry(
                     TRANSPORT_KEY_KEYSTORE_ENTRY,
@@ -562,7 +572,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                 nodeKeystore.setString("xpack.security.transport.ssl.truststore.secure_password", transportKeystorePassword.getChars());
             }
             try (SecureString httpKeystorePassword = newKeystorePassword()) {
-                KeyStore httpKeystore = CliKeyStoreFormat.forRuntime().newKeyStore();
+                KeyStore httpKeystore = keyStoreFormat.newKeyStore();
                 // the keystore contains both the node's and the CA's private keys
                 // both keys are encrypted using the same password as the PKCS12 keystore they're contained in
                 httpKeystore.setKeyEntry(

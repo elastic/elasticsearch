@@ -155,8 +155,15 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         }
     }
 
+    private final CliKeyStoreFormat keyStoreFormat;
+
     HttpCertificateCommand() {
+        this(CliKeyStoreFormat.forRuntime());
+    }
+
+    HttpCertificateCommand(CliKeyStoreFormat keyStoreFormat) {
         super("generate a new certificate (or certificate request) for the Elasticsearch HTTP interface");
+        this.keyStoreFormat = keyStoreFormat;
     }
 
     @Override
@@ -430,7 +437,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
                     )
                 )
             );
-            final KeyStore keyStore = CliKeyStoreFormat.forRuntime().newKeyStore();
+            final KeyStore keyStore = keyStoreFormat.newKeyStore();
             keyStore.setKeyEntry("ca", ca.certAndKey.key, ca.password, new Certificate[] { ca.certAndKey.cert });
             try (ZipEntryStream entry = new ZipEntryStream(zip, dirName + "/ca.p12")) {
                 keyStore.store(entry, ca.password);
@@ -539,7 +546,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         char[] password,
         X509Certificate caCert
     ) throws IOException, GeneralSecurityException {
-        final KeyStore keyStore = CliKeyStoreFormat.forRuntime().newKeyStore();
+        final KeyStore keyStore = keyStoreFormat.newKeyStore();
         keyStore.setKeyEntry("http", key, password, new Certificate[] { certificate });
         if (caCert != null) {
             keyStore.setCertificateEntry("ca", caCert);

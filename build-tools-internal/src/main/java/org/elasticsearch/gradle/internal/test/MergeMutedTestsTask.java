@@ -36,10 +36,11 @@ import javax.inject.Inject;
  * <p>
  * Conflicts in this file are mechanical: both sides appended mutes after the same last entry, or one side removed an entry next
  * to lines the other side touched. This task reads the three index stages git leaves behind (merge base, receiving branch,
- * incoming change), works out which entries the incoming change added or removed relative to the base, re-applies those to the
- * receiving branch's copy, writes the result and stages it. Entries are identified by {@code class} + {@code method}. Anything
- * that is not a plain addition or removal (an entry modified by the incoming change, removed by the incoming change after the
- * receiving branch changed it, or added on both sides with different content) fails the task so that a human decides.
+ * incoming change), works out which entries the incoming change added, modified or removed relative to the base, re-applies those
+ * to the receiving branch's copy, writes the result and stages it. Entries are identified by {@code class} + {@code method}.
+ * Anything both sides changed in incompatible ways (an entry modified differently on both sides, modified by the incoming change
+ * after the receiving branch removed it, removed by the incoming change after the receiving branch changed it, or added on both
+ * sides with different content) fails the task so that a human decides.
  * <p>
  * The file is edited at the text level, one entry block at a time, so comments and the formatting of untouched entries are
  * preserved.
@@ -57,7 +58,9 @@ public abstract class MergeMutedTestsTask extends DefaultTask {
     public MergeMutedTestsTask(ProjectLayout projectLayout, ExecOperations execOperations) {
         this.rootDir = projectLayout.getSettingsDirectory().getAsFile().toPath();
         this.git = new GitWrapper(execOperations);
-        setDescription("Resolves git merge conflicts in " + MUTED_TESTS_FILE + " by re-applying the incoming additions and removals");
+        setDescription(
+            "Resolves git merge conflicts in " + MUTED_TESTS_FILE + " by re-applying the incoming additions, modifications and removals"
+        );
     }
 
     @TaskAction
@@ -74,9 +77,11 @@ public abstract class MergeMutedTestsTask extends DefaultTask {
         Files.writeString(rootDir.resolve(MUTED_TESTS_FILE), result.content());
         git("add", MUTED_TESTS_FILE);
         getLogger().lifecycle(
-            "Resolved merge conflict in {}: applied {} addition(s) and {} removal(s) from the incoming change, result staged",
+            "Resolved merge conflict in {}: applied {} addition(s), {} modification(s) and {} removal(s) from the incoming change, "
+                + "result staged",
             MUTED_TESTS_FILE,
             result.added(),
+            result.modified(),
             result.removed()
         );
     }
@@ -87,20 +92,22 @@ public abstract class MergeMutedTestsTask extends DefaultTask {
         return git.runCommand(command.toArray(String[]::new));
     }
 
-    /** The merged file content plus how many incoming additions and removals were actually applied. */
-    record Result(String content, int added, int removed) {}
+    /** The merged file content plus how many incoming additions, modifications and removals were actually applied. */
+    record Result(String content, int added, int modified, int removed) {}
 
     /**
-     * Applies the entries added or removed between {@code base} and {@code incoming} to {@code receiving}.
+     * Applies the entries added, modified or removed between {@code base} and {@code incoming} to {@code receiving}.
      *
-     * @throws GradleException when an entry was modified rather than added or removed, when the receiving branch changed an entry
-     *                         that the incoming change removed, or when both sides added the same entry with different content
+     * @throws GradleException when both sides modified an entry differently, when the incoming change modified an entry that the
+     *                         receiving branch removed, when the receiving branch changed an entry that the incoming change
+     *                         removed, or when both sides added the same entry with different content
      */
     static Result merge(String base, String receiving, String incoming) {
         Map<Key, Block> baseEntries = entries(split(base));
         Map<Key, Block> incomingEntries = entries(split(incoming));
         List<Block> result = new ArrayList<>(split(receiving));
         int added = 0;
+        int modified = 0;
         int removed = 0;
         for (Map.Entry<Key, Block> entry : baseEntries.entrySet()) {
             Key key = entry.getKey();
@@ -124,15 +131,44 @@ public abstract class MergeMutedTestsTask extends DefaultTask {
                     removed++;
                 }
             } else if (incomingBlock.node().equals(entry.getValue().node()) == false) {
-                // changed entry - we don't handle this for now
-                throw new GradleException(
-                    "Muted test entry ["
-                        + key
-                        + "] was modified rather than added or removed by the incoming change, resolve the conflict manually:\n"
-                        + entry.getValue().text()
-                        + "\n---\n"
-                        + incomingBlock.text()
-                );
+                // modified entry, unless the receiving branch removed it or changed it differently
+                boolean found = false;
+                boolean applied = false;
+                for (int i = 0; i < result.size(); i++) {
+                    Block block = result.get(i);
+                    if (key.equals(block.key()) == false) {
+                        continue;
+                    }
+                    found = true;
+                    if (block.node().equals(incomingBlock.node())) {
+                        // both sides made the same change
+                        continue;
+                    }
+                    if (block.node().equals(entry.getValue().node()) == false) {
+                        throw new GradleException(
+                            "Muted test entry ["
+                                + key
+                                + "] was modified differently on both sides, resolve the conflict manually:\n"
+                                + block.text()
+                                + "\n---\n"
+                                + incomingBlock.text()
+                        );
+                    }
+                    result.set(i, incomingBlock);
+                    applied = true;
+                }
+                if (found == false) {
+                    throw new GradleException(
+                        "Muted test entry ["
+                            + key
+                            + "] was removed on the receiving branch and modified by the incoming change, "
+                            + "resolve the conflict manually:\n"
+                            + incomingBlock.text()
+                    );
+                }
+                if (applied) {
+                    modified++;
+                }
             }
         }
         for (Map.Entry<Key, Block> entry : incomingEntries.entrySet()) {
@@ -167,7 +203,7 @@ public abstract class MergeMutedTestsTask extends DefaultTask {
                 content.append(line).append('\n');
             }
         }
-        return new Result(content.toString(), added, removed);
+        return new Result(content.toString(), added, modified, removed);
     }
 
     /**

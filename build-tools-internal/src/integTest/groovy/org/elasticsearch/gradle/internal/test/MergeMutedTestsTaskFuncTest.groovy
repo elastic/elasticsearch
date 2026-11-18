@@ -89,7 +89,7 @@ class MergeMutedTestsTaskFuncTest extends AbstractGradleFuncTest {
 
         then:
         result.task(":mergeMuted").outcome == TaskOutcome.SUCCESS
-        result.output.contains("applied 1 addition(s) and 1 removal(s)")
+        result.output.contains("applied 1 addition(s), 0 modification(s) and 1 removal(s)")
         file("muted-tests.yml").text == "tests:\n" + A + X + D + C
         execute("git ls-files -u").strip().isEmpty()
         execute("git diff --cached --name-only").strip() == "muted-tests.yml"

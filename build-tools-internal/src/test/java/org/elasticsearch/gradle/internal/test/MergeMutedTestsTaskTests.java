@@ -148,16 +148,54 @@ public class MergeMutedTestsTaskTests {
         assertThat(result.removed(), equalTo(0));
     }
 
+    /** An entry modified only by the incoming change replaces the receiving branch's copy in place. */
     @Test
-    public void testModifiedEntryFails() {
+    public void testIncomingModificationIsApplied() {
+        String modifiedA = A.replace("issues/1", "issues/100");
+
+        MergeMutedTestsTask.Result result = MergeMutedTestsTask.merge(BASE, BASE + D, "tests:\n" + modifiedA + COMMENT + B);
+
+        assertThat(result.content(), equalTo("tests:\n" + modifiedA + COMMENT + B + D));
+        assertThat(result.modified(), equalTo(1));
+    }
+
+    @Test
+    public void testSameModificationOnBothSidesIsIgnored() {
+        String modified = "tests:\n" + A.replace("issues/1", "issues/100") + COMMENT + B;
+
+        MergeMutedTestsTask.Result result = MergeMutedTestsTask.merge(BASE, modified + D, modified);
+
+        assertThat(result.content(), equalTo(modified + D));
+        assertThat(result.modified(), equalTo(0));
+    }
+
+    @Test
+    public void testModificationConflictingWithReceivingFails() {
+        String receivingA = A.replace("issues/1", "issues/200");
+        String incomingA = A.replace("issues/1", "issues/100");
+
+        GradleException e = assertThrows(
+            GradleException.class,
+            () -> MergeMutedTestsTask.merge(BASE, "tests:\n" + receivingA + COMMENT + B, "tests:\n" + incomingA + COMMENT + B)
+        );
+
+        assertThat(e.getMessage(), containsString("[org.acme.ATests testA] was modified differently on both sides"));
+        assertThat(e.getMessage(), containsString("issues/200"));
+        assertThat(e.getMessage(), containsString("issues/100"));
+    }
+
+    /** Incoming changed a mute that the receiving branch deleted. That is a modify/delete conflict. */
+    @Test
+    public void testModificationOfEntryRemovedOnReceivingFails() {
         String modifiedA = A.replace("issues/1", "issues/100");
 
         GradleException e = assertThrows(
             GradleException.class,
-            () -> MergeMutedTestsTask.merge(BASE, BASE, "tests:\n" + modifiedA + COMMENT + B)
+            () -> MergeMutedTestsTask.merge(BASE, "tests:\n" + COMMENT + B, "tests:\n" + modifiedA + COMMENT + B)
         );
 
-        assertThat(e.getMessage(), containsString("[org.acme.ATests testA] was modified rather than added or removed"));
+        assertThat(e.getMessage(), containsString("[org.acme.ATests testA] was removed on the receiving branch and modified"));
+        assertThat(e.getMessage(), containsString("issues/100"));
     }
 
     @Test
@@ -220,13 +258,11 @@ public class MergeMutedTestsTaskTests {
             """;
         String changed = entry.replace("issues/3", "issues/99");
 
-        GradleException e = assertThrows(
-            GradleException.class,
-            () -> MergeMutedTestsTask.merge("tests:\n" + entry, "tests:\n" + entry, "tests:\n" + changed)
-        );
+        MergeMutedTestsTask.Result result = MergeMutedTestsTask.merge("tests:\n" + entry, "tests:\n" + entry, "tests:\n" + changed);
 
-        assertThat(e.getMessage(), containsString("[org.acme.CTests testC] was modified rather than added or removed"));
-        assertThat(e.getMessage(), containsString("issues/99"));
+        assertThat(result.content(), equalTo("tests:\n" + changed));
+        assertThat(result.modified(), equalTo(1));
+        assertThat(result.added(), equalTo(0));
     }
 
     /** A blank line after an entry, before the next one, is a separator and stays when the preceding entry is removed. */

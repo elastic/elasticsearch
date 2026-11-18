@@ -393,8 +393,14 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             && aggs != null) {
 
             // Replace the estimate with the heap of the reduced result, which the response holds until it is released.
+            // That heap can be well above the charge held so far, so a growing charge is checked and this search fails
+            // if it goes over the limit, not the next one.
             long finalSize = reducePhase.aggregations().estimateHeapBytes() - breakerSize;
-            addWithoutBreaking(finalSize);
+            if (finalSize > 0) {
+                addEstimateAndMaybeBreak(finalSize);
+            } else {
+                addWithoutBreaking(finalSize);
+            }
             logger.trace("aggs final reduction [{}] max [{}]", aggsCurrentBufferSize, maxAggsCurrentBufferSize);
         }
         if (progressListener != SearchProgressListener.NOOP) {
@@ -406,7 +412,6 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             );
         }
         return reducePhase;
-
     }
 
     private static void consumePartialMergeResult(

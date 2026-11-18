@@ -233,6 +233,36 @@ public class QuerySchedulerMemoryTests extends ESTestCase {
     }
 
     /**
+     * A charge on a {@code QueryCircuitBreaker} after the node forgot its query still lands on the
+     * request breaker, and {@link QueryScheduler#memoryBytes} does not see it. A later part of the same
+     * id starts from zero on a new breaker. A DF producer that outlives its compute part is how this
+     * shows up on an EXTERNAL read; the breaker itself is unchanged.
+     */
+    public void testForgottenQueryDoesNotCountLaterChargesOnOldBreaker() {
+        CircuitBreaker queryBreaker;
+        try (var part = scheduler.part(queryId("q"), owner)) {
+            queryBreaker = part.breaker();
+        }
+        assertThat("closing the last part with no bytes forgets the query", scheduler.queries(), equalTo(0));
+        assertThat(scheduler.memoryBytes(queryId("q")), equalTo(0L));
+
+        queryBreaker.addWithoutBreaking(64);
+        assertThat("the request breaker still sees a charge on the old QueryCircuitBreaker", request.getUsed(), equalTo(64L));
+        assertThat(
+            "memoryBytes looks up the tracked query, which was forgotten, so it does not see the old breaker",
+            scheduler.memoryBytes(queryId("q")),
+            equalTo(0L)
+        );
+
+        try (var part = scheduler.part(queryId("q"), owner)) {
+            assertThat("a later part starts tracking from zero on a new breaker", part.breaker(), not(sameInstance(queryBreaker)));
+            assertThat(scheduler.memoryBytes(queryId("q")), equalTo(0L));
+        }
+        queryBreaker.addWithoutBreaking(-64);
+        assertThat(request.getUsed(), equalTo(0L));
+    }
+
+    /**
      * The big arrays of a part charge the query.
      */
     public void testBigArraysChargeTheQuery() {

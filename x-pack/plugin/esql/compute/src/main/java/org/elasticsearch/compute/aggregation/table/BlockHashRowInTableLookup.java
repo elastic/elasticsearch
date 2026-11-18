@@ -32,13 +32,10 @@ final class BlockHashRowInTableLookup extends RowInTableLookup {
             groups.add(new BlockHash.GroupSpec(k, keys[k].elementType()));
         }
 
-        hash = BlockHash.buildPackedValuesBlockHash(
-            groups,
-            blockFactory,
-            (int) BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE.getBytes()
-        );
+        hash = BlockHash.buildPackedValuesBlockHash(groups, blockFactory, 4096);
         boolean success = false;
         try {
+            hash.ensureCapacity(keys[0].getPositionCount());
             hash.add(new Page(keys), new GroupingAggregatorFunction.AddInput() {
                 private int lastOrd = -1;
 

@@ -1000,6 +1000,11 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 new ChannelActionListener<>(channel)
             );
             final BytesTransportResponse response;
+            TaskLoadAttribution.Target mergeLoad = queryPhaseResultConsumer.mergeLoad();
+            if (mergeLoad != null) {
+                // the merge task that completed the last shard already reduced shard results
+                TaskLoadAttribution.chargeSoFar(mergeLoad, System.nanoTime());
+            }
             mergeStartNanos = TaskLoadAttribution.startPart();
             try {
                 response = buildResponse();
@@ -1105,7 +1110,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 if (result == null) {
                     NodeQueryResponse.writePerShardException(out, shardFailureOrUnknown(i));
                 } else {
-                    if (mergeMetrics.isEmpty() == false) {
+                    // a null result is written without its metrics
+                    if (mergeMetrics.isEmpty() == false && result.queryResult().isNull() == false) {
                         result.setDirectoryMetrics(result.getDirectoryMetrics().merge(mergeMetrics));
                         mergeMetrics = DirectoryMetrics.EMPTY;
                     }

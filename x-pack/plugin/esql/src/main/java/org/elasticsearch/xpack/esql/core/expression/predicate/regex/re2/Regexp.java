@@ -1,20 +1,13 @@
 /*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
- *
- * Forked from RE2/J 1.8, see package-info.java.
- *
  * Copyright (c) 2020 The Go Authors. All rights reserved.
  *
  * Use of this source code is governed by a BSD-style
  * license that can be found in the LICENSE file.
  */
-package org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2;
-
 // Original Go source here:
 // http://code.google.com/p/go/source/browse/src/pkg/regexp/syntax/regexp.go
+
+package com.google.re2j;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -342,10 +335,6 @@ class Regexp {
         break;
       case LITERAL:
       case CHAR_CLASS:
-        // ES: as in Go, a case-insensitive literal or class is not the case-sensitive one
-        if ((x.flags & RE2.FOLD_CASE) != (y.flags & RE2.FOLD_CASE)) {
-          return false;
-        }
         if (!Arrays.equals(x.runes, y.runes)) {
           return false;
         }

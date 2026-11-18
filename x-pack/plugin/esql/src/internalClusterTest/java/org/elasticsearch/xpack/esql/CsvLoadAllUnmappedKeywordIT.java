@@ -535,7 +535,9 @@ public class CsvLoadAllUnmappedKeywordIT extends CsvIT {
                 }
                 boolean expectedColumn = expected.columnNames().contains(removedField);
                 boolean alreadyAColumn = names.contains(removedField);
-                if (anyRemovedValue && (expectedColumn == false || alreadyAColumn)) {
+                // A field that the query names is a column of its own and keeps its key in the object, as any column does, so the object
+                // holds nothing that the column lacks: only a value that the original results do not have as a column is unexpected.
+                if (anyRemovedValue && expectedColumn == false) {
                     return actual;
                 }
                 names.remove(unmappedColumn);

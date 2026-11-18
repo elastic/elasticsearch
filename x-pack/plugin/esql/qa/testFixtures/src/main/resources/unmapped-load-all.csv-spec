@@ -8656,3 +8656,21 @@ message:keyword | unmapped_event_duration:keyword | _unmapped_fields:_source
 42              | 1232383                         | "{""unmapped_message"":""43"",""unmapped_event_duration"":""1232383""}"
 42              | 1232383                         | null
 ;
+
+// A field that one index maps and another does not is a column of both, and DROP removes it everywhere: the column, and the key that the
+// index which does not map it keeps. The index that maps it never had the key, so cross_mapping_a still shows the key of the other field.
+loadAllDropOfAPartiallyMappedFieldRemovesTheKey
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_only_keep_and_drop_reach_keys
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read - lossy by design
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM cross_mapping_a, cross_mapping_b METADATA _index
+| DROP foo
+| SORT _index
+;
+
+bar:keyword | _index:keyword  | _unmapped_fields:_source
+b1          | cross_mapping_a | "{""bar"":""b1""}"
+b2          | cross_mapping_b | null
+;

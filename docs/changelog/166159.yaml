@@ -1,5 +1,5 @@
-area: Search
+area: Infra/REST API
 issues: []
 pr: 166159
-summary: Charge large REST response chunks to the request breaker
+summary: Charge large REST response chunks to the request breaker. Slow clients reading large items can cause 429s on other requests
 type: enhancement

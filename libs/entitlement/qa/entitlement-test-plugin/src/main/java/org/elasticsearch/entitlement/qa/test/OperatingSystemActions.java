@@ -9,6 +9,8 @@
 
 package org.elasticsearch.entitlement.qa.test;
 
+import org.elasticsearch.core.SuppressForbidden;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
@@ -41,6 +43,7 @@ class OperatingSystemActions {
         Runtime.getRuntime().exec(COMMAND, new String[0]);
     }
 
+    @SuppressForbidden(reason = "Runtime.exec only accepts a java.io.File for the working directory")
     @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedExceptionIfDenied = IOException.class)
     static void runtime_execCommandWithEnvAndDir() throws IOException {
         Runtime.getRuntime().exec(COMMAND, new String[0], new File("."));
@@ -56,6 +59,7 @@ class OperatingSystemActions {
         Runtime.getRuntime().exec(new String[] { COMMAND }, new String[0]);
     }
 
+    @SuppressForbidden(reason = "Runtime.exec only accepts a java.io.File for the working directory")
     @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedExceptionIfDenied = IOException.class)
     static void runtime_execCommandArrayWithEnvAndDir() throws IOException {
         Runtime.getRuntime().exec(new String[] { COMMAND }, new String[0], new File("."));

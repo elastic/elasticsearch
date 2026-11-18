@@ -53,6 +53,7 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.codec.vectors.ESBaseKnnVectorsFormatTestCase;
+import org.elasticsearch.index.codec.vectors.ash.AshProjectionMatrix;
 import org.elasticsearch.index.codec.vectors.diskbbq.AshConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
@@ -65,6 +66,7 @@ import org.elasticsearch.search.vectors.ESAcceptDocs.SliceAcceptDocs;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.BooleanSupplier;
 
 import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskASHVectorsFormat.MAX_CENTROIDS_PER_PARENT_CLUSTER;
@@ -72,6 +74,7 @@ import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskASHVe
 import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskASHVectorsFormat.MIN_CENTROIDS_PER_PARENT_CLUSTER;
 import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskASHVectorsFormat.MIN_VECTORS_PER_CLUSTER;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
@@ -368,6 +371,51 @@ public class ESNextDiskASHVectorsFormatTests extends ESBaseKnnVectorsFormatTestC
                     );
                     assertThat(topDocs.scoreDocs, arrayWithSize(10));
                 }
+            }
+        }
+    }
+
+    /**
+     * Each segment's projection matrix records an id of its own and the size of the sample it was learned from, which
+     * survive reading the segment back.
+     */
+    public void testProjectionMatrixRecordsIdentity() throws IOException {
+        int dims = 64;
+        // the configuration of ashTestFormat; segments are flushed, so they sample with the flush training factor
+        IvfSegmentConfig.AshConfig config = IvfSegmentConfig.AshConfig.defaults();
+        int nDims = config.projectedDims(dims);
+        int maxSample = config.flushTrainingFactor() * dims;
+        try (Directory dir = newDirectory()) {
+            IndexWriterConfig iwc = newIndexWriterConfig();
+            iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(ashTestFormat()));
+            iwc.setMergePolicy(NoMergePolicy.INSTANCE);
+            // one segment per commit
+            iwc.setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH);
+            iwc.setRAMBufferSizeMB(256);
+            // at least twice as many vectors as projected dimensions, so that each projection is learned
+            int[] docsPerSegment = new int[] { randomIntBetween(2 * nDims, maxSample - 1), randomIntBetween(maxSample, 2 * maxSample) };
+            try (IndexWriter w = new IndexWriter(dir, iwc)) {
+                for (int docs : docsPerSegment) {
+                    for (int i = 0; i < docs; i++) {
+                        Document doc = new Document();
+                        doc.add(new KnnFloatVectorField("f", randomVector(dims), VectorSimilarityFunction.DOT_PRODUCT));
+                        w.addDocument(doc);
+                    }
+                    w.commit();
+                }
+            }
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                assertThat(reader.leaves(), hasSize(docsPerSegment.length));
+                Set<UUID> ids = new HashSet<>();
+                for (LeafReaderContext ctx : reader.leaves()) {
+                    LeafReader leafReader = ctx.reader();
+                    FieldInfo fieldInfo = leafReader.getFieldInfos().fieldInfo("f");
+                    AshProjectionMatrix matrix = ashReader(leafReader, "f").getProjectionMatrix(fieldInfo);
+                    assertTrue(matrix.isLearned());
+                    assertEquals(Math.min(maxSample, leafReader.maxDoc()), matrix.trainingSampleSize());
+                    ids.add(matrix.id());
+                }
+                assertEquals("every segment learned its own projection", docsPerSegment.length, ids.size());
             }
         }
     }

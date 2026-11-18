@@ -415,10 +415,10 @@ public class ProfileService {
         }, listener::onFailure));
     }
 
-    /** The status all failures share, so clients can tell for example a retryable failure apart; otherwise a 500. */
+    /** A 429 if all failures are 429s, so clients can retry; otherwise a 500. */
     private static RestStatus statusOfProfileLookupFailures(Collection<Exception> failures) {
-        final Set<RestStatus> statuses = failures.stream().map(ExceptionsHelper::status).collect(Collectors.toSet());
-        return statuses.size() == 1 ? statuses.iterator().next() : RestStatus.INTERNAL_SERVER_ERROR;
+        final boolean allTooManyRequests = failures.stream().allMatch(e -> ExceptionsHelper.status(e) == RestStatus.TOO_MANY_REQUESTS);
+        return allTooManyRequests ? RestStatus.TOO_MANY_REQUESTS : RestStatus.INTERNAL_SERVER_ERROR;
     }
 
     public void searchProfilesForSubjects(List<Subject> subjects, ActionListener<SubjectSearchResultsAndErrors<Profile>> listener) {

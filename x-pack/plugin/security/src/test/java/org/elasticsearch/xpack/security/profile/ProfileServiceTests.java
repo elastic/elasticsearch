@@ -52,6 +52,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -1270,7 +1271,7 @@ public class ProfileServiceTests extends ESTestCase {
         }
     }
 
-    public void testProfileSearchErrorsWithTheSameStatusKeepItForApiKeyOwners() throws Exception {
+    public void testProfileSearchErrorsWithTooManyRequestsStatusKeepItForApiKeyOwners() throws Exception {
         // a search on the profile index failing because the parent circuit breaker trips on the data node, as in production
         final Exception circuitBreakerFailure = new SearchPhaseExecutionException(
             "query",
@@ -1284,36 +1285,34 @@ public class ProfileServiceTests extends ESTestCase {
         );
         assertThat(ExceptionsHelper.status(circuitBreakerFailure), is(RestStatus.TOO_MANY_REQUESTS));
 
+        assertThat(statusOfFailedProfileSearchesForApiKeyOwners(circuitBreakerFailure), is(RestStatus.TOO_MANY_REQUESTS));
         assertThat(
             statusOfFailedProfileSearchesForApiKeyOwners(circuitBreakerFailure, circuitBreakerFailure),
             is(RestStatus.TOO_MANY_REQUESTS)
         );
+    }
+
+    public void testProfileSearchErrorsWithOtherStatusesResultInInternalServerErrorForApiKeyOwners() throws Exception {
+        final Exception tooManyRequests = new ElasticsearchStatusException("too many requests", RestStatus.TOO_MANY_REQUESTS);
+        // only 429 is passed through; for example a 404 must not look like a missing API key
+        for (RestStatus status : List.of(RestStatus.NOT_FOUND, RestStatus.SERVICE_UNAVAILABLE, RestStatus.GATEWAY_TIMEOUT)) {
+            assertThat(
+                statusOfFailedProfileSearchesForApiKeyOwners(new ElasticsearchStatusException("failure", status)),
+                is(RestStatus.INTERNAL_SERVER_ERROR)
+            );
+        }
         assertThat(
-            statusOfFailedProfileSearchesForApiKeyOwners(new ElasticsearchStatusException("unavailable", RestStatus.SERVICE_UNAVAILABLE)),
-            is(RestStatus.SERVICE_UNAVAILABLE)
-        );
-        assertThat(
-            statusOfFailedProfileSearchesForApiKeyOwners(new ElasticsearchStatusException("timeout", RestStatus.GATEWAY_TIMEOUT)),
-            is(RestStatus.GATEWAY_TIMEOUT)
-        );
-        // failures that disagree on the status result in an internal server error
-        assertThat(
-            statusOfFailedProfileSearchesForApiKeyOwners(
-                circuitBreakerFailure,
-                new ElasticsearchStatusException("unavailable", RestStatus.SERVICE_UNAVAILABLE)
-            ),
+            statusOfFailedProfileSearchesForApiKeyOwners(new IndexNotFoundException(".security-profile-8")),
             is(RestStatus.INTERNAL_SERVER_ERROR)
         );
+        // a mix of 429 and any other failure results in an internal server error
         assertThat(
-            statusOfFailedProfileSearchesForApiKeyOwners(circuitBreakerFailure, new Exception("test search failure")),
+            statusOfFailedProfileSearchesForApiKeyOwners(tooManyRequests, new Exception("test search failure")),
             is(RestStatus.INTERNAL_SERVER_ERROR)
         );
     }
 
-    /**
-     * Resolves the profile uids of one API key per given failure, where the profile search for the owner of that key fails with that
-     * failure, and returns the status of the resulting error.
-     */
+    /** Fails the profile search of one API key owner per given failure and returns the status of the resulting error. */
     private RestStatus statusOfFailedProfileSearchesForApiKeyOwners(Exception... searchFailures) {
         final List<ApiKey> apiKeys = new ArrayList<>();
         for (int i = 0; i < searchFailures.length; i++) {

@@ -1,10 +1,17 @@
 /*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ *
+ * Forked from RE2/J 1.8, see package-info.java.
+ *
  * Copyright (c) 2020 The Go Authors. All rights reserved.
  *
  * Use of this source code is governed by a BSD-style
  * license that can be found in the LICENSE file.
  */
-package com.google.re2j;
+package org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2;
 
 /**
  * Various constants and helper utilities.

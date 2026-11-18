@@ -1,17 +1,24 @@
 /*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ *
+ * Forked from RE2/J 1.8, see package-info.java.
+ *
  * Copyright (c) 2020 The Go Authors. All rights reserved.
  *
  * Use of this source code is governed by a BSD-style
  * license that can be found in the LICENSE file.
  */
+package org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2;
+
 // Original Go source here:
 // http://code.google.com/p/go/source/browse/src/pkg/regexp/syntax/parse.go
 
 // TODO(adonovan):
 // - Eliminate allocations (new int[], new Regexp[], new ArrayList) by
 //   recycling old arrays on a freelist.
-
-package com.google.re2j;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -26,6 +33,9 @@ class Parser {
 
   // Unexpected error
   private static final String ERR_INTERNAL_ERROR = "regexp/syntax: internal error";
+
+  // ES: from Go
+  private static final String ERR_UNEXPECTED_PAREN = "unexpected )";
 
   // Parse errors
   private static final String ERR_INVALID_CHAR_RANGE = "invalid character class range";
@@ -253,6 +263,45 @@ class Parser {
     re.flags = flags;
     re.subs = new Regexp[] {sub};
     stack.set(n - 1, re);
+    // ES: from Go's regexp/syntax, which bounds the copies nested counted repeats make
+    if (op == Regexp.Op.REPEAT && (min >= 2 || max >= 2) && !repeatIsValid(re, 1000)) {
+      throw new PatternSyntaxException(ERR_INVALID_REPEAT_SIZE, t.from(beforePos));
+    }
+  }
+
+  // ES: from Go's regexp/syntax.
+  // repeatIsValid reports whether the repetition re is valid.
+  // Valid means that the combination of the top-level repetition
+  // and any inner repetitions does not exceed n copies of the
+  // innermost thing.
+  // This function rewalks the regexp tree and is called for every repetition,
+  // so we have to worry about inducing quadratic behavior in the parser.
+  // We avoid this by only calling repeatIsValid when min or max >= 2.
+  // In that case the depth of any >= 2 nesting can only get to 9 without
+  // triggering a parse error, so each subtree can only be rewalked 9 times.
+  private static boolean repeatIsValid(Regexp re, int n) {
+    if (re.op == Regexp.Op.REPEAT) {
+      int m = re.max;
+      if (m == 0) {
+        return true;
+      }
+      if (m < 0) {
+        m = re.min;
+      }
+      if (m > n) {
+        return false;
+      }
+      if (m > 0) {
+        n /= m;
+      }
+    }
+    // a parsed literal or class keeps no subexpressions array
+    for (Regexp sub : re.subs == null ? Regexp.EMPTY_SUBS : re.subs) {
+      if (!repeatIsValid(sub, n)) {
+        return false;
+      }
+    }
+    return true;
   }
 
   // concat replaces the top of the stack (above the topmost '|' or '(') with
@@ -886,6 +935,8 @@ class Parser {
               // If the repeat cannot be parsed, { is a literal.
               t.rewindTo(repeatPos);
               literal(t.pop()); // '{'
+              // ES: a literal is no repetition, so one may follow it, as in Go
+              repeatPos = -1;
               break;
             }
             min = minMax >> 16;
@@ -1056,7 +1107,8 @@ class Parser {
     // Google source tree, (?P<name>expr) and (?<name>expr) are the
     // dominant forms of named captures and both are supported.
     String s = t.rest();
-    if (s.startsWith("(?P<") || s.startsWith("(?<")) {
+    // ES: as in Go, which needs something after the "<" before it takes the group as named
+    if ((s.length() > 4 && s.startsWith("(?P<")) || (s.length() > 3 && s.startsWith("(?<"))) {
       // Pull out name.
       int begin = s.charAt(2) == 'P' ? 4 : 3;
       int end = s.indexOf('>', begin);
@@ -1073,9 +1125,8 @@ class Parser {
       // Like ordinary capture, but named.
       Regexp re = op(Regexp.Op.LEFT_PAREN);
       re.cap = ++numCap;
-      if (namedGroups.put(name, numCap) != null) {
-        throw new PatternSyntaxException(ERR_DUPLICATE_NAMED_CAPTURE, name);
-      }
+      // ES: Go accepts a name used more than once, and nothing here looks groups up by name
+      namedGroups.put(name, numCap);
       re.name = name;
       return;
     }
@@ -1310,13 +1361,14 @@ class Parser {
     alternate();
 
     int n = stack.size();
+    // ES: a ')' that closes no group is unexpected, as in Go
     if (n < 2) {
-      throw new PatternSyntaxException(ERR_INTERNAL_ERROR, "stack underflow");
+      throw new PatternSyntaxException(ERR_UNEXPECTED_PAREN, wholeRegexp);
     }
     Regexp re1 = pop();
     Regexp re2 = pop();
     if (re2.op != Regexp.Op.LEFT_PAREN) {
-      throw new PatternSyntaxException(ERR_MISSING_PAREN, wholeRegexp);
+      throw new PatternSyntaxException(ERR_UNEXPECTED_PAREN, wholeRegexp);
     }
     // Restore flags at time of paren.
     this.flags = re2.flags;
@@ -1338,13 +1390,15 @@ class Parser {
     int startPos = t.pos();
     t.skip(1); // '\\'
     if (!t.more()) {
-      throw new PatternSyntaxException(ERR_TRAILING_BACKSLASH);
+      // ES: with the empty expression Go reports
+      throw new PatternSyntaxException(ERR_TRAILING_BACKSLASH, "");
     }
     int c = t.pop();
     bigswitch:
     switch (c) {
       default:
-        if (!Utils.isalnum(c)) {
+        // ES: as in Go, only an ASCII character escapes to itself
+        if (c < 0x80 && !Utils.isalnum(c)) {
           // Escaped non-word characters are always themselves.
           // PCRE is not quite so rigorous: it accepts things like
           // \q, but we don't.  We once rejected \_, but too many
@@ -1514,28 +1568,7 @@ class Parser {
 
   // RangeTables are represented as int[][], a list of triples (start, end,
   // stride).
-  private static final int[][] ANY_TABLE = {
-    {0, Unicode.MAX_RUNE, 1},
-  };
-
-  // unicodeTable() returns the Unicode RangeTable identified by name
-  // and the table of additional fold-equivalent code points.
-  // Returns null if |name| does not identify a Unicode character range.
-  private static Pair<int[][], int[][]> unicodeTable(String name) {
-    // Special case: "Any" means any.
-    if (name.equals("Any")) {
-      return Pair.of(ANY_TABLE, ANY_TABLE);
-    }
-    int[][] table = UnicodeTables.CATEGORIES.get(name);
-    if (table != null) {
-      return Pair.of(table, UnicodeTables.FOLD_CATEGORIES.get(name));
-    }
-    table = UnicodeTables.SCRIPTS.get(name);
-    if (table != null) {
-      return Pair.of(table, UnicodeTables.FOLD_SCRIPT.get(name));
-    }
-    return null;
-  }
+  // ES: unicodeTable() is Unicode.table()
 
   // parseUnicodeClass() parses a leading Unicode character class like \p{Han}
   // from the beginning of t.  If one is present, it appends the characters to
@@ -1587,12 +1620,16 @@ class Parser {
       name = name.substring(1);
     }
 
-    Pair<int[][], int[][]> pair = unicodeTable(name);
-    if (pair == null) {
+    // ES: the tables come from the JDK and are named as in Go 1.26, see Unicode
+    Unicode.Table table = Unicode.table(name);
+    if (table == null) {
       throw new PatternSyntaxException(ERR_INVALID_CHAR_RANGE, t.from(startPos));
     }
-    int[][] tab = pair.first;
-    int[][] fold = pair.second; // fold-equivalent table
+    if (table.inverted()) {
+      sign = -sign;
+    }
+    int[][] tab = table.ranges();
+    int[][] fold = table.fold(); // fold-equivalent table
 
     // Variation of CharClass.appendGroup() for tables.
     if ((flags & RE2.FOLD_CASE) == 0 || fold == null) {
@@ -1705,20 +1742,6 @@ class Parser {
       r[i - start] = array[i];
     }
     return r;
-  }
-
-  private static class Pair<F, S> {
-    final F first;
-    final S second;
-
-    Pair(F first, S second) {
-      this.first = first;
-      this.second = second;
-    }
-
-    static <F, S> Pair<F, S> of(F first, S second) {
-      return new Pair<F, S>(first, second);
-    }
   }
 
   private static int[] concatRunes(int[] x, int[] y) {

@@ -553,11 +553,12 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             try (SecureString transportKeystorePassword = newKeystorePassword()) {
                 KeyStore transportKeystore = keyStoreFormat.newKeyStore();
                 // the keystore and the contained private key use the same password
+                // node enrollment finds the CA in the key entry's chain, which not every keystore format rebuilds from other entries
                 transportKeystore.setKeyEntry(
                     TRANSPORT_KEY_KEYSTORE_ENTRY,
                     transportKey,
                     transportKeystorePassword.getChars(),
-                    new Certificate[] { transportCert }
+                    new Certificate[] { transportCert, transportCaCert }
                 );
                 transportKeystore.setCertificateEntry(TRANSPORT_CA_CERT_KEYSTORE_ENTRY, transportCaCert);
                 fullyWriteFile(

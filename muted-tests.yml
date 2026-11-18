@@ -401,6 +401,7 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/164484
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   tasks:
+  - :qa:mixed-cluster:v9.4.10#yamlRestTest
   - :qa:mixed-cluster:v9.5.7#yamlRestTest
   issue: https://github.com/elastic/elasticsearch/issues/163053
 - class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
@@ -525,11 +526,6 @@ tests:
   - :x-pack:plugin:esql:compute:test
   method: testSourcesFinishedUnregistersSink
   issue: https://github.com/elastic/elasticsearch/issues/165591
-- class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
-  tasks:
-  - :x-pack:plugin:stateless:internalClusterTest
-  method: testRelocationSourceWaitsForEarlyPrewarmBeforeHandoff
-  issue: https://github.com/elastic/elasticsearch/issues/165656
 - class: org.elasticsearch.multi_cluster.MultiClusterWithSecurityYamlTestSuiteIT
   tasks:
   - :x-pack:plugin:transform:yamlRestTest
@@ -658,3 +654,28 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: testOversizedInSubqueryFailsBeforeReadingAllInput
   issue: https://github.com/elastic/elasticsearch/issues/166371
+- class: org.elasticsearch.index.mapper.KeywordFieldMapperColumnarCompatibilityTests
+  tasks:
+  - :server:test
+  method: testRequiredFieldWithOnlyEmptyStringsIsIgnored
+  issue: https://github.com/elastic/elasticsearch/issues/166431
+- class: org.elasticsearch.index.mapper.KeywordFieldMapperColumnarCompatibilityTests
+  tasks:
+  - :server:test
+  method: testRequiredFieldWithoutValueIsIgnored
+  issue: https://github.com/elastic/elasticsearch/issues/166429
+- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
+  tasks:
+  - :x-pack:plugin:async-search:internalClusterTest
+  method: testUpdateStoreKeepAlive
+  issue: https://github.com/elastic/elasticsearch/issues/166452
+- class: org.elasticsearch.xpack.esql.tree.PlanFieldSafePublicationTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testLazyFieldsAreVolatileOrSafe
+  issue: https://github.com/elastic/elasticsearch/issues/166479
+- class: org.elasticsearch.xpack.esql.tree.PlanFieldSafePublicationTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testLazyFieldsArePublishedOnce
+  issue: https://github.com/elastic/elasticsearch/issues/166481

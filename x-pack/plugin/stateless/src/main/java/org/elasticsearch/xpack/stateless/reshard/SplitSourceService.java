@@ -459,7 +459,6 @@ public class SplitSourceService {
                             // commits spontaneously even though indexing permits are held. These are harmless to copy.
                             logger.debug("handoff: stopping commit copy from {} to {}", sourceShard.shardId(), targetShardId);
                             stopCopyingNewCommits(targetShardId);
-                            shardsPreparingForHandoff.remove(sourceShard.shardId());
                             activeTargetRequests.remove(sourceShard);
                             afterSecondFlush.onResponse(permits);
                         }, e -> {
@@ -648,6 +647,7 @@ public class SplitSourceService {
                         assert decision.outcome != null : "Predicate returned true without setting outcome";
 
                         shouldRetry.set(false);
+                        shardsPreparingForHandoff.remove(sourceShardId);
                         permits.close();
 
                         switch (decision.outcome) {
@@ -694,6 +694,7 @@ public class SplitSourceService {
 
                     @Override
                     public void onClusterServiceClose() {
+                        shardsPreparingForHandoff.remove(sourceShardId);
                         // TODO: Should we release permits here ? Does it matter ?
                         permits.close();
                         listener.onFailure(new NodeClosedException(clusterService.localNode()));

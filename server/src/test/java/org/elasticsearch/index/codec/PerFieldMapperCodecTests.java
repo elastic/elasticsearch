@@ -849,6 +849,44 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         }
     }
 
+    public void testOnlyThePrimaryIndexSortFieldBoundsItsPlainColumn() throws IOException {
+        final String mapping = """
+            {
+                "properties": {
+                    "host": { "type": "keyword" },
+                    "category": { "type": "keyword" },
+                    "region": { "type": "keyword" },
+                    "body": { "type": "text" }
+                }
+            }
+            """;
+        for (boolean sorted : new boolean[] { true, false }) {
+            final Settings.Builder settings = Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, randomColumnarEligibleIndexVersion());
+            if (sorted) {
+                settings.putList(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host", "category");
+            }
+            final MapperService mapperService = MapperTestUtils.newMapperService(
+                xContentRegistry(),
+                createTempDir(),
+                settings.build(),
+                "test"
+            );
+            mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+            final PerFieldFormatSupplier supplier = new PerFieldFormatSupplier(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
+            assertEquals(sorted, supplier.columnarFields().stringOptions("host", ColumnarFieldType.STRING).enablePlainSkipIndex());
+            for (String field : List.of("category", "region", "body")) {
+                assertFalse(field, supplier.columnarFields().stringOptions(field, ColumnarFieldType.STRING).enablePlainSkipIndex());
+            }
+            for (String field : List.of("host", "category", "region")) {
+                final StringColumnOptions options = supplier.columnarFields().stringOptions(field, ColumnarFieldType.STRING);
+                assertEquals(field, StringColumnOptions.DEFAULT_DICTIONARY, options.dictionary());
+                assertTrue(field, options.enableSkipIndex());
+            }
+        }
+    }
+
     public void testStringColumnOptionsAreNotGuessedForAFieldWithoutThem() throws IOException {
         final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(randomColumnarMode(), randomColumnarEligibleIndexVersion());
         for (String field : List.of("unmapped", "size")) {

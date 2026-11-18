@@ -84,7 +84,7 @@ public final class RoundToIntBinarySearchEvaluator implements ExpressionEvaluato
   }
 
   public IntVector eval(int positionCount, IntVector fieldVector) {
-    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
+    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         int field = fieldVector.getInt(p);
         result.appendInt(p, RoundToInt.process(field, this.points));

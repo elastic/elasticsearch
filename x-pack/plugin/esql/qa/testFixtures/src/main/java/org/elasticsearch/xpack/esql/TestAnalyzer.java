@@ -62,8 +62,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ViewSubquery;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -788,25 +788,25 @@ public class TestAnalyzer {
             var view = viewDefinitions.get(indexPattern);
             return view == null
                 ? (LogicalPlan) (makeUnresolvedRelation(ur, indexPattern))
-                : new NamedSubquery(view.source(), view, indexPattern);
+                : new ViewSubquery(view.source(), view, indexPattern);
         }).toList();
         boolean keepViewWrapper = MetadataAttribute.requestsRelationColumn(ur.metadataFields());
         if (resolved.size() == 1 && keepViewIdentity == false) {
             var subplan = resolved.get(0);
-            if (subplan instanceof NamedSubquery n) {
+            if (subplan instanceof ViewSubquery n) {
                 return keepViewWrapper ? n : n.child();
             }
             return subplan;
         }
         List<UnresolvedRelation> unresolvedRelations = new ArrayList<>();
-        List<NamedSubquery> namedSubqueries = new ArrayList<>();
+        List<ViewSubquery> namedSubqueries = new ArrayList<>();
         for (LogicalPlan l : resolved) {
             if (l instanceof UnresolvedRelation u) {
                 unresolvedRelations.add(u);
-            } else if (l instanceof NamedSubquery n) {
+            } else if (l instanceof ViewSubquery n) {
                 namedSubqueries.add(n);
             } else {
-                throw new IllegalArgumentException("Only support UnresolvedRelation and NamedSubquery in Views Analyzer Tests");
+                throw new IllegalArgumentException("Only support UnresolvedRelation and ViewSubquery in Views Analyzer Tests");
             }
         }
         LinkedHashMap<String, LogicalPlan> subplans = new LinkedHashMap<>();
@@ -817,7 +817,7 @@ public class TestAnalyzer {
             subplans.put(null, makeUnresolvedRelation(unresolvedRelations.get(0), indexPattern));
         }
         LinkedHashMap<String, BranchIdentity> identities = new LinkedHashMap<>();
-        for (NamedSubquery namedSubquery : namedSubqueries) {
+        for (ViewSubquery namedSubquery : namedSubqueries) {
             subplans.put(namedSubquery.name(), keepViewWrapper ? namedSubquery : namedSubquery.child());
             identities.put(namedSubquery.name(), BranchIdentity.view(namedSubquery.name()));
         }

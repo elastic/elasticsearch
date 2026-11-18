@@ -512,35 +512,43 @@ final class PageToEscfBatch {
                 } else {
                     int first = block.getFirstValueIndex(p);
                     int count = block.getValueCount(p);
-                    boolean rawJson = false;
-                    for (int i = 0; i < count; i++) {
-                        if (unrepresentableNumber(block.getBytesRef(first + i, scratch))) {
-                            rawJson = true;
-                        }
-                    }
-                    if (rawJson) {
-                        fallback.mark(docCount, p);
-                    }
                     if (count == 1) {
                         byte[] packed = keyValue(block.getBytesRef(first, scratch));
-                        builder.addKeyValue(packed);
+                        if (packed == null) {
+                            fallback.mark(docCount, p);
+                            builder.addAbsent();
+                        } else {
+                            builder.addKeyValue(packed);
+                        }
                     } else {
                         byte[][] objects = new byte[count][];
-                        int bytes = 0;
+                        boolean rawJson = false;
                         for (int i = 0; i < count; i++) {
                             objects[i] = keyValue(block.getBytesRef(first + i, scratch));
-                            bytes += 1 + Integer.BYTES + objects[i].length;
+                            if (objects[i] == null) {
+                                rawJson = true;
+                                break;
+                            }
                         }
-                        byte[] packed = new byte[bytes];
-                        int pos = 0;
-                        for (byte[] object : objects) {
-                            packed[pos++] = SourceValueType.KEY_VALUE;
-                            ByteUtils.writeIntLE(object.length, packed, pos);
-                            pos += Integer.BYTES;
-                            System.arraycopy(object, 0, packed, pos, object.length);
-                            pos += object.length;
+                        if (rawJson) {
+                            fallback.mark(docCount, p);
+                            builder.addAbsent();
+                        } else {
+                            int bytes = 0;
+                            for (int i = 0; i < count; i++) {
+                                bytes += 1 + Integer.BYTES + objects[i].length;
+                            }
+                            byte[] packed = new byte[bytes];
+                            int pos = 0;
+                            for (byte[] object : objects) {
+                                packed[pos++] = SourceValueType.KEY_VALUE;
+                                ByteUtils.writeIntLE(object.length, packed, pos);
+                                pos += Integer.BYTES;
+                                System.arraycopy(object, 0, packed, pos, object.length);
+                                pos += object.length;
+                            }
+                            builder.addRawUnionRow(SourceValueType.UNION_ARRAY, new BytesRef(packed));
                         }
-                        builder.addRawUnionRow(SourceValueType.UNION_ARRAY, new BytesRef(packed));
                     }
                 }
                 seen = charge.grow(builder, seen);
@@ -549,30 +557,7 @@ final class PageToEscfBatch {
         }
     }
 
-    private static boolean unrepresentableNumber(BytesRef json) {
-        try (
-            XContentParser parser = XContentHelper.createParser(
-                XContentParserConfiguration.EMPTY,
-                new BytesArray(json.bytes, json.offset, json.length)
-            )
-        ) {
-            while (parser.nextToken() != null) {
-                if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
-                    switch (parser.numberType()) {
-                        case INT, LONG, FLOAT, DOUBLE -> {
-                        }
-                        case BIG_INTEGER, BIG_DECIMAL -> {
-                            return true;
-                        }
-                    }
-                }
-            }
-            return false;
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-    }
-
+    @Nullable
     private static byte[] keyValue(BytesRef json) {
         try (
             XContentParser parser = XContentHelper.createParser(
@@ -583,7 +568,7 @@ final class PageToEscfBatch {
             if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
                 throw new IllegalArgumentException("SOURCE value must be a JSON object");
             }
-            return SourceBatchEncodeHelper.serializeKeyValue(parser);
+            return SourceBatchEncodeHelper.serializeKeyValue(parser, true);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

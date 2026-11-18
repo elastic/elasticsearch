@@ -37,7 +37,7 @@ public final class SourceBatchEncodeHelper {
      * array bytes. Returns a {@link PackedArray} describing the wire type and packed bytes.
      */
     public static PackedArray packArray(XContentParser parser) throws IOException {
-        return parseArray(parser);
+        return parseArray(parser, false);
     }
 
     /**
@@ -133,6 +133,15 @@ public final class SourceBatchEncodeHelper {
      * Parser must be positioned after START_OBJECT.
      */
     public static byte[] serializeKeyValue(XContentParser parser) throws IOException {
+        return serializeKeyValue(parser, false);
+    }
+
+    /**
+     * Same as {@link #serializeKeyValue(XContentParser)}. Returns {@code null} instead of storing a
+     * {@code BIG_INTEGER} or {@code BIG_DECIMAL} token as a string when {@code rejectOversizedNumbers} is true.
+     */
+    @Nullable
+    public static byte[] serializeKeyValue(XContentParser parser, boolean rejectOversizedNumbers) throws IOException {
         KeyValueWriter writer = KeyValueWriter.forObjectPayload();
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -140,13 +149,16 @@ public final class SourceBatchEncodeHelper {
                 throw new IllegalStateException("Expected FIELD_NAME but got " + token);
             }
             String fieldName = parser.currentName();
-            token = parser.nextToken(); // value token
-            writeElementValue(writer, fieldName, parser, token);
+            token = parser.nextToken();
+            if (writeElementValue(writer, fieldName, parser, token, rejectOversizedNumbers) == false) {
+                return null;
+            }
         }
         return writer.toBytes();
     }
 
-    private static PackedArray parseArray(XContentParser parser) throws IOException {
+    @Nullable
+    private static PackedArray parseArray(XContentParser parser, boolean rejectOversizedNumbers) throws IOException {
         byte[] elemTypes = new byte[16];
         long[] elemNumeric = new long[16];
         Object[] elemVar = new Object[16];
@@ -163,12 +175,19 @@ public final class SourceBatchEncodeHelper {
             }
             switch (token) {
                 case START_OBJECT -> {
+                    byte[] nested = serializeKeyValue(parser, rejectOversizedNumbers);
+                    if (nested == null) {
+                        return null;
+                    }
                     elemTypes[count] = SourceValueType.KEY_VALUE;
-                    elemVar[count] = serializeKeyValue(parser);
+                    elemVar[count] = nested;
                     forceUnion = true;
                 }
                 case START_ARRAY -> {
-                    PackedArray nested = parseArray(parser);
+                    PackedArray nested = parseArray(parser, rejectOversizedNumbers);
+                    if (nested == null) {
+                        return null;
+                    }
                     elemTypes[count] = nested.arrayType();
                     elemVar[count] = nested.packed();
                     forceUnion = true;
@@ -178,28 +197,8 @@ public final class SourceBatchEncodeHelper {
                     elemVar[count] = parser.optimizedText().bytes();
                 }
                 case VALUE_NUMBER -> {
-                    XContentParser.NumberType numType = parser.numberType();
-                    switch (numType) {
-                        case INT -> {
-                            elemTypes[count] = SourceValueType.INT;
-                            elemNumeric[count] = parser.intValue();
-                        }
-                        case LONG -> {
-                            elemTypes[count] = SourceValueType.LONG;
-                            elemNumeric[count] = parser.longValue();
-                        }
-                        case FLOAT -> {
-                            elemTypes[count] = SourceValueType.FLOAT;
-                            elemNumeric[count] = Float.floatToRawIntBits(parser.floatValue());
-                        }
-                        case DOUBLE -> {
-                            elemTypes[count] = SourceValueType.DOUBLE;
-                            elemNumeric[count] = Double.doubleToRawLongBits(parser.doubleValue());
-                        }
-                        default -> {
-                            elemTypes[count] = SourceValueType.STRING;
-                            elemVar[count] = parser.optimizedText().bytes();
-                        }
+                    if (readNumber(parser, elemTypes, elemNumeric, elemVar, count, rejectOversizedNumbers) == false) {
+                        return null;
                     }
                 }
                 case VALUE_BOOLEAN -> elemTypes[count] = parser.booleanValue() ? SourceValueType.TRUE : SourceValueType.FALSE;
@@ -212,21 +211,28 @@ public final class SourceBatchEncodeHelper {
         return packAccumulatedElements(elemTypes, elemNumeric, elemVar, count, forceUnion);
     }
 
-    private static void writeElementValue(KeyValueWriter writer, String fieldName, XContentParser parser, XContentParser.Token token)
-        throws IOException {
+    private static boolean writeElementValue(
+        KeyValueWriter writer,
+        String fieldName,
+        XContentParser parser,
+        XContentParser.Token token,
+        boolean rejectOversizedNumbers
+    ) throws IOException {
         switch (token) {
             case VALUE_STRING -> {
                 XContentString.UTF8Bytes str = parser.optimizedText().bytes();
                 writer.writeStringField(fieldName, str.bytes(), str.offset(), str.length());
             }
             case VALUE_NUMBER -> {
-                XContentParser.NumberType numType = parser.numberType();
-                switch (numType) {
+                switch (parser.numberType()) {
                     case INT -> writer.writeIntField(fieldName, parser.intValue());
                     case LONG -> writer.writeLongField(fieldName, parser.longValue());
                     case FLOAT -> writer.writeFloatField(fieldName, parser.floatValue());
                     case DOUBLE -> writer.writeDoubleField(fieldName, parser.doubleValue());
-                    default -> {
+                    case BIG_INTEGER, BIG_DECIMAL -> {
+                        if (rejectOversizedNumbers) {
+                            return false;
+                        }
                         XContentString.UTF8Bytes str = parser.optimizedText().bytes();
                         writer.writeStringField(fieldName, str.bytes(), str.offset(), str.length());
                     }
@@ -243,13 +249,58 @@ public final class SourceBatchEncodeHelper {
                     }
                     String nestedName = parser.currentName();
                     inner = parser.nextToken();
-                    writeElementValue(writer, nestedName, parser, inner);
+                    if (writeElementValue(writer, nestedName, parser, inner, rejectOversizedNumbers) == false) {
+                        return false;
+                    }
                 }
                 writer.endObjectField();
             }
-            case START_ARRAY -> writer.writeArrayField(fieldName, parseArray(parser));
+            case START_ARRAY -> {
+                PackedArray array = parseArray(parser, rejectOversizedNumbers);
+                if (array == null) {
+                    return false;
+                }
+                writer.writeArrayField(fieldName, array);
+            }
             default -> throw new IllegalStateException("Unexpected token: " + token);
         }
+        return true;
+    }
+
+    private static boolean readNumber(
+        XContentParser parser,
+        byte[] elemTypes,
+        long[] elemNumeric,
+        Object[] elemVar,
+        int count,
+        boolean rejectOversizedNumbers
+    ) throws IOException {
+        switch (parser.numberType()) {
+            case INT -> {
+                elemTypes[count] = SourceValueType.INT;
+                elemNumeric[count] = parser.intValue();
+            }
+            case LONG -> {
+                elemTypes[count] = SourceValueType.LONG;
+                elemNumeric[count] = parser.longValue();
+            }
+            case FLOAT -> {
+                elemTypes[count] = SourceValueType.FLOAT;
+                elemNumeric[count] = Float.floatToRawIntBits(parser.floatValue());
+            }
+            case DOUBLE -> {
+                elemTypes[count] = SourceValueType.DOUBLE;
+                elemNumeric[count] = Double.doubleToRawLongBits(parser.doubleValue());
+            }
+            case BIG_INTEGER, BIG_DECIMAL -> {
+                if (rejectOversizedNumbers) {
+                    return false;
+                }
+                elemTypes[count] = SourceValueType.STRING;
+                elemVar[count] = parser.optimizedText().bytes();
+            }
+        }
+        return true;
     }
 
     private static int elemDataSize(byte type, Object varData) {

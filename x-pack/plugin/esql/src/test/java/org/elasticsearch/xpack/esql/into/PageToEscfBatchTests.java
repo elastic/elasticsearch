@@ -230,6 +230,31 @@ public class PageToEscfBatchTests extends ComputeTestCase {
         }
     }
 
+    public void testSourceBigIntegerIsAbsentFromTheBatch() throws IOException {
+        BigInteger big = BigInteger.TWO.pow(63).add(BigInteger.ONE);
+        try (BytesRefBlock.Builder b = blockFactory().newBytesRefBlockBuilder(1)) {
+            b.appendBytesRef(new BytesRef("{\"n\":" + big + "}"));
+            Block block = b.build();
+            Page page = new Page(block);
+            PageToEscfBatch.ConvertResult result = PageToEscfBatch.convert(
+                page,
+                List.of("c0"),
+                List.of(DataType.SOURCE),
+                bigArrays.bytesRefRecycler(),
+                null
+            );
+            try (EscfBatch batch = result.batch()) {
+                assertThat(result.jsonFallbackRows()[0], equalTo(true));
+                IndexSource src = new IndexSource();
+                src.setSourceRow(batch, 0, XContentType.JSON);
+                src.ensureInlineSource();
+                assertThat(XContentHelper.convertToMap(src.bytes(), false, XContentType.JSON).v2(), equalTo(Map.of()));
+            } finally {
+                page.releaseBlocks();
+            }
+        }
+    }
+
     public void testSourceBigIntegerStaysANumber() throws IOException {
         BigInteger big = BigInteger.TWO.pow(63).add(BigInteger.ONE);
         try (BytesRefBlock.Builder b = blockFactory().newBytesRefBlockBuilder(1)) {

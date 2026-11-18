@@ -8870,6 +8870,36 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
+     * Under a width-only binding the two bounds have different sources, and each width message names its own: a row
+     * wider than the PINNED schema is measured against the schema, while a row narrower than the FILE's header is
+     * measured against that header. One test on the binding would get one of the two wrong, which is what it used to
+     * do, and the complete rows of {@link #testWidthFloorComesFromTheFileNotAWiderSiblingsSchema} reach neither bound.
+     */
+    public void testWidthMessageNamesEachBoundAfterItsOwnSource() throws Exception {
+        // Pinned three columns wide, over a file whose own header is two: the limit is the schema's, the floor the file's.
+        List<Attribute> anchorSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "id", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "name", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "extra", DataType.KEYWORD)
+        );
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withHeaderBindingByProvenance(true);
+
+        Exception wide = expectThrows(Exception.class, () -> drainAllPages(widthOnlyBoundRead(reader, "id,name\n1,a,b,c\n", anchorSchema)));
+        assertThat(wide.getMessage(), containsString("[4] columns, the schema has [3]"));
+
+        Exception short_ = expectThrows(Exception.class, () -> drainAllPages(widthOnlyBoundRead(reader, "id,name\n1\n", anchorSchema)));
+        assertThat(short_.getMessage(), containsString("missing trailing fields: [1] columns, the header has [2]"));
+    }
+
+    /** A first split that binds only the file's header width: an inferred schema over a headered file, gate on. */
+    private CloseableIterator<Page> widthOnlyBoundRead(CsvFormatReader reader, String csv, List<Attribute> readSchema) throws IOException {
+        return reader.read(
+            new TrackingStorageObject(csv),
+            FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+        );
+    }
+
+    /**
      * A split that begins at a quote-blind cut may be holding the tail of a quoted value rather than a row that ends
      * early, and nothing in that row tells the two apart -- so its short-row error names {@code multiline_fields} too.
      * The split that OWNS the value's start reports the broken contract itself, but this one reaches its own first

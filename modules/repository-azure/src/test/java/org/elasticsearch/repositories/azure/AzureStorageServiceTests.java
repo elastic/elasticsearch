@@ -77,7 +77,6 @@ public class AzureStorageServiceTests extends ESTestCase {
 
     private AzureRepositoryPlugin pluginWithSettingsValidation(Settings settings) {
         final AzureRepositoryPlugin plugin = new AzureRepositoryPlugin();
-        // new SettingsModule(settings, plugin.getSettings(), Collections.emptyList());
         Plugin.PluginServices services = mock(Plugin.PluginServices.class);
         when(services.threadPool()).thenReturn(threadPool);
         when(services.projectResolver()).thenReturn(TestProjectResolvers.DEFAULT_PROJECT_ONLY);

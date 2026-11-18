@@ -111,7 +111,7 @@ public final class DatasetConfigResolver {
         }
         if (parent.enabled() == false) {
             // The message names the dataset only, so the refusal does not name a data source the caller may not be allowed to see.
-            throw new ElasticsearchStatusException("external dataset [{}] is closed", RestStatus.BAD_REQUEST, name);
+            throw DatasetClosedException.refusedByDataNode(name);
         }
         Map<String, Object> resolved = DatasetRewriter.datasetConfig(parent, dataset);
         Object planVersion = exec.config().get(DefinitionVersion.CONFIG_KEY);

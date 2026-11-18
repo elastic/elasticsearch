@@ -167,6 +167,35 @@ public class DataSourceEncryptedDataHandlerTests extends ESTestCase {
         assertEquals("us-east-1", after.get("s3").settings().get("region").nonSecretValue());
     }
 
+    public void testOnDestructiveResetKeepsAClosedDataSourceClosed() {
+        DataSource closed = new DataSource(
+            "s3",
+            "s3",
+            null,
+            Map.of("access_key", new DataSourceSetting(new EncryptedData(ACTIVE_KEY, "AKIA".getBytes(StandardCharsets.UTF_8)), true)),
+            false
+        );
+
+        DataSourceMetadata after = handler.onDestructiveReset(new DataSourceMetadata(Map.of("s3", closed)));
+
+        assertFalse("wiping the secrets must not reopen the data source", after.get("s3").enabled());
+    }
+
+    public void testReEncryptKeepsAClosedDataSourceClosed() {
+        DataSource closed = new DataSource(
+            "s3",
+            "s3",
+            null,
+            Map.of("access_key", new DataSourceSetting(new EncryptedData(STALE_KEY, "AKIA".getBytes(StandardCharsets.UTF_8)), true)),
+            false
+        );
+
+        DataSourceMetadata after = handler.reEncrypt(new DataSourceMetadata(Map.of("s3", closed)), keyRotationRewrapper());
+
+        assertEquals(ACTIVE_KEY, ((EncryptedData) after.get("s3").settings().get("access_key").rawValue()).keyId());
+        assertFalse("re-keying the secrets must not reopen the data source", after.get("s3").enabled());
+    }
+
     public void testSecretAlreadyOnActiveKeyIsUntouched() {
         DataSource ds = new DataSource(
             "s3",

@@ -192,6 +192,30 @@ public class DatasourcePrivilegesTests extends AbstractNamedWriteableTestCase<Co
         assertThat(permission.check(EsqlDataSourceActionNames.ESQL_DELETE_DATA_SOURCE_ACTION_NAME, delete, auth), is(false));
     }
 
+    /** Closing and opening a data source needs {@code manage}: no other privilege, on a matching name, grants it. */
+    public void testOnlyManageClosesAndOpens() {
+        var auth = AuthenticationTestHelper.builder().build();
+        for (String privilegeName : new String[] {
+            DatasourcePrivileges.PRIVILEGE_CREATE,
+            DatasourcePrivileges.PRIVILEGE_DELETE,
+            DatasourcePrivileges.PRIVILEGE_READ,
+            DatasourcePrivileges.PRIVILEGE_READ_METADATA }) {
+            DatasourcePrivileges privilege = new DatasourcePrivileges(
+                List.of(new DatasourcePermissionGroup(new String[] { "myds" }, new String[] { privilegeName }))
+            );
+            ClusterPermission permission = privilege.buildPermission(ClusterPermission.builder()).build();
+            for (String action : new String[] {
+                EsqlDataSourceActionNames.ESQL_CLOSE_DATA_SOURCE_ACTION_NAME,
+                EsqlDataSourceActionNames.ESQL_OPEN_DATA_SOURCE_ACTION_NAME }) {
+                assertThat(
+                    "[" + privilegeName + "] must not allow [" + action + "]",
+                    permission.check(action, new MockDataSourceRequest(action, "myds"), auth),
+                    is(false)
+                );
+            }
+        }
+    }
+
     /**
      * {@link ConfigurableClusterPrivileges#toXContent} opens the {@code global.data_source} array; privilege serialization must write
      * group objects only ({@link DatasourcePrivileges#toXContentArrayElements}), not a nested array.

@@ -325,6 +325,34 @@ public class DatasetRewriterTests extends ESTestCase {
     }
 
     /** A wildcard skips the datasets of a closed data source silently, as it skips a closed index: no warning, no error. */
+    /** The names come from the cluster state when the resolve action ran; a dataset created since is not in the query's snapshot. */
+    public void testDatasetCreatedAfterTheSnapshotIsLeftOut() {
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset logsA = new Dataset("logs_a", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
+        Dataset logsB = new Dataset("logs_b", new DataSourceReference("s3_parent"), "s3://b/", null, Map.of());
+        ProjectMetadata snapshot = projectWith(Map.of("s3_parent", parent), Map.of("logs_a", logsA));
+        ProjectMetadata resolvedAgainst = projectWith(Map.of("s3_parent", parent), Map.of("logs_a", logsA, "logs_b", logsB));
+
+        UnresolvedRelation wildcard = relationOf("logs_*");
+        DatasetRewriter.DatasetResolution resolution = resolve("logs_*", resolvedAgainst, Set.of("logs_a", "logs_b"));
+        LogicalPlan rewritten = DatasetRewriter.rewrite(
+            wildcard,
+            snapshot,
+            Map.of(wildcard, resolution),
+            false,
+            QueryPragmas.EMPTY,
+            EsqlFlags.DEFAULTS
+        );
+        assertThat(tablePathString((UnresolvedExternalRelation) rewritten), equalTo("s3://a/"));
+
+        UnresolvedRelation named = relationOf("logs_b");
+        DatasetRewriter.DatasetResolution namedResolution = resolve("logs_b", resolvedAgainst, Set.of("logs_b"));
+        assertSame(
+            named,
+            DatasetRewriter.rewrite(named, snapshot, Map.of(named, namedResolution), false, QueryPragmas.EMPTY, EsqlFlags.DEFAULTS)
+        );
+    }
+
     public void testWildcardSkipsTheDatasetsOfAClosedDataSource() {
         DataSource closedParent = new DataSource("closed_parent", "test", null, Map.of(), false);
         DataSource parent = dataSource("s3_parent", Map.of());

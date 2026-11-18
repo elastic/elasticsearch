@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.esql.datasources.metadata;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -127,6 +129,24 @@ public class DataSourceTests extends AbstractXContentSerializingTestCase<DataSou
         assertEquals("s3", deserialized.type());
         assertEquals("Production S3 bucket", deserialized.description());
         assertEquals(2, deserialized.settings().size());
+    }
+
+    /** A closed data source keeps its state across the wire, and a node that predates the state reads it as open. */
+    public void testStateAcrossTheWireGate() throws IOException {
+        var closed = new DataSource("my-s3", "s3", null, Map.of("region", new DataSourceSetting("us-east-1", false)), false);
+
+        BytesStreamOutput current = new BytesStreamOutput();
+        closed.writeTo(current);
+        assertFalse(new DataSource(current.bytes().streamInput()).enabled());
+
+        TransportVersion older = TransportVersionUtils.randomVersionNotSupporting(DataSource.ESQL_DATASOURCE_STATE);
+        BytesStreamOutput legacy = new BytesStreamOutput();
+        legacy.setTransportVersion(older);
+        closed.writeTo(legacy);
+        assertEquals("the state is one boolean, not written below the gate", current.size() - 1, legacy.size());
+        StreamInput in = legacy.bytes().streamInput();
+        in.setTransportVersion(older);
+        assertTrue("a node that predates the state reads it as open", new DataSource(in).enabled());
     }
 
     public void testToPresentationMap() {

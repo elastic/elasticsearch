@@ -13,7 +13,13 @@ import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCounters;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceTelemetryVocabulary.Type;
 
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 
 public class DataSourceUsageAccumulatorTests extends ESTestCase {
 
@@ -546,6 +552,9 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
         Counters counters = new Counters();
         DataSourceCounters.populate(new DataSourceUsageAccumulator(), counters);
         for (String errorType : DataSourceUsageAccumulator.ERROR_TYPE_NAMES) {
+            if (DataSourceUsageAccumulator.ERROR_TYPE_CLOSED.equals(errorType)) {
+                continue; // a query is refused for a closed data source, storage never fails that way: see the test below
+            }
             assertThat(counters.get("datasources.storage.errors.by_error_type." + errorType), equalTo(0L));
         }
         for (String format : DataSourceUsageAccumulator.FORMAT_NAMES) {
@@ -554,6 +563,28 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
         assertThat(counters.get("datasources.queries.by_format.mixed.by_outcome.success"), equalTo(0L));
         assertThat(counters.get("datasources.queries.by_type.mixed.by_outcome.success"), equalTo(0L));
         assertThat(counters.get("datasources.queries.by_type.s3.by_outcome.success"), equalTo(0L));
+    }
+
+    /** Only a query is refused because a data source is closed, so {@code closed} is not emitted for storage errors or discovery. */
+    public void testClosedIsOnlyAQueryFailureCategory() {
+        Counters counters = new Counters();
+        DataSourceCounters.populate(new DataSourceUsageAccumulator(), counters);
+        assertThat(counters.get("datasources.queries.failures.by_error_type.closed"), equalTo(0L));
+        Set<String> keys = new HashSet<>();
+        flatten("", counters.toNestedMap(), keys);
+        assertThat(keys, not(hasItem("datasources.storage.errors.by_error_type.closed")));
+        assertThat(keys, not(hasItem("datasources.discovery.failures.by_error_type.closed")));
+    }
+
+    private static void flatten(String prefix, Map<?, ?> map, Set<String> out) {
+        for (Map.Entry<?, ?> entry : map.entrySet()) {
+            String key = prefix.isEmpty() ? entry.getKey().toString() : prefix + "." + entry.getKey();
+            if (entry.getValue() instanceof Map<?, ?> nested) {
+                flatten(key, nested, out);
+            } else {
+                out.add(key);
+            }
+        }
     }
 
     /** Every client key exists even before any query was recorded. */
@@ -571,7 +602,9 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
         DataSourceCounters.populate(new DataSourceUsageAccumulator(), counters);
         for (String errorType : DataSourceUsageAccumulator.ERROR_TYPE_NAMES) {
             assertThat(counters.get("datasources.queries.failures.by_error_type." + errorType), equalTo(0L));
-            assertThat(counters.get("datasources.discovery.failures.by_error_type." + errorType), equalTo(0L));
+            if (DataSourceUsageAccumulator.ERROR_TYPE_CLOSED.equals(errorType) == false) {
+                assertThat(counters.get("datasources.discovery.failures.by_error_type." + errorType), equalTo(0L));
+            }
         }
         for (String kind : DataSourceUsageAccumulator.KIND_NAMES) {
             for (String reason : DataSourceUsageAccumulator.REJECT_REASON_NAMES) {

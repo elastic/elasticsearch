@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -15,6 +16,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.datasources.QueryFailureTelemetry.Failure;
@@ -334,6 +336,30 @@ public class QueryFailureTelemetryTests extends ESTestCase {
             QueryFailureTelemetry.classify(new RuntimeException("wrapped", new DatasetClosedException("logs"))),
             equalTo(new Failure("closed", "400"))
         );
+    }
+
+    /**
+     * A data node that refuses a closed dataset throws a status exception with a 400, not {@link DatasetClosedException}: the
+     * handler of a node that is behind reads a 400 status exception as "wait for a newer state". Its class does not survive the
+     * trip back to the coordinator, so the category must be recognized from what does.
+     */
+    public void testClosedDatasetRefusedByADataNodeIsClosedAlsoAfterTheTripToTheCoordinator() throws IOException {
+        ElasticsearchException refusal = DatasetClosedException.refusedByDataNode("logs");
+        assertThat(refusal.status().getStatus(), equalTo(400));
+        assertThat(QueryFailureTelemetry.classify(refusal), equalTo(new Failure("closed", "400")));
+
+        Exception received = roundTrip(refusal);
+        assertThat(received.getMessage(), equalTo("external dataset [logs] is closed"));
+        assertThat(QueryFailureTelemetry.classify(received), equalTo(new Failure("closed", "400")));
+        assertThat(QueryFailureTelemetry.classify(new RuntimeException("wrapped", received)), equalTo(new Failure("closed", "400")));
+    }
+
+    /** A 400 from a data node that is not a closed-dataset refusal stays {@code other}. */
+    public void testOtherDataNodeRefusalsAreNotClosed() throws IOException {
+        Exception received = roundTrip(
+            new ElasticsearchStatusException("external dataset [logs] is not registered", RestStatus.BAD_REQUEST)
+        );
+        assertThat(QueryFailureTelemetry.classify(received), equalTo(new Failure("other", "400")));
     }
 
     public void testAnalysisFailuresAreVerification() {

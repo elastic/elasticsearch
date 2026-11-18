@@ -415,10 +415,15 @@ public final class DatasetRewriter {
         }
 
         // A dataset whose data source is closed is refused when the FROM names it, and silently skipped when only a wildcard
-        // reaches it, exactly as a closed index is.
+        // reaches it, as a closed index is. The refusal is not a cluster block, so it is not the error a closed index gives.
         Set<String> namedInRelation = exactNames(patternsOf(relation));
         List<String> datasetNames = new ArrayList<>();
         for (String name : resolution.resolvedExternalDatasets()) {
+            if (datasets.get(name) == null) {
+                // Resolved from the cluster state at resolution time, but created after this query took its snapshot: not part of
+                // this query, as if it had been created a moment later.
+                continue;
+            }
             if (isClosed(name, datasets, dataSources) == false) {
                 datasetNames.add(name);
             } else if (namedInRelation.contains(name)) {

@@ -111,7 +111,7 @@ public final class QueryFailureTelemetry {
         if (timeout != null) {
             return new Failure(DataSourceUsageAccumulator.ERROR_TYPE_TIMEOUT, status(timeout));
         }
-        Throwable closed = ExceptionsHelper.unwrap(failure, DatasetClosedException.class);
+        Throwable closed = unwrapCause(failure, DatasetClosedException::isClosedRefusal);
         if (closed != null) {
             return new Failure(DataSourceUsageAccumulator.ERROR_TYPE_CLOSED, status(closed));
         }

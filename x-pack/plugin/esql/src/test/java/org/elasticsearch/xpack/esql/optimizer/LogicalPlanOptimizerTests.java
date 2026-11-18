@@ -3257,6 +3257,17 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         as(limit.child(), EsRelation.class);
     }
 
+    /**
+     * An aggregate whose cast can't convert is a constant, so nothing is aggregated or read.
+     */
+    public void testImpossibleCastOfAggregateFoldsToALiteral() {
+        assumeTrue("Impossible casts are null on current nodes", versionMode == VersionMode.CURRENT);
+        var plan = optimizedPlan("FROM test | STATS x = COUNT(*)::ip");
+        assertWarnings("[COUNT(*)] of type [long] cannot be converted to [IP] and will be null.");
+        assertFalse(plan.anyMatch(p -> p instanceof Aggregate || p instanceof EsRelation));
+        assertThat(Expressions.names(plan.output()), equalTo(List.of("x")));
+    }
+
     public void testFoldInEval() {
         var plan = optimizedPlan("""
             from test

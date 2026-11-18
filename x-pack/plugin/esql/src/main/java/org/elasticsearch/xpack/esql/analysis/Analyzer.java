@@ -5614,30 +5614,105 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (context.minimumVersion().supports(ESQL_LENIENT_UNION_CAST) == false) {
                 return plan;
             }
-            return plan.transformUp(LogicalPlan.class, p -> p.transformExpressionsOnly(Expression.class, e -> {
-                if (e instanceof ConvertFunction convert && e instanceof FoldablesConvertFunction == false) {
-                    String inputType = impossibleInputType(convert);
-                    if (inputType != null) {
-                        Expression input = convert.field();
-                        context.deferredHeaderWarnings()
-                            .add(
-                                Strings.format(
-                                    "[%s] of type [%s] cannot be converted to [%s] and will be null.",
-                                    // A cast pushed into a subquery branch has the source of the branch, not of the field.
-                                    switch (input) {
-                                        case FieldAttribute field -> field.fieldName().string();
-                                        case Attribute attribute -> attribute.name();
-                                        default -> input.sourceText();
-                                    },
-                                    inputType,
-                                    e.dataType().nameUpper()
-                                )
-                            );
-                        return new Literal(e.source(), null, e.dataType());
+            // An aggregate that becomes a constant isn't an aggregate anymore, so it moves after the aggregation, which the
+            // optimizer then folds when nothing else is left to aggregate.
+            LogicalPlan moved = plan.transformDown(LogicalPlan.class, p -> switch (p) {
+                case InlineStats inlineStats -> moveConstantAggregates(inlineStats, context);
+                case TimeSeriesAggregate timeSeriesAggregate -> timeSeriesAggregate;
+                case Aggregate aggregate -> moveConstantAggregates(aggregate, context);
+                default -> p;
+            });
+            return moved.transformUp(LogicalPlan.class, p -> p.transformExpressionsOnly(Expression.class, e -> {
+                List<String> warnings = new ArrayList<>();
+                Expression replaced = replaceImpossibleCast(e, warnings);
+                context.deferredHeaderWarnings().addAll(warnings);
+                return replaced;
+            }));
+        }
+
+        private static LogicalPlan moveConstantAggregates(Aggregate aggregate, AnalyzerContext context) {
+            List<NamedExpression> kept = new ArrayList<>();
+            List<Alias> constants = new ArrayList<>();
+            splitConstantAggregates(aggregate, kept, constants, context);
+            if (constants.isEmpty()) {
+                return aggregate;
+            }
+            LogicalPlan aggregation = aggregate.with(aggregate.child(), aggregate.groupings(), kept);
+            return new Project(aggregate.source(), new Eval(aggregate.source(), aggregation, constants), aggregate.output());
+        }
+
+        private static LogicalPlan moveConstantAggregates(InlineStats inlineStats, AnalyzerContext context) {
+            Aggregate aggregate = inlineStats.aggregate();
+            List<NamedExpression> kept = new ArrayList<>();
+            List<Alias> constants = new ArrayList<>();
+            splitConstantAggregates(aggregate, kept, constants, context);
+            if (constants.isEmpty()) {
+                return inlineStats;
+            }
+            LogicalPlan base;
+            if (kept.stream().anyMatch(Alias.class::isInstance)) {
+                base = new InlineStats(inlineStats.source(), aggregate.with(aggregate.child(), aggregate.groupings(), kept));
+            } else {
+                // Nothing left to aggregate: each row keeps its own grouping values.
+                List<Alias> groupings = aggregate.groupings().stream().filter(Alias.class::isInstance).map(Alias.class::cast).toList();
+                base = groupings.isEmpty() ? aggregate.child() : new Eval(inlineStats.source(), aggregate.child(), groupings);
+            }
+            return new Project(inlineStats.source(), new Eval(inlineStats.source(), base, constants), inlineStats.output());
+        }
+
+        /**
+         * Splits the aggregates into those that stay in the aggregation and those that become a constant once their impossible casts
+         * are null.
+         */
+        private static void splitConstantAggregates(
+            Aggregate aggregate,
+            List<NamedExpression> kept,
+            List<Alias> constants,
+            AnalyzerContext context
+        ) {
+            List<? extends NamedExpression> aggregates = aggregate.aggregates();
+            // The last aggregates are the groupings, which stay.
+            int aggregateFunctions = aggregates.size() - aggregate.groupings().size();
+            for (int i = 0; i < aggregates.size(); i++) {
+                NamedExpression aggregateExpression = aggregates.get(i);
+                if (i < aggregateFunctions && aggregateExpression instanceof Alias alias) {
+                    List<String> warnings = new ArrayList<>();
+                    Expression replaced = alias.child().transformUp(Expression.class, e -> replaceImpossibleCast(e, warnings));
+                    if (warnings.isEmpty() == false && replaced.foldable()) {
+                        context.deferredHeaderWarnings().addAll(warnings);
+                        constants.add(alias.replaceChild(replaced));
+                        continue;
                     }
                 }
-                return e;
-            }));
+                kept.add(aggregateExpression);
+            }
+        }
+
+        /**
+         * The typed {@code null} for an impossible cast, adding its warning, or the expression itself.
+         */
+        private static Expression replaceImpossibleCast(Expression e, List<String> warnings) {
+            if (e instanceof ConvertFunction convert && e instanceof FoldablesConvertFunction == false) {
+                String inputType = impossibleInputType(convert);
+                if (inputType != null) {
+                    Expression input = convert.field();
+                    warnings.add(
+                        Strings.format(
+                            "[%s] of type [%s] cannot be converted to [%s] and will be null.",
+                            // A cast pushed into a subquery branch has the source of the branch, not of the field.
+                            switch (input) {
+                                case FieldAttribute field -> field.fieldName().string();
+                                case Attribute attribute -> attribute.name();
+                                default -> input.sourceText();
+                            },
+                            inputType,
+                            e.dataType().nameUpper()
+                        )
+                    );
+                    return new Literal(e.source(), null, e.dataType());
+                }
+            }
+            return e;
         }
 
         /**

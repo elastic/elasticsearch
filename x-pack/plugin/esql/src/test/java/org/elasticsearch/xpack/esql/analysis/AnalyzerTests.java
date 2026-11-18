@@ -6560,6 +6560,29 @@ public class AnalyzerTests extends AnalyzerTestCase {
             .error("FROM index* | EVAL x = TO_IP(date_and_date_nanos, {\"leading_zeros\": \"abcdef\"})", containsString("abcdef"));
     }
 
+    /**
+     * An aggregate that becomes a constant moves after the aggregation, and the other aggregates and groupings stay.
+     */
+    public void testImpossibleCastOfAggregateMovesAfterStats() {
+        LogicalPlan plan = defaultMapping().minimumTransportVersion(TransportVersion.current())
+            .query("FROM test | STATS x = COUNT(*)::ip, y = MAX(salary) BY languages");
+        assertWarnings("[COUNT(*)] of type [long] cannot be converted to [IP] and will be null.");
+        Project project = as(as(plan, Limit.class).child(), Project.class);
+        assertThat(Expressions.names(project.projections()), equalTo(List.of("x", "y", "languages")));
+        Eval eval = as(project.child(), Eval.class);
+        assertNullLiteral(eval.fields().get(0).child(), IP);
+        Aggregate aggregate = as(eval.child(), Aggregate.class);
+        assertThat(Expressions.names(aggregate.aggregates()), equalTo(List.of("y", "languages")));
+    }
+
+    public void testImpossibleCastOfAggregateInInlineStats() {
+        LogicalPlan plan = defaultMapping().minimumTransportVersion(TransportVersion.current())
+            .query("FROM test | INLINE STATS x = COUNT(*)::ip BY languages | KEEP emp_no, languages, x");
+        assertWarnings("[COUNT(*)] of type [long] cannot be converted to [IP] and will be null.");
+        assertFalse(plan.anyMatch(InlineStats.class::isInstance));
+        assertThat(Expressions.names(plan.output()), equalTo(List.of("emp_no", "languages", "x")));
+    }
+
     private static void assertNullLiteral(Expression expression, DataType type) {
         Literal literal = as(expression, Literal.class);
         assertNull(literal.value());

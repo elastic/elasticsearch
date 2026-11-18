@@ -656,6 +656,45 @@ setup:
   - match: { values.1: [5, null] }
 
 ---
+"impossible cast of an aggregate returns null":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [lenient_impossible_casts]
+      reason: "Impossible casts return null"
+  - do:
+      warnings:
+        - "[COUNT(*)] of type [long] cannot be converted to [IP] and will be null."
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM lenient_long | STATS x = COUNT(*)::ip'
+  - length: { values: 1 }
+  - match: { columns.0.type: "ip" }
+  - match: { values.0: [null] }
+  - do:
+      warnings:
+        - "[COUNT(*)] of type [long] cannot be converted to [IP] and will be null."
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM lenient_long | STATS x = COUNT(*)::ip, c = COUNT(*)'
+  - match: { values.0: [null, 1] }
+  - do:
+      warnings:
+        - "[COUNT(*)] of type [long] cannot be converted to [IP] and will be null."
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM lenient_long | INLINE STATS x = COUNT(*)::ip | KEEP id, x'
+  - match: { values.0: [4, null] }
+
+---
 "invalid option on a union where no type converts still errors":
   - requires:
       capabilities:

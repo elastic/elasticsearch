@@ -2178,27 +2178,23 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     public void testViewBoundaryNullFillWarningMergesViewsWithSameFields() {
         Set<AnalyzerContext.ViewBoundaryNullFill> fills = new LinkedHashSet<>();
         addNullFills(fills, viewBoundary("w0"), "a", "b");
-        addNullFills(fills, new AnalyzerContext.ViewBoundary(null, "w1", "top"), "a", "b");
+        addNullFills(fills, viewBoundary("w1"), "b", "a");
         addNullFills(fills, viewBoundary("w2"), "a");
         addNullFills(fills, new AnalyzerContext.ViewBoundary("outer", "w3", null), "a", "b");
-        addNullFills(fills, viewBoundary("w4"), "a", "b");
-        addNullFills(fills, viewBoundary("w5"), "b", "a");
         assertThat(
             Analyzer.viewBoundaryNullFillWarning(fills),
             equalTo(
-                VIEW_BOUNDARY_PLURAL_ADVICE
-                    + "[a], [b] in views [w0], [w1] nested in view [top], [w4], [w5]; [a] in view [w2]; [a], [b] in view [w3] "
-                    + "(SET by view [outer])"
+                VIEW_BOUNDARY_PLURAL_ADVICE + "[a], [b] in views [w0], [w1]; [a] in view [w2]; [a], [b] in view [w3] (SET by view [outer])"
             )
         );
     }
 
     /**
-     * At most {@link Analyzer#MAX_LISTED_VIEW_BOUNDARY_VIEWS} views are named; entries that no longer fit are only counted, and
+     * At most {@link Analyzer#MAX_LISTED_VIEW_BOUNDARY_VIEW_NAMES} views are named; entries that no longer fit are only counted, and
      * their fields count only if no listed entry names them.
      */
     public void testViewBoundaryNullFillWarningCapsViews() {
-        int max = Analyzer.MAX_LISTED_VIEW_BOUNDARY_VIEWS;
+        int max = Analyzer.MAX_LISTED_VIEW_BOUNDARY_VIEW_NAMES;
         int extra = randomIntBetween(1, 100);
         Set<AnalyzerContext.ViewBoundaryNullFill> fills = new LinkedHashSet<>();
         StringBuilder listed = new StringBuilder();
@@ -2227,6 +2223,29 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             Analyzer.viewBoundaryNullFillWarning(fills),
             equalTo(
                 VIEW_BOUNDARY_PLURAL_ADVICE + "[a] in views " + listed + " and [" + extra + "] more; and [2] more fields in [2] more views"
+            )
+        );
+    }
+
+    /**
+     * The view a view is nested in and the view that SET the mode count against
+     * {@link Analyzer#MAX_LISTED_VIEW_BOUNDARY_VIEW_NAMES} too, as each is a view name the warning prints. An entry whose first view
+     * no longer fits is only counted, while a later entry that still fits is listed.
+     */
+    public void testViewBoundaryNullFillWarningCountsEveryViewName() {
+        assertThat(Analyzer.MAX_LISTED_VIEW_BOUNDARY_VIEW_NAMES, equalTo(5));
+        Set<AnalyzerContext.ViewBoundaryNullFill> fills = new LinkedHashSet<>();
+        for (int i = 0; i < 3; i++) {
+            addNullFills(fills, new AnalyzerContext.ViewBoundary(null, "v" + i, "e" + i), "a");
+        }
+        addNullFills(fills, new AnalyzerContext.ViewBoundary("outer", "x", null), "b");
+        addNullFills(fills, viewBoundary("y"), "c");
+        assertThat(
+            Analyzer.viewBoundaryNullFillWarning(fills),
+            equalTo(
+                VIEW_BOUNDARY_PLURAL_ADVICE
+                    + "[a] in views [v0] nested in view [e0], [v1] nested in view [e1] and [1] more; [c] in view [y]; "
+                    + "and [1] more field in [1] more view"
             )
         );
     }

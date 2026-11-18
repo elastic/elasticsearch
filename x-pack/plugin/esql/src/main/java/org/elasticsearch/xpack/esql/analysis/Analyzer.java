@@ -426,16 +426,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
     /**
      * At most this many field names are listed in the {@link #viewBoundaryNullFillWarning}, counted across its entries; the rest
-     * are only counted. Together with {@link #MAX_LISTED_VIEW_BOUNDARY_VIEWS} this bounds the {@code Warning} header, which some
-     * clients reject when it grows too large, however many views an index pattern matches.
+     * are only counted. Together with {@link #MAX_LISTED_VIEW_BOUNDARY_VIEW_NAMES} this bounds the {@code Warning} header, which
+     * some clients reject when it grows too large, however many views an index pattern matches.
      */
-    static final int MAX_LISTED_VIEW_BOUNDARY_FIELDS = 20;
+    static final int MAX_LISTED_VIEW_BOUNDARY_FIELDS = 10;
 
     /**
-     * At most this many view names are listed in the {@link #viewBoundaryNullFillWarning}, counted across its entries; the rest are
-     * only counted. See {@link #MAX_LISTED_VIEW_BOUNDARY_FIELDS}.
+     * At most this many view names are printed in the {@link #viewBoundaryNullFillWarning}, counted across its entries: a view, the
+     * view it is nested in and the view whose definition SET the mode each count, as each can be up to 255 bytes long and three
+     * times that once percent-encoded in the header. Views that no longer fit are only counted. See
+     * {@link #MAX_LISTED_VIEW_BOUNDARY_FIELDS}.
      */
-    static final int MAX_LISTED_VIEW_BOUNDARY_VIEWS = 10;
+    static final int MAX_LISTED_VIEW_BOUNDARY_VIEW_NAMES = 5;
 
     /**
      * Views that null-filled the same fields under the {@code SET} of the same scope, reported as one entry of the
@@ -453,7 +455,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * The advice comes first and the list of fields last, so a client that truncates the header only loses part of the list.
      * Views that lack the same fields under the same {@code SET} share one entry, so an index pattern over many similar views
      * reads as one short entry; the listed names are capped by {@link #MAX_LISTED_VIEW_BOUNDARY_FIELDS} and
-     * {@link #MAX_LISTED_VIEW_BOUNDARY_VIEWS}. The mode itself is not named: the advice is the same for every loading mode.
+     * {@link #MAX_LISTED_VIEW_BOUNDARY_VIEW_NAMES}. The mode itself is not named: the advice is the same for every loading mode.
      */
     @Nullable
     static String viewBoundaryNullFillWarning(Set<AnalyzerContext.ViewBoundaryNullFill> nullFills) {
@@ -476,22 +478,26 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         StringBuilder list = new StringBuilder();
         int fieldBudget = MAX_LISTED_VIEW_BOUNDARY_FIELDS;
-        int viewBudget = MAX_LISTED_VIEW_BOUNDARY_VIEWS;
+        int viewNameBudget = MAX_LISTED_VIEW_BOUNDARY_VIEW_NAMES;
         Set<String> listedFields = new HashSet<>();
         Set<String> unlistedFields = new HashSet<>();
         int unlistedViews = 0;
         for (Map.Entry<ViewBoundaryEntry, List<AnalyzerContext.ViewBoundary>> e : boundariesByEntry.entrySet()) {
             List<String> fields = List.copyOf(e.getKey().fields());
             List<AnalyzerContext.ViewBoundary> views = e.getValue();
-            if (fieldBudget == 0 || viewBudget == 0) {
+            int remainingViewNames = viewNameBudget - (e.getKey().settingView() == null ? 0 : 1);
+            if (fieldBudget == 0 || viewNamesPrinted(views.getFirst()) > remainingViewNames) {
                 unlistedFields.addAll(fields);
                 unlistedViews += views.size();
                 continue;
             }
+            int viewsListed = 0;
+            while (viewsListed < views.size() && viewNamesPrinted(views.get(viewsListed)) <= remainingViewNames) {
+                remainingViewNames -= viewNamesPrinted(views.get(viewsListed++));
+            }
+            viewNameBudget = remainingViewNames;
             int fieldsListed = Math.min(fields.size(), fieldBudget);
-            int viewsListed = Math.min(views.size(), viewBudget);
             fieldBudget -= fieldsListed;
-            viewBudget -= viewsListed;
             listedFields.addAll(fields.subList(0, fieldsListed));
             if (list.isEmpty() == false) {
                 list.append("; ");
@@ -534,6 +540,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             oneField ? "it" : "them",
             list
         );
+    }
+
+    /** How many view names listing {@code view} prints: its own, and the one of the view it is nested in. */
+    private static int viewNamesPrinted(AnalyzerContext.ViewBoundary view) {
+        return view.enclosingView() == null ? 1 : 2;
     }
 
     /**

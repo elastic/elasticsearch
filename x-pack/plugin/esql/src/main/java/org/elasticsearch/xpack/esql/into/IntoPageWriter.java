@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -203,7 +204,7 @@ public final class IntoPageWriter implements PageConsumer {
 
     private boolean finished;
     private boolean producerClosed;
-    private boolean asyncAction;
+    private final AtomicBoolean asyncAction = new AtomicBoolean();
     // null whenever no driver is blocked on this writer; allocated in isBlocked() and cleared in wake().
     @Nullable
     private SubscribableListener<Void> waiting;
@@ -218,9 +219,8 @@ public final class IntoPageWriter implements PageConsumer {
     public void consume(Page page) {
         try {
             if (page.getPositionCount() > 0 && sink.failure.get() == null) {
-                if (asyncAction == false) {
+                if (asyncAction.compareAndSet(false, true)) {
                     driverContext.addAsyncAction();
-                    asyncAction = true;
                 }
                 producer.add(new PageRows(page, sink.columns, sink.types, sink.destination), false);
                 Exception failed = sink.writer.failure();
@@ -266,8 +266,7 @@ public final class IntoPageWriter implements PageConsumer {
     }
 
     private void releaseAsyncAction() {
-        if (asyncAction) {
-            asyncAction = false;
+        if (asyncAction.compareAndSet(true, false)) {
             driverContext.removeAsyncAction();
         }
     }

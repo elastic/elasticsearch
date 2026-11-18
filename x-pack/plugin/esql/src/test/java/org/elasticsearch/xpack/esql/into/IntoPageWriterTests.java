@@ -72,6 +72,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -380,6 +381,17 @@ public class IntoPageWriterTests extends ComputeTestCase {
         assertTrue(driverContext.hasPendingAsyncActions());
         exactWriter.close();
         assertFalse(driverContext.hasPendingAsyncActions());
+    }
+
+    public void testCloseAndSettleReleaseTheAsyncActionOnce() {
+        writer.consume(page("h1"));
+        AtomicInteger completions = new AtomicInteger();
+        driverContext.waitForAsyncActions(ActionListener.running(() -> completions.incrementAndGet()));
+        writer.close();
+        client.answer(Outcome.CREATED);
+        assertThat(completions.get(), equalTo(0));
+        driverContext.finish();
+        assertThat(completions.get(), equalTo(1));
     }
 
     public void testRefusedRowFailsAndLaterPagesAreDropped() {

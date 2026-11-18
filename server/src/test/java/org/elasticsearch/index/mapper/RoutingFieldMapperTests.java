@@ -155,6 +155,19 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
         );
     }
 
+    /**
+     * Only {@code doc_values: false} is a deprecated no-op in columnar; an explicit {@code true} is the default and must not warn
+     * (unexpected deprecation warnings fail the test in {@code ensureNoWarnings}).
+     */
+    public void testDocValuesTrueDoesNotWarnInColumnar() throws Exception {
+        var mapperService = createMapperService(
+            Settings.builder().put("index.mode", randomFrom("columnar", "logsdb_columnar")).build(),
+            topMapping(b -> b.startObject("_routing").field("doc_values", true).endObject())
+        );
+        RoutingFieldMapper mapper = (RoutingFieldMapper) mapperService.documentMapper().mappers().getMapper("_routing");
+        assertTrue(mapper.docValues());
+    }
+
     public void testDocValuesFalseIsHonoredInColumnarBeforeNoOpVersion() throws Exception {
         var mapperService = createMapperService(
             IndexVersionUtils.getPreviousVersion(IndexVersions.DOC_VALUES_NO_OP_IN_COLUMNAR_ALL_MAPPERS),

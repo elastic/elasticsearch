@@ -93,11 +93,11 @@ public class SearchRecoveryTimeoutCalculationService {
         ByteSizeValue maxHeap
     ) {
         this.relocationSourceShutdownTimeouts = new RelocationSourceShutdownTimeouts(
+            new NonCriticalRecoverySlots(clusterSettings, nodeSettings, maxHeap),
+            new ShutdownWarmingDeadlines(clusterSettings),
             cacheService,
             threadPool,
-            clusterSettings,
-            nodeSettings,
-            maxHeap
+            clusterSettings
         );
         this.relocationOtherNodeShutdownTimeouts = new RelocationOtherNodeShutdownTimeouts(clusterSettings);
         clusterSettings.initializeAndWatch(

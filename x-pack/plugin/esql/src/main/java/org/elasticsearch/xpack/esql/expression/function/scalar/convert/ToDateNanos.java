@@ -72,14 +72,14 @@ public class ToDateNanos extends AbstractConvertFunction implements Configuratio
          */
 
         // Evaluators dynamically created in #factories()
-        Map.entry(KEYWORD, (source, fieldEval) -> null),
-        Map.entry(TEXT, (source, fieldEval) -> null)
+        Map.entry(KEYWORD, builtInFactories(KEYWORD)),
+        Map.entry(TEXT, builtInFactories(TEXT))
     );
 
     /**
      * Volatile because a plan's expressions are shared by the drivers of every shard on a node, which may call
      * {@link #factories()} concurrently. Without it, a reader can see the map before {@code putAll} replaces the
-     * {@code null}-returning placeholders from {@link #STATIC_EVALUATORS}.
+     * throwing placeholders from {@link #STATIC_EVALUATORS}.
      */
     private volatile Map<DataType, BuildFactory> lazyEvaluators = null;
 

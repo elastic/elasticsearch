@@ -23,6 +23,7 @@ public final class DoubleLookup implements ReleasableIterator<DoubleBlock> {
     private final IntBlock positions;
     private final long targetByteSize;
     private int position;
+    private long usedBytes;
 
     private double first;
     private int valuesInPosition;
@@ -42,8 +43,14 @@ public final class DoubleLookup implements ReleasableIterator<DoubleBlock> {
 
     @Override
     public DoubleBlock next() {
-        try (DoubleBlock.Builder builder = positions.blockFactory().newDoubleBlockBuilder(positions.getTotalValueCount())) {
-            int count = 0;
+        // build() keeps unused capacity, so pre-size for at most the values that fit in the target.
+        long maxValues = targetByteSize / Double.BYTES;
+        int remaining = positions.getPositionCount() - position;
+        int estimatedSize = (int) Math.min(remaining, Math.max(Operator.MIN_TARGET_PAGE_SIZE + 1, maxValues));
+        try (DoubleBlock.Builder builder = positions.blockFactory().newDoubleBlockBuilder(estimatedSize)) {
+            int positionsInBlock = 0;
+            boolean multivalued = false;
+            usedBytes = 0;
             while (position < positions.getPositionCount()) {
                 int start = positions.getFirstValueIndex(position);
                 int end = start + positions.getValueCount(position);
@@ -52,13 +59,24 @@ public final class DoubleLookup implements ReleasableIterator<DoubleBlock> {
                     copy(builder, positions.getInt(i));
                 }
                 switch (valuesInPosition) {
-                    case 0 -> builder.appendNull();
+                    case 0 -> {
+                        // A null still takes a value slot.
+                        builder.appendNull();
+                        usedBytes += Double.BYTES;
+                    }
                     case 1 -> builder.appendDouble(first);
-                    default -> builder.endPositionEntry();
+                    default -> {
+                        builder.endPositionEntry();
+                        multivalued = true;
+                    }
                 }
                 position++;
+                positionsInBlock++;
                 // TOOD what if the estimate is super huge? should we break even with less than MIN_TARGET?
-                if (++count > Operator.MIN_TARGET_PAGE_SIZE && builder.estimatedBytes() < targetByteSize) {
+                // builder.estimatedBytes() includes the pre-sized capacity, so track the bytes actually used.
+                // Once a block has a multivalued position, every position has a first value index.
+                long indexBytes = multivalued ? (long) Integer.BYTES * (positionsInBlock + 1) : 0;
+                if (positionsInBlock > Operator.MIN_TARGET_PAGE_SIZE && usedBytes + indexBytes >= targetByteSize) {
                     break;
                 }
             }
@@ -75,6 +93,7 @@ public final class DoubleLookup implements ReleasableIterator<DoubleBlock> {
         for (int i = start; i < end; i++) {
             if (valuesInPosition == 0) {
                 first = values.getDouble(i);
+                usedBytes += Double.BYTES;
                 valuesInPosition++;
                 continue;
             }
@@ -87,6 +106,7 @@ public final class DoubleLookup implements ReleasableIterator<DoubleBlock> {
                 throw new IllegalArgumentException("Found a single entry with " + valuesInPosition + " entries");
             }
             builder.appendDouble(values.getDouble(i));
+            usedBytes += Double.BYTES;
             valuesInPosition++;
         }
     }

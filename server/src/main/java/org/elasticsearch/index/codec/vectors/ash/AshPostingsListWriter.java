@@ -86,11 +86,10 @@ public class AshPostingsListWriter {
      * @param skipDocIds when {@code true}, per-block doc IDs are not written into the posting lists.
      *        Used for sliced flush segments where vectors are in ordinal order and the reader
      *        translates ordinals to doc IDs via {@code KnnVectorValues.ordToDoc()}.
-     * @param pretrainedWT an already-learned transposed projection matrix W^T (row-major, shape
-     *        {@code (nDims, originalDim)}) to reuse instead of training a new one, or {@code null}
-     *        to train W from the supplied vectors. Used at merge time to seed the merged segment's
-     *        projection matrix from an existing input segment. When supplied, its length must equal
-     *        {@code originalDim * nDims}; a mismatch is a programming error and throws.
+     * @param inherited an already-learned projection matrix to warm-start from instead of training a new one, or
+     *        {@code null} to train W from the supplied vectors. Used at merge time to seed the merged segment's
+     *        projection matrix from an existing input segment. When supplied, it must project {@code originalDim} to
+     *        the configured projected dimensions; a mismatch is a programming error and throws.
      * @param useMergeTrainingFactor selects the training-sample factor, the sample size as a multiple of the vector
      *        dimension: {@code true} uses the configuration's {@code trainingFactor} (merge), {@code false}
      *        its {@code flushTrainingFactor}. Both currently have the same default.
@@ -107,7 +106,7 @@ public class AshPostingsListWriter {
         TaskExecutor quantizerExec,
         VectorSimilarityFunction similarityFunction,
         boolean skipDocIds,
-        float[] pretrainedWT,
+        AshProjectionMatrix inherited,
         boolean useMergeTrainingFactor
     ) throws IOException {
         int nVectors = assignments.length;
@@ -141,36 +140,14 @@ public class AshPostingsListWriter {
         int nDims = ashQuantizer.nDims(originalDim);
 
         // Projection matrix selection:
-        // - merge with an inheritable W (pretrainedWT != null): warm-start from it, running a couple of steps of
+        // - merge with an inheritable W (inherited != null): warm-start from it, running a couple of steps of
         // subspace iteration against the merged set's second-moment matrix, then applying a new rotation.
         // - otherwise: train W from scratch: the PCA subspace of the training sample, then a rotation (random, unless
         // Procrustes iterations are configured).
         CheckedIntFunction<float[], IOException> centroidGetter = i -> centroidSupplier.centroid(assignments[i]);
         final AsymmetricHashingQuantizer.TrainedProjection trained;
-        if (pretrainedWT != null) {
-            // Callers only pass a matrix of the expected shape (ESNextDiskASHVectorsWriter#selectInheritedProjectionMatrix
-            // skips any other), so a mismatch here is a bug rather than input to recover from
-            if (pretrainedWT.length != originalDim * nDims) {
-                throw new IllegalArgumentException(
-                    "inherited projection matrix has length ["
-                        + pretrainedWT.length
-                        + "] but expected ["
-                        + (originalDim * nDims)
-                        + "] for originalDim ["
-                        + originalDim
-                        + "] and nDims ["
-                        + nDims
-                        + "]"
-                );
-            }
-            trained = ashQuantizer.trainWarmStart(
-                vectors,
-                nVectors,
-                originalDim,
-                centroidGetter,
-                pretrainedWT,
-                WARM_START_REFINE_ITERATIONS
-            );
+        if (inherited != null) {
+            trained = ashQuantizer.trainWarmStart(vectors, nVectors, originalDim, centroidGetter, inherited, WARM_START_REFINE_ITERATIONS);
         } else {
             // LEARNED learns the PCA subspace from the training sample and rotates it.
             trained = ashQuantizer.train(vectors, nVectors, originalDim, centroidGetter);
@@ -180,7 +157,7 @@ public class AshPostingsListWriter {
         // enough vectors to be inherited/warm-started at merge time. A random orthonormal fallback, or a
         // projection learned from fewer than twice as many vectors as projected dimensions (a small segment), is
         // marked learned=false so that merge does not inherit it.
-        this.ashProjectionMatrix = new AshProjectionMatrix(trained.wT(), originalDim, nDims, trained.learned());
+        this.ashProjectionMatrix = trained.matrix();
 
         // Build cluster-to-vector mappings, counting primary + SOAR overspill assignments
         ClusterAssignmentBuilder clusterAssignments = ClusterAssignmentBuilder.build(assignments, overspillAssignments, nClusters);

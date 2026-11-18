@@ -426,16 +426,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     /**
      * The failures that occurred during the search.
      */
-    // TODO: rename this method to replace getShardFailures
-    public List<ShardSearchFailure> shardFailuresList() {
-        return this.shardFailures;
-    }
-
-    /**
-     * The failures that occurred during the search.
-     */
-    public ShardSearchFailure[] getShardFailures() {
-        return this.shardFailures.toArray(ShardSearchFailure.EMPTY_ARRAY);
+    public List<ShardSearchFailure> getShardFailures() {
+        return shardFailures;
     }
 
     /**
@@ -583,7 +575,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             getSuccessfulShards(),
             getSkippedShards(),
             getFailedShards(),
-            shardFailuresList()
+            getShardFailures()
         );
         return builder;
     }

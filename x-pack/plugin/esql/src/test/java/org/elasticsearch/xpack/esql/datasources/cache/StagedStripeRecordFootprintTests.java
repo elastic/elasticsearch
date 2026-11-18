@@ -19,18 +19,22 @@ import java.util.Map;
 import static org.hamcrest.Matchers.greaterThan;
 
 /**
- * What a staged record stops retaining. A read stages one record per stripe and holds it until the query ends,
- * so the quantity that matters is the flat map per record that is no longer kept.
+ * What a staged record stops retaining: the map the flat form has to allocate to present itself. A read stages
+ * one record per stripe and holds it until the query ends.
  * <p>
- * Only the flat side is measured, and deliberately. {@code RamUsageEstimator.sizeOfMap} walks a real
- * {@code HashMap} and reports its entries, keys and values. The compact side has no sound instrument here:
- * {@link SplitStats} is not {@code Accountable}, so {@code sizeOfObject} returns
- * {@code UNKNOWN_DEFAULT_RAM_BYTES_USED} -- a 256-byte constant that reads exactly like a measurement -- and
- * {@link StagedStripeRecord} IS a {@code Map}, so {@code sizeOfObject} on one routes to {@code sizeOfMap},
- * builds the flat form and measures that instead of the compact form. Reconstructing {@code SplitStats}'
- * private array layout in a test would be a figure that drifts silently. So this pins the side that can be
- * measured and claims nothing about the ratio; the end-to-end figure belongs to a heap measurement on a
- * cluster, not to a unit test.
+ * Only the map's own skeleton is measured -- its table, its nodes and the key strings {@link StripeStatsHarvester}
+ * builds -- and the values are excluded on two separate grounds. They are not saved: {@link SplitStats#min} hands
+ * back the stored reference, so an extremum in the flat map is the same object the compact form already holds,
+ * and the flags are the canonical {@code Boolean}s. And they cannot be measured here anyway:
+ * {@code RamUsageEstimator.sizeOfObject} answers any type it does not know with
+ * {@code UNKNOWN_DEFAULT_RAM_BYTES_USED}, a 256-byte constant that reads exactly like a measurement, and neither
+ * {@code BytesRef} nor {@code Boolean} is known to it. A measurement over the values is invariant to how wide the
+ * text in them is, which is what makes the trap hard to see.
+ * <p>
+ * So this pins the part that is genuinely owned and genuinely measurable, and claims nothing about the ratio to
+ * the compact form -- {@link SplitStats} is not {@code Accountable}, so it hits the same constant, and
+ * {@link StagedStripeRecord} IS a {@code Map}, so measuring one routes back through the flat form. The
+ * end-to-end figure belongs to a heap measurement on a cluster.
  */
 public class StagedStripeRecordFootprintTests extends ESTestCase {
 
@@ -38,33 +42,58 @@ public class StagedStripeRecordFootprintTests extends ESTestCase {
     private static final int WIDE_COLUMNS = 105;
 
     public void testTheFlatFormIsWorthNotRetaining() {
-        assumeTrue("footprint figures are pinned for the compressed-reference layout", RamUsageEstimator.COMPRESSED_REFS_ENABLED);
+        assumeTrue("object sizes are the compressed-reference layout's", RamUsageEstimator.COMPRESSED_REFS_ENABLED);
 
         StagedStripeRecord record = wideRecord();
         Map<String, Object> flat = new HashMap<>(record);
         assertFalse("the copy must be a walk, leaving the record compact", record.keepsFlatForm());
 
-        long flatBytes = RamUsageEstimator.sizeOfMap(flat);
-        long perColumn = flatBytes / WIDE_COLUMNS;
+        assertEquals("a wide stripe must present four entries per column plus the addressing keys", 4 * WIDE_COLUMNS + 13, flat.size());
+
+        // The same keys with their values nulled out: the table, the nodes and the key strings, and nothing
+        // that the compact form also holds. sizeOfObject(null) is 0, so no value can contribute.
+        Map<String, Object> skeleton = new HashMap<>();
+        for (String key : flat.keySet()) {
+            skeleton.put(key, null);
+        }
+        long skeletonBytes = RamUsageEstimator.sizeOfMap(skeleton);
+
+        // The guard the first version of this test needed and did not have. It pins the reason the values are
+        // excluded as a live fact rather than a comment: every extremum and every flag is answered with the
+        // unknown-size constant, so a measurement including them would be part placeholder and would not move
+        // when the text in them got wider. If Lucene ever learns these types, this fails and the exclusion
+        // above has to be re-argued rather than silently producing a different number.
+        int placeholders = 0;
+        for (Object value : flat.values()) {
+            if (RamUsageEstimator.sizeOfObject(value) == RamUsageEstimator.UNKNOWN_DEFAULT_RAM_BYTES_USED) {
+                placeholders++;
+                assertTrue(
+                    "only the extrema and the flags may be unmeasurable here, not a count",
+                    value instanceof BytesRef || value instanceof Boolean
+                );
+            }
+        }
+        assertEquals("two extrema per column plus the five flags are unmeasurable by this estimator", 2 * WIDE_COLUMNS + 5, placeholders);
+
+        long keyBytes = 0;
+        for (String key : flat.keySet()) {
+            keyBytes += RamUsageEstimator.sizeOfObject(key);
+        }
 
         // Printed rather than only asserted: the figure is the point, and a reader of a failure wants it.
         logger.info(
-            "a {}-column staged stripe presents {} entries, {} bytes of flat map, {} bytes per column",
+            "a {}-column staged stripe presents {} entries costing {} bytes of map skeleton, {} of that in key strings, {} bytes per entry",
             WIDE_COLUMNS,
             flat.size(),
-            flatBytes,
-            perColumn
+            skeletonBytes,
+            keyBytes,
+            skeletonBytes / flat.size()
         );
 
-        assertEquals("a wide stripe must present four entries per column plus the addressing keys", 4 * WIDE_COLUMNS + 13, flat.size());
         // A floor, not an equality: the exact figure moves with the JDK's object layout and with the column
-        // names, and what this guards is that the flat form is still worth not keeping. It fails if the flat
-        // map ever collapses to something a record could simply hold.
-        assertThat(
-            "the flat map must stay far larger than the statistics it presents, or a record could simply hold it",
-            flatBytes,
-            greaterThan(50_000L)
-        );
+        // names. What this guards is that presenting the flat form still costs enough to be worth not keeping.
+        assertThat("the flat map's own skeleton must stay far larger than the statistics it presents", skeletonBytes, greaterThan(40_000L));
+        assertThat("the key strings must dominate that skeleton", keyBytes, greaterThan(skeletonBytes / 2));
     }
 
     private static StagedStripeRecord wideRecord() {

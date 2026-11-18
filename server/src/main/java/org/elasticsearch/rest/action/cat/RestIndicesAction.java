@@ -112,6 +112,14 @@ public class RestIndicesAction extends AbstractCatAction {
         final IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, IndicesOptions.strictExpand());
         final TimeValue masterNodeTimeout = getMasterNodeTimeout(request);
         final boolean includeUnloadedSegments = request.paramAsBoolean("include_unloaded_segments", false);
+        // Failure store (.fs-*) indices are hidden indices of a data stream. Like the hidden backing indices, they are only
+        // resolved when hidden indices are expanded (e.g. expand_wildcards=all), so include them in that case: otherwise
+        // `_cat/indices` can never list them even though `_cat/shards` and `_resolve/index` do, leaving no way to see how
+        // much disk a failure store uses. See https://github.com/elastic/elasticsearch/issues/166490
+        final boolean includeFailureIndices = indicesOptions.expandWildcardsHidden();
+        final IndicesOptions getSettingsIndicesOptions = includeFailureIndices
+            ? withFailureIndices(indicesOptions)
+            : indicesOptions;
 
         return channel -> {
             final var indexSettingsRef = new AtomicReference<GetSettingsResponse>();
@@ -146,13 +154,15 @@ public class RestIndicesAction extends AbstractCatAction {
                 client.admin()
                     .indices()
                     .prepareGetSettings(masterNodeTimeout, indices)
-                    .setIndicesOptions(indicesOptions)
+                    .setIndicesOptions(getSettingsIndicesOptions)
                     .execute(listeners.acquire(indexSettingsRef::set));
 
                 // The other requests just provide additional detail, and wildcards may be resolved differently depending on the type of
                 // request in the presence of security plugins, so set the IndicesOptions for all the sub-requests to be as inclusive as
                 // possible.
-                final IndicesOptions subRequestIndicesOptions = IndicesOptions.lenientExpandHidden();
+                final IndicesOptions subRequestIndicesOptions = includeFailureIndices
+                    ? withFailureIndices(IndicesOptions.lenientExpandHidden())
+                    : IndicesOptions.lenientExpandHidden();
 
                 client.admin()
                     .cluster()
@@ -173,6 +183,18 @@ public class RestIndicesAction extends AbstractCatAction {
                     .execute(listeners.acquire(indicesStatsRef::set));
             }
         };
+    }
+
+    /**
+     * Returns the given indices options with failure store indices included when a data stream (or a data stream alias)
+     * is resolved without an explicit component selector. An explicit {@code ::data} selector still excludes them.
+     */
+    private static IndicesOptions withFailureIndices(IndicesOptions indicesOptions) {
+        return IndicesOptions.builder(indicesOptions)
+            .gatekeeperOptions(
+                IndicesOptions.GatekeeperOptions.builder(indicesOptions.gatekeeperOptions()).includeFailureIndices(true).build()
+            )
+            .build();
     }
 
     @Override

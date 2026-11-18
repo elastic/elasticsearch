@@ -290,8 +290,9 @@ public record IndicesOptions(
      * @param allowAliasToMultipleIndices, allow aliases to multiple indices, true by default.
      * @param allowClosedIndices, allow closed indices, true by default.
      * @param allowSelectors, allow selectors within index expressions, true by default.
-     * @param includeFailureIndices, when true includes the failure indices when a data stream or a data stream alias is encountered and
-     *                              selectors are not allowed.
+     * @param includeFailureIndices, when true includes the failure indices when a data stream or a data stream alias is encountered.
+     *                              When selectors are allowed, an explicit selector still decides (`::failures` includes them,
+     *                              `::data` excludes them); the flag applies when the expression carries no selector.
      * @param ignoreThrottled, filters out throttled (aka frozen indices), defaults to true. This is deprecated and the only one
      *                         that only filters and never throws an error.
      */
@@ -368,8 +369,10 @@ public record IndicesOptions(
             }
 
             /**
-             * When the selectors are not allowed, this flag determines if we will include the failure store
-             * indices in the resolution or not. Defaults to false.
+             * When true, failure store indices are included in the resolution when a data stream or a data stream
+             * alias is encountered without an explicit component selector. An explicit `::failures` selector
+             * includes them and an explicit `::data` selector excludes them regardless of this flag.
+             * Defaults to false.
              */
             public Builder includeFailureIndices(boolean includeFailureIndices) {
                 this.includeFailureIndices = includeFailureIndices;

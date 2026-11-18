@@ -760,7 +760,12 @@ public class IndexNameExpressionResolver {
     public static boolean shouldIncludeFailureIndices(IndicesOptions indicesOptions, IndexComponentSelector expressionSelector) {
         // We return failure indices regardless of whether the data stream actually has the `failureStoreEnabled` flag set to true.
         if (indicesOptions.allowSelectors()) {
-            return expressionSelector != null && expressionSelector.shouldIncludeFailures();
+            // An explicit selector decides: `::failures` includes them, `::data` excludes them.
+            // With no selector, honour the caller's includeFailureIndices flag (for example `_cat/indices`
+            // asks for them when hidden indices are expanded) instead of always excluding them.
+            return expressionSelector == null
+                ? indicesOptions.includeFailureIndices()
+                : expressionSelector.shouldIncludeFailures();
         }
         return indicesOptions.includeFailureIndices();
     }

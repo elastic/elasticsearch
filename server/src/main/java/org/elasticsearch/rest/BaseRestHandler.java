@@ -85,7 +85,7 @@ public abstract class BaseRestHandler implements RestHandler {
     public boolean supportsQueryParameters(Set<String> parameters) {
         Set<String> supported = allSupportedParameters();
         assert supported == allSupportedParameters() : getName() + ": did not return same instance from allSupportedParameters()";
-        return supported == null || Sets.union(COMMON_PARAMETERS, supported).containsAll(parameters);
+        return supported == null || parameters.stream().allMatch(p -> COMMON_PARAMETERS.contains(p) || supported.contains(p));
     }
 
     @Override

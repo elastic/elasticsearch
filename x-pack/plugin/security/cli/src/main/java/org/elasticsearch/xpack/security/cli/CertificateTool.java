@@ -354,6 +354,15 @@ class CertificateTool extends MultiCommand {
             return options.has(pemFormatSpec);
         }
 
+        void printCompatibilityNote(Terminal terminal) {
+            final String note = keyStoreFormat.compatibilityNote();
+            if (note != null) {
+                terminal.println(note);
+                terminal.println("Use the -pem option to generate files for other applications.");
+                terminal.println("");
+            }
+        }
+
         boolean useOutputPassword(OptionSet options) {
             return options.has(outputPasswordSpec);
         }
@@ -796,6 +805,7 @@ class CertificateTool extends MultiCommand {
             terminal.println("    * -in (generate certificates from an input file)");
             terminal.println("then the output will be be a zip file containing individual certificate/key files");
             terminal.println("");
+            printCompatibilityNote(terminal);
 
             CAInfo caInfo = getCAInfo(terminal, options, env);
             Collection<CertificateInformation> certInfo = getCertificateInformationList(terminal, options);
@@ -1020,6 +1030,7 @@ class CertificateTool extends MultiCommand {
             terminal.println("If you elect to generate PEM format certificates (the -pem option), then the output will");
             terminal.println("be a zip file containing individual files for the CA certificate and private key");
             terminal.println("");
+            printCompatibilityNote(terminal);
 
             CAInfo caInfo = generateCA(terminal, options);
             final boolean writeZipFile = usePemFormat(options);

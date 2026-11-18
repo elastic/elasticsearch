@@ -557,6 +557,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
         terminal.addTextInput(outFile.toString());
 
         command.execute(terminal, command.getParser().parse(), newEnvironment(), new ProcessInfo(Map.of(), Map.of(), createTempDir()));
+        assertThat(terminal.getOutput(), containsString(format.compatibilityNote()));
 
         final Path zipRoot = getZipRoot(outFile);
         final Path caPath = zipRoot.resolve("ca/ca.bcfks");

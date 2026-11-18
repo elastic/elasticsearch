@@ -24,6 +24,7 @@ import java.util.Map;
 import javax.security.auth.x500.X500Principal;
 
 import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -34,8 +35,26 @@ import static org.hamcrest.Matchers.sameInstance;
  */
 public class CliKeyStoreFormatTests extends ESTestCase {
 
-    public void testForRuntimeIsPkcs12() {
+    public void testForRuntimeWithoutBcFipsIsPkcs12() {
+        assumeTrue("BCFIPS is registered", Security.getProvider(CliKeyStoreFormat.BC_FIPS_PROVIDER_NAME) == null);
         assertThat(CliKeyStoreFormat.forRuntime(), sameInstance(CliKeyStoreFormat.PKCS12));
+    }
+
+    public void testForProvidersWithoutBcFipsIsPkcs12() {
+        assertThat(CliKeyStoreFormat.forProviders(name -> null), sameInstance(CliKeyStoreFormat.PKCS12));
+    }
+
+    public void testForProvidersWithBcFipsIsBcfks() throws Exception {
+        final CliKeyStoreFormat format = CliKeyStoreFormat.forProviders(
+            Map.of(CliKeyStoreFormat.BC_FIPS_PROVIDER_NAME, new BouncyCastleProvider())::get
+        );
+        assertThat(format.type(), equalTo("BCFKS"));
+        assertWriteAndReadKeyPairs(format);
+    }
+
+    public void testCompatibilityNote() {
+        assertThat(CliKeyStoreFormat.PKCS12.compatibilityNote(), nullValue());
+        assertThat(bcfks().compatibilityNote(), containsString("Bouncy Castle FIPS provider"));
     }
 
     public void testPkcs12Naming() {

@@ -975,6 +975,7 @@ public class CertificateToolTests extends ESTestCase {
             processInfo
         );
         assertThat(caFile, pathExists());
+        assertThat(terminal.getOutput(), containsString(format.compatibilityNote()));
 
         final Path nodeFile = tempDir.resolve("node01.bcfks");
         final String nodePassword = randomBcfksPassword();
@@ -1272,6 +1273,8 @@ public class CertificateToolTests extends ESTestCase {
         final OptionSet caOptions = caCommand.getParser().parse(args);
         final ProcessInfo processInfo = new ProcessInfo(Map.of(), Map.of(), createTempDir());
         caCommand.execute(terminal, caOptions, env, processInfo);
+
+        assertThat(terminal.getOutput(), not(containsString("Bouncy Castle FIPS")));
 
         // Check output for OpenSSL compatibility version
         if (caPassword.length() > 50) {

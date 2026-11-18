@@ -19,6 +19,7 @@ import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.Provider;
+import java.security.Security;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.util.Map;
@@ -33,6 +34,8 @@ import java.util.function.Function;
 final class CliKeyStoreFormat {
 
     static final CliKeyStoreFormat PKCS12 = new CliKeyStoreFormat("PKCS12", "PKCS#12", ".p12", null, null);
+
+    static final String BC_FIPS_PROVIDER_NAME = "BCFIPS";
 
     private final String type;
     private final String description;
@@ -64,10 +67,19 @@ final class CliKeyStoreFormat {
     }
 
     /**
-     * The format to use on this JVM.
+     * The format to use on this JVM: BCFKS if the Bouncy Castle FIPS provider is registered, because PKCS#12 keystores are not FIPS
+     * 140 approved, and PKCS#12 otherwise.
      */
     static CliKeyStoreFormat forRuntime() {
-        return PKCS12;
+        return forProviders(Security::getProvider);
+    }
+
+    /**
+     * @param providers Returns the registered provider with the given name, or {@code null} if there is none.
+     */
+    static CliKeyStoreFormat forProviders(Function<String, Provider> providers) {
+        final Provider bcFips = providers.apply(BC_FIPS_PROVIDER_NAME);
+        return bcFips == null ? PKCS12 : bcfks(bcFips);
     }
 
     /**
@@ -109,6 +121,18 @@ final class CliKeyStoreFormat {
             case "PKCS12" -> CertificateTool.isAscii(password) ? null : description + " passwords must be plain ASCII";
             // BC-FIPS enforces a 112 bit minimum for PBKDF2 in approved-only mode, but not for the keys that protect a BCFKS keystore
             case "BCFKS" -> null;
+            default -> throw new IllegalStateException("unexpected keystore type [" + type + "]");
+        };
+    }
+
+    /**
+     * What users should know about where keystores of this format can be used, or {@code null} if they can be used widely.
+     */
+    @Nullable
+    String compatibilityNote() {
+        return switch (type) {
+            case "PKCS12" -> null;
+            case "BCFKS" -> "BCFKS keystores can only be read by Java applications that use the Bouncy Castle FIPS provider.";
             default -> throw new IllegalStateException("unexpected keystore type [" + type + "]");
         };
     }

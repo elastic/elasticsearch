@@ -244,6 +244,10 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
                     + keyStoreFormat.extension()
                     + "\"."
             );
+            final String compatibilityNote = keyStoreFormat.compatibilityNote();
+            if (compatibilityNote != null) {
+                terminal.println(compatibilityNote);
+            }
             terminal.println("This type of keystore is always password protected, but it is possible to use a");
             terminal.println("blank password.");
             terminal.println("");

@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
@@ -25,7 +24,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
-import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataFilter;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataPath;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataSet;
@@ -45,7 +43,6 @@ import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContextV2;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
-import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -73,11 +70,15 @@ import java.util.TreeSet;
  * In this model a container holds every label of its series. What the source loads holds the dimensions only, and reading a
  * label out of it row by row hurts the vectorized operator pipeline. So this rule replaces every read by name with a reference
  * to an attribute loaded next to the container, a compiler optimization called scalar replacement of aggregates (SROA), and loads
- * the container without what nothing needs of it, or not at all. The plan is right only once no read by name is left: a read the
- * rule cannot replace fails the query.
+ * the container without what nothing needs of it, or not at all. The plan is right only once no read by name of what the source
+ * loads is left: a read the rule cannot replace fails the query.
+ * <p>
+ * A typed container is the same bytes for the same label set, so the rule never splits one that keys a group, a join or a
+ * ranking: it keys by the container whole, its promoted labels written back, and the rewrite changes no answer. A label read
+ * above an aggregate keyed by it reads off the key, which holds every label of the group.
  * <p>
  * The rule knows the container by the calls above alone, not by how the translation uses them. It has two steps
- * ({@link Pushdown}):
+ * ({@link Run}):
  * <ol>
  *     <li>From the root down, changing nothing: for each container, find the labels read by name, and the labels every use of
  *     the container as a whole leaves out.</li>
@@ -87,21 +88,55 @@ import java.util.TreeSet;
  */
 public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
 
+    /**
+     * {@code plan} with its label containers split into parts; the configuration of {@code context} renders the ones left whole.
+     */
     @Override
     public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
         // the translation it follows emits label containers only with V2
         if (context.configuration().pragmas().enablePromqlTranslationV2() == false) {
             return plan;
         }
-        return pushDown(plan, context.configuration());
-    }
-
-    /** {@code plan} with its label containers split into parts; {@code configuration} renders the ones left whole. */
-    static LogicalPlan pushDown(LogicalPlan plan, Configuration configuration) {
         if (plan.anyMatch(ScalarizeTimeSeriesMetadataPaths::readsSource) == false) {
             return plan;
         }
-        return new Pushdown(configuration).apply(plan);
+        return new Run() {
+            @Override
+            DataType containerType() {
+                return DataType.TIME_SERIES_METADATA_DATA_TYPE;
+            }
+
+            @Override
+            boolean writesContainers() {
+                return true;
+            }
+
+            @Override
+            Expression empty(Source at) {
+                return TranslationContextV2.emptyLabels(at);
+            }
+
+            @Override
+            Expression render(Source at, Expression whole) {
+                return new ToString(at, whole, context.configuration());
+            }
+
+            /** A typed container compares whole: the promoted labels it does not hold written back. */
+            @Override
+            Expression compared(Parts parts, Source at) {
+                return whole(parts, at);
+            }
+
+            @Override
+            boolean keysWhole() {
+                return true;
+            }
+
+            @Override
+            void verify(LogicalPlan rewritten) {
+                // what is left is a typed container every node reads
+            }
+        }.apply(plan);
     }
 
     /** The source's label container, as translation reads it: every label of the series. */
@@ -140,9 +175,6 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
         }
         return base;
     }
-
-    /** The join key comparing two label containers, as text. */
-    private static final String CONTAINER_KEY = "$prom_rest";
 
     private static Literal absent(Source source) {
         return new Literal(source, null, DataType.KEYWORD);
@@ -201,41 +233,56 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
 
     /**
      * One run of the rule over one plan. All state is kept by the id of a label container attribute of the plan: step 1 fills what
-     * the plan asks of each container, step 2 what each container is in the rewritten plan.
+     * the plan asks of each container, step 2 what each container is in the rewritten plan. The hooks below are what a typed and a
+     * keyword label container do differently: each run {@link #apply(LogicalPlan, AnalyzerContext)} makes overrides every one of
+     * them.
      */
-    static final class Pushdown {
-        private final Configuration configuration;
-
+    abstract static class Run {
         /** Step 1: the labels read by name off each container. */
         private final Map<NameId, Set<String>> need = new HashMap<>();
         /** Step 1: the labels every use of each container as a whole leaves out. No entry: nothing uses it as a whole. */
         private final Map<NameId, Set<String>> tolerated = new HashMap<>();
-        /** The expression each alias of the plan names. */
-        private final Map<NameId, Expression> definitions = new HashMap<>();
-        /** The branch attributes each union output takes its value from. */
-        private final Map<NameId, List<Attribute>> unions = new HashMap<>();
 
-        /** Step 2: each container itself, as an expression over the input of the node at hand. No entry: nothing is left of it. */
-        private final Map<NameId, Expression> timeseries = new HashMap<>();
-        /** Step 2: the labels each container is without: left out of it, written over, or never in it. */
-        private final Map<NameId, Set<String>> without = new HashMap<>();
-        /**
-         * Step 2: the labels promoted out of each container, each held by an expression of its own. A promoted label the container
-         * is not {@link #without} is in both, alike. A label neither promoted nor in the container is absent.
-         */
-        private final Map<NameId, SortedMap<String, Expression>> promoted = new HashMap<>();
+        /** Step 2: what each container is in the rewritten plan. No entry: no node below defines it. */
+        private final Map<NameId, Parts> containers = new HashMap<>();
         /** The input of the time-series aggregate that loads each of these container attributes. */
         private final Map<NameId, LogicalPlan> sources = new HashMap<>();
         /** The input of the time-series aggregate whose groupings are being rewritten: where the source's labels are read. */
         private LogicalPlan source;
 
-        Pushdown(Configuration configuration) {
-            this.configuration = configuration;
-        }
+        // -- hooks: what differs between the typed and the keyword container --
+
+        /** The type of a container the rewrite builds. */
+        abstract DataType containerType();
+
+        /** Whether a call can change a container after the source loads it. */
+        abstract boolean writesContainers();
+
+        /** The container of a series that has no labels. */
+        abstract Expression empty(Source at);
+
+        /** {@code whole}, a container as a whole, rendered as the string a query asks for. */
+        abstract Expression render(Source at, Expression whole);
+
+        /** The container as a join compares it. */
+        abstract Expression compared(Parts parts, Source at);
+
+        /**
+         * Whether a container that keys a node keys it whole, as the one value {@link #compared} makes of it. A typed container
+         * is the same bytes for the same label set and one value per row, so it keys a group, a join or a ranking as it is, and
+         * a label read above an aggregate keyed by it reads off the key. A keyword container cannot be written to, so it keys by
+         * its parts instead, packed into one key: a label of several values keys as a whole.
+         */
+        abstract boolean keysWhole();
+
+        /** Checks the rewritten plan: what is left of it must run on every participating node. */
+        abstract void verify(LogicalPlan rewritten);
 
         LogicalPlan apply(LogicalPlan plan) {
             demand(plan);
-            return rewrite(plan);
+            LogicalPlan rewritten = rewrite(plan);
+            verify(rewritten);
+            return rewritten;
         }
 
         // -- step 1: what the plan asks of its containers. From the root down, so every use is seen before the definition --
@@ -251,63 +298,29 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
 
         void demand(LogicalPlan plan) {
             plan.forEachDown(node -> {
-                for (Expression expression : node.expressions()) {
-                    if (expression instanceof Alias alias) {
-                        definitions.put(alias.id(), alias.child());
-                    }
-                }
-                if (node instanceof UnionAll union) {
-                    for (int i = 0; i < union.output().size(); i++) {
-                        var branches = new ArrayList<Attribute>();
-                        for (LogicalPlan child : union.children()) {
-                            branches.add(child.output().get(i));
-                        }
-                        unions.put(union.output().get(i).id(), branches);
-                    }
-                }
-            });
-            plan.forEachDown(node -> {
                 if (node instanceof UnionAll union) {
                     for (int i = 0; i < union.output().size(); i++) {
                         Attribute out = union.output().get(i);
-                        if (isLabelContainer(out) == false) {
-                            continue;
-                        }
-                        // every branch returns the labels any branch promotes
-                        Set<String> labels = need.computeIfAbsent(out.id(), k -> new TreeSet<>());
-                        labels.addAll(written(out));
                         for (LogicalPlan child : union.children()) {
                             Attribute branch = child.output().get(i);
                             if (isLabelContainer(branch)) {
-                                List.copyOf(labels).forEach(label -> read(branch, label));
+                                List.copyOf(need(out.id())).forEach(label -> read(branch, label));
                                 use(branch, tolerated.get(out.id()));
                             }
                         }
                     }
                     return;
                 }
-                if (node instanceof HashJoin join) {
-                    for (int i = 0; i < join.leftFields().size(); i++) {
-                        Attribute left = join.leftFields().get(i);
-                        Attribute right = join.rightFields().get(i);
-                        if (isLabelContainer(left) && isLabelContainer(right)) {
-                            // both sides compare by name the labels either promotes
-                            var labels = new TreeSet<>(written(left));
-                            labels.addAll(written(right));
-                            for (String label : labels) {
-                                read(left, label);
-                                read(right, label);
-                            }
-                        }
-                        // a key is compared: nothing of it may be missing
-                        use(left, Set.of());
-                        use(right, Set.of());
-                    }
-                    return;
-                }
+                // a key is compared: nothing of it may be missing
                 List<Expression> keys = switch (node) {
                     case Aggregate aggregate -> aggregate.groupings();
                     case TopNBy topNBy -> topNBy.groupings();
+                    case PackDims pack -> List.copyOf(pack.dims());
+                    case HashJoin join -> {
+                        var both = new ArrayList<Expression>(join.leftFields());
+                        both.addAll(join.rightFields());
+                        yield both;
+                    }
                     default -> List.of();
                 };
                 for (Expression key : keys) {
@@ -419,41 +432,36 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
             }
         }
 
-        /**
-         * The labels {@code container} promotes whatever is read off it: the ones a TS_KEEP keeps or a TS_SET writes on the way from
-         * the node that loads it. Two containers compared as a whole compare these by name.
-         */
-        private Set<String> written(Expression container) {
-            var written = new TreeSet<String>();
-            switch (container) {
-                case TimeSeriesMetadataFilter filter when filter.exclude() -> {
-                    written.addAll(written(filter.children().getFirst()));
-                    written.removeAll(names(filter.labels()));
-                }
-                case TimeSeriesMetadataFilter filter -> written.addAll(names(filter.labels()));
-                case TimeSeriesMetadataSet set -> {
-                    written.addAll(written(set.children().getFirst()));
-                    written.addAll(names(List.of(set.label())));
-                }
-                case Attribute attribute -> {
-                    Expression definition = definitions.get(attribute.id());
-                    if (definition != null) {
-                        written.addAll(written(definition));
-                    }
-                    for (Attribute branch : unions.getOrDefault(attribute.id(), List.of())) {
-                        // the union output has the id of its first branch
-                        if (branch.id().equals(attribute.id()) == false) {
-                            written.addAll(written(branch));
-                        }
-                    }
-                }
-                default -> {
-                }
-            }
-            return written;
-        }
-
         // -- step 2: the rewrite. From the leaves up, each node on its own --
+
+        /**
+         * What a label container is in the rewritten plan, over the input of the node at hand: what is left of the container, and
+         * the labels promoted out of it. A promoted label the container {@link #holds} is in both, alike. A label neither promoted
+         * nor held is absent.
+         */
+        static final class Parts {
+            /** What is left of the container; null when nothing is. */
+            private @Nullable Expression container;
+            /** The labels the container is without: left out of it, written over outside of it, or never in it. */
+            private final Set<String> without = new TreeSet<>();
+            /** The labels promoted out of the container, each held by an expression of its own. */
+            private SortedMap<String, Expression> labels = new TreeMap<>();
+
+            private Parts(@Nullable Expression container) {
+                this.container = container;
+            }
+
+            private boolean holds(String name) {
+                return container != null && without.contains(name) == false;
+            }
+
+            /** The promoted labels the container does not hold. */
+            private SortedMap<String, Expression> outside() {
+                SortedMap<String, Expression> outside = new TreeMap<>(labels);
+                outside.keySet().removeIf(this::holds);
+                return outside;
+            }
+        }
 
         /**
          * Step 2. The children first, then the node: a node that defines a container records what it is ({@link #define}), and a
@@ -465,504 +473,516 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
             LogicalPlan rewritten = node instanceof UnionAll || children.equals(node.children())
                 ? node
                 : node.replaceChildrenSameSize(children);
-            switch (rewritten) {
-                // The union with each label container position replaced by its parts. Every branch returns the same parts: its container,
-                // if any branch has one, and each label step 1 asked every branch for.
-                case UnionAll union -> {
-                    var evals = new ArrayList<List<Alias>>();
-                    var projections = new ArrayList<List<NamedExpression>>();
-                    for (int j = 0; j < children.size(); j++) {
-                        evals.add(new ArrayList<>());
-                        projections.add(new ArrayList<>());
-                    }
-                    var output = new ArrayList<Attribute>();
-                    // The union output of each list of branch attributes: a page holds each attribute once, so a branch projecting the
-                    // same attribute twice would leave the union an output short.
-                    var outputs = new HashMap<List<NameId>, Attribute>();
-                    // the parts of each container position, as union outputs: recorded once every position has read its branches
-                    var containers = new HashMap<NameId, Attribute>();
-                    var gone = new HashMap<NameId, Set<String>>();
-                    var labels = new HashMap<NameId, SortedMap<String, Expression>>();
-                    for (int i = 0; i < union.output().size(); i++) {
-                        Attribute out = union.output().get(i);
-                        if (isContainer(out) == false) {
-                            output.add(out);
-                            for (int j = 0; j < children.size(); j++) {
-                                projections.get(j).add(union.children().get(j).output().get(i));
-                            }
-                            continue;
-                        }
-                        Source at = out.source();
-                        var branches = new ArrayList<NameId>();
-                        for (int j = 0; j < children.size(); j++) {
-                            NameId branch = union.children().get(j).output().get(i).id();
-                            if (promoted.containsKey(branch)) {
-                                materialize(branch, evals.get(j));
-                            }
-                            branches.add(branch);
-                        }
-                        // what every branch returns for this position: the name of each part, its type, and the part of each branch
-                        var names = new ArrayList<String>();
-                        var types = new ArrayList<DataType>();
-                        var parts = new ArrayList<List<Expression>>();
-                        // The union's container is without a label only where every branch's is. A branch without a container
-                        // returns one holding its promoted labels, as the other branches' containers hold theirs.
-                        var outGone = new TreeSet<String>();
-                        boolean container = false;
-                        for (NameId branch : branches) {
-                            if (timeseries.containsKey(branch)) {
-                                if (container) {
-                                    outGone.retainAll(without.get(branch));
-                                } else {
-                                    outGone.addAll(without.get(branch));
-                                }
-                                container = true;
-                            }
-                        }
-                        for (NameId branch : branches) {
-                            if (timeseries.containsKey(branch) == false) {
-                                outGone.removeAll(promoted.getOrDefault(branch, new TreeMap<>()).keySet());
-                            }
-                        }
-                        if (container) {
-                            var branchParts = new ArrayList<Expression>();
-                            for (NameId branch : branches) {
-                                branchParts.add(timeseries.containsKey(branch) ? timeseries.get(branch) : whole(branch, at));
-                            }
-                            // Union outputs are named apart: the container's own name for the container, prefixed for its labels.
-                            names.add(out.name());
-                            types.add(DataType.TIME_SERIES_METADATA_DATA_TYPE);
-                            parts.add(branchParts);
-                        }
-                        var outLabels = new ArrayList<String>();
-                        for (String name : need(out.id())) {
-                            var branchParts = new ArrayList<Expression>();
-                            for (NameId branch : branches) {
-                                branchParts.add(
-                                    label(
-                                        timeseries.get(branch),
-                                        without.getOrDefault(branch, Set.of()),
-                                        promoted.getOrDefault(branch, new TreeMap<>()),
-                                        name,
-                                        at
-                                    )
-                                );
-                            }
-                            if (branchParts.stream().allMatch(ScalarizeTimeSeriesMetadataPaths::isAbsent)) {
-                                // no branch holds the label: the container is without it
-                                outGone.add(name);
-                            } else {
-                                outLabels.add(name);
-                                names.add(out.name() + "." + name);
-                                types.add(DataType.KEYWORD);
-                                parts.add(branchParts);
-                            }
-                        }
-                        SortedMap<String, Expression> outPromoted = new TreeMap<>();
-                        for (int p = 0; p < parts.size(); p++) {
-                            String name = names.get(p);
-                            var attributes = new ArrayList<Attribute>();
-                            for (int j = 0; j < children.size(); j++) {
-                                attributes.add(attribute(parts.get(p).get(j), name, evals.get(j)));
-                            }
-                            List<NameId> key = attributes.stream().map(Attribute::id).toList();
-                            Attribute part = outputs.get(key);
-                            if (part == null) {
-                                part = new ReferenceAttribute(
-                                    parts.get(p).getFirst().source(),
-                                    null,
-                                    name,
-                                    types.get(p),
-                                    Nullability.TRUE,
-                                    null,
-                                    false
-                                );
-                                output.add(part);
-                                outputs.put(key, part);
-                                for (int j = 0; j < children.size(); j++) {
-                                    Attribute attribute = attributes.get(j);
-                                    projections.get(j)
-                                        .add(attribute.name().equals(name) ? attribute : new Alias(attribute.source(), name, attribute));
-                                }
-                            }
-                            if (container && p == 0) {
-                                containers.put(out.id(), part);
-                            } else {
-                                outPromoted.put(outLabels.get(container ? p - 1 : p), part);
-                            }
-                        }
-                        gone.put(out.id(), outGone);
-                        labels.put(out.id(), outPromoted);
-                    }
-                    var branches = new ArrayList<LogicalPlan>();
-                    for (int j = 0; j < children.size(); j++) {
-                        LogicalPlan child = evaluate(children.get(j), evals.get(j));
-                        branches.add(new Project(child.source(), child, projections.get(j)));
-                    }
-                    UnionAll unionAll = new UnionAll(union.source(), branches, output);
-                    // The parts leave the union under ids of their own: the analyzer pushes a conversion of a union output, such as the
-                    // rendering of the label container, into the branches, and would leave its attribute in the command's output.
-                    var renamed = new HashMap<NameId, Attribute>();
-                    var leaving = new ArrayList<NamedExpression>();
-                    for (Attribute attribute : output) {
-                        if (outputs.containsValue(attribute)) {
-                            Alias alias = new Alias(attribute.source(), attribute.name(), attribute);
-                            renamed.put(attribute.id(), alias.toAttribute());
-                            leaving.add(alias);
-                        } else {
-                            leaving.add(attribute);
-                        }
-                    }
-                    labels.forEach((id, outPromoted) -> {
-                        if (containers.containsKey(id)) {
-                            timeseries.put(id, renamed.get(containers.get(id).id()));
-                        } else {
-                            timeseries.remove(id);
-                        }
-                        outPromoted.replaceAll((name, label) -> renamed.get(((Attribute) label).id()));
-                        without.put(id, gone.get(id));
-                        promoted.put(id, outPromoted);
-                    });
-                    return new Project(union.source(), unionAll, leaving);
+            return switch (rewritten) {
+                case UnionAll union -> rewriteUnionAll(union, children);
+                case Aggregate aggregate -> rewriteAggregate(aggregate);
+                case Eval eval -> rewriteEval(eval);
+                case Project project -> rewriteProject(project);
+                case HashJoin join -> rewriteHashJoin(join);
+                case TopNBy topNBy -> rewriteTopNBy(topNBy);
+                case PackDims pack -> rewritePackDims(pack);
+                default -> rewritten.transformExpressionsOnlyUp(Expression.class, this::scalar);
+            };
+        }
+
+        /**
+         * The union with each label container position replaced by its parts. Every branch returns the same parts, which leave
+         * the union under ids of their own: the analyzer pushes a conversion of a union output, such as the rendering of the
+         * label container, into the branches, and would leave its attribute in the command's output.
+         */
+        private LogicalPlan rewriteUnionAll(UnionAll union, List<LogicalPlan> children) {
+            var outputs = new UnionOutputs(children.size());
+            // recorded once every position has read its branches: a union output has the id of its first branch
+            var defined = new HashMap<NameId, Parts>();
+            for (int i = 0; i < union.output().size(); i++) {
+                Attribute out = union.output().get(i);
+                if (isContainer(out) == false) {
+                    outputs.passThrough(out, union.children(), i);
+                    continue;
                 }
-                // The aggregate keyed by the parts of its label containers: each container, and its promoted labels. A container leaves
-                // out the labels every use above leaves out, which become keys of their own so the groups stay the same. The time-series
-                // aggregate keys by the labels as they are and its translation packs them; any other aggregate packs them itself: a label
-                // of several values keys as a whole.
-                case Aggregate aggregate -> {
-                    boolean timeSeries = aggregate instanceof TimeSeriesAggregate;
-                    var evals = new ArrayList<Alias>();
-                    var groupings = new ArrayList<Expression>();
-                    var keys = new ArrayList<NameId>();
-                    var packedLabels = new ArrayList<Attribute>();
-                    source = promqlSource(aggregate);
-                    for (Expression grouping : aggregate.groupings()) {
-                        if ((grouping instanceof NamedExpression named && isContainer(named)) == false) {
-                            groupings.add(grouping);
-                            continue;
-                        }
-                        NamedExpression key = (NamedExpression) grouping;
-                        NameId id = key.id();
-                        Expression definition = key instanceof Alias alias ? alias.child() : key;
-                        define(id, definition);
-                        SortedMap<String, Expression> labels = promoted.get(id);
-                        Set<String> out = tolerated.get(id);
-                        // The aggregate returns what it groups by: a container stays a key of it, whether or not anything above uses
-                        // it. A label every use above leaves out keys on its own, and the container is without it: the key still
-                        // tells apart what the container told apart. Of the source's labels only a dimension is in the container.
-                        Expression whole = timeseries.get(id);
-                        if (whole != null && out != null) {
-                            var split = new TreeSet<String>();
-                            for (String name : out) {
-                                if (without.get(id).contains(name) || isSource(whole) && PromqlLabels.getLabel(source, name) == null) {
-                                    continue;
-                                }
-                                Expression value = labels.get(name);
-                                if (value == null && isSource(whole)) {
-                                    value = PromqlLabels.getField(source, name);
-                                }
-                                if (value != null && isAbsent(value) == false) {
-                                    labels.put(name, value);
-                                    split.add(name);
-                                }
-                            }
-                            if (split.isEmpty() == false) {
-                                timeseries.put(id, unset(whole, without.get(id), split, Source.EMPTY));
-                                without.get(id).addAll(split);
-                            }
-                        }
-                        dropCopies(id);
-                        if (timeSeries) {
-                            // the time-series aggregate keys by an expression as it is
-                            var aliases = new ArrayList<NamedExpression>();
-                            Expression container = container(id);
-                            if (container != null) {
-                                NamedExpression loaded = container instanceof Attribute attribute
-                                    ? attribute
-                                    : new Alias(container.source(), MetadataAttribute.TIMESERIES, container);
-                                addIfAbsent(aliases, loaded);
-                                if (isSource(timeseries.get(id))) {
-                                    sources.put(loaded.id(), source);
-                                }
-                                timeseries.put(id, loaded.toAttribute());
-                            }
-                            for (var label : labels.entrySet()) {
-                                Expression part = label.getValue();
-                                NamedExpression keyed = null;
-                                if (part instanceof Attribute attribute && attribute instanceof FieldAttribute == false) {
-                                    keyed = attribute;
-                                } else {
-                                    // A source field keyed on gets an id of its own: above the aggregate it is a reference, not the
-                                    // field. A grouping that keys by it already is that key.
-                                    for (Expression existing : aggregate.groupings()) {
-                                        if (keyed == null && existing instanceof Alias alias && alias.child().semanticEquals(part)) {
-                                            keyed = alias;
-                                        }
-                                    }
-                                    if (keyed == null) {
-                                        keyed = new Alias(part.source(), label.getKey(), part);
-                                    }
-                                }
-                                addIfAbsent(aliases, keyed);
-                                label.setValue(keyed.toAttribute());
-                            }
-                            groupings.addAll(aliases);
-                        } else {
-                            materialize(id, evals);
-                            if (timeseries.containsKey(id)) {
-                                groupings.add(timeseries.get(id));
-                            }
-                            labels.values().forEach(label -> addIfAbsent(packedLabels, (Attribute) label));
-                        }
-                        keys.add(id);
-                    }
-                    source = null;
-                    if (keys.isEmpty()) {
-                        return aggregate.transformExpressionsOnly(Expression.class, this::scalar);
-                    }
-                    LogicalPlan child = evaluate(aggregate.child(), evals);
-                    // the aggregates, with each container key replaced by its parts; the packed labels leave with the packed key
-                    var aggregates = new ArrayList<NamedExpression>();
-                    for (NamedExpression aggregateExpression : aggregate.aggregates()) {
-                        NameId id = aggregateExpression.id();
-                        if (keys.contains(id) == false) {
-                            if (packedLabels.stream().noneMatch(label -> label.id().equals(id))) {
-                                addIfAbsent(aggregates, (NamedExpression) scalar(aggregateExpression));
-                            }
-                            continue;
-                        }
-                        if (timeseries.containsKey(id)) {
-                            addIfAbsent(aggregates, (Attribute) timeseries.get(id));
-                        }
-                        if (packedLabels.isEmpty()) {
-                            promoted.get(id).values().forEach(label -> addIfAbsent(aggregates, (Attribute) label));
-                        }
-                    }
-                    if (packedLabels.isEmpty()) {
-                        var distinct = new ArrayList<Expression>();
-                        for (Expression grouping : groupings) {
-                            if (grouping instanceof NamedExpression named
-                                && distinct.stream().anyMatch(g -> g instanceof NamedExpression n && n.id().equals(named.id()))) {
-                                continue;
-                            }
-                            distinct.add(grouping);
-                        }
-                        return aggregate.with(child, distinct, aggregates);
-                    }
-                    Source at = aggregate.source();
-                    PackDims pack = new PackDims(at, child, packedLabels, PackDims.newPackedAttribute(at));
-                    Alias packed = PackDims.newPackedGrouping(at, pack.packed());
-                    groupings.add(packed);
-                    aggregates.add(packed.toAttribute());
-                    Aggregate packedAggregate = aggregate.with(pack, groupings, aggregates);
-                    // an unpacked label keeps its id: what reads it above the aggregate reads the unpacked attribute
-                    var unpacked = new LinkedHashMap<NameId, Attribute>();
-                    for (Attribute label : packedLabels) {
-                        unpacked.put(
-                            label.id(),
-                            new ReferenceAttribute(
-                                label.source(),
-                                null,
-                                label.name(),
-                                label.dataType().noText(),
-                                Nullability.TRUE,
-                                label.id(),
-                                false
-                            )
-                        );
-                    }
-                    var output = new ArrayList<NamedExpression>();
-                    for (NamedExpression aggregateExpression : aggregate.aggregates()) {
-                        NameId id = aggregateExpression.id();
-                        if (keys.contains(id) == false) {
-                            Attribute label = unpacked.get(id);
-                            addIfAbsent(output, label != null ? label : aggregateExpression.toAttribute());
-                            continue;
-                        }
-                        if (timeseries.containsKey(id)) {
-                            addIfAbsent(output, (Attribute) timeseries.get(id));
-                        }
-                        promoted.get(id).replaceAll((name, label) -> unpacked.get(((Attribute) label).id()));
-                        promoted.get(id).values().forEach(label -> addIfAbsent(output, (Attribute) label));
-                    }
-                    return new Project(
-                        at,
-                        new UnpackDims(at, packedAggregate, packed.toAttribute(), List.copyOf(unpacked.values())),
-                        output
-                    );
+                var branches = new ArrayList<Parts>();
+                for (LogicalPlan child : union.children()) {
+                    branches.add(containers.getOrDefault(child.output().get(i).id(), new Parts(null)));
                 }
-                // A label container is not evaluated: what names it above names its parts. A label read by name is evaluated once, here,
-                // where its container is defined.
-                case Eval eval -> {
-                    var fields = new ArrayList<Alias>();
-                    for (Alias field : eval.fields()) {
-                        if (isContainer(field)) {
-                            define(field.id(), field.child());
-                            promoted.get(field.id())
-                                .replaceAll((name, value) -> need(field.id()).contains(name) ? attribute(value, name, fields) : value);
-                        } else {
-                            fields.add((Alias) scalar(field));
-                        }
+                defined.put(out.id(), unionParts(out, branches, outputs));
+            }
+            containers.putAll(defined);
+            var branches = new ArrayList<LogicalPlan>();
+            for (int j = 0; j < children.size(); j++) {
+                LogicalPlan child = evaluate(children.get(j), outputs.evals.get(j));
+                branches.add(new Project(child.source(), child, outputs.projections.get(j)));
+            }
+            return new Project(union.source(), new UnionAll(union.source(), branches, outputs.output), outputs.leaving);
+        }
+
+        /**
+         * The parts of the union output {@code out}, a container position whose branches have {@code branches}. Where any branch
+         * has a container, every branch returns its labels whole, and the union's container is without a label only where every
+         * branch's is. Otherwise the branches line up by the labels any of them promotes. Outputs are named apart: the container's
+         * own name for the container, prefixed for its labels.
+         */
+        private Parts unionParts(Attribute out, List<Parts> branches, UnionOutputs outputs) {
+            Source at = out.source();
+            Set<String> gone = null;
+            var names = new TreeSet<String>();
+            for (Parts branch : branches) {
+                if (branch.container != null) {
+                    if (gone == null) {
+                        gone = new TreeSet<>(branch.without);
+                    } else {
+                        gone.retainAll(branch.without);
                     }
-                    if (fields.equals(eval.fields())) {
-                        return eval;
-                    }
-                    return fields.isEmpty() ? eval.child() : new Eval(eval.source(), eval.child(), fields);
                 }
-                // A projection keeps the parts of the containers it projects.
-                case Project project -> {
-                    var evals = new ArrayList<Alias>();
-                    var projections = new ArrayList<NamedExpression>();
-                    for (NamedExpression projection : project.projections()) {
-                        if (isContainer(projection) == false) {
-                            addIfAbsent(projections, (NamedExpression) scalar(projection));
-                            continue;
-                        }
-                        NameId id = projection.id();
-                        if (projection instanceof Alias alias) {
-                            define(id, alias.child());
-                        } else {
-                            record(projection.toAttribute());
-                        }
-                        dropCopies(id);
-                        materialize(id, evals);
-                        if (timeseries.containsKey(id)) {
-                            addIfAbsent(projections, (Attribute) timeseries.get(id));
-                        }
-                        promoted.get(id).replaceAll((name, label) -> {
-                            Attribute attribute = (Attribute) label;
-                            // The analyzer resolves a reference above by name: a label must not share the name of another projection.
-                            boolean shadows = project.projections()
-                                .stream()
-                                .anyMatch(p -> p.name().equals(attribute.name()) && p.id().equals(attribute.id()) == false)
-                                || projections.stream()
-                                    .anyMatch(p -> p.name().equals(attribute.name()) && p.id().equals(attribute.id()) == false);
-                            NamedExpression projected = shadows
-                                ? new Alias(attribute.source(), TemporaryNameGenerator.locallyUniqueTemporaryName(name), attribute)
-                                : attribute;
-                            addIfAbsent(projections, projected);
-                            return projected.toAttribute();
-                        });
-                    }
-                    LogicalPlan child = evaluate(project.child(), evals);
-                    return new Project(project.source(), child, projections);
+                names.addAll(branch.labels.keySet());
+            }
+            var union = new Parts(null);
+            if (gone != null) {
+                List<Expression> whole = branches.stream().map(branch -> whole(branch, at)).toList();
+                union.container = outputs.part(out.name(), containerType(), whole);
+                union.without.addAll(gone);
+                union.without.removeAll(names);
+                names.retainAll(need(out.id()));
+            }
+            for (String name : names) {
+                List<Expression> values = branches.stream().map(branch -> label(branch, name, at)).toList();
+                union.labels.put(name, outputs.part(out.name() + "." + name, DataType.KEYWORD, values));
+            }
+            return union;
+        }
+
+        /** The outputs of a union, what each branch projects to them, and what leaves the union for each. */
+        private static final class UnionOutputs {
+            private final List<List<Alias>> evals = new ArrayList<>();
+            private final List<List<NamedExpression>> projections = new ArrayList<>();
+            private final List<Attribute> output = new ArrayList<>();
+            private final List<NamedExpression> leaving = new ArrayList<>();
+            // The part of each list of branch attributes: a page holds each attribute once, so a branch projecting the same
+            // attribute twice would leave the union an output short.
+            private final Map<List<NameId>, Attribute> parts = new HashMap<>();
+
+            UnionOutputs(int branches) {
+                for (int j = 0; j < branches; j++) {
+                    evals.add(new ArrayList<>());
+                    projections.add(new ArrayList<>());
                 }
-                // The join on the parts of its label container keys: the containers as text, the promoted labels packed.
-                case HashJoin join -> {
-                    var leftEvals = new ArrayList<Alias>();
-                    var rightEvals = new ArrayList<Alias>();
-                    var leftLabels = new ArrayList<Attribute>();
-                    var rightLabels = new ArrayList<Attribute>();
-                    var leftFields = new ArrayList<Attribute>();
-                    var rightFields = new ArrayList<Attribute>();
-                    for (int i = 0; i < join.leftFields().size(); i++) {
-                        Attribute left = join.leftFields().get(i);
-                        Attribute right = join.rightFields().get(i);
-                        if ((isContainer(left) && isContainer(right)) == false) {
-                            leftFields.add(left);
-                            rightFields.add(right);
-                            continue;
-                        }
-                        NameId l = record(left);
-                        NameId r = record(right);
-                        // both sides compare by name the labels either holds outside its container
-                        var names = new TreeSet<String>();
-                        promoted.get(l).keySet().stream().filter(name -> inContainer(l, name) == false).forEach(names::add);
-                        promoted.get(r).keySet().stream().filter(name -> inContainer(r, name) == false).forEach(names::add);
-                        for (String name : names) {
-                            Expression leftLabel = label(timeseries.get(l), without.get(l), promoted.get(l), name, left.source());
-                            Expression rightLabel = label(timeseries.get(r), without.get(r), promoted.get(r), name, right.source());
-                            leftLabels.add(attribute(leftLabel, name, leftEvals));
-                            rightLabels.add(attribute(rightLabel, name, rightEvals));
-                        }
-                        if (timeseries.containsKey(l) || timeseries.containsKey(r)) {
-                            // A label one side holds in its container too and the other outside it compares packed only: that side's
-                            // container leaves it out.
-                            var leftOut = new TreeSet<String>();
-                            var rightOut = new TreeSet<String>();
-                            for (String name : names) {
-                                if (inContainer(l, name) && inContainer(r, name) == false) {
-                                    leftOut.add(name);
-                                } else if (inContainer(r, name) && inContainer(l, name) == false) {
-                                    rightOut.add(name);
-                                }
-                            }
-                            leftFields.add(attribute(containerKey(l, leftOut, left.source()), CONTAINER_KEY, leftEvals));
-                            rightFields.add(attribute(containerKey(r, rightOut, right.source()), CONTAINER_KEY, rightEvals));
-                        }
-                    }
-                    LogicalPlan leftChild = evaluate(join.left(), leftEvals);
-                    LogicalPlan rightChild = evaluate(join.right(), rightEvals);
-                    rightChild = pack(rightChild, rightLabels, rightFields);
-                    // The join merges its output by name: the right side keeps its keys and what it adds, a container's parts under the
-                    // container's name, so they cannot shadow the left side's labels.
-                    var projections = new ArrayList<NamedExpression>(rightFields);
-                    var added = new ArrayList<Attribute>();
-                    for (Attribute attribute : join.addedFields()) {
-                        if (isContainer(attribute) == false) {
-                            projections.add(attribute);
-                            added.add(attribute);
-                            continue;
-                        }
-                        NameId id = record(attribute);
-                        dropCopies(id);
-                        Expression container = container(id);
-                        if (container != null) {
-                            Alias alias = new Alias(container.source(), attribute.name(), container);
-                            projections.add(alias);
-                            added.add(alias.toAttribute());
-                            timeseries.put(id, alias.toAttribute());
-                        }
-                        promoted.get(id).replaceAll((name, label) -> {
-                            Alias alias = new Alias(label.source(), attribute.name() + "." + name, label);
-                            projections.add(alias);
-                            added.add(alias.toAttribute());
-                            return alias.toAttribute();
-                        });
-                    }
-                    return new HashJoin(
-                        join.source(),
-                        pack(leftChild, leftLabels, leftFields),
-                        new Project(rightChild.source(), rightChild, projections),
-                        leftFields,
-                        rightFields,
-                        added,
-                        join.unique(),
-                        join.config().type()
-                    );
+            }
+
+            void passThrough(Attribute out, List<LogicalPlan> branches, int position) {
+                output.add(out);
+                leaving.add(out);
+                for (int j = 0; j < branches.size(); j++) {
+                    projections.get(j).add(branches.get(j).output().get(position));
                 }
-                case TopNBy topNBy -> {
-                    var evals = new ArrayList<Alias>();
-                    var labels = new ArrayList<Attribute>();
-                    var groupings = new ArrayList<Expression>();
-                    for (Expression grouping : topNBy.groupings()) {
-                        if ((grouping instanceof Attribute attribute && isContainer(attribute)) == false) {
-                            groupings.add(scalar(grouping));
-                            continue;
-                        }
-                        NameId id = record(grouping);
-                        materialize(id, evals);
-                        if (timeseries.containsKey(id)) {
-                            groupings.add(timeseries.get(id));
-                        }
-                        // a label the container holds too is compared with it
-                        promoted.get(id).forEach((name, label) -> {
-                            if (inContainer(id, name) == false) {
-                                addIfAbsent(labels, (Attribute) label);
-                            }
-                        });
+            }
+
+            /** The part named {@code name} that takes from each branch its value in {@code values}, as it leaves the union. */
+            Attribute part(String name, DataType type, List<Expression> values) {
+                var attributes = new ArrayList<Attribute>();
+                for (int j = 0; j < values.size(); j++) {
+                    attributes.add(attribute(values.get(j), name, evals.get(j)));
+                }
+                return parts.computeIfAbsent(attributes.stream().map(Attribute::id).toList(), key -> {
+                    Attribute part = new ReferenceAttribute(values.getFirst().source(), null, name, type, Nullability.TRUE, null, false);
+                    output.add(part);
+                    for (int j = 0; j < attributes.size(); j++) {
+                        Attribute attribute = attributes.get(j);
+                        projections.get(j).add(attribute.name().equals(name) ? attribute : new Alias(attribute.source(), name, attribute));
                     }
-                    LogicalPlan child = evaluate(topNBy.child(), evals);
-                    return new TopNBy(topNBy.source(), pack(child, labels, groupings), topNBy.order(), topNBy.limitPerGroup(), groupings);
-                }
-                default -> {
-                    return rewritten.transformExpressionsOnlyUp(Expression.class, this::scalar);
-                }
+                    Alias leaves = new Alias(part.source(), name, part);
+                    leaving.add(leaves);
+                    return leaves.toAttribute();
+                });
             }
         }
 
+        /**
+         * The aggregate keyed by the parts of its label containers: each container, and its promoted labels. The time-series
+         * aggregate keys by the labels as they are and its translation packs them. Any other aggregate keys by a typed container
+         * whole (see {@link #keysWhole}), and by the parts of a keyword one, packed: a label of several values keys as a whole.
+         */
+        private LogicalPlan rewriteAggregate(Aggregate aggregate) {
+            var evals = new ArrayList<Alias>();
+            var groupings = new ArrayList<Expression>();
+            var keys = new ArrayList<NameId>();
+            var packedLabels = new ArrayList<Attribute>();
+            var wholeKeys = new ArrayList<NameId>();
+            source = promqlSource(aggregate);
+            for (Expression grouping : aggregate.groupings()) {
+                if ((grouping instanceof NamedExpression key && isContainer(key)) == false) {
+                    groupings.add(grouping);
+                    continue;
+                }
+                NamedExpression key = (NamedExpression) grouping;
+                if (aggregate instanceof TimeSeriesAggregate == false && keysWhole()) {
+                    // A key whole holds every label it has: none is split out of it to key on its own.
+                    Parts parts = define(key.id(), key instanceof Alias alias ? alias.child() : key);
+                    // Above the aggregate the key is the container, whole: what reads its labels reads them off the key.
+                    Attribute keyed = attribute(compared(parts, key.source()), MetadataAttribute.TIMESERIES, evals);
+                    groupings.add(keyed);
+                    parts.container = keyed;
+                    // the key holds the labels written back into it, and is without the others the container was without
+                    parts.without.removeAll(parts.labels.keySet());
+                    parts.labels = new TreeMap<>();
+                    wholeKeys.add(key.id());
+                    keys.add(key.id());
+                    continue;
+                }
+                Parts parts = defineKey(key);
+                if (aggregate instanceof TimeSeriesAggregate) {
+                    groupings.addAll(loadKey(parts));
+                } else {
+                    materialize(parts, evals);
+                    if (parts.container != null) {
+                        groupings.add(parts.container);
+                    }
+                    parts.labels.values().forEach(label -> addIfAbsent(packedLabels, (Attribute) label));
+                }
+                keys.add(key.id());
+            }
+            source = null;
+            if (keys.isEmpty()) {
+                return aggregate.transformExpressionsOnly(Expression.class, this::scalar);
+            }
+            LogicalPlan child = evaluate(aggregate.child(), evals);
+            // the aggregates, with each container key replaced by its parts; the packed labels leave with the packed key
+            var aggregates = new ArrayList<NamedExpression>();
+            for (NamedExpression aggregateExpression : aggregate.aggregates()) {
+                NameId id = aggregateExpression.id();
+                if (keys.contains(id)) {
+                    Parts key = containers.get(id);
+                    if (key.container != null) {
+                        addIfAbsent(aggregates, (Attribute) key.container);
+                    }
+                    if (packedLabels.isEmpty()) {
+                        key.labels.values().forEach(label -> addIfAbsent(aggregates, (Attribute) label));
+                    }
+                } else if (packedLabels.stream().noneMatch(label -> label.id().equals(id))) {
+                    addIfAbsent(aggregates, (NamedExpression) scalar(aggregateExpression));
+                }
+            }
+            if (packedLabels.isEmpty()) {
+                return readKeyLabels(aggregate.with(child, groupings, aggregates), wholeKeys);
+            }
+            return readKeyLabels(unpack(aggregate, child, groupings, aggregates, keys, packedLabels), wholeKeys);
+        }
+
+        /**
+         * {@code plan} with the labels read by name off each container key in {@code keys} read off the key, which holds every
+         * label of the group, above the aggregate.
+         */
+        private LogicalPlan readKeyLabels(LogicalPlan plan, List<NameId> keys) {
+            var evals = new ArrayList<Alias>();
+            for (NameId id : keys) {
+                Parts key = containers.get(id);
+                for (String name : need(id)) {
+                    if (key.without.contains(name)) {
+                        // the key is without it: it reads absent
+                        continue;
+                    }
+                    Source at = key.container.source();
+                    Expression read = new TimeSeriesMetadataPath(at, key.container, Literal.keyword(at, name));
+                    key.labels.put(name, attribute(read, name, evals));
+                }
+            }
+            return evaluate(plan, evals);
+        }
+
+        /**
+         * Defines the container key {@code key} of an aggregate. The aggregate returns what it groups by: a container stays a key
+         * of it, whether or not anything above uses it. A label every use above leaves out keys on its own, and the container is
+         * without it: the key still tells apart what the container told apart. Of the source's labels only a dimension is in the
+         * container.
+         */
+        private Parts defineKey(NamedExpression key) {
+            Parts parts = define(key.id(), key instanceof Alias alias ? alias.child() : key);
+            Set<String> out = tolerated.get(key.id());
+            if (parts.container != null && out != null) {
+                boolean loaded = isSource(parts.container);
+                var split = new TreeSet<String>();
+                for (String name : out) {
+                    if (parts.without.contains(name) || loaded && PromqlLabels.getLabel(source, name) == null) {
+                        continue;
+                    }
+                    Expression value = parts.labels.get(name);
+                    if (value == null && loaded) {
+                        value = PromqlLabels.getField(source, name);
+                    }
+                    if (value != null && isAbsent(value) == false) {
+                        parts.labels.put(name, value);
+                        split.add(name);
+                    }
+                }
+                if (split.isEmpty() == false) {
+                    unset(parts, split, Source.EMPTY);
+                }
+            }
+            dropCopies(key.id(), parts);
+            return parts;
+        }
+
+        /** The groupings of a time-series aggregate keyed by {@code key}: its parts as they are loaded. */
+        private List<NamedExpression> loadKey(Parts key) {
+            var aliases = new ArrayList<NamedExpression>();
+            Expression container = container(key);
+            if (container != null) {
+                NamedExpression loaded = container instanceof Attribute attribute
+                    ? attribute
+                    : new Alias(container.source(), MetadataAttribute.TIMESERIES, container);
+                aliases.add(loaded);
+                if (isSource(key.container)) {
+                    sources.put(loaded.id(), source);
+                }
+                key.container = loaded.toAttribute();
+            }
+            for (var label : key.labels.entrySet()) {
+                // a source field keyed on gets an id of its own: above the aggregate it is a reference, not the field
+                Alias keyed = new Alias(label.getValue().source(), label.getKey(), label.getValue());
+                aliases.add(keyed);
+                label.setValue(keyed.toAttribute());
+            }
+            return aliases;
+        }
+
+        /**
+         * {@code aggregate} grouped by {@code groupings} and the {@code packedLabels} packed into one key, which is unpacked
+         * above it. An unpacked label keeps its id: what reads it above the aggregate reads the unpacked attribute.
+         */
+        private LogicalPlan unpack(
+            Aggregate aggregate,
+            LogicalPlan child,
+            List<Expression> groupings,
+            List<NamedExpression> aggregates,
+            List<NameId> keys,
+            List<Attribute> packedLabels
+        ) {
+            Source at = aggregate.source();
+            PackDims pack = new PackDims(at, child, packedLabels, PackDims.newPackedAttribute(at));
+            Alias packed = PackDims.newPackedGrouping(at, pack.packed());
+            groupings.add(packed);
+            aggregates.add(packed.toAttribute());
+            Aggregate packedAggregate = aggregate.with(pack, groupings, aggregates);
+            var unpacked = new LinkedHashMap<NameId, Attribute>();
+            for (Attribute label : packedLabels) {
+                unpacked.put(
+                    label.id(),
+                    new ReferenceAttribute(
+                        label.source(),
+                        null,
+                        label.name(),
+                        label.dataType().noText(),
+                        Nullability.TRUE,
+                        label.id(),
+                        false
+                    )
+                );
+            }
+            var output = new ArrayList<NamedExpression>();
+            for (NamedExpression aggregateExpression : aggregate.aggregates()) {
+                NameId id = aggregateExpression.id();
+                if (keys.contains(id) == false) {
+                    Attribute label = unpacked.get(id);
+                    addIfAbsent(output, label != null ? label : aggregateExpression.toAttribute());
+                    continue;
+                }
+                Parts key = containers.get(id);
+                if (key.container != null) {
+                    addIfAbsent(output, (Attribute) key.container);
+                }
+                key.labels.replaceAll((name, label) -> unpacked.get(((Attribute) label).id()));
+                key.labels.values().forEach(label -> addIfAbsent(output, (Attribute) label));
+            }
+            return new Project(at, new UnpackDims(at, packedAggregate, packed.toAttribute(), List.copyOf(unpacked.values())), output);
+        }
+
+        /**
+         * Each part of a label container is evaluated once, here, where the container is defined: what names the container above
+         * names its parts. A container that is an attribute already is not evaluated again.
+         */
+        private LogicalPlan rewriteEval(Eval eval) {
+            var fields = new ArrayList<Alias>();
+            for (Alias field : eval.fields()) {
+                if (isContainer(field) == false) {
+                    fields.add((Alias) scalar(field));
+                    continue;
+                }
+                Parts parts = define(field.id(), field.child());
+                if (parts.container != null && parts.container instanceof Attribute == false) {
+                    Alias evaluated = new Alias(field.source(), field.name(), parts.container, field.id());
+                    fields.add(evaluated);
+                    parts.container = evaluated.toAttribute();
+                }
+                parts.labels.replaceAll((name, value) -> attribute(value, name, fields));
+            }
+            if (fields.equals(eval.fields())) {
+                return eval;
+            }
+            return fields.isEmpty() ? eval.child() : new Eval(eval.source(), eval.child(), fields);
+        }
+
+        /**
+         * A projection keeps the parts of the containers it projects.
+         */
+        private LogicalPlan rewriteProject(Project project) {
+            var projections = new ArrayList<NamedExpression>();
+            for (NamedExpression projection : project.projections()) {
+                if (isContainer(projection) == false) {
+                    addIfAbsent(projections, (NamedExpression) scalar(projection));
+                    continue;
+                }
+                Parts parts = record(projection.toAttribute());
+                dropCopies(projection.id(), parts);
+                if (parts.container != null) {
+                    addIfAbsent(projections, (Attribute) parts.container);
+                }
+                parts.labels.replaceAll((name, label) -> {
+                    Attribute attribute = (Attribute) label;
+                    // The analyzer resolves a reference above by name: a label must not share the name of another projection.
+                    boolean shadows = project.projections()
+                        .stream()
+                        .anyMatch(p -> p.name().equals(attribute.name()) && p.id().equals(attribute.id()) == false)
+                        || projections.stream().anyMatch(p -> p.name().equals(attribute.name()) && p.id().equals(attribute.id()) == false);
+                    NamedExpression projected = shadows
+                        ? new Alias(attribute.source(), TemporaryNameGenerator.locallyUniqueTemporaryName(name), attribute)
+                        : attribute;
+                    addIfAbsent(projections, projected);
+                    return projected.toAttribute();
+                });
+            }
+            return new Project(project.source(), project.child(), projections);
+        }
+
+        /**
+         * The join on the parts of its label container keys, packed into one key: each container whole where either side has
+         * one, its labels by name otherwise.
+         */
+        private LogicalPlan rewriteHashJoin(HashJoin join) {
+            var leftEvals = new ArrayList<Alias>();
+            var rightEvals = new ArrayList<Alias>();
+            var leftLabels = new ArrayList<Attribute>();
+            var rightLabels = new ArrayList<Attribute>();
+            var leftFields = new ArrayList<Attribute>();
+            var rightFields = new ArrayList<Attribute>();
+            for (int i = 0; i < join.leftFields().size(); i++) {
+                Attribute left = join.leftFields().get(i);
+                Attribute right = join.rightFields().get(i);
+                if ((isContainer(left) && isContainer(right)) == false) {
+                    leftFields.add(left);
+                    rightFields.add(right);
+                    continue;
+                }
+                Parts l = record(left);
+                Parts r = record(right);
+                if (keysWhole()) {
+                    // each side keys by its container whole: the same label set is the same value on both sides
+                    Expression leftKey = compared(l, left.source());
+                    Expression rightKey = compared(r, right.source());
+                    if (leftKey instanceof Literal && leftKey.equals(rightKey)) {
+                        // the same label set on every row of both sides tells no pair apart
+                        continue;
+                    }
+                    leftFields.add(attribute(leftKey, MetadataAttribute.TIMESERIES, leftEvals));
+                    rightFields.add(attribute(rightKey, MetadataAttribute.TIMESERIES, rightEvals));
+                    continue;
+                }
+                if (l.container != null || r.container != null) {
+                    // a container compares whole: its labels are what the other side holds in or outside its own
+                    leftLabels.add(attribute(compared(l, left.source()), MetadataAttribute.TIMESERIES, leftEvals));
+                    rightLabels.add(attribute(compared(r, right.source()), MetadataAttribute.TIMESERIES, rightEvals));
+                    continue;
+                }
+                // no container: the labels compare by name, absent where a side has none
+                var names = new TreeSet<>(l.labels.keySet());
+                names.addAll(r.labels.keySet());
+                for (String name : names) {
+                    leftLabels.add(attribute(label(l, name, left.source()), name, leftEvals));
+                    rightLabels.add(attribute(label(r, name, right.source()), name, rightEvals));
+                }
+            }
+            LogicalPlan leftChild = evaluate(join.left(), leftEvals);
+            LogicalPlan rightChild = evaluate(join.right(), rightEvals);
+            rightChild = pack(rightChild, rightLabels, rightFields);
+            // The join merges its output by name: the right side keeps its keys and what it adds, a container's parts under the
+            // container's name, so they cannot shadow the left side's labels.
+            var projections = new ArrayList<NamedExpression>(rightFields);
+            var added = new ArrayList<Attribute>();
+            for (Attribute attribute : join.addedFields()) {
+                if (isContainer(attribute) == false) {
+                    projections.add(attribute);
+                    added.add(attribute);
+                    continue;
+                }
+                Parts parts = record(attribute);
+                dropCopies(attribute.id(), parts);
+                Expression container = container(parts);
+                if (container != null) {
+                    Alias alias = new Alias(container.source(), attribute.name(), container);
+                    projections.add(alias);
+                    added.add(alias.toAttribute());
+                    parts.container = alias.toAttribute();
+                }
+                parts.labels.replaceAll((name, label) -> {
+                    Alias alias = new Alias(label.source(), attribute.name() + "." + name, label);
+                    projections.add(alias);
+                    added.add(alias.toAttribute());
+                    return alias.toAttribute();
+                });
+            }
+            return new HashJoin(
+                join.source(),
+                pack(leftChild, leftLabels, leftFields),
+                new Project(rightChild.source(), rightChild, projections),
+                leftFields,
+                rightFields,
+                added,
+                join.unique(),
+                join.config().type()
+            );
+        }
+
+        private LogicalPlan rewriteTopNBy(TopNBy topNBy) {
+            var evals = new ArrayList<Alias>();
+            var labels = new ArrayList<Attribute>();
+            var groupings = new ArrayList<Expression>();
+            for (Expression grouping : topNBy.groupings()) {
+                if ((grouping instanceof Attribute attribute && isContainer(attribute)) == false) {
+                    groupings.add(scalar(grouping));
+                    continue;
+                }
+                Parts parts = record(grouping);
+                if (keysWhole()) {
+                    groupings.add(attribute(compared(parts, grouping.source()), MetadataAttribute.TIMESERIES, evals));
+                    continue;
+                }
+                if (parts.container != null) {
+                    groupings.add(parts.container);
+                }
+                // a label the container holds too is compared with it
+                parts.outside().values().forEach(label -> addIfAbsent(labels, (Attribute) label));
+            }
+            LogicalPlan child = pack(evaluate(topNBy.child(), evals), labels, groupings);
+            return new TopNBy(topNBy.source(), child, topNBy.order(), topNBy.limitPerGroup(), groupings);
+        }
+
+        /**
+         * The pack of the parts of its label containers: the container that is left, and each label it does not hold.
+         */
+        private LogicalPlan rewritePackDims(PackDims pack) {
+            var evals = new ArrayList<Alias>();
+            var dims = new ArrayList<Attribute>();
+            for (Attribute dim : pack.dims()) {
+                if (isContainer(dim) == false) {
+                    dims.add(dim);
+                } else if (keysWhole()) {
+                    addIfAbsent(dims, attribute(compared(record(dim), dim.source()), MetadataAttribute.TIMESERIES, evals));
+                } else {
+                    keys(record(dim)).forEach(part -> addIfAbsent(dims, (Attribute) part));
+                }
+            }
+            return new PackDims(pack.source(), evaluate(pack.child(), evals), dims, pack.packed());
+        }
+
         private boolean isContainer(NamedExpression named) {
-            return promoted.containsKey(named.id()) || isLabelContainer(named);
+            return containers.containsKey(named.id()) || isLabelContainer(named);
         }
 
         /** Whether {@code expression} reads a label container of the plan, or the source's labels within its aggregate. */
@@ -972,202 +992,197 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
         }
 
         /**
-         * Records under {@code id} what the label container expression {@code definition} is: {@link #timeseries},
-         * {@link #without} and {@link #promoted}. Starts from the container under the {@code ts_*} calls of {@code definition}
-         * and applies the calls from that one up. Then promotes each label step 1 found read by name off {@code id}.
+         * Records under {@code id} what the label container expression {@code definition} is. Starts from the container under
+         * the {@code ts_*} calls of {@code definition} and applies the calls from that one up. Then promotes each label step 1
+         * found read by name off {@code id}.
          */
-        private void define(NameId id, Expression definition) {
+        private Parts define(NameId id, Expression definition) {
             var calls = new ArrayDeque<Expression>();
             Expression under = definition;
             while (under instanceof TimeSeriesMetadataFilter || under instanceof TimeSeriesMetadataSet) {
                 calls.push(under);
                 under = under.children().getFirst();
             }
-            Expression container;
-            var gone = new TreeSet<String>();
-            SortedMap<String, Expression> labels = new TreeMap<>();
-            if (under instanceof Attribute attribute && promoted.containsKey(attribute.id())) {
-                container = timeseries.get(attribute.id());
-                gone.addAll(without.get(attribute.id()));
-                labels.putAll(promoted.get(attribute.id()));
-            } else if (under instanceof Attribute attribute && isLabelContainer(attribute)) {
-                // a container no node below defines: it is whole
-                container = attribute;
-            } else if (isSource(under)) {
-                if (source == null) {
-                    throw new IllegalStateException("the source's label container is read outside of its aggregate");
-                }
-                // every label of the series; what it is without is left out where the aggregate loads it
-                container = under;
-            } else if (under instanceof Literal) {
-                // the empty container
-                container = null;
-            } else {
-                throw new IllegalStateException("unexpected label container [" + definition + "]");
-            }
+            Parts parts = start(under, definition);
             for (Expression call : calls) {
                 switch (call) {
                     // TS_UNSET: neither the container nor a promoted label holds the names any more
                     case TimeSeriesMetadataFilter filter when filter.exclude() -> {
                         List<String> names = names(filter.labels());
-                        container = unset(container, gone, names, call.source());
-                        gone.addAll(names);
-                        labels.keySet().removeAll(names);
+                        unset(parts, names, call.source());
+                        parts.labels.keySet().removeAll(names);
                     }
                     // TS_KEEP: the read of each name. Nothing is left of the container
                     case TimeSeriesMetadataFilter filter -> {
                         SortedMap<String, Expression> kept = new TreeMap<>();
                         for (String name : names(filter.labels())) {
-                            Expression value = label(container, gone, labels, name, call.source());
+                            Expression value = label(parts, name, call.source());
                             if (isAbsent(value) == false) {
                                 kept.put(name, value);
                             }
                         }
-                        container = null;
-                        gone.clear();
-                        labels = kept;
+                        parts.container = null;
+                        parts.without.clear();
+                        parts.labels = kept;
                     }
                     // TS_SET: the value is promoted, and the container is without the label. Writing null removes the label
                     case TimeSeriesMetadataSet set -> {
                         String name = names(List.of(set.label())).getFirst();
                         Expression value = emptyAsAbsent(scalar(set.value()));
-                        container = unset(container, gone, List.of(name), call.source());
-                        gone.add(name);
-                        labels.remove(name);
+                        unset(parts, List.of(name), call.source());
+                        parts.labels.remove(name);
                         if (isAbsent(value) == false) {
-                            labels.put(name, value);
+                            parts.labels.put(name, value);
                         }
                     }
                     default -> throw new IllegalStateException("unexpected label container call [" + call + "]");
                 }
             }
             for (String name : need(id)) {
-                if (labels.containsKey(name) == false) {
-                    Expression value = label(container, gone, labels, name, Source.EMPTY);
+                if (parts.labels.containsKey(name) == false) {
+                    Expression value = label(parts, name, Source.EMPTY);
                     if (isAbsent(value) == false) {
-                        labels.put(name, value);
-                    } else if (container != null) {
+                        parts.labels.put(name, value);
+                    } else if (parts.container != null) {
                         // the source has no field for it: it is in no container
-                        gone.add(name);
+                        parts.without.add(name);
                     }
                 }
             }
-            if (container == null) {
-                timeseries.remove(id);
-            } else {
-                timeseries.put(id, container);
+            containers.put(id, parts);
+            return parts;
+        }
+
+        /** What the container {@code under}, at the bottom of the {@code ts_*} calls of {@code definition}, is. */
+        private Parts start(Expression under, Expression definition) {
+            if (under instanceof Attribute attribute && containers.containsKey(attribute.id())) {
+                Parts below = containers.get(attribute.id());
+                Parts parts = new Parts(below.container);
+                parts.without.addAll(below.without);
+                parts.labels.putAll(below.labels);
+                return parts;
             }
-            without.put(id, gone);
-            promoted.put(id, labels);
+            if (under instanceof Attribute attribute && isLabelContainer(attribute)) {
+                // a container no node below defines: it is whole
+                return new Parts(attribute);
+            }
+            if (isSource(under)) {
+                if (source == null) {
+                    throw new IllegalStateException("the source's label container is read outside of its aggregate");
+                }
+                // every label of the series; what it is without is left out where the aggregate loads it
+                return new Parts(under);
+            }
+            if (under instanceof Literal) {
+                // the empty container
+                return new Parts(null);
+            }
+            throw new IllegalStateException("unexpected label container [" + definition + "]");
         }
 
         /**
-         * The label {@code name} of a container: the expression it is promoted to, null when the container cannot hold it, or the
-         * source's field where the aggregate at hand loads the container. A label is never read off a container: step 1 has every
-         * label read by name promoted by the node that defines the container, so one that is not there cannot be read.
+         * The label {@code name} of {@code parts}: the expression it is promoted to, null when the container cannot hold it, or
+         * the source's field where the aggregate at hand loads the container. A label is never read off a container: step 1 has
+         * every label read by name promoted by the node that defines the container, so one that is not there cannot be read.
          */
-        private Expression label(@Nullable Expression container, Set<String> gone, Map<String, Expression> labels, String name, Source at) {
-            Expression value = labels.get(name);
+        private Expression label(Parts parts, String name, Source at) {
+            Expression value = parts.labels.get(name);
             if (value != null) {
                 return value;
             }
-            if (container == null || gone.contains(name)) {
+            if (parts.container == null || parts.without.contains(name)) {
                 return absent(at);
             }
-            if (isSource(container)) {
+            if (isSource(parts.container)) {
                 Attribute field = PromqlLabels.getField(source, name);
                 return field == null ? absent(at) : field;
             }
-            throw new IllegalStateException("label [" + name + "] is read off [" + container + "], which does not return it");
+            throw new IllegalStateException("label [" + name + "] is read off [" + parts.container + "], which does not return it");
         }
 
         /**
-         * {@code container}, already without {@code gone}, without {@code names} as well. The source's labels leave them out where
-         * the aggregate loads them. A container a time-series aggregate loads holds dimensions only, so it is without any other
-         * name already.
+         * Leaves {@code names} out of the container of {@code parts}. The source's labels leave them out where the aggregate loads
+         * them. A container a time-series aggregate loads holds dimensions only, so it is without any other name already; where it
+         * is keyword it cannot change, and a use that leaves out more reads it as it is, as the keyword translation did.
          */
-        private @Nullable Expression unset(@Nullable Expression container, Set<String> gone, Collection<String> names, Source at) {
-            if (container == null || isSource(container) || gone.containsAll(names)) {
-                return container;
-            }
-            var left = new LinkedHashSet<>(names);
-            left.removeAll(gone);
-            LogicalPlan series = base(container) instanceof Attribute loaded ? sources.get(loaded.id()) : null;
-            if (series != null) {
-                left.removeIf(name -> PromqlLabels.getLabel(series, name) == null);
-                if (left.isEmpty()) {
-                    return container;
+        private void unset(Parts parts, Collection<String> names, Source at) {
+            Expression container = parts.container;
+            if (container != null && isSource(container) == false && parts.without.containsAll(names) == false) {
+                var left = new LinkedHashSet<>(names);
+                left.removeAll(parts.without);
+                LogicalPlan series = base(container) instanceof Attribute loaded ? sources.get(loaded.id()) : null;
+                if (series != null) {
+                    left.removeIf(name -> PromqlLabels.getLabel(series, name) == null);
+                }
+                if (series == null || (left.isEmpty() == false && writesContainers())) {
+                    List<Expression> unset = left.stream().<Expression>map(name -> Literal.keyword(at, name)).toList();
+                    parts.container = new TimeSeriesMetadataFilter(at, container, unset, true);
                 }
             }
-            return new TimeSeriesMetadataFilter(
-                at,
-                container,
-                left.stream().<Expression>map(name -> Literal.keyword(at, name)).toList(),
-                true
-            );
+            parts.without.addAll(names);
         }
 
-        /** The id {@code container} is recorded under: its own for an attribute, a new one for any other container expression. */
-        private NameId record(Expression container) {
+        /** What the label container {@code container} is: recorded for an attribute, defined anew for any other expression. */
+        private Parts record(Expression container) {
             if (container instanceof Attribute attribute) {
-                if (promoted.containsKey(attribute.id()) == false) {
-                    define(attribute.id(), attribute);
-                }
-                return attribute.id();
+                Parts parts = containers.get(attribute.id());
+                return parts != null ? parts : define(attribute.id(), attribute);
             }
-            NameId id = new NameId();
-            define(id, container);
-            return id;
+            return define(new NameId(), container);
         }
 
-        /** The container {@code id} as an expression, null when nothing is left of it. The source's labels load without their fields. */
-        private @Nullable Expression container(NameId id) {
-            Expression container = timeseries.get(id);
-            if (container == null || isSource(container) == false) {
-                return container;
+        /** The container of {@code parts}, null when nothing is left of it. The source's labels load without their fields. */
+        @Nullable
+        Expression container(Parts parts) {
+            if (parts.container == null || isSource(parts.container) == false) {
+                return parts.container;
             }
             var fields = new ArrayList<Expression>();
-            for (String name : without.get(id)) {
+            for (String name : parts.without) {
                 Attribute field = PromqlLabels.getLabel(source, name);
                 // A label the source has no dimension for is in no container: leaving it out changes nothing.
                 if (field != null) {
                     fields.add(field);
                 }
             }
-            return new TimeSeriesWithout(Source.EMPTY, fields, DataType.TIME_SERIES_METADATA_DATA_TYPE);
+            return new TimeSeriesWithout(Source.EMPTY, fields, containerType());
         }
 
-        /** The container {@code id} as a whole: the container with the promoted labels it is without written back. */
-        private Expression whole(NameId id, Source at) {
-            Expression whole = container(id);
+        /** The container as a whole: the container with the promoted labels it does not hold written back. */
+        Expression whole(Parts parts, Source at) {
+            Expression whole = container(parts);
             if (whole == null) {
-                whole = TranslationContextV2.emptyLabels(at);
+                whole = empty(at);
             }
-            for (var label : promoted.getOrDefault(id, new TreeMap<>()).entrySet()) {
-                if (inContainer(id, label.getKey()) == false) {
-                    whole = new TimeSeriesMetadataSet(at, whole, Literal.keyword(at, label.getKey()), label.getValue());
-                }
+            for (var label : parts.outside().entrySet()) {
+                whole = new TimeSeriesMetadataSet(at, whole, Literal.keyword(at, label.getKey()), label.getValue());
             }
             return whole;
         }
 
-        /** Whether the container {@code id} holds {@code name}, promoted or not. */
-        private boolean inContainer(NameId id, String name) {
-            return timeseries.containsKey(id) && without.get(id).contains(name) == false;
-        }
-
-        /** The parts of the container {@code id} as attributes, the computed ones evaluated by {@code evals}. */
-        private void materialize(NameId id, List<Alias> evals) {
-            Expression container = container(id);
+        /** The parts that tell series apart: the container that is left, and each promoted label it does not hold. */
+        private List<Expression> keys(Parts parts) {
+            var keys = new ArrayList<Expression>();
+            Expression container = container(parts);
             if (container != null) {
-                timeseries.put(id, attribute(container, MetadataAttribute.TIMESERIES, evals));
+                keys.add(container);
             }
-            promoted.get(id).replaceAll((name, value) -> attribute(value, name, evals));
+            keys.addAll(parts.outside().values());
+            return keys;
         }
 
-        /** Drops the promoted labels of {@code id} that its container holds too and nothing reads by name. */
-        private void dropCopies(NameId id) {
-            promoted.get(id).keySet().removeIf(name -> inContainer(id, name) && need(id).contains(name) == false);
+        /** The parts as attributes, the computed ones evaluated by {@code evals}. */
+        private void materialize(Parts parts, List<Alias> evals) {
+            Expression container = container(parts);
+            if (container != null) {
+                parts.container = attribute(container, MetadataAttribute.TIMESERIES, evals);
+            }
+            parts.labels.replaceAll((name, value) -> attribute(value, name, evals));
+        }
+
+        /** Drops the promoted labels of the container {@code id} that it holds too and nothing reads by name. */
+        private void dropCopies(NameId id, Parts parts) {
+            parts.labels.keySet().removeIf(name -> parts.holds(name) && need(id).contains(name) == false);
         }
 
         /** {@code expression} with every label read, and every container rendered or hashed, off the parts of its container. */
@@ -1177,30 +1192,24 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
             }
             return expression.transformUp(e -> switch (e) {
                 case TimeSeriesMetadataPath path when reads(path.children().getFirst()) -> {
-                    NameId id = record(path.children().getFirst());
                     String name = names(path.children().subList(1, 2)).getFirst();
-                    yield label(timeseries.get(id), without.get(id), promoted.get(id), name, path.source());
+                    yield label(record(path.children().getFirst()), name, path.source());
                 }
                 case ToString render when render.field().dataType() == DataType.TIME_SERIES_METADATA_DATA_TYPE && reads(render.field()) -> {
                     Source at = render.source();
                     Expression whole = whole(record(render.field()), at);
-                    yield new ToString(at, whole, configuration);
+                    yield render(at, whole);
                 }
                 case HashOffset hash -> {
                     var keys = new ArrayList<Expression>();
                     for (Expression key : hash.children()) {
-                        if (key.dataType() == DataType.TIME_SERIES_METADATA_DATA_TYPE && reads(key)) {
+                        if (key.dataType() == DataType.TIME_SERIES_METADATA_DATA_TYPE && reads(key) && keysWhole()) {
+                            // the container whole: the same series hashes alike whatever labels a plan promotes
+                            keys.add(compared(record(key), key.source()));
+                        } else if (key.dataType() == DataType.TIME_SERIES_METADATA_DATA_TYPE && reads(key)) {
                             // Each label once: a label in the container too would hash twice, so the same series would hash apart
                             // in plans that promote different labels.
-                            NameId id = record(key);
-                            if (timeseries.containsKey(id)) {
-                                keys.add(container(id));
-                            }
-                            for (var label : promoted.get(id).entrySet()) {
-                                if (inContainer(id, label.getKey()) == false) {
-                                    keys.add(label.getValue());
-                                }
-                            }
+                            keys.addAll(keys(record(key)));
                         } else {
                             keys.add(key);
                         }
@@ -1210,15 +1219,5 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
                 default -> e;
             });
         }
-
-        /** The container {@code id} without {@code out}, as the text a join compares; the empty container when nothing is left. */
-        private Expression containerKey(NameId id, Set<String> out, Source at) {
-            Expression container = unset(container(id), without.get(id), out, at);
-            if (container == null) {
-                container = TranslationContextV2.emptyLabels(at);
-            }
-            return new Coalesce(at, new ToString(at, container, configuration), List.of(Literal.keyword(at, "")));
-        }
-
     }
 }

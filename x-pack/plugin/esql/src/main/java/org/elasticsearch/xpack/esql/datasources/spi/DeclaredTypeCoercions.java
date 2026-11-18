@@ -298,6 +298,20 @@ public final class DeclaredTypeCoercions {
     }
 
     /**
+     * Whether a column stored as {@code fileType} must be decoded at that type and then cast to reach
+     * {@code declared}. Every columnar read path asks this here rather than restating the terms, so none of
+     * them can answer it differently.
+     *
+     * @param fileType the stored type, or {@code null} from a caller with no stored type, which declines
+     */
+    public static boolean needsBlockCast(@Nullable DataType fileType, DataType declared, boolean hasDeclaredFormat) {
+        return fileType != null
+            && declared != fileType
+            && fusedInDecode(fileType, declared, hasDeclaredFormat) == false
+            && supports(fileType, declared);
+    }
+
+    /**
      * Coerces a decoded physical-type block into a declared-type block, value by value, with the
      * field mappers' ingest coercion (see the class Javadoc). Preserves nulls and multi-value
      * positions. Does NOT take ownership of {@code source}; the caller closes it. The returned

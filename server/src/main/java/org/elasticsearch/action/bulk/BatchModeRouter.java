@@ -59,7 +59,7 @@ final class BatchModeRouter implements Releasable {
      */
     private record IndexTarget(Index index, IndexRouting routing, int shardCount, int partitionBase) {}
 
-    /** The {@link #batchKey} of the index abstraction this router's batch holds the rows of; null in x-content mode. */
+    /** The name of the index abstraction the items holding the rows of this router's batch target; null in x-content mode. */
     @Nullable
     final String key;
     @Nullable
@@ -130,34 +130,6 @@ final class BatchModeRouter implements Releasable {
             }
         }
         return new BatchModeRouter(new BulkBatchEncoders(recycler), recycler);
-    }
-
-    /**
-     * Returns the key a pre-built batch must be registered under for items that target {@code ia}:
-     *
-     * <ul>
-     *   <li>DATA_STREAM or an alias over one: the data stream's name.</li>
-     *   <li>CONCRETE_INDEX (plain): the index's own name (which is its own write index).</li>
-     *   <li>ALIAS (non-data-stream): the alias's write index's name.</li>
-     *   <li>CONCRETE_INDEX that is a backing index of a data stream: {@code null}; such items cannot be batched
-     *       without a batch-merge utility.</li>
-     *   <li>ALIAS with no write index: {@code null}.</li>
-     * </ul>
-     */
-    @Nullable
-    static String batchKey(@Nullable IndexAbstraction ia, ProjectMetadata project) {
-        if (ia == null) {
-            return null;
-        }
-        if (ia.getType() == IndexAbstraction.Type.CONCRETE_INDEX && ia.getParentDataStream() != null) {
-            return null;
-        }
-        DataStream ds = DataStream.resolveDataStream(ia, project);
-        if (ds != null) {
-            return ds.getName();
-        }
-        Index writeIndex = ia.getWriteIndex();
-        return writeIndex == null ? null : writeIndex.getName();
     }
 
     /**

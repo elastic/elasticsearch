@@ -257,13 +257,9 @@ public class BatchModeRouterTests extends ESTestCase {
         return XContentHelper.convertToMap(source, false, XContentType.JSON).v2();
     }
 
-    public void testBatchKeyOfPlainIndexIsItsName() {
-        ProjectMetadata project = project(plainMetadata("myindex", 1));
-        assertThat(BatchModeRouter.batchKey(project.getIndicesLookup().get("myindex"), project), equalTo("myindex"));
-    }
-
-    /** An alias is keyed by its write index, not by its own name, so the key does not depend on how the items name their target. */
-    public void testBatchKeyOfAliasIsItsWriteIndex() {
+    /** A batch for an alias is keyed by the alias, the name the items target, whatever its write index is called. */
+    public void testBatchKeyedByAliasRoutesToItsWriteIndex() throws IOException {
+        int numDocs = randomIntBetween(3, 20);
         IndexMetadata writeIndex = IndexMetadata.builder(plainMetadata("write-index", 1))
             .putAlias(AliasMetadata.builder("myalias").writeIndex(true))
             .build();
@@ -271,39 +267,38 @@ public class BatchModeRouterTests extends ESTestCase {
             .putAlias(AliasMetadata.builder("myalias").writeIndex(false))
             .build();
         ProjectMetadata project = project(writeIndex, otherIndex);
-        assertThat(BatchModeRouter.batchKey(project.getIndicesLookup().get("myalias"), project), equalTo("write-index"));
+        EscfBatch batch = buildBatch(numDocs);
+        BulkRequest bulkRequest = buildBulkRequest("myalias", batch, numDocs);
+
+        BatchRouterSet router = BatchRouterSet.create(bulkRequest, true, recycler);
+        var requestsByShard = routeAll(router, bulkRequest, project);
+        Map<ShardId, SourceBatch> result = takeShardBatches(router);
+
+        assertThat(result.keySet(), equalTo(Set.of(new ShardId(writeIndex.getIndex(), 0))));
+        assertShardsAligned(requestsByShard, result);
+        router.close();
     }
 
-    /** An alias over several indices with no write index has no write target, so it has no key. */
-    public void testBatchKeyOfAliasWithoutWriteIndexIsNull() {
-        IndexMetadata first = IndexMetadata.builder(plainMetadata("first-index", 1)).putAlias(AliasMetadata.builder("myalias")).build();
-        IndexMetadata second = IndexMetadata.builder(plainMetadata("second-index", 1)).putAlias(AliasMetadata.builder("myalias")).build();
-        ProjectMetadata project = project(first, second);
-        assertThat(BatchModeRouter.batchKey(project.getIndicesLookup().get("myalias"), project), nullValue());
-    }
+    /** An alias and the index it points to write to the same index, so a bulk cannot carry a batch for each. */
+    public void testBatchesForAliasAndItsWriteIndexAreRejected() throws IOException {
+        IndexMetadata index = IndexMetadata.builder(plainMetadata("myindex", 1))
+            .putAlias(AliasMetadata.builder("myalias").writeIndex(true))
+            .build();
+        ProjectMetadata project = project(index);
+        EscfBatch aliasBatch = buildBatch(1);
+        EscfBatch indexBatch = buildBatch(1);
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(rowRequest("myalias", aliasBatch, 0));
+        bulkRequest.add(rowRequest("myindex", indexBatch, 0));
+        bulkRequest.setPreBuiltBatches(Map.of("myalias", aliasBatch, "myindex", indexBatch));
 
-    public void testBatchKeyOfDataStreamIsItsName() {
-        ProjectMetadata project = projectWithDataStream(tsdbBackingIndex(1, 1, GEN_1_START, GEN_1_END));
-        assertThat(BatchModeRouter.batchKey(project.getIndicesLookup().get(DATA_STREAM), project), equalTo(DATA_STREAM));
-    }
-
-    /** An alias over a data stream is keyed by the data stream, as the items' backing index is selected by the data stream. */
-    public void testBatchKeyOfAliasOverDataStreamIsTheDataStream() {
-        ProjectMetadata.Builder builder = ProjectMetadata.builder(projectWithDataStream(tsdbBackingIndex(1, 1, GEN_1_START, GEN_1_END)));
-        builder.put("ds-alias", DATA_STREAM, true, null);
-        ProjectMetadata project = builder.build();
-        assertThat(BatchModeRouter.batchKey(project.getIndicesLookup().get("ds-alias"), project), equalTo(DATA_STREAM));
-    }
-
-    /** A write straight to a backing index has no key: its rows would belong in the batch of the data stream. */
-    public void testBatchKeyOfBackingIndexIsNull() {
-        IndexMetadata backing = tsdbBackingIndex(1, 1, GEN_1_START, GEN_1_END);
-        ProjectMetadata project = projectWithDataStream(backing);
-        assertThat(BatchModeRouter.batchKey(project.getIndicesLookup().get(backing.getIndex().getName()), project), nullValue());
-    }
-
-    public void testBatchKeyOfUnknownAbstractionIsNull() {
-        assertThat(BatchModeRouter.batchKey(null, project()), nullValue());
+        BatchRouterSet router = BatchRouterSet.create(bulkRequest, true, recycler);
+        try {
+            var e = expectThrows(IllegalArgumentException.class, () -> routeAll(router, bulkRequest, project));
+            assertThat(e.getMessage(), containsString("a bulk must carry a single batch for each index it writes to"));
+        } finally {
+            router.close();
+        }
     }
 
     public void testCreateReturnsNullWhenNoBatches() {

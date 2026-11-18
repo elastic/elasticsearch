@@ -3177,9 +3177,7 @@ public class BatchBulkIT extends ESIntegTestCase {
             ir.indexSource().setSourceRow(batch, i, XContentType.JSON);
             bulkRequest.add(ir);
         }
-        // Batch must be keyed by the write target (concrete index name) that batchKey() resolves to,
-        // not the alias name, even though items target the alias.
-        bulkRequest.setPreBuiltBatches(Map.of(index, batch));
+        bulkRequest.setPreBuiltBatches(Map.of(alias, batch));
 
         BulkResponse bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
         assertNoFailures(bulkResponse);

@@ -902,6 +902,20 @@ from employees
 c:l | d:datetime
 ;
 
+countStarAndKeyCountGroupedTrunc
+from employees
+| eval d = date_trunc(1 year, birth_date)
+| stats c = count(*), k = count(d) by d
+| sort d desc
+| limit 3
+;
+
+c:l | k:l | d:datetime
+10  | 0   | null
+1   | 1   | 1965-01-01T00:00:00.000Z
+4   | 4   | 1964-01-01T00:00:00.000Z
+;
+
 countAllAndOtherStatGrouped
 from employees | stats c = count(*), min = min(emp_no) by languages | sort languages;
 

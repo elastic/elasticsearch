@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 
@@ -32,6 +33,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.NodeRoles.onlyRoles;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -64,12 +66,13 @@ public class MlUpgradeModeDatafeedReassignmentIT extends BaseMlIntegTestCase {
         internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.ML_ROLE)));
         ensureStableCluster();
 
-        // Index some historical data for the datafeeds to read.
+        // Index some historical data for the datafeeds to read during their initial lookback.
         client().admin().indices().prepareCreate("data").setMapping("time", "type=date").get();
         long now = System.currentTimeMillis();
         long weekAgo = now - 604800000;
         long twoWeeksAgo = weekAgo - 604800000;
-        indexDocs(logger, "data", randomIntBetween(128, 1024), twoWeeksAgo, weekAgo);
+        long initialDocs = randomIntBetween(128, 1024);
+        indexDocs(logger, "data", initialDocs, twoWeeksAgo, weekAgo);
 
         int numJobs = 5;
         List<String> jobIds = new ArrayList<>(numJobs);
@@ -89,8 +92,12 @@ public class MlUpgradeModeDatafeedReassignmentIT extends BaseMlIntegTestCase {
         );
         persistentTasksClusterService.setRecheckInterval(TimeValue.timeValueMillis(200));
 
-        // All jobs opened and all datafeeds started and assigned to a node.
+        // All jobs opened and all datafeeds started and assigned to a node, and the lookback over the
+        // historical data has been processed.
         assertAllAssigned(jobIds, datafeedIds);
+        for (String jobId : jobIds) {
+            waitForJobToHaveProcessedAtLeast(jobId, initialDocs);
+        }
 
         // Enable upgrade mode: every job and datafeed must become unassigned (node == null).
         setUpgradeMode(true);
@@ -113,15 +120,29 @@ public class MlUpgradeModeDatafeedReassignmentIT extends BaseMlIntegTestCase {
         setUpgradeMode(false);
         assertAllAssigned(jobIds, datafeedIds);
 
-        // Index more data and confirm at least one datafeed resumes processing it, proving the datafeeds are live again.
-        long justNow = System.currentTimeMillis();
-        indexDocs(logger, "data", randomIntBetween(32, 128), justNow - 1000, justNow);
+        // Index a fresh batch slightly in the future and confirm every reassigned datafeed actually
+        // resumes processing it. This proves the feeds are live again rather than merely reporting
+        // STARTED while stalled. (Future timestamps so the real-time datafeeds read them once wall-clock
+        // catches up, mirroring MlDistributedFailureIT.)
+        long freshDocs = randomIntBetween(16, 64);
+        long soon = System.currentTimeMillis();
+        indexDocs(logger, "data", freshDocs, soon + 5000, soon + 6000);
+        for (String jobId : jobIds) {
+            waitForJobToHaveProcessedAtLeast(jobId, initialDocs + freshDocs);
+        }
 
         // Clean up.
         for (int i = 0; i < numJobs; i++) {
             client().execute(StopDatafeedAction.INSTANCE, new StopDatafeedAction.Request(datafeedIds.get(i))).actionGet();
             client().execute(CloseJobAction.INSTANCE, new CloseJobAction.Request(jobIds.get(i))).actionGet();
         }
+    }
+
+    private void waitForJobToHaveProcessedAtLeast(String jobId, long numDocs) throws Exception {
+        assertBusy(() -> {
+            DataCounts dataCounts = getDataCounts(jobId);
+            assertThat("job " + jobId + " processed record count", dataCounts.getProcessedRecordCount(), greaterThanOrEqualTo(numDocs));
+        }, 60, TimeUnit.SECONDS);
     }
 
     private void assertAllAssigned(List<String> jobIds, List<String> datafeedIds) throws Exception {
@@ -148,7 +169,8 @@ public class MlUpgradeModeDatafeedReassignmentIT extends BaseMlIntegTestCase {
         Job.Builder job = createScheduledJob(jobId);
         client().execute(PutJobAction.INSTANCE, new PutJobAction.Request(job)).actionGet();
 
-        DatafeedConfig config = createDatafeed(datafeedId, job.getId(), Collections.singletonList("data"), TimeValue.timeValueHours(1));
+        // A short frequency so the real-time datafeed polls promptly for freshly indexed data.
+        DatafeedConfig config = createDatafeed(datafeedId, job.getId(), Collections.singletonList("data"), TimeValue.timeValueSeconds(1));
         client().execute(PutDatafeedAction.INSTANCE, new PutDatafeedAction.Request(config)).actionGet();
 
         client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(job.getId()));

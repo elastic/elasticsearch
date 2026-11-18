@@ -57,6 +57,7 @@ import static org.hamcrest.Matchers.hasSize;
 public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
     private final AtomicReference<FailureTarget> failureTarget = new AtomicReference<>();
+    private final AtomicInteger remainingFailures = new AtomicInteger();
     private final AtomicInteger recoveryCounter = new AtomicInteger();
     private final AtomicReference<CyclicBarrier> recoveryBarrier = new AtomicReference<>();
 
@@ -92,6 +93,9 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
         private void maybeThrow(FailureTarget target) {
             if (failureTarget.compareAndSet(target, null)) {
+                if (remainingFailures.decrementAndGet() > 0) {
+                    failureTarget.set(randomFrom(FailureTarget.values()));
+                }
                 throw new RuntimeException("RETRY_CAUSE");
             }
         }
@@ -127,13 +131,14 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         try {
             failTestIfReceiveShardFailure(transportService);
 
-            armRandomFailure();
+            final int failures = randomIntBetween(2, 5);
+            armRandomFailures(failures);
 
             // Recover from empty store
             createIndex(indexName, indexSettings(1, 0).build());
 
             ensureGreen(indexName);
-            assertLocalRetries(indexName, 1);
+            assertLocalRetries(indexName, failures);
         } finally {
             transportService.clearAllRules();
         }
@@ -153,13 +158,14 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         try {
             failTestIfReceiveShardFailure(transportService);
 
-            armRandomFailure();
+            final int failures = randomIntBetween(2, 5);
+            armRandomFailures(failures);
 
             // Recover from existing store
             assertAcked(indicesAdmin().prepareOpen(indexName).execute());
 
             ensureGreen(indexName);
-            assertLocalRetries(indexName, 1);
+            assertLocalRetries(indexName, failures);
         } finally {
             transportService.clearAllRules();
         }
@@ -182,14 +188,15 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         try {
             failTestIfReceiveShardFailure(transportService);
 
-            armRandomFailure();
+            final int failures = randomIntBetween(2, 5);
+            armRandomFailures(failures);
 
             // Recover from local shard
             ResizeIndexTestUtils.executeResize(ResizeType.CLONE, sourceIndexName, targetIndexName, indexSettings(1, 0));
 
             ensureGreen(sourceIndexName);
             ensureGreen(targetIndexName);
-            assertLocalRetries(targetIndexName, 1);
+            assertLocalRetries(targetIndexName, failures);
         } finally {
             transportService.clearAllRules();
         }
@@ -218,13 +225,14 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         try {
             failTestIfReceiveShardFailure(transportService);
 
-            armRandomFailure();
+            final int failures = randomIntBetween(2, 5);
+            armRandomFailures(failures);
 
             // Recover from snapshot
             clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap").setWaitForCompletion(true).execute();
 
             ensureGreen(indexName);
-            assertLocalRetries(indexName, 1);
+            assertLocalRetries(indexName, failures);
         } finally {
             transportService.clearAllRules();
         }
@@ -694,6 +702,13 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
     /// Arm the recovery listener with a random failure target.
     /// This will cause the next recovery to fail when it reaches that [FailureTarget].
     private void armRandomFailure() {
+        armRandomFailures(1);
+    }
+
+    /// Arm the recovery listener to fail {@code count} times, each at a random [FailureTarget],
+    /// before letting recovery proceed.
+    private void armRandomFailures(int count) {
+        remainingFailures.set(count);
         failureTarget.set(randomFrom(FailureTarget.values()));
         installRecoveryListener();
     }

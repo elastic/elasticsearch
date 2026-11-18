@@ -1462,7 +1462,6 @@ public class FetchOperatorTests extends ComputeTestCase {
             RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
             null,
             "index",
-            false,
             EsqlExecutionInfo.Cluster.Status.RUNNING,
             ORIGINS.size(),
             ORIGINS.size(),

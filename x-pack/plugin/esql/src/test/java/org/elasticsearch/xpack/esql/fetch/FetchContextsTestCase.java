@@ -99,7 +99,7 @@ public abstract class FetchContextsTestCase extends ESSingleNodeTestCase {
      * Opens a fetch context for {@code shard} of {@code index}. The test closes its query search context.
      */
     protected SearchContext open(NodeFetchContexts contexts, String index, int shard) throws IOException {
-        SearchContext searchContext = contexts.open(shardRequest(new ShardId(resolveIndex(index), shard)));
+        SearchContext searchContext = contexts.open(shardRequest(new ShardId(resolveIndex(index), shard)), null);
         querySearchContexts.add(searchContext);
         return searchContext;
     }

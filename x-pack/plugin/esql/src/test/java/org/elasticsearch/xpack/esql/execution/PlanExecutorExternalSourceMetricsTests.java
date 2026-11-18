@@ -18,10 +18,12 @@ import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.esql.QueryMetricsListener;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.telemetry.QueryCallerClassifier;
 import org.junit.Before;
 
 import java.util.List;
@@ -111,21 +113,21 @@ public class PlanExecutorExternalSourceMetricsTests extends ESTestCase {
 
     public void testClientOfReadsOriginHeaderFromCallingContext() {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        assertThat(PlanExecutor.clientOf(threadContext), equalTo(ExternalSourceMetrics.CLIENT_NONE));
+        assertThat(PlanExecutor.clientOf(QueryCallerClassifier.classify(threadContext)), equalTo(ExternalSourceMetrics.CLIENT_NONE));
 
         threadContext.putHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, "kibana");
-        assertThat(PlanExecutor.clientOf(threadContext), equalTo(ExternalSourceMetrics.CLIENT_KIBANA));
+        assertThat(PlanExecutor.clientOf(QueryCallerClassifier.classify(threadContext)), equalTo(ExternalSourceMetrics.CLIENT_KIBANA));
     }
 
     public void testClientOfMapsUnknownOriginToOther() {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         threadContext.putHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, "curl/8.4.0");
-        assertThat(PlanExecutor.clientOf(threadContext), equalTo(ExternalSourceMetrics.CLIENT_OTHER));
+        assertThat(PlanExecutor.clientOf(QueryCallerClassifier.classify(threadContext)), equalTo(ExternalSourceMetrics.CLIENT_OTHER));
     }
 
     /** A missing thread context, as supplied by callers and mocks that do not wire one, has no origin and so is {@code none}. */
     public void testClientOfNullContextIsNone() {
-        assertThat(PlanExecutor.clientOf(null), equalTo(ExternalSourceMetrics.CLIENT_NONE));
+        assertThat(PlanExecutor.clientOf(QueryCallerClassifier.classify(null)), equalTo(ExternalSourceMetrics.CLIENT_NONE));
     }
 
     public void testPartialSuccessBumpsPartialCounter() {
@@ -296,5 +298,26 @@ public class PlanExecutorExternalSourceMetricsTests extends ESTestCase {
         List<Measurement> found = measurements(type, name);
         assertThat("expected exactly one measurement for [" + name + "]", found, hasSize(1));
         return found.get(0);
+    }
+
+    /**
+     * The outcome the metering listener is called with and the one the by_outcome counters are published with are classified by the
+     * same method, see {@link PlanExecutor#outcomeOf}. They can still differ for a query cancelled after its compute completed: the
+     * by_outcome counters are published when the session completes, before the cancellation is seen, so they count it as a success,
+     * while the metering listener, which is called when the response is built, reports it as cancelled.
+     */
+    public void testOutcomeOf() {
+        assertThat(PlanExecutor.outcomeOf(null), equalTo(QueryMetricsListener.Outcome.SUCCESS));
+        assertThat(PlanExecutor.outcomeOf(new IllegalStateException("broken")), equalTo(QueryMetricsListener.Outcome.FAILED));
+        assertThat(
+            PlanExecutor.outcomeOf(new CircuitBreakingException("too big", CircuitBreaker.Durability.PERMANENT)),
+            equalTo(QueryMetricsListener.Outcome.FAILED)
+        );
+        assertThat(PlanExecutor.outcomeOf(new TaskCancelledException("cancelled")), equalTo(QueryMetricsListener.Outcome.CANCELLED));
+        // a cancellation reaches the coordinator wrapped, for example by the transport of the node that was cancelled
+        assertThat(
+            PlanExecutor.outcomeOf(new ElasticsearchException("wrapped", new TaskCancelledException("cancelled"))),
+            equalTo(QueryMetricsListener.Outcome.CANCELLED)
+        );
     }
 }

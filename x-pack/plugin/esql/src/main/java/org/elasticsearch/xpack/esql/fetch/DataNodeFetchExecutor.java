@@ -495,7 +495,9 @@ final class DataNodeFetchExecutor {
                     null,
                     new PlanTimeProfile(),
                     0L,
-                    false
+                    false,
+                    null,
+                    null
                 );
             }
             return DriverCompletionInfo.excludingProfiles(finished, 0L, false);

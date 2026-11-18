@@ -1142,7 +1142,8 @@ public class DataNodeFetchExecutorTests extends FetchContextsTestCase {
                 0,
                 MatcherWatchdog.noop(),
                 TransportVersion.current(),
-                null  // client - a fetch plan has no EQL source, its only reader
+                null, // client - a fetch plan has no EQL source, its only reader
+                LocalExecutionPlanner.ExternalComputeContext.NONE
             );
     }
 

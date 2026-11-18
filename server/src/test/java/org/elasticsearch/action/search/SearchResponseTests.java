@@ -422,8 +422,8 @@ public class SearchResponseTests extends ESTestCase {
         try (XContentParser parser = createParser(xcontentType.xContent(), originalBytes)) {
             SearchResponse parsed = SearchResponseUtils.parseSearchResponse(parser);
             try {
-                for (int i = 0; i < parsed.getShardFailures().length; i++) {
-                    ShardSearchFailure parsedFailure = parsed.getShardFailures()[i];
+                for (int i = 0; i < parsed.getShardFailures().size(); i++) {
+                    ShardSearchFailure parsedFailure = parsed.getShardFailures().get(i);
                     ShardSearchFailure originalFailure = failures[i];
                     assertEquals(originalFailure.index(), parsedFailure.index());
                     assertEquals(originalFailure.shard(), parsedFailure.shard());
@@ -466,7 +466,7 @@ public class SearchResponseTests extends ESTestCase {
                 0,
                 0,
                 0,
-                ShardSearchFailure.EMPTY_ARRAY,
+                List.of(),
                 SearchResponse.Clusters.EMPTY
             );
             try {
@@ -508,7 +508,7 @@ public class SearchResponseTests extends ESTestCase {
                 0,
                 0,
                 0,
-                ShardSearchFailure.EMPTY_ARRAY,
+                List.of(),
                 new SearchResponse.Clusters(5, 3, 2)
             );
             try {
@@ -558,7 +558,7 @@ public class SearchResponseTests extends ESTestCase {
                 9,
                 2,
                 0,
-                ShardSearchFailure.EMPTY_ARRAY,
+                List.of(),
                 createCCSClusterObject(4, 3, true, 1, 1, 1, 1, List.of(new ShardSearchFailure(new IllegalStateException("corrupt index"))))
             );
             try {

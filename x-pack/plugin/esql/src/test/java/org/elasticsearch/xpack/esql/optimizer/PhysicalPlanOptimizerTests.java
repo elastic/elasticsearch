@@ -10270,7 +10270,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         plan = useDataNodePlan ? plans.v2() : plans.v1();
         var flags = new EsqlFlags(true);
         plan = PlannerUtils.localPlan(PlannerSettings.DEFAULTS, flags, config, FoldContext.small(), plan, TEST_SEARCH_STATS, null);
-        ExchangeSinkHandler exchangeSinkHandler = new ExchangeSinkHandler(null, 10, () -> 10);
+        ExchangeSinkHandler exchangeSinkHandler = new ExchangeSinkHandler(10, () -> 10);
         LocalExecutionPlanner planner = new LocalExecutionPlanner(
             "test",
             "",
@@ -10304,7 +10304,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             0,     // esqlWorkerPoolSize - not needed for these tests
             MatcherWatchdog.noop(),
             TransportVersion.current(),
-            null   // client - not needed for these tests
+            null,  // client - not needed for these tests
+            LocalExecutionPlanner.ExternalComputeContext.NONE
         );
 
         return planner.plan("test", FoldContext.small(), plannerSettings, plan, EmptyIndexedByShardId.instance(), randomBoolean());

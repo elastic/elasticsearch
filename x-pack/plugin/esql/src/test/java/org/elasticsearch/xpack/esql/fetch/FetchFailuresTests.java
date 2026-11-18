@@ -326,7 +326,6 @@ public class FetchFailuresTests extends ESTestCase {
             clusterAlias,
             null,
             "idx",
-            false,
             EsqlExecutionInfo.Cluster.Status.RUNNING,
             total,
             successful,

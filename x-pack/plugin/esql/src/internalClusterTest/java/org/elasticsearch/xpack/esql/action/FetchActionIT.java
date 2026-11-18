@@ -224,7 +224,8 @@ public class FetchActionIT extends AbstractEsqlIntegTestCase {
             for (int shard = 0; shard < shards; shard++) {
                 ShardId shardId = new ShardId(resolveIndex(INDEX), shard);
                 SearchContext searchContext = contexts.open(
-                    new ShardSearchRequest(shardId, System.currentTimeMillis(), AliasFilter.EMPTY, null, SplitShardCountSummary.UNSET)
+                    new ShardSearchRequest(shardId, System.currentTimeMillis(), AliasFilter.EMPTY, null, SplitShardCountSummary.UNSET),
+                    null
                 );
                 opened.add(searchContext);
                 contexts.originOf(searchContext);

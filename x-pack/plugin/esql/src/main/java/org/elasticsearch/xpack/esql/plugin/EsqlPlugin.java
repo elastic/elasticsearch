@@ -100,6 +100,7 @@ import org.elasticsearch.xpack.esql.action.RestEsqlGetAsyncResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlListQueriesAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlStopAsyncAction;
+import org.elasticsearch.xpack.esql.action.RestEsqlStreamQueryAction;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.PlanCheckerProvider;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -641,11 +642,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         allDataSourcePlugins.forEach(p -> secretNames.addAll(p.datasourceSecretSettingNames()));
         this.dataSourceSecretSettingNames = Set.copyOf(secretNames);
 
-        QueryMetricsListener collector = metricsCollectors.isEmpty() ? QueryMetricsListener.NOOP : metrics -> {
-            for (var c : metricsCollectors) {
-                c.onQueryCompleted(metrics);
-            }
-        };
+        QueryMetricsListener collector = QueryMetricsListener.composite(metricsCollectors);
         ViewService viewService = new ViewService(services.clusterService(), parser, (statement, viewName, listener) -> {
             var request = PreparedEsqlQueryRequest.analyzeOnly(statement, "view [" + viewName + "]");
             services.client().execute(EsqlQueryAction.INSTANCE, request, listener.map(response -> null));
@@ -880,6 +877,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 new RestGetViewAction()
             )
         );
+        // Streaming is unreleased: on release builds the route is not registered, as if it had never been added.
+        if (RestEsqlStreamQueryAction.ENABLED) {
+            handlers.add(new RestEsqlStreamQueryAction(capabilities));
+        }
         // Federation (external data sources) REST handlers are registered only when the feature is on. When it is
         // not available the routes are unregistered, so PUT/GET/DELETE of data sources and datasets return the
         // framework's standard "no handler found for uri" (400), as if the feature never existed.

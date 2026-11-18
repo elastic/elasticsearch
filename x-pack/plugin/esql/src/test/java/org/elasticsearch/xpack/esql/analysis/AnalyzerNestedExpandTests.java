@@ -226,6 +226,14 @@ public class AnalyzerNestedExpandTests extends AnalyzerTestCase {
         nestedAnalyzer().query("FROM ne | NESTED_EXPAND items | WHERE MATCH(id, \"1\") | KEEP id, items.sku");
     }
 
+    public void testObjectInOneIndexAndLeafInAnotherIsNotAConflict() {
+        LogicalPlan plan = nestedAnalyzer().query(
+            "FROM ne_objleaf | NESTED_EXPAND items | WHERE items.code == \"x\" | KEEP items.code, items.code.label"
+        );
+        assertThat(names(plan.output()), contains("items.code", "items.code.label"));
+        assertThat(types(plan.output()), contains(DataType.KEYWORD, DataType.KEYWORD));
+    }
+
     public void testWithoutNestedExpandChildrenAreUnknown() {
         nestedAnalyzer().error("FROM ne | KEEP items.sku", equalTo("1:16: Unknown column [items.sku]"));
     }
@@ -399,6 +407,20 @@ public class AnalyzerNestedExpandTests extends AnalyzerTestCase {
                         field("items", "nested"),
                         field("items.sub", "nested"),
                         field("items.sub.v", "keyword")
+                    )
+                )
+            )
+            .addIndex(
+                "ne_objleaf",
+                resolution(
+                    "ne_objleaf",
+                    index("ne_objleaf_leaf", IndexMode.STANDARD, field("items", "nested"), field("items.code", "keyword")),
+                    index(
+                        "ne_objleaf_object",
+                        IndexMode.STANDARD,
+                        field("items", "nested"),
+                        field("items.code", "object"),
+                        field("items.code.label", "keyword")
                     )
                 )
             )

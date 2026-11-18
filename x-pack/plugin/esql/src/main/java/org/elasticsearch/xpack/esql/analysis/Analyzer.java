@@ -4517,8 +4517,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (generatedUnionFields) {
                 List<FieldAttribute> generated = state.unionFieldAttributes.stream().map(attr -> (FieldAttribute) attr.inner()).toList();
                 // An expanded child is not a field of the relation: its conversion is part of the expansion that reads it.
-                plan = addGeneratedFieldsToNestedExpands(plan, generated, state);
                 if (state.convertedChildren.isEmpty() == false) {
+                    plan = addGeneratedFieldsToNestedExpands(plan, generated, state);
                     Set<NameId> convertedChildren = state.convertedChildren.keySet();
                     plan = carryOverSyntheticAttributesThroughProjects(
                         plan,

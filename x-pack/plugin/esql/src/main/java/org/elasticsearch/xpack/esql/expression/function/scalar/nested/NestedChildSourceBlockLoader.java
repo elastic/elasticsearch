@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.nested;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -22,6 +23,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Reads a field under a nested object that keeps its values only in synthetic source from the child's object in the parent's
@@ -31,11 +33,18 @@ import java.util.List;
  */
 final class NestedChildSourceBlockLoader implements BlockLoader {
     private final FallbackSyntheticSourceBlockLoader fallback;
-    private final String field;
+    private final Set<String> fields;
+    private final boolean textScalars;
 
-    NestedChildSourceBlockLoader(FallbackSyntheticSourceBlockLoader fallback, String field) {
+    /**
+     * @param fields the paths in the child's object that hold the field's values: the field's own, and those of the fields that
+     *               {@code copy_to} it
+     * @param textScalars whether a number or a boolean is read as the text it is written as, as the field's loader reads it
+     */
+    NestedChildSourceBlockLoader(FallbackSyntheticSourceBlockLoader fallback, Set<String> fields, boolean textScalars) {
         this.fallback = fallback;
-        this.field = field;
+        this.fields = Set.copyOf(fields);
+        this.textScalars = textScalars;
     }
 
     @Override
@@ -113,8 +122,17 @@ final class NestedChildSourceBlockLoader implements BlockLoader {
             }
         }
 
+        private boolean isAncestorOfAField(String path) {
+            for (String field : fields) {
+                if (field.length() > path.length() && field.startsWith(path) && field.charAt(path.length()) == '.') {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         /**
-         * Adds the values of {@link #field} under the value the parser is on, which is at {@code path}, or the root if it is
+         * Adds the values of {@link #fields} under the value the parser is on, which is at {@code path}, or the root if it is
          * {@code null}, as the field's own loader does.
          */
         private void parseAt(XContentParser parser, String path, List<T> values) throws IOException {
@@ -123,9 +141,9 @@ final class NestedChildSourceBlockLoader implements BlockLoader {
                 while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
                     String childPath = path == null ? parser.currentName() : path + "." + parser.currentName();
                     parser.nextToken();
-                    if (childPath.equals(field)) {
+                    if (fields.contains(childPath)) {
                         parseValue(parser, values);
-                    } else if (field.startsWith(childPath) && field.charAt(childPath.length()) == '.') {
+                    } else if (isAncestorOfAField(childPath)) {
                         parseAt(parser, childPath, values);
                     } else {
                         parser.skipChildren();
@@ -139,7 +157,7 @@ final class NestedChildSourceBlockLoader implements BlockLoader {
         }
 
         /**
-         * Adds the values of {@link #field}, which the parser is on, as the field's own loader adds those it keeps whole: for a
+         * Adds the values of a field in {@link #fields}, which the parser is on, as the field's own loader adds those it keeps whole: for a
          * field that reads one value at a time, the reader parses a string, a null and any structure, and a number, a boolean or a
          * binary value is converted from the type the source holds it in, a {@code keyword} that holds a number or a boolean
          * included.
@@ -157,8 +175,14 @@ final class NestedChildSourceBlockLoader implements BlockLoader {
                     }
                 }
                 case VALUE_STRING -> reader.parse(parser, values);
-                case VALUE_NUMBER -> reader.convertValue(parser.numberValue(), values);
-                case VALUE_BOOLEAN -> reader.convertValue(parser.booleanValue(), values);
+                case VALUE_NUMBER -> reader.convertValue(
+                    textScalars ? new BytesRef(String.valueOf(parser.numberValue())) : parser.numberValue(),
+                    values
+                );
+                case VALUE_BOOLEAN -> reader.convertValue(
+                    textScalars ? new BytesRef(String.valueOf(parser.booleanValue())) : parser.booleanValue(),
+                    values
+                );
                 case VALUE_EMBEDDED_OBJECT -> reader.convertValue(parser.binaryValue(), values);
                 default -> reader.parse(parser, values);
             }

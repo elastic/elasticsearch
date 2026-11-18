@@ -1218,6 +1218,10 @@ setup:
           - { "items": [ { "qty": 1, "calc": "x" }, { "qty": 2, "calc": "y" } ] }
           - { "index": { "_index": "ne_runtime_keyword_synthetic", "_id": "b" } }
           - { "items": [ { "qty": 3, "calc": [ "p", "q" ] } ] }
+          - { "index": { "_index": "ne_runtime_keyword_synthetic", "_id": "c" } }
+          - { "items": [ { "qty": 4, "calc": 42 }, { "qty": 5, "calc": true } ] }
+          - { "index": { "_index": "ne_runtime_keyword_stored", "_id": "c" } }
+          - { "items": [ { "qty": 4, "calc": 42 }, { "qty": 5, "calc": true } ] }
           - { "index": { "_index": "ne_runtime_keyword_stored", "_id": "a" } }
           - { "items": [ { "qty": 1, "calc": "x" }, { "qty": 2, "calc": "y" } ] }
           - { "index": { "_index": "ne_runtime_keyword_stored", "_id": "b" } }
@@ -1226,18 +1230,22 @@ setup:
       esql.query:
         body:
           query: 'FROM ne_runtime_keyword_stored | NESTED_EXPAND items | KEEP items.qty, items.calc | SORT items.qty | LIMIT 10'
-  - length: { values: 3 }
+  - length: { values: 5 }
   - match: { values.0: [1, ["x", "y"]] }
   - match: { values.1: [2, ["x", "y"]] }
   - match: { values.2: [3, ["p", "q"]] }
+  - match: { values.3: [4, ["42", "true"]] }
+  - match: { values.4: [5, ["42", "true"]] }
   - do:
       esql.query:
         body:
           query: 'FROM ne_runtime_keyword_synthetic | NESTED_EXPAND items | KEEP items.qty, items.calc | SORT items.qty | LIMIT 10'
-  - length: { values: 3 }
+  - length: { values: 5 }
   - match: { values.0: [1, ["x", "y"]] }
   - match: { values.1: [2, ["x", "y"]] }
   - match: { values.2: [3, ["p", "q"]] }
+  - match: { values.3: [4, ["42", "true"]] }
+  - match: { values.4: [5, ["42", "true"]] }
 
 ---
 "A cast of an expanded child after an earlier KEEP reads the converted column through the projection":
@@ -1302,3 +1310,197 @@ setup:
   - match: { values.0: ["a1", 1] }
   - match: { values.1: ["a1", 2] }
   - match: { values.2: ["b1", 30] }
+
+---
+"A copy_to target under a nested object reads the values copied into it from synthetic source as from stored source":
+  - do:
+      indices.create:
+        index: ne_copy_synthetic
+        body:
+          settings:
+            number_of_shards: 1
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              items:
+                type: nested
+                synthetic_source_keep: all
+                properties:
+                  sku:
+                    type: keyword
+                    copy_to: items.search
+                  search:
+                    type: keyword
+                    doc_values: false
+                    store: false
+  - do:
+      indices.create:
+        index: ne_copy_stored
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              items:
+                type: nested
+                properties:
+                  sku:
+                    type: keyword
+                    copy_to: items.search
+                  search:
+                    type: keyword
+                    doc_values: false
+                    store: false
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "ne_copy_synthetic", "_id": "a" } }
+          - { "items": [ { "sku": "A" }, { "sku": "B" } ] }
+          - { "index": { "_index": "ne_copy_stored", "_id": "a" } }
+          - { "items": [ { "sku": "A" }, { "sku": "B" } ] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM ne_copy_stored | NESTED_EXPAND items | KEEP items.sku, items.search | SORT items.sku | LIMIT 10'
+  - length: { values: 2 }
+  - match: { values.0: ["A", "A"] }
+  - match: { values.1: ["B", "B"] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM ne_copy_synthetic | NESTED_EXPAND items | KEEP items.sku, items.search | SORT items.sku | LIMIT 10'
+  - length: { values: 2 }
+  - match: { values.0: ["A", "A"] }
+  - match: { values.1: ["B", "B"] }
+
+---
+"A key of a flattened field in another index is no value of a column the first index declares":
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [flattened_keys]
+      reason: "flattened keys are behind a feature flag"
+  - do:
+      indices.create:
+        index: ne_attrs_long
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              items:
+                type: nested
+                properties:
+                  attrs:
+                    properties:
+                      score:
+                        type: long
+  - do:
+      indices.create:
+        index: ne_attrs_keyword
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              items:
+                type: nested
+                properties:
+                  attrs:
+                    properties:
+                      score:
+                        type: keyword
+  - do:
+      indices.create:
+        index: ne_attrs_flattened
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              items:
+                type: nested
+                properties:
+                  attrs:
+                    type: flattened
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "ne_attrs_long", "_id": "1" } }
+          - { "items": [ { "attrs": { "score": 7 } } ] }
+          - { "index": { "_index": "ne_attrs_keyword", "_id": "1" } }
+          - { "items": [ { "attrs": { "score": "7" } } ] }
+          - { "index": { "_index": "ne_attrs_flattened", "_id": "1" } }
+          - { "items": [ { "attrs": { "score": "42" } } ] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM ne_attrs_long, ne_attrs_flattened | NESTED_EXPAND items | KEEP items.attrs.score | SORT items.attrs.score | LIMIT 10'
+  - length: { values: 2 }
+  - match: { values.0: [7] }
+  - match: { values.1: [null] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM ne_attrs_keyword, ne_attrs_flattened | NESTED_EXPAND items | KEEP items.attrs.score | SORT items.attrs.score | LIMIT 10'
+  - length: { values: 2 }
+  - match: { values.0: ["7"] }
+  - match: { values.1: [null] }
+
+---
+"An object in one index and a leaf of the same name in another give a column each":
+  - do:
+      indices.create:
+        index: ne_code_leaf
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              items:
+                type: nested
+                properties:
+                  code:
+                    type: keyword
+  - do:
+      indices.create:
+        index: ne_code_object
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              items:
+                type: nested
+                properties:
+                  code:
+                    properties:
+                      label:
+                        type: keyword
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "ne_code_leaf", "_id": "1" } }
+          - { "items": [ { "code": "x" } ] }
+          - { "index": { "_index": "ne_code_object", "_id": "1" } }
+          - { "items": [ { "code": { "label": "y" } } ] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM ne_code_leaf, ne_code_object | NESTED_EXPAND items | KEEP items.code, items.code.label | SORT items.code | LIMIT 10'
+  - length: { values: 2 }
+  - match: { values.0: ["x", null] }
+  - match: { values.1: [null, "y"] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM ne_code_leaf, ne_code_object | NESTED_EXPAND items | WHERE items.code == "x" | KEEP items.code, items.code.label | LIMIT 10'
+  - length: { values: 1 }
+  - match: { values.0: ["x", null] }

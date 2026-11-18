@@ -65,7 +65,7 @@ public final class NestedExpand extends UnaryPlan implements SortAgnostic, DocPr
     private final List<Attribute> expanded;
     private final List<String> paths;
 
-    private List<Attribute> output;
+    private volatile List<Attribute> output;
 
     /** The parsed, unbound command. */
     public NestedExpand(Source source, LogicalPlan child, NamedExpression target) {

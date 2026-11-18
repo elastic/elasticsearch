@@ -26,8 +26,11 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.AbstractScriptFieldType;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.FallbackSyntheticSourceBlockLoader;
+import org.elasticsearch.index.mapper.KeywordScriptFieldType;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -42,6 +45,7 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.IntPredicate;
 import java.util.stream.IntStream;
@@ -113,6 +117,11 @@ public final class NestedChildren implements Releasable {
             UnionTypeEsField union = unionTypes.get(f);
             infos.add(new ValuesSourceReaderOperator.FieldInfo(name, PlannerUtils.toElementType(type), false, (driverContext, shard) -> {
                 var context = (EsPhysicalOperationProviders.DefaultShardContext) shardContexts.get(shard);
+                MappedFieldType fieldType = context.fieldType(name);
+                if (fieldType instanceof FlattenedFieldMapper.KeyedFlattenedFieldType) {
+                    // A key of a flattened field is no field of the nested object: the query reads the names its mappings declare
+                    return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
+                }
                 BlockLoader loader = context.nestedChildBlockLoader(
                     name,
                     new BlockLoaderWarnings(driverContext, Source.EMPTY),
@@ -122,27 +131,32 @@ public final class NestedChildren implements Releasable {
                 BitSetProducer parents = shards.get(shard).parents();
                 if (loader instanceof FallbackSyntheticSourceBlockLoader fallback) {
                     // The child's own _ignored_source misses the values the nested object or an object above it keeps whole, and
-                    // those of a runtime field, so they are read from the _source. It holds them under the name of the field,
-                    // not of an alias to it.
-                    loader = new NestedChildSourceBlockLoader(fallback, context.fieldType(name).name());
+                    // those of a runtime field, so they are read from the _source. It holds them under the paths of the field,
+                    // not of an alias to it, and under those of the fields that copy to it.
+                    Set<String> sourcePaths = context.executionContext().sourcePath(fieldType.name());
+                    loader = new NestedChildSourceBlockLoader(
+                        fallback,
+                        sourcePaths.isEmpty() ? Set.of(fieldType.name()) : sourcePaths,
+                        fieldType instanceof KeywordScriptFieldType
+                    );
                 }
-                if (context.fieldType(name) instanceof AbstractScriptFieldType && parents != null) {
+                if (fieldType instanceof AbstractScriptFieldType && parents != null) {
                     // This shard maps the name as a runtime field, which runs on the parent rather than on the child
-                    loader = new NestedParentBlockLoader(loader, parents, context::newSourceLoader);
-                } else {
-                    if (loader.rowStrideStoredFieldSpec().requiresSource() && context.storesFilteredSource()) {
-                        driverContext.addWarning(
-                            Strings.format(
-                                "Field [%s] cannot be retrieved from the filtered _source of index [%s]; returning null",
-                                name,
-                                context.executionContext().getFullyQualifiedIndex().getName()
-                            )
-                        );
-                        loader = ConstantNull.INSTANCE;
-                    }
-                    if (DataType.isString(type) == false && context.readsKey(name)) {
-                        return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
-                    }
+                    loader = new NestedParentBlockLoader(
+                        loader,
+                        parents,
+                        context::newSourceLoader,
+                        NestedParentBlockLoader.valueBlockFactory(driverContext.blockFactory())
+                    );
+                } else if (loader.rowStrideStoredFieldSpec().requiresSource() && context.storesFilteredSource()) {
+                    driverContext.addWarning(
+                        Strings.format(
+                            "Field [%s] cannot be retrieved from the filtered _source of index [%s]; returning null",
+                            name,
+                            context.executionContext().getFullyQualifiedIndex().getName()
+                        )
+                    );
+                    loader = ConstantNull.INSTANCE;
                 }
                 if (union != null) {
                     return context.convertedNestedChild(union, name, loader);

@@ -12,6 +12,8 @@ import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.compute.lucene.read.DelegatingBlockLoaderFactory;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockLoaderStoredFieldsFromLeafLoader;
@@ -22,6 +24,7 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * Reads a runtime field whose name falls under a nested object for each child from the child's parent document. A runtime
@@ -36,15 +39,33 @@ final class NestedParentBlockLoader implements BlockLoader {
     private final BlockLoader delegate;
     private final BitSetProducer parents;
     private final Function<Set<String>, SourceLoader> sourceLoaders;
+    /** Builds the single-position blocks that hold a parent's value. */
+    private final BlockFactory valueBlockFactory;
 
     /**
      * @param sourceLoaders builds the shard's loader for the parent's {@code _source}, given the paths to load or {@code null}
      *                      for all of them
      */
-    NestedParentBlockLoader(BlockLoader delegate, BitSetProducer parents, Function<Set<String>, SourceLoader> sourceLoaders) {
+    NestedParentBlockLoader(
+        BlockLoader delegate,
+        BitSetProducer parents,
+        Function<Set<String>, SourceLoader> sourceLoaders,
+        BlockFactory valueBlockFactory
+    ) {
         this.delegate = delegate;
         this.parents = parents;
         this.sourceLoaders = sourceLoaders;
+        this.valueBlockFactory = valueBlockFactory;
+    }
+
+    /** The factory of the blocks a loader builds, over the compute engine's {@code factory}. */
+    static BlockFactory valueBlockFactory(org.elasticsearch.compute.data.BlockFactory factory) {
+        return new DelegatingBlockLoaderFactory(factory) {
+            @Override
+            public org.elasticsearch.compute.data.Block constantNulls(int count) {
+                return factory.newConstantNullBlock(count);
+            }
+        };
     }
 
     @Override
@@ -78,7 +99,7 @@ final class NestedParentBlockLoader implements BlockLoader {
             );
         }
         RowStrideReader reader = delegate.rowStrideReader(breaker, context);
-        return new Reader(breaker, parentBits, reader, parentFields);
+        return new Reader(breaker, parentBits, reader, parentFields, () -> delegate.builder(valueBlockFactory, 1));
     }
 
     @Override
@@ -102,42 +123,75 @@ final class NestedParentBlockLoader implements BlockLoader {
         return "NestedParent[" + delegate + "]";
     }
 
+    /**
+     * Reads the delegate once for each parent and gives each of its children that value, so a script runs once for a parent
+     * whatever its number of children, and a script that is not deterministic gives every child the same value.
+     */
     private static final class Reader implements RowStrideReader {
         private final CircuitBreaker breaker;
         private final BitSet parents;
         private final RowStrideReader delegate;
         /** The parent's stored fields, or {@code null} when the delegate reads none. */
         private final BlockLoaderStoredFieldsFromLeafLoader parentFields;
+        /** Builds the one-position builder that the delegate reads a parent's value into. */
+        private final Supplier<Builder> valueBuilders;
         private int lastParent = -1;
+        /** The delegate's value for {@link #lastParent}, one position. */
+        private org.elasticsearch.compute.data.Block lastValue;
         /** Bytes reserved on {@link #breaker} for the largest parent {@code _source} held so far. */
         private long reserved;
 
-        Reader(CircuitBreaker breaker, BitSet parents, RowStrideReader delegate, BlockLoaderStoredFieldsFromLeafLoader parentFields) {
+        Reader(
+            CircuitBreaker breaker,
+            BitSet parents,
+            RowStrideReader delegate,
+            BlockLoaderStoredFieldsFromLeafLoader parentFields,
+            Supplier<Builder> valueBuilders
+        ) {
             this.breaker = breaker;
             this.parents = parents;
             this.delegate = delegate;
             this.parentFields = parentFields;
+            this.valueBuilders = valueBuilders;
         }
 
         @Override
         public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
             int parent = parents.nextSetBit(docId);
-            if (parentFields == null) {
-                delegate.read(parent, storedFields, builder);
-                lastParent = parent;
-                return;
-            }
             if (parent != lastParent) {
+                readParent(parent, storedFields);
+            }
+            computeBuilder(builder).copyFrom(lastValue, 0, 1);
+        }
+
+        private void readParent(int parent, StoredFields childFields) throws IOException {
+            Releasables.close(lastValue);
+            lastValue = null;
+            lastParent = -1;
+            if (parentFields != null) {
                 parentFields.releaseParsedSource();
                 parentFields.advanceTo(parent);
-                lastParent = parent;
             }
-            delegate.read(parent, parentFields, builder);
-            long held = parentFields.lastSourceBytesSize();
-            if (held > reserved) {
-                breaker.addEstimateBytesAndMaybeBreak(held - reserved, "load nested parent source");
-                reserved = held;
+            org.elasticsearch.compute.data.Block.Builder value = computeBuilder(valueBuilders.get());
+            try {
+                delegate.read(parent, parentFields == null ? childFields : parentFields, value);
+                lastValue = value.build();
+            } finally {
+                Releasables.close(value);
             }
+            lastParent = parent;
+            if (parentFields != null) {
+                long held = parentFields.lastSourceBytesSize();
+                if (held > reserved) {
+                    breaker.addEstimateBytesAndMaybeBreak(held - reserved, "load nested parent source");
+                    reserved = held;
+                }
+            }
+        }
+
+        /** The compute engine builds every block a loader builds, as {@link org.elasticsearch.compute.data.Block.Builder}s. */
+        private static org.elasticsearch.compute.data.Block.Builder computeBuilder(Builder builder) {
+            return (org.elasticsearch.compute.data.Block.Builder) builder;
         }
 
         /** The parent's stored fields and synthetic source are read in increasing doc ID order. */
@@ -149,6 +203,8 @@ final class NestedParentBlockLoader implements BlockLoader {
 
         @Override
         public void close() {
+            Releasables.close(lastValue);
+            lastValue = null;
             breaker.addWithoutBreaking(-reserved);
             reserved = 0;
             delegate.close();

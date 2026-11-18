@@ -1009,6 +1009,33 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
         assertEquals(List.of(new PartitionFilterHint("year", Operator.EQUALS, List.of(2026L))), extractFolded(plan).get(PATH));
     }
 
+    /**
+     * A hint carries a bare number that the listing reads as milliseconds, so a constant in nanoseconds must not
+     * become one: it would stand for a time a million times later and prune every file that matches.
+     */
+    public void testPreprocessorKeepsNanosecondDatesOutOfHints() {
+        Literal day = keywordLiteral("2026-07-13T00:00:00Z");
+        UnresolvedFunction nanos = new UnresolvedFunction(SRC, "TO_DATE_NANOS", List.of(day));
+        UnresolvedFunction millis = new UnresolvedFunction(SRC, "TO_DATETIME", List.of(day));
+
+        LogicalPlan plan = filterAboveExternal(new GreaterThanOrEqual(SRC, unresolved("modified"), millis), PATH);
+        assertEquals(
+            List.of(new PartitionFilterHint("modified", Operator.GREATER_THAN_OR_EQUAL, List.of(DASHBOARD_TS))),
+            extractFolded(plan).get(PATH)
+        );
+
+        plan = filterAboveExternal(new GreaterThanOrEqual(SRC, unresolved("modified"), nanos), PATH);
+        assertNull(extractFolded(plan).get(PATH));
+        plan = filterAboveExternal(new LessThan(SRC, nanos, unresolved("modified")), PATH);
+        assertNull(extractFolded(plan).get(PATH));
+        plan = filterAboveExternal(new In(SRC, unresolved("modified"), List.of(millis, nanos)), PATH);
+        assertNull(extractFolded(plan).get(PATH));
+
+        // The year of a nanosecond date is a plain number, and still a hint.
+        plan = filterAboveExternal(new Equals(SRC, unresolved("year"), yearFn(nanos)), PATH);
+        assertEquals(List.of(new PartitionFilterHint("year", Operator.EQUALS, List.of(2026L))), extractFolded(plan).get(PATH));
+    }
+
     private static final String PATH = "s3://bucket/data/*.parquet";
     private static final long DASHBOARD_TS = Instant.parse("2026-07-13T00:00:00Z").toEpochMilli();
     private static final EsqlFunctionRegistry FUNCTION_REGISTRY = new EsqlFunctionRegistry();

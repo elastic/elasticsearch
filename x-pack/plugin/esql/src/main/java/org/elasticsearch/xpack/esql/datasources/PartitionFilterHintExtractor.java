@@ -306,10 +306,10 @@ public final class PartitionFilterHintExtractor {
         Object literalValue = null;
         boolean reversed = false;
 
-        if (left instanceof UnresolvedAttribute attr && right instanceof Literal lit) {
+        if (left instanceof UnresolvedAttribute attr && right instanceof Literal lit && hasListingUnits(lit)) {
             columnName = attr.name();
             literalValue = lit.value();
-        } else if (left instanceof Literal lit && right instanceof UnresolvedAttribute attr) {
+        } else if (left instanceof Literal lit && right instanceof UnresolvedAttribute attr && hasListingUnits(lit)) {
             columnName = attr.name();
             literalValue = lit.value();
             reversed = true;
@@ -341,7 +341,7 @@ public final class PartitionFilterHintExtractor {
 
         List<Object> literalValues = new ArrayList<>();
         for (Expression listItem : in.list()) {
-            if (listItem instanceof Literal lit) {
+            if (listItem instanceof Literal lit && hasListingUnits(lit)) {
                 literalValues.add(normalizeValue(lit.value()));
             } else {
                 return;
@@ -616,6 +616,15 @@ public final class PartitionFilterHintExtractor {
      */
     private static boolean isUnrequestedFileMetadata(String columnName, Set<String> requestedMetadata) {
         return FileMetadataColumns.isFileMetadataColumn(columnName) && requestedMetadata.contains(columnName) == false;
+    }
+
+    /**
+     * Whether a literal of the parsed plan can be a hint value. A hint carries the bare value and the listing reads
+     * a {@code Long} as milliseconds since the epoch, so a {@code date_nanos} constant would be taken for a time a
+     * million times later and prune files that match. Such a comparison is left to the query.
+     */
+    private static boolean hasListingUnits(Literal literal) {
+        return literal.dataType() != DataType.DATE_NANOS;
     }
 
     private static Object listingValue(Literal literal) {

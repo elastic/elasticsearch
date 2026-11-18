@@ -31,7 +31,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper.ToEvaluator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToStringFromTimeSeriesMetadataEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
@@ -142,7 +142,7 @@ public final class HashOffset extends EsqlScalarFunction {
         List<ExpressionEvaluator.Factory> argFactories = keys.stream()
             .map(
                 key -> key.dataType() == DataType.TIME_SERIES_METADATA_DATA_TYPE
-                    ? new ToStringFromTimeSeriesMetadataEvaluator.Factory(key.source(), toEvaluator.apply(key))
+                    ? ToString.timeSeriesMetadataEvaluator(key.source(), toEvaluator.apply(key))
                     : toEvaluator.apply(key)
             )
             .toList();

@@ -16,6 +16,7 @@ import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.TDigestHolder;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -293,6 +294,14 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
     @ConvertEvaluator(extraName = "FromTimeSeriesMetadata")
     static BytesRef fromTimeSeriesMetadata(BytesRef labels) {
         return TimeSeriesMetadataEncoding.toJson(labels);
+    }
+
+    /**
+     * Renders a label container as the JSON object users see, for functions that work on that JSON rather than on the bytes
+     * that hold it.
+     */
+    public static ExpressionEvaluator.Factory timeSeriesMetadataEvaluator(Source source, ExpressionEvaluator.Factory labels) {
+        return new ToStringFromTimeSeriesMetadataEvaluator.Factory(source, labels);
     }
 
     @ConvertEvaluator(extraName = "FromUnsignedLong")

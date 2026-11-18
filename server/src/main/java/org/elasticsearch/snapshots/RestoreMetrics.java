@@ -9,20 +9,11 @@
 
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.RestoreInProgress.ShardRestoreStatus;
-import org.elasticsearch.cluster.routing.GlobalRoutingTable;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.component.Lifecycle;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.telemetry.metric.LongAsyncGauge;
 import org.elasticsearch.telemetry.metric.LongAsyncMeasurement;
 import org.elasticsearch.telemetry.metric.LongCounter;
@@ -33,7 +24,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.LongSupplier;
+import java.util.function.Consumer;
 
 /**
  * Metrics describing the snapshot restores that are in progress, and how they end. Only the elected master reports anything.
@@ -44,15 +35,15 @@ import java.util.function.LongSupplier;
  * {@link #restoreCompleted} once the state that removes the completed entry is published. The outcome of each shard is counted at
  * completion, from the restore's final entry, as {@link SnapshotsService} counts unsuccessful shards when it finalizes a snapshot.
  * <p>
- * The gauges are registered when this component starts, computed from the current cluster state when they are polled, and cached until
- * {@link RestoreInProgress} or the routing table changes. Because they only read the cluster state, they hold nothing that a change of
- * master would lose. The restore UUID and index names are deliberately never used as attributes, because they have unbounded cardinality;
+ * The gauges are registered when this component starts. Their values come from {@link CachingRestoreMetricsService}, which computes them
+ * from the current cluster state when they are polled, as {@link CachingSnapshotAndShardByStateMetricsService} does for snapshots. The
+ * restore UUID and index names are deliberately never used as attributes, because they have unbounded cardinality;
  * sizes per restore are reported as histograms when each restore completes instead.
  */
 public class RestoreMetrics extends AbstractLifecycleComponent {
 
     /** Records nothing, for tests and other callers that do not report metrics. */
-    public static final RestoreMetrics NOOP = new RestoreMetrics(MeterRegistry.NOOP, null, () -> 0L);
+    public static final RestoreMetrics NOOP = new RestoreMetrics(MeterRegistry.NOOP, m -> {}, m -> {}, m -> {}, m -> {}, m -> {});
 
     public static final String RESTORES_CURRENT = "es.repositories.restores.current";
     public static final String RESTORES_INDICES_CURRENT = "es.repositories.restores.indices.current";
@@ -143,10 +134,11 @@ public class RestoreMetrics extends AbstractLifecycleComponent {
     }
 
     private final MeterRegistry meterRegistry;
-    // null only for NOOP, which never reports gauges
-    @Nullable
-    private final ClusterService clusterService;
-    private final LongSupplier absoluteTimeMillisSupplier;
+    private final Consumer<LongAsyncMeasurement> restoresObserver;
+    private final Consumer<LongAsyncMeasurement> indicesObserver;
+    private final Consumer<LongAsyncMeasurement> shardsByStateObserver;
+    private final Consumer<LongAsyncMeasurement> shardsRetryingObserver;
+    private final Consumer<LongAsyncMeasurement> oldestShardAgeObserver;
 
     private final LongCounter startedCounter;
     private final LongCounter completedCounter;
@@ -156,16 +148,31 @@ public class RestoreMetrics extends AbstractLifecycleComponent {
     private final LongHistogram shardsHistogram;
     private final List<LongAsyncGauge> asyncGauges = new ArrayList<>();
 
-    private volatile CachedGauges cachedGauges;
+    public RestoreMetrics(MeterRegistry meterRegistry, CachingRestoreMetricsService cachingRestoreMetricsService) {
+        this(
+            meterRegistry,
+            cachingRestoreMetricsService::recordRestoresCurrent,
+            cachingRestoreMetricsService::recordIndicesCurrent,
+            cachingRestoreMetricsService::recordShardsByState,
+            cachingRestoreMetricsService::recordShardsRetrying,
+            cachingRestoreMetricsService::recordOldestShardAge
+        );
+    }
 
-    /**
-     * @param absoluteTimeMillisSupplier the current wall-clock time, which the age of a restoring shard is measured against because the
-     *                                   time it became unassigned is recorded in the cluster state as wall-clock time
-     */
-    public RestoreMetrics(MeterRegistry meterRegistry, @Nullable ClusterService clusterService, LongSupplier absoluteTimeMillisSupplier) {
+    public RestoreMetrics(
+        MeterRegistry meterRegistry,
+        Consumer<LongAsyncMeasurement> restoresObserver,
+        Consumer<LongAsyncMeasurement> indicesObserver,
+        Consumer<LongAsyncMeasurement> shardsByStateObserver,
+        Consumer<LongAsyncMeasurement> shardsRetryingObserver,
+        Consumer<LongAsyncMeasurement> oldestShardAgeObserver
+    ) {
         this.meterRegistry = meterRegistry;
-        this.clusterService = clusterService;
-        this.absoluteTimeMillisSupplier = absoluteTimeMillisSupplier;
+        this.restoresObserver = restoresObserver;
+        this.indicesObserver = indicesObserver;
+        this.shardsByStateObserver = shardsByStateObserver;
+        this.shardsRetryingObserver = shardsRetryingObserver;
+        this.oldestShardAgeObserver = oldestShardAgeObserver;
         this.startedCounter = meterRegistry.registerLongCounter(RESTORES_STARTED_TOTAL, "snapshot restores started", "unit");
         this.completedCounter = meterRegistry.registerLongCounter(
             RESTORES_COMPLETED_TOTAL,
@@ -198,15 +205,13 @@ public class RestoreMetrics extends AbstractLifecycleComponent {
 
     @Override
     protected void doStart() {
-        asyncGauges.add(
-            meterRegistry.registerLongAsyncGauge(RESTORES_CURRENT, "snapshot restores in progress", "unit", this::recordRestoresCurrent)
-        );
+        asyncGauges.add(meterRegistry.registerLongAsyncGauge(RESTORES_CURRENT, "snapshot restores in progress", "unit", restoresObserver));
         asyncGauges.add(
             meterRegistry.registerLongAsyncGauge(
                 RESTORES_INDICES_CURRENT,
                 "indices being restored from a snapshot",
                 "unit",
-                this::recordIndicesCurrent
+                indicesObserver
             )
         );
         asyncGauges.add(
@@ -214,7 +219,7 @@ public class RestoreMetrics extends AbstractLifecycleComponent {
                 RESTORES_SHARDS_BY_STATE_CURRENT,
                 "shards of snapshot restores in progress, by state",
                 "unit",
-                this::recordShardsByState
+                shardsByStateObserver
             )
         );
         asyncGauges.add(
@@ -222,7 +227,7 @@ public class RestoreMetrics extends AbstractLifecycleComponent {
                 RESTORES_SHARDS_RETRYING_CURRENT,
                 "shards still restoring that have failed to recover at least once, and are being retried",
                 "unit",
-                this::recordShardsRetrying
+                shardsRetryingObserver
             )
         );
         asyncGauges.add(
@@ -230,7 +235,7 @@ public class RestoreMetrics extends AbstractLifecycleComponent {
                 RESTORES_SHARDS_OLDEST_AGE_CURRENT,
                 "the longest time that any shard still restoring has been waiting for or recovering in its current attempt",
                 "ms",
-                this::recordOldestShardAge
+                oldestShardAgeObserver
             )
         );
     }
@@ -293,145 +298,4 @@ public class RestoreMetrics extends AbstractLifecycleComponent {
         return succeeded == 0 ? Outcome.FAILURE : Outcome.PARTIAL;
     }
 
-    private void recordRestoresCurrent(LongAsyncMeasurement measurement) {
-        final CachedGauges gauges = maybeGetCachedGauges();
-        if (gauges != null) {
-            measurement.record(gauges.restoresReportingShardRestoring(), Map.of(REPORT_SHARD_RESTORING_ATTRIBUTE, true));
-            measurement.record(gauges.restoresNotReportingShardRestoring(), Map.of(REPORT_SHARD_RESTORING_ATTRIBUTE, false));
-        }
-    }
-
-    private void recordIndicesCurrent(LongAsyncMeasurement measurement) {
-        final CachedGauges gauges = maybeGetCachedGauges();
-        if (gauges != null) {
-            measurement.record(gauges.indices());
-        }
-    }
-
-    private void recordShardsByState(LongAsyncMeasurement measurement) {
-        final CachedGauges gauges = maybeGetCachedGauges();
-        if (gauges != null) {
-            for (ShardState state : ShardState.values()) {
-                measurement.record(gauges.shardsByState()[state.ordinal()], Map.of(SHARD_STATE_ATTRIBUTE, state.value()));
-            }
-        }
-    }
-
-    private void recordShardsRetrying(LongAsyncMeasurement measurement) {
-        final CachedGauges gauges = maybeGetCachedGauges();
-        if (gauges != null) {
-            measurement.record(gauges.shardsRetrying());
-        }
-    }
-
-    private void recordOldestShardAge(LongAsyncMeasurement measurement) {
-        final CachedGauges gauges = maybeGetCachedGauges();
-        if (gauges != null) {
-            final long oldest = gauges.oldestShardUnassignedTimeMillis();
-            // the times are wall-clock times, possibly set by a different master, so never report a negative age
-            measurement.record(oldest == Long.MAX_VALUE ? 0 : Math.max(0, absoluteTimeMillisSupplier.getAsLong() - oldest));
-        }
-    }
-
-    private boolean isReporting() {
-        return clusterService != null
-            && clusterService.lifecycleState() == Lifecycle.State.STARTED
-            && clusterService.state().nodes().isLocalNodeElectedMaster();
-    }
-
-    /**
-     * Returns the gauge values for the current cluster state, recalculating them only if the restores or the routing table have changed
-     * since they were last calculated, or {@code null} if this node does not report metrics.
-     */
-    @Nullable
-    private CachedGauges maybeGetCachedGauges() {
-        if (isReporting() == false) {
-            return null;
-        }
-        final ClusterState state = clusterService.state();
-        final RestoreInProgress restoreInProgress = RestoreInProgress.get(state);
-        final GlobalRoutingTable routingTable = state.globalRoutingTable();
-        CachedGauges gauges = cachedGauges;
-        if (gauges == null || gauges.restoreInProgress() != restoreInProgress || gauges.routingTable() != routingTable) {
-            gauges = calculateGauges(state, restoreInProgress, routingTable);
-            cachedGauges = gauges;
-        }
-        return gauges;
-    }
-
-    private static CachedGauges calculateGauges(ClusterState state, RestoreInProgress restoreInProgress, GlobalRoutingTable routingTable) {
-        long reporting = 0;
-        long notReporting = 0;
-        long indices = 0;
-        long retrying = 0;
-        long oldestUnassignedTimeMillis = Long.MAX_VALUE;
-        final long[] shardsByState = new long[ShardState.values().length];
-        for (RestoreInProgress.Entry entry : restoreInProgress) {
-            if (entry.state().completed()) {
-                // completed restores are only waiting to be removed from the cluster state
-                continue;
-            }
-            if (entry.reportShardRestoring()) {
-                reporting++;
-            } else {
-                notReporting++;
-            }
-            indices += entry.indices().size();
-            for (Map.Entry<ShardId, ShardRestoreStatus> shard : entry.shards().entrySet()) {
-                final ShardState shardState = switch (shard.getValue().state()) {
-                    case SUCCESS -> ShardState.SUCCEEDED;
-                    case FAILURE -> ShardState.FAILED;
-                    case INIT, STARTED -> {
-                        final ShardRouting primary = primary(state, shard.getKey());
-                        // a restoring primary keeps the unassigned info of its current attempt until it starts
-                        final UnassignedInfo unassignedInfo = primary == null ? null : primary.unassignedInfo();
-                        if (unassignedInfo != null) {
-                            if (unassignedInfo.failedAllocations() > 0) {
-                                retrying++;
-                            }
-                            oldestUnassignedTimeMillis = Math.min(oldestUnassignedTimeMillis, unassignedInfo.unassignedTimeMillis());
-                        }
-                        yield primary != null && primary.assignedToNode() ? ShardState.RECOVERING : ShardState.QUEUED;
-                    }
-                };
-                shardsByState[shardState.ordinal()]++;
-            }
-        }
-        return new CachedGauges(
-            restoreInProgress,
-            routingTable,
-            reporting,
-            notReporting,
-            indices,
-            shardsByState,
-            retrying,
-            oldestUnassignedTimeMillis
-        );
-    }
-
-    @Nullable
-    private static ShardRouting primary(ClusterState state, ShardId shardId) {
-        final IndexRoutingTable indexRoutingTable = state.globalRoutingTable()
-            .indexRouting(state.metadata(), shardId.getIndex())
-            .orElse(null);
-        if (indexRoutingTable == null || shardId.id() >= indexRoutingTable.size()) {
-            return null;
-        }
-        return indexRoutingTable.shard(shardId.id()).primaryShard();
-    }
-
-    /**
-     * @param oldestShardUnassignedTimeMillis the earliest wall-clock time at which a shard still restoring became unassigned for its current
-     *                                        attempt, or {@link Long#MAX_VALUE} if no shard is restoring
-     */
-    private record CachedGauges(
-        RestoreInProgress restoreInProgress,
-        GlobalRoutingTable routingTable,
-        long restoresReportingShardRestoring,
-        long restoresNotReportingShardRestoring,
-        long indices,
-        long[] shardsByState,
-        long shardsRetrying,
-        long oldestShardUnassignedTimeMillis
-    ) {}
 }

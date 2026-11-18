@@ -51,7 +51,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Tests {@link RestoreMetrics}: the counters and histograms that {@link RestoreService} records when a restore starts and completes, and
- * the gauges that are computed from real cluster states held by a real cluster service, in which shards of a restore are queued, recovering,
+ * the gauges that {@link CachingRestoreMetricsService} computes from real cluster states held by a real cluster service, in which shards of a restore are queued, recovering,
  * retried, restored or failed.
  */
 public class RestoreMetricsTests extends ESTestCase {
@@ -76,7 +76,7 @@ public class RestoreMetricsTests extends ESTestCase {
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
         meterRegistry = new RecordingMeterRegistry();
         nowMillis = randomLongBetween(1_000_000, 2_000_000_000_000L);
-        restoreMetrics = new RestoreMetrics(meterRegistry, clusterService, () -> nowMillis);
+        restoreMetrics = new RestoreMetrics(meterRegistry, new CachingRestoreMetricsService(clusterService, () -> nowMillis));
         indexMetadata = IndexMetadata.builder(randomIndexName())
             .settings(indexSettings(IndexVersion.current(), randomUUID(), NUMBER_OF_SHARDS, 0))
             .build();
@@ -101,7 +101,7 @@ public class RestoreMetricsTests extends ESTestCase {
      */
     public void testGaugesRegisteredOnlyWhileStarted() {
         final RecordingMeterRegistry registry = new RecordingMeterRegistry();
-        final RestoreMetrics metrics = new RestoreMetrics(registry, clusterService, () -> nowMillis);
+        final RestoreMetrics metrics = new RestoreMetrics(registry, new CachingRestoreMetricsService(clusterService, () -> nowMillis));
         assertThat(registry.getRecorder().getRegisteredMetrics(InstrumentType.LONG_ASYNC_GAUGE), empty());
         metrics.start();
         assertThat(

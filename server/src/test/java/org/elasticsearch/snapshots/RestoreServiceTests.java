@@ -1747,7 +1747,7 @@ public class RestoreServiceTests extends ESTestCase {
     public void testRestoreOverOpenIndicesIdempotentRetryIsANoOp() throws Exception {
         final String restoreUUID = UUIDs.randomBase64UUID();
         final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
-        withOpenIndexRestoreHarness(new RestoreMetrics(meterRegistry, null, () -> 0L), fixture -> {
+        withOpenIndexRestoreHarness(new RestoreMetrics(meterRegistry, m -> {}, m -> {}, m -> {}, m -> {}, m -> {}), fixture -> {
             PlainActionFuture<RestoreService.RestoreCompletionResponse> first = new PlainActionFuture<>();
             fixture.restoreService()
                 .restoreSnapshotOverOpenIndices(
@@ -1800,7 +1800,7 @@ public class RestoreServiceTests extends ESTestCase {
         final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         final RestoreService service = createMinimalRestoreService(
             RestoreLifecycleListener.NOOP,
-            new RestoreMetrics(meterRegistry, null, () -> 0L)
+            new RestoreMetrics(meterRegistry, m -> {}, m -> {}, m -> {}, m -> {}, m -> {})
         );
         final boolean reportShardRestoring = randomBoolean();
         final RestoreInProgress.Entry removed = restoreEntryWithOneShard(RestoreInProgress.State.SUCCESS, reportShardRestoring);

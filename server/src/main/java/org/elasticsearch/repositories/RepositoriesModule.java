@@ -23,6 +23,7 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.plugins.internal.ShardGenerationListener;
 import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.snapshots.CachingRestoreMetricsService;
 import org.elasticsearch.snapshots.CachingSnapshotAndShardByStateMetricsService;
 import org.elasticsearch.snapshots.RestoreMetrics;
 import org.elasticsearch.snapshots.Snapshot;
@@ -65,7 +66,10 @@ public final class RepositoriesModule {
             new CachingSnapshotAndShardByStateMetricsService(clusterService),
             this::getRepositoryService
         );
-        this.restoreMetrics = new RestoreMetrics(telemetryProvider.getMeterRegistry(), clusterService, threadPool::absoluteTimeInMillis);
+        this.restoreMetrics = new RestoreMetrics(
+            telemetryProvider.getMeterRegistry(),
+            new CachingRestoreMetricsService(clusterService, threadPool::absoluteTimeInMillis)
+        );
         final RepositoriesMetrics repositoriesMetrics = new RepositoriesMetrics(telemetryProvider.getMeterRegistry());
         Map<String, Repository.Factory> factories = new HashMap<>();
         factories.put(

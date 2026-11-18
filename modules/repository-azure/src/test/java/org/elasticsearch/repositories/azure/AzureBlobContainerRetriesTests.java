@@ -76,7 +76,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.OptionalInt;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -724,7 +723,6 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
     public void testContentsChangeWhileStreaming() throws Exception {
         final byte[] bytes = randomBlobContent(2);
         final BlobContainer blobContainer = createBlobContainer(1);
-        final CountDownLatch firstByteConsumed = new CountDownLatch(1);
         httpServer.createContext(
             downloadStorageEndpoint(blobContainer, "contents_change_while_streaming"),
             interceptGetBlobRequest(exchange -> {
@@ -745,13 +743,14 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
                         return;
                     }
                     // We only send 1 byte (of the at least 2 in `bytes`) so we have a resume.
+                    // Note that the following code is similar to `sendIncompleteContent` but here we guarantee that we sent at least
+                    // 1 byte, while `sendIncompleteContent` might not send any (i.e., empty body) in which case because
+                    // `AzureBlobStore.AzureInputStream` reads eagerly in its constructor, a zero-byte body would fail the open (so retry
+                    // would carry no "If-Match") for the resume to fail (see above).
                     addSuccessfulDownloadHeaders(exchange, bytes, bytes.length);
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), bytes.length);
                     exchange.getResponseBody().write(bytes, 0, 1);
                     exchange.getResponseBody().flush();
-                    // we wait before `close`-ing because otherwise the byte and the FIN can arrive at the client on the same read and
-                    // hence the retry won't be sent with an "If-Match" leading to the 412 `sendError` above
-                    safeAwait(firstByteConsumed);
                 } finally {
                     exchange.close();
                 }
@@ -759,7 +758,6 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
         );
 
         try (InputStream inputStream = blobContainer.readBlob(randomRetryingPurpose(), "contents_change_while_streaming")) {
-            firstByteConsumed.countDown();
             String message = expectThrows(BlobVersionMismatchException.class, () -> Streams.readFully(inputStream)).getMessage();
             assertThat(
                 message,

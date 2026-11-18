@@ -1,0 +1,3 @@
+FROM employees
+| EVAL s2 = salary
+| STATS s = SUM(salary), a = AVG(s2)

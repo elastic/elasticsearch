@@ -643,3 +643,23 @@ tests:
   - :server:internalClusterTest
   method: testTopHitsReleasedAfterSuccessfulHighlight
   issue: https://github.com/elastic/elasticsearch/issues/166292
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  tasks:
+  - :x-pack:qa:multi-project:core-rest-tests-with-multiple-projects:yamlRestTest
+  method: test {yaml=data_stream/150_tsdb/dynamic templates with incremental indexing}
+  issue: https://github.com/elastic/elasticsearch/issues/166322
+- class: org.elasticsearch.xpack.esql.action.SubPlanResultLimitIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testOversizedInSubqueryFailsBeforeReadingAllInput
+  issue: https://github.com/elastic/elasticsearch/issues/166371
+- class: org.elasticsearch.index.mapper.KeywordFieldMapperColumnarCompatibilityTests
+  tasks:
+  - :server:test
+  method: testRequiredFieldWithOnlyEmptyStringsIsIgnored
+  issue: https://github.com/elastic/elasticsearch/issues/166431
+- class: org.elasticsearch.index.mapper.KeywordFieldMapperColumnarCompatibilityTests
+  tasks:
+  - :server:test
+  method: testRequiredFieldWithoutValueIsIgnored
+  issue: https://github.com/elastic/elasticsearch/issues/166429

@@ -77,6 +77,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.SendRequestTransportException;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -111,8 +112,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
-import org.elasticsearch.xpack.esql.into.IntoPageWriter;
-import org.elasticsearch.xpack.esql.into.IntoStats;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalVerifier;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ExternalSourceAggregatePushdown;
@@ -128,7 +127,6 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
-import org.elasticsearch.xpack.esql.plan.physical.IntoExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.StreamingOutputExec;
@@ -219,6 +217,7 @@ public class ComputeService {
     private final SearchService searchService;
     private final BigArrays bigArrays;
     private final BlockFactory blockFactory;
+    private final TransportRequestOptions planRequestOptions;
 
     private final TransportService transportService;
     private final DriverTaskRunner driverRunner;
@@ -266,6 +265,7 @@ public class ComputeService {
         this.exchangeService = transportActionServices.exchangeService();
         this.bigArrays = bigArrays.withCircuitBreaking();
         this.blockFactory = blockFactory;
+        this.planRequestOptions = TransportRequestOptions.of(null, TransportRequestOptions.Type.REG, blockFactory.breaker());
         this.searchExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
         this.computeExecutor = computeExecutor;
         this.threadPool = threadPool;
@@ -320,15 +320,18 @@ public class ComputeService {
      * copy is charged to the request breaker and a trip fails the request instead of running the node out of memory.
      */
     TransportRequestOptions planRequestOptions() {
-        return TransportRequestOptions.of(null, TransportRequestOptions.Type.REG, blockFactory.breaker());
+        return planRequestOptions;
     }
 
     /**
      * Wraps the listener of a plan request whose target already holds the exchange that {@code remoteSink} reads from. When the
      * request fails before it is sent, for example because serializing it trips the breaker, nothing runs on the target to finish
-     * that exchange, and once the failure cancels the request's task the coordinator can no longer tell the target to finish it.
-     * So the exchange is finished through {@code remoteSink} before the failure propagates, rather than left on the target until
-     * its inactive-sink reaper removes it.
+     * that exchange. So the exchange is finished through {@code remoteSink} before the failure propagates, rather than left on the
+     * target until its inactive-sink reaper removes it.
+     * <p>
+     * Waiting for the close follows the order {@link ExchangeSourceHandler} uses when a fetch fails: the target has finished the
+     * exchange before the failure can cancel any task. It does not hold up the caller, which also adds {@code remoteSink} to an
+     * exchange source and waits for that source to stop reading it, and that too takes an answer from the same target.
      */
     static <T> ActionListener<T> finishRemoteSinkIfNotSent(RemoteSink remoteSink, ActionListener<T> listener) {
         return listener.delegateResponse((l, e) -> {
@@ -1202,27 +1205,6 @@ public class ComputeService {
             // external blob-store pool after ExternalSourceResolver dispatches resolution there.
             EsqlPlugin.externalBlobStorePool()
         );
-        if (physicalPlan instanceof IntoExec into) {
-            IntoPageWriter.Factory sink = IntoPageWriter.Factory.createFactory(client, into.destination(), into.child().output());
-            physicalPlan = OutputExec.withFactory(into.source(), into.child(), sink);
-            listener = listener.delegateFailureAndWrap((l, result) -> {
-                Exception failure = sink.failure();
-                if (failure != null) {
-                    throw failure;
-                }
-                l.onResponse(
-                    new Result(
-                        IntoStats.ATTRIBUTES,
-                        List.of(sink.stats().toPage(blockFactory)),
-                        result.attributeMetadata(),
-                        result.configuration(),
-                        result.completionInfo(),
-                        result.executionInfo(),
-                        result.approximationApplied()
-                    )
-                );
-            });
-        }
         final SubPlan executionPlan;
         final Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses;
         final Runnable warnIndexCoordinatorOnce = newIndexCoordinatorWarningCallback(clusterService.localNode());
@@ -1566,7 +1548,7 @@ public class ComputeService {
             try (var computeListener = new ComputeListener(cancelQueryOnFailure, listener.map(completionInfo -> {
                 updateExecutionInfoAfterCoordinatorOnlyQuery(execInfo, exchangeSinkSupplier == null);
                 return new Result(resolvedPlan.output(), collectedPages, null, configuration, completionInfo, execInfo, null);
-            }))) {
+            }), execInfo::addFailedWork)) {
                 runCompute(
                     rootTask,
                     computeContext,
@@ -1628,7 +1610,7 @@ public class ComputeService {
                 execInfo.markEndQuery();
             }
             l.onResponse(new Result(outputAttributes, collectedPages, null, configuration, completionInfo, execInfo, null));
-        }))) {
+        }), execInfo::addFailedWork)) {
             try (Releasable ignored = exchangeSource.addEmptySink()) {
                 // run compute on the coordinator
                 final AtomicBoolean localClusterWasInterrupted = new AtomicBoolean();
@@ -1654,7 +1636,8 @@ public class ComputeService {
                                 });
                             }
                             l.onResponse(completionInfo);
-                        })
+                        }),
+                        execInfo::addFailedWork
                     )
                 ) {
                     runCompute(
@@ -1692,6 +1675,8 @@ public class ComputeService {
                             localOriginalIndices,
                             exchangeSource,
                             cancelQueryOnFailure,
+                            // what the workers that succeeded did is lost with the failure of the query unless it is reported here
+                            execInfo::addFailedWork,
                             ActionListener.wrap(r -> {
                                 localClusterWasInterrupted.set(execInfo.isStopped());
                                 execInfo.swapCluster(LOCAL_CLUSTER, (k, v) -> {
@@ -1806,7 +1791,7 @@ public class ComputeService {
                 execInfo.markEndQuery();
             }
             l.onResponse(new Result(outputAttributes, collectedPages, null, configuration, completionInfo, execInfo, null));
-        }))) {
+        }), execInfo::addFailedWork)) {
             // Run the coordinator plan
             runCompute(
                 rootTask,
@@ -2126,18 +2111,16 @@ public class ComputeService {
             var workerThreadPool = transportService.getThreadPool();
             int esqlWorkerPoolSize = workerThreadPool.info(EsqlPlugin.computePool()).getMax();
 
-            // The planner's client is used solely by the coordinator-local EQL source, which delegates one
-            // EqlSearchAction. Assign the compute task as that search's parent so cancelling the ES|QL query
-            // cancels the delegated EQL search instead of orphaning it (and hanging the driver that waits on it).
-            var eqlDelegateClient = new ParentTaskAssigningClient(
-                client,
-                task.taskInfo(transportService.getLocalNode().getId(), false).taskId()
-            );
+            // The planner's client sends the requests a query makes on its own behalf: the coordinator-local EQL source's
+            // EqlSearchAction and INTO's bulk writes. They run as children of the compute task, so cancelling the ES|QL
+            // query cancels the delegated EQL search instead of orphaning it (and hanging the driver that waits on it).
+            var taskClient = new ParentTaskAssigningClient(client, task.taskInfo(transportService.getLocalNode().getId(), false).taskId());
             // One snapshot of the project for the dataset rebind below and for the planner. The external request handler
             // rebinds under its own snapshot before calling here; the planner does not consult datasets, so the two
             // snapshots cannot disagree on anything that is read.
             ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(clusterService.state());
             DatasetConfigResolver datasetConfigResolver = DatasetConfigResolver.forProduction(projectMetadata);
+            var externalCompute = new LocalExecutionPlanner.ExternalComputeContext(context.queryId(), computeLoad, null);
             LocalExecutionPlanner planner = new LocalExecutionPlanner(
                 context.sessionId(),
                 context.clusterAlias(),
@@ -2163,7 +2146,8 @@ public class ComputeService {
                 esqlWorkerPoolSize,
                 grokMatcherWatchdog.get(),
                 clusterService.state().getMinTransportVersion(),
-                eqlDelegateClient
+                taskClient,
+                externalCompute
             );
 
             LOGGER.debug("Received physical plan for {}:\n{}", context.description(), plan);
@@ -2358,7 +2342,7 @@ public class ComputeService {
         String planString = needPlanString ? localPlan.toString(Node.NodeStringFormat.LIMITED, NodeStringMapper.IDENTITY) : null;
         // JSON only when a consumer will read it. EXPLAIN turns profile on, so it takes this path too.
         String planJson = profile ? PlanJsonLog.toJsonOrNull(localPlan) : null;
-        return listener.map(ignored -> {
+        ActionListener<Void> onDriversSucceeded = listener.map(ignored -> {
             if (LOGGER.isDebugEnabled() || context.configuration().profile()) {
                 DriverCompletionInfo driverCompletionInfo = DriverCompletionInfo.includingProfiles(
                     drivers,
@@ -2386,6 +2370,44 @@ public class ComputeService {
 
             return DriverCompletionInfo.excludingProfiles(drivers, planningBytesRead, approximated);
         });
+        return ActionListener.wrap(
+            onDriversSucceeded::onResponse,
+            e -> failWithUsage(listener, e, drivers, planningBytesRead, approximated)
+        );
+    }
+
+    /**
+     * Fails {@code listener}, telling it what the drivers did if it can be told: see {@link ComputeCompletionListener}.
+     * Not covered: if the drivers all succeed but building the completion info throws, the failure reaches the listener
+     * through {@link ActionListener#map} as a plain failure, and the usage is not reported.
+     */
+    static void failWithUsage(
+        ActionListener<DriverCompletionInfo> listener,
+        Exception e,
+        List<Driver> drivers,
+        long planningBytesRead,
+        boolean approximated
+    ) {
+        if (listener instanceof ComputeCompletionListener completionListener) {
+            completionListener.onFailure(e, usageOfFailedDrivers(drivers, planningBytesRead, approximated));
+        } else {
+            listener.onFailure(e);
+        }
+    }
+
+    /**
+     * What the drivers did before the compute failed or was cancelled. Every driver has finished by now, a failed one
+     * with the status of the operators it closed, so the usage adds up the same way as for a successful compute, which
+     * {@link DriverCompletionInfo#excludingProfiles} asserts. If reading it throws, the failure of the compute is what matters, so
+     * the usage of all the drivers is reported as nothing.
+     */
+    private static DriverCompletionInfo usageOfFailedDrivers(List<Driver> drivers, long planningBytesRead, boolean approximated) {
+        try {
+            return DriverCompletionInfo.excludingProfiles(drivers, planningBytesRead, approximated);
+        } catch (Exception e) {
+            LOGGER.debug("failed to read the usage of the drivers of a failed compute", e);
+            return DriverCompletionInfo.EMPTY;
+        }
     }
 
     /**
@@ -2498,6 +2520,21 @@ public class ComputeService {
      */
     <T> ActionListener<T> coordinate(Task coordinatorTask, ActionListener<T> listener) {
         return ActionListener.releaseAfter(listener, searchService.coordinate(coordinatorTask));
+    }
+
+    /**
+     * A remote sink that charges the pages it receives to the query through {@code part}.
+     */
+    RemoteSink newRemoteSink(Task task, String exchangeId, Transport.Connection connection, QueryScheduler.QueryPart part) {
+        BlockFactory queryFactory = blockFactory.newQueryFactory(part.breaker(), part.bigArrays(bigArrays));
+        return exchangeService.newRemoteSink(task, exchangeId, transportService, connection, queryFactory);
+    }
+
+    /**
+     * A part of query {@code queryId} for the pages the remote sinks of {@code owner} receive.
+     */
+    QueryScheduler.QueryPart remoteSinkPart(TaskId queryId, Task owner) {
+        return searchService.queryScheduler().part(queryId, owner.getId());
     }
 
     /**

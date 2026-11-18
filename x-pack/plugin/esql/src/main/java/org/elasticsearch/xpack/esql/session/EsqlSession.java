@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.esql.analysis.LetResolver;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
+import org.elasticsearch.xpack.esql.analysis.rules.ViewUtils;
 import org.elasticsearch.xpack.esql.anonymizer.PlanAnonymizer;
 import org.elasticsearch.xpack.esql.approximation.ApproximationDriver;
 import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
@@ -139,7 +140,6 @@ import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
-import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
@@ -157,7 +157,6 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
-import org.elasticsearch.xpack.esql.plan.physical.IntoExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
@@ -268,7 +267,7 @@ public class EsqlSession {
      */
     private final Map<NameId, FieldSemantics> columnSemantics = new HashMap<>();
     /** Unit of every analyzed column whose unit is known, reported as {@code _meta.unit}. */
-    private final Map<NameId, String> columnUnits = new HashMap<>();
+    private final Map<NameId, List<String>> columnUnits = new HashMap<>();
     /**
      * Output of the analyzed plan. Optimization keeps the output schema but may replace attributes, so result
      * columns are matched to their semantics by position rather than by id.
@@ -320,9 +319,6 @@ public class EsqlSession {
      * transport threads.
      */
     private volatile ExplainContext explainContext;
-    // Destination index name when the query ends with INTO; null for all other queries.
-    @Nullable
-    private volatile String intoDestination;
     private final ProjectMetadata projectMetadata;
 
     /**
@@ -516,6 +512,13 @@ public class EsqlSession {
         // Wrap the outer listener so any failure — parse, view-resolution, analyze, optimize, map,
         // execute — funnels through one place that emits the anonymized log on INTERNAL_SERVER_ERROR.
         listener = wrapForAnonymizedFailureLog(listener);
+        // Planning CPU is frozen at the end of planning. A query that fails before it gets there would report none, although it
+        // spent some, so it is frozen on any failure too. Freezing is idempotent: a query that fails while it executes keeps the total
+        // that planning froze.
+        listener = listener.delegateResponse((l, e) -> {
+            executionInfo.queryProfile().planningCpuNanos(planningCpu.finish());
+            l.onFailure(e);
+        });
         TimeSpanMarker parsingProfile = executionInfo.queryProfile().parsing();
         parsingProfile.start();
         int maxCommandCount = request.pragmas().maxCommandCount(flags.maxCommandCount());
@@ -543,11 +546,6 @@ public class EsqlSession {
             // The traversal-based command telemetry only sees the unwrapped query, so count the
             // EXPLAIN command itself here.
             planTelemetry.command(explain);
-        }
-        if (parsedPlan instanceof Into into) {
-            intoDestination = into.destination();
-            planTelemetry.command(into);
-            parsedPlan = into.child();
         }
         parsingProfile.stop();
 
@@ -690,6 +688,7 @@ public class EsqlSession {
             request.profile(),
             request.tables(),
             System.nanoTime(),
+            // TODO: force allowPartialResults=false for INTO once FROM is supported so shard failures do not write partial data
             request.allowPartialResults(),
             analyzerSettings.timeseriesResultTruncationMaxSize(),
             analyzerSettings.timeseriesResultTruncationDefaultSize(),
@@ -1038,9 +1037,9 @@ public class EsqlSession {
             if (semantics != null) {
                 columnMetadata.put("field", semantics.toColumnMetadata());
             }
-            String unit = columnUnits.get(analyzedId);
-            if (unit != null) {
-                columnMetadata.put("unit", unit);
+            List<String> units = columnUnits.get(analyzedId);
+            if (units != null) {
+                columnMetadata.put("unit", FieldSemantics.singleOrList(units));
             }
             if (columnMetadata.isEmpty() == false) {
                 metadata.put(attribute.id(), columnMetadata);
@@ -1209,11 +1208,6 @@ public class EsqlSession {
         planRunner.run(PlanRunner.Role.OUTPUT, resultPlan, configuration, foldContext, planTimeProfile, null, listener);
     }
 
-    private PhysicalPlan withInto(PhysicalPlan physicalPlan) {
-        String destination = intoDestination;
-        return destination == null ? physicalPlan : new IntoExec(physicalPlan.source(), physicalPlan, destination);
-    }
-
     private void executeSubPlans(
         LogicalPlan optimizedPlan,
         Configuration configuration,
@@ -1235,8 +1229,9 @@ public class EsqlSession {
             // every executed plan (each subplan and the final main plan) so the single reconcile at the end strips
             // their polluting stat deltas regardless of which plan read a file pinned. Each plan's pins are collected
             // only after that plan's run succeeds, so the first discovery does not hold per-file PinnedColumns.
+            DriverCompletionInfo.Accumulator completionInfoAccumulator = new DriverCompletionInfo.Accumulator();
             executeSubPlan(
-                new DriverCompletionInfo.Accumulator(),
+                completionInfoAccumulator,
                 new HashMap<>(),
                 0,
                 subPlan,
@@ -1250,7 +1245,12 @@ public class EsqlSession {
                 physicalPlanOptimizer,
                 planTimeProfile,
                 // Ensure we don't have subplan flag stuck in there on failure
-                ActionListener.runAfter(listener, executionInfo::finishSubPlans)
+                ActionListener.runAfter(listener.delegateResponse((l, e) -> {
+                    // The sub-plans that completed before the failure did work that only the accumulator holds, and that the failed
+                    // query would lose: a failure carries no completion info. The compute that failed reports its own.
+                    executionInfo.addFailedWork(completionInfoAccumulator.finish());
+                    l.onFailure(e);
+                }), executionInfo::finishSubPlans)
             );
         } else {
             PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, null, request, physicalPlanOptimizer, planTimeProfile);
@@ -1262,7 +1262,7 @@ public class EsqlSession {
             // into ExternalSourceCacheService before delivering Result.
             runner.run(
                 PlanRunner.Role.OUTPUT,
-                withInto(physicalPlan),
+                physicalPlan,
                 configuration,
                 foldContext,
                 planTimeProfile,
@@ -1696,7 +1696,7 @@ public class EsqlSession {
                         }
                         runner.run(
                             PlanRunner.Role.OUTPUT,
-                            withInto(newPhysicalPlan),
+                            newPhysicalPlan,
                             configuration,
                             foldContext,
                             planTimeProfile,
@@ -1766,7 +1766,11 @@ public class EsqlSession {
         List<Attribute> schema = result.schema();
 
         Block[] blocks = SessionUtils.fromPages(schema, pages, blockFactory);
-        return new LocalRelation(planSource, schema, LocalSupplier.of(blocks.length == 0 ? new Page(0) : new Page(blocks)));
+        Page page = blocks.length == 0 ? new Page(0) : new Page(blocks);
+        // Plans sent to this node's data-node handler are not serialized, so concurrently planned branches can share
+        // this page, and building a hash join table from it changes its ref counts.
+        page.allowPassingToDifferentDriver();
+        return new LocalRelation(planSource, schema, LocalSupplier.of(page));
     }
 
     /**
@@ -2165,6 +2169,20 @@ public class EsqlSession {
         return new PreAnalysisResult(fieldNames, parentPaths, result.wildcardJoinIndices());
     }
 
+    /**
+     * Whether the caller's own query contains {@code PROMQL}, outside every view body. A view with {@code PROMQL} in its body
+     * resolves with {@code NULLIFY} in its own settings, which keeps its body a view branch, so it is skipped here.
+     */
+    private static boolean callerScopeHasPromql(LogicalPlan plan) {
+        Holder<Boolean> found = new Holder<>(false);
+        ViewUtils.forEachOutsideViews(plan, p -> {
+            if (p instanceof PromqlCommand) {
+                found.set(true);
+            }
+        });
+        return found.get();
+    }
+
     private void resolveIndicesAndAnalyze(
         LogicalPlan parsed,
         UnmappedResolution unmappedResolution,
@@ -2186,8 +2204,11 @@ public class EsqlSession {
         // solution would be to just not track the unmapped indices at all, but that requires a more structural change.
         boolean trackedUnmappedFieldIndices = unmappedResolution.loadsUnmappedFields();
         boolean exemplars = QuerySettings.EXEMPLARS.get(configuration.resolvedSettings()).enabled();
-        // Exemplar columns missing from the exemplar data streams' mappings are nullified rather than failing the query
-        boolean nullify = exemplars || parsed.collectFirstChildren(p -> p instanceof PromqlCommand).isEmpty() == false;
+        // Exemplar columns missing from the exemplar data streams' mappings are nullified rather than failing the query.
+        // PROMQL treats a missing label or metric as absent, so the caller's own PROMQL nullifies too. A PROMQL inside a
+        // view does not count here: the view's own settings nullify its body (ViewQuerySettings#from), and must not
+        // change how the caller's query resolves.
+        boolean nullify = exemplars || callerScopeHasPromql(parsed);
         SubscribableListener.<PreAnalysisResult>newForked(
             l -> preAnalyzeMainIndices(
                 preAnalysis,
@@ -3584,8 +3605,9 @@ public class EsqlSession {
             );
         }
         plan.setAnalyzed();
-        // TODO: when intoDestination != null, validate its mapping in projectMetadata (including column/field type
-        // mismatches against plan.output()) after authorizing write privileges during pre-analysis.
+        // TODO: when the plan contains an INTO node, validate the destination's mapping in projectMetadata
+        // (including column/field type mismatches against the INTO child's output) after authorizing write privileges
+        // during pre-analysis.
         List<IndexResolution> semanticSources = new ArrayList<>(indexResolutions);
         semanticSources.addAll(r.lookupIndices().values());
         Map<NameId, FieldSemantics> semantics = ColumnSemantics.collect(plan, semanticSources);

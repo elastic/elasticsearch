@@ -520,3 +520,116 @@ count:long | _class:keyword | _name:keyword
 2          | subquery       | top_langs
 2          | subquery       | null
 ;
+
+// -------------------------------------------------------------------
+// Index patterns inside a binding body: lists, wildcards, exclusions,
+// views matched by a wildcard, and earlier bindings mixed with patterns
+// -------------------------------------------------------------------
+
+letBodyOverIndexList
+required_capability: named_subquery_let
+
+LET people_and_langs = (FROM employees, languages | STATS employees = COUNT(emp_no), languages = COUNT(language_code))\;
+FROM people_and_langs
+;
+
+employees:long | languages:long
+100            | 4
+;
+
+letBodyWithWildcard
+required_capability: named_subquery_let
+
+LET samples = (FROM sample_data* | STATS c = COUNT(*) BY message)\;
+FROM samples
+| SORT message
+;
+
+c:long | message:keyword
+4      | Connected to 10.1.0.1
+4      | Connected to 10.1.0.2
+4      | Connected to 10.1.0.3
+12     | Connection error
+4      | Disconnected
+;
+
+letBodyWithWildcardAndExclusion
+required_capability: named_subquery_let
+
+LET samples = (FROM sample_data*, -sample_data_ts_* | STATS c = COUNT(*))\;
+FROM samples
+;
+
+c:long
+14
+;
+
+letBodyWildcardMatchesView
+required_capability: named_subquery_let
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: views_match_wildcards
+required_capability: metadata_class_and_name
+
+SET wildcards_match_views=true\;
+LET langs = (FROM languages, view_languages*, -view_languages_meta_* METADATA _class, _name | STATS c = COUNT(*) BY _class, _name)\;
+FROM langs
+| SORT _class
+;
+
+c:long | _class:keyword | _name:keyword
+4      | index          | languages
+4      | view           | view_languages
+;
+
+letBodyMixingEarlierBindingWithPatterns
+required_capability: named_subquery_let
+
+LET english = (FROM languages | WHERE language_code == 1 | KEEP language_code)\;
+LET mixed = (FROM english, sample_data*, -sample_data_ts_* | STATS langs = COUNT(language_code), samples = COUNT(event_duration))\;
+FROM mixed
+;
+
+langs:long | samples:long
+1          | 14
+;
+
+// Every row a binding produces answers `subquery` and the binding name, however many indices its body reads.
+letBodiesWithPatternsClassAndName
+required_capability: named_subquery_let
+required_capability: metadata_class_and_name
+required_capability: named_subquery_let_metadata_class_and_name
+
+LET list = (FROM employees, languages | KEEP emp_no)\;
+LET wildcard = (FROM sample_data* | KEEP event_duration)\;
+LET excluded = (FROM sample_data*, -sample_data_ts_* | KEEP event_duration)\;
+LET mixed = (FROM list, languages | KEEP emp_no)\;
+FROM list, wildcard, excluded, mixed METADATA _class, _name
+| STATS c = COUNT(*) BY _class, _name
+| SORT _name
+;
+
+c:long | _class:keyword | _name:keyword
+14     | subquery       | excluded
+104    | subquery       | list
+108    | subquery       | mixed
+28     | subquery       | wildcard
+;
+
+letBodyWildcardMatchesViewClassAndName
+required_capability: named_subquery_let
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: views_match_wildcards
+required_capability: metadata_class_and_name
+required_capability: named_subquery_let_metadata_class_and_name
+
+SET wildcards_match_views=true\;
+LET langs = (FROM languages, view_languages*, -view_languages_meta_*)\;
+FROM langs METADATA _class, _name
+| STATS c = COUNT(*) BY _class, _name
+;
+
+c:long | _class:keyword | _name:keyword
+8      | subquery       | langs
+;

@@ -691,6 +691,8 @@ public class SnapshotsWithReshardingIT extends AbstractStatelessPluginIntegTestC
         // executed directly instead of being sent over the transport, which would bypass the send behavior used below to hold it.
         startMasterOnlyNode();
         var indexNode = startIndexNode();
+        // Disable the handoff throttle
+        updateClusterSettings(Settings.builder().put(SplitSourceService.RESHARD_SPLIT_MAX_CONCURRENT_HANDOFF_PERCENTAGE.getKey(), 100.0));
         // The node the target shard is on, which is where its state change requests are sent from and so where they are held
         var targetNode = indexNode;
         final int shards;

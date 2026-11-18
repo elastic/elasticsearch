@@ -2560,7 +2560,6 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
      * verbatim and asserted unique, and the binding comes first, so the binding's key must step aside for the view's.
      */
     public void testLetBindingKeyStepsAsideForSameNamedView() {
-        assumeTrue("Requires LET support", EsqlCapabilities.Cap.NAMED_SUBQUERY_LET.isEnabled());
         assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
         addIndex("let-key-index");
         addView("let_key_view", "FROM let-key-index | LIMIT 1");

@@ -419,7 +419,6 @@ public class VerifierMetricsTests extends ESTestCase {
     }
 
     public void testLet() {
-        assumeTrue("requires NAMED_SUBQUERY_LET capability", EsqlCapabilities.Cap.NAMED_SUBQUERY_LET.isEnabled());
         Counters c = esql("""
             LET top = (from employees | sort salary DESC | limit 3);
             LET bottom = (from employees | sort salary ASC | limit 3);

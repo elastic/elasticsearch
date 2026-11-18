@@ -1838,7 +1838,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testForkAfterLetWithInSubqueryContainingFork() {
-        assumeTrue("requires NAMED_SUBQUERY_LET capability", EsqlCapabilities.Cap.NAMED_SUBQUERY_LET.isEnabled());
         runGoldenTest("""
             LET q = (
                 FROM employees
@@ -1850,7 +1849,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testForkAfterInSubqueryOverLetWithFork() {
-        assumeTrue("requires NAMED_SUBQUERY_LET capability", EsqlCapabilities.Cap.NAMED_SUBQUERY_LET.isEnabled());
         runGoldenTest("""
             LET q = (FROM employees | FORK (WHERE salary > 70000) (WHERE salary <= 70000));
             FROM employees
@@ -1860,7 +1858,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testForkOverLetWithForkInsideInSubquery() {
-        assumeTrue("requires NAMED_SUBQUERY_LET capability", EsqlCapabilities.Cap.NAMED_SUBQUERY_LET.isEnabled());
         runGoldenTest("""
             LET q = (FROM employees | FORK (WHERE salary > 70000) (WHERE salary <= 70000));
             FROM employees

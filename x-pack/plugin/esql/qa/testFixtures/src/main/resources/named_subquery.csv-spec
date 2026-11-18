@@ -7,15 +7,19 @@
 letSingleBinding
 required_capability: named_subquery_let
 
+// tag::let_single_binding[]
 LET top_langs = (FROM languages | SORT language_code | LIMIT 2)\;
 FROM top_langs
 | KEEP language_code, language_name
 | SORT language_code
+// end::let_single_binding[]
 ;
 
+// tag::let_single_binding-result[]
 language_code:integer | language_name:keyword
 1                     | English
 2                     | French
+// end::let_single_binding-result[]
 ;
 
 // -------------------------------------------------------------------
@@ -41,16 +45,20 @@ cnt:long
 letChainedBindings
 required_capability: named_subquery_let
 
+// tag::let_chained_bindings[]
 LET filtered = (FROM languages | WHERE language_code > 1)\;
 LET top2 = (FROM filtered | SORT language_code | LIMIT 2)\;
 FROM top2
 | KEEP language_code, language_name
 | SORT language_code
+// end::let_chained_bindings[]
 ;
 
+// tag::let_chained_bindings-result[]
 language_code:integer | language_name:keyword
 2                     | French
 3                     | Spanish
+// end::let_chained_bindings-result[]
 ;
 
 // -------------------------------------------------------------------
@@ -61,16 +69,20 @@ letBindingInInSubquery
 required_capability: named_subquery_let
 required_capability: where_in_subquery_without_view
 
+// tag::let_in_subquery[]
 LET low_codes = (FROM languages | WHERE language_code <= 2 | KEEP language_code)\;
 FROM languages
 | WHERE language_code IN (FROM low_codes)
 | KEEP language_code, language_name
 | SORT language_code
+// end::let_in_subquery[]
 ;
 
+// tag::let_in_subquery-result[]
 language_code:integer | language_name:keyword
 1                     | English
 2                     | French
+// end::let_in_subquery-result[]
 ;
 
 // -------------------------------------------------------------------
@@ -473,15 +485,19 @@ required_capability: named_subquery_let
 required_capability: metadata_class_and_name
 required_capability: named_subquery_let_metadata_class_and_name
 
+// tag::let_class_and_name[]
 LET top_langs = (FROM languages | SORT language_code | LIMIT 2)\;
 FROM languages, top_langs METADATA _class, _name
 | STATS count = COUNT(*) BY _class, _name
 | SORT _class
+// end::let_class_and_name[]
 ;
 
+// tag::let_class_and_name-result[]
 count:long | _class:keyword | _name:keyword
 4          | index          | languages
 2          | subquery       | top_langs
+// end::let_class_and_name-result[]
 ;
 
 letBindingBesideSubqueryClassAndName

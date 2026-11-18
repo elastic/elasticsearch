@@ -9,7 +9,7 @@ lexer grammar Let;
 //
 // LET name = (subquery);
 //
-DEV_LET : {this.isDevVersion()}? 'let' -> pushMode(LET_MODE);
+LET : 'let' -> pushMode(LET_MODE);
 
 mode LET_MODE;
 // Commands inside a binding subquery need to break out of their mode and

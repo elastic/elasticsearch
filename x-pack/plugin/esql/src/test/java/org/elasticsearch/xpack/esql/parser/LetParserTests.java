@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.parser;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -42,22 +41,17 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 
 public class LetParserTests extends AbstractStatementParserTests {
-
-    private void assumeLet() {
-        assumeTrue("requires NAMED_SUBQUERY_LET capability", EsqlCapabilities.Cap.NAMED_SUBQUERY_LET.isEnabled());
-    }
 
     // -----------------------------------------------------------------------
     // Basic parsing
     // -----------------------------------------------------------------------
 
     public void testSingleBinding() {
-        assumeLet();
         EsqlStatement stmt = statement("LET top3 = (FROM logs | LIMIT 3); ROW a = 1");
         assertThat(stmt.plan(), instanceOf(Row.class));
         assertThat(stmt.letBindings().size(), is(1));
@@ -68,7 +62,6 @@ public class LetParserTests extends AbstractStatementParserTests {
     }
 
     public void testLimitsAreResetBetweenBindings() {
-        assumeLet();
         // Each binding is within the limits of the operators and of the left parentheses, only their sum is not
         String conditions = " and a > 0".repeat(EsqlParser.MAX_BINARY_OPERATORS / 4);
         String calls = IntStream.range(0, EsqlParser.MAX_LEFT_PARENTHESES / 2).mapToObj(i -> "abs(1)").collect(Collectors.joining(", "));
@@ -79,7 +72,6 @@ public class LetParserTests extends AbstractStatementParserTests {
     }
 
     public void testMultipleBindings() {
-        assumeLet();
         EsqlStatement stmt = statement("""
             LET a = (FROM idx1 | LIMIT 3);
                 LET b = (FROM idx2 | LIMIT 5);
@@ -92,18 +84,15 @@ public class LetParserTests extends AbstractStatementParserTests {
 
     /** A LET statement declares exactly one binding: several bindings need several LET statements. */
     public void testCommaSeparatedBindingsRejected() {
-        assumeLet();
         expectValidationError("LET a = (FROM idx1 | LIMIT 3), b = (FROM idx2 | LIMIT 5); ROW x = 1", "token recognition error");
     }
 
     public void testQuotedBindingNameRejected() {
         // letBinding now uses UNQUOTED_IDENTIFIER directly; quoted names are rejected by the grammar.
-        assumeLet();
         expectValidationError("LET `my binding` = (FROM idx | LIMIT 1); ROW a = 1", "mismatched input");
     }
 
     public void testBindingWithStatsAndSort() {
-        assumeLet();
         EsqlStatement stmt = statement("""
             LET top3_ext = (
                 FROM kibana_sample_data_logs
@@ -123,7 +112,6 @@ public class LetParserTests extends AbstractStatementParserTests {
     }
 
     public void testBindingWithForkFollowedByCommand() {
-        assumeLet();
         assumeTrue("requires FORK_V9 capability", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         EsqlStatement stmt = statement("""
             LET branched = (
@@ -140,7 +128,6 @@ public class LetParserTests extends AbstractStatementParserTests {
     }
 
     public void testBindingWithForkAsLastCommand() {
-        assumeLet();
         assumeTrue("requires FORK_V9 capability", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         EsqlStatement stmt = statement("""
             LET branched = (
@@ -155,7 +142,6 @@ public class LetParserTests extends AbstractStatementParserTests {
     }
 
     public void testChainedLetWithForks() {
-        assumeLet();
         assumeTrue("requires FORK_V9 capability", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         EsqlStatement stmt = statement("""
             LET top3_extensions = (
@@ -199,7 +185,6 @@ public class LetParserTests extends AbstractStatementParserTests {
     // -----------------------------------------------------------------------
 
     public void testMultipleForksInLetBindingRejected() {
-        assumeLet();
         for (String query : new String[] { """
             LET q = (FROM a | FORK (WHERE x > 0) (WHERE x < 0) | FORK (WHERE y > 0) (WHERE y < 0));
             FROM q
@@ -220,7 +205,6 @@ public class LetParserTests extends AbstractStatementParserTests {
     }
 
     public void testMultipleForksInQueryReadingLetBindingRejected() {
-        assumeLet();
         for (String query : new String[] { """
             LET q = (FROM a);
             FROM q
@@ -256,7 +240,6 @@ public class LetParserTests extends AbstractStatementParserTests {
      *           ...                                                 ...
      */
     public void testForkInLetBindingAndInQueryReadingIt() {
-        assumeLet();
         EsqlStatement stmt = statement("""
             LET q = (FROM a | FORK (WHERE x > 0) (WHERE x < 0));
             FROM q
@@ -270,7 +253,6 @@ public class LetParserTests extends AbstractStatementParserTests {
 
     /** Each binding body is a FORK scope, so a binding with a FORK can read a binding with a FORK. */
     public void testForkInChainedLetBindings() {
-        assumeLet();
         EsqlStatement stmt = statement("""
             LET q = (FROM a | FORK (WHERE x > 0) (WHERE x < 0));
             LET r = (FROM q | FORK (WHERE y > 0) (WHERE y < 0));
@@ -288,7 +270,6 @@ public class LetParserTests extends AbstractStatementParserTests {
 
     /** A binding read together with an index is one relation in the parsed plan; the FORK after it is still a separate scope. */
     public void testForkInLetBindingAndInQueryReadingItWithAnIndex() {
-        assumeLet();
         EsqlStatement stmt = statement("""
             LET q = (FROM a | FORK (WHERE x > 0) (WHERE x < 0));
             FROM q, b
@@ -312,7 +293,6 @@ public class LetParserTests extends AbstractStatementParserTests {
      * \_UnresolvedRelation[b]
      */
     public void testForkInLetBindingAndInInSubqueryReadingIt() {
-        assumeLet();
         EsqlStatement stmt = statement("""
             LET q = (FROM a | FORK (WHERE x > 0) (WHERE x < 0));
             FROM b
@@ -350,7 +330,6 @@ public class LetParserTests extends AbstractStatementParserTests {
 
     /** {@code x IN (FROM name)} — single-column form */
     public void testInFromBindingForm() {
-        assumeLet();
         EsqlStatement stmt = statement("LET top3 = (FROM idx | LIMIT 3); FROM src | WHERE ext IN (FROM top3)");
         assertThat(stmt.letBindings().size(), is(1));
         Filter filter = as(stmt.plan(), Filter.class);
@@ -361,7 +340,6 @@ public class LetParserTests extends AbstractStatementParserTests {
 
     /** {@code x NOT IN (FROM name)} — single-column negated form */
     public void testNotInFromBindingForm() {
-        assumeLet();
         EsqlStatement stmt = statement("LET top3 = (FROM idx | LIMIT 3); FROM src | WHERE ext NOT IN (FROM top3)");
         Filter filter = as(stmt.plan(), Filter.class);
         // NOT wraps the InSubquery
@@ -370,7 +348,6 @@ public class LetParserTests extends AbstractStatementParserTests {
 
     /** {@code (a, b) IN (FROM name)} — multi-column form */
     public void testInMultiColumnFromBindingForm() {
-        assumeLet();
         EsqlStatement stmt = statement("LET tbl = (FROM idx | LIMIT 3); FROM src | WHERE (ext, geo) IN (FROM tbl)");
         Filter filter = as(stmt.plan(), Filter.class);
         MultiColumnInSubquery inSub = as(filter.condition(), MultiColumnInSubquery.class);
@@ -380,14 +357,12 @@ public class LetParserTests extends AbstractStatementParserTests {
 
     /** The bare {@code x IN name} form is not part of the grammar: a subquery must be written with FROM. */
     public void testBareInBindingRejected() {
-        assumeLet();
         expectValidationError("LET top3 = (FROM idx | LIMIT 3); FROM src | WHERE ext IN top3", "no viable alternative");
         expectValidationError("LET tbl = (FROM idx | LIMIT 3); FROM src | WHERE (ext, geo) IN tbl", "mismatched input 'tbl' expecting '('");
     }
 
     /** {@code x IN (name)} stays a plain single-element value list (folded to equality), even when name is a LET binding. */
     public void testInParenthesisedNameIsValueList() {
-        assumeLet();
         EsqlStatement stmt = statement("LET top3 = (FROM idx | LIMIT 3); FROM src | WHERE ext IN (top3)");
         Filter filter = as(stmt.plan(), Filter.class);
         assertThat(filter.condition(), instanceOf(Equals.class));
@@ -398,37 +373,30 @@ public class LetParserTests extends AbstractStatementParserTests {
     // -----------------------------------------------------------------------
 
     public void testDuplicateBindingName() {
-        assumeLet();
         expectValidationError("LET a = (FROM idx1 | LIMIT 1); LET a = (FROM idx2 | LIMIT 1); ROW x = 1", "duplicate LET binding name [a]");
     }
 
     public void testBindingNameMustBeLowercase() {
-        assumeLet();
         expectValidationError("LET MyBinding = (FROM idx | LIMIT 1); ROW x = 1", "LET binding name [MyBinding] must be lowercase");
     }
 
     public void testBindingNameWithStar() {
-        assumeLet();
         expectValidationError("LET `a*b` = (FROM idx | LIMIT 1); ROW x = 1", "mismatched input");
     }
 
     public void testBindingNameWithComma() {
-        assumeLet();
         expectValidationError("LET `a,b` = (FROM idx | LIMIT 1); ROW x = 1", "mismatched input");
     }
 
     public void testBindingNameWithColon() {
-        assumeLet();
         expectValidationError("LET `a:b` = (FROM idx | LIMIT 1); ROW x = 1", "mismatched input");
     }
 
     public void testBindingNameWithDot() {
-        assumeLet();
         expectValidationError("LET `a.b` = (FROM idx | LIMIT 1); ROW x = 1", "mismatched input");
     }
 
     public void testLetInsideViewBodyParsed() {
-        assumeLet();
         // parseView is called by EsqlParser, not the test parser. Verify that LET is accepted
         // in a view body and that the parsed statement carries the bindings.
         var parser = new EsqlParser(new EsqlConfig(org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY));
@@ -446,7 +414,6 @@ public class LetParserTests extends AbstractStatementParserTests {
 
     /** A view body goes through parseView and then LetResolver, the two steps the session applies to it. */
     public void testChainedForkBindingsInViewBodyRejected() {
-        assumeLet();
         var parser = new EsqlParser(new EsqlConfig(EsqlTestUtils.TEST_FUNCTION_REGISTRY));
         StringBuilder query = new StringBuilder("LET f0 = (FROM a | FORK (WHERE x > 0) (WHERE x < 0));");
         for (int i = 1; i < 40; i++) {
@@ -474,7 +441,6 @@ public class LetParserTests extends AbstractStatementParserTests {
 
     /** Named query parameters inside a LET binding body are substituted at parse time. */
     public void testLetBindingWithQueryParam() {
-        assumeLet();
         var params = new QueryParams(List.of(paramAsConstant("threshold", 10020)));
         EsqlStatement stmt = statement("LET top = (FROM employees | WHERE emp_no > ?threshold | LIMIT 3);\nFROM top | SORT emp_no", params);
         assertThat(stmt.letBindings().size(), is(1));
@@ -489,19 +455,14 @@ public class LetParserTests extends AbstractStatementParserTests {
     }
 
     // -----------------------------------------------------------------------
-    // Snapshot gating: `let` must be invisible in production builds
+    // Production builds: `let` is not gated behind dev mode
     // -----------------------------------------------------------------------
 
-    public void testLetInvisibleInProductionBuild() {
-        // Only meaningful when we can actually disable dev mode.
-        assumeTrue("requires snapshot builds to disable dev mode", Build.current().isSnapshot());
+    public void testLetParsedInProductionBuild() {
+        EsqlParser prodParser = new EsqlParser(new EsqlConfig(false, EsqlTestUtils.TEST_FUNCTION_REGISTRY));
 
-        EsqlConfig prodConfig = new EsqlConfig(false, org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY);
-        EsqlParser prodParser = new EsqlParser(prodConfig);
-
-        ParsingException pe = expectThrows(ParsingException.class, () -> prodParser.createStatement("LET x = (FROM a | LIMIT 1); FROM x"));
-        assertThat(pe.getMessage(), containsString("mismatched input 'LET'"));
-        // The DEV_ prefix must have been stripped from the error message.
-        assertThat(pe.getMessage(), not(containsString("DEV_")));
+        EsqlStatement statement = prodParser.createStatement("LET x = (FROM a | LIMIT 1); FROM x");
+        assertThat(statement.letBindings(), hasSize(1));
+        assertThat(statement.letBindings().get(0).name(), equalTo("x"));
     }
 }

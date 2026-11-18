@@ -50,7 +50,6 @@ public class LetResolverTests extends ESTestCase {
 
     /** Parses the full statement (LET prefix included) and runs the resolver on it, exactly as EsqlSession does. */
     private static LogicalPlan parseAndResolveLet(String query) {
-        assumeTrue("requires NAMED_SUBQUERY_LET capability", EsqlCapabilities.Cap.NAMED_SUBQUERY_LET.isEnabled());
         var statement = EsqlTestUtils.TEST_PARSER.createStatement(query);
         return LetResolver.resolve(statement.plan(), statement.letBindings(), ViewResolver.DEFAULT_MAX_PLAN_NODES_COUNT);
     }

@@ -505,8 +505,8 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
 required_capability: promql_label_functions
-required_capability: enable_tsmd_data_type
 required_capability: promql_vector_matching_v0
+required_capability: enable_tsmd_data_type
 PROMQL index=prom-metrics-name step=1h result=(label_replace(metrics.requests{pod="podA"}, "dst", "$1", "zone", "(.+)") + ignoring(dst) metrics.requests{pod="podA"})
 | KEEP result
 | SORT result;

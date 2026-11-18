@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.promql;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
@@ -814,16 +813,11 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
     }
 
     private static void collectTopLevelUnionChain(LogicalPlan p, Set<VectorBinarySet> chain) {
-        if (p instanceof VectorBinarySet setOp && setOp.op() == VectorBinarySet.SetOp.UNION && setOp.match() == VectorMatch.NONE) {
+        if (p instanceof VectorBinarySet setOp && setOp.op() == VectorBinarySet.SetOp.UNION) {
             chain.add(setOp);
             collectTopLevelUnionChain(setOp.left(), chain);
             collectTopLevelUnionChain(setOp.right(), chain);
         }
-    }
-
-    /** A scalar reading no source: a literal, {@code time()}, {@code pi()}, or arithmetic over those. */
-    private static boolean isPureScalar(LogicalPlan plan) {
-        return PromqlPlan.returnsScalar(plan) && hasSourceBackedExpression(plan) == false;
     }
 
     private static boolean hasSourceBackedExpression(LogicalPlan plan) {

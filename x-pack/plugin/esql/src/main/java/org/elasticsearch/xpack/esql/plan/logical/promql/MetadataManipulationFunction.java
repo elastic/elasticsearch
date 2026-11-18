@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 /**
  * Dedicated logical node for the PromQL label-manipulation functions {@code label_replace} and {@code label_join}.

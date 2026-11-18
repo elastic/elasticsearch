@@ -19,7 +19,6 @@ import java.util.EnumSet;
  * Golden tests for PromQL to ESQL plan translation.
  */
 public class PromqlGoldenTests extends GoldenTestCase {
-    private static final String ESQL_TIMESERIES_METADATA_FUNCTIONS = "esql_timeseries_metadata_functions";
     private static final String DIMENSION_VALUES = "dimension_values";
     private static final String ESQL_SUM_LONG_OVERFLOW_FIX = "esql_sum_long_overflow_fix";
     private static final String PACK_DIMS_AGG = "pack_dims_agg";

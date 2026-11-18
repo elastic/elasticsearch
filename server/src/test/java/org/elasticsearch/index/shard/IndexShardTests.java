@@ -1841,6 +1841,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(failure, instanceOf(FlushFailedEngineException.class));
         assertThat(ExceptionsHelper.unwrap(failure, IOException.class).getMessage(), startsWith("simulated disk failure writing"));
         assertFlushFailureCount(1L);
+        assertThat(flushFailureMeasurements().getLast().attributes().get(MetricAttributes.ERROR_TYPE), equalTo("IOException"));
 
         assertThat(flushFailure(shard), instanceOf(AlreadyClosedException.class));
         assertFlushFailureCount(1L);

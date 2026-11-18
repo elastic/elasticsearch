@@ -38,9 +38,11 @@ public class FlushMetrics {
     }
 
     public void onFailure(IndexMode indexMode, Throwable error) {
+        // the engine wraps every commit or refresh failure, so report the cause to tell those failures apart
+        final Throwable cause = error instanceof FlushFailedEngineException && error.getCause() != null ? error.getCause() : error;
         flushFailures.incrementBy(
             1,
-            Map.of(MetricAttributes.ES_INDEX_MODE, indexMode.getName(), MetricAttributes.ERROR_TYPE, MetricAttributes.errorType(error))
+            Map.of(MetricAttributes.ES_INDEX_MODE, indexMode.getName(), MetricAttributes.ERROR_TYPE, MetricAttributes.errorType(cause))
         );
     }
 }

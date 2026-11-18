@@ -1521,8 +1521,11 @@ public class TranslogReplicatorTests extends ESTestCase {
         ObjectStoreService objectStoreService = mock(ObjectStoreService.class);
         when(objectStoreService.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
         doAnswer(invocation -> {
+            // we do `incrementAndGet` (and set `firstUpload`) before the `run` to guarantee that it's not the test thread that
+            // waits on the `firstUploadHangs` latch below but the normal (i.e., non-hedged) upload
+            final boolean firstUpload = uploads.incrementAndGet() == 1;
             invocation.<Runnable>getArgument(3).run(); // as in ObjectStoreService, signal that the upload is about to start
-            if (uploads.incrementAndGet() == 1) {
+            if (firstUpload) {
                 safeAwait(firstUploadHangs); // hang the first upload so that the hedge completes the upload
             }
             invocation.<ActionListener<Void>>getArgument(4).onResponse(null);

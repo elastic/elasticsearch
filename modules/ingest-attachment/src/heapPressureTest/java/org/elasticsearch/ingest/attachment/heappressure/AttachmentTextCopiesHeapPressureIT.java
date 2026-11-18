@@ -10,6 +10,7 @@
 package org.elasticsearch.ingest.attachment.heappressure;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.rest.ObjectPath;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -30,11 +31,22 @@ public class AttachmentTextCopiesHeapPressureIT extends AttachmentHeapPressureTe
     public void testTextFittingOnHeapIsIndexed() throws Exception {
         assertSmallSpreadsheetIndexed("small");
 
-        assertNull(errorBodyOrNullUnlessNodeDied(indexRequest("large", Spreadsheet.withTextChars(TEXT_CHARS))));
+        Spreadsheet large = Spreadsheet.withTextChars(TEXT_CHARS);
+        assertNull(errorBodyOrNullUnlessNodeDied(indexRequest("large", large)));
         // An out-of-memory node would not answer.
         assertNodeAlive();
 
         Request count = new Request("GET", "/" + INDEX + "/_count");
         assertThat(ObjectPath.createFromResponse(client().performRequest(count)).evaluate("count"), equalTo(2));
+
+        // All of the text must have been extracted, so that truncating it can't pass for using less memory. This checks the length the
+        // processor records rather than fetching the document, which would load its source onto the small heap.
+        Request fullLength = new Request("GET", "/" + INDEX + "/_count");
+        fullLength.setJsonEntity(Strings.format("""
+            {"query": {"bool": {"filter": [
+              {"ids": {"values": ["large"]}},
+              {"range": {"attachment.content_length": {"gte": %d}}}
+            ]}}}""", large.cellChars()));
+        assertThat(ObjectPath.createFromResponse(client().performRequest(fullLength)).evaluate("count"), equalTo(1));
     }
 }

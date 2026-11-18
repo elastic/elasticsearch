@@ -6517,6 +6517,21 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertEquals(DataType.INTEGER, schema.get(0).dataType());
     }
 
+    /**
+     * Every schema-path failure names the object it came from. These three messages sat in one file with a
+     * fourth that already did, and the inconsistency survived precisely because nothing compared them: a
+     * distinct name per case here fails if any one of them reverts to naming only the format.
+     */
+    public void testEverySchemaPathFailureNamesTheObject() {
+        CsvFormatReader headerless = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
+        IOException noRows = expectThrows(IOException.class, () -> headerless.schema(createStorageObject("", "sales-2026.csv")));
+        assertThat(noRows.getMessage(), containsString("file [sales-2026.csv] has no data rows"));
+
+        CsvFormatReader headed = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true));
+        IOException noHeader = expectThrows(IOException.class, () -> headed.schema(createStorageObject("", "events.csv")));
+        assertThat(noHeader.getMessage(), containsString("file [events.csv] has no schema line"));
+    }
+
     public void testHeaderlessEmptyInputThrows() {
         StorageObject object = createStorageObject("");
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
@@ -7572,11 +7587,14 @@ public class CsvFormatReaderTests extends ESTestCase {
         });
         assertTrue("expected sampling error message, got: " + e.getMessage(), e.getMessage().contains("schema sampling failed at row ["));
         assertTrue("expected row index, got: " + e.getMessage(), e.getMessage().contains("row [1]"));
+        // A glob read fails on the first bad file, so an ordinal with no object says which of the
+        // user's files to open: none of them.
+        assertThat(e.getMessage(), containsString("row [1] of [test.csv]"));
         assertTrue(
             "expected skip_row hint, got: " + e.getMessage(),
             e.getMessage().endsWith("; set [error_mode] to [skip_row] to skip the row instead")
         );
-        assertEquals(org.elasticsearch.rest.RestStatus.BAD_REQUEST, e.status());
+        assertEquals(RestStatus.BAD_REQUEST, e.status());
         assertTrue("expected capped message, got " + e.getMessage().length() + " chars", e.getMessage().length() <= 4096);
     }
 

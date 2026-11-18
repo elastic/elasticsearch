@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.timeseries;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
@@ -99,14 +100,67 @@ public final class TimeSeriesMetadataFunctionEvaluator implements ExpressionEval
             BytesRefBlock written = (BytesRefBlock) values;
             OrdinalBytesRefBlock ordinals = block instanceof BytesRefBlock containers ? containers.asOrdinals() : null;
             // A label container block holds each label set of the page once, so any dictionary of one is worth rewriting.
-            if (ordinals != null && ordinals.mayHaveMultivaluedFields() == false && (written == null || sameEverywhere(written))) {
-                Block result = operation == Operation.GET ? readDictionary(ordinals) : rewriteDictionary(ordinals, written);
-                if (result != null) {
-                    return result;
-                }
+            if (ordinals != null && ordinals.mayHaveMultivaluedFields() == false) {
+                if (written == null || sameEverywhere(written)) {
+                    Block result = operation == Operation.GET ? readDictionary(ordinals) : rewriteDictionary(ordinals, written);
+                    if (result != null) {
+                        return result;
+                    }
+                } else if (written.asOrdinals() instanceof OrdinalBytesRefBlock dictionaryValues
+                    && dictionaryValues.mayHaveMultivaluedFields() == false) {
+                        return rewritePairs(ordinals, dictionaryValues);
+                    }
             }
             return evalRows(page.getPositionCount(), block, written);
         }
+    }
+
+    /**
+     * Each distinct pair of a label set and the value written rewritten once, where the values are dictionary encoded too: a value
+     * computed from the labels of the same series, as {@code label_replace} writes, is one value per label set, so a series is
+     * rewritten once per page and the result stays dictionary encoded.
+     */
+    private Block rewritePairs(OrdinalBytesRefBlock containers, OrdinalBytesRefBlock values) {
+        IntBlock rows = containers.getOrdinalsBlock();
+        IntBlock valueRows = values.getOrdinalsBlock();
+        BytesRefVector dictionary = containers.getDictionaryVector();
+        BytesRefVector valueDictionary = values.getDictionaryVector();
+        int positions = rows.getPositionCount();
+        BytesRef scratch = new BytesRef();
+        BytesRef valueScratch = new BytesRef();
+        BytesRefVector rewritten;
+        IntBlock ordinals = null;
+        try (
+            LongHash pairs = new LongHash(1, context.bigArrays());
+            IntBlock.Builder pairOrdinals = context.blockFactory().newIntBlockBuilder(positions);
+            BytesRefVector.Builder pairDictionary = context.blockFactory().newBytesRefVectorBuilder(positions);
+            Buffers buffers = new Buffers()
+        ) {
+            for (int p = 0; p < positions; p++) {
+                // a missing label container is the empty one, and a missing value writes none: each is a pair too
+                int container = rows.isNull(p) ? -1 : rows.getInt(rows.getFirstValueIndex(p));
+                int value = valueRows.isNull(p) ? -1 : valueRows.getInt(valueRows.getFirstValueIndex(p));
+                long pair = pairs.add(((long) (container + 1) << 32) | (value + 1L));
+                if (pair < 0) {
+                    pairOrdinals.appendInt((int) (-1 - pair));
+                    continue;
+                }
+                BytesRef encoded = container < 0 ? null : buffers.container(dictionary.getBytesRef(container, scratch));
+                BytesRef written = value < 0 ? null : valueDictionary.getBytesRef(value, valueScratch);
+                List<BytesRef> label = written == null || written.length == 0 ? List.of() : List.of(written);
+                pairDictionary.appendBytesRef(buffers.output(rewrite(encoded, label, buffers.rewritten)));
+                pairOrdinals.appendInt((int) pair);
+            }
+            rewritten = pairDictionary.build();
+            try {
+                ordinals = pairOrdinals.build();
+            } finally {
+                if (ordinals == null) {
+                    Releasables.closeExpectNoException(rewritten);
+                }
+            }
+        }
+        return dictionaryEncoded(ordinals, rewritten);
     }
 
     /** Whether every position writes the same value, so a rewrite only depends on the label container. */

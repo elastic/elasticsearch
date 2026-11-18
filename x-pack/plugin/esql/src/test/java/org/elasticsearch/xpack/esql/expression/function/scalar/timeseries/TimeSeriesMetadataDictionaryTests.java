@@ -71,6 +71,21 @@ public class TimeSeriesMetadataDictionaryTests extends ComputeTestCase {
         assertRewrite(new TimeSeriesMetadataSet(Source.EMPTY, labels(), keyword("env"), keyword("prod")), expected);
     }
 
+    /**
+     * A value read off the same label set, as {@code label_replace} writes, is dictionary encoded too: each pair of a label set and a
+     * value rewrites once, and the result stays dictionary encoded.
+     */
+    public void testSetOfAValueOfTheSameLabelSetKeepsTheOrdinals() {
+        List<BytesRef> expected = expected(
+            TimeSeriesMetadataEncoding.encode(Map.of("copy", List.of("api"), "job", List.of("api"), "pod", List.of("a"))),
+            TimeSeriesMetadataEncoding.encode(Map.of("copy", List.of("web"), "job", List.of("web"), "pod", List.of("b", "c"))),
+            TimeSeriesMetadataEncoding.EMPTY
+        );
+        Expression labels = labels();
+        Expression job = new TimeSeriesMetadataPath(Source.EMPTY, labels, keyword("job"));
+        assertRewrite(new TimeSeriesMetadataSet(Source.EMPTY, labels, keyword("copy"), job), expected);
+    }
+
     /** A read keeps the ordinals when every label set holds one value of the label; a missing label reads as null. */
     public void testReadKeepsTheOrdinals() {
         try (Block result = eval(new TimeSeriesMetadataPath(Source.EMPTY, labels(), keyword("job")))) {

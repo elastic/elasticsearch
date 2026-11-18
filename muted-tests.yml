@@ -658,3 +658,8 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: testOversizedInSubqueryFailsBeforeReadingAllInput
   issue: https://github.com/elastic/elasticsearch/issues/166371
+- class: org.elasticsearch.index.mapper.KeywordFieldMapperColumnarCompatibilityTests
+  tasks:
+  - :server:test
+  method: testRequiredFieldWithoutValueIsIgnored
+  issue: https://github.com/elastic/elasticsearch/issues/166429

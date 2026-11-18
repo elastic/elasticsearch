@@ -13,20 +13,25 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.MapMessage;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.MockAppender;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -37,6 +42,8 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ParsedContentReservation;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.http.HttpHeadersValidationException;
@@ -59,6 +66,7 @@ import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.transport.BytesRefRecycler;
+import org.elasticsearch.transport.Transports;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -82,7 +90,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.FutureTask;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -102,6 +115,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -336,7 +350,7 @@ public class RestControllerTests extends ESTestCase {
         });
         AssertingChannel channel = new AssertingChannel(fakeRequest, randomBoolean(), RestStatus.BAD_REQUEST);
         restController.dispatchRequest(fakeRequest, channel, threadContext);
-        verify(instrumentation).start(eq(threadContext), eq(fakeRequest), isNull());
+        verify(instrumentation).start(eq(fakeRequest), isNull());
     }
 
     public void testRequestWithDisallowedMultiValuedHeaderButSameValues() {
@@ -712,6 +726,173 @@ public class RestControllerTests extends ESTestCase {
         assertThat(usedOnceParsed.get(), greaterThan(requestBreaker.getLimit()));
         assertEquals(0, requestBreaker.getTrippedCount());
         assertEquals(0, requestBreaker.getUsed());
+    }
+
+    public void testEncodedChunksAreChargedUntilReleased() throws Exception {
+        HierarchyCircuitBreakerService breakerService = parsedContentBreakerService();
+        CircuitBreaker requestBreaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
+        RestController controller = new RestController(null, client, breakerService, usageService, telemetryProvider);
+        // Each part is a single 3mb item, over the 1 MB charge floor and the breaker's 2mb limit, so it is encoded as one chunk and
+        // charged whatever the size hint.
+        ChunkedRestResponseBodyPart secondPart = new TextPart(randomAlphaOfLength(3 * 1024 * 1024), null);
+        ChunkedRestResponseBodyPart firstPart = new TextPart(randomAlphaOfLength(3 * 1024 * 1024), secondPart);
+        controller.registerHandler(
+            new Route(GET, "/chunked"),
+            (request, channel, client) -> channel.sendResponse(RestResponse.chunked(RestStatus.OK, firstPart, null))
+        );
+        RestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withPath("/chunked").build();
+        AssertingChannel channel = new AssertingChannel(request, true, RestStatus.OK);
+        controller.dispatchRequest(request, channel, client.threadPool().getThreadContext());
+        assertTrue(channel.getSendResponseCalled());
+        assertEquals(0, requestBreaker.getUsed());
+
+        List<ReleasableBytesReference> chunks = new ArrayList<>();
+        try (RestResponse response = channel.getRestResponse()) {
+            ChunkedRestResponseBodyPart body = response.chunkedContent();
+            chunks.add(encodeOnNetworkThread(body));
+            assertTrue(body.isPartComplete());
+            assertFalse(body.isLastPart());
+            assertEquals(chunks.getFirst().length(), requestBreaker.getUsed());
+
+            PlainActionFuture<ChunkedRestResponseBodyPart> nextPart = new PlainActionFuture<>();
+            body.getNextPart(nextPart);
+            ChunkedRestResponseBodyPart next = safeGet(nextPart);
+            chunks.add(encodeOnNetworkThread(next));
+            assertTrue(next.isPartComplete());
+            assertTrue(next.isLastPart());
+
+            // Both chunks are charged, over the limit without a trip, and each is released with its chunk.
+            assertEquals(chunks.get(0).length() + chunks.get(1).length(), requestBreaker.getUsed());
+            assertThat(requestBreaker.getUsed(), greaterThan(requestBreaker.getLimit()));
+            assertEquals(0, requestBreaker.getTrippedCount());
+            chunks.removeFirst().close();
+            assertEquals(chunks.getFirst().length(), requestBreaker.getUsed());
+        } finally {
+            Releasables.close(chunks);
+        }
+        assertEquals(0, requestBreaker.getUsed());
+    }
+
+    public void testChunkIsNotChargedIfBodyFailsAfterEncoding() throws Exception {
+        HierarchyCircuitBreakerService breakerService = parsedContentBreakerService();
+        CircuitBreaker requestBreaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
+        RestController controller = new RestController(null, client, breakerService, usageService, telemetryProvider);
+        String item = randomAlphaOfLength(between(RestController.MIN_CHARGED_BYTES, 2 * RestController.MIN_CHARGED_BYTES));
+        // Fails once its chunk is encoded, when the response stats ask whether it was the last part.
+        ChunkedRestResponseBodyPart failing = new TextPart(item, null) {
+            @Override
+            public boolean isLastPart() {
+                if (isPartComplete()) {
+                    throw new IllegalStateException("simulated failure after encoding");
+                }
+                return super.isLastPart();
+            }
+        };
+        controller.registerHandler(
+            new Route(GET, "/chunked"),
+            (request, channel, client) -> channel.sendResponse(RestResponse.chunked(RestStatus.OK, failing, null))
+        );
+        RestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withPath("/chunked").build();
+        AssertingChannel channel = new AssertingChannel(request, true, RestStatus.OK);
+        controller.dispatchRequest(request, channel, client.threadPool().getThreadContext());
+        assertTrue(channel.getSendResponseCalled());
+
+        RestResponse response = channel.getRestResponse();
+        try {
+            ExecutionException e = expectThrows(ExecutionException.class, () -> encodeOnNetworkThread(response.chunkedContent()));
+            assertThat(e.getCause(), instanceOf(IllegalStateException.class));
+            // The chunk never reaches the HTTP layer, so nothing would release a charge for it.
+            assertEquals(0, requestBreaker.getUsed());
+        } finally {
+            // Closed on a network thread, as the HTTP layer does, since the response stats check that once a chunk is recorded.
+            onNetworkThread(() -> {
+                response.close();
+                return null;
+            });
+        }
+    }
+
+    public void testOnlyChunksOfAtLeastTheMinimumAreCharged() throws Exception {
+        HierarchyCircuitBreakerService breakerService = parsedContentBreakerService();
+        CircuitBreaker requestBreaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
+        RestController controller = new RestController(null, client, breakerService, usageService, telemetryProvider);
+        AtomicInteger itemBytes = new AtomicInteger();
+        controller.registerHandler(
+            new Route(GET, "/chunked"),
+            (request, channel, client) -> channel.sendResponse(
+                RestResponse.chunked(RestStatus.OK, new TextPart(randomAlphaOfLength(itemBytes.get()), null), null)
+            )
+        );
+        for (int bytes : new int[] { RestController.MIN_CHARGED_BYTES - 1, RestController.MIN_CHARGED_BYTES }) {
+            itemBytes.set(bytes);
+            RestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withPath("/chunked").build();
+            AssertingChannel channel = new AssertingChannel(request, true, RestStatus.OK);
+            // As the HTTP layer does, each request is dispatched in a context of its own.
+            try (ThreadContext.StoredContext ignored = client.threadPool().getThreadContext().stashContext()) {
+                controller.dispatchRequest(request, channel, client.threadPool().getThreadContext());
+            }
+            try (
+                RestResponse response = channel.getRestResponse();
+                ReleasableBytesReference chunk = encodeOnNetworkThread(response.chunkedContent())
+            ) {
+                assertEquals(bytes, chunk.length());
+                assertEquals(bytes < RestController.MIN_CHARGED_BYTES ? 0 : bytes, requestBreaker.getUsed());
+            }
+            assertEquals(0, requestBreaker.getUsed());
+        }
+    }
+
+    /** A body part with the single text item {@code item}, followed by {@code next} if it is not {@code null}. */
+    private static class TextPart implements ChunkedRestResponseBodyPart {
+
+        private final ChunkedRestResponseBodyPart text;
+        @Nullable
+        private final ChunkedRestResponseBodyPart next;
+
+        TextPart(String item, @Nullable ChunkedRestResponseBodyPart next) {
+            this.text = ChunkedRestResponseBodyPart.fromTextChunks(
+                RestResponse.TEXT_CONTENT_TYPE,
+                Iterators.single(writer -> writer.write(item))
+            );
+            this.next = next;
+        }
+
+        @Override
+        public boolean isPartComplete() {
+            return text.isPartComplete();
+        }
+
+        @Override
+        public boolean isLastPart() {
+            return next == null;
+        }
+
+        @Override
+        public void getNextPart(ActionListener<ChunkedRestResponseBodyPart> listener) {
+            listener.onResponse(next);
+        }
+
+        @Override
+        public ReleasableBytesReference encodeChunk(int sizeHint, Recycler<BytesRef> recycler) throws IOException {
+            return text.encodeChunk(sizeHint, recycler);
+        }
+
+        @Override
+        public String getResponseContentTypeString() {
+            return text.getResponseContentTypeString();
+        }
+    }
+
+    /** Encodes the next chunk of {@code body} on a network thread, as the HTTP layer does. */
+    private static ReleasableBytesReference encodeOnNetworkThread(ChunkedRestResponseBodyPart body) throws Exception {
+        return onNetworkThread(() -> body.encodeChunk(randomIntBetween(1, 1024), BytesRefRecycler.NON_RECYCLING_INSTANCE));
+    }
+
+    /** Runs {@code task} on a thread named as a network thread, for the code that asserts it runs on one. */
+    private static <T> T onNetworkThread(Callable<T> task) throws Exception {
+        FutureTask<T> future = new FutureTask<>(task);
+        new Thread(future, Transports.TEST_MOCK_TRANSPORT_THREAD_PREFIX + "[test]").start();
+        return future.get(10, TimeUnit.SECONDS);
     }
 
     /** A request breaker limit of 2mb, checked against charges only, so that the results do not depend on the test JVM's heap. */
@@ -1243,7 +1424,7 @@ public class RestControllerTests extends ESTestCase {
 
         final AssertingChannel channel = new AssertingChannel(request, randomBoolean(), RestStatus.METHOD_NOT_ALLOWED);
         restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
-        verify(instrumentation).start(any(), any(RestRequest.class), isNull());
+        verify(instrumentation).start(any(RestRequest.class), isNull());
         verify(instrumentation).recordException(any(RestRequest.class), any(IllegalArgumentException.class));
     }
 
@@ -1592,6 +1773,92 @@ public class RestControllerTests extends ESTestCase {
         final AssertingChannel channel = new AssertingChannel(request, randomBoolean(), RestStatus.BAD_REQUEST);
         restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
         assertTrue(channel.getSendResponseCalled());
+    }
+
+    /**
+     * A handler with fixed declared parameters, used to check which parameters the capabilities check reports as supported.
+     * A {@code null} set means the handler does not declare its parameters.
+     */
+    private static class DeclaredParametersHandler extends BaseRestHandler {
+        private final String path;
+        private final Set<String> queryParameters;
+        private final Set<String> allParameters;
+
+        DeclaredParametersHandler(String path, Set<String> queryParameters, Set<String> allParameters) {
+            this.path = path;
+            this.queryParameters = queryParameters;
+            this.allParameters = allParameters;
+        }
+
+        @Override
+        public String getName() {
+            return "declared_parameters_handler";
+        }
+
+        @Override
+        public List<Route> routes() {
+            return List.of(new Route(GET, path));
+        }
+
+        @Override
+        public Set<String> supportedQueryParameters() {
+            return queryParameters;
+        }
+
+        @Override
+        public Set<String> allSupportedParameters() {
+            return allParameters;
+        }
+
+        @Override
+        protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
+            return channel -> {};
+        }
+    }
+
+    private boolean checkSupported(String path, Set<String> parameters) {
+        return restController.checkSupported(GET, path, parameters, Set.of(), RestApiVersion.current());
+    }
+
+    public void testCheckSupportedAcceptsParameters() {
+        restController.registerHandler(
+            new DeclaredParametersHandler(
+                "/declared/{path_param}",
+                Set.of("query_param"),
+                Set.of("query_param", "path_param", "response_param")
+            )
+        );
+
+        assertTrue(checkSupported("/declared/x", Set.of()));
+        assertTrue(checkSupported("/declared/x", Set.of("query_param")));
+        // the handler accepts these in a request, even though they are not query parameters
+        assertTrue(checkSupported("/declared/x", Set.of("path_param", "response_param")));
+        // every handler that declares its parameters accepts these
+        for (String common : List.of("format", "filter_path", "pretty", "human", "error_trace")) {
+            assertTrue(common, checkSupported("/declared/x", Set.of(common)));
+        }
+        assertTrue(checkSupported("/declared/x", Set.of("query_param", "pretty", "error_trace")));
+    }
+
+    public void testCheckSupportedRejectsUnknownParameters() {
+        restController.registerHandler(
+            new DeclaredParametersHandler("/declared/{path_param}", Set.of("query_param"), Set.of("query_param", "path_param"))
+        );
+
+        assertFalse(checkSupported("/declared/x", Set.of("unknown")));
+        assertFalse(checkSupported("/declared/x", Set.of("query_param", "pretty", "unknown")));
+        // end users cannot set the internal markers, so they are not reported as supported
+        for (String internal : RestRequest.INTERNAL_MARKER_REQUEST_PARAMETERS) {
+            assertFalse(internal, checkSupported("/declared/x", Set.of(internal)));
+        }
+    }
+
+    public void testCheckSupportedWithoutDeclaredParameters() {
+        // if query parameters set is null, it just reports everything as supported
+        // TODO: remove this test when the default implementation of supportedQueryParameters is updated
+        restController.registerHandler(new DeclaredParametersHandler("/undeclared", null, null));
+
+        assertThat(checkSupported("/undeclared", Set.of(randomAlphaOfLength(8), "pretty")), is(true));
     }
 
     public void testRegisterWithReservedPath() {

@@ -29,7 +29,7 @@ public class MvExpand extends UnaryPlan implements TelemetryAware, SortAgnostic,
     private final NamedExpression target;
     private final Attribute expanded;
 
-    private List<Attribute> output;
+    private volatile List<Attribute> output;
 
     public MvExpand(Source source, LogicalPlan child, NamedExpression target, Attribute expanded) {
         super(source, child);

@@ -35,9 +35,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.index.store.StoreMetricsDirectory;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
-import org.elasticsearch.node.Node;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
-import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.TestUtils;
@@ -224,12 +222,7 @@ public final class StatelessDirectoryFactory {
                 .put(extraNodeSettings)
                 .build();
             var nodeEnvironment = new NodeEnvironment(nodeSettings, new Environment(nodeSettings, null));
-            var threadPool = new ThreadPool(
-                Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "stateless-directory").build(),
-                MeterRegistry.NOOP,
-                new DefaultBuiltInExecutorBuilders(),
-                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, false)
-            );
+            var threadPool = new TestThreadPool("stateless-directory", StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, false));
             return new Infra(
                 nodeSettings,
                 nodeEnvironment,
@@ -560,11 +553,17 @@ public final class StatelessDirectoryFactory {
             if (latencyMs <= 0) {
                 return;
             }
+            DOWNLOADS.incrementAndGet();
+            if (DOWNLOADS_IN_FLIGHT.getAndIncrement() == 0) {
+                DOWNLOAD_ROUNDS.incrementAndGet();
+            }
             try {
                 Thread.sleep(latencyMs);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 throw new InterruptedIOException("interrupted while simulating blob-store latency");
+            } finally {
+                DOWNLOADS_IN_FLIGHT.decrementAndGet();
             }
         }
     }
@@ -588,6 +587,24 @@ public final class StatelessDirectoryFactory {
                 stats.readBytes()
             );
         }
+    }
+
+    private static final AtomicInteger DOWNLOADS_IN_FLIGHT = new AtomicInteger();
+    private static final AtomicInteger DOWNLOADS = new AtomicInteger();
+    private static final AtomicInteger DOWNLOAD_ROUNDS = new AtomicInteger();
+
+    /** How many simulated blob-store requests have paid the first-byte latency. */
+    public static int downloads() {
+        return DOWNLOADS.get();
+    }
+
+    /**
+     * How many times a simulated blob-store request started while no other was in flight. Requests that
+     * overlap share a round, so this counts the latencies a reader waited through one after another, and
+     * {@link #downloads()} over it is how many requests a round carried.
+     */
+    public static int downloadRounds() {
+        return DOWNLOAD_ROUNDS.get();
     }
 
     /**

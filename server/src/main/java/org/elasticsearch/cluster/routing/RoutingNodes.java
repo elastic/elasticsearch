@@ -520,7 +520,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         ShardRouting startedShard,
         String nodeId,
         long expectedShardSize,
-        String reason,
+        MoveReason reason,
         RoutingChangesObserver changes,
         RecoveryPriority recoveryPriority
     ) {
@@ -591,7 +591,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                                 startedReplica,
                                 sourceShard.relocatingNodeId(),
                                 sourceShard.getExpectedShardSize(),
-                                "restarting relocation",
+                                MoveReason.of(MoveType.RESTARTED),
                                 routingChangesObserver,
                                 sourceShard.recoveryPriority()
                             );

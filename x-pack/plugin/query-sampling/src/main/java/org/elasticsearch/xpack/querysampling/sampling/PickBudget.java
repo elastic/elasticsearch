@@ -31,6 +31,9 @@ public final class PickBudget {
 
     public synchronized void perHour(long picksPerHour) {
         boolean wasLimited = tokensPerSecond > 0;
+        if (wasLimited) {
+            refill(); // what has come back at the old rate is not lost by the change
+        }
         tokensPerSecond = picksPerHour / SECONDS_PER_HOUR;
         capacity = Math.max(1, tokensPerSecond * SECONDS_PER_BURST);
         lastRefill = nanoTime.getAsLong();

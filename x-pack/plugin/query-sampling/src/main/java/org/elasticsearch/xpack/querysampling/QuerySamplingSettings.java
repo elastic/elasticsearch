@@ -75,24 +75,24 @@ public final class QuerySamplingSettings {
 
     /**
      * Number of clusters of query vectors per field used to balance the sample, see {@link #SPATIAL_BALANCE}. 0
-     * disables. Built per node, in memory: before the clusters are fitted, ten vectors per cluster wait for it, for each
-     * field, which is why the number is limited.
+     * disables. The default, 16, is what the offline replay of the sampler used. Built per node, in memory: before the
+     * clusters are fitted, ten vectors per cluster wait for it, for each field, which is why the number is limited.
      */
     public static final Setting<Integer> SPATIAL_CLUSTERS = Setting.intSetting(
         "xpack.query_sampling.spatial_clusters",
-        0,
+        16,
         0,
         64,
         Setting.Property.NodeScope
     );
 
     /**
-     * 0 follows the traffic, 1 picks as many queries from each cluster. No effect without {@link
+     * 0 follows the traffic, 1 (the default) picks as many queries from each cluster. No effect without {@link
      * #SPATIAL_CLUSTERS}.
      */
     public static final Setting<Double> SPATIAL_BALANCE = Setting.doubleSetting(
         "xpack.query_sampling.spatial_balance",
-        0.0,
+        1.0,
         0.0,
         1.0,
         Setting.Property.NodeScope,
@@ -101,11 +101,11 @@ public final class QuerySamplingSettings {
 
     /**
      * Tilts picking towards hard queries (hits all about as good as the first) by {@code e^η} for the hardest
-     * third and {@code e^-η} for the easiest. 0 does not tilt.
+     * third and {@code e^-η} for the easiest. 0 does not tilt. The default, 1, is what the offline replay used.
      */
     public static final Setting<Double> HARDNESS_TILT = Setting.doubleSetting(
         "xpack.query_sampling.hardness_tilt",
-        0.0,
+        1.0,
         0.0,
         10.0,
         Setting.Property.NodeScope,

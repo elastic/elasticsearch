@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 166290
-summary: "ES|QL:[Nested] Add NESTED_EXPAND to the ES|QL front end"
+summary: "Add NESTED_EXPAND to the ES|QL front end"
 type: feature

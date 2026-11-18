@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 
 import java.util.EnumSet;
@@ -39,7 +40,7 @@ public class DeduplicateAggsGoldenTests extends GoldenTestCase {
             FROM employees
             | EVAL s2 = salary
             | STATS s = SUM(salary), a = AVG(s2)
-            """).stages(STAGES).since(Sum.ESQL_SUM_LONG_OVERFLOW_FIX).run();
+            """).stages(STAGES).transportVersion(TransportVersionUtils.randomVersionSupporting(Sum.ESQL_SUM_LONG_OVERFLOW_FIX)).run();
     }
 
     /**

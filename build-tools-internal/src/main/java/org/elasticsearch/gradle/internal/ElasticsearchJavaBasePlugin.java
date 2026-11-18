@@ -26,6 +26,7 @@ import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
+import org.gradle.api.tasks.TaskContainer;
 import org.gradle.api.tasks.compile.AbstractCompile;
 import org.gradle.api.tasks.compile.CompileOptions;
 import org.gradle.api.tasks.compile.GroovyCompile;
@@ -34,7 +35,7 @@ import org.gradle.api.tasks.testing.Test;
 import org.gradle.jvm.toolchain.JavaLanguageVersion;
 import org.gradle.jvm.toolchain.JavaToolchainService;
 
-import java.util.Collection;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
 
@@ -144,30 +145,68 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
 
     /**
      * When a {@code Test} task forks a JVM, makes the task pass down the list of directories the JVM uses to load
-     * native libraries ({@code es.nativelibs.path}, see {@link NativeLibraryPathExtension}).
-     * For each Test task, this plugin builds the list from the runtime classpath of the source
-     * set with the same name as the task. If no source set has that name, the plugin uses the
-     * runtime classpaths of all the source sets instead.
-     * This function goes through each project on that classpath that builds native libraries
-     * and adds the directory containing its native libraries to the list.
+     * native libraries ({@code es.nativelibs.path}, see {@link NativeLibraryPathExtension}). The list holds the
+     * directory containing the native libraries of each project that the task's runtime classpath depends on,
+     * and builds them.
+     *
+     * <p><b>The contract:</b> the plugin takes the runtime classpath from a configuration, not from the task. A
+     * {@code Test} task named like a source set gets the libraries of that source set's runtime classpath
+     * configuration, so the task must run on the classpath of that configuration. If you give such a task
+     * a classpath that does not come from the configuration, for example with
+     * {@code runtimeClasspath += files(...)} on the source set, the libraries that the extra entries depend on
+     * are not found, and their native libraries are missing from the test JVM (see the {@code integTest} source
+     * set in {@code :test:framework}, which is wired through {@code integTestRuntimeClasspath} for that reason).
+     *
+     * <p>A {@code Test} task named after no source set gets, by default, the libraries of all the test source sets
+     * (see {@link #isTestSourceSet}). That is a superset, because the plugin cannot know the classpath of the task.
+     * A task that wants only the libraries it loads must set its directories with
+     * {@link NativeLibraryPathExtension#configureWithDirectories}.
      */
     private static void configureNativeLibraryPath(Project project) {
         NativeLibraryPathExtension nativeLibraryPath = NativeLibraryPathExtension.of(project);
         SourceSetContainer sourceSets = project.getExtensions().getByType(JavaPluginExtension.class).getSourceSets();
         ConfigurationContainer configurations = project.getConfigurations();
+        TaskContainer tasks = project.getTasks();
 
-        project.getTasks().withType(Test.class).configureEach(test -> {
-            String taskName = test.getName();
-            Callable<List<FileCollection>> libraryDirectories = () -> {
-                SourceSet sourceSetNamedLikeTask = sourceSets.findByName(taskName);
-                Collection<SourceSet> sourceSetsToUse = sourceSetNamedLikeTask != null ? List.of(sourceSetNamedLikeTask) : sourceSets;
-                return sourceSetsToUse.stream()
-                    .map(sourceSet -> configurations.getByName(sourceSet.getRuntimeClasspathConfigurationName()))
-                    .map(nativeLibraryPath::libraryDirectoriesOf)
-                    .toList();
-            };
-            nativeLibraryPath.configureWithDirectories(test, libraryDirectories);
-        });
+        // A task named like a source set is bound when either of them is created, whichever comes first. Checking the
+        // name inside configureEach, and not filtering with matching(), keeps the tasks from being created early.
+        sourceSets.configureEach(sourceSet -> tasks.withType(Test.class).configureEach(test -> {
+            if (test.getName().equals(sourceSet.getName())) {
+                nativeLibraryPath.configureWithDirectories(
+                    test,
+                    nativeLibraryPath.libraryDirectoriesOf(configurations.getByName(sourceSet.getRuntimeClasspathConfigurationName()))
+                );
+            }
+        }));
+
+        // The other tasks get the libraries of the test source sets: the plugin cannot know which classpath such a task
+        // runs on (REST test tasks, for example, run on the classpath of one of several source sets, and a project can
+        // have an empty test source set next to them). Source sets for production code, benchmarks or fixtures are left
+        // out, because no test task runs on their classpath. This is looked up when the task graph is built, not now,
+        // because the source sets may not exist yet. A task that the rule above binds is not changed by this: that
+        // one wins, whichever of the two runs first.
+        Callable<List<FileCollection>> defaultLibraryDirectories = () -> {
+            List<FileCollection> libraryDirectories = new ArrayList<>();
+            for (SourceSet sourceSet : sourceSets) {
+                if (isTestSourceSet(sourceSet)) {
+                    libraryDirectories.add(
+                        nativeLibraryPath.libraryDirectoriesOf(configurations.getByName(sourceSet.getRuntimeClasspathConfigurationName()))
+                    );
+                }
+            }
+            return libraryDirectories;
+        };
+        tasks.withType(Test.class)
+            .configureEach(test -> nativeLibraryPath.configureWithDirectoriesIfAbsent(test, defaultLibraryDirectories));
+    }
+
+    /**
+     * Whether tests run on the classpath of the source set, going by its name: {@code test}, the {@code test<N>} source
+     * sets of multi-release projects, and the ones named {@code <something>Test}, such as {@code javaRestTest},
+     * {@code yamlRestTest} or {@code internalClusterTest}.
+     */
+    private static boolean isTestSourceSet(SourceSet sourceSet) {
+        return sourceSet.getName().matches("test\\d*|.*Test");
     }
 
     private static Provider<Integer> releaseVersionProviderFromCompileTask(Project project, AbstractCompile compileTask) {

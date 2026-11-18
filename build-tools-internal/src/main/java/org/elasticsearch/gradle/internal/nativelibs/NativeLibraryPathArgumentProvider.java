@@ -10,7 +10,10 @@ package org.elasticsearch.gradle.internal.nativelibs;
 
 import org.elasticsearch.gradle.internal.test.TestUtil;
 import org.gradle.api.file.ConfigurableFileCollection;
+import org.gradle.api.provider.Property;
+import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.process.CommandLineArgumentProvider;
@@ -35,10 +38,23 @@ public abstract class NativeLibraryPathArgumentProvider implements CommandLineAr
     @PathSensitive(PathSensitivity.RELATIVE)
     public abstract ConfigurableFileCollection getLibraryDirectories();
 
+    /**
+     * Whether the arguments are meant for the JVMs that JMH forks from the task's JVM, instead of for the task's
+     * own JVM. JMH only passes the options of its host JVM down to a fork that does not set its own JVM
+     * options (for example with {@code @Fork(jvmArgs = ...)}), but it always appends what it gets in
+     * {@code -jvmArgsAppend}. So for these JVMs the property goes into {@code -jvmArgsAppend}, and the provider
+     * must be added to the program arguments of the task, not to its JVM arguments. Not set means {@code false}.
+     */
+    @Input
+    @Optional
+    public abstract Property<Boolean> getForJmhForks();
+
     @Override
     public Iterable<String> asArguments() {
         // The property is passed even when the list is empty: without it, LoaderHelper looks for the native
         // libraries under es.path.home, which a forked test or benchmark JVM does not set.
-        return List.of("-D" + NativeLibraries.PATH_PROPERTY + "=" + TestUtil.getTestLibraryPath(getLibraryDirectories().getAsPath()));
+        String argument = "-D" + NativeLibraries.PATH_PROPERTY + "=" + TestUtil.getTestLibraryPath(getLibraryDirectories().getAsPath());
+        // JMH takes every -jvmArgsAppend as one option when it gets more than one, and splits a single one at spaces.
+        return getForJmhForks().getOrElse(false) ? List.of("-jvmArgsAppend", argument) : List.of(argument);
     }
 }

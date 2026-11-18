@@ -92,6 +92,18 @@ class BenchmarkPluginSpec extends AbstractProjectBuilderPluginSpec {
         task.jvmArgumentProviders.count { it instanceof NativeLibraryPathArgumentProvider } == 1
     }
 
+    def "the benchmark task passes es.nativelibs.path to the JVMs JMH forks"() {
+        when:
+        def task = (JavaExec) consumer.tasks.getByName(BenchmarkPlugin.BENCHMARK_TASK)
+        def forkProviders = task.argumentProviders.findAll { it instanceof NativeLibraryPathArgumentProvider }
+
+        then:
+        forkProviders.size() == 1
+        // what the arguments hold is covered by NativeLibraryPathArgumentProviderTests; asking for them here would
+        // resolve the runtime classpath, which this project has no repositories for
+        forkProviders.first().forJmhForks.get()
+    }
+
     def "registers a benchmarkTest Test task"() {
         when:
         def task = consumer.tasks.getByName(BenchmarkPlugin.BENCHMARK_TEST_TASK)

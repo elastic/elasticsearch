@@ -15,6 +15,8 @@ import org.gradle.api.attributes.LibraryElements;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.model.ObjectFactory;
+import org.gradle.api.tasks.JavaExec;
+import org.gradle.process.CommandLineArgumentProvider;
 import org.gradle.process.JavaForkOptions;
 
 import javax.inject.Inject;
@@ -75,10 +77,59 @@ public abstract class NativeLibraryPathExtension {
      * Same as {@link #configure}, but with the directories given directly instead of a runtime classpath.
      * {@code libraryDirectories} can be anything {@link ConfigurableFileCollection#from} accepts, typically the
      * result of {@link #libraryDirectoriesOf}.
+     *
+     * <p>A task passes down one list, so if the task was already configured by this extension, this replaces
+     * the directories it was configured with.
      */
     public void configureWithDirectories(JavaForkOptions task, Object libraryDirectories) {
+        NativeLibraryPathArgumentProvider existing = providerOf(task);
+        if (existing != null) {
+            existing.getLibraryDirectories().setFrom(getProjectLibraryDirectories(), libraryDirectories);
+        } else {
+            addProvider(task, libraryDirectories);
+        }
+    }
+
+    /**
+     * Same as {@link #configureWithDirectories}, but does nothing if the task was already configured by this
+     * extension. This is for defaults: whoever configures a task explicitly wins, whatever the order the two
+     * run in.
+     */
+    public void configureWithDirectoriesIfAbsent(JavaForkOptions task, Object libraryDirectories) {
+        if (providerOf(task) == null) {
+            addProvider(task, libraryDirectories);
+        }
+    }
+
+    /**
+     * Same as {@link #configure}, for a task that runs JMH, which forks the JVMs the benchmarks run in. As well as
+     * its own JVM, the task passes the list down to the forks through {@code -jvmArgsAppend}, which reaches every
+     * fork, also the ones of benchmarks that set their own JVM options with {@code @Fork(jvmArgs = ...)}
+     * (see {@link NativeLibraryPathArgumentProvider#getForJmhForks}).
+     */
+    public void configureForJmh(JavaExec task, Configuration runtimeClasspath) {
+        configure(task, runtimeClasspath);
+        NativeLibraryPathArgumentProvider forks = newProvider(libraryDirectoriesOf(runtimeClasspath));
+        forks.getForJmhForks().set(true);
+        task.getArgumentProviders().add(forks);
+    }
+
+    private void addProvider(JavaForkOptions task, Object libraryDirectories) {
+        task.getJvmArgumentProviders().add(newProvider(libraryDirectories));
+    }
+
+    private NativeLibraryPathArgumentProvider newProvider(Object libraryDirectories) {
         NativeLibraryPathArgumentProvider provider = getObjects().newInstance(NativeLibraryPathArgumentProvider.class);
         provider.getLibraryDirectories().from(getProjectLibraryDirectories(), libraryDirectories);
-        task.getJvmArgumentProviders().add(provider);
+        return provider;
+    }
+
+    private static NativeLibraryPathArgumentProvider providerOf(JavaForkOptions task) {
+        for (CommandLineArgumentProvider provider : task.getJvmArgumentProviders()) {
+            if (provider instanceof NativeLibraryPathArgumentProvider nativeLibraryPathProvider) {
+                return nativeLibraryPathProvider;
+            }
+        }
+        return null;
     }
 }

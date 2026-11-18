@@ -148,9 +148,8 @@ tasks.named("run").configure {
   dependsOn "copyExpression", "copyPainless", configurations.nativeLib
   systemProperty 'plugins.dir', "${buildDir}/plugins"
   systemProperty 'tests.index', "${buildDir}/index"
-  // The benchmarks run in JVMs forked by JMH, so the native library
-  // path must be a JVM option, not a program argument.
-  nativeLibraryPath.configure(it, configurations.runtimeClasspath)
+  // The native library path must also reach JVM that JMH forks, so we use a special configureForJmh helper here
+  nativeLibraryPath.configureForJmh(it, configurations.runtimeClasspath)
   // Arrow's MemoryUtil reflects into java.nio.Buffer.address during static init; the parquet
   // format reader transitively triggers this via BlockFactory.arrowAllocator(). Mirrors the
   // flag already set on the test task above and on :x-pack:plugin:esql-datasource-parquet:test.

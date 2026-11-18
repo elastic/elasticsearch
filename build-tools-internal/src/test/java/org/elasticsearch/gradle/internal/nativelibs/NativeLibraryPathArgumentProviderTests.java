@@ -48,4 +48,18 @@ public class NativeLibraryPathArgumentProviderTests {
         String expected = new File(alpha, platform).getPath() + File.pathSeparator + new File(beta, platform).getPath();
         assertEquals(List.of("-Des.nativelibs.path=" + expected), provider.asArguments());
     }
+
+    /**
+     * JMH passes its host JVM's options to a fork only when the benchmark sets no JVM options of its own, but it
+     * always appends what it gets in {@code -jvmArgsAppend}.
+     */
+    @Test
+    public void testPassesThePropertyInJvmArgsAppendForJmhForks() {
+        File alpha = project.file("alpha");
+        provider.getLibraryDirectories().from(alpha);
+        provider.getForJmhForks().set(true);
+
+        String expected = new File(alpha, BuildNativeLibraryTask.hostPlatform()).getPath();
+        assertEquals(List.of("-jvmArgsAppend", "-Des.nativelibs.path=" + expected), provider.asArguments());
+    }
 }

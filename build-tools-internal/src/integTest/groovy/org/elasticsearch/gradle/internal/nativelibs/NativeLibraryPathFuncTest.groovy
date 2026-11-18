@@ -67,10 +67,17 @@ class NativeLibraryPathFuncTest extends AbstractGradleInternalPluginFuncTest {
 
         when:
         def result = gradleRunner("reportTest").withEnvironment(["TEST_NATIVE_BUILD": "host"]).build()
+        def pathWhenStored = nativeLibraryPath('test')
+        // the report task must run again for the reused entry to show the argument it passes
+        file("build/test-jvm-arguments.txt").delete()
+        def reused = gradleRunner("reportTest").withEnvironment(["TEST_NATIVE_BUILD": "host"]).build()
 
         then:
         result.task(":library:buildNativeLibrary").outcome == TaskOutcome.SUCCESS
-        nativeLibraryPath('test') == [file("library/build/native-libs/${PLATFORM}").canonicalPath]
+        result.output.contains("Configuration cache entry stored.")
+        pathWhenStored == [file("library/build/native-libs/${PLATFORM}").canonicalPath]
+        reused.output.contains("Reusing configuration cache.")
+        nativeLibraryPath('test') == pathWhenStored
     }
 
     def "a test task depending on no project that builds native libraries passes an empty es.nativelibs.path"() {
@@ -91,31 +98,65 @@ class NativeLibraryPathFuncTest extends AbstractGradleInternalPluginFuncTest {
         file("build/test-jvm-arguments.txt").text == "-Des.nativelibs.path="
     }
 
-    def "a test task named after a source set uses that source set's runtime classpath, any other test task uses all source sets' runtime classpaths"() {
+    def "a test task named after a source set uses that source set's runtime classpath, any other test task uses the runtime classpaths of all test source sets"() {
         given:
         nativeLibraryProject('testLibrary')
         nativeLibraryProject('extraLibrary')
+        nativeLibraryProject('toolsLibrary')
         buildFile << """
         sourceSets {
-          extra
+          extraTest
+          tools
         }
         dependencies {
           testImplementation project(':testLibrary')
-          extraImplementation project(':extraLibrary')
+          extraTestImplementation project(':extraLibrary')
+          toolsImplementation project(':toolsLibrary')
         }
+        tasks.register('extraTest', Test)
         tasks.register('otherTest', Test)
+        reportOn('extraTest')
         reportOn('otherTest')
         """
 
         when:
-        gradleRunner("reportTest", "reportOtherTest").withEnvironment(["TEST_NATIVE_BUILD": "host"]).build()
+        gradleRunner("reportTest", "reportExtraTest", "reportOtherTest").withEnvironment(["TEST_NATIVE_BUILD": "host"]).build()
 
         then:
         nativeLibraryPath('test') == [file("testLibrary/build/native-libs/${PLATFORM}").canonicalPath]
+        nativeLibraryPath('extraTest') == [file("extraLibrary/build/native-libs/${PLATFORM}").canonicalPath]
+        // the tools source set is not one that tests run on, so its library is not passed down
         nativeLibraryPath('otherTest') as Set == [
             file("testLibrary/build/native-libs/${PLATFORM}").canonicalPath,
             file("extraLibrary/build/native-libs/${PLATFORM}").canonicalPath
         ] as Set
+    }
+
+    def "a test task is bound to the source set named like it, whether the task or the source set is created first"() {
+        given:
+        nativeLibraryProject('lateLibrary')
+        nativeLibraryProject('earlyLibrary')
+        buildFile << """
+        // the task is created, and gets its default, before the source set it is named after exists
+        tasks.register('late', Test).get()
+        sourceSets.create('late')
+        // the source set is created before the task is
+        sourceSets.create('early')
+        tasks.register('early', Test)
+        dependencies {
+          lateImplementation project(':lateLibrary')
+          earlyImplementation project(':earlyLibrary')
+        }
+        reportOn('late')
+        reportOn('early')
+        """
+
+        when:
+        gradleRunner("reportLate", "reportEarly").withEnvironment(["TEST_NATIVE_BUILD": "host"]).build()
+
+        then:
+        nativeLibraryPath('late') == [file("lateLibrary/build/native-libs/${PLATFORM}").canonicalPath]
+        nativeLibraryPath('early') == [file("earlyLibrary/build/native-libs/${PLATFORM}").canonicalPath]
     }
 
     def "a test task passes the directory containing the native libraries built by the project of the task"() {

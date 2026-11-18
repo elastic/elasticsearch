@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.AnalyzerRule;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.ParameterizedAnalyzerRule;
 import org.elasticsearch.xpack.esql.analysis.rules.DetermineUnmappedFieldsToKeep;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolveFunctions;
@@ -185,6 +186,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -364,6 +366,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new Batch<>(
                 "Finish Analysis",
                 Limiter.ONCE,
+                // Before ResolveDescribe replaces a ROW producer with a LocalRelation.
+                new RejectUnsupportedIntoSource(),
                 new ResolveDescribe(),
                 new DetermineUnmappedFieldsToKeep(),
                 new ResolveImplicitTimeSeriesIdentityGrouping(),
@@ -398,6 +402,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     public Analyzer(AnalyzerContext context, Verifier verifier) {
         super(context);
         this.verifier = verifier;
+    }
+
+    /**
+     * Runs the analysis rules and returns the plan without verification, so a test can record that plan.
+     */
+    public LogicalPlan analyzeWithoutVerification(LogicalPlan plan) {
+        return execute(plan);
     }
 
     public LogicalPlan analyze(LogicalPlan plan) {
@@ -451,13 +462,34 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     /**
+     * Rejects an INTO whose producer is not ROW when {@code DESCRIBE} is about to replace that producer.
+     * A producer that verification can still see fails in {@link Into#postAnalysisVerification}, which
+     * {@code analyzeWithoutVerification} skips.
+     */
+    private static class RejectUnsupportedIntoSource extends AnalyzerRule<Into> {
+        @Override
+        protected boolean skipResolved() {
+            // Into is resolved by this batch, and the check still has to see it.
+            return false;
+        }
+
+        @Override
+        protected LogicalPlan rule(Into into) {
+            if (into.child().anyMatch(Describe.class::isInstance) && Into.unsupportedSource(into.child(), false)) {
+                throw new VerificationException(List.of(Failure.fail(into, "INTO currently only supports ROW as a source, without FORK")));
+            }
+            return into;
+        }
+    }
+
+    /**
      * Replaces {@code DESCRIBE} with a table describing its resolved child. Runs once resolution is done,
      * so the child's columns, renames and computed fields are final.
      */
     private static class ResolveDescribe extends ParameterizedAnalyzerRule<Describe, AnalyzerContext> {
         @Override
         protected LogicalPlan rule(Describe describe, AnalyzerContext context) {
-            if (describe.child().resolved() == false) {
+            if (describe.child().resolved() == false || describe.child().anyMatch(Into.class::isInstance)) {
                 return describe;
             }
             List<IndexResolution> resolutions = new ArrayList<>(context.indexResolution().values());
@@ -3812,6 +3844,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static class AddImplicitLimit extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
         @Override
         public LogicalPlan apply(LogicalPlan logicalPlan, AnalyzerContext context) {
+            if (logicalPlan instanceof Into) {
+                // INTO returns one stats row, so the default 1000 cap must not truncate the rows it writes.
+                return logicalPlan;
+            }
             List<LogicalPlan> limits = logicalPlan.collectFirstChildren(Limit.class::isInstance);
             // We check whether the query contains a TimeSeriesAggregate to determine if we should apply
             // the default limit for TS queries or for non-TS queries.
@@ -3848,6 +3884,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static class AddImplicitTimestampSort extends Rule<LogicalPlan, LogicalPlan> {
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
+            if (plan instanceof Into) {
+                // INTO writes the rows as produced, so the implicit @timestamp sort must not be injected under it.
+                return plan;
+            }
             if (plan instanceof Limit limit) {
                 return injectTimestampSort(limit);
             }
@@ -4821,6 +4861,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static LogicalPlan planWithoutSyntheticAttributes(LogicalPlan plan) {
+            if (plan instanceof Into into) {
+                // An IN-subquery mark ($$...) must not be written as a document field.
+                LogicalPlan newChild = planWithoutSyntheticAttributes(into.child());
+                return newChild == into.child() ? into : into.replaceChild(newChild);
+            }
             // Virtual columns on the EXTERNAL command path stay out of default output unless a Keep
             // projection lists them. A DROP also resolves to a Project that carries surviving virtual
             // columns forward via childOutput, but that is not the user keeping them, so we scan only

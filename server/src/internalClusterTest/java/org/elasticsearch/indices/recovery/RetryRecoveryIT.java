@@ -115,7 +115,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
     }
 
     @After
-    public void resetDirectoryAce() {
+    public void resetRetryRecoveryTestPlugin() {
         RetryRecoveryTestPlugin.reset();
     }
 

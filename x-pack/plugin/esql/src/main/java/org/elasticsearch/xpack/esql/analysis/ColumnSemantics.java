@@ -103,7 +103,7 @@ public final class ColumnSemantics {
     /**
      * Returns the ids of the columns of {@code plan} that hold time but read no mapped field: the {@code @timestamp}
      * column of a dataset and the buckets of a time column ({@code BUCKET}, {@code TBUCKET}, {@code TSTEP},
-     * {@code DATE_TRUNC}). Renames keep it, and so do merges whose branches all hold time.
+     * {@code DATE_TRUNC}), nested or not. Renames keep it, and so do merges whose branches all hold time.
      */
     public static Set<NameId> timeColumns(LogicalPlan plan, Map<NameId, FieldSemantics> semantics, Map<NameId, Attribute> datasetColumns) {
         Set<NameId> time = new HashSet<>();
@@ -114,8 +114,10 @@ public final class ColumnSemantics {
         });
         plan.forEachUp(node -> {
             node.forEachExpression(Alias.class, alias -> {
-                Expression child = alias.child();
-                Expression source = child instanceof Attribute ? child : bucketed(child);
+                Expression source = alias.child();
+                while (source != null && (source instanceof Attribute) == false) {
+                    source = bucketed(source);
+                }
                 if (source instanceof Attribute attribute && isTime(attribute.id(), semantics, time)) {
                     time.add(alias.id());
                 }

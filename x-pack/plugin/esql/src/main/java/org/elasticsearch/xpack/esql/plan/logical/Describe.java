@@ -121,10 +121,7 @@ public class Describe extends UnaryPlan implements TelemetryAware {
             for (Attribute column : columns) {
                 FieldSemantics field = semantics.get(column.id());
                 Attribute datasetColumn = datasetColumns.get(column.id());
-                FieldSemantics.Role role = field != null ? field.role()
-                    : isMetadata(column) ? FieldSemantics.Role.METADATA
-                    : timeColumns.contains(column.id()) ? FieldSemantics.Role.TIME
-                    : null;
+                FieldSemantics.Role role = role(column, field, timeColumns);
                 String metricType = field == null ? null : field.metricType();
                 Object[] row = new Object[] {
                     column.name(),
@@ -188,6 +185,20 @@ public class Describe extends UnaryPlan implements TelemetryAware {
             return "computed";
         }
         return field.field().equals(column.name()) ? "mapped" : "renamed";
+    }
+
+    @Nullable
+    private static FieldSemantics.Role role(Attribute column, @Nullable FieldSemantics field, Set<NameId> timeColumns) {
+        if (field != null) {
+            return field.role();
+        }
+        if (isMetadata(column)) {
+            return FieldSemantics.Role.METADATA;
+        }
+        if (timeColumns.contains(column.id())) {
+            return FieldSemantics.Role.TIME;
+        }
+        return null;
     }
 
     private static boolean isMetadata(Attribute column) {

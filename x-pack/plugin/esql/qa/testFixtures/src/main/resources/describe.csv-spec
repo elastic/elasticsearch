@@ -113,6 +113,21 @@ hour         | date         | computed       | time
 day          | date         | computed       | time
 ;
 
+describeNestedTimeBuckets
+required_capability: describe_command
+required_capability: describe_time_columns
+
+FROM k8s
+| EVAL t = DATE_TRUNC(1 day, DATE_TRUNC(1 hour, @timestamp))
+| KEEP t
+| DESCRIBE
+| KEEP name, origin, role
+;
+
+name:keyword | origin:keyword | role:keyword
+t            | computed       | time
+;
+
 describeBucketsOfOtherDates
 required_capability: describe_command
 required_capability: describe_time_columns

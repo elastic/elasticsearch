@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xcontent.XContentParseException;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -52,7 +53,7 @@ public class MultilingualE5SmallInternalServiceSettingsTests extends AbstractEla
             ValidationException.class,
             () -> MultilingualE5SmallInternalServiceSettings.fromRequestMap(
                 new HashMap<>(Map.of(MultilingualE5SmallInternalServiceSettings.NUM_ALLOCATIONS, 1))
-            )
+            ).build()
         );
 
         assertThat(e.getMessage(), containsString("[service_settings] does not contain the required setting [num_threads]"));
@@ -61,7 +62,7 @@ public class MultilingualE5SmallInternalServiceSettingsTests extends AbstractEla
             ValidationException.class,
             () -> MultilingualE5SmallInternalServiceSettings.fromRequestMap(
                 new HashMap<>(Map.of(MultilingualE5SmallInternalServiceSettings.NUM_THREADS, 1))
-            )
+            ).build()
         );
 
         assertThat(
@@ -70,19 +71,49 @@ public class MultilingualE5SmallInternalServiceSettingsTests extends AbstractEla
         );
     }
 
-    public void testFromMapInvalidSettings() {
+    public void testFromMapInvalidNumAllocations() {
+        var settingsMap = new HashMap<String, Object>(
+            Map.of(MultilingualE5SmallInternalServiceSettings.NUM_ALLOCATIONS, 0, MultilingualE5SmallInternalServiceSettings.NUM_THREADS, 1)
+        );
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> MultilingualE5SmallInternalServiceSettings.fromRequestMap(settingsMap).build()
+        );
+
+        assertThat(e.getMessage(), containsString("Invalid value [0]. [num_allocations] must be a positive integer"));
+    }
+
+    public void testFromMapInvalidNumThreads() {
         var settingsMap = new HashMap<String, Object>(
             Map.of(
                 MultilingualE5SmallInternalServiceSettings.NUM_ALLOCATIONS,
-                0,
+                1,
                 MultilingualE5SmallInternalServiceSettings.NUM_THREADS,
                 -1
             )
         );
-        var e = expectThrows(ValidationException.class, () -> MultilingualE5SmallInternalServiceSettings.fromRequestMap(settingsMap));
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> MultilingualE5SmallInternalServiceSettings.fromRequestMap(settingsMap).build()
+        );
 
-        assertThat(e.getMessage(), containsString("Invalid value [0]. [num_allocations] must be a positive integer"));
         assertThat(e.getMessage(), containsString("Invalid value [-1]. [num_threads] must be a positive integer"));
+    }
+
+    public void testFromMapUnknownFieldInRequestContext() {
+        var settingsMap = new HashMap<String, Object>(
+            Map.of(
+                MultilingualE5SmallInternalServiceSettings.NUM_ALLOCATIONS,
+                1,
+                MultilingualE5SmallInternalServiceSettings.NUM_THREADS,
+                1,
+                "unknown_field",
+                "value"
+            )
+        );
+        var e = expectThrows(XContentParseException.class, () -> MultilingualE5SmallInternalServiceSettings.fromRequestMap(settingsMap));
+
+        assertThat(e.getMessage(), containsString("unknown field [unknown_field]"));
     }
 
     @Override

@@ -1,7 +1,7 @@
 ---
 setup:
   - requires:
-      test_runner_features: [ capabilities, warnings, contains ]
+      test_runner_features: [ capabilities, warnings, warnings_regex, contains ]
       capabilities:
         - method: POST
           path: /_query
@@ -210,7 +210,7 @@ teardown:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ views_with_branching, optional_fields_load_all_views, fillnull_late_loaded_columns, optional_fields_load_all_unmapped_fields_last, warn_unmapped_fields_stopped_at_view_combined ]
+          capabilities: [ views_with_branching, optional_fields_load_all_views, fillnull_late_loaded_columns, optional_fields_load_all_unmapped_fields_last ]
       reason: "LOAD_ALL over views is only available with this capability"
   - do:
       esql.put_view:
@@ -219,8 +219,9 @@ teardown:
           query: 'FROM la_fill_source'
   - do:
       warnings:
-        - "SET unmapped_fields does not affect the contents of a view, so this field is null in its rows; to load it, the view definition must reference it under SET unmapped_fields=\"load\": [other] in view [la_fill_src_view]"
         - "Line 1:191: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [id]"
+      warnings_regex:
+        - 'SET unmapped_fields.* does not affect the contents of (?=.*\[other\])(?=.*\[la_fill_src_view\]).*'
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM la_fill_src_view, (FROM la_fill_source METADATA _index | FILLNULL DEFAULT ON *) METADATA _index | KEEP * | EVAL x = other | SORT id, _index | LIMIT 10 | FILLNULL "nothing" ON *'

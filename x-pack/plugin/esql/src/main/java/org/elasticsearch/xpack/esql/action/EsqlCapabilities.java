@@ -1760,11 +1760,6 @@ public class EsqlCapabilities {
          */
         WARN_UNMAPPED_FIELDS_STOPPED_AT_VIEW,
         /**
-         * The warnings from {@link #WARN_UNMAPPED_FIELDS_STOPPED_AT_VIEW} are combined into a single warning per query that lists
-         * a bounded number of fields and views, instead of one warning per view.
-         */
-        WARN_UNMAPPED_FIELDS_STOPPED_AT_VIEW_COMBINED,
-        /**
          * A warning when {@code wildcards_match_views=true} or {@code wildcards_match_datasets=true}, set by the caller
          * or by an enclosing view's definition, does not reach inside a view whose wildcards would have matched more
          * views or datasets with it.

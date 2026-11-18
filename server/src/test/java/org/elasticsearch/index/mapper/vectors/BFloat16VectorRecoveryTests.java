@@ -52,6 +52,16 @@ public class BFloat16VectorRecoveryTests extends EngineTestCase {
         {"vector8":[130.0,115.0,-1.02,15.555,-100.0],"name":"cow.jpg",\
         "vector7":[229.90425,300.38586,-34.821266,15.522733,-199.69786]}""";
 
+    /** {@link #ORIGINAL_SOURCE} with both vectors moved into an object field. */
+    private static final String OBJECT_ORIGINAL_SOURCE = """
+        {"name":"cow.jpg","obj":{"vector7":[230.0,300.33,-34.8988,15.555,-200.0],\
+        "vector8":[130.0,115.0,-1.02,15.555,-100.0]}}""";
+
+    /** {@link #OBJECT_ORIGINAL_SOURCE} as a 9.5 node sends it during recovery: only the indexed obj.vector7 is synthesized. */
+    private static final String OBJECT_RECOVERED_SOURCE = """
+        {"obj":{"vector8":[130.0,115.0,-1.02,15.555,-100.0],\
+        "vector7":[229.90425,300.38586,-34.821266,15.522733,-199.69786]},"name":"cow.jpg"}""";
+
     @Override
     protected String defaultMapping() {
         return """
@@ -71,6 +81,22 @@ public class BFloat16VectorRecoveryTests extends EngineTestCase {
                   "element_type": "bfloat16",
                   "dims": 5,
                   "index": false
+                },
+                "obj": {
+                  "properties": {
+                    "vector7": {
+                      "type": "dense_vector",
+                      "element_type": "bfloat16",
+                      "dims": 5,
+                      "index": true
+                    },
+                    "vector8": {
+                      "type": "dense_vector",
+                      "element_type": "bfloat16",
+                      "dims": 5,
+                      "index": false
+                    }
+                  }
                 }
               }
             }
@@ -78,33 +104,77 @@ public class BFloat16VectorRecoveryTests extends EngineTestCase {
     }
 
     public void testTranslogOperationAsserterAcceptsRecoveredSourceFromOlderNode() throws IOException {
-        Engine.IndexResult result = indexOriginal();
-        Translog.Index replicatedOp = indexOp(result, ORIGINAL_SOURCE);
-        Translog.Index recoveredOp = indexOp(result, RECOVERED_SOURCE);
+        assertSameOperation(ORIGINAL_SOURCE, RECOVERED_SOURCE);
+    }
 
-        assertTrue(
-            "replicated source: " + ORIGINAL_SOURCE + " recovered source: " + RECOVERED_SOURCE,
-            TranslogOperationAsserter.withEngineConfig(productionCodecConfig()).assertSameIndexOperation(replicatedOp, recoveredOp)
-        );
+    /**
+     * With the vectors inside an object, the object differs in every pairing of whole forms, so the
+     * asserter only accepts it by comparing the fields of the object separately.
+     */
+    public void testTranslogOperationAsserterAcceptsRecoveredSourceWithVectorsInObject() throws IOException {
+        assertSameOperation(OBJECT_ORIGINAL_SOURCE, OBJECT_RECOVERED_SOURCE);
     }
 
     public void testTranslogOperationAsserterRejectsDifferentVector() throws IOException {
-        Engine.IndexResult result = indexOriginal();
-        Translog.Index replicatedOp = indexOp(result, ORIGINAL_SOURCE);
-        String differentSource = """
+        assertDifferentOperation(ORIGINAL_SOURCE, """
             {"vector8":[130.0,115.0,-1.02,15.555,-100.0],"name":"cow.jpg",\
-            "vector7":[231.0,300.33,-34.8988,15.555,-200.0]}""";
-        Translog.Index differentOp = indexOp(result, differentSource);
-
-        assertFalse(
-            "replicated source: " + ORIGINAL_SOURCE + " different source: " + differentSource,
-            TranslogOperationAsserter.withEngineConfig(productionCodecConfig()).assertSameIndexOperation(replicatedOp, differentOp)
-        );
+            "vector7":[231.0,300.33,-34.8988,15.555,-200.0]}""");
     }
 
-    private Engine.IndexResult indexOriginal() throws IOException {
-        ParsedDocument doc = mapperService.documentMapper()
-            .parse(new SourceToParse("1", new BytesArray(ORIGINAL_SOURCE), XContentType.JSON));
+    public void testTranslogOperationAsserterRejectsDifferentVectorInObject() throws IOException {
+        assertDifferentOperation(OBJECT_ORIGINAL_SOURCE, """
+            {"obj":{"vector8":[130.0,115.0,-1.02,15.555,-100.0],\
+            "vector7":[231.0,300.33,-34.8988,15.555,-200.0]},"name":"cow.jpg"}""");
+    }
+
+    /**
+     * The indexed vector7 is in its recovered form and matches, which must not excuse a different vector8.
+     */
+    public void testTranslogOperationAsserterRejectsDifferentNonIndexedVector() throws IOException {
+        // 130.0 and 131.0 are both exact in bfloat16, so no rounding can make them equal
+        assertDifferentOperation(ORIGINAL_SOURCE, """
+            {"vector8":[131.0,115.0,-1.02,15.555,-100.0],"name":"cow.jpg",\
+            "vector7":[229.90425,300.38586,-34.821266,15.522733,-199.69786]}""");
+    }
+
+    /**
+     * The same inside an object: a matching obj.vector7 must not excuse a different obj.vector8.
+     */
+    public void testTranslogOperationAsserterRejectsDifferentNonIndexedVectorInObject() throws IOException {
+        assertDifferentOperation(OBJECT_ORIGINAL_SOURCE, """
+            {"obj":{"vector8":[131.0,115.0,-1.02,15.555,-100.0],\
+            "vector7":[229.90425,300.38586,-34.821266,15.522733,-199.69786]},"name":"cow.jpg"}""");
+    }
+
+    /**
+     * Asserts that the asserter accepts the two sources as the same operation, whichever of the two
+     * copies reached the node first.
+     */
+    private void assertSameOperation(String replicatedSource, String recoveredSource) throws IOException {
+        Engine.IndexResult result = index(replicatedSource);
+        Translog.Index replicatedOp = indexOp(result, replicatedSource);
+        Translog.Index recoveredOp = indexOp(result, recoveredSource);
+        TranslogOperationAsserter asserter = TranslogOperationAsserter.withEngineConfig(productionCodecConfig());
+
+        String message = "replicated source: " + replicatedSource + " recovered source: " + recoveredSource;
+        assertTrue(message, asserter.assertSameIndexOperation(replicatedOp, recoveredOp));
+        assertTrue(message, asserter.assertSameIndexOperation(recoveredOp, replicatedOp));
+    }
+
+    /** Asserts that the asserter rejects the two sources as the same operation, in both argument orders. */
+    private void assertDifferentOperation(String replicatedSource, String differentSource) throws IOException {
+        Engine.IndexResult result = index(replicatedSource);
+        Translog.Index replicatedOp = indexOp(result, replicatedSource);
+        Translog.Index differentOp = indexOp(result, differentSource);
+        TranslogOperationAsserter asserter = TranslogOperationAsserter.withEngineConfig(productionCodecConfig());
+
+        String message = "replicated source: " + replicatedSource + " different source: " + differentSource;
+        assertFalse(message, asserter.assertSameIndexOperation(replicatedOp, differentOp));
+        assertFalse(message, asserter.assertSameIndexOperation(differentOp, replicatedOp));
+    }
+
+    private Engine.IndexResult index(String source) throws IOException {
+        ParsedDocument doc = mapperService.documentMapper().parse(new SourceToParse("1", new BytesArray(source), XContentType.JSON));
         return engine.index(indexForDoc(doc));
     }
 

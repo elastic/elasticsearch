@@ -124,6 +124,22 @@ public final class EscfBatchBuilder implements Releasable {
         return partition == null ? 0 : partition.docCount;
     }
 
+    /**
+     * The memory of the partitions not built yet, heap and recycled pages. It is never less than what their batches report.
+     */
+    public long ramBytesUsed() {
+        long bytes = 0;
+        for (Partition partition : partitions) {
+            if (partition != null) {
+                bytes += EscfBatch.BASE_RAM_BYTES_USED;
+                for (EscfColumnBuilder builder : partition.builders) {
+                    bytes += builder.ramBytesUsed();
+                }
+            }
+        }
+        return bytes;
+    }
+
     /** Returns {@code true} if at least one row has been committed to {@code partitionKey}. */
     public boolean hasPartition(int partitionKey) {
         return partitionKey < partitions.length && partitions[partitionKey] != null;

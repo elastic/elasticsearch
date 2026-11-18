@@ -7,9 +7,18 @@
 
 package org.elasticsearch.xpack.esql.execution.sequence;
 
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.StringField;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -20,6 +29,8 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 
 import java.util.List;
@@ -129,6 +140,159 @@ public class SequenceKeyFilterMappingTests extends MapperServiceTestCase {
         var visitor = new MaxClauseCountQueryVisitor(4);
         assertTrue(guarded(base, alternatives, context).toQuery(context, visitor) instanceof BooleanQuery);
         assertEquals(3, visitor.getNumClauses());
+    }
+
+    /** Child overhead and parent admission must be tried before publishing the optional filter. */
+    public void testActualChildAndParentBreakerAdmissionPreservesRequiredHits() throws Exception {
+        var mapper = mapper("{\"type\":\"keyword\"}");
+        try (var dir = newDirectory(); var writer = new IndexWriter(dir, new IndexWriterConfig())) {
+            for (String scope : List.of("allowed", "denied")) {
+                writer.addDocument(
+                    List.of(
+                        new StringField("phase", "A", Field.Store.NO),
+                        new StringField("key", "wanted", Field.Store.NO),
+                        new StringField("physical", scope, Field.Store.YES)
+                    )
+                );
+            }
+            try (var reader = DirectoryReader.open(writer)) {
+                var searcher = newSearcher(reader);
+                var mapping = createSearchExecutionContext(mapper, searcher);
+                var base = new TermQueryBuilder("phase", "A");
+                var membership = new TermQueryBuilder("physical", "allowed");
+                var requiredScope = new BoolQueryBuilder().must(base).filter(membership);
+                var off = guarded(requiredScope, null, mapping);
+                var on = guarded(requiredScope, new TermQueryBuilder("key", "wanted"), mapping);
+                var measurement = new MaxClauseCountQueryVisitor(Integer.MAX_VALUE);
+                off.toQuery(mapping, measurement);
+                long requiredBytes = measurement.getEstimatedBytes();
+                assertTrue(requiredBytes > 0);
+                for (String limitingBreaker : List.of(CircuitBreaker.REQUEST, CircuitBreaker.PARENT)) {
+                    String boundary = (2 * requiredBytes) + "b";
+                    var settings = Settings.builder()
+                        .put("indices.breaker.total.use_real_memory", false)
+                        .put("indices.breaker.request.limit", CircuitBreaker.REQUEST.equals(limitingBreaker) ? boundary : "10mb")
+                        .put("indices.breaker.total.limit", CircuitBreaker.PARENT.equals(limitingBreaker) ? boundary : "95%")
+                        .put("indices.breaker.request.overhead", 2.0)
+                        .build();
+                    var service = new HierarchyCircuitBreakerService(
+                        CircuitBreakerMetrics.NOOP,
+                        settings,
+                        List.of(),
+                        new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+                    );
+                    var breaker = service.getBreaker(CircuitBreaker.REQUEST);
+                    var context = new SearchExecutionContext(mapping, breaker);
+                    Query expected = off.toQuery(context);
+                    try {
+                        assertEquals(requiredBytes, breaker.getUsed());
+                        var hits = searcher.search(expected, 2).scoreDocs;
+                        assertEquals(1, hits.length);
+                        assertEquals("allowed", searcher.storedFields().document(hits[0].doc).get("physical"));
+                    } finally {
+                        context.releaseQueryConstructionMemory();
+                    }
+                    assertEquals(0, breaker.getUsed());
+                    assertEquals(0, service.stats().getStats(limitingBreaker).getTrippedCount());
+                    try {
+                        Query actual = on.toQuery(context);
+                        assertEquals(expected, actual);
+                        var hits = searcher.search(actual, 2).scoreDocs;
+                        assertEquals(1, hits.length);
+                        assertEquals("allowed", searcher.storedFields().document(hits[0].doc).get("physical"));
+                        assertEquals(1, service.stats().getStats(limitingBreaker).getTrippedCount());
+                        assertEquals(requiredBytes, breaker.getUsed());
+                        assertEquals(requiredBytes, context.getQueryConstructionMemoryUsed());
+                    } finally {
+                        context.releaseQueryConstructionMemory();
+                    }
+                    assertEquals(0, breaker.getUsed());
+                    // An enclosing bool can add a required sibling after the plugin has accepted two leaves.
+                    var partialOff = guarded(base, null, mapping);
+                    var partialOn = guarded(base, membership, mapping);
+                    var offWithSibling = new BoolQueryBuilder().must(partialOff).filter(membership);
+                    var onWithSibling = new BoolQueryBuilder().must(partialOn).filter(membership);
+                    try {
+                        assertEquals(1, searcher.count(offWithSibling.toQuery(context)));
+                    } finally {
+                        context.releaseQueryConstructionMemory();
+                    }
+                    try {
+                        expectThrows(CircuitBreakingException.class, () -> onWithSibling.toQuery(context));
+                    } finally {
+                        context.releaseQueryConstructionMemory();
+                    }
+                    assertEquals(0, breaker.getUsed());
+
+                    // Reproduce the interleaving between AbstractQueryBuilder's conversion and its final charge.
+                    var accepted = new MaxClauseCountQueryVisitor(Integer.MAX_VALUE);
+                    assertTrue(partialOn.toQuery(context, accepted) instanceof BooleanQuery);
+                    assertEquals(requiredBytes, accepted.getEstimatedBytes());
+                    assertEquals(0, breaker.getUsed());
+                    breaker.addEstimateBytesAndMaybeBreak(1, ChildMemoryCircuitBreaker.CATEGORY_QUERY);
+                    try {
+                        assertEquals(2, searcher.count(partialOff.toQuery(context)));
+                        context.releaseQueryConstructionMemory();
+                        expectThrows(
+                            CircuitBreakingException.class,
+                            () -> context.addCircuitBreakerMemory(accepted.getEstimatedBytes(), ChildMemoryCircuitBreaker.CATEGORY_QUERY)
+                        );
+                    } finally {
+                        context.releaseQueryConstructionMemory();
+                        breaker.addWithoutBreaking(-1, ChildMemoryCircuitBreaker.CATEGORY_QUERY);
+                    }
+                    assertEquals(0, breaker.getUsed());
+                    for (var required : List.of(off, on)) {
+                        var tooLarge = new BoolQueryBuilder().must(required).filter(new TermQueryBuilder("physical", "extra"));
+                        try {
+                            expectThrows(CircuitBreakingException.class, () -> tooLarge.toQuery(context));
+                        } finally {
+                            context.releaseQueryConstructionMemory();
+                        }
+                        assertEquals(0, breaker.getUsed());
+                    }
+                }
+            }
+        }
+        assertWarnings(
+            "[indices.breaker.total.limit] should be specified using a percentage of the heap. "
+                + "Absolute size settings will be forbidden in a future release"
+        );
+    }
+
+    public void testRawVisitorCeilingWhenChildOverheadIsBelowOne() throws Exception {
+        var mapping = createSearchExecutionContext(mapper("{\"type\":\"keyword\"}"));
+        var term = new TermQueryBuilder("key", "value");
+        var off = guarded(term, null, mapping);
+        var on = guarded(term, term, mapping);
+        var measure = new MaxClauseCountQueryVisitor(Integer.MAX_VALUE);
+        off.toQuery(mapping, measure);
+        long oneLeaf = measure.getEstimatedBytes();
+        var settings = Settings.builder()
+            .put("indices.breaker.total.use_real_memory", false)
+            .put("indices.breaker.request.limit", (oneLeaf + oneLeaf / 2) + "b")
+            .put("indices.breaker.request.overhead", 0.5)
+            .build();
+        var service = new HierarchyCircuitBreakerService(
+            CircuitBreakerMetrics.NOOP,
+            settings,
+            List.of(),
+            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        var breaker = service.getBreaker(CircuitBreaker.REQUEST);
+        var context = new SearchExecutionContext(mapping, breaker);
+        // The real child/parent reservation fits; merging two raw leaves into the root visitor would trip it.
+        breaker.addEstimateBytesAndMaybeBreak(2 * oneLeaf, ChildMemoryCircuitBreaker.CATEGORY_QUERY);
+        breaker.addWithoutBreaking(-2 * oneLeaf, ChildMemoryCircuitBreaker.CATEGORY_QUERY);
+        try {
+            Query expected = off.toQuery(context);
+            context.releaseQueryConstructionMemory();
+            assertEquals(expected, on.toQuery(context));
+            assertEquals(oneLeaf, breaker.getUsed());
+        } finally {
+            context.releaseQueryConstructionMemory();
+        }
+        assertEquals(0, breaker.getUsed());
     }
 
     private static SequenceSourceQueryBuilder guarded(QueryBuilder base, QueryBuilder predicate, SearchExecutionContext context) {

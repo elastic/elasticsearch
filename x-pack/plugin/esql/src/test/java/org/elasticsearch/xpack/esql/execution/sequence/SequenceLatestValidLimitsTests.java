@@ -94,27 +94,10 @@ public class SequenceLatestValidLimitsTests extends ESTestCase {
         assertEquals(131072L, SequenceLatestValidConfig.SEARCH_STEP_LIMIT);
     }
 
-    /** The earlier-stage kept pools grow by one list of eight at each depth. */
-    public void testEverySupportedDefaultFitsSearchStepLimit() {
-        List<Long> visits = new ArrayList<>();
-        for (int stages = 2; stages <= Sequence.MAX_EXECUTION_STAGES; stages++) {
-            int candidates = SequenceLatestValidConfig.defaults(demands(stages, 0), List.of()).maxCandidates().orElseThrow();
-            long steps = 0;
-            long level = 1;
-            for (int distance = 1; distance < stages; distance++) {
-                level = Math.multiplyExact(level, (long) candidates * distance);
-                steps = Math.addExact(steps, level);
-            }
-            visits.add(steps);
-            assertTrue("default search for [" + stages + "] stages takes at most [" + steps + "] visits", steps < 131072);
-        }
-        assertEquals(List.of(8L, 136L, 3208L), visits);
-    }
-
     /** Exhaust a default four-stage history with all three candidate lists full. */
     public void testLargestDefaultSearchDoesNotAbandon() {
         int stages = 4;
-        var config = SequenceLatestValidConfig.defaults(demands(stages, 1), List.of(equal(stages - 1, 0))).withRememberedChains(true);
+        var config = SequenceLatestValidConfig.defaults(demands(stages, 1), List.of(equal(stages - 1, 0)));
         try (Harness h = new Harness(config, CONTRACT_WINDOW_MILLIS)) {
             int candidates = config.maxCandidates().orElseThrow();
             for (int stage = 0; stage < stages - 1; stage++) {
@@ -129,6 +112,37 @@ public class SequenceLatestValidLimitsTests extends ESTestCase {
             assertEquals(List.of(584L), h.perFinalSteps);
             assertSearch(h, 584, 584, 0);
             assertEquals(0, h.matcher.boundDrops());
+        }
+    }
+
+    /** Every larger kept pool participates in a default-bound final search that cannot match. */
+    public void testDefaultRememberedSearchVisitsAll3208CandidatesWithoutAbandoning() {
+        var config = SequenceLatestValidConfig.defaults(demands(4, 1), List.of(equal(1, 0), equal(2, 0), equal(3, 0)));
+        try (Harness h = new Harness(config, CONTRACT_WINDOW_MILLIS)) {
+            long tick = 0;
+            for (int value = 0; value < 16; value++) {
+                h.add(0, tick * CONTRACT_TICK_MILLIS, tick++, "a" + value, value);
+                h.add(1, tick * CONTRACT_TICK_MILLIS, tick++, "b" + value, value);
+                if (value < 8) {
+                    h.add(2, tick * CONTRACT_TICK_MILLIS, tick++, "early-c" + value, value);
+                }
+            }
+            for (int value = 16; value < 24; value++) {
+                h.add(0, tick * CONTRACT_TICK_MILLIS, tick++, "a" + value, value);
+            }
+            // Transfer the first C rows' references so every retained B precedes every retained C.
+            for (int value = 0; value < 8; value++) {
+                h.add(2, tick * CONTRACT_TICK_MILLIS, tick++, "c" + value, value);
+            }
+            var kept = h.matcher.snapshotForTests();
+            assertEquals(24L, kept.stream().filter(row -> row.stage() == 0).count());
+            assertEquals(16L, kept.stream().filter(row -> row.stage() == 1).count());
+            assertEquals(8L, kept.stream().filter(row -> row.stage() == 2).count());
+
+            h.add(3, tick * CONTRACT_TICK_MILLIS, tick, "f", -1);
+            assertEquals(List.of(), h.matches);
+            assertEquals(List.of(3208L), h.perFinalSteps);
+            assertSearch(h, 3208, 3208, 0);
         }
     }
 
@@ -226,7 +240,7 @@ public class SequenceLatestValidLimitsTests extends ESTestCase {
     /** A middle row with no possible predecessor is discarded before the final search. */
     public void testEmptyStartStillChargesLaterStageVisits() {
         for (long budget : new long[] { 1, 2 }) {
-            try (Harness h = new Harness(testConfig(16, budget, 3, 0, List.of()).withRememberedChains(true), 10)) {
+            try (Harness h = new Harness(testConfig(16, budget, 3, 0, List.of()), 10)) {
                 h.add(1, 0, 0, "b0");
                 h.add(1, 1, 1, "b1");
                 assertFalse(h.matcher.possibleMatch());
@@ -274,7 +288,7 @@ public class SequenceLatestValidLimitsTests extends ESTestCase {
     /** Frozen r2.F8 keeps the minute-to-nanosecond normalization and a positive nonbinding runtime window. */
     public void testF8UnlimitedPrefixAndLimitedCascade() {
         var groups = List.of(equal(1, 0), equal(2, 0));
-        try (Harness h = new Harness(testConfig(380, Long.MAX_VALUE, 3, 1, groups).withRememberedChains(true), CONTRACT_WINDOW_MILLIS)) {
+        try (Harness h = new Harness(testConfig(380, Long.MAX_VALUE, 3, 1, groups), CONTRACT_WINDOW_MILLIS)) {
             f8Prefix(h);
             h.add(2, 731 * CONTRACT_TICK_MILLIS, 731, "731", 1);
             assertEquals(List.of("0 380 731"), h.matches);
@@ -282,12 +296,7 @@ public class SequenceLatestValidLimitsTests extends ESTestCase {
             assertSearch(h, 381, 381, 0);
             assertEquals(0, h.matcher.expiredCandidates());
         }
-        try (
-            Harness h = new Harness(
-                SequenceLatestValidConfig.bounded(380, demands(3, 1), groups).withRememberedChains(true),
-                CONTRACT_WINDOW_MILLIS
-            )
-        ) {
+        try (Harness h = new Harness(SequenceLatestValidConfig.bounded(380, demands(3, 1), groups), CONTRACT_WINDOW_MILLIS)) {
             f8Prefix(h);
             var before = h.matcher.snapshotForTests();
             assertEquals(381, before.size());
@@ -328,49 +337,6 @@ public class SequenceLatestValidLimitsTests extends ESTestCase {
             assertClosed(h.owners.get("733"));
             assertEquals(0, h.matcher.expiredCandidates());
             assertEquals(0, h.matcher.boundDrops());
-        }
-    }
-
-    /** The old rule's exhaustion and replacement are the comparison control while both rules are available. */
-    public void testLegacyF8UnlimitedPrefixAndLimitedCascade() {
-        var groups = List.of(equal(1, 0), equal(2, 0));
-        try (Harness h = new Harness(testConfig(380, Long.MAX_VALUE, 3, 1, groups).withRememberedChains(false), CONTRACT_WINDOW_MILLIS)) {
-            f8Prefix(h);
-            h.add(2, 731 * CONTRACT_TICK_MILLIS, 731, "731", 1);
-            assertEquals(List.of("0 380 731"), h.matches);
-            assertEquals(List.of(133731L), h.perFinalSteps);
-            assertSearch(h, 133731, 133731, 0);
-            assertEquals(0, h.matcher.expiredCandidates());
-
-        }
-        var config = SequenceLatestValidConfig.bounded(380, demands(3, 1), groups).withRememberedChains(false);
-        try (Harness h = new Harness(config, CONTRACT_WINDOW_MILLIS)) {
-            f8Prefix(h);
-            List<SequenceLatestValidMatcher.RowState> before = h.matcher.snapshotForTests();
-            h.add(2, 731 * CONTRACT_TICK_MILLIS, 731, "731", 1);
-            assertEquals(List.of(), h.matches);
-            assertEquals(List.of(131072L), h.perFinalSteps);
-            assertSearch(h, 131072, 131072, 1);
-            assertEquals(before, h.matcher.snapshotForTests());
-            h.owners.forEach((label, owner) -> {
-                if (label.equals("731")) {
-                    assertClosed(owner);
-                } else {
-                    assertOpen(owner);
-                }
-            });
-
-            h.add(1, 732 * CONTRACT_TICK_MILLIS, 732, "732", 1);
-            h.add(2, 733 * CONTRACT_TICK_MILLIS, 733, "733", 1);
-            assertEquals(List.of("0 732 733"), h.matches);
-            assertEquals(1L, h.matcher.latestValidCounters().searchesAbandonedAtWorkLimit());
-            assertClosed(h.owners.get("0"));
-            assertClosed(h.owners.get("380"));
-            assertClosed(h.owners.get("732"));
-            assertClosed(h.owners.get("733"));
-            assertEquals(0, h.matcher.expiredCandidates());
-            assertEquals(0, h.matcher.boundDrops());
-
         }
     }
 
@@ -419,7 +385,7 @@ public class SequenceLatestValidLimitsTests extends ESTestCase {
     public void testIncomingGapRejectionIsChargedAndExpiryIsNot() {
         try (
             Harness h = new Harness(
-                SequenceLatestValidConfig.bounded(3, demands(3, 1), List.of(equal(2, 0))).withRememberedChains(true),
+                SequenceLatestValidConfig.bounded(3, demands(3, 1), List.of(equal(2, 0))),
                 10,
                 new long[] { 0, 2_000_000, 0 },
                 () -> false
@@ -436,7 +402,7 @@ public class SequenceLatestValidLimitsTests extends ESTestCase {
 
         }
         // Monotone input and eager expiry remove a window-rejected row before search can visit it.
-        var config = SequenceLatestValidConfig.bounded(2, demands(2, 1), List.of(equal(1, 0))).withRememberedChains(true);
+        var config = SequenceLatestValidConfig.bounded(2, demands(2, 1), List.of(equal(1, 0)));
         try (Harness h = new Harness(config, 10)) {
             h.add(0, 0, 0, "expired", 1);
             h.add(0, 10, 10, "a", 1);
@@ -453,7 +419,7 @@ public class SequenceLatestValidLimitsTests extends ESTestCase {
 
     /** Equal-ordinal sibling rows are marked after a match. */
     public void testCase6PrefixDirectSubstituteDiscriminator() {
-        var config = SequenceLatestValidConfig.bounded(3, demands(3, 1), List.of(equal(2, 0))).withRememberedChains(true);
+        var config = SequenceLatestValidConfig.bounded(3, demands(3, 1), List.of(equal(2, 0)));
         try (Harness h = new Harness(config, 10)) {
             h.add(0, 0, 0, "a", 1);
             h.add(1, 1, 1, "x_s2", 1);
@@ -473,7 +439,7 @@ public class SequenceLatestValidLimitsTests extends ESTestCase {
 
     /** Direct substitutes are marked and cannot be selected by a later final row. */
     public void testDirectSubstituteAndAlreadyUsedExclusion() {
-        var config = SequenceLatestValidConfig.bounded(3, demands(2, 1), List.of(equal(1, 0))).withRememberedChains(true);
+        var config = SequenceLatestValidConfig.bounded(3, demands(2, 1), List.of(equal(1, 0)));
         try (Harness h = new Harness(config, 10)) {
             h.add(0, 0, 0, "a", 1);
             h.add(0, 1, 1, "b", 1);
@@ -502,7 +468,7 @@ public class SequenceLatestValidLimitsTests extends ESTestCase {
 
     /** Largest fill describes one ring, while substitutes may come from several rings. */
     public void testMaximumIsOneRingNotKeyTotal() {
-        try (Harness h = new Harness(SequenceLatestValidConfig.bounded(2, demands(3, 0), List.of()).withRememberedChains(true), 10)) {
+        try (Harness h = new Harness(SequenceLatestValidConfig.bounded(2, demands(3, 0), List.of()), 10)) {
             h.add(0, 0, 0, "a0");
             h.add(0, 1, 1, "a1");
             h.add(1, 2, 2, "b0");
@@ -518,7 +484,7 @@ public class SequenceLatestValidLimitsTests extends ESTestCase {
 
     /** Recreating a fully expired key starts a new bound-hit lifetime; merely filling a ring is not a hit. */
     public void testKeyLifetimeExpiresAndRecreates() {
-        try (Harness h = new Harness(SequenceLatestValidConfig.bounded(1, demands(2, 0), List.of()).withRememberedChains(true), 10)) {
+        try (Harness h = new Harness(SequenceLatestValidConfig.bounded(1, demands(2, 0), List.of()), 10)) {
             h.add(0, 0, 0, "a");
             assertCounters(h, 0, 0, 0, 0, 0, 0, 1);
             assertAdmission(h, 0, 0, 1);

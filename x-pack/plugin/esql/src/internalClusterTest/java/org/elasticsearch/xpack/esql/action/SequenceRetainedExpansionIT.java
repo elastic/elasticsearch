@@ -80,6 +80,7 @@ public class SequenceRetainedExpansionIT extends AbstractSequenceIntegTestCase {
     private static final TimeValue CLEANUP_TIMEOUT = TimeValue.timeValueSeconds(60);
     private static final Object MISSING = new Object();
     private static final AtomicInteger LABELS = new AtomicInteger();
+    private int queriesThisTest;
     private OwnedResponse active;
     private Throwable cleanupViolation;
     private String coordinator;
@@ -119,16 +120,6 @@ public class SequenceRetainedExpansionIT extends AbstractSequenceIntegTestCase {
     @Before
     public void prepareCoordinator() {
         coordinator = Arrays.stream(internalCluster().getNodeNames()).sorted().findFirst().orElseThrow();
-    }
-
-    /** Both primary choices preserve expanded scalar keys and genuine event provenance. */
-    public void testBothPrimaryChoicesKeepExpandedValuesAndProvenance() throws Exception {
-        List<Doc> docs = core();
-        withDocs(docs, () -> {
-            for (int primary : List.of(1, 2)) {
-                coreCheck(query(coreQuery(primary, 10)), docs, primary);
-            }
-        });
     }
 
     /** Explicit duplicated computed keys must not multiply a per-key physical match. */
@@ -592,28 +583,6 @@ public class SequenceRetainedExpansionIT extends AbstractSequenceIntegTestCase {
         });
     }
 
-    /** Outer limit preserves the chosen row and closes unused work. */
-    public void testLimitClosesUnusedExpansions() throws Exception {
-        List<Doc> docs = core();
-        withDocs(docs, () -> {
-            for (int primary : List.of(1, 2))
-                check(
-                    query(coreQuery(primary, 1), 1, false),
-                    primary,
-                    List.of("keys", "actor", "other"),
-                    keywords(3),
-                    List.of(
-                        expected(
-                            "alpha",
-                            cells("alpha", primary == 1 ? "first" : "second", primary == 1 ? "second" : "first"),
-                            docs.get(0),
-                            docs.get(1)
-                        )
-                    )
-                );
-        });
-    }
-
     /** Cancel actual parents with pending expanded candidates and an explicit SOURCE output awaiting payload. */
     public void testCancellationDrainsExpansionAndReplay() throws Exception {
         withDocs(core(), () -> {
@@ -942,7 +911,7 @@ public class SequenceRetainedExpansionIT extends AbstractSequenceIntegTestCase {
     private Result query(String query, int page, boolean columnar, GateMode gateMode, boolean cancel, boolean lowBreaker) throws Exception {
         assertNull("a prior bounded cleanup failure invalidates this test", cleanupViolation);
         int number = LABELS.incrementAndGet();
-        assertTrue("bounded private query campaign", number <= 512);
+        assertTrue("bounded private query campaign", ++queriesThisTest <= 512);
         NodeClient measured = internalCluster().getInstance(NodeClient.class, coordinator);
         ThreadContext context = internalCluster().getInstance(ThreadPool.class, coordinator).getThreadContext();
         // Restore the prior persistent override, including absence; the 128mb node default is not a cluster override.

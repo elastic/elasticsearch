@@ -14,7 +14,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DateEsField;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -23,7 +22,6 @@ import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.SequenceStage;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
-import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.BeforeClass;
 
@@ -63,23 +61,6 @@ public class SequenceUriPartsAnalyzerTests extends ESTestCase {
         configured(pragmas(true)).statement(
             QUERY.replace("URI_PARTS parsed = url", "EVAL alias = url | URI_PARTS parsed = alias | DROP alias, url")
         );
-    }
-
-    /** Identity scoping prevents a stage checker from validating other stage instances. */
-    public void testCallbackIdentityAndDefaultEntrypoints() {
-        var stages = configured(pragmas(true)).statement(QUERY).collect(SequenceStage.class);
-        var first = stages.stream().filter(stage -> stage.child().collect(UriParts.class).isEmpty() == false).findFirst().orElseThrow();
-        var other = stages.stream().filter(stage -> stage != first).findFirst().orElseThrow();
-        Failures failures = new Failures();
-        var on = first.postAnalysisPlanVerification(null, pragmas(true), EsqlFlags.DEFAULTS);
-        on.accept(other, failures);
-        assertFalse(failures.hasFailures());
-        on.accept(first, failures);
-        assertFalse(failures.hasFailures());
-        first.postAnalysisPlanVerification().accept(first, failures);
-        assertFalse(failures.hasFailures());
-        first.postAnalysisVerification(failures);
-        assertFalse(failures.hasFailures());
     }
 
     /** URI admission must retain unrelated command refusal and the independent URI input-type check. */

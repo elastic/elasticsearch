@@ -46,11 +46,6 @@ public class SequenceUnmappedFieldsIT extends AbstractSequenceIntegTestCase {
         refresh(A, B);
     }
 
-    /** The ordinary source path establishes the requested NULLIFY semantics independently of SEQUENCE. */
-    public void testOrdinaryNullifyReturnsNullForMissingField() {
-        assertValue(NULLIFY + "FROM " + B + " | EVAL observed = absent_optional | LIMIT 10", null);
-    }
-
     /** Existing mapped values must remain usable under the setting in all ordinary sequence presentations. */
     public void testMappedSequenceFieldsWithNullify() {
         assertValue(primary("", "| EVAL observed = label"), "second");

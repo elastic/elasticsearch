@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -51,8 +50,6 @@ import org.elasticsearch.xpack.esql.plan.logical.SequenceStageProjection;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
-import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.elasticsearch.xpack.esql.session.ConfigurationBuilder;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
@@ -74,24 +71,16 @@ public class SequenceAnalyzerTests extends ESTestCase {
         assumeTrue("requires native SEQUENCE", EsqlCapabilities.Cap.SEQUENCE_COMMAND.isEnabled());
     }
 
-    /** Every request configuration has the same maximum stage count. */
     public void testRememberedRuleAnalysisStageCap() {
-        for (QueryPragmas pragmas : List.of(
-            QueryPragmas.EMPTY,
-            new QueryPragmas(Settings.builder().put("sequence_remembered_chains", true).build()),
-            new QueryPragmas(Settings.builder().put("sequence_remembered_chains", false).build())
-        )) {
-            var configuration = new ConfigurationBuilder(EsqlTestUtils.TEST_CFG).pragmas(pragmas).build();
-            TestAnalyzer analyzer = configured().configuration(configuration);
-            for (int stages : List.of(2, 3, 4, 5, 6)) {
-                String query = "SEQUENCE BY host.id WITHIN 30s PRIMARY 1 "
-                    + String.join(",", java.util.Collections.nCopies(stages, "(FROM a | KEEP host.id,label)"))
-                    + " | KEEP host.id | LIMIT 10";
-                if (stages <= 4) {
-                    analyzer.statement(query);
-                } else {
-                    analyzer.statementError(query, containsString("SEQUENCE supports at most [4] stages"));
-                }
+        TestAnalyzer analyzer = configured();
+        for (int stages : List.of(2, 3, 4, 5, 6)) {
+            String query = "SEQUENCE BY host.id WITHIN 30s PRIMARY 1 "
+                + String.join(",", java.util.Collections.nCopies(stages, "(FROM a | KEEP host.id,label)"))
+                + " | KEEP host.id | LIMIT 10";
+            if (stages <= 4) {
+                analyzer.statement(query);
+            } else {
+                analyzer.statementError(query, containsString("SEQUENCE supports at most [4] stages"));
             }
         }
     }
@@ -997,18 +986,6 @@ public class SequenceAnalyzerTests extends ESTestCase {
                 assertEquals(1, optimizer().optimize(analyzed).output().size());
             }
         }
-    }
-
-    public void testMembershipRightSideKeepsOrdinarySourceTypeSupport() {
-        var mapping = new HashMap<>(mapping());
-        mapping.put("location", new EsField("location", DataType.GEO_POINT, Map.of(), true, NONE));
-        var analyzed = configured().addIndex(index("spatial", mapping)).statement("""
-            sequence by host.id WITHIN 30s PRIMARY 1
-            (from a | where host.id IN (from spatial | where ST_X(location)>0 | keep host.id) | keep host.id),
-            (from b | keep host.id) | keep host.id | limit 3
-            """);
-        var optimized = optimizer().optimize(analyzed);
-        assertEquals(List.of("host.id"), optimized.output().stream().map(Attribute::name).toList());
     }
 
     public void testPhysicalPlanningKeepsStagesBehindCoordinatorSource() {

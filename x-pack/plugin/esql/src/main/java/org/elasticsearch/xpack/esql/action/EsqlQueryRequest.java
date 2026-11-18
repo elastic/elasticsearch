@@ -144,6 +144,12 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = validateQuery();
+        if (pragmas.settings().keySet().contains("sequence_remembered_chains")) {
+            validationException = addValidationError(
+                "[sequence_remembered_chains] has been removed; SEQUENCE always uses remembered-chain admission",
+                validationException
+            );
+        }
         if (onSnapshotBuild == false) {
             if (pragmas.isEmpty() == false && acceptedPragmaRisks == false) {
                 validationException = addValidationError(

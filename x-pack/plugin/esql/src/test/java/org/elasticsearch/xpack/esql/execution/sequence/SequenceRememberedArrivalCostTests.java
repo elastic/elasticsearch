@@ -39,14 +39,8 @@ import java.util.List;
 
 /** Keeps the 10,000-row matcher counter and ownership checks in the ordinary suite. */
 public class SequenceRememberedArrivalCostTests extends ESTestCase {
-    /** The legacy path checks only the final eight rows, while Ki also checks each arrival. */
     public void testTenThousandArrivalChecks() {
-        for (boolean experimental : List.of(false, true)) {
-            runPoint(10_000, experimental);
-        }
-    }
-
-    private void runPoint(int rows, boolean experimental) {
+        int rows = 10_000;
         Settings settings = Settings.builder()
             .put("indices.breaker.request.limit", "32mb")
             .put("indices.breaker.total.use_real_memory", false)
@@ -64,7 +58,7 @@ public class SequenceRememberedArrivalCostTests extends ESTestCase {
         BlockFactory ownedBlocks = scope.blockFactory(realBlocks);
         DriverContext context = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, realBlocks, null);
         try (var compiler = SequenceConditionCompiler.compile(sequence(), 8, FoldContext.small(), context, null, scoped, budget)) {
-            var config = compiler.config().withRememberedChains(experimental);
+            var config = compiler.config();
             try (
                 var matcher = new SequenceLatestValidMatcher(
                     3,
@@ -85,10 +79,10 @@ public class SequenceRememberedArrivalCostTests extends ESTestCase {
                 var admission = matcher.admissionCounters();
                 assertEquals(8L, counters.searchSteps());
                 assertEquals(8L, counters.maxSearchStepsPerFinalRow());
-                assertEquals(experimental ? rows + 8L : 8L, counters.conditionEvaluations());
-                assertEquals(experimental ? rows : 0L, admission.conditionEvaluationsOnArrival());
-                assertEquals(experimental ? rows : 0L, admission.arrivalSearchSteps());
-                assertEquals(experimental ? 9L : 0L, admission.peakCandidatesKeptPerKey());
+                assertEquals(rows + 8L, counters.conditionEvaluations());
+                assertEquals(rows, admission.conditionEvaluationsOnArrival());
+                assertEquals(rows, admission.arrivalSearchSteps());
+                assertEquals(9L, admission.peakCandidatesKeptPerKey());
                 assertEquals(rows - 8L, counters.candidatesDroppedAtBound());
                 assertEquals(0L, admission.candidatesNotKept());
                 assertEquals(0L, counters.searchesAbandonedAtWorkLimit());

@@ -131,6 +131,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 
@@ -919,6 +920,79 @@ public class SequenceSourceOperatorTests extends ESTestCase {
             harness.client.take(TransportClosePointInTimeAction.TYPE).listener.onResponse(new ClosePointInTimeResponse(true, 2));
             harness.assertFinished();
         }
+    }
+
+    public void testKeyFilterProfileHeaderFailureStillDispatchesFilteredSearch() {
+        var executionInfo = new EsqlExecutionInfo(Predicates.never(), EsqlExecutionInfo.IncludeExecutionMetadata.ALWAYS);
+        try (var harness = Harness.withKeyFilter(executionInfo, true)) {
+            var search = harness.prepareFilteredSearch();
+            assertFalse(((SearchRequest) search.request).source().profile());
+            assertNull(executionInfo.queryProfile().sequenceKeyFilterSnapshot());
+            assertNull(harness.threadPool.getThreadContext().getHeader(SequenceKeyFilterShardProfile.REQUEST_HEADER));
+            harness.respond(search, 1);
+            assertFilteredMatchAndFinish(harness);
+        }
+    }
+
+    public void testKeyFilterProfileRecordingFailureKeepsRowsAndReleasesResponse() {
+        var executionInfo = new EsqlExecutionInfo(Predicates.never(), EsqlExecutionInfo.IncludeExecutionMetadata.ALWAYS);
+        try (var harness = Harness.withKeyFilter(executionInfo, false)) {
+            var search = harness.prepareFilteredSearch();
+            assertTrue(((SearchRequest) search.request).source().profile());
+            assertEquals(1L, executionInfo.queryProfile().sequenceKeyFilterSnapshot().get("built_searches"));
+            SearchResponse response = withBrokenShardProfile(eventResponse(1));
+            harness.respond(search, 1, response);
+            verify(response).getSearchProfileShardResults();
+            assertNull(executionInfo.queryProfile().sequenceKeyFilterSnapshot());
+            assertFilteredMatchAndFinish(harness);
+            assertFalse(response.hasReferences());
+        }
+    }
+
+    public void testKeyFilterProfileRecordingFailureStillClosesRenewedSnapshotAfterCancellation() {
+        var executionInfo = new EsqlExecutionInfo(Predicates.never(), EsqlExecutionInfo.IncludeExecutionMetadata.ALWAYS);
+        try (var harness = Harness.withKeyFilter(executionInfo, false)) {
+            var search = harness.prepareFilteredSearch();
+            assertTrue(((SearchRequest) search.request).source().profile());
+            AtomicLong usedAtWake = observeSearchWake(harness);
+            harness.finishDriver();
+            assertFalse(harness.done.isDone());
+            assertTrue(harness.client.pending.isEmpty());
+            SearchResponse response = withBrokenShardProfile(renewedSearchResponse());
+            harness.respond(search, 1, response);
+            verify(response).getSearchProfileShardResults();
+            assertNull(executionInfo.queryProfile().sequenceKeyFilterSnapshot());
+            assertFalse(response.hasReferences());
+            assertEquals(0L, usedAtWake.get());
+            long filterBytes = harness.keyFilterBytes();
+            verify(harness.breaker).addWithoutBreaking(-filterBytes);
+            assertSearchFinished(harness, "renewed");
+        }
+    }
+
+    private static SearchResponse withBrokenShardProfile(SearchResponse response) {
+        SearchResponse broken = spy(response);
+        doThrow(new IllegalStateException("controlled shard profile recording failure")).when(broken).getSearchProfileShardResults();
+        return broken;
+    }
+
+    private static void assertFilteredMatchAndFinish(Harness harness) {
+        assertNull(harness.source.getOutput());
+        try (Page page = harness.source.getOutput()) {
+            assertNotNull(page);
+            assertEquals(1, page.getPositionCount());
+            BytesRefBlock key = page.getBlock(0), value = page.getBlock(1);
+            assertEquals("shared", key.getBytesRef(key.getFirstValueIndex(0), new BytesRef()).utf8ToString());
+            assertEquals("shared/captured", value.getBytesRef(value.getFirstValueIndex(0), new BytesRef()).utf8ToString());
+            assertProvenance(
+                page,
+                0,
+                2,
+                List.of(new SequenceProvenance.Member(1, "a", "event-a"), new SequenceProvenance.Member(2, "b", "event-b"))
+            );
+        }
+        assertEquals(2, harness.stageExecutions);
+        finishLatest(harness);
     }
 
     public void testKeyFilterRefundsBeforeResponseAdmissionAndWake() {
@@ -1803,22 +1877,12 @@ public class SequenceSourceOperatorTests extends ESTestCase {
     }
 
     private void assertUpperTimeBoundPublicationBarrier(boolean deferComputation) {
-        assertUpperTimeBoundPublicationBarrier(deferComputation, false);
-    }
-
-    /** Latest-valid bounds wait for both real computation and publication of every final first-stage page. */
-    public void testLatestValidUpperTimeBoundWaitsForStageZeroPublication() {
-        assertUpperTimeBoundPublicationBarrier(true, true);
-        assertUpperTimeBoundPublicationBarrier(false, true);
-    }
-
-    private void assertUpperTimeBoundPublicationBarrier(boolean deferComputation, boolean latestValid) {
         Sequence sequence = plan("""
             SEQUENCE BY key WITHIN 10 milliseconds PRIMARY 1
             (FROM a | MV_EXPAND key | EVAL accepted=LENGTH(key)+LENGTH(payload) | WHERE accepted==7 | KEEP key),
             (FROM b | KEEP key) | KEEP key | LIMIT 10
             """);
-        try (var harness = latestValid ? new Harness(sequence, latestConfig(sequence)) : new Harness(true, null, null, sequence)) {
+        try (var harness = new Harness(sequence, latestConfig(sequence))) {
             var open = harness.prepareOpen();
             open.listener.onResponse(openResponse());
             Pending<SearchResponse> later = null;
@@ -2730,7 +2794,7 @@ public class SequenceSourceOperatorTests extends ESTestCase {
             (FROM d | WHERE TO_LONG(payload) == TO_LONG(MEMBER(1,payload)) | KEEP key)
             | KEEP key,payload | LIMIT 10
             """);
-        try (var harness = new Harness(sequence)) {
+        try (var harness = new Harness(sequence, true)) {
             harness.prepareLatestOpen();
             List<List<List<String>>> result = drainLatest(harness, request -> {
                 assertTrue("summaries and condition warnings wait for terminal closure", harness.observedWarnings.isEmpty());
@@ -2773,40 +2837,6 @@ public class SequenceSourceOperatorTests extends ESTestCase {
             finishLatest(harness);
             assertEquals(counters, harness.source.status().latestValidCounters());
             assertEquals(23, harness.context.warnings().size());
-        }
-    }
-
-    /** Ordinary conditionless queries retain eight rows, drop the ninth, and publish the exact summary once. */
-    public void testDefaultBoundDropsNinthCandidateAndWarnsForEverySequence() {
-        Sequence sequence = plan("""
-            SEQUENCE BY key WITHIN 30 seconds PRIMARY 1 (FROM a | KEEP key),(FROM b | KEEP key)
-            | KEEP key | LIMIT 10
-            """);
-        try (var harness = new Harness(sequence)) {
-            harness.prepareLatestOpen();
-            List<List<List<String>>> rows = drainLatest(harness, request -> {
-                String index = request.getPointInTimeAuthorizationScope().indices()[0];
-                List<LatestRow> candidates = new ArrayList<>();
-                if (index.equals("a")) {
-                    for (int row = 0; row < 9; row++) {
-                        candidates.add(new LatestRow(row, row, "shared", List.of("0")));
-                    }
-                } else {
-                    candidates.add(new LatestRow(10, 0, "shared", List.of("1")));
-                }
-                return latestPage(index, index.equals("a") ? 0 : 1, candidates);
-            });
-            assertEquals(1, rows.size());
-            var counters = harness.source.status().latestValidCounters();
-            assertEquals(1, counters.candidatesDroppedAtBound());
-            assertEquals(1, counters.keysThatHitBound());
-            assertEquals(8, counters.largestRingFill());
-            assertEquals(
-                List.of("SEQUENCE dropped [1] candidates at the limit of [8] per stage and key; matches may be missing"),
-                harness.observedWarnings
-            );
-            assertFalse(harness.source.status().toString().contains("latest_valid"));
-            finishLatest(harness);
         }
     }
 
@@ -3212,10 +3242,14 @@ public class SequenceSourceOperatorTests extends ESTestCase {
         }
 
         private static Harness withKeyFilter() {
+            return withKeyFilter(null, false);
+        }
+
+        private static Harness withKeyFilter(EsqlExecutionInfo executionInfo, boolean duplicateProfileHeader) {
             return new Harness(
                 true,
                 null,
-                null,
+                executionInfo,
                 null,
                 null,
                 null,
@@ -3223,7 +3257,8 @@ public class SequenceSourceOperatorTests extends ESTestCase {
                 DriverContext.WarningsMode.COLLECT,
                 true,
                 PlannerSettings.SEQUENCE_MAX_MEMORY.getDefault(Settings.EMPTY).getBytes(),
-                true
+                true,
+                duplicateProfileHeader
             );
         }
 
@@ -3254,7 +3289,11 @@ public class SequenceSourceOperatorTests extends ESTestCase {
         }
 
         private Harness(Sequence sequence) {
-            this(true, null, null, sequence, null, null, true, DriverContext.WarningsMode.COLLECT, false);
+            this(sequence, false);
+        }
+
+        private Harness(Sequence sequence, boolean stressWorkLimit) {
+            this(true, null, null, sequence, null, null, stressWorkLimit, DriverContext.WarningsMode.COLLECT, false);
         }
 
         private Harness(
@@ -3264,10 +3303,10 @@ public class SequenceSourceOperatorTests extends ESTestCase {
             Sequence suppliedSequence,
             QueryBuilder requestFilter,
             SequenceLatestValidConfig latestValid,
-            boolean compileConditions,
+            boolean stressWorkLimit,
             DriverContext.WarningsMode warningsMode
         ) {
-            this(realStages, queue, executionInfo, suppliedSequence, requestFilter, latestValid, compileConditions, warningsMode, false);
+            this(realStages, queue, executionInfo, suppliedSequence, requestFilter, latestValid, stressWorkLimit, warningsMode, false);
         }
 
         private Harness(
@@ -3277,7 +3316,7 @@ public class SequenceSourceOperatorTests extends ESTestCase {
             Sequence suppliedSequence,
             QueryBuilder requestFilter,
             SequenceLatestValidConfig latestValid,
-            boolean compileConditions,
+            boolean stressWorkLimit,
             DriverContext.WarningsMode warningsMode,
             boolean profile
         ) {
@@ -3288,7 +3327,7 @@ public class SequenceSourceOperatorTests extends ESTestCase {
                 suppliedSequence,
                 requestFilter,
                 latestValid,
-                compileConditions,
+                stressWorkLimit,
                 warningsMode,
                 profile,
                 org.elasticsearch.xpack.esql.planner.PlannerSettings.SEQUENCE_MAX_MEMORY.getDefault(Settings.EMPTY).getBytes()
@@ -3302,7 +3341,7 @@ public class SequenceSourceOperatorTests extends ESTestCase {
             Sequence suppliedSequence,
             QueryBuilder requestFilter,
             SequenceLatestValidConfig latestValid,
-            boolean compileConditions,
+            boolean stressWorkLimit,
             DriverContext.WarningsMode warningsMode,
             boolean profile,
             long memoryLimit
@@ -3314,10 +3353,11 @@ public class SequenceSourceOperatorTests extends ESTestCase {
                 suppliedSequence,
                 requestFilter,
                 latestValid,
-                compileConditions,
+                stressWorkLimit,
                 warningsMode,
                 profile,
                 memoryLimit,
+                false,
                 false
             );
         }
@@ -3329,11 +3369,12 @@ public class SequenceSourceOperatorTests extends ESTestCase {
             Sequence suppliedSequence,
             QueryBuilder requestFilter,
             SequenceLatestValidConfig latestValid,
-            boolean compileConditions,
+            boolean stressWorkLimit,
             DriverContext.WarningsMode warningsMode,
             boolean profile,
             long memoryLimit,
-            boolean keyFilter
+            boolean keyFilter,
+            boolean duplicateProfileHeader
         ) {
             realThreadPool = queue == null ? new TestThreadPool("sequence-callbacks") : null;
             threadPool = queue == null ? realThreadPool : queue.getThreadPool();
@@ -3368,6 +3409,9 @@ public class SequenceSourceOperatorTests extends ESTestCase {
             sequence = suppliedSequence == null ? computedOutputPlan() : suppliedSequence;
             try (var ignored = threadPool.getThreadContext().stashContext()) {
                 threadPool.getThreadContext().putHeader("sequence-test-caller", "owner");
+                if (duplicateProfileHeader) {
+                    threadPool.getThreadContext().putHeader(SequenceKeyFilterShardProfile.REQUEST_HEADER, "collision");
+                }
                 var configuration = new ConfigurationBuilder(EsqlTestUtils.TEST_CFG).profile(profile);
                 if (keyFilter) {
                     configuration.pragmas(new QueryPragmas(Settings.builder().put("sequence_key_filter", true).build()));
@@ -3394,8 +3438,7 @@ public class SequenceSourceOperatorTests extends ESTestCase {
                     executionInfo,
                     memoryLimit
                 );
-                source = (SequenceSourceOperator) (compileConditions
-                    ? operatorFactory.getWithConditions(context, sequence.children().size() == 4 ? 64 : 8, null)
+                source = (SequenceSourceOperator) (stressWorkLimit ? operatorFactory.getWithConditions(context, 64, null)
                     : latestValid == null ? operatorFactory.get(context)
                     : operatorFactory.get(context, latestValid));
             } catch (RuntimeException | Error e) {

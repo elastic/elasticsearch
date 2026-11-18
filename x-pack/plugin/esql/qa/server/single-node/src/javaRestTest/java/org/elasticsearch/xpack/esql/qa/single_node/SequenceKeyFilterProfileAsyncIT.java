@@ -11,12 +11,14 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.junit.ClassRule;
 
 import java.io.Closeable;
@@ -24,6 +26,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SEQUENCE_COMMAND;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
@@ -78,11 +81,23 @@ public class SequenceKeyFilterProfileAsyncIT extends ESRestTestCase {
         String id = submit.getHeader("X-Elasticsearch-Async-Id");
         assertNotNull(id);
         try (Closeable ignored = () -> assertOK(client().performRequest(new Request("DELETE", "/_query/async/" + id)))) {
-            assertEquals("?0", submit.getHeader("X-Elasticsearch-Async-Is-Running"));
-            // keep_on_completion acknowledges the final submit only after async indexing and task unregistration.
-            assertEquals(expected, checkProfile(submit));
+            String running = submit.getHeader("X-Elasticsearch-Async-Is-Running");
+            if ("?0".equals(running)) {
+                assertEquals(expected, checkProfile(submit));
+            } else {
+                assertEquals("?1", running);
+                var task = new Request("GET", "/_tasks/" + AsyncExecutionId.decode(id).getTaskId());
+                assertBusy(() -> {
+                    ResponseException missing = expectThrows(ResponseException.class, () -> client().performRequest(task));
+                    assertEquals(404, missing.getResponse().getStatusLine().getStatusCode());
+                }, 60, TimeUnit.SECONDS);
+            }
+            // Once the task is unregistered, GET must restore the stored result and its warnings.
             var get = new Request("GET", "/_query/async/" + id);
-            assertEquals(expected, checkProfile(perform(get)));
+            var stored = perform(get);
+            assertEquals("?0", stored.getHeader("X-Elasticsearch-Async-Is-Running"));
+            assertEquals(id, stored.getHeader("X-Elasticsearch-Async-Id"));
+            assertEquals(expected, checkProfile(stored));
         }
     }
 

@@ -52,19 +52,14 @@ public class SequenceKeyFilterGoldenReaderIT extends AbstractSequenceIntegTestCa
     private static final String INPUT_SHA256 = "a0e5b5228b9b05a1ab17be75c9ecf9ec4e25af6b73a36083a9eaf6ac65f23cee";
     private static final String PLAN_SHA256 = "c057616f13465a0e6ec8fccfcfafa1c268eac5f9fd5013957583a368c6708eef";
 
-    /** Every original history checks its native rows, physical identity and expanded rank in both explicit flag modes. */
-    public void testNativeHistoriesAgainstTodayWithKeyFilterOffAndOn() throws Exception {
-        assertGoldenHistories(false);
-    }
-
     public void testNativeKiHistoriesWithKeyFilterOffAndOn() throws Exception {
-        assertGoldenHistories(true);
+        assertGoldenHistories();
     }
 
     public void testBusyInstallerG41AlertsUsingOrdinaryDefaults() throws Exception {
         String id = "G41-busy-installer-with-expansion";
         Map<String, Object> fixture = pinnedCase("golden50-native-plan.json", PLAN_SHA256, id);
-        Map<String, Object> frozen = pinnedCase("pinned-golden-ki-r2.json", INPUT_SHA256, id);
+        Map<String, Object> frozen = pinnedCase("ki-r2-golden.json", INPUT_SHA256, id);
         assertEquals(8, number(frozen.get("limit")));
         assertEquals(List.of(List.of("dl", "run", "install")), object(frozen.get("expected")).get("rule"));
         String index = text(fixture.get("index"));
@@ -94,8 +89,8 @@ public class SequenceKeyFilterGoldenReaderIT extends AbstractSequenceIntegTestCa
             .orElseThrow();
     }
 
-    private void assertGoldenHistories(boolean rememberedChains) throws Exception {
-        Map<String, Object> original = resource("pinned-golden-ki-r2.json", INPUT_SHA256);
+    private void assertGoldenHistories() throws Exception {
+        Map<String, Object> original = resource("ki-r2-golden.json", INPUT_SHA256);
         Map<String, Object> plan = resource("golden50-native-plan.json", PLAN_SHA256);
         List<?> originals = list(original.get("cases"));
         List<?> cases = list(plan.get("cases"));
@@ -107,8 +102,6 @@ public class SequenceKeyFilterGoldenReaderIT extends AbstractSequenceIntegTestCa
             Map<String, Object> frozen = object(originals.get(position));
             String id = text(fixture.get("id"));
             assertEquals(frozen.get("id"), id);
-            assertEquals(object(frozen.get("expected")).get("today"), fixture.get("expected_today_labels"));
-            assertEquals(object(frozen.get("counters")).get("today"), fixture.get("fixture_today_counters"));
             assertEquals(number(frozen.get("stages")), number(fixture.get("stages")));
             assertEquals(number(frozen.get("limit")), number(object(fixture.get("pragmas_common")).get("sequence_max_candidates")));
             if (number(frozen.get("stages")) > 4) {
@@ -119,44 +112,43 @@ public class SequenceKeyFilterGoldenReaderIT extends AbstractSequenceIntegTestCa
                 continue;
             }
             String index = text(fixture.get("index"));
-            String oracle = "today";
-            if (rememberedChains) {
-                // Native queries use the production arrival limit. These three fixtures also pin the
-                // expected outcome without their artificial one-visit arrival limit.
-                oracle = frozen.get("arrival_step_limit") == null ? "rule" : "rule_without_arrival_limit";
-            }
+            // Native queries use the production arrival limit. These three fixtures also pin the
+            // expected outcome without their artificial one-visit arrival limit.
+            String oracle = frozen.get("arrival_step_limit") == null ? "rule" : "rule_without_arrival_limit";
             Throwable primaryFailure = null;
             try {
                 createAndSeed(fixture);
                 verifyPhysicalEventAndTokenOrder(fixture);
                 for (Object controlValue : list(fixture.get("native_stage_controls"))) {
                     Map<String, Object> control = object(controlValue);
-                    Observed actual = observe(text(control.get("query")), fixture, false, false, rememberedChains);
+                    Observed actual = observe(text(control.get("query")), fixture, false, false);
                     assertEquals(id + "/native-stage-" + control.get("stage"), control.get("expected"), actual.rows());
                     assertEquals(List.of(), actual.expressionWarnings());
                     assertReleased();
                 }
                 String query = text(fixture.get("query")).replace(" | LIMIT 1000", ",sequence_provenance | LIMIT 1000");
-                Observed off = observe(query, fixture, false, true, rememberedChains);
+                Observed off = observe(query, fixture, false, true);
                 assertReleased();
-                Observed on = observe(query, fixture, true, true, rememberedChains);
+                Observed on = observe(query, fixture, true, true);
                 assertReleased();
                 // Identity/rank assertions remain tied to the original JSON, not to results from either engine leg.
                 List<List<Object>> expected = expectedFromFrozenRows(frozen, oracle);
-                if (rememberedChains == false) {
-                    assertEquals(fixture.get("expected_today_rows"), expected);
-                    assertEquals(id + "/expression-warning-difference", off.expressionWarnings(), on.expressionWarnings());
-                }
                 List<List<SequenceProvenance.Member>> provenance = expectedProvenance(expected, index);
                 assertEquals(id + "/OFF provenance", provenance, off.provenance());
                 assertEquals(id + "/ON provenance", provenance, on.provenance());
                 assertEquals(id + "/OFF", expected, off.rows());
                 assertEquals(id + "/ON", expected, on.rows());
+                // Random coordinators can contribute internal-cluster node deprecations. Keep them in the raw log.
+                List<String> offWarnings = SequenceKeyFilterIT.queryWarnings(off.warnings());
+                List<String> onWarnings = SequenceKeyFilterIT.queryWarnings(on.warnings());
+                assertTrue(
+                    id + "/ON introduced query warnings, off=" + offWarnings + ", on=" + onWarnings,
+                    offWarnings.containsAll(onWarnings)
+                );
+                assertNull(id + "/OFF key filter", off.keyFilterProfile());
+                assertKeyFilterApplication(id, on);
                 assertEquals(off.status().completedMatches(), on.status().completedMatches());
                 assertEquals(off.status().rowsEmitted(), on.status().rowsEmitted());
-                if (id.startsWith("G35-") && rememberedChains == false) {
-                    assertEquals(List.of(List.of("A3", "B2", "C1")), fixture.get("expected_today_labels"));
-                }
                 logCase(fixture, oracle, off, on);
                 checked++;
             } catch (Exception | Error failure) {
@@ -194,6 +186,29 @@ public class SequenceKeyFilterGoldenReaderIT extends AbstractSequenceIntegTestCa
             }
         }
         assertEquals(49, checked);
+    }
+
+    private static void assertKeyFilterApplication(String id, Observed on) {
+        var profile = on.keyFilterProfile();
+        if (id.startsWith("G06-")) {
+            // With no start rows, the reader stops before it can dispatch a later-stage search.
+            assertEquals(id, 1L, on.status().candidateSearchRequests());
+            assertNull(id, profile);
+            return;
+        }
+
+        assertNotNull(id + "/ON key filter", profile);
+        if (id.startsWith("G29-")) {
+            // The logical key is computed from the expanded row; the mapped key contains a sentinel.
+            assertEquals(id, 0L, profile.get("built_searches"));
+            assertEquals(id, 0L, profile.get("applied_shard_searches"));
+            assertTrue(id + ": " + profile, object(profile.get("coordinator_fallbacks")).containsKey("non_pushable_key"));
+            return;
+        }
+
+        // All other native histories have a nonempty first page and an unchanged indexed keyword key.
+        assertTrue(id + ": " + profile, profile.get("applied_shard_searches") instanceof Number applied && applied.longValue() > 0);
+        assertEquals(id, Map.of(), profile.get("rejected_shard_searches"));
     }
 
     private void createAndSeed(Map<String, Object> fixture) {
@@ -263,13 +278,12 @@ public class SequenceKeyFilterGoldenReaderIT extends AbstractSequenceIntegTestCa
         }
     }
 
-    private Observed observe(String query, Map<String, Object> fixture, boolean enabled, boolean profile, boolean rememberedChains) {
+    private Observed observe(String query, Map<String, Object> fixture, boolean enabled, boolean profile) {
         Settings.Builder settings = Settings.builder();
         for (var entry : object(fixture.get("pragmas_common")).entrySet()) {
             settings.put(entry.getKey(), entry.getValue().toString());
         }
         settings.put("sequence_key_filter", enabled);
-        settings.put("sequence_remembered_chains", rememberedChains);
         return observe(query, profile, new QueryPragmas(settings.build()));
     }
 
@@ -289,6 +303,7 @@ public class SequenceKeyFilterGoldenReaderIT extends AbstractSequenceIntegTestCa
                     throw new IllegalStateException("Frozen native history returned a partial response");
                 }
                 SequenceSourceStatus status = null;
+                Map<String, Object> keyFilterProfile = null;
                 if (profile) {
                     if (response.profile() == null) {
                         throw new IllegalStateException("Native history needs a real profiled reader");
@@ -305,6 +320,7 @@ public class SequenceKeyFilterGoldenReaderIT extends AbstractSequenceIntegTestCa
                         throw new IllegalStateException("Native history must execute exactly one real SEQUENCE source");
                     }
                     status = statuses.getFirst();
+                    keyFilterProfile = response.getExecutionInfo().queryProfile().sequenceKeyFilterSnapshot();
                 }
                 var context = internalCluster().getInstance(TransportService.class, coordinator).getThreadPool().getThreadContext();
                 List<String> warnings = context.getResponseHeaders()
@@ -318,7 +334,7 @@ public class SequenceKeyFilterGoldenReaderIT extends AbstractSequenceIntegTestCa
                     ? values.stream().map(row -> SequenceProvenance.decode(row.getLast())).toList()
                     : List.of();
                 List<List<Object>> rows = profile ? values.stream().map(row -> row.subList(0, row.size() - 1)).toList() : values;
-                future.onResponse(new Observed(rows, provenance, warnings, expressionWarnings, status));
+                future.onResponse(new Observed(rows, provenance, warnings, expressionWarnings, status, keyFilterProfile));
             } catch (Exception failure) {
                 future.onFailure(failure);
             }
@@ -363,15 +379,13 @@ public class SequenceKeyFilterGoldenReaderIT extends AbstractSequenceIntegTestCa
             builder.startObject();
             builder.field("id", fixture.get("id"));
             builder.field("oracle", "expected." + oracle);
-            if ("today".equals(oracle)) {
-                builder.field("original_model_counters", fixture.get("fixture_today_counters"));
-            }
             builder.field("off_rows", off.rows());
             builder.field("on_rows", on.rows());
             builder.field("off_warnings", off.warnings());
             builder.field("on_warnings", on.warnings());
             builder.field("off_expression_warnings", off.expressionWarnings());
             builder.field("on_expression_warnings", on.expressionWarnings());
+            builder.field("on_key_filter", on.keyFilterProfile());
             builder.field("off_status");
             off.status().toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.field("on_status");
@@ -432,7 +446,8 @@ public class SequenceKeyFilterGoldenReaderIT extends AbstractSequenceIntegTestCa
         List<List<SequenceProvenance.Member>> provenance,
         List<String> warnings,
         List<String> expressionWarnings,
-        @Nullable SequenceSourceStatus status
+        @Nullable SequenceSourceStatus status,
+        @Nullable Map<String, Object> keyFilterProfile
     ) {}
 
     /** Every native call must release PIT contexts, query tasks and allocator ownership, including failed cases. */

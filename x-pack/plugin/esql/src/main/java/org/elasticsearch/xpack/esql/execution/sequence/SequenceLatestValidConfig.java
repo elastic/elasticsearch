@@ -29,7 +29,6 @@ final class SequenceLatestValidConfig {
     private final OptionalInt maxCandidates;
     private final long searchStepLimit;
     private long arrivalStepLimit;
-    private boolean rememberChains;
     private final boolean testOnly;
     private final List<List<ValueDemand>> mandatoryDemands;
     private final List<PredicateGroup> groups;
@@ -93,15 +92,6 @@ final class SequenceLatestValidConfig {
         return new SequenceLatestValidConfig(OptionalInt.of(maxCandidates), searchStepLimit, true, demands, groups);
     }
 
-    /**
-     * Select the experimental admission rule. Its default supports at most four stages, whose final search
-     * takes at most 3,208 steps at the default candidate bound.
-     */
-    SequenceLatestValidConfig withRememberedChains(boolean enabled) {
-        rememberChains = enabled;
-        return this;
-    }
-
     /** Separate arrival work cap is reserved for direct matcher tests. */
     SequenceLatestValidConfig withArrivalLimitForTests(long limit) {
         if (testOnly == false || limit < 1) {
@@ -109,10 +99,6 @@ final class SequenceLatestValidConfig {
         }
         arrivalStepLimit = limit;
         return this;
-    }
-
-    boolean rememberChains() {
-        return rememberChains;
     }
 
     long arrivalStepLimit() {
@@ -180,7 +166,6 @@ final class SequenceLatestValidConfig {
             mandatoryDemands,
             wrapped
         );
-        profiled.rememberChains = rememberChains;
         profiled.arrivalStepLimit = arrivalStepLimit;
         return profiled;
     }

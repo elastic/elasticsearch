@@ -87,17 +87,39 @@ public class SequenceConditionParserTests extends ESTestCase {
             SEQUENCE WITHIN 30s PRIMARY 2
             (FROM a),(FROM b | WHERE label == MEMBER(1,label) | KEEP label | RENAME label AS renamed | DROP renamed)
             """);
-        for (String after : List.of("EVAL x = 1", "MV_EXPAND label", "DISSECT label \"%{x}\"", "GROK label \"%{WORD:x}\"")) {
-            error(
-                "SEQUENCE WITHIN 30s PRIMARY 2 (FROM a),(FROM b | WHERE label == MEMBER(1,label) | " + after + ")",
-                "only KEEP, DROP or RENAME may follow"
-            );
+        for (String after : List.of("MV_EXPAND label", "DISSECT label \"%{x}\"", "GROK label \"%{WORD:x}\"", "WHERE false")) {
+            error("""
+                SEQUENCE WITHIN 30s PRIMARY 2 (FROM a),
+                (FROM b
+                  | WHERE label == MEMBER(1, label)
+                  | WHERE true
+                  | KEEP label
+                  | %s
+                  | DROP label)
+                """.formatted(after), 6, 5, "only KEEP, DROP or RENAME may follow");
         }
-        error(
-            "SEQUENCE WITHIN 30s PRIMARY 2 (FROM a),(FROM b | WHERE label == MEMBER(1,label) | KEEP label | WHERE true)",
-            "only KEEP, DROP or RENAME may follow"
-        );
-        error("SEQUENCE WITHIN 30s PRIMARY 2 (FROM a),(FROM b | EVAL x = MEMBER(1,label))", "final WHERE");
+        error("""
+            SEQUENCE WITHIN 30s PRIMARY 2 (FROM a),
+            (FROM b
+              | EVAL x = MEMBER(1, label))
+            """, 3, 14, "final WHERE");
+    }
+
+    public void testEvalAfterMemberWhereReportsTheEvalAndSuggestsWhereToMoveIt() {
+        error("""
+            SEQUENCE WITHIN 30s PRIMARY 2 (FROM a),
+            (FROM b
+              | WHERE label == MEMBER(1, label)
+              | EVAL x = 1
+              | WHERE true
+              | EVAL y = 2)
+            """, 4, 5, "Move EVAL before that WHERE if the move preserves the inputs to both commands");
+        assertTrue(sequence("""
+            SEQUENCE WITHIN 30s PRIMARY 2 (FROM a),
+            (FROM b
+              | EVAL x = 1
+              | WHERE label == MEMBER(1, label))
+            """).hasConditions());
     }
 
     public void testMemberMustReadAnEarlierStageAndSubqueriesStayInOwnFilter() {
@@ -140,5 +162,12 @@ public class SequenceConditionParserTests extends ESTestCase {
 
     private void error(String query, String expected) {
         assertThat(expectThrows(ParsingException.class, () -> parser.createStatement(query)).getMessage(), containsString(expected));
+    }
+
+    private void error(String query, int line, int column, String expected) {
+        ParsingException error = expectThrows(ParsingException.class, () -> parser.createStatement(query));
+        assertEquals(error.getMessage(), line, error.getLineNumber());
+        assertEquals(error.getMessage(), column, error.getColumnNumber());
+        assertThat(error.getErrorMessage(), containsString(expected));
     }
 }

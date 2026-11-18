@@ -20,11 +20,15 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.SequenceSourceTypes;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLikeList;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
@@ -32,6 +36,7 @@ import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -53,6 +58,8 @@ public final class SequenceStage extends UnaryPlan implements PostAnalysisPlanVe
 
     private final List<Attribute> keys;
     private final long maxGapNanos;
+    // Coordinator-local. A missing hint only prevents an optional candidate filter.
+    private final Set<Expression> originalWildcards;
     private static final Set<DataType> KEY_TYPES = Set.of(
         DataType.NULL,
         DataType.BOOLEAN,
@@ -73,12 +80,24 @@ public final class SequenceStage extends UnaryPlan implements PostAnalysisPlanVe
 
     /** Limits this member's incoming link from the selected previous event; zero leaves that link unconstrained. */
     public SequenceStage(Source source, LogicalPlan child, List<Attribute> keys, long maxGapNanos) {
+        this(source, child, keys, maxGapNanos, null);
+    }
+
+    private SequenceStage(Source source, LogicalPlan child, List<Attribute> keys, long maxGapNanos, Set<Expression> originalWildcards) {
         super(source, child);
         if (maxGapNanos < 0) {
             throw new IllegalArgumentException("SEQUENCE link time limit must be positive or absent");
         }
         this.keys = List.copyOf(keys);
         this.maxGapNanos = maxGapNanos;
+        if (originalWildcards == null && child.resolved()) {
+            // The analyzed WHERE still distinguishes the source field from an EVAL alias. Optimization may erase the alias.
+            var found = new HashSet<Expression>();
+            collectOriginalWildcards(child, found);
+            this.originalWildcards = Set.copyOf(found);
+        } else {
+            this.originalWildcards = originalWildcards;
+        }
     }
 
     private SequenceStage(StreamInput in) throws IOException {
@@ -86,7 +105,8 @@ public final class SequenceStage extends UnaryPlan implements PostAnalysisPlanVe
             readSource(in),
             in.readNamedWriteable(LogicalPlan.class),
             in.readNamedWriteableCollectionAsList(Attribute.class),
-            in.readVLong()
+            in.readVLong(),
+            Set.of()
         );
     }
 
@@ -111,12 +131,33 @@ public final class SequenceStage extends UnaryPlan implements PostAnalysisPlanVe
 
     @Override
     protected NodeInfo<SequenceStage> info() {
-        return NodeInfo.create(this, SequenceStage::new, child(), keys, maxGapNanos);
+        return NodeInfo.create(this, (s, c, k, g) -> new SequenceStage(s, c, k, g, originalWildcards), child(), keys, maxGapNanos);
     }
 
     @Override
     public SequenceStage replaceChild(LogicalPlan newChild) {
-        return new SequenceStage(source(), newChild, keys, maxGapNanos);
+        return new SequenceStage(source(), newChild, keys, maxGapNanos, originalWildcards);
+    }
+
+    public boolean isOriginalWildcard(Expression conjunct) {
+        return originalWildcards != null && originalWildcards.contains(conjunct);
+    }
+
+    private static void collectOriginalWildcards(LogicalPlan plan, Set<Expression> found) {
+        if (plan instanceof Filter filter) {
+            for (Expression conjunct : Predicates.splitAnd(filter.condition())) {
+                if ((conjunct instanceof WildcardLike || conjunct instanceof WildcardLikeList)
+                    && ((RegexMatch<?>) conjunct).field() instanceof ToLower lower
+                    && lower.field() instanceof FieldAttribute) {
+                    found.add(conjunct);
+                }
+            }
+        }
+        if (plan instanceof AbstractSubqueryJoin join) {
+            collectOriginalWildcards(join.left(), found);
+        } else {
+            plan.children().forEach(child -> collectOriginalWildcards(child, found));
+        }
     }
 
     public List<Attribute> keys() {

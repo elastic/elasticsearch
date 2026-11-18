@@ -218,14 +218,15 @@ public class SequenceKeyFilterIT extends AbstractSequenceIntegTestCase {
             | KEEP key,_id,raw,second_id,second_raw,sequence_provenance | LIMIT 10
             """.formatted(index, index);
 
+        Settings shared = Settings.builder().put("field_extract_preference", "NONE").build();
         var failureWarnings = new AtomicReference<List<String>>();
-        Exception failure = expectThrows(Exception.class, () -> observe(query, false, Settings.builder(), failureWarnings));
+        Exception failure = expectThrows(Exception.class, () -> observe(query, false, Settings.builder().put(shared), failureWarnings));
         Throwable cause = ExceptionsHelper.unwrapCause(failure);
         assertTrue(cause.toString(), cause instanceof IllegalArgumentException);
         assertEquals("SEQUENCE member [2] BY column [key] is multivalued; use MV_EXPAND inside the stage", cause.getMessage());
         assertEquals(List.of(), queryWarnings(failureWarnings.get()));
 
-        Observed on = observe(query, true, "NONE");
+        Observed on = observe(query, true, Settings.builder().put(shared), null);
         assertSelectedMembers(
             on,
             List.of("waiting", "start", "start-value", "end", "end-value"),
@@ -254,9 +255,8 @@ public class SequenceKeyFilterIT extends AbstractSequenceIntegTestCase {
             | KEEP key,_id,raw,second_id,second_raw,third_id,third_raw,sequence_provenance | LIMIT 10
             """.formatted(index, index, index);
 
-        // Keep the original key-filter comparison on a rule that can retain middle rows without a start.
-        Observed off = observe(query, false, Settings.builder().put("sequence_remembered_chains", false), null);
-        Observed on = observe(query, true, Settings.builder().put("sequence_remembered_chains", false), null);
+        Observed off = observe(query, false, Settings.builder(), null);
+        Observed on = observe(query, true, Settings.builder(), null);
         assertSelectedMembers(
             off,
             List.of("waiting", "start", "start-value", "middle", "middle-value", "end", "end-value"),
@@ -267,24 +267,12 @@ public class SequenceKeyFilterIT extends AbstractSequenceIntegTestCase {
             )
         );
         assertEquals(off.values(), on.values());
-        assertEquals(
-            List.of("SEQUENCE dropped [1] candidates at the limit of [8] per stage and key; matches may be missing"),
-            off.queryWarnings()
-        );
-        assertEquals(List.of(), on.queryWarnings());
-        assertEquals(1L, off.status().latestValidCounters().candidatesDroppedAtBound());
+        assertEquals(List.of(), off.queryWarnings());
+        assertEquals(off.queryWarnings(), on.queryWarnings());
+        assertEquals(0L, off.status().latestValidCounters().candidatesDroppedAtBound());
         assertEquals(0L, on.status().latestValidCounters().candidatesDroppedAtBound());
         assertEquals(12L, fetched(off));
         assertEquals(3L, fetched(on));
-
-        // The ordinary matcher rejects those middle rows before the candidate bound is reached.
-        for (boolean enabled : List.of(false, true)) {
-            Observed ordinary = observe(query, enabled, Settings.builder(), null);
-            assertEquals(off.values(), ordinary.values());
-            assertEquals(List.of(), ordinary.queryWarnings());
-            assertEquals(0L, ordinary.status().latestValidCounters().candidatesDroppedAtBound());
-            assertEquals(enabled ? 3L : 12L, fetched(ordinary));
-        }
     }
 
     private static void assertSelectedMembers(Observed observed, List<Object> cells, List<SequenceProvenance.Member> members) {
@@ -537,7 +525,7 @@ public class SequenceKeyFilterIT extends AbstractSequenceIntegTestCase {
             .toList();
     }
 
-    private static List<String> queryWarnings(List<String> warnings) {
+    static List<String> queryWarnings(List<String> warnings) {
         return warnings.stream().filter(warning -> NODE_DEPRECATIONS.contains(warning) == false).toList();
     }
 

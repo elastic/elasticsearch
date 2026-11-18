@@ -11,7 +11,9 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -30,6 +32,7 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.RegexpQueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -41,6 +44,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 /**
  * Stops a stage query from rewriting against another source's shared-PIT shard. Timestamp bounds and field
@@ -48,6 +52,7 @@ import java.util.Objects;
  */
 public final class SequenceSourceQueryBuilder extends AbstractQueryBuilder<SequenceSourceQueryBuilder> {
     private static final String KEY_FILTER_ENVELOPE = "__esql_sequence_waiting_keys_v1";
+    private static final String WILDCARD_OPTION = "__esql_sequence_wildcard_option_v1";
     public static final TransportVersion ESQL_SEQUENCE_R6_SOURCE_SCOPE = TransportVersion.fromName("esql_sequence_r6_source_scope");
     public static final String NAME = "esql_sequence_source_scope";
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -122,7 +127,7 @@ public final class SequenceSourceQueryBuilder extends AbstractQueryBuilder<Seque
         QueryBuilder base = envelope.filter().getFirst();
         QueryBuilder predicate = envelope.filter().get(1);
         QueryBuilder rewritten = base.rewrite(context);
-        if (index != null && (predicate instanceof MatchAllQueryBuilder) == false) {
+        if (index != null && (predicate instanceof MatchAllQueryBuilder) == false && wildcardOption(predicate) == null) {
             String rejection = keyPredicateRejection(predicate, context, 0);
             if (rejection != null) {
                 // Preserve the ordinary fallback. Its compiler-owned name, when requested, is never converted to a named query.
@@ -150,8 +155,26 @@ public final class SequenceSourceQueryBuilder extends AbstractQueryBuilder<Seque
         // Compile the entire ordinary base first so an optional MatchNone cannot hide its mapping/query refusals.
         Query base = Rewriteable.rewrite(envelope.filter().getFirst(), context, true).toQuery(context, visitor);
         QueryBuilder predicate = envelope.filter().get(1);
-        int remainingClauses = visitor.getMaxClauseCount() - visitor.getNumClauses();
-        if (remainingClauses <= 0) {
+        BoolQueryBuilder option = wildcardOption(predicate);
+        if (option != null) {
+            // The required search is already compiled. Each option keeps its own mapping and resource fallback.
+            if (option.filter().isEmpty() == false) {
+                base = applyKeyFilter(base, option.filter().getFirst(), context, visitor);
+            }
+            RegexpQueryBuilder regexp = (RegexpQueryBuilder) option.must().getFirst();
+            if (context.getIndexSettings() != null
+                && regexp.value().length() <= context.getIndexSettings().getMaxRegexLength()
+                && mappedKeyRejection(regexp.fieldName(), "", context) == null) {
+                base = optionalFilter(base, regexp, context, visitor, reason -> {});
+            }
+            return base;
+        }
+        return applyKeyFilter(base, predicate, context, visitor);
+    }
+
+    private Query applyKeyFilter(Query base, QueryBuilder predicate, SearchExecutionContext context, MaxClauseCountQueryVisitor visitor)
+        throws IOException {
+        if (visitor.getNumClauses() >= visitor.getMaxClauseCount()) {
             recordKeyFilterDecision(context, "clause_limit");
             return base;
         }
@@ -162,37 +185,81 @@ public final class SequenceSourceQueryBuilder extends AbstractQueryBuilder<Seque
             recordKeyFilterDecision(context, rejection);
             return base;
         }
+        return optionalFilter(base, predicate, context, visitor, reason -> recordKeyFilterDecision(context, reason));
+    }
+
+    private static Query optionalFilter(
+        Query base,
+        QueryBuilder predicate,
+        SearchExecutionContext context,
+        MaxClauseCountQueryVisitor visitor,
+        Consumer<String> decision
+    ) throws IOException {
+        int remaining = visitor.getMaxClauseCount() - visitor.getNumClauses();
+        if (remaining <= 0) {
+            decision.accept("clause_limit");
+            return base;
+        }
+        boolean regexp = predicate instanceof RegexpQueryBuilder;
         var queryBreaker = context.getCircuitBreaker();
-        MaxClauseCountQueryVisitor additional = new MaxClauseCountQueryVisitor(
-            remainingClauses,
-            queryBreaker,
+        var additional = new MaxClauseCountQueryVisitor(
+            remaining,
+            regexp ? null : queryBreaker,
             context::isQueryMemoryPreCharged,
             MaxClauseCountQueryVisitor.segmentCountOrDefault(context.getIndexReader()),
             context.getIndexReader()
         );
-        Query filter;
+        Query filtered;
         try {
-            filter = Rewriteable.rewrite(predicate, context, true).toQuery(context, additional);
-        } catch (IndexSearcher.TooManyNestedClauses optionalLimit) {
-            // The shared visitor is untouched: an optional predicate must not turn a valid base into a limit failure.
-            recordKeyFilterDecision(context, "clause_limit");
+            Query filter;
+            if (regexp) {
+                boolean allowExpensive = context.allowExpensiveQueries();
+                if (allowExpensive == false) {
+                    return base;
+                }
+                // The mapper precharges and caches automata. Release its private construction state on every exit.
+                // The outer visitor estimates the full retained Lucene leaf and core charges it on successful admission.
+                var construction = new SearchExecutionContext(context) {
+                    @Override
+                    public boolean allowExpensiveQueries() {
+                        return allowExpensive; // Use the same shard decision if the live setting changes during construction.
+                    }
+                };
+                try {
+                    filter = Rewriteable.rewrite(predicate, construction, true).toQuery(construction, additional);
+                } finally {
+                    construction.releaseQueryConstructionMemory();
+                }
+            } else {
+                filter = Rewriteable.rewrite(predicate, context, true).toQuery(context, additional);
+            }
+            filtered = new BooleanQuery.Builder().add(base, BooleanClause.Occur.FILTER).add(filter, BooleanClause.Occur.FILTER).build();
+            // Core charges the full root later. Trial the portion visible here, including child overhead and the parent.
+            if (queryBreaker != null) {
+                long bytes = visitor.getEstimatedBytes() + additional.getEstimatedBytes();
+                // merge also checks the raw projection, even when breaker overhead is less than one.
+                long limit = queryBreaker.getLimit();
+                if (limit >= 0 && queryBreaker.getUsed() + bytes > limit) {
+                    decision.accept("query_breaker");
+                    return base;
+                }
+                queryBreaker.addEstimateBytesAndMaybeBreak(bytes, ChildMemoryCircuitBreaker.CATEGORY_QUERY);
+                queryBreaker.addWithoutBreaking(-bytes, ChildMemoryCircuitBreaker.CATEGORY_QUERY);
+            }
+        } catch (IndexSearcher.TooManyClauses e) {
+            decision.accept("clause_limit");
             return base;
-        } catch (CircuitBreakingException optionalLimit) {
-            recordKeyFilterDecision(context, "query_breaker");
+        } catch (CircuitBreakingException e) {
+            decision.accept("query_breaker");
             return base;
-        }
-        // Real mapper-only contexts may omit a query-construction breaker, as permitted by SearchExecutionContext.
-        if (queryBreaker != null) {
-            long limit = queryBreaker.getLimit();
-            if (limit >= 0 && queryBreaker.getUsed() + visitor.getEstimatedBytes() + additional.getEstimatedBytes() > limit) {
-                recordKeyFilterDecision(context, "query_breaker");
+        } catch (TooComplexToDeterminizeException | IllegalArgumentException e) {
+            if (regexp) {
                 return base;
             }
+            throw e;
         }
         visitor.merge(additional);
-        // The compiler marker never enters named-query matching; user names inside the base remain unchanged.
-        Query filtered = new BooleanQuery.Builder().add(base, BooleanClause.Occur.FILTER).add(filter, BooleanClause.Occur.FILTER).build();
-        recordKeyFilterDecision(context, SequenceKeyFilterShardProfile.APPLIED);
+        decision.accept(SequenceKeyFilterShardProfile.APPLIED);
         return filtered;
     }
 
@@ -205,6 +272,37 @@ public final class SequenceSourceQueryBuilder extends AbstractQueryBuilder<Seque
     /** Adds an exact compiler-owned envelope only after all ordinary stage and time predicates are assembled. */
     static QueryBuilder withKeyFilter(QueryBuilder base, QueryBuilder predicate) {
         return new BoolQueryBuilder().filter(base).filter(predicate).queryName(KEY_FILTER_ENVELOPE);
+    }
+
+    /** Part-5 shards recognize the outer optional slot and decline its unknown named payload. */
+    static QueryBuilder withOptionalFilters(QueryBuilder base, @Nullable QueryBuilder keys, @Nullable RegexpQueryBuilder wildcard) {
+        if (wildcard == null) {
+            return keys == null ? base : withKeyFilter(base, keys);
+        }
+        var option = new BoolQueryBuilder().must(wildcard).queryName(WILDCARD_OPTION);
+        if (keys != null) {
+            option.filter(keys);
+        }
+        return withKeyFilter(base, option);
+    }
+
+    @Nullable
+    private static BoolQueryBuilder wildcardOption(QueryBuilder predicate) {
+        if (WILDCARD_OPTION.equals(predicate.queryName()) == false) {
+            return null;
+        }
+        if (predicate instanceof BoolQueryBuilder bool
+            && bool.must().size() == 1
+            && bool.must().getFirst() instanceof RegexpQueryBuilder
+            && bool.filter().size() <= 1
+            && bool.should().isEmpty()
+            && bool.mustNot().isEmpty()
+            && bool.minimumShouldMatch() == null
+            && bool.boost() == DEFAULT_BOOST
+            && bool.adjustPureNegative()) {
+            return bool;
+        }
+        throw new IllegalStateException("Invalid compiler-owned SEQUENCE wildcard option");
     }
 
     private static BoolQueryBuilder keyFilterEnvelope(QueryBuilder candidate) {
@@ -229,7 +327,7 @@ public final class SequenceSourceQueryBuilder extends AbstractQueryBuilder<Seque
             return "ineligible_predicate";
         }
         if (predicate instanceof TermQueryBuilder term) {
-            return term.caseInsensitive() ? "ineligible_predicate" : keyTermRejection(term, context);
+            return term.caseInsensitive() ? "ineligible_predicate" : mappedKeyRejection(term.fieldName(), term.value(), context);
         }
         if (predicate instanceof BoolQueryBuilder bool && bool.must().isEmpty() && bool.mustNot().isEmpty() && bool.adjustPureNegative()) {
             final List<QueryBuilder> children;
@@ -251,43 +349,26 @@ public final class SequenceSourceQueryBuilder extends AbstractQueryBuilder<Seque
         return "ineligible_predicate";
     }
 
-    private static String keyTermRejection(TermQueryBuilder term, QueryRewriteContext context) {
+    private static String mappedKeyRejection(String field, Object value, QueryRewriteContext context) {
         var settings = context.getIndexSettings();
         IndexMode mode = settings == null ? null : settings.getMode();
         if (mode != IndexMode.STANDARD && mode != IndexMode.LOGSDB) {
             return "index_mode";
         }
-        var effective = context.getFieldType(term.fieldName());
+        var effective = context.getFieldType(field);
         if (effective == null
-            || effective.name().equals(term.fieldName()) == false
+            || effective.name().equals(field) == false
             || effective.hasDocValues() == false
             || effective.hasScriptValues()) {
             return "ineligible_field";
         }
-        var indexed = context.getMappingLookup().getMapper(term.fieldName());
+        var indexed = context.getMappingLookup().getMapper(field);
         if (indexed instanceof FieldMapper == false || ((FieldMapper) indexed).fieldType() != effective) {
             return "ineligible_field";
         }
-        Object value = term.value();
         if (effective.getClass() == KeywordFieldMapper.KeywordFieldType.class
             && effective instanceof KeywordFieldMapper.KeywordFieldType keyword) {
-            // Under NONE/DOC_VALUES this exact mapper loads indexed sorted-set bytes. Historical ignore_above
-            // exclusions have no such bytes; current source-fetch settings are never reapplied to these keys.
-            if (keyword.usesBinaryDocValues()) {
-                return "binary_doc_values";
-            }
-            if (keyword.indexType().hasTerms() == false) {
-                return "no_indexed_terms";
-            }
-            if (value instanceof String text
-                && keyword.hasNormalizer() == false
-                && keyword.getTextSearchInfo().searchAnalyzer() == Lucene.KEYWORD_ANALYZER
-                && keyword.hasNullValue() == false
-                && keyword.hasScriptValues() == false
-                && (text.isEmpty() == false || keyword.emptyStringReadsAsNull() == false)) {
-                return null;
-            }
-            return "ineligible_keyword";
+            return keywordTermRejection(keyword, value);
         }
         if (effective instanceof BooleanFieldMapper.BooleanFieldType && value instanceof Boolean && effective.indexType().hasTerms()) {
             return null;
@@ -307,6 +388,26 @@ public final class SequenceSourceQueryBuilder extends AbstractQueryBuilder<Seque
             }
         }
         return "ineligible_field";
+    }
+
+    static String keywordTermRejection(KeywordFieldMapper.KeywordFieldType keyword, Object value) {
+        // Under NONE/DOC_VALUES this exact mapper loads indexed sorted-set bytes. Historical ignore_above
+        // exclusions have no such bytes; current source-fetch settings are never reapplied to these keys.
+        if (keyword.usesBinaryDocValues()) {
+            return "binary_doc_values";
+        }
+        if (keyword.indexType().hasTerms() == false) {
+            return "no_indexed_terms";
+        }
+        if (value instanceof String text
+            && keyword.hasNormalizer() == false
+            && keyword.getTextSearchInfo().searchAnalyzer() == Lucene.KEYWORD_ANALYZER
+            && keyword.hasNullValue() == false
+            && keyword.hasScriptValues() == false
+            && (text.isEmpty() == false || keyword.emptyStringReadsAsNull() == false)) {
+            return null;
+        }
+        return "ineligible_keyword";
     }
 
     /**

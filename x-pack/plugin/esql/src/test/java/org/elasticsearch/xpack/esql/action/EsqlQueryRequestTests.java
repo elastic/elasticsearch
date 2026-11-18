@@ -963,6 +963,17 @@ public class EsqlQueryRequestTests extends ESTestCase {
         assertThat(request.validate().getMessage(), containsString("[query] is required"));
     }
 
+    public void testRemovedSequenceRememberedChainsPragma() throws IOException {
+        for (boolean sync : List.of(false, true)) {
+            for (boolean enabled : List.of(false, true)) {
+                var request = parseEsqlQueryRequest("""
+                    {"query":"ROW x = 1","pragma":{"sequence_remembered_chains":%s},"accept_pragma_risks":true}
+                    """.formatted(enabled), sync);
+                assertThat(request.validate().getMessage(), containsString("[sequence_remembered_chains] has been removed"));
+            }
+        }
+    }
+
     public void testPragmasOnlyValidOnSnapshot() throws IOException {
         String json = """
             {

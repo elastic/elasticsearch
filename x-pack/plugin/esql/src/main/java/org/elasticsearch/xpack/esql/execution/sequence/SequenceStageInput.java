@@ -16,6 +16,7 @@ import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.RegexpQueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -172,6 +173,10 @@ public final class SequenceStageInput {
         return template(branch).query;
     }
 
+    RegexpQueryBuilder wildcardPrefilter(int branch) {
+        return template(branch).wildcard;
+    }
+
     /** Original source timestamp resolution, independent of payload pruning and stage projections. */
     public DataType timestampType(int branch) {
         template(branch); // Validate the branch consistently with source() and bind().
@@ -270,7 +275,8 @@ public final class SequenceStageInput {
             var slot = new InputSlot();
             var prepared = prepare(visibleOutput, selected, slot);
             List<Expression> predicates = new ArrayList<>();
-            collectSourcePredicates(stage.child(), selected, predicates);
+            List<RegexpQueryBuilder> wildcards = new ArrayList<>(1);
+            collectSourcePredicates(stage.child(), selected, predicates, wildcards);
             QueryBuilder query = predicates.isEmpty()
                 ? null
                 : CANDIDATE_TRANSLATOR_HANDLER.asQuery(LucenePushdownPredicates.DEFAULT, Predicates.combineAnd(predicates))
@@ -279,7 +285,8 @@ public final class SequenceStageInput {
                 prepared.source(),
                 new Mapper().map(new Versioned<>(prepared.plan(), TransportVersion.current())),
                 slot,
-                query
+                query,
+                wildcards.isEmpty() ? null : wildcards.getFirst()
             );
             templates[branch] = template;
         }
@@ -357,24 +364,35 @@ public final class SequenceStageInput {
         }
     }
 
-    private static boolean collectSourcePredicates(LogicalPlan plan, EsRelation selected, List<Expression> predicates) {
+    private boolean collectSourcePredicates(
+        LogicalPlan plan,
+        EsRelation selected,
+        List<Expression> predicates,
+        List<RegexpQueryBuilder> wildcards
+    ) {
         if (plan instanceof EsRelation relation) {
             return relation == selected;
         }
         boolean active = false;
         List<LogicalPlan> children = plan instanceof AbstractSubqueryJoin join ? List.of(join.left()) : plan.children();
         for (LogicalPlan child : children) {
-            active |= collectSourcePredicates(child, selected, predicates);
+            active |= collectSourcePredicates(child, selected, predicates, wildcards);
         }
         if (active && plan instanceof Filter filter) {
             for (Expression predicate : Predicates.splitAnd(filter.condition())) {
                 if (selected.outputSet().containsAll(predicate.references())
                     // Score is computed by this Search request, not a mapped source field. A term query on it would
                     // rewrite to match_none before the local metadata predicate can run.
-                    && predicate.references().stream().noneMatch(MetadataAttribute::isScoreAttribute)
-                    && TranslationAware.translatable(predicate, LucenePushdownPredicates.DEFAULT)
+                    && predicate.references().stream().noneMatch(MetadataAttribute::isScoreAttribute)) {
+                    if (TranslationAware.translatable(predicate, LucenePushdownPredicates.DEFAULT)
                         .finish() != TranslationAware.FinishedTranslatable.NO) {
-                    predicates.add(predicate);
+                        predicates.add(predicate);
+                    } else if (wildcards.isEmpty() && stage.isOriginalWildcard(predicate)) {
+                        var wildcard = SequenceWildcardPrefilter.fromConjunct(predicate);
+                        if (wildcard != null) {
+                            wildcards.add(wildcard);
+                        }
+                    }
                 }
             }
         }
@@ -387,14 +405,16 @@ public final class SequenceStageInput {
         private final PhysicalPlan plan;
         private final InputSlot slot;
         private final QueryBuilder query;
+        private final RegexpQueryBuilder wildcard;
         private final OutputSlot output = new OutputSlot();
         private Supplier<List<Driver>> driverFactory;
 
-        private Template(EsRelation source, PhysicalPlan plan, InputSlot slot, QueryBuilder query) {
+        private Template(EsRelation source, PhysicalPlan plan, InputSlot slot, QueryBuilder query, RegexpQueryBuilder wildcard) {
             this.source = source;
             this.plan = plan;
             this.slot = slot;
             this.query = query;
+            this.wildcard = wildcard;
         }
     }
 

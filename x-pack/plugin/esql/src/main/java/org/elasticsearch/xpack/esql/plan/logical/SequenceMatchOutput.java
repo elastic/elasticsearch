@@ -182,9 +182,10 @@ public final class SequenceMatchOutput {
         List<LogicalPlan> stages = new ArrayList<>();
         for (int ownStage = 0; ownStage < sequence.children().size(); ownStage++) {
             SequenceStage stage = (SequenceStage) sequence.children().get(ownStage);
-            LogicalPlan cursor = stage.child();
+            LogicalPlan stagePlan = stage.child();
+            LogicalPlan cursor = stagePlan;
             List<UnaryPlan> projections = new ArrayList<>();
-            while (cursor instanceof Keep || cursor instanceof Drop || cursor instanceof Rename) {
+            while (isStageProjection(cursor)) {
                 projections.add((UnaryPlan) cursor);
                 cursor = ((UnaryPlan) cursor).child();
             }
@@ -234,15 +235,51 @@ public final class SequenceMatchOutput {
             stage = stage.replaceChild(cursor);
             stage.forEachExpressionDown(UnresolvedFunction.class, function -> {
                 if (function.name().equalsIgnoreCase("member")) {
-                    throw new ParsingException(
-                        function.source(),
-                        "MEMBER is only supported in the final WHERE of a SEQUENCE stage; only KEEP, DROP or RENAME may follow that WHERE"
-                    );
+                    throw misplacedStageMember(stagePlan, function);
                 }
             });
             stages.add(stage);
         }
         return sequence.replaceChildren(stages);
+    }
+
+    private static boolean isStageProjection(LogicalPlan plan) {
+        return plan instanceof Keep || plan instanceof Drop || plan instanceof Rename;
+    }
+
+    /** Attribute a misplaced filter to the first command that prevents it from acting as a final stage filter. */
+    private static ParsingException misplacedStageMember(LogicalPlan stagePlan, UnresolvedFunction member) {
+        var following = new ArrayDeque<UnaryPlan>();
+        for (LogicalPlan cursor = stagePlan; cursor instanceof UnaryPlan command; cursor = command.child()) {
+            if (command instanceof Filter filter && filter.condition().anyMatch(expression -> expression == member)) {
+                while (following.peekFirst() instanceof Filter) {
+                    following.removeFirst();
+                }
+                while (isStageProjection(following.peekFirst())) {
+                    following.removeFirst();
+                }
+                if (following.peekFirst() instanceof Eval eval) {
+                    return new ParsingException(
+                        eval.source(),
+                        "EVAL cannot follow a SEQUENCE stage WHERE that uses MEMBER. "
+                            + "Move EVAL before that WHERE if the move preserves the inputs to both commands"
+                    );
+                }
+                if (following.isEmpty() == false) {
+                    return new ParsingException(
+                        following.getFirst().source(),
+                        "This command cannot follow the final WHERE of a SEQUENCE stage that uses MEMBER. "
+                            + "After that WHERE, only KEEP, DROP or RENAME may follow"
+                    );
+                }
+                break;
+            }
+            following.addFirst(command);
+        }
+        return new ParsingException(
+            member.source(),
+            "MEMBER is only supported in the final WHERE of a SEQUENCE stage; only KEEP, DROP or RENAME may follow that WHERE"
+        );
     }
 
     /** No schema-changing command separates these filters, so their fields keep the same binding and source locations. */

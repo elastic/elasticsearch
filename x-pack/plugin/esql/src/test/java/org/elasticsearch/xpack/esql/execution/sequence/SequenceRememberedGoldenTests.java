@@ -41,58 +41,44 @@ public class SequenceRememberedGoldenTests extends ESTestCase {
         new ReferenceAttribute(Source.EMPTY, null, "value", DataType.INTEGER)
     );
 
-    /** Both bounded rules retain every pinned member, admission/drop counter and post-list per-key peak. */
-    public void testAllFiftyPinnedHistoriesBothRules() throws IOException {
+    /** The remembered-chain rule retains every pinned member, admission/drop counter and post-list per-key peak. */
+    public void testAllFiftyPinnedHistories() throws IOException {
         List<?> cases = cases();
         assertEquals(50, cases.size());
         for (Object value : cases) {
             Map<?, ?> fixture = map(value);
-            for (boolean experimental : List.of(false, true)) {
-                String mode = experimental ? "rule" : "today";
-                try (Harness h = new Harness(fixture, experimental, false)) {
-                    h.run(fixture);
-                    assertEquals(fixture.get("id") + "/" + mode, map(fixture.get("expected")).get(mode), h.matches);
-                    Map<?, ?> counters = map(map(fixture.get("counters")).get(mode));
-                    assertEquals(
-                        fixture.get("id") + "/" + mode + "/drops",
-                        number(counters.get("dropped_at_limit")),
-                        h.matcher.boundDrops()
-                    );
-                    var admission = h.matcher.admissionCounters();
-                    if (experimental) {
-                        assertEquals(
-                            fixture.get("id") + "/not-kept",
-                            number(counters.get("not_kept_no_valid_chain")),
-                            admission.candidatesNotKept()
-                        );
-                        assertEquals(
-                            fixture.get("id") + "/peak",
-                            number(counters.get("peak_rows_kept")),
-                            admission.peakCandidatesKeptPerKey()
-                        );
-                        assertEquals(
-                            fixture.get("id") + "/arrival-abandoned",
-                            number(counters.get("arrival_searches_abandoned")),
-                            admission.arrivalSearchesAbandoned()
-                        );
-                        assertEquals(
-                            fixture.get("id") + "/all-abandoned",
-                            number(counters.get("arrival_searches_abandoned")) + number(counters.get("final_searches_abandoned")),
-                            h.matcher.latestValidCounters().searchesAbandonedAtWorkLimit()
-                        );
-                        if (h.stages <= 4) {
-                            assertTrue(admission.peakCandidatesKeptPerKey() <= (long) h.bound * h.stages * (h.stages - 1) / 2);
-                        }
-                    }
-                    logger.info(
-                        "Ki R2 case [{}] mode [{}] matches [{}] existing [{}] admission [{}]",
-                        fixture.get("id"),
-                        mode,
-                        h.matches,
-                        h.matcher.latestValidCounters(),
-                        admission
-                    );
+            try (Harness h = new Harness(fixture, false)) {
+                h.run(fixture);
+                assertEquals(fixture.get("id").toString(), map(fixture.get("expected")).get("rule"), h.matches);
+                Map<?, ?> counters = map(map(fixture.get("counters")).get("rule"));
+                assertEquals(fixture.get("id") + "/drops", number(counters.get("dropped_at_limit")), h.matcher.boundDrops());
+                var admission = h.matcher.admissionCounters();
+                assertEquals(
+                    fixture.get("id") + "/not-kept",
+                    number(counters.get("not_kept_no_valid_chain")),
+                    admission.candidatesNotKept()
+                );
+                assertEquals(fixture.get("id") + "/peak", number(counters.get("peak_rows_kept")), admission.peakCandidatesKeptPerKey());
+                assertEquals(
+                    fixture.get("id") + "/arrival-abandoned",
+                    number(counters.get("arrival_searches_abandoned")),
+                    admission.arrivalSearchesAbandoned()
+                );
+                assertEquals(
+                    fixture.get("id") + "/all-abandoned",
+                    number(counters.get("arrival_searches_abandoned")) + number(counters.get("final_searches_abandoned")),
+                    h.matcher.latestValidCounters().searchesAbandonedAtWorkLimit()
+                );
+                if (h.stages <= 4) {
+                    assertTrue(admission.peakCandidatesKeptPerKey() <= (long) h.bound * h.stages * (h.stages - 1) / 2);
                 }
+                logger.info(
+                    "Ki R2 case [{}] matches [{}] existing [{}] admission [{}]",
+                    fixture.get("id"),
+                    h.matches,
+                    h.matcher.latestValidCounters(),
+                    admission
+                );
             }
         }
     }
@@ -104,7 +90,7 @@ public class SequenceRememberedGoldenTests extends ESTestCase {
             .filter(c -> c.get("id").toString().startsWith("G47-"))
             .findFirst()
             .orElseThrow();
-        try (Harness h = new Harness(fixture, true, true)) {
+        try (Harness h = new Harness(fixture, true)) {
             h.run(fixture);
             assertEquals(map(fixture.get("expected")).get("rule_without_work_limit"), h.matches);
             assertEquals(map(fixture.get("expected")).get("rule_without_arrival_limit"), h.matches);
@@ -272,7 +258,7 @@ public class SequenceRememberedGoldenTests extends ESTestCase {
         private final List<List<String>> matches = new ArrayList<>();
         private long lastFinalSteps;
 
-        private Harness(Map<?, ?> fixture, boolean experimental, boolean freeWork) {
+        private Harness(Map<?, ?> fixture, boolean freeWork) {
             stages = Math.toIntExact(number(fixture.get("stages")));
             bound = Math.toIntExact(number(fixture.get("limit")));
             var demands = java.util.Collections.nCopies(stages, List.of(VALUE));
@@ -283,7 +269,6 @@ public class SequenceRememberedGoldenTests extends ESTestCase {
                 ? Long.MAX_VALUE
                 : number(fixture.get("arrival_step_limit"));
             config = SequenceLatestValidConfig.boundedForTests(bound, finalLimit, demands, groups(fixture))
-                .withRememberedChains(experimental)
                 .withArrivalLimitForTests(arrivalLimit);
             long[] gaps = new long[stages];
             for (var gap : map(fixture.get("step_limits")).entrySet()) {

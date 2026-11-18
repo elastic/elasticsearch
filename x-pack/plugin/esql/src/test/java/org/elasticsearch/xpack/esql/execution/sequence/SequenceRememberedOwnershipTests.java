@@ -214,8 +214,7 @@ public class SequenceRememberedOwnershipTests extends ESTestCase {
             scoped = budget.newScope().breaker(breaker);
             matcherBreaker = interceptReservations ? mock(CircuitBreaker.class, delegatesTo(scoped)) : scoped;
             blocks = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(scoped).build();
-            config = SequenceLatestValidConfig.boundedForTests(2, 131072, java.util.Collections.nCopies(3, List.of(VALUE)), groups)
-                .withRememberedChains(true);
+            config = SequenceLatestValidConfig.boundedForTests(2, 131072, java.util.Collections.nCopies(3, List.of(VALUE)), groups);
             matcher = new SequenceLatestValidMatcher(
                 3,
                 TimeValue.timeValueMillis(10),

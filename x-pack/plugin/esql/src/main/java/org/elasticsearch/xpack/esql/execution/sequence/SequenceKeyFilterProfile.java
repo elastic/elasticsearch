@@ -7,7 +7,10 @@
 
 package org.elasticsearch.xpack.esql.execution.sequence;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.operator.ProfileSchema;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.profile.query.QueryProfileShardResult;
@@ -18,6 +21,8 @@ import java.util.Map;
 
 /** Reports explicit shard decisions. A shard can participate in more than one candidate search. */
 public final class SequenceKeyFilterProfile {
+    private static final Logger logger = LogManager.getLogger(SequenceKeyFilterProfile.class);
+
     public static final ProfileSchema<SequenceKeyFilterProfile> PROFILE_SCHEMA = ProfileSchema.of(
         SequenceKeyFilterProfile.class,
         (builder, value, params) -> builder.map(value.snapshot())
@@ -29,28 +34,53 @@ public final class SequenceKeyFilterProfile {
         .required("index_modes", ProfileSchema.dynamicObject(ProfileSchema.integer()))
         .build();
 
+    private boolean failed;
     private long builtSearches;
     private long appliedShardSearches;
     private final Map<String, Long> coordinatorFallbacks = new HashMap<>();
     private final Map<String, Long> rejectedShardSearches = new HashMap<>();
     private final Map<String, Long> indexModes = new HashMap<>();
 
-    synchronized void builtSearch() {
-        builtSearches = plus(builtSearches, 1);
+    synchronized boolean startSearch(ThreadContext context) {
+        if (failed) {
+            return false;
+        }
+        try {
+            context.putHeader(SequenceKeyFilterShardProfile.REQUEST_HEADER, "1");
+            builtSearches = plus(builtSearches, 1);
+            return true;
+        } catch (RuntimeException e) {
+            discard(e);
+            return false;
+        }
     }
 
     synchronized void coordinatorFallback(String reason) {
-        coordinatorFallbacks.merge(reason, 1L, SequenceKeyFilterProfile::plus);
+        if (failed == false) {
+            coordinatorFallbacks.merge(reason, 1L, SequenceKeyFilterProfile::plus);
+        }
     }
 
     synchronized void recordShardSearches(SearchResponse response) {
-        var shardResults = response.getSearchProfileShardResults();
-        if (shardResults == null) {
+        if (failed) {
             return;
         }
-        for (var shard : shardResults.values()) {
-            recordShardSearch(shard.getQueryProfileResults());
+        try {
+            var shardResults = response.getSearchProfileShardResults();
+            if (shardResults != null) {
+                for (var shard : shardResults.values()) {
+                    recordShardSearch(shard.getQueryProfileResults());
+                }
+            }
+        } catch (RuntimeException e) {
+            discard(e);
         }
+    }
+
+    private void discard(RuntimeException failure) {
+        // Suppress the whole section: previous counts may describe only part of this query.
+        failed = true;
+        logger.debug("Discarding SEQUENCE key filter profile", failure);
     }
 
     private void recordShardSearch(List<QueryProfileShardResult> phases) {
@@ -75,7 +105,7 @@ public final class SequenceKeyFilterProfile {
 
     @Nullable
     public synchronized Map<String, Object> snapshot() {
-        if (builtSearches == 0 && coordinatorFallbacks.isEmpty()) {
+        if (failed || (builtSearches == 0 && coordinatorFallbacks.isEmpty())) {
             return null;
         }
         return Map.of(

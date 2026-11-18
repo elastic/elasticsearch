@@ -11,18 +11,25 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
+import org.elasticsearch.action.search.SearchContextId;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.internal.ReaderContext;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -32,6 +39,8 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -84,11 +93,12 @@ public class SequenceSnapshotExpiryIT extends AbstractSequenceIntegTestCase {
             assertTrue("first native PIT search was not parked", gate.started.await(30, TimeUnit.SECONDS));
             assertEquals(TimeValue.timeValueMinutes(5), gate.openLease);
             assertEquals(TimeValue.timeValueMinutes(5), gate.searchLease);
-            int contextsBeforeExpiry = 0;
-            for (SearchService search : internalCluster().getInstances(SearchService.class)) {
-                contextsBeforeExpiry += search.getActiveContexts();
-            }
-            assertTrue("a real PIT reader existed before idle expiry", contextsBeforeExpiry > 0);
+            var registry = internalCluster().getInstance(NamedWriteableRegistry.class);
+            var shards = SearchContextId.decode(registry, gate.pitId).shards();
+            assertEquals(1, shards.size());
+            var reader = shards.values().iterator().next().getSearchContextId();
+            assertNotNull(reader);
+            assertTrue("the parked PIT must refer to a reader created for the fixture", gate.createdReaders.contains(reader));
             assertBusy(() -> {
                 for (SearchService search : internalCluster().getInstances(SearchService.class)) {
                     assertEquals(0, search.getActiveContexts());
@@ -119,6 +129,8 @@ public class SequenceSnapshotExpiryIT extends AbstractSequenceIntegTestCase {
         private final AtomicBoolean claimed = new AtomicBoolean();
         private final CountDownLatch started = new CountDownLatch(1);
         private final CountDownLatch handled = new CountDownLatch(1);
+        private final Set<ShardSearchContextId> createdReaders = ConcurrentHashMap.newKeySet();
+        private volatile BytesReference pitId;
         private volatile TimeValue openLease;
         private volatile TimeValue searchLease;
         private boolean released;
@@ -163,6 +175,21 @@ public class SequenceSnapshotExpiryIT extends AbstractSequenceIntegTestCase {
         private volatile ThreadPool threadPool;
 
         @Override
+        public void onIndexModule(IndexModule module) {
+            if ("sequence-expiry-events".equals(module.getIndex().getName())) {
+                module.addSearchOperationListener(new SearchOperationListener() {
+                    @Override
+                    public void onNewReaderContext(ReaderContext reader) {
+                        LeaseGate gate = LeaseGate.ACTIVE.get();
+                        if (gate != null) {
+                            gate.createdReaders.add(reader.id());
+                        }
+                    }
+                });
+            }
+        }
+
+        @Override
         public Collection<?> createComponents(PluginServices services) {
             threadPool = services.threadPool();
             return List.of();
@@ -202,6 +229,7 @@ public class SequenceSnapshotExpiryIT extends AbstractSequenceIntegTestCase {
                     }
                     SearchRequest search = (SearchRequest) request;
                     gate.searchLease = search.source().pointInTimeBuilder().getKeepAlive();
+                    gate.pitId = search.source().pointInTimeBuilder().getEncodedId();
                     request.mustIncRef();
                     var terminal = ActionListener.notifyOnce(ActionListener.runAfter(listener, () -> {
                         try {

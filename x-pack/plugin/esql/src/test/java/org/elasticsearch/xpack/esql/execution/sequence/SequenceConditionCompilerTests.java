@@ -83,7 +83,7 @@ public class SequenceConditionCompilerTests extends ESTestCase {
         try (Resources resources = new Resources("1mb")) {
             resources.context.setWarningsBudget(new Warnings.Budget());
             try (var compiler = compile(sequence(local(a), condition, local()), resources)) {
-                var config = compiler.config().withRememberedChains(true);
+                var config = compiler.config();
                 assertEquals(1, config.groups().size());
                 try (
                     var matcher = new SequenceLatestValidMatcher(
@@ -153,7 +153,7 @@ public class SequenceConditionCompilerTests extends ESTestCase {
             try (Resources resources = new Resources("1mb")) {
                 resources.context.setWarningsBudget(new Warnings.Budget());
                 try (var compiler = compile(sequence, resources)) {
-                    var config = compiler.config().withRememberedChains(true);
+                    var config = compiler.config();
                     try (
                         var matcher = new SequenceLatestValidMatcher(
                             3,
@@ -249,7 +249,7 @@ public class SequenceConditionCompilerTests extends ESTestCase {
             Resources resources = new Resources("32mb");
             var compiler = SequenceConditionCompiler.compile(sequence, 2, FoldContext.small(), resources.context, null)
         ) {
-            var config = compiler.config().withRememberedChains(true);
+            var config = compiler.config();
             try (
                 var matcher = new SequenceLatestValidMatcher(
                     3,
@@ -319,7 +319,7 @@ public class SequenceConditionCompilerTests extends ESTestCase {
             )
         );
         try (Resources resources = new Resources("1mb"); var compiler = compile(sequence, resources)) {
-            var config = compiler.config().withRememberedChains(true);
+            var config = compiler.config();
             assertEquals(3, config.groups().size());
             try (
                 var matcher = new SequenceLatestValidMatcher(

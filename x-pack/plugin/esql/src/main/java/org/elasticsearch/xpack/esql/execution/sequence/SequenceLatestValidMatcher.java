@@ -30,10 +30,9 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
 
 /**
- * Row-native latest-valid pairing. The default retains recency lists; the experimental admission rule also
- * retains rows remembered by listed middle rows. Backward search borrows one pointer per earlier stage and binds
+ * Row-native latest-valid pairing. Recency lists and their remembered chains retain candidates across eviction. Backward search borrows one pointer per earlier stage and binds
  * the arriving row as its terminal. Used markers release their values and output ownership but keep their list
- * slots and experimental remembered references. Calls, including closure, are serialized by the owning source.
+ * slots and remembered references. Calls, including closure, are serialized by the owning source.
  * Returned matches own independent references.
  */
 final class SequenceLatestValidMatcher implements SequencePairing {
@@ -54,7 +53,6 @@ final class SequenceLatestValidMatcher implements SequencePairing {
     private final long maxSpanNanos;
     private final int bound;
     private final long searchStepLimit;
-    private final boolean rememberChains;
     private final CircuitBreaker breaker;
     private final BooleanSupplier cancelled;
     private final Comparator<BytesRef> keyOrder;
@@ -125,7 +123,6 @@ final class SequenceLatestValidMatcher implements SequencePairing {
         maxSpanNanos = maxSpan.nanos();
         bound = config.maxCandidates().orElse(Integer.MAX_VALUE);
         searchStepLimit = config.searchStepLimit();
-        rememberChains = config.rememberChains();
         this.breaker = Objects.requireNonNull(breaker);
         this.cancelled = Objects.requireNonNull(cancelled);
         this.keyOrder = Objects.requireNonNull(keyOrder);
@@ -188,7 +185,7 @@ final class SequenceLatestValidMatcher implements SequencePairing {
             KeyState state = keys.get(key);
             if (stage < stages - 1) {
                 boolean found = false;
-                if (rememberChains && stage > 0) {
+                if (stage > 0) {
                     terminalStage = stage;
                     finalOrdinal = ordinal;
                     finalValues = values;
@@ -199,7 +196,8 @@ final class SequenceLatestValidMatcher implements SequencePairing {
                         return null;
                     }
                 }
-                retainedValues = insert(state, stage, key, ordinal, rank, handle, values, found);
+                insert(state, stage, key, ordinal, rank, handle, values, found);
+                retainedValues = true;
                 return null;
             }
             // Even an empty start ring requires the prescribed later-stage visits when this search is invoked.
@@ -290,75 +288,8 @@ final class SequenceLatestValidMatcher implements SequencePairing {
         previousKey = copy;
     }
 
-    private boolean insert(
-        KeyState state,
-        int stage,
-        BytesRef key,
-        SequenceOrdinal ordinal,
-        long rank,
-        BytesRef handle,
-        SequenceCandidateValues values,
-        boolean found
-    ) {
-        if (rememberChains) {
-            return insertRemembered(state, stage, key, ordinal, rank, handle, values, found);
-        }
-        if (state == null) {
-            state = addKey(key);
-        }
-        Ring ring = state.rings[stage];
-        if (ring == null) {
-            long bytes = RamUsageEstimator.shallowSizeOfInstance(Ring.class);
-            reserve(bytes);
-            ring = new Ring();
-            state.rings[stage] = ring;
-            state.bytes += bytes;
-        }
-        int position = ring.size;
-        while (position > 0 && ring.rows[position - 1].ordinal.equals(ordinal)) {
-            checkCancelled();
-            position--;
-        }
-        if (ring.size == bound && position == 0) {
-            recordBoundDrop(state);
-            return false;
-        }
-        ensureRingCapacity(state, ring, Math.min(bound, ring.size + 1));
-        SequencePayloadHandle payload = SequencePayloadHandle.copyOf(handle, breaker);
-        boolean published = false;
-        try {
-            long bytes = ROW_BYTES + (stage == 0 ? TREE_ENTRY_BYTES : 0);
-            reserve(bytes);
-            DocState document = addDocument(state, ordinal);
-            Row row = new Row(state, document, stage, ordinal, rank, payload, values, bytes);
-            state.records++;
-            if (document != null) {
-                document.records++;
-            }
-            if (ring.size == bound) {
-                remove(ring.rows[0]);
-                position--;
-                recordBoundDrop(state);
-            }
-            System.arraycopy(ring.rows, position, ring.rows, position + 1, ring.size - position);
-            ring.rows[position] = row;
-            ring.size++;
-            published = true;
-            expiry.add(row);
-            if (stage == 0) {
-                unusedStarts.add(row);
-            }
-            largestRingFill = Math.max(largestRingFill, ring.size);
-            return true;
-        } finally {
-            if (published == false) {
-                payload.decRef();
-            }
-        }
-    }
-
     /** Admission owns a flat earlier chain; only listed rows hold those references. */
-    private boolean insertRemembered(
+    private void insert(
         KeyState state,
         int stage,
         BytesRef key,
@@ -428,7 +359,6 @@ final class SequenceLatestValidMatcher implements SequencePairing {
             }
             largestRingFill = Math.max(largestRingFill, ring.size);
             peakCandidatesKeptPerKey = Math.max(peakCandidatesKeptPerKey, state.records);
-            return true;
         } finally {
             if (published == false) {
                 payload.decRef();
@@ -591,56 +521,11 @@ final class SequenceLatestValidMatcher implements SequencePairing {
         return document;
     }
 
-    private void ensureRingCapacity(KeyState state, Ring ring, int needed) {
-        if (needed > ring.rows.length) {
-            int capacity = Math.min(bound, Math.max(needed, Math.max(4, Math.multiplyExact(ring.rows.length, 2))));
-            long bytes = referenceArrayBytes(capacity);
-            long previous = ring.rows.length == 0 ? 0 : referenceArrayBytes(ring.rows.length);
-            reserve(bytes);
-            ring.rows = Arrays.copyOf(ring.rows, capacity);
-            state.bytes += bytes - previous;
-            release(previous);
-        }
-    }
-
     private void prune(SequenceOrdinal watermark) {
         while (expiry.isEmpty() == false && watermark.exceedsSpan(expiry.first().ordinal, maxSpanNanos)) {
             checkCancelled();
-            if (rememberChains) {
-                expireRemembered(expiry.first());
-            } else {
-                remove(expiry.first());
-            }
+            expireRemembered(expiry.first());
             expiredCandidates = Math.incrementExact(expiredCandidates);
-        }
-    }
-
-    private void remove(Row row) {
-        expiry.remove(row);
-        if (row.stage == 0 && row.used == false) {
-            unusedStarts.remove(row);
-        }
-        KeyState state = row.state;
-        Ring ring = state.rings[row.stage];
-        int position = 0;
-        while (ring.rows[position] != row) {
-            checkCancelled();
-            position++;
-        }
-        System.arraycopy(ring.rows, position + 1, ring.rows, position, ring.size - position - 1);
-        ring.rows[--ring.size] = null;
-        try {
-            row.releaseValues();
-        } finally {
-            release(row.bytes);
-            if (row.document != null && --row.document.records == 0) {
-                state.documents.remove(row.document.ordinal);
-                release(row.document.bytes);
-            }
-            if (--state.records == 0) {
-                keys.remove(state.key);
-                release(state.bytes);
-            }
         }
     }
 
@@ -952,12 +837,12 @@ final class SequenceLatestValidMatcher implements SequencePairing {
         breaker.addWithoutBreaking(-bytes, LABEL);
     }
 
-    private int poolSize(Ring ring) {
-        return rememberChains ? (ring == null ? 0 : ring.keptSize) : size(ring);
+    private static int poolSize(Ring ring) {
+        return ring == null ? 0 : ring.keptSize;
     }
 
-    private Row poolRow(Ring ring, int position) {
-        return rememberChains ? ring.kept[position] : ring.rows[position];
+    private static Row poolRow(Ring ring, int position) {
+        return ring.kept[position];
     }
 
     /** Matcher-local measurements. The kept peak is sampled after list trimming. */

@@ -39,6 +39,7 @@ public class SequenceKeyFilterLogsdbIT extends AbstractSequenceIntegTestCase {
         var type = (KeywordFieldMapper.KeywordFieldType) create(index, IndexMode.LOGSDB, "key", INDEXED_KEYWORD, Settings.EMPTY);
         assertTrue(type.indexType().hasTerms());
         assertFalse(type.usesBinaryDocValues());
+        assertNull(SequenceSourceQueryBuilder.keywordTermRejection(type, "wanted"));
         seed(index, "key", "wanted", "unrelated", "keyword");
         assertQuery(index, "key", List.of(row("wanted", "keyword")), 3, 2, profile(1L, Map.of(), Map.of("logsdb", 1L)));
     }
@@ -81,9 +82,12 @@ public class SequenceKeyFilterLogsdbIT extends AbstractSequenceIntegTestCase {
 
     public void testBinaryKeywordInLogsdbColumnarFallsBack() {
         String index = "sequence-logsdb-binary";
-        // Plain LOGSDB uses sorted-set keyword doc values. LOGSDB_COLUMNAR provides the real binary layout.
+        // The mapping exposes binary keyword doc values only on strict columnar modes. The mode guard rejects
+        // that index before a search can reach its keyword guard, so exercise both decisions on the same real mapper.
         var type = (KeywordFieldMapper.KeywordFieldType) create(index, IndexMode.LOGSDB_COLUMNAR, "key", INDEXED_KEYWORD, Settings.EMPTY);
         assertTrue(type.usesBinaryDocValues());
+        assertTrue(type.hasDocValues());
+        assertEquals("binary_doc_values", SequenceSourceQueryBuilder.keywordTermRejection(type, "wanted"));
         seed(index, "key", "wanted", "unrelated", "binary");
         assertQuery(
             index,

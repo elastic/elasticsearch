@@ -162,9 +162,6 @@ public class SequenceKeptStartReaderIT extends AbstractSequenceIntegTestCase {
             assertEquals(List.of(3L, 2L, 2L), result.status.runtime().rowsFetched());
             assertEquals(filter, result.requests.stream().anyMatch(SequenceKeptStartReaderIT::hasKeyFilter));
         }
-        Observed legacy = observe(query, Settings.builder().put("sequence_key_filter", false).put("sequence_remembered_chains", false));
-        assertEquals(List.of(List.of("k1", "A3", "B2", "C1")), legacy.rows);
-        assertEquals(List.of(provenance("A3", "B2", "C1")), legacy.provenance);
     }
 
     /**
@@ -378,7 +375,7 @@ public class SequenceKeptStartReaderIT extends AbstractSequenceIntegTestCase {
     }
 
     private Observed observe(String query, boolean keyFilter) throws Exception {
-        return observe(query, Settings.builder().put("sequence_remembered_chains", true).put("sequence_key_filter", keyFilter));
+        return observe(query, Settings.builder().put("sequence_key_filter", keyFilter));
     }
 
     private Observed observe(String query, Settings.Builder settings) throws Exception {

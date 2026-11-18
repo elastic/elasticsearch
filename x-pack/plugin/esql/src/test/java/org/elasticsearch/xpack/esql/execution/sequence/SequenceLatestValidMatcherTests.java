@@ -125,18 +125,16 @@ public class SequenceLatestValidMatcherTests extends ESTestCase {
 
     /** A listed middle row preserves the only earlier start when the start leaves its list. */
     public void testEightLaterStartsEvictTheOnlyCompleteChainAtDefaultBound() {
-        for (boolean remembered : List.of(false, true)) {
-            for (int bound : List.of(8, 9)) {
-                try (Harness h = new Harness(config(bound, 3, false, List.of()).withRememberedChains(remembered), 30, null, () -> false)) {
-                    h.add(0, 0, 0, "k", "a", null);
-                    h.add(1, 1, 1, "k", "b", null);
-                    for (int later = 2; later <= 9; later++) {
-                        h.add(0, later, later, "k", "later-" + later, null);
-                    }
-                    h.add(2, 10, 10, "k", "c", null);
-                    assertEquals(remembered == false && bound == 8 ? List.of() : List.of("a b c"), h.matches);
-                    assertEquals(remembered == false && bound == 8 ? 1 : 0, h.matcher.boundDrops());
+        for (int bound : List.of(8, 9)) {
+            try (Harness h = new Harness(config(bound, 3, false, List.of()), 30, null, () -> false)) {
+                h.add(0, 0, 0, "k", "a", null);
+                h.add(1, 1, 1, "k", "b", null);
+                for (int later = 2; later <= 9; later++) {
+                    h.add(0, later, later, "k", "later-" + later, null);
                 }
+                h.add(2, 10, 10, "k", "c", null);
+                assertEquals(List.of("a b c"), h.matches);
+                assertEquals(0, h.matcher.boundDrops());
             }
         }
     }
@@ -184,17 +182,15 @@ public class SequenceLatestValidMatcherTests extends ESTestCase {
     }
 
     public void testSubstitutionRequiresStrictOrderBetweenEmittedNeighbours() {
-        for (boolean remembered : List.of(false, true)) {
-            for (int bound : BOUNDS) {
-                try (Harness h = new Harness(config(bound, 3, false, List.of()).withRememberedChains(remembered), 10, null, () -> false)) {
-                    h.add(0, 0, 10, "k", "a1", null);
-                    h.add(1, 1, 20, "k", "b1", null);
-                    h.add(0, 2, 30, "k", "a2", null);
-                    h.add(2, 3, 40, "k", "c1", null);
-                    h.add(1, 4, 50, "k", "b2", null);
-                    h.add(2, 5, 60, "k", "c2", null);
-                    assertEquals(remembered == false && bound == 1 ? List.of("a2 b2 c2") : List.of("a1 b1 c1", "a2 b2 c2"), h.matches);
-                }
+        for (int bound : BOUNDS) {
+            try (Harness h = new Harness(config(bound, 3, false, List.of()), 10, null, () -> false)) {
+                h.add(0, 0, 10, "k", "a1", null);
+                h.add(1, 1, 20, "k", "b1", null);
+                h.add(0, 2, 30, "k", "a2", null);
+                h.add(2, 3, 40, "k", "c1", null);
+                h.add(1, 4, 50, "k", "b2", null);
+                h.add(2, 5, 60, "k", "c2", null);
+                assertEquals(List.of("a1 b1 c1", "a2 b2 c2"), h.matches);
             }
         }
     }
@@ -227,28 +223,20 @@ public class SequenceLatestValidMatcherTests extends ESTestCase {
     }
 
     public void testCrossMarkingIsNotRecursive() {
-        for (boolean remembered : List.of(false, true)) {
-            for (int bound : List.of(16, Integer.MAX_VALUE)) {
-                var config = config(bound, 3, true, List.of(equal(2, 0))).withRememberedChains(remembered);
-                try (Harness h = new Harness(config, 10, null, () -> false)) {
-                    h.add(1, 1, 101, "k", "x_s2", 0);
-                    h.add(0, 1, 101, "k", "x#0", 1);
-                    h.add(0, 1, 101, "k", "x#1", 2);
-                    h.add(1, 2, 201, "k", "y1", 0);
-                    h.add(2, 3, 301, "k", "f1", 1);
-                    var state = h.matcher.snapshotForTests();
-                    assertEquals(
-                        remembered ? List.of(true, false, true) : List.of(true, true, false, true),
-                        state.stream().map(SequenceLatestValidMatcher.RowState::used).toList()
-                    );
-                    assertEquals(
-                        remembered ? List.of(1L, 2L, 3L) : List.of(0L, 1L, 2L, 3L),
-                        state.stream().map(SequenceLatestValidMatcher.RowState::arrivalRank).toList()
-                    );
-                    h.add(1, 4, 401, "k", "y2", 0);
-                    h.add(2, 5, 501, "k", "f2", 2);
-                    assertEquals(List.of("x#0 y1 f1", "x#1 y2 f2"), h.matches);
-                }
+        for (int bound : List.of(16, Integer.MAX_VALUE)) {
+            var config = config(bound, 3, true, List.of(equal(2, 0)));
+            try (Harness h = new Harness(config, 10, null, () -> false)) {
+                h.add(1, 1, 101, "k", "x_s2", 0);
+                h.add(0, 1, 101, "k", "x#0", 1);
+                h.add(0, 1, 101, "k", "x#1", 2);
+                h.add(1, 2, 201, "k", "y1", 0);
+                h.add(2, 3, 301, "k", "f1", 1);
+                var state = h.matcher.snapshotForTests();
+                assertEquals(List.of(true, false, true), state.stream().map(SequenceLatestValidMatcher.RowState::used).toList());
+                assertEquals(List.of(1L, 2L, 3L), state.stream().map(SequenceLatestValidMatcher.RowState::arrivalRank).toList());
+                h.add(1, 4, 401, "k", "y2", 0);
+                h.add(2, 5, 501, "k", "f2", 2);
+                assertEquals(List.of("x#0 y1 f1", "x#1 y2 f2"), h.matches);
             }
         }
     }
@@ -322,7 +310,7 @@ public class SequenceLatestValidMatcherTests extends ESTestCase {
     }
 
     public void testUsedMarkersAndMiddleStageTailsAreNotViableStarts() {
-        try (Harness h = new Harness(config(16, 3, false, List.of()).withRememberedChains(true), 10, null, () -> false)) {
+        try (Harness h = new Harness(config(16, 3, false, List.of()), 10, null, () -> false)) {
             h.add(0, 0, 10, "k", "a", null);
             assertEquals(ordinal(0, 10), h.matcher.latestUnusedStart());
             h.add(1, 1, 20, "k", "b", null);

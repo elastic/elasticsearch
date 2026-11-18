@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.After;
 
 import java.time.Instant;
@@ -301,30 +302,24 @@ public class SequenceTimeBoundIT extends AbstractSequenceIntegTestCase {
         assertEquals(1L, result.status.candidateSearchRequests());
     }
 
-    /** The finalized start horizon excludes a filtered late tail before its first page is fetched. */
-    public void testFilteredTailWithoutLaterHeadIsBounded() throws Exception {
-        verifyFilteredTail(false);
-    }
-
-    /** Key pruning skips the unrelated head and the finalized horizon excludes the later filtered tail. */
+    /** The unrelated head is fetched only without key pruning. The horizon excludes the filtered tail in both modes. */
     public void testFilteredTailAfterNonmatchingHeadIsBounded() throws Exception {
-        verifyFilteredTail(true);
-    }
-
-    private void verifyFilteredTail(boolean includeHead) throws Exception {
         create("date", 1, A, B);
         var bulk = client().prepareBulk();
         add(bulk, A, "A", BASE.toString(), "key", "yes", "7");
-        if (includeHead) {
-            add(bulk, B, "unrelated-head", BASE.plusSeconds(1).toString(), "other", "yes", "7");
-        }
+        add(bulk, B, "unrelated-head", BASE.plusSeconds(1).toString(), "other", "yes", "7");
         for (int i = 0; i < 1536; i++) {
             add(bulk, B, "filtered-" + i, BASE.plusSeconds(61).plusMillis(i).toString(), "key", "NO", "7");
         }
         finishSeed(bulk, A, B);
-        Outcome result = verify(sequence(stage(A), branch(B)), List.of());
-        assertEquals("read only the start and bounded later source", 2L, result.status.candidateSearchRequests());
-        assertEquals(1L, result.status.candidateRowsFetched());
+        String query = sequence(stage(A), branch(B));
+        for (boolean keyFilter : List.of(false, true)) {
+            UpperOutcome result = observeUpper(query, keyFilter);
+            assertRows(List.of(), result.outcome);
+            assertEquals("read only the start and bounded later source", 2L, result.outcome.status.candidateSearchRequests());
+            assertEquals(keyFilter ? 1L : 2L, result.outcome.status.candidateRowsFetched());
+            assertUpperRequests(result, B, BASE.plusSeconds(60));
+        }
     }
 
     /** A far-future raw page end cannot expire an earlier valid completion in the same page. */
@@ -854,15 +849,17 @@ public class SequenceTimeBoundIT extends AbstractSequenceIntegTestCase {
             add(bulk, B, "tail-" + event, BASE.plusSeconds(61).plusMillis(event).toString(), "key", "NO", "7");
         }
         finishSeed(bulk, A, B);
-        UpperOutcome result = observeUpper(upperSequence("60s", stage(A), branch(B)));
-        assertRows(List.of(), result.outcome);
-        assertEquals(
-            "the unreachable tail must be excluded before its first256-row page",
-            1L,
-            result.outcome.status.candidateRowsFetched()
-        );
-        assertEquals(2L, result.outcome.status.candidateSearchRequests());
-        assertUpperRequests(result, B, BASE.plusSeconds(60));
+        String query = upperSequence("60s", stage(A), branch(B));
+        for (UpperOutcome result : List.of(observeUpper(query), observeUpper(query, false))) {
+            assertRows(List.of(), result.outcome);
+            assertEquals(
+                "the unreachable tail must be excluded before its first256-row page",
+                1L,
+                result.outcome.status.candidateRowsFetched()
+            );
+            assertEquals(2L, result.outcome.status.candidateSearchRequests());
+            assertUpperRequests(result, B, BASE.plusSeconds(60));
+        }
     }
 
     /** Fully read start input still has a future survivor after the earlier pair has consumed every pending prefix. */
@@ -877,13 +874,13 @@ public class SequenceTimeBoundIT extends AbstractSequenceIntegTestCase {
         }
         add(bulk, B, "late-B", BASE.plusMillis(1005).toString(), "late", "yes", "7");
         finishSeed(bulk, A, B);
-        UpperOutcome result = observeUpper(upperSequence("10ms", stage(A), stage(B)));
-        assertRows(List.of(List.of("early", "early-A", "early-B"), List.of("late", "late-A", "late-B")), result.outcome);
-        assertFalse(
-            "key filtering fits both completions on the first later-stage page",
-            result.requests.stream().anyMatch(r -> r.indices.contains(B) && r.after.isEmpty() == false)
-        );
-        assertUpperRequests(result, B, BASE.plusMillis(1010));
+        String query = upperSequence("10ms", stage(A), stage(B));
+        for (boolean keyFilter : List.of(false, true)) {
+            UpperOutcome result = observeUpper(query, keyFilter);
+            assertRows(List.of(List.of("early", "early-A", "early-B"), List.of("late", "late-A", "late-B")), result.outcome);
+            assertContinuation(result, B, keyFilter);
+            assertUpperRequests(result, B, BASE.plusMillis(1010));
+        }
     }
 
     /** A full first page is not EOF; unknown future starts forbid a finite upper range on a later reader. */
@@ -926,20 +923,18 @@ public class SequenceTimeBoundIT extends AbstractSequenceIntegTestCase {
                 }
                 add(bulk, terminal, "terminal", BASE.plusMillis(110).toString(), "key", "yes", "7");
                 finishSeed(bulk, stages == 3 ? new String[] { A, B, C } : new String[] { A, B, C, D });
-                UpperOutcome result = observeUpper(
-                    stages == 3
-                        ? upperSequence("10ms", stage(A), stage(B), stage(C))
-                        : upperSequence("10ms", stage(A), stage(B), stage(C), stage(D))
-                );
-                assertRows(
-                    stages == 3 ? List.of(List.of("key", "A", "B", "terminal")) : List.of(List.of("key", "A", "B", "C", "terminal")),
-                    result.outcome
-                );
-                List<CandidateRequest> reloaded = result.requests.stream()
-                    .filter(r -> r.indices.contains(terminal) && r.after.isEmpty() == false)
-                    .toList();
-                assertTrue("key filtering fits the terminal event on the first page", reloaded.isEmpty());
-                assertUpperRequests(result, terminal, BASE.plusMillis(110));
+                String query = stages == 3
+                    ? upperSequence("10ms", stage(A), stage(B), stage(C))
+                    : upperSequence("10ms", stage(A), stage(B), stage(C), stage(D));
+                List<List<Object>> expected = stages == 3
+                    ? List.of(List.of("key", "A", "B", "terminal"))
+                    : List.of(List.of("key", "A", "B", "C", "terminal"));
+                for (boolean keyFilter : List.of(false, true)) {
+                    UpperOutcome result = observeUpper(query, keyFilter);
+                    assertRows(expected, result.outcome);
+                    assertContinuation(result, terminal, keyFilter);
+                    assertUpperRequests(result, terminal, BASE.plusMillis(110));
+                }
             } finally {
                 cleanup();
             }
@@ -1091,9 +1086,18 @@ public class SequenceTimeBoundIT extends AbstractSequenceIntegTestCase {
     }
 
     private UpperOutcome observeUpper(String query) throws Exception {
+        return observeUpper(syncEsqlQueryRequest(query).profile(true));
+    }
+
+    private UpperOutcome observeUpper(String query, boolean keyFilter) throws Exception {
+        var settings = Settings.builder().put("sequence_key_filter", keyFilter).build();
+        return observeUpper(syncEsqlQueryRequest(query).profile(true).pragmas(new QueryPragmas(settings)));
+    }
+
+    private UpperOutcome observeUpper(EsqlQueryRequest request) throws Exception {
         try (var capture = new CandidateRequests()) {
             // Existing observe(String) has an outer BASE time filter; that could mask the generated U or its domain errors.
-            Outcome outcome = observe(syncEsqlQueryRequest(query).profile(true));
+            Outcome outcome = observe(request);
             return new UpperOutcome(outcome, List.copyOf(capture.requests));
         }
     }
@@ -1115,6 +1119,15 @@ public class SequenceTimeBoundIT extends AbstractSequenceIntegTestCase {
 
     private static CandidateRequest firstRequest(UpperOutcome outcome, String index) {
         return outcome.requests.stream().filter(r -> r.indices.contains(index)).findFirst().orElseThrow();
+    }
+
+    private static void assertContinuation(UpperOutcome outcome, String index, boolean keyFilter) {
+        boolean continuation = outcome.requests.stream().anyMatch(r -> r.indices.contains(index) && r.after.isEmpty() == false);
+        if (keyFilter) {
+            assertFalse("key filtering fits the required completions on the first page", continuation);
+        } else {
+            assertTrue("the unfiltered reader must send a continuation for [" + index + "]", continuation);
+        }
     }
 
     private static void assertUpperRequests(UpperOutcome outcome, String index, Instant expected) {

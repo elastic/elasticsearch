@@ -354,7 +354,6 @@ public final class SequenceSourceOperator extends SourceOperator {
                 List.of()
             );
         }
-        latestValid.withRememberedChains(factory.configuration.pragmas().sequenceRememberedChains());
         latestValid.validateForProduction(sequence.children().size());
         SequenceLatestValidConfig.validateCandidateBound(latestValid.maxCandidates().orElseThrow(), sequence.children().size());
         candidateBound = latestValid.maxCandidates().orElseThrow();
@@ -1148,15 +1147,19 @@ public final class SequenceSourceOperator extends SourceOperator {
         SequenceKeyFilter keyFilter = waitingKeyFilter(stage, branch);
         boolean transferred = false;
         try {
-            QueryBuilder query = keyFilter == null
-                ? source.query()
-                : SequenceSourceQueryBuilder.withKeyFilter(source.query(), keyFilter.predicate());
+            var pragmas = factory.configuration.pragmas();
+            var preference = pragmas.fieldExtractPreference();
+            var wildcard = pragmas.sequenceWildcardPrefilter()
+                && (preference == MappedFieldType.FieldExtractPreference.NONE
+                    || preference == MappedFieldType.FieldExtractPreference.DOC_VALUES)
+                        ? cursor(stage, branch).input.wildcardPrefilter(branch)
+                        : null;
+            QueryBuilder query = SequenceSourceQueryBuilder.withOptionalFilters(
+                source.query(),
+                keyFilter == null ? null : keyFilter.predicate(),
+                wildcard
+            );
             boolean profileFilter = keyFilter != null && keyFilterProfile != null;
-            ThreadContext threadContext = profileFilter ? factory.client.threadPool().getThreadContext() : null;
-            source.query(new SequenceSourceQueryBuilder(query, readIndices, threadContext));
-            if (profileFilter) {
-                source.profile(true);
-            }
             candidateSearchRequests++;
             source.pointInTimeBuilder(new PointInTimeBuilder(pit).setKeepAlive(keepAlive));
             begin();
@@ -1168,7 +1171,7 @@ public final class SequenceSourceOperator extends SourceOperator {
                     }
                 }
                 Releasables.close(keyFilter);
-                if (profileFilter) {
+                if (keyFilterProfile != null && source.profile()) {
                     keyFilterProfile.recordShardSearches(response);
                 }
                 long admitted;
@@ -1210,9 +1213,11 @@ public final class SequenceSourceOperator extends SourceOperator {
             }));
             transferred = true;
             try (var ignored = factory.requestContext.get()) {
-                if (profileFilter) {
-                    threadContext.putHeader(SequenceKeyFilterShardProfile.REQUEST_HEADER, "1");
-                    keyFilterProfile.builtSearch();
+                ThreadContext profileContext = profileFilter ? factory.client.threadPool().getThreadContext() : null;
+                boolean profileSearch = profileContext != null && keyFilterProfile.startSearch(profileContext);
+                source.query(new SequenceSourceQueryBuilder(query, readIndices, profileSearch ? profileContext : null));
+                if (profileSearch) {
+                    source.profile(true);
                 }
                 // Can-match removes shards and renumbers shardRequestIndex, changing _shard_doc's high bits. Keep all PIT
                 // shards in the same order, with stage membership expressed in the query rather than request indices.

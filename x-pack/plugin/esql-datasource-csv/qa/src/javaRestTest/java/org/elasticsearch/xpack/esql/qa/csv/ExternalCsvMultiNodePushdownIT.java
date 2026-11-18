@@ -224,8 +224,10 @@ public class ExternalCsvMultiNodePushdownIT extends ESRestTestCase {
         assumeTrue("LOCAL fixtures unavailable (packaged in a JAR)", localFixturesPath != null);
 
         Path chunked = localFixturesPath.resolve(CHUNKED_FIXTURE);
-        long rows = writeChunkedFixture(chunked);
+        // Inside the try, not before it: the writer creates the file and then fills it over 600k rows, so a
+        // throw part way through leaves ~24mb of padding behind on exactly the path the finally below is for.
         try {
+            long rows = writeChunkedFixture(chunked);
             DatasetRegistry.ensureDataSource(client(), LOCAL_DATA_SOURCE, "local", Map.of());
             // The format is declared rather than inferred: the fixture's name carries no format extension, so that
             // the extension-keyed fixture walks over this shared directory do not pick a multi-megabyte generated

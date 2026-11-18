@@ -19,6 +19,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.OneMergeWrappingMergePolicy;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
@@ -32,6 +33,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class PrunePostingsMergePolicyTests extends ESTestCase {
 
@@ -153,5 +155,34 @@ public class PrunePostingsMergePolicyTests extends ESTestCase {
             }
 
         }
+    }
+
+    public void testMergeFinishedIsForwarded() throws IOException {
+        AtomicInteger finished = new AtomicInteger();
+        try (Directory dir = newDirectory()) {
+            IndexWriterConfig iwc = newIndexWriterConfig();
+            iwc.setMergePolicy(new PrunePostingsMergePolicy(countingMergeFinished(newLogMergePolicy(), finished), "id"));
+            try (IndexWriter writer = new IndexWriter(dir, iwc)) {
+                for (int i = 0; i < 2; i++) {
+                    Document doc = new Document();
+                    doc.add(new StringField("id", Integer.toString(i), Field.Store.NO));
+                    writer.addDocument(doc);
+                    writer.flush();
+                }
+                writer.forceMerge(1);
+                assertEquals(1, finished.get());
+            }
+        }
+    }
+
+    /** Counts {@code mergeFinished} calls on the merges the wrapped policy produces. */
+    private static MergePolicy countingMergeFinished(MergePolicy in, AtomicInteger finished) {
+        return new OneMergeWrappingMergePolicy(in, toWrap -> new MergePolicy.OneMerge(toWrap.segments) {
+            @Override
+            public void mergeFinished(boolean success, boolean segmentDropped) throws IOException {
+                toWrap.mergeFinished(success, segmentDropped);
+                finished.incrementAndGet();
+            }
+        });
     }
 }

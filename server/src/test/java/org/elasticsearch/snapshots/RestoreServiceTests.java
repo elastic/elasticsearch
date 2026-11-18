@@ -1723,14 +1723,18 @@ public class RestoreServiceTests extends ESTestCase {
         assertEquals(Map.of(project.id(), new SeenRestores("later")), updated);
     }
 
+    /** Returning null means no change, so what an earlier entry of the same cleanup staged for the project must survive. */
     public void testApplyRestoreCompletedUpdaterLeavesTheMapAloneWhenTheUpdaterReturnsNull() {
         final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
         RestoreService service = createMinimalRestoreService(completionUpdater((entry, p, current) -> null));
 
-        final Map<ProjectId, Metadata.ProjectCustom> updated = new HashMap<>();
-        service.applyRestoreCompletedUpdater(buildRestoreEntry(), project, updated);
+        final Map<ProjectId, Metadata.ProjectCustom> empty = new HashMap<>();
+        service.applyRestoreCompletedUpdater(buildRestoreEntry(), project, empty);
+        assertThat(empty, anEmptyMap());
 
-        assertThat(updated, anEmptyMap());
+        final Map<ProjectId, Metadata.ProjectCustom> staged = new HashMap<>(Map.of(project.id(), new SeenRestores("earlier")));
+        service.applyRestoreCompletedUpdater(buildRestoreEntry(), project, staged);
+        assertEquals(Map.of(project.id(), new SeenRestores("earlier")), staged);
     }
 
     public void testApplyRestoreCompletedUpdaterSkipsAProjectThatIsGone() {

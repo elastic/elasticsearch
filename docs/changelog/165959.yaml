@@ -1,0 +1,5 @@
+area: Snapshot/Restore
+issues: []
+pr: 165959
+summary: Fail aborted shard clones after master failover
+type: bug

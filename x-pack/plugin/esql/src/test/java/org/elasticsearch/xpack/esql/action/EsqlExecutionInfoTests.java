@@ -16,6 +16,7 @@ import org.elasticsearch.transport.RemoteClusterService;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class EsqlExecutionInfoTests extends ESTestCase {
 
@@ -53,10 +54,10 @@ public class EsqlExecutionInfoTests extends ESTestCase {
     public void testHasMetadataPartial() {
         EsqlExecutionInfo info = createEsqlExecutionInfo(false);
         String key = randomFrom(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY, "remote");
-        info.swapCluster(key, (k, v) -> createEsqlExecutionInfoCluster(k, "test", false, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+        info.swapCluster(key, (k, v) -> createEsqlExecutionInfoCluster(k, "test", EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
         assertFalse(info.isPartial());
         assertFalse(info.hasMetadataToReport());
-        info.swapCluster(key, (k, v) -> createEsqlExecutionInfoCluster(k, "test", false, EsqlExecutionInfo.Cluster.Status.PARTIAL));
+        info.swapCluster(key, (k, v) -> createEsqlExecutionInfoCluster(k, "test", EsqlExecutionInfo.Cluster.Status.PARTIAL));
         assertTrue(info.isPartial());
         assertFalse(info.hasMetadataToReport());
         info.swapCluster(key, (k, v) -> {
@@ -65,6 +66,36 @@ public class EsqlExecutionInfoTests extends ESTestCase {
             return builder.build();
         });
         assertTrue(info.hasMetadataToReport());
+    }
+
+    public void testStopHookRegisteredAfterMarkAsStoppedFiresImmediately() {
+        EsqlExecutionInfo info = createEsqlExecutionInfo(false);
+        AtomicBoolean fired = new AtomicBoolean();
+        info.markAsStopped();
+        info.addStopHook(() -> {
+            fired.set(true);
+            return true;
+        });
+        assertTrue("a hook registered after STOP must run immediately, not wait for a second broadcast", fired.get());
+    }
+
+    public void testStopHookImmediateTrueIsVisibleToLaterRunStopHooks() {
+        EsqlExecutionInfo info = createEsqlExecutionInfo(false);
+        AtomicBoolean first = new AtomicBoolean(true);
+        info.markAsStopped();
+        info.addStopHook(() -> first.getAndSet(false));
+        assertFalse("the immediate call consumed the one-shot transition", first.get());
+        assertTrue("runStopHooks must still report the cut so STOP can mark is_partial", info.runStopHooks());
+        assertTrue(info.isPartial());
+    }
+
+    public void testStopHookImmediateTrueMarksPartialAfterRunStopHooksAlreadySampled() {
+        EsqlExecutionInfo info = createEsqlExecutionInfo(false);
+        info.markAsStopped();
+        assertFalse(info.runStopHooks());
+        assertFalse(info.isPartial());
+        info.addStopHook(() -> true);
+        assertTrue("immediate cut after STOP already sampled hooks must still mark is_partial", info.isPartial());
     }
 
     public void testPlanningBytesAreNotSerialized() throws IOException {
@@ -90,7 +121,6 @@ public class EsqlExecutionInfoTests extends ESTestCase {
             clusterAlias,
             clusterAlias,
             indexExpression,
-            true,
             EsqlExecutionInfo.Cluster.Status.RUNNING,
             null,
             null,
@@ -104,21 +134,8 @@ public class EsqlExecutionInfoTests extends ESTestCase {
     public static EsqlExecutionInfo.Cluster createEsqlExecutionInfoCluster(
         String clusterAlias,
         String indexExpression,
-        boolean skipUnavailable,
         EsqlExecutionInfo.Cluster.Status status
     ) {
-        return new EsqlExecutionInfo.Cluster(
-            clusterAlias,
-            clusterAlias,
-            indexExpression,
-            skipUnavailable,
-            status,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null
-        );
+        return new EsqlExecutionInfo.Cluster(clusterAlias, clusterAlias, indexExpression, status, null, null, null, null, null, null);
     }
 }

@@ -1,0 +1,5 @@
+area: Query Languages
+issues: []
+pr: 166056
+summary: Hold parsed request charge in async SQL and EQL
+type: enhancement

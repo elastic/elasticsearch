@@ -66,6 +66,10 @@ public class IndexPattern implements NodeStringRenderable {
         return eqlSource ? this : new IndexPattern(source, indexPattern, viewScope, true);
     }
 
+    public IndexPattern withoutEqlSource() {
+        return eqlSource ? new IndexPattern(source, indexPattern, viewScope, false) : this;
+    }
+
     public boolean isEqlSource() {
         return eqlSource;
     }

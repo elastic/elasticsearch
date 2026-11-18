@@ -105,6 +105,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfoTests.createE
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLogTests.mockLogFieldProvider;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
@@ -335,6 +336,13 @@ public class EsqlSessionQueryTimeFilterTests extends ESTestCase {
         assertThat(columns, hasItem("old_only"));
     }
 
+    public void testEqlSourceConflictsWithATimeSeriesSourceOnItsPatternUnderARequestFilterOrATimeRange() {
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+        assumeTrue("Requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+        assertTimeSeriesConflict("FROM (TS logs-*" + TIME_RANGE + "), (EQL logs-* \"any where true\")", null);
+        assertTimeSeriesConflict("FROM (TS logs-*), (EQL logs-* \"any where true\")", REQUEST_FILTER);
+    }
+
     /**
      * A PromQL query is analyzed with its unmapped fields nullified, so a pattern without indices does not fail its analysis.
      * The indices are resolved again without the time range all the same. Both requests carry the filter on the index mode
@@ -393,6 +401,14 @@ public class EsqlSessionQueryTimeFilterTests extends ESTestCase {
             names.add(attribute.name());
         }
         return names;
+    }
+
+    private void assertTimeSeriesConflict(String query, QueryBuilder requestFilter) {
+        expectThrows(
+            IllegalStateException.class,
+            containsString("index pattern 'logs-*' found with different index mode"),
+            () -> analyze(query, requestFilter)
+        );
     }
 
     private void addView(String name, String query) {

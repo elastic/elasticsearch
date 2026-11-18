@@ -253,13 +253,16 @@ EQL my_remote:logs-endpoint "process where process.name == \"regsvr32.exe\""
   The index pattern is resolved without the filter, so a field mapped only in indices the filter excludes is
   still a column, `null` on every row. Each EQL search resolves relative dates such as `now-15m` itself, so the
   EQL searches of one query (one per `FORK` branch, for example) can resolve them slightly apart.
-* **A view applies the request `filter` to its output.** When the EQL command is in the body of a view, the
-  filter is not passed to the EQL search: like any other view, the view applies it to the rows it returns. A
-  `LIMIT` then no longer reaches the command, so the EQL search returns up to the result-truncation limit of
-  events (by default the most recent ones) before the filter applies, and a time range that excludes them can
-  return fewer rows than expected, or none. A `sequence` or `sample` view can return partial matches, keeping
-  the events that pass the filter and dropping the rest. In a cluster with nodes too old to filter a view's
-  output, the filter is passed to the EQL search instead, as it is to the view's other sources.
+* **A view applies the request `filter` to its output.** When the EQL command is in the body of a view,
+  {{esql}} does not pass the filter to the EQL search. A `LIMIT` then no longer reaches the command, so
+  the EQL search returns up to the result-truncation limit of events (by default the most recent ones) before
+  the filter applies, and a time range that excludes them can return fewer rows than expected, or none. A
+  `sequence` or `sample` view can return partial matches, keeping the events that pass the filter and dropping
+  the rest.
+* **With older nodes, the request `filter` goes to an EQL search inside a view.** During a rolling
+  upgrade, or when a remote cluster in a cross-cluster search runs an earlier version, a node can be too old
+  to filter a view's output. No view then applies the filter to its output: it is passed to the EQL search
+  instead, as it is to the view's other sources.
 * **A view is not a valid EQL target.** The leading pattern must be indices, data streams or aliases. A
   view whose *body* is an EQL command is supported and read with `FROM <view>`, but a view name in the
   leading pattern is not expanded.

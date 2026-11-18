@@ -1518,19 +1518,29 @@ public class EsqlSessionTests extends ESTestCase {
         assertThat(branches.namedSubqueries().get("from"), sameInstance(from));
     }
 
-    public void testScopedEqlPatternDoesNotConflictWithATimeSeriesSourceOnItsPattern() {
+    public void testEqlPatternConflictsWithATimeSeriesSourceOnItsPatternEvenUnderARequestFilterOrATimeRange() {
         assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
-        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
-        LogicalPlan plan = TEST_PARSER.parseQuery("FROM (TS p), (EQL p \"any where true\")");
+        assumeTrue("Requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+        LogicalPlan plan = TEST_PARSER.parseQuery(
+            randomFrom("FROM (TS p), (EQL p \"any where true\")", "FROM (EQL p \"any where true\"), (TS p)")
+        );
+        assertTimeSeriesConflict(plan);
+
+        IndexPattern timeSeries = plan.collect(UnresolvedRelation.class).get(0).indexPattern();
+        LogicalPlan underRequestFilter = EsqlSession.scopeEqlIndexPatterns(plan, QueryBuilders.termQuery("host", "a"), Set.of());
+        LogicalPlan underTimeRange = EsqlSession.scopeEqlIndexPatterns(plan, null, Set.of(timeSeries));
+        for (LogicalPlan scoped : List.of(underRequestFilter, underTimeRange)) {
+            assertTrue(scoped.collect(UnresolvedEqlRelation.class).get(0).indexPattern().isEqlSource());
+            assertTimeSeriesConflict(scoped);
+        }
+    }
+
+    private static void assertTimeSeriesConflict(LogicalPlan plan) {
         expectThrows(
             IllegalStateException.class,
             containsString("index pattern 'p' found with different index mode"),
             () -> new PreAnalyzer().preAnalyze(plan)
         );
-
-        IndexPattern timeSeries = plan.collect(UnresolvedRelation.class).get(0).indexPattern();
-        LogicalPlan scoped = EsqlSession.scopeEqlIndexPatterns(plan, null, Set.of(timeSeries));
-        assertThat(new PreAnalyzer().preAnalyze(scoped).indexes().values(), containsInAnyOrder(IndexMode.TIME_SERIES, IndexMode.STANDARD));
     }
 
     public void testFieldCapsFilterSkipsEqlAndViewInternalPatterns() {

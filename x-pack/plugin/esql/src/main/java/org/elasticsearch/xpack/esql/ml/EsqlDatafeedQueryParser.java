@@ -214,9 +214,10 @@ public class EsqlDatafeedQueryParser implements EsqlQueryParser {
     }
 
     /**
-     * TODO(https://github.com/elastic/esql-planning/issues/2700): do not extend this method. Tech Preview only: it re-implements a
-     * subset of the analysis pipeline (plan walk). It is to be replaced by the primitives behind {@code DESCRIBE}, or by a call to
-     * {@code DESCRIBE} and handling of its response.
+     * Tech Preview only: it re-implements a subset of the analysis pipeline (plan walk). 
+     * It is to be replaced by the primitives behind {@code DESCRIBE}, or by a call to
+     * {@code DESCRIBE} and handling of its response. Tracked in 
+     * https://github.com/elastic/elasticsearch/issues/166310
      */
     @Override
     public ParsedEsqlQuery parse(String query) {

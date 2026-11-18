@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.StripeStatsSink;
 import java.util.AbstractMap;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -116,35 +115,6 @@ final class StagedStripeRecord extends AbstractMap<String, Object> {
         this.eof = eof;
         this.stats = stats;
         this.schema = schema;
-    }
-
-    /**
-     * Whether every column the statistics carry is one the schema names, which is what makes {@link #size} agree
-     * with the entries {@link #flatten} produces. Assertion-only: in production a mismatch is not worth a throw on
-     * the harvest path, and {@link StripeStatsStaging} keeps pieces whose schemas differ apart rather than folding
-     * them into a record that could reach this state.
-     * <p>
-     * Checked in {@link #flatten} rather than in the constructor, because it walks the schema and construction is
-     * required to touch nothing: {@code StripeStatsStagingTests#testMembershipOfAnAlwaysPresentKeyBuildsNothing}
-     * counts iterations of the schema it passes in and asserts the count is zero until something asks for a key.
-     * {@code flatten} already walks the schema, so the check is free where it sits.
-     */
-    private static boolean everyColumnIsNamedBySchema(SplitStats stats, List<Attribute> schema) {
-        if (stats.columnCount() == 0) {
-            return true;
-        }
-        Set<String> named = new HashSet<>();
-        if (schema != null) {
-            for (Attribute a : schema) {
-                named.add(a.name());
-            }
-        }
-        for (int i = 0; i < stats.columnCount(); i++) {
-            if (named.contains(stats.columnName(i)) == false) {
-                return false;
-            }
-        }
-        return true;
     }
 
     /**
@@ -269,10 +239,6 @@ final class StagedStripeRecord extends AbstractMap<String, Object> {
      * counts say so.
      */
     private Map<String, Object> flatten() {
-        assert everyColumnIsNamedBySchema(stats, schema)
-            : "a staged record counts its column entries from the statistics and writes them from the schema, so a "
-                + "column the schema does not name would make size() exceed the entries this record yields, and the "
-                + "map's length prefix is written from size()";
         Map<String, ExternalStats.ColumnStats> columns = new HashMap<>();
         for (int i = 0; i < stats.columnCount(); i++) {
             columns.put(
@@ -280,9 +246,26 @@ final class StagedStripeRecord extends AbstractMap<String, Object> {
                 new ExternalStats.ColumnStats(stats.nullCount(i), stats.valueCount(i), stats.min(i), stats.max(i))
             );
         }
-        return Collections.unmodifiableMap(
-            StripeStatsHarvester.flatten(identity, ordinal, start, end, atStripeStart, atStripeEnd, eof, stats.rowCount(), columns, schema)
+        Map<String, Object> built = StripeStatsHarvester.flatten(
+            identity,
+            ordinal,
+            start,
+            end,
+            atStripeStart,
+            atStripeEnd,
+            eof,
+            stats.rowCount(),
+            columns,
+            schema
         );
+        assert size() == built.size()
+            : "a staged record counts its entries from the statistics and the always-present set, and writes them "
+                + "from the schema, so the two can disagree -- and the wire prefix is written from size(), which "
+                + "would make the reader take the bytes after this record as further entries of it: counted "
+                + size()
+                + ", wrote "
+                + built.size();
+        return Collections.unmodifiableMap(built);
     }
 
     /** Whether a lookup has made this record keep its flat form. The contract a walk must not break. */

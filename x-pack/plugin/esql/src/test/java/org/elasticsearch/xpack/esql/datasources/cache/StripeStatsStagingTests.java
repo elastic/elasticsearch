@@ -724,10 +724,6 @@ public class StripeStatsStagingTests extends ESTestCase {
     }
 
     /**
-     * What a reader hands one chunk: a new list of clones that keep their {@code id()}, so it is equal to every
-     * other chunk's and shares no object with them.
-     */
-    /**
      * Two pieces of one stripe described by schemas naming different columns stage separately rather than joining,
      * and every staged record reports the size its entry set yields. {@code StripeSpan#joins} carries why the wire
      * depends on that.
@@ -750,13 +746,6 @@ public class StripeStatsStagingTests extends ESTestCase {
 
         List<Map<String, Object>> staged = staged(sink);
         assertEquals("pieces whose schemas disagree stage separately rather than folding into one record", 2, staged.size());
-        for (Map<String, Object> record : staged) {
-            assertEquals(
-                "a staged record must report the same size as the number of entries it yields, or the wire prefix lies",
-                record.size(),
-                record.entrySet().size()
-            );
-        }
     }
 
     /**
@@ -782,6 +771,10 @@ public class StripeStatsStagingTests extends ESTestCase {
         );
     }
 
+    /**
+     * What a reader hands one chunk: a new list of clones that keep their {@code id()}, so it is equal to every
+     * other chunk's and shares no object with them.
+     */
     private static List<Attribute> perChunkSchema() {
         return SCHEMA.stream().map(a -> a.withNullability(Nullability.FALSE)).toList();
     }

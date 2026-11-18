@@ -98,7 +98,31 @@ public final class StripeStatsStaging implements StripeStatsSink {
          * as pieces of different reads already do, and the coordinator covers them as it covers any other pair.
          */
         private boolean joins(StripeSpan other) {
-            return identity.equals(other.identity) && Objects.equals(schema, other.schema) && (end == other.start || other.end == start);
+            return identity.equals(other.identity) && sameColumns(schema, other.schema) && (end == other.start || other.end == start);
+        }
+
+        /**
+         * Whether two schemas name the same columns in the same order, which is the whole of what a staged record
+         * reads out of one: {@code TextFormatStats.buildColumns} uses it only as {@code cached.get(a.name())}.
+         * <p>
+         * Compared by name rather than by list equality on purpose. {@code Attribute} equality includes the
+         * {@code NameId}, and a reader that infers its schema per chunk mints a fresh id each time -- CSV does
+         * whenever no read schema was bound -- so equal-named schemas would compare unequal, every chunk boundary
+         * would strand a piece unjoined, and the record count this staging exists to cut would climb back.
+         */
+        private static boolean sameColumns(List<Attribute> a, List<Attribute> b) {
+            if (a == b) {
+                return true;
+            }
+            if (a == null || b == null || a.size() != b.size()) {
+                return false;
+            }
+            for (int i = 0; i < a.size(); i++) {
+                if (a.get(i).name().equals(b.get(i).name()) == false) {
+                    return false;
+                }
+            }
+            return true;
         }
 
         /** Absorbs the byte-adjacent {@code other}, keeping each edge's own anchors. */

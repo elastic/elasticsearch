@@ -187,11 +187,6 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
     }
 
     @Override
-    public String getTestSeed() {
-        return testSeed.get();
-    }
-
-    @Override
     public Provider<String> getTestSeedProvider() {
         return testSeed;
     }

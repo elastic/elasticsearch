@@ -464,3 +464,8 @@ tests:
   - :server:internalClusterTest
   method: testRestoreSnapshotAllocationDoesNotExceedWatermarkWithMultipleRestores
   issue: https://github.com/elastic/elasticsearch/issues/166268
+- class: org.elasticsearch.xpack.ml.integration.BasicDistributedJobsIT
+  tasks:
+  - :x-pack:plugin:ml:internalClusterTest
+  method: testDedicatedMlNode
+  issue: https://github.com/elastic/elasticsearch/issues/166408

@@ -1459,7 +1459,7 @@ public class EsqlSessionTests extends ESTestCase {
         ProjectMetadata metadata = projectWithMaxTermsCount(Map.of("wide", 5_000, "narrow", 150, "middle", 1_000));
         EsRelation relation = relationOver(Map.of("", List.of("wide", "narrow", "middle")));
 
-        assertThat(EsqlSession.maxIndexedValues(relation, metadata), equalTo(150));
+        assertThat(EsqlSession.maxIndexedValues(relation, metadata, true), equalTo(150));
     }
 
     public void testMaxIndexedValuesUsesTheDefaultMaxTermsCount() {
@@ -1470,7 +1470,7 @@ public class EsqlSessionTests extends ESTestCase {
             .put(IndexMetadata.builder("unset").settings(noSetting).numberOfShards(1).numberOfReplicas(0))
             .build();
 
-        assertThat(EsqlSession.maxIndexedValues(relationOver(Map.of("", List.of("unset"))), metadata), equalTo(defaultMaxTermsCount));
+        assertThat(EsqlSession.maxIndexedValues(relationOver(Map.of("", List.of("unset"))), metadata, true), equalTo(defaultMaxTermsCount));
     }
 
     /**
@@ -1480,28 +1480,40 @@ public class EsqlSessionTests extends ESTestCase {
     public void testMaxIndexedValuesIsUnknownWhenAnIndexIsOnARemoteCluster() {
         ProjectMetadata metadata = projectWithMaxTermsCount(Map.of("idx", 5_000));
 
-        assertThat(EsqlSession.maxIndexedValues(relationOver(Map.of("cluster-a", List.of("idx"))), metadata), equalTo(0));
+        assertThat(EsqlSession.maxIndexedValues(relationOver(Map.of("cluster-a", List.of("idx"))), metadata, true), equalTo(0));
 
         Map<String, List<String>> localFirst = new LinkedHashMap<>();
         localFirst.put("", List.of("idx"));
         localFirst.put("cluster-a", List.of("idx"));
-        assertThat(EsqlSession.maxIndexedValues(relationOver(localFirst), metadata), equalTo(0));
+        assertThat(EsqlSession.maxIndexedValues(relationOver(localFirst), metadata, true), equalTo(0));
 
         Map<String, List<String>> remoteFirst = new LinkedHashMap<>();
         remoteFirst.put("cluster-a", List.of("idx"));
         remoteFirst.put("", List.of("idx"));
-        assertThat(EsqlSession.maxIndexedValues(relationOver(remoteFirst), metadata), equalTo(0));
+        assertThat(EsqlSession.maxIndexedValues(relationOver(remoteFirst), metadata, true), equalTo(0));
     }
 
     public void testMaxIndexedValuesIsUnknownWhenTheMetadataHasNoSuchIndex() {
         ProjectMetadata metadata = projectWithMaxTermsCount(Map.of("idx", 5_000));
 
-        assertThat(EsqlSession.maxIndexedValues(relationOver(Map.of("", List.of("idx", "gone"))), metadata), equalTo(0));
+        assertThat(EsqlSession.maxIndexedValues(relationOver(Map.of("", List.of("idx", "gone"))), metadata, true), equalTo(0));
     }
 
     public void testMaxIndexedValuesIsUnknownWithoutMetadataOrIndices() {
-        assertThat(EsqlSession.maxIndexedValues(relationOver(Map.of("", List.of("idx"))), null), equalTo(0));
-        assertThat(EsqlSession.maxIndexedValues(relationOver(Map.of()), projectWithMaxTermsCount(Map.of("idx", 5_000))), equalTo(0));
+        assertThat(EsqlSession.maxIndexedValues(relationOver(Map.of("", List.of("idx"))), null, true), equalTo(0));
+        assertThat(EsqlSession.maxIndexedValues(relationOver(Map.of()), projectWithMaxTermsCount(Map.of("idx", 5_000)), true), equalTo(0));
+    }
+
+    /**
+     * A field that keeps only doc values cannot be queried by a {@code terms} query when expensive queries are not allowed, and the
+     * planner cannot see which fields those are, so it leaves the limit unknown.
+     */
+    public void testMaxIndexedValuesIsUnknownWhenExpensiveQueriesAreNotAllowed() {
+        ProjectMetadata metadata = projectWithMaxTermsCount(Map.of("idx", 5_000));
+        EsRelation relation = relationOver(Map.of("", List.of("idx")));
+
+        assertThat(EsqlSession.maxIndexedValues(relation, metadata, true), equalTo(5_000));
+        assertThat(EsqlSession.maxIndexedValues(relation, metadata, false), equalTo(0));
     }
 
     private static ProjectMetadata projectWithMaxTermsCount(Map<String, Integer> maxTermsCountByIndex) {

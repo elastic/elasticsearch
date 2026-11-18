@@ -50,6 +50,7 @@ import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.crossproject.TargetProjects;
@@ -1696,15 +1697,16 @@ public class EsqlSession {
     }
 
     private int maxIndexedInSubqueryValues(EsRelation relation) {
-        return maxIndexedValues(relation, projectMetadata);
+        return maxIndexedValues(relation, projectMetadata, clusterService.getClusterSettings().get(SearchService.ALLOW_EXPENSIVE_QUERIES));
     }
 
     /**
      * The smallest {@code index.max_terms_count} of the indices {@code relation} reads, as shards reject a longer {@code terms} query.
-     * {@code 0} when unknown: an index on a remote cluster, or one the metadata does not hold.
+     * {@code 0} when unknown: an index on a remote cluster, or one the metadata does not hold. Also {@code 0} when expensive queries are
+     * not allowed, as a field that keeps only doc values cannot then be queried by a {@code terms} query.
      */
-    static int maxIndexedValues(EsRelation relation, @Nullable ProjectMetadata projectMetadata) {
-        if (projectMetadata == null) {
+    static int maxIndexedValues(EsRelation relation, @Nullable ProjectMetadata projectMetadata, boolean allowExpensiveQueries) {
+        if (projectMetadata == null || allowExpensiveQueries == false) {
             return 0;
         }
         for (String cluster : relation.concreteIndices().keySet()) {

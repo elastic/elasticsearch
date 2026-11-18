@@ -33,7 +33,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSingleValueOrNull;
-import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
@@ -1074,38 +1073,15 @@ public class SubqueryJoinTests extends ESTestCase {
     }
 
     /**
-     * The IN filter is merged into a Filter already on the left side instead of stacked on top of it, which is what lets the local
-     * physical planner push the IN list to Lucene beside the conjuncts that are already there.
+     * A shard rejects a {@code terms} query longer than its {@code index.max_terms_count}, so a known limit below the default is honored
+     * too. When the limit is not known, the default applies.
      */
-    public void testInlineDataMergesInFilterIntoFilterOnLeftSide() {
-        FieldAttribute key = getFieldAttribute("emp_no", DataType.INTEGER);
-        FieldAttribute rightField = getFieldAttribute("emp_no", DataType.INTEGER);
-        EsRelation relation = relationOf(key);
-        Expression existing = new IsNotNull(Source.EMPTY, key);
-        SemiJoin semiJoin = semiJoin(key, new Filter(Source.EMPTY, relation, existing), rightField);
-
-        Block[] blocks = new Block[] { intBlock(1, 2, 3) };
-        LocalRelation result = new LocalRelation(Source.EMPTY, List.of(rightField), LocalSupplier.of(new Page(blocks)));
-
-        LogicalPlan inlined = AbstractSubqueryJoin.inlineData(semiJoin, result, HASH_JOIN_THRESHOLD, BLOCK_FACTORY, null);
-
-        var filter = as(inlined, Filter.class);
-        assertThat(filter.child(), sameInstance(relation));
-        var and = as(filter.condition(), And.class);
-        assertThat(and.left(), equalTo(existing));
-        assertThat(as(and.right(), In.class).list(), hasSize(3));
-    }
-
-    public void testFilterPathThresholdNeverLowersTheDefault() {
+    public void testFilterPathThresholdHonorsAKnownLimitBelowTheDefault() {
         FieldAttribute key = getFieldAttribute("session.id", DataType.KEYWORD);
         SemiJoin semiJoin = semiJoin(key, relationOf(key), getFieldAttribute("session.id", DataType.KEYWORD));
 
-        // An index may lower index.max_terms_count, and a relation may not say what its indices accept (0).
-        int small = randomIntBetween(1, HASH_JOIN_THRESHOLD);
-        assertThat(
-            AbstractSubqueryJoin.filterPathThreshold(semiJoin, -1, relation -> small),
-            equalTo(AbstractSubqueryJoin.DEFAULT_FILTER_PATH_MAX_VALUES)
-        );
+        int small = randomIntBetween(1, HASH_JOIN_THRESHOLD - 1);
+        assertThat(AbstractSubqueryJoin.filterPathThreshold(semiJoin, -1, relation -> small), equalTo(small));
         assertThat(
             AbstractSubqueryJoin.filterPathThreshold(semiJoin, -1, relation -> 0),
             equalTo(AbstractSubqueryJoin.DEFAULT_FILTER_PATH_MAX_VALUES)

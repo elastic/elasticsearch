@@ -175,9 +175,9 @@ public abstract class AbstractSubqueryJoin extends Join implements SortPreservin
     /**
      * The relation whose index the filter path would query, or {@code null} when the IN list would be evaluated per row. This is a
      * prediction made without the shards: the key must be a plain field that {@link LucenePushdownPredicates#DEFAULT} treats as
-     * queryable (indexed, or doc values only), on the relation or on a single {@link Filter} over it, which {@link #filterOnLeft}
-     * merges with the IN filter. Date keys are left out: the shard parses the pushed values with the field's own format, which the
-     * coordinator cannot see, and a custom one rejects them (https://github.com/elastic/elasticsearch/issues/166324).
+     * queryable (indexed, or doc values only), on the relation or on a single {@link Filter} over it. Date keys are left out: the shard
+     * parses the pushed values with the field's own format, which the coordinator cannot see, and a custom one rejects them
+     * (https://github.com/elastic/elasticsearch/issues/166324).
      */
     private EsRelation indexedFilterSource() {
         if (filterPathNarrowsSourceScan() == false || config().leftFields().size() != 1) {
@@ -199,23 +199,12 @@ public abstract class AbstractSubqueryJoin extends Join implements SortPreservin
     }
 
     /**
-     * A {@link Filter} of {@code condition} on the left side. A Filter already there is merged with it, as the logical optimizer would
-     * have, because the local physical planner only pushes a filter that sits directly on the source.
-     */
-    private LogicalPlan filterOnLeft(Source source, Expression condition) {
-        if (left() instanceof Filter below) {
-            return new Filter(source, below.child(), Predicates.combineAnd(List.of(below.condition(), condition)));
-        }
-        return new Filter(source, left(), condition);
-    }
-
-    /**
      * The number of distinct values up to which this join keeps the subquery result as an IN list rather than a hash join.
      * <p>
      * A {@code configuredThreshold} of zero or more was chosen by someone and is used as is. A negative one picks by cost. An IN list
      * evaluated per row costs more with every value, so it stays at {@link #DEFAULT_FILTER_PATH_MAX_VALUES}. Pushed to an index as a
      * {@code terms} query it reads only the matching rows, where the hash join reads all of them, so it can grow to the limit the
-     * indices accept.
+     * indices accept, even when that is below the default, as a shard rejects a longer query.
      *
      * @param maxIndexedValues the most values a {@code terms} query may hold on every index of a relation, {@code 0} when unknown
      */
@@ -224,9 +213,11 @@ public abstract class AbstractSubqueryJoin extends Join implements SortPreservin
             return configuredThreshold;
         }
         EsRelation source = join.indexedFilterSource();
-        return source == null
-            ? DEFAULT_FILTER_PATH_MAX_VALUES
-            : Math.max(DEFAULT_FILTER_PATH_MAX_VALUES, maxIndexedValues.applyAsInt(source));
+        if (source == null) {
+            return DEFAULT_FILTER_PATH_MAX_VALUES;
+        }
+        int known = maxIndexedValues.applyAsInt(source);
+        return known > 0 ? known : DEFAULT_FILTER_PATH_MAX_VALUES;
     }
 
     /**
@@ -245,7 +236,7 @@ public abstract class AbstractSubqueryJoin extends Join implements SortPreservin
         Source source,
         boolean rightHadNulls
     ) {
-        return filterOnLeft(source, wrapInExpression(source, inListFromDedupKeys(source, leftField, dedupKeys, keyType)));
+        return new Filter(source, left(), wrapInExpression(source, inListFromDedupKeys(source, leftField, dedupKeys, keyType)));
     }
 
     /**

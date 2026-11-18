@@ -157,6 +157,57 @@ public class InSubqueryFilterPushdownIT extends AbstractEsqlIntegTestCase {
      * with more values than the default limit (https://github.com/elastic/elasticsearch/issues/166324).
      */
     public void testCustomFormatDateKeyStaysOnHashJoin() {
+        createCustomDates();
+
+        String query = "FROM custom_dates | WHERE d IN (FROM custom_dates | WHERE marker < "
+            + MANY_VALUES
+            + " | KEEP d) | STATS matches = COUNT(*), total = SUM(marker)";
+        QueryResult result = runCounting(query, getPragmas());
+
+        assertThat(result.matches(), equalTo((long) MANY_VALUES));
+        assertThat(result.rowsRead(), greaterThanOrEqualTo((long) DOCS));
+    }
+
+    /**
+     * A shard rejects a {@code terms} query longer than its {@code index.max_terms_count}, so a known limit below the default of 100
+     * is honored.
+     */
+    public void testListAboveAMaxTermsCountBelowTheDefaultStillWorks() {
+        createEvents("events", 50, "type=keyword");
+        int values = 75;
+
+        String withWhere = "FROM events | WHERE marker % 2 == 0 | WHERE session IN (FROM events | WHERE marker < "
+            + values
+            + " | STATS c = COUNT(*) BY session | KEEP session) | STATS matches = COUNT(*), total = SUM(marker)";
+        assertThat(runCounting(withWhere, getPragmas()).matches(), equalTo((long) (values + 1) / 2));
+
+        assertThat(query("events", values, getPragmas()).matches(), equalTo((long) values));
+    }
+
+    /**
+     * A field that keeps only doc values cannot be queried by a {@code terms} query when expensive queries are not allowed, and the
+     * planner cannot see which fields those are, so a list longer than the default stays a hash join.
+     */
+    public void testDocValuesOnlyKeywordWithExpensiveQueriesDisabledStaysOnHashJoin() {
+        createEvents("events", null, "type=keyword,index=false");
+        assertAcked(
+            clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .setPersistentSettings(Settings.builder().put("search.allow_expensive_queries", false))
+        );
+        try {
+            QueryResult result = query("events", MANY_VALUES, getPragmas());
+
+            assertThat(result.matches(), equalTo((long) MANY_VALUES));
+            assertThat(result.rowsRead(), greaterThanOrEqualTo((long) DOCS));
+        } finally {
+            assertAcked(
+                clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                    .setPersistentSettings(Settings.builder().putNull("search.allow_expensive_queries"))
+            );
+        }
+    }
+
+    private void createCustomDates() {
         assertAcked(
             client().admin()
                 .indices()
@@ -173,14 +224,6 @@ public class InSubqueryFilterPushdownIT extends AbstractEsqlIntegTestCase {
         BulkResponse response = bulk.get();
         assertFalse(response.buildFailureMessage(), response.hasFailures());
         ensureYellow("custom_dates");
-
-        String query = "FROM custom_dates | WHERE d IN (FROM custom_dates | WHERE marker < "
-            + MANY_VALUES
-            + " | KEEP d) | STATS matches = COUNT(*), total = SUM(marker)";
-        QueryResult result = runCounting(query, getPragmas());
-
-        assertThat(result.matches(), equalTo((long) MANY_VALUES));
-        assertThat(result.rowsRead(), greaterThanOrEqualTo((long) DOCS));
     }
 
     // -- the key types, NULLs, multi-valued keys and an extra WHERE: the pushed list and the hash join agree --

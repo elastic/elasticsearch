@@ -609,3 +609,8 @@ tests:
   - :x-pack:plugin:ml:test
   method: testSlopeUp
   issue: https://github.com/elastic/elasticsearch/issues/166266
+- class: org.elasticsearch.xpack.esql.datasource.parquet.ParquetPreWarmReleaseTests
+  tasks:
+  - :x-pack:plugin:esql-datasource-parquet:test
+  method: testSeededRandomPreWarmCell
+  issue: https://github.com/elastic/elasticsearch/issues/166445

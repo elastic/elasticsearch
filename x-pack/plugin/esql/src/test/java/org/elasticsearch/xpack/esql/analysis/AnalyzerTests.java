@@ -4102,6 +4102,43 @@ public class AnalyzerTests extends AnalyzerTestCase {
             );
     }
 
+    /**
+     * A field that is unsupported in one index and unmapped in another is loaded from {@code _source} where unmapped, like any other
+     * type: a cast converts those values and is null for the unsupported index.
+     */
+    public void testCastOfPartiallyUnmappedUnsupportedFieldConvertsTheUnmappedValues() {
+        IndexResolution resolution = mergedResolution("foo,baz", rankFeatureAndUnmappedCaps(), true);
+        TypeConflictedField field = as(resolution.get().mapping().get("value"), TypeConflictedField.class);
+        assertTrue(field.isPotentiallyUnmapped());
+        assertThat(field.getUnsupportedTypesToIndices(), equalTo(Map.of("rank_feature", Set.of("foo"))));
+
+        LogicalPlan plan = analyzer().minimumTransportVersion(TransportVersion.current())
+            .addIndex(resolution)
+            .statement(AnalyzerUnmappedTestBase.setUnmappedLoad("FROM foo, baz | EVAL x = value::ip"));
+        assertWarnings("Field [value] of type [rank_feature] in [foo] cannot be converted to [IP] and will be null in those indices.");
+        Eval eval = as(as(as(plan, Project.class).child(), Limit.class).child(), Eval.class);
+        as(eval.fields().get(0).child(), FieldAttribute.class);
+    }
+
+    public void testPartiallyUnmappedUnsupportedFieldWithoutCastFails() {
+        analyzer().minimumTransportVersion(TransportVersion.current())
+            .addIndex(mergedResolution("foo,baz", rankFeatureAndUnmappedCaps(), true))
+            .statementError(
+                AnalyzerUnmappedTestBase.setUnmappedLoad("FROM foo, baz | WHERE value == \"x\""),
+                containsString("Cannot use field [value] with unsupported type [rank_feature]")
+            );
+    }
+
+    private static FieldCapabilitiesResponse rankFeatureAndUnmappedCaps() {
+        return new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("value", "rank_feature")),
+                fieldCapabilitiesIndexResponse("baz", fieldResponseMap("other", "keyword"))
+            ),
+            List.of()
+        );
+    }
+
     private static FieldCapabilitiesResponse rankFeatureAndKeywordCaps() {
         return new FieldCapabilitiesResponse(
             List.of(

@@ -660,7 +660,16 @@ public class IndexResolver {
                 );
             if (trackUnmappedFieldIndices) {
                 Set<String> mappedIndices = collectedFieldCaps.fieldToMappedIndices.getOrDefault(fullName, Set.of());
-                field = wrapIfPartiallyUnmapped(field, name, fullName, mappedIndices, numberOfIndices, indexDedupCache);
+                if (firstUnsupportedParent == null
+                    && field instanceof UnsupportedEsField unsupported
+                    && mappedIndices.isEmpty() == false
+                    && mappedIndices.size() < numberOfIndices
+                    && supportsLenientUnionCasts(fieldsInfo)
+                    && hasSubFields(fieldsCaps.keySet(), fullName) == false) {
+                    field = potentiallyUnmappedUnsupported(name, unsupported, mappedIndices, indexDedupCache);
+                } else {
+                    field = wrapIfPartiallyUnmapped(field, name, fullName, mappedIndices, numberOfIndices, indexDedupCache);
+                }
             }
             fields.put(name, field);
         }
@@ -933,6 +942,32 @@ public class IndexResolver {
             }
         }
         return IndexAnalyzerGroup.byAnalyzer(analyzerByIndex);
+    }
+
+    /**
+     * A field that some indices map to types ES|QL doesn't support and other indices don't map, loaded from {@code _source} where
+     * unmapped. A cast then converts the values from {@code _source} and is null for the unsupported indices, like for any other type
+     * that can't convert. Without a cast, the field stays unsupported.
+     */
+    private static EsField potentiallyUnmappedUnsupported(
+        String name,
+        UnsupportedEsField unsupported,
+        Set<String> mappedIndices,
+        @Nullable Map<Set<String>, Set<String>> indexDedupCache
+    ) {
+        Map<String, Set<String>> unsupportedTypesToIndices = new TreeMap<>();
+        unsupportedTypesToIndices.put(String.join(", ", unsupported.getOriginalTypes()), new TreeSet<>(mappedIndices));
+        return indexDedupCache == null
+            ? InvalidMappedField.potentiallyUnmapped(name, new TreeMap<>(), unsupportedTypesToIndices)
+            : CompactInvalidMappedField.potentiallyUnmapped(name, new TreeMap<>(), unsupportedTypesToIndices, indexDedupCache);
+    }
+
+    /**
+     * Whether any field is under {@code fullName}. Those inherit an unsupported parent's type, so the parent must stay unsupported.
+     */
+    private static boolean hasSubFields(Set<String> fieldNames, String fullName) {
+        String prefix = fullName + ".";
+        return fieldNames.stream().anyMatch(fieldName -> fieldName.startsWith(prefix));
     }
 
     // Visible for testing.

@@ -15,22 +15,12 @@ import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.ShardGeneration;
 
 /**
- * Reports the bytes that a shard retains in a repository each time a
- * {@link org.elasticsearch.repositories.blobstore.BlobStoreRepository} writes the shard's {@code index-<generation>} blob, so that a
- * plugin can record them once per generation and keep them durably, instead of re-reading the repository later.
+ * Told the bytes a shard retains in a repository each time a blob store repository writes the shard's {@code index-<generation>} blob.
+ * Loaded through SPI, at most one implementation, and called for every repository, so it must ignore the ones it does not need.
  * <p>
- * It is loaded through SPI, and at most one implementation may be installed. A plugin provides it with a {@code provides} declaration in
- * its {@code module-info}; the implementation may take the plugin as its only constructor argument. It is called for every repository of
- * every project, so it must return at once for the ones it has no use for.
- * <p>
- * The report is made right after the blob is written, before any data file of the shard snapshot is uploaded and before the generation is
- * committed to {@link RepositoryData}. A written generation may therefore never be committed (the snapshot or deletion can fail
- * afterwards); consumers must only trust the generations that {@link RepositoryData#shardGenerations()} reports. Implementations must be
- * cheap and must not block, and any exception they throw is logged and ignored so that a listener can never fail or delay a snapshot or
- * a snapshot deletion.
- * <p>
- * The listener receives a number and not the shard's snapshot history on purpose: the history can be large, and a listener that held it
- * would keep it on the heap for as long as it did.
+ * The call is made before the generation is committed to {@link RepositoryData}, so it may never become current: only trust the
+ * generations that {@link RepositoryData#shardGenerations()} reports. Implementations must be cheap and must not block, and an
+ * exception is logged and ignored.
  */
 @FunctionalInterface
 public interface ShardGenerationSizeListener {
@@ -39,11 +29,10 @@ public interface ShardGenerationSizeListener {
 
     /**
      * @param projectRepo   the repository that wrote the blob
-     * @param indexId       the repository index id (not the index name)
+     * @param indexId       the repository index id, not the index name
      * @param shardId       the shard number
-     * @param generation    the generation that was written; its blob never changes
-     * @param retainedBytes the total length of the data blobs that the snapshots in the blob reference, counting a blob that several
-     *                      snapshots share once
+     * @param generation    the generation that was written
+     * @param retainedBytes the length of the data blobs the shard's snapshots reference, counting a shared blob once
      */
     void onShardGenerationSize(ProjectRepo projectRepo, IndexId indexId, int shardId, ShardGeneration generation, long retainedBytes);
 }

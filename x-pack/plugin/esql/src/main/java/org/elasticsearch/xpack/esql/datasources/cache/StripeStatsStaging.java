@@ -87,8 +87,20 @@ public final class StripeStatsStaging implements StripeStatsSink {
             return atStripeStart && atStripeEnd;
         }
 
+        /**
+         * Whether {@code other} continues this span: same read, byte-adjacent, and described by the same schema.
+         * <p>
+         * The schema is part of the test because {@link #absorb} folds both pieces' column sets and keeps only one
+         * piece's schema, while {@link StagedStripeRecord} counts its entries from the statistics and writes them
+         * from the schema. Joining two pieces whose schemas name different columns would leave a record reporting
+         * a size larger than the entries it yields, and the map's length prefix is written from that size -- so the
+         * reader would take the following bytes as further entries. Pieces that disagree stage separately, exactly
+         * as pieces of different reads already do, and the coordinator covers them as it covers any other pair.
+         */
         private boolean joins(StripeSpan other) {
-            return identity.equals(other.identity) && (end == other.start || other.end == start);
+            return identity.equals(other.identity)
+                && Objects.equals(schema, other.schema)
+                && (end == other.start || other.end == start);
         }
 
         /** Absorbs the byte-adjacent {@code other}, keeping each edge's own anchors. */

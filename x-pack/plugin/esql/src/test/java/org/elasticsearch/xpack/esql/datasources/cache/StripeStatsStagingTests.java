@@ -727,6 +727,56 @@ public class StripeStatsStagingTests extends ESTestCase {
      * What a reader hands one chunk: a new list of clones that keep their {@code id()}, so it is equal to every
      * other chunk's and shares no object with them.
      */
+    /**
+     * Two pieces of one stripe described by schemas naming different columns stage separately rather than joining,
+     * and every staged record reports the size its entry set yields. {@code StripeSpan#joins} carries why the wire
+     * depends on that.
+     */
+    public void testPiecesDescribedByDifferentSchemasDoNotJoin() {
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        StripeStatsStaging staging = new StripeStatsStaging(sink);
+
+        List<Attribute> both = SCHEMA;
+        List<Attribute> onlyN = List.of(SCHEMA.get(0));
+        assertNotEquals("the fixture must hand the two chunks schemas naming different columns", both, onlyN);
+
+        chunk(staging, 1024, false, MTIME, 0, 512, READ_CONFIG, true, both, row(0, 7L, "m"));
+        chunk(staging, 1024, true, MTIME, 512, 1024, READ_CONFIG, true, onlyN, row(512, 9L, "z"));
+
+        List<Map<String, Object>> staged = staged(sink);
+        assertEquals("pieces whose schemas disagree stage separately rather than folding into one record", 2, staged.size());
+        for (Map<String, Object> record : staged) {
+            assertEquals(
+                "a staged record must report the same size as the number of entries it yields, or the wire prefix lies",
+                record.size(),
+                record.entrySet().size()
+            );
+        }
+    }
+
+    /**
+     * Where two chunks' schemas are not equal, nothing is shared. {@link #testTheRecordsOfOneReadShareOneSchemaList}
+     * pins the sharing half; without this one the intern could return its first list unconditionally and stay green.
+     */
+    public void testSchemasThatAreNotEqualAreNotShared() {
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        StripeStatsStaging staging = new StripeStatsStaging(sink);
+
+        List<Attribute> both = SCHEMA;
+        List<Attribute> onlyN = List.of(SCHEMA.get(0));
+
+        chunk(staging, 1024, true, MTIME, 0, 1024, READ_CONFIG, true, both, row(0, 7L, "m"));
+        chunk(staging, 1024, true, MTIME, 1024, 2048, READ_CONFIG, true, onlyN, row(1024, 9L, "z"));
+
+        List<Map<String, Object>> staged = staged(sink);
+        assertEquals("two covered stripes stage two records", 2, staged.size());
+        assertEquals(
+            "a record staged under a schema the intern did not match keeps its own list",
+            onlyN,
+            ((StagedStripeRecord) staged.get(1)).schema()
+        );
+    }
+
     private static List<Attribute> perChunkSchema() {
         return SCHEMA.stream().map(a -> a.withNullability(Nullability.FALSE)).toList();
     }

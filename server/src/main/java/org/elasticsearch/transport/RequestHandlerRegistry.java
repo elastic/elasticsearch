@@ -74,6 +74,7 @@ public class RequestHandlerRegistry<Request extends TransportRequest> implements
     }
 
     public void processMessageReceived(Request request, TransportChannel channel) throws Exception {
+        assert request.hasReferences() : "request for [" + action + "] was released before its handler started";
         final Task task = taskManager.register("transport", action, request);
         Releasable unregisterTask = () -> taskManager.unregister(task);
         try {

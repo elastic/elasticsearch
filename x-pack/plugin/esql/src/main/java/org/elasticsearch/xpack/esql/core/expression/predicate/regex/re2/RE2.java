@@ -11,8 +11,6 @@
  * Use of this source code is governed by a BSD-style
  * license that can be found in the LICENSE file.
  */
-package org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2;
-
 // Original Go source here:
 // http://code.google.com/p/go/source/browse/src/pkg/regexp/regexp.go
 
@@ -26,6 +24,8 @@ package org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2;
 // The Java API emphasises UTF-16 Strings, not UTF-8 byte[] as in Go, as
 // the primary input datatype, and the method names have been changed to
 // reflect this.
+
+package org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2;
 
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.MatcherInput.Encoding;
 import java.io.UnsupportedEncodingException;

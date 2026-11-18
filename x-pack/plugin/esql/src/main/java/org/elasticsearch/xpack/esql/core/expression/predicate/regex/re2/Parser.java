@@ -11,14 +11,14 @@
  * Use of this source code is governed by a BSD-style
  * license that can be found in the LICENSE file.
  */
-package org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2;
-
 // Original Go source here:
 // http://code.google.com/p/go/source/browse/src/pkg/regexp/syntax/parse.go
 
 // TODO(adonovan):
 // - Eliminate allocations (new int[], new Regexp[], new ArrayList) by
 //   recycling old arrays on a freelist.
+
+package org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2;
 
 import java.util.ArrayList;
 import java.util.HashMap;

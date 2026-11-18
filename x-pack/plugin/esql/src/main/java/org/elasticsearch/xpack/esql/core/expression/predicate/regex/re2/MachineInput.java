@@ -11,10 +11,10 @@
  * Use of this source code is governed by a BSD-style
  * license that can be found in the LICENSE file.
  */
-package org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2;
-
 // Original Go source here:
 // http://code.google.com/p/go/source/browse/src/pkg/regexp/regexp.go
+
+package org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2;
 
 /**
  * MachineInput abstracts different representations of the input text supplied to the Machine. It
@@ -183,8 +183,7 @@ abstract class MachineInput {
     final int start;
     final int end;
 
-    // ES: no public on a constructor of a private class, as checkstyle wants
-    UTF16Input(CharSequence str, int start, int end) {
+    public UTF16Input(CharSequence str, int start, int end) {
       this.str = str;
       this.start = start;
       this.end = end;

@@ -57,8 +57,7 @@ abstract class MatcherInput {
   static class Utf8MatcherInput extends MatcherInput {
     byte[] bytes;
 
-    // ES: no public on a constructor of a private class, as checkstyle wants
-    Utf8MatcherInput(byte[] bytes) {
+    public Utf8MatcherInput(byte[] bytes) {
       this.bytes = bytes;
     }
 
@@ -86,8 +85,7 @@ abstract class MatcherInput {
   static class Utf16MatcherInput extends MatcherInput {
     CharSequence charSequence;
 
-    // ES: no public on a constructor of a private class, as checkstyle wants
-    Utf16MatcherInput(CharSequence charSequence) {
+    public Utf16MatcherInput(CharSequence charSequence) {
       this.charSequence = charSequence;
     }
 

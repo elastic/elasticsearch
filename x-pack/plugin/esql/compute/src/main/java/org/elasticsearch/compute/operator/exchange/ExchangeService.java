@@ -29,6 +29,8 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -179,7 +181,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
      * @throws IllegalStateException if a sink handler for the given id already exists
      */
     public ExchangeSinkHandler createSinkHandler(String exchangeId, int maxBufferSize) {
-        ExchangeSinkHandler sinkHandler = new ExchangeSinkHandler(blockFactory, maxBufferSize, threadPool.relativeTimeInMillisSupplier());
+        ExchangeSinkHandler sinkHandler = new ExchangeSinkHandler(maxBufferSize, threadPool.relativeTimeInMillisSupplier());
         if (sinks.putIfAbsent(exchangeId, sinkHandler) != null) {
             throw new IllegalStateException("sink exchanger for id [" + exchangeId + "] already exists");
         }
@@ -223,10 +225,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
      * This is useful when the sink handler may have been pre-registered (e.g., for test setup coordination).
      */
     public ExchangeSinkHandler getOrCreateSinkHandler(String exchangeId, int maxBufferSize) {
-        return sinks.computeIfAbsent(
-            exchangeId,
-            id -> new ExchangeSinkHandler(blockFactory, maxBufferSize, threadPool.relativeTimeInMillisSupplier())
-        );
+        return sinks.computeIfAbsent(exchangeId, id -> new ExchangeSinkHandler(maxBufferSize, threadPool.relativeTimeInMillisSupplier()));
     }
 
     /**
@@ -345,10 +344,11 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         @Override
         public void messageReceived(ExchangeRequest request, TransportChannel channel, Task exchangeTask) {
             final String exchangeId = request.exchangeId();
-            ActionListener<ExchangeResponse> listener = new ChannelActionListener<>(channel);
+            // The serialized page is charged until it is written, so a page waiting for a slow reader is charged.
+            ActionListener<ExchangeResponse> listener = new ChannelActionListener<>(channel, blockFactory.breaker());
             final ExchangeSinkHandler sinkHandler = sinks.get(exchangeId);
             if (sinkHandler == null) {
-                listener.onResponse(new ExchangeResponse(blockFactory, null, true));
+                listener.onResponse(new ExchangeResponse(null, true));
             } else {
                 final CancellableTask task = (CancellableTask) exchangeTask;
                 task.addListener(() -> sinkHandler.onFailure(new TaskCancelledException("request cancelled " + task.getReasonCancelled())));
@@ -476,13 +476,13 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         @Override
         public void fetchPageAsync(boolean allSourcesFinished, ActionListener<ExchangeResponse> listener) {
             if (allSourcesFinished) {
-                close(listener.map(unused -> new ExchangeResponse(blockFactory, null, true)));
+                close(listener.map(unused -> new ExchangeResponse(null, true)));
                 return;
             }
             // already finished
             SubscribableListener<Void> completionListener = completionListenerRef.get();
             if (completionListener != null) {
-                completionListener.addListener(listener.map(unused -> new ExchangeResponse(blockFactory, null, true)));
+                completionListener.addListener(listener.map(unused -> new ExchangeResponse(null, true)));
                 return;
             }
             doFetchPageAsync(false, ActionListener.wrap(r -> {
@@ -524,7 +524,25 @@ public final class ExchangeService extends AbstractLifecycleComponent {
                         transportService.getThreadPool().getThreadContext().takeResponseHeaders("Warning");
                         return resp;
                     }
-                }, responseExecutor)
+                }, responseExecutor) {
+                    /** The bytes of the response that have arrived. Its pieces arrive one after another on a transport worker. */
+                    private long arrivedBytes;
+
+                    @Override
+                    public Releasable reserveResponseBytes(int bytes) {
+                        // The fetch reserved an estimate of the page, which is zero for the first page. Charge what arrives beyond it,
+                        // until the page is read and its blocks are charged.
+                        final long covered = Math.clamp(reservedBytes - arrivedBytes, 0L, bytes);
+                        arrivedBytes += bytes;
+                        final long uncovered = bytes - covered;
+                        if (uncovered == 0) {
+                            // Not NO_RESERVATION, which would stop the reservations for the rest of the response.
+                            return () -> {};
+                        }
+                        blockFactory.breaker().addEstimateBytesAndMaybeBreak(uncovered, "fetch page");
+                        return Releasables.assertOnce(() -> blockFactory.breaker().addWithoutBreaking(-uncovered));
+                    }
+                }
             );
         }
 

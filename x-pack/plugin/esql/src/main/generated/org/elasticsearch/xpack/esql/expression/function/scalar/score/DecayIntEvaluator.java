@@ -98,7 +98,7 @@ public final class DecayIntEvaluator implements ExpressionEvaluator {
   }
 
   public DoubleVector eval(int positionCount, IntVector valueVector) {
-    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
+    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         int value = valueVector.getInt(p);
         result.appendDouble(p, Decay.process(value, this.origin, this.scale, this.offset, this.decay, this.decayFunction));

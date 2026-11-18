@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.querysampling.capture;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.querysampling.QuerySamplingSettings;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
@@ -29,6 +31,21 @@ public class CaptureRateTests extends ESTestCase {
         rate = new CaptureRate(0.01, 3600);
         rate.observe(500, 10); // 50 a second: 2% give 3600 an hour
         assertThat(rate.effective(), closeTo(0.02, 1e-12));
+    }
+
+    public void testWithTheDefaultsAQuietNodeStillGivesAHundredCapturesAnHour() {
+        CaptureRate rate = new CaptureRate(
+            QuerySamplingSettings.CAPTURE_RATE.get(Settings.EMPTY),
+            QuerySamplingSettings.MIN_CAPTURES_PER_HOUR.get(Settings.EMPTY)
+        );
+
+        rate.observe(10, 10); // 1 search a second, which is 3600 an hour: the default rate of 1% would give only 36 of them
+        assertThat(rate.effective(), closeTo(100.0 / 3600, 1e-12));
+
+        for (int i = 0; i < 10; i++) {
+            rate.observe(5000, 10); // 500 a second, 1.8 million an hour: 1% is far more than the floor, so it stays
+        }
+        assertThat(rate.effective(), equalTo(QuerySamplingSettings.CAPTURE_RATE.get(Settings.EMPTY)));
     }
 
     public void testTheConfiguredRateStaysWhenItIsAboveTheFloor() {

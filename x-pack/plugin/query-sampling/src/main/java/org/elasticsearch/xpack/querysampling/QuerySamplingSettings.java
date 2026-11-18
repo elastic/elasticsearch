@@ -23,7 +23,10 @@ public final class QuerySamplingSettings {
         Setting.Property.Dynamic
     );
 
-    /** Probability that an eligible kNN search is captured; each search is an independent coin flip. */
+    /**
+     * Probability that an eligible kNN search is captured; each search is an independent coin flip. A node with little traffic
+     * captures more, see {@link #MIN_CAPTURES_PER_HOUR}.
+     */
     public static final Setting<Double> CAPTURE_RATE = Setting.doubleSetting(
         "xpack.query_sampling.capture_rate",
         0.01,
@@ -34,12 +37,13 @@ public final class QuerySamplingSettings {
     );
 
     /**
-     * Per-node floor of captures per hour, raising the rate above {@code capture_rate} for low-traffic nodes. 0
-     * means no floor.
+     * Per-node floor of captures per hour, raising the rate above {@code capture_rate} for low-traffic nodes, so that a quiet
+     * node or hour still gives samples. 0 means no floor. With a floor, a {@code capture_rate} of 0 does not stop captures:
+     * switch sampling off with {@code xpack.query_sampling.enabled} for that.
      */
     public static final Setting<Long> MIN_CAPTURES_PER_HOUR = Setting.longSetting(
         "xpack.query_sampling.min_captures_per_hour",
-        0L,
+        100L,
         0L,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic

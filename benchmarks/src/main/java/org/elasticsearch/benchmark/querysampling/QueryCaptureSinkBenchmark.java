@@ -133,6 +133,7 @@ public class QueryCaptureSinkBenchmark {
         Settings settings = Settings.builder()
             .put(QuerySamplingSettings.ENABLED.getKey(), enabled)
             .put(QuerySamplingSettings.CAPTURE_RATE.getKey(), captureRate)
+            .put(QuerySamplingSettings.MIN_CAPTURES_PER_HOUR.getKey(), 0) // a floor would add rare captures to "not captured"
             .build();
         sink = new QueryCaptureSink(
             new ClusterSettings(

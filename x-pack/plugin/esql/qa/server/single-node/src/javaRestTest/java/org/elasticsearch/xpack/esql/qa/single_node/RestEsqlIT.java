@@ -1577,7 +1577,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
                         "partitioning_strategies",
                         matchesMap().entry("rest-esql-test:0", expectedStrategy)
                     ).extraOk();
-                    assertMap(o, matchesMap().entry("operator", startsWith(name)).entry("status", status));
+                    assertMap(o, matchesMap().entry("operator", startsWith(name)).entry("status", status).extraOk());
                 }
             }
         }

@@ -66,8 +66,8 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
     private final Literal start, end;
     private final QueryParams params;
 
-    PromqlExpressionBuilder(Literal start, Literal end, int startLine, int startColumn, QueryParams params, @Nullable String viewName) {
-        super(startLine, startColumn, viewName);
+    PromqlExpressionBuilder(Literal start, Literal end, QueryParams params, @Nullable String viewName) {
+        super(viewName);
         this.start = start;
         this.end = end;
         this.params = params;

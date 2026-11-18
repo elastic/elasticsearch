@@ -101,7 +101,8 @@ public class EsqlDatafeedNodeChurnIT extends BaseMlIntegTestCase {
      * mid-cycle. The resulting transport-level exception must be classified as a node failure and retried
      * once (visible as a DEBUG log line from the query runner); since the source index has no replica, the
      * retry itself cannot find another shard copy and the cycle fails cleanly (WARN, not ERROR) rather
-     * than looping or crashing. Either way the datafeed returns to a stable, still-scheduled state.
+     * than looping or crashing. A 1s bucket span, grouping interval and frequency keep the real-time schedule short enough to
+     * observe the next cycle querying the healed node.
      */
     public void testMidQueryNodeChurnShouldLogAtDebugAndKeepDatafeedStarted() throws Exception {
         ChurnScenario scenario = setUpChurnScenario();
@@ -184,8 +185,16 @@ public class EsqlDatafeedNodeChurnIT extends BaseMlIntegTestCase {
                 victimTransport.clearAllRules();
             }
 
-            // A single churned cycle must not wedge the datafeed: it stays STARTED and keeps its
-            // normal real-time schedule rather than retrying without bound or crashing.
+            // A single churned cycle must not wedge the datafeed: a later scheduled cycle has to run its query again,
+            // which is visible as a new data-node request reaching the healed node.
+            CountDownLatch resumedQueryReachedVictim = new CountDownLatch(1);
+            victimTransport.addRequestHandlingBehavior(ESQL_DATA_ACTION_NAME, (handler, request, channel, task) -> {
+                resumedQueryReachedVictim.countDown();
+                handler.messageReceived(request, channel, task);
+            });
+            safeAwait(resumedQueryReachedVictim, TimeValue.timeValueSeconds(60));
+            victimTransport.clearAllRules();
+
             assertBusy(() -> assertThat(getDatafeedState(datafeedId), equalTo(DatafeedState.STARTED)), 30, TimeUnit.SECONDS);
 
             // Only now -- after the retry, its resolution, and the datafeed settling back to STARTED --
@@ -231,7 +240,7 @@ public class EsqlDatafeedNodeChurnIT extends BaseMlIntegTestCase {
         long windowEnd = now - TimeValue.timeValueMinutes(1).millis();
         indexDocs(logger, indexName, 500, windowStart, windowEnd);
 
-        DatafeedConfig datafeed = buildEsqlDatafeed(datafeedId, jobId, indexName, TimeValue.timeValueMinutes(5));
+        DatafeedConfig datafeed = buildEsqlDatafeed(datafeedId, jobId, indexName, TimeValue.timeValueSeconds(1));
         client().execute(PutDatafeedAction.INSTANCE, new PutDatafeedAction.Request(datafeed)).actionGet();
 
         setMlIndicesDelayedNodeLeftTimeoutToZero();
@@ -243,7 +252,7 @@ public class EsqlDatafeedNodeChurnIT extends BaseMlIntegTestCase {
         Job.Builder builder = new Job.Builder(jobId);
         Detector.Builder detector = new Detector.Builder("count", null);
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector.build()));
-        analysisConfig.setBucketSpan(TimeValue.timeValueMinutes(5));
+        analysisConfig.setBucketSpan(TimeValue.timeValueSeconds(1));
         builder.setAnalysisConfig(analysisConfig);
         builder.setDataDescription(new DataDescription.Builder().setTimeField("time").setTimeFormat(DataDescription.EPOCH_MS));
         return builder;
@@ -253,6 +262,7 @@ public class EsqlDatafeedNodeChurnIT extends BaseMlIntegTestCase {
         return new DatafeedConfig.Builder(datafeedId, jobId).setEsqlQuery("FROM " + indexName + " | KEEP time")
             .setSourceTimeField("@timestamp")
             .setGroupingInterval(groupingInterval)
+            .setFrequency(groupingInterval)
             .setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig())
             .build();
     }

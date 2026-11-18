@@ -428,6 +428,10 @@ public final class HivePartitionDetector implements PartitionDetector {
         return castValue(value, type, null);
     }
 
+    private static boolean isNumericType(DataType type) {
+        return type == DataType.INTEGER || type == DataType.LONG || type == DataType.UNSIGNED_LONG || type == DataType.DOUBLE;
+    }
+
     /**
      * Casts one raw partition token. When {@code interner} is non-null (one detect pass), identical
      * {@link DataType#INTEGER}, {@link DataType#LONG}, and {@link DataType#KEYWORD} results share one
@@ -439,8 +443,7 @@ public final class HivePartitionDetector implements PartitionDetector {
         if (value == null) {
             return null;
         }
-        if ((type == DataType.INTEGER || type == DataType.LONG || type == DataType.UNSIGNED_LONG || type == DataType.DOUBLE)
-            && DeclaredTypeCoercions.isPlainNumberText(value) == false) {
+        if (isNumericType(type) && DeclaredTypeCoercions.isPlainNumberText(value) == false) {
             throw new NumberFormatException("Cannot parse number [" + value + "]");
         }
         Object cast;

@@ -692,7 +692,19 @@ public final class DeclaredTypeCoercions {
      * is not a number in a data file, whatever {@code Double.parseDouble} or {@code Character.digit} accept.
      */
     public static boolean isPlainNumberText(String text) {
-        return isPlainNumberText(text.toCharArray(), 0, text.length());
+        int end = text.length();
+        while (end > 0 && text.charAt(end - 1) <= ' ') {
+            end--;
+        }
+        if (end == 0) {
+            return false;
+        }
+        for (int i = 0; i < end; i++) {
+            if (isJavaOnlyNumberChar(text.charAt(i))) {
+                return false;
+            }
+        }
+        return isTypeSuffix(text.charAt(end - 1)) == false;
     }
 
     /** {@link #isPlainNumberText(String)} over the {@code len} chars of {@code buf} starting at {@code start}. */
@@ -705,21 +717,19 @@ public final class DeclaredTypeCoercions {
             return false;
         }
         for (int i = start; i < end; i++) {
-            switch (buf[i]) {
-                case 'x', 'X', 'p', 'P' -> {
-                    return false;
-                }
-                default -> {
-                    if (buf[i] > 127) {
-                        return false;
-                    }
-                }
+            if (isJavaOnlyNumberChar(buf[i])) {
+                return false;
             }
         }
-        return switch (buf[end - 1]) {
-            case 'd', 'D', 'f', 'F' -> false;
-            default -> true;
-        };
+        return isTypeSuffix(buf[end - 1]) == false;
+    }
+
+    private static boolean isJavaOnlyNumberChar(char c) {
+        return c > 127 || c == 'x' || c == 'X' || c == 'p' || c == 'P';
+    }
+
+    private static boolean isTypeSuffix(char c) {
+        return c == 'd' || c == 'D' || c == 'f' || c == 'F';
     }
 
     /**
@@ -844,6 +854,7 @@ public final class DeclaredTypeCoercions {
      * Not used for reading a file value into a declared {@code unsigned_long} column — that path is
      * {@link #exactToUnsignedLong}. Kept for Hive partition folder names ({@code HivePartitionDetector})
      * and statistics serialization, where every value reaching this method is already integral.
+     * Text is parsed with {@link BigDecimal} as given; screening it with {@link #isPlainNumberText} is the caller's job.
      * <p>
      * Public for the same reason as {@link #strictParseBoolean} and {@link #parseDatetimeMillis}: callers
      * outside this class still need the truncate-toward-zero scalar.

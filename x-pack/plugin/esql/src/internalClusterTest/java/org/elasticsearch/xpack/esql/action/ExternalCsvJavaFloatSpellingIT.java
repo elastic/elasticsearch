@@ -98,6 +98,15 @@ public class ExternalCsvJavaFloatSpellingIT extends AbstractExternalDataSourceIT
         }
     }
 
+    /** A decimal and a whole number beside one suffixed code fall back to keyword and keep every value as written. */
+    public void testDecimalColumnMeetingTypeSuffixKeepsItsValues() throws Exception {
+        String dataset = register("decmix", "v,qty\n1.5,1\n2,2\n10D,3\n");
+
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | SORT qty | KEEP v"))) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of("1.5"), List.of("2"), List.of("10D"))));
+        }
+    }
+
     /** Control: a dynamic:true overlay declaring only this one column as keyword keeps the letters. */
     public void testDeclaredOverlayOnOneColumnKeepsTheLetters() throws Exception {
         Path dir = createTempDir().resolve("overlay");

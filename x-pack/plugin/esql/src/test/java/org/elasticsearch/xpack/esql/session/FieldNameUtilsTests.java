@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.NestedScopeField;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
@@ -86,6 +87,18 @@ public class FieldNameUtilsTests extends ESTestCase {
 
     public void testBasicEvalAndDrop() {
         assertFieldNames("from test | eval x = 1 | drop x", ALL_FIELDS);
+    }
+
+    public void testNestedPredicateAsksForItsFieldsAndTheParentFields() {
+        assertFieldNames(
+            "from test | where nested_any(items.price > 1) | keep id",
+            Set.of("id", "id.*", "items.price", "items.price.*", "items", "items.*", "_index", NestedScopeField.REQUEST_MARKER)
+        );
+    }
+
+    /** A query that needs every field still asks for all of them, plus the nested-field marker. */
+    public void testNestedWithoutNarrowingAsksForAllFields() {
+        assertFieldNames("from test | where nested_any(items.price > 1)", Set.of("*", NestedScopeField.REQUEST_MARKER));
     }
 
     public void testSimple1() {

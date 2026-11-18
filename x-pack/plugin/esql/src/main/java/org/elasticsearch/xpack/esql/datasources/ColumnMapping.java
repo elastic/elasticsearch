@@ -470,9 +470,10 @@ public final class ColumnMapping implements Writeable {
     }
 
     /**
-     * Adapts pushed-down filter expressions to this file: drops conjuncts that reference columns
-     * missing from this file, downcasts literals for columns the coordinator widened. Returns the
-     * input list unchanged when no adaptation is needed (no missing columns and no cast).
+     * Adapts pushed-down filter expressions to this file: simplifies predicates on columns missing
+     * from this file, withholds predicates on present columns whose widening cast cannot be safely
+     * inverted, and downcasts literals for invertible widenings. Returns the input list unchanged
+     * when no adaptation is needed (no missing columns and no cast).
      *
      * @param filters     pushed conjuncts, in the query's per-file-query-schema shape
      * @param querySchema the per-file query schema (one attribute per position in this mapping)
@@ -482,24 +483,20 @@ public final class ColumnMapping implements Writeable {
             return filters;
         }
         Set<String> fileColumnNames = new LinkedHashSet<>();
+        Set<String> unpushableColumnNames = new LinkedHashSet<>();
         Map<String, DataType> fileColumnTypes = new HashMap<>();
         for (int i = 0; i < index.length; i++) {
             if (index[i] == -1) continue;
             String name = querySchema.get(i).name();
+            fileColumnNames.add(name);
             DataType castTo = cast != null ? cast[i] : null;
             if (castTo != null && inferFileType(castTo) == null) {
-                // We have a one-way widening cast for this column. The UBN KEYWORD fallback is
-                // the main case (no safe inverse for stringification: "1" < "10" is
-                // lexicographic, not numeric); INT→DOUBLE (lossy truncation if inverted) and
-                // DATETIME→DATE_NANOS (semantic-only widening, no integer-literal inversion)
-                // hit the same `inferFileType == null` branch and are also withheld here. Today
-                // only LONG→INTEGER inversion is safe, so the only cast that *adds* the column
-                // is LONG with a downcast literal. RECHECK runs the original predicate against
-                // the unified-shape page, preserving correctness; we forgo the row-group/file
-                // skip when the cast is one-way.
+                // The column exists, but adapting a filter through this one-way widening is unsafe.
+                // Keep it distinct from a missing column so FilterAdaptation leaves any conjunct
+                // containing it unpushed instead of applying absent-column null semantics.
+                unpushableColumnNames.add(name);
                 continue;
             }
-            fileColumnNames.add(name);
             if (castTo != null) {
                 DataType fileType = inferFileType(castTo);
                 if (fileType != null) {
@@ -507,7 +504,7 @@ public final class ColumnMapping implements Writeable {
                 }
             }
         }
-        return FilterAdaptation.adaptFilterForFile(filters, fileColumnNames, fileColumnTypes);
+        return FilterAdaptation.adaptFilterForFile(filters, fileColumnNames, fileColumnTypes, unpushableColumnNames);
     }
 
     /**

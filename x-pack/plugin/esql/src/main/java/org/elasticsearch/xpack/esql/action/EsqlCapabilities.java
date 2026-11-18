@@ -3172,6 +3172,11 @@ public class EsqlCapabilities {
         EQL_IN_SUBQUERY(Build.current().isSnapshot()),
 
         /**
+         * The EQL source command honours the request {@code filter}. Snapshot-only, gated together with {@link #EQL_COMMAND}.
+         */
+        EQL_COMMAND_REQUEST_FILTER(Build.current().isSnapshot()),
+
+        /**
          * Support for the EXTERNAL command (datasource access).
          */
         EXTERNAL_CSV_IP_SUPPORT,
